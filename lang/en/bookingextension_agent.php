@@ -623,3 +623,5 @@ $string['aifollowupsuggestionscount'] = 'Follow-up suggestions count';
 $string['aifollowupsuggestionscount_desc'] = 'How many follow-up suggestions to return after a response. Use 0 to disable.';
 $string['aiinitialprompt_summarise_text'] = 'Summary prompt prefix';
 $string['aiinitialprompt_summarise_text_desc'] = 'Optional prefix appended to the summary prompt.';
+$string['aigovernancestrictmode'] = 'Governance strict mode';
+$string['aigovernancestrictmode_desc'] = 'Fail AI task registry initialization when contract diagnostics are detected (for CI and hard contract enforcement).';

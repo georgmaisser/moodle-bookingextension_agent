@@ -856,7 +856,9 @@ class interpreter implements agent_interpreter {
         $confirmablecommands = [];
         $commandnumber = 0;
 
-        $allowedtasks = $this->registry->get_task_names();
+        $contextid = (int)\context_module::instance($cmid)->id;
+        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
+        $allowedtasks = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
         $seencommandsigs = [];
 
         foreach ($commands as $cmd) {
@@ -879,7 +881,10 @@ class interpreter implements agent_interpreter {
             $taskname = $cmd['task'];
             $attemptedtasks[] = (string)$taskname;
             if (!in_array($taskname, $allowedtasks, true)) {
-                $errors[] = "$label: task '$taskname' is not allowed.";
+                $evaluation = $evaluator->evaluate_task((string)$taskname, $userid, $contextid);
+                $denyreason = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
+                $errors[] = "$label: task '$taskname' denied by governance gate ($denyreason).";
+                $issuecodes[] = 'TASK_DENIED';
                 continue;
             }
 

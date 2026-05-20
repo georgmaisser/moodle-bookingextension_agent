@@ -621,3 +621,5 @@ $string['aifollowupsuggestionscount'] = 'Anzahl Folgevorschläge';
 $string['aifollowupsuggestionscount_desc'] = 'Anzahl der Folgevorschläge nach einer Antwort. 0 deaktiviert die Funktion.';
 $string['aiinitialprompt_summarise_text'] = 'Präfix für Zusammenfassungs-Prompt';
 $string['aiinitialprompt_summarise_text_desc'] = 'Optionaler Präfix, der dem Zusammenfassungs-Prompt vorangestellt wird.';
+$string['aigovernancestrictmode'] = 'Governance-Strict-Mode';
+$string['aigovernancestrictmode_desc'] = 'Bricht die Initialisierung der AI-Task-Registry ab, sobald Contract-Diagnosen erkannt werden (fuer CI und harte Contract-Enforcement-Regeln).';

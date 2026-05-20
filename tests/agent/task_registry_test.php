@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace mod_booking;
+namespace bookingextionsion_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
@@ -81,6 +81,24 @@ final class task_registry_test extends booking_advanced_testcase {
     }
 
     /**
+     * Strict governance mode should fail fast on contract diagnostics.
+     */
+    public function test_strict_mode_throws_on_contract_diagnostics(): void {
+        $this->resetAfterTest(true);
+        set_config('aigovernancestrictmode', 1, 'bookingextension_agent');
+
+        $registry = new task_registry();
+        $registry->register($this->make_provider('local_first', [
+            $this->make_task('booking.strict_duplicate', true),
+        ]));
+
+        $this->expectException(\coding_exception::class);
+        $registry->register($this->make_provider('local_second', [
+            $this->make_task('booking.strict_duplicate', false),
+        ]));
+    }
+
+    /**
      * Create a lightweight task double.
      *
      * @param string $name
@@ -120,6 +138,15 @@ final class task_registry_test extends booking_advanced_testcase {
              * @return array
              */
             public function get_schema(): array {
+                return [];
+            }
+
+            /**
+             * Get example input.
+             *
+             * @return array
+             */
+            public function get_example_input(): array {
                 return [];
             }
 
@@ -228,6 +255,24 @@ final class task_registry_test extends booking_advanced_testcase {
              * @return array
              */
             public function get_contextual_prompt_packs(): array {
+                return [];
+            }
+
+            /**
+             * Get optional issue code provider.
+             *
+             * @return \bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface|null
+             */
+            public function get_issue_code_provider(): ?\bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface {
+                return null;
+            }
+
+            /**
+             * Get optional prompt guidance metadata.
+             *
+             * @return array<string,mixed>
+             */
+            public function get_prompt_guidance(): array {
                 return [];
             }
         };

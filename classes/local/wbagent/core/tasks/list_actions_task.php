@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
+use context_module;
+use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task;
 use bookingextension_agent\local\wbagent\booking\tasks\bulk_update_options_task;
@@ -24,6 +26,7 @@ use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_ta
 use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
 use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 
 /**
@@ -163,7 +166,9 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
         $actions = [];
         $selectedtasknames = [];
         $registry = task_registry_factory::get_default();
-        foreach ($registry->get_task_names() as $name) {
+        $contextid = (int)context_module::instance($cmid)->id;
+        $evaluator = new task_executability_evaluator($registry, new authorization_service());
+        foreach ($registry->get_task_names_for_context($evaluator, $userid, $contextid) as $name) {
             if ($scope === 'readonly' && !$registry->is_read_only_task($name)) {
                 continue;
             }

@@ -49,6 +49,12 @@ class task_registry {
     /** @var array<string, task_interface> task name => task instance */
     private array $tasks = [];
 
+    /** @var array<string,array<string,mixed>> task name => normalized governance metadata */
+    private array $taskcontracts = [];
+
+    /** @var array<int,string> contract diagnostics collected during registration */
+    private array $contractdiagnostics = [];
+
     /** @var array<int,result_summary_contributor_interface> */
     private array $resultsummarycontributors = [];
 
@@ -85,24 +91,40 @@ class task_registry {
         foreach ($provider->get_tasks() as $task) {
             $taskname = trim($task->get_name());
             if ($taskname === '') {
-                \debugging(
-                    'Ignoring AI task with empty name from component ' . $provider->get_component(),
-                    DEBUG_DEVELOPER
+                $this->add_contract_diagnostic(
+                    'Ignoring AI task with empty name from component ' . $provider->get_component()
                 );
                 continue;
             }
 
             if (isset($this->tasks[$taskname])) {
-                \debugging(
+                $this->add_contract_diagnostic(
                     'Duplicate AI task name detected: ' . $taskname
-                    . ' (component: ' . $provider->get_component() . '). Keeping first registered task.',
-                    DEBUG_DEVELOPER
+                    . ' (component: ' . $provider->get_component() . '). Keeping first registered task.'
+                );
+                continue;
+            }
+
+            $metadata = task_contract_validator::build_task_metadata($task, $provider->get_component());
+            $validation = task_contract_validator::validate_task_metadata($metadata);
+            if (!$validation['valid']) {
+                $this->add_contract_diagnostic(
+                    'Ignoring task due to contract validation errors: ' . $taskname
+                    . ' [' . implode(' | ', (array)$validation['errors']) . ']'
                 );
                 continue;
             }
 
             $this->tasks[$taskname] = $task;
+            $this->taskcontracts[$taskname] = $metadata;
         }
+
+        $registryerrors = task_contract_validator::validate_registry_contracts($this->taskcontracts);
+        foreach ($registryerrors as $error) {
+            $this->add_contract_diagnostic($error);
+        }
+
+        $this->fail_on_contract_diagnostics_when_strict();
     }
 
     /**
@@ -125,12 +147,62 @@ class task_registry {
     }
 
     /**
+     * Return task names for the given user/context filtered by executability.
+     *
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @param bool $includeunavailable
+     * @return array<int,string>
+     */
+    public function get_task_names_for_context(
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid,
+        bool $includeunavailable = false
+    ): array {
+        if ($includeunavailable) {
+            return $this->get_task_names();
+        }
+
+        return $evaluator->get_executable_task_names($userid, $contextid);
+    }
+
+    /**
      * Return all registered task instances.
      *
      * @return array
      */
     public function get_tasks(): array {
         return $this->tasks;
+    }
+
+    /**
+     * Return normalized governance metadata for a single task.
+     *
+     * @param string $taskname
+     * @return array<string,mixed>|null
+     */
+    public function get_task_contract(string $taskname): ?array {
+        return $this->taskcontracts[$taskname] ?? null;
+    }
+
+    /**
+     * Return normalized governance metadata for all registered tasks.
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    public function get_task_contracts(): array {
+        return $this->taskcontracts;
+    }
+
+    /**
+     * Return contract diagnostics collected during provider/task registration.
+     *
+     * @return array<int,string>
+     */
+    public function get_contract_diagnostics(): array {
+        return $this->contractdiagnostics;
     }
 
     /**
@@ -154,6 +226,36 @@ class task_registry {
     }
 
     /**
+     * Return whether a task is active according to governance metadata.
+     *
+     * @param string $taskname
+     * @return bool
+     */
+    public function is_task_active(string $taskname): bool {
+        $meta = $this->get_task_contract($taskname);
+        if ($meta === null) {
+            return false;
+        }
+
+        return (bool)($meta['active'] ?? false);
+    }
+
+    /**
+     * Return task capability requirements from governance metadata.
+     *
+     * @param string $taskname
+     * @return array<int,string>
+     */
+    public function get_task_capabilities(string $taskname): array {
+        $meta = $this->get_task_contract($taskname);
+        if ($meta === null) {
+            return [];
+        }
+
+        return array_values((array)($meta['capabilities'] ?? []));
+    }
+
+    /**
      * Return schemas for all registered tasks (for inclusion in the system prompt).
      *
      * @return array  task name => schema array
@@ -164,6 +266,65 @@ class task_registry {
             $schemas[$name] = $task->get_schema();
         }
         return $schemas;
+    }
+
+    /**
+     * Return schemas filtered for the given user/context executability.
+     *
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @param bool $includeunavailable
+     * @return array<string,mixed>
+     */
+    public function get_all_schemas_for_context(
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid,
+        bool $includeunavailable = false
+    ): array {
+        $schemas = [];
+        $tasknames = $this->get_task_names_for_context($evaluator, $userid, $contextid, $includeunavailable);
+
+        foreach ($tasknames as $name) {
+            $task = $this->get_task((string)$name);
+            if ($task === null) {
+                continue;
+            }
+
+            $schemas[(string)$name] = $task->get_schema();
+        }
+
+        return $schemas;
+    }
+
+    /**
+     * Return one task schema enriched with executability diagnostics.
+     *
+     * @param string $taskname
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @return array<string,mixed>|null
+     */
+    public function explain_task_schema_for_context(
+        string $taskname,
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid
+    ): ?array {
+        $task = $this->get_task($taskname);
+        if ($task === null) {
+            return null;
+        }
+
+        $schema = (array)$task->get_schema();
+        $evaluation = $evaluator->evaluate_task($taskname, $userid, $contextid);
+        $schema['executable_state'] = (string)($evaluation['executable_state'] ?? 'deny');
+        $schema['deny_reason'] = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
+        $schema['governance_diagnostics'] = (array)($evaluation['diagnostics'] ?? []);
+
+        return $schema;
     }
 
     /**
@@ -179,6 +340,38 @@ class task_registry {
         foreach ($this->tasks as $name => $task) {
             $contracts[] = $this->build_prompt_contract($name, $task);
         }
+        return $contracts;
+    }
+
+    /**
+     * Return prompt contracts filtered for the given user/context executability.
+     *
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @param bool $includeunavailable
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_prompt_contracts_for_context(
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid,
+        bool $includeunavailable = false
+    ): array {
+        $allowed = array_fill_keys(
+            $this->get_task_names_for_context($evaluator, $userid, $contextid, $includeunavailable),
+            true
+        );
+        $contracts = [];
+
+        foreach ($this->tasks as $name => $task) {
+            if (!isset($allowed[$name])) {
+                continue;
+            }
+
+            $contracts[] = $this->build_prompt_contract($name, $task);
+        }
+
         return $contracts;
     }
 
@@ -252,6 +445,27 @@ class task_registry {
             }
             if (!empty($spec['required'])) {
                 $fields[] = $name;
+            }
+        }
+
+        if (empty($fields)) {
+            $preferred = [
+                'query',
+                'question',
+                'scope',
+                'taskname',
+                'optionquery',
+                'userquery',
+                'coursequery',
+                'doc_path',
+                'doc_path_candidates',
+                'topic_hint',
+            ];
+
+            foreach ($preferred as $name) {
+                if (array_key_exists($name, $properties)) {
+                    $fields[] = $name;
+                }
             }
         }
 
@@ -426,5 +640,50 @@ class task_registry {
         }
 
         return $registry;
+    }
+
+    /**
+     * Append a contract diagnostic and forward to developer debugging output.
+     *
+     * @param string $message
+     * @return void
+     */
+    private function add_contract_diagnostic(string $message): void {
+        $message = trim($message);
+        if ($message === '') {
+            return;
+        }
+
+        $this->contractdiagnostics[] = $message;
+        \debugging($message, DEBUG_DEVELOPER);
+    }
+
+    /**
+     * Throw when strict governance mode is enabled and diagnostics exist.
+     *
+     * @return void
+     */
+    private function fail_on_contract_diagnostics_when_strict(): void {
+        if (!$this->is_governance_strict_mode_enabled()) {
+            return;
+        }
+
+        if (empty($this->contractdiagnostics)) {
+            return;
+        }
+
+        throw new \coding_exception(
+            'AI task governance strict mode blocked registry initialization: '
+            . implode(' || ', $this->contractdiagnostics)
+        );
+    }
+
+    /**
+     * Whether governance strict mode is enabled via plugin config.
+     *
+     * @return bool
+     */
+    private function is_governance_strict_mode_enabled(): bool {
+        return (bool)get_config('bookingextension_agent', 'aigovernancestrictmode');
     }
 }

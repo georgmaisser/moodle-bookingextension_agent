@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace mod_booking;
+namespace bookingextionsion_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 

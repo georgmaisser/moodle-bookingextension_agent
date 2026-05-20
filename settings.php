@@ -122,4 +122,13 @@ $aisettingspage->add(
     )
 );
 
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/aigovernancestrictmode',
+        get_string('aigovernancestrictmode', 'bookingextension_agent'),
+        get_string('aigovernancestrictmode_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
 $adminroot->add('modbookingfolder', $aisettingspage);

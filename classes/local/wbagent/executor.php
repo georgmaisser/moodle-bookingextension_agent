@@ -93,6 +93,7 @@ class executor implements agent_executor {
         // Re-check authorization (always re-verify in adhoc context).
         $this->authz->require_use_capability($userid, $contextid);
         $this->authz->require_valid_context($contextid);
+        $evaluator = new task_executability_evaluator($this->registry, $this->authz);
 
         // Idempotency guard.
         if ($this->store->run_exists_other_than($idempotencykey, $runid)) {
@@ -124,6 +125,19 @@ class executor implements agent_executor {
                     'status' => 'error',
                     'detail' => get_string('agent_executor_task_not_registered', 'bookingextension_agent', $taskname),
                     'resultid' => null,
+                ];
+                continue;
+            }
+
+            $evaluation = $evaluator->evaluate_task((string)$taskname, $userid, $contextid);
+            if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
+                $denyreason = trim((string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED));
+                $results[] = [
+                    'status' => 'error',
+                    'detail' => 'Task denied by governance gate (' . $denyreason . '): ' . (string)$taskname,
+                    'resultid' => null,
+                    'deny_reason' => $denyreason,
+                    'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
                 ];
                 continue;
             }

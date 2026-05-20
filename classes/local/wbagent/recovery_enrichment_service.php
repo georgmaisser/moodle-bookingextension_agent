@@ -53,6 +53,8 @@ class recovery_enrichment_service {
      * @param int $threadid
      * @param int $cmid
      * @param int $userid
+    * @param task_executability_evaluator $evaluator
+    * @param int $contextid
      * @param callable $buildinput
      * @param callable $lookslookuprequest
      * @param callable $looksdiagnosticintent
@@ -67,6 +69,8 @@ class recovery_enrichment_service {
         int $threadid,
         int $cmid,
         int $userid,
+        task_executability_evaluator $evaluator,
+        int $contextid,
         callable $buildinput,
         callable $lookslookuprequest,
         callable $looksdiagnosticintent,
@@ -84,16 +88,27 @@ class recovery_enrichment_service {
         $usedtriggers = (array)($result['used_triggers'] ?? []);
         $nextstepintent = trim((string)($result['next_step_intent'] ?? ''));
         $candidatetasks = [];
+        $allowedtasknames = array_fill_keys(
+            $this->registry->get_task_names_for_context($evaluator, $userid, $contextid),
+            true
+        );
 
         if (empty($candidatetasks) && $lookslookuprequest($usermessage, $result)) {
             $taskname = 'booking.explain_docs_topic';
-            if ($this->registry->is_read_only_task($taskname) && $this->registry->get_task($taskname) !== null) {
+            if (
+                isset($allowedtasknames[$taskname])
+                && $this->registry->is_read_only_task($taskname)
+                && $this->registry->get_task($taskname) !== null
+            ) {
                 $candidatetasks[$taskname] = true;
             }
         }
 
         if (empty($candidatetasks) && $looksdiagnosticintent($usermessage)) {
             foreach ($this->registry->get_task_names() as $taskname) {
+                if (!isset($allowedtasknames[$taskname])) {
+                    continue;
+                }
                 if (!$this->registry->is_read_only_task($taskname)) {
                     continue;
                 }
@@ -114,6 +129,9 @@ class recovery_enrichment_service {
 
         if (empty($candidatetasks) && $this->result_has_trigger($result, 'core.is_lookup_request')) {
             foreach ($this->registry->get_task_names() as $taskname) {
+                if (!isset($allowedtasknames[$taskname])) {
+                    continue;
+                }
                 if (!$this->registry->is_read_only_task($taskname)) {
                     continue;
                 }
@@ -135,6 +153,9 @@ class recovery_enrichment_service {
             if ($contextquery !== '') {
                 $scored = [];
                 foreach ($this->registry->get_task_names() as $taskname) {
+                    if (!isset($allowedtasknames[$taskname])) {
+                        continue;
+                    }
                     if (!$this->registry->is_read_only_task($taskname)) {
                         continue;
                     }
@@ -177,6 +198,9 @@ class recovery_enrichment_service {
 
         if (empty($candidatetasks)) {
             foreach ($this->registry->get_task_names() as $taskname) {
+                if (!isset($allowedtasknames[$taskname])) {
+                    continue;
+                }
                 if (!$this->registry->is_read_only_task($taskname)) {
                     continue;
                 }

@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace mod_booking;
+namespace bookingextionsion_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 use bookingextension_agent\local\wbagent\conversation_store;

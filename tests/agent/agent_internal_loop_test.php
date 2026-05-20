@@ -34,7 +34,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace mod_booking;
+namespace bookingextionsion_agent;
 
 defined('MOODLE_INTERNAL') || die();
 

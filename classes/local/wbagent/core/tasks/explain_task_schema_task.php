@@ -16,8 +16,12 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
+use context_module;
+use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\task_contract_validator;
+use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 
 /**
@@ -125,6 +129,8 @@ class explain_task_schema_task extends \bookingextension_agent\local\wbagent\boo
         $taskname = trim((string)($input['taskname'] ?? ''));
         $outputlang = $this->get_output_language($input);
         $registry = task_registry_factory::get_default();
+        $contextid = (int)context_module::instance($cmid)->id;
+        $evaluator = new task_executability_evaluator($registry, new authorization_service());
         $task = $registry->get_task($taskname);
 
         if ($task === null) {
@@ -135,7 +141,26 @@ class explain_task_schema_task extends \bookingextension_agent\local\wbagent\boo
             ];
         }
 
-        $schema = $task->get_schema();
+        $schema = $registry->explain_task_schema_for_context($taskname, $evaluator, $userid, $contextid);
+        if ($schema === null) {
+            return [
+                'status' => 'error',
+                'detail' => get_string('agent_booking_unknown_task', 'bookingextension_agent', $taskname),
+                'resultid' => null,
+            ];
+        }
+
+        if ((string)($schema['executable_state'] ?? 'deny') !== 'allow') {
+            $denyreason = (string)($schema['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
+            return [
+                'status' => 'error',
+                'detail' => 'Task denied by governance gate (' . $denyreason . '): ' . $taskname,
+                'resultid' => null,
+                'deny_reason' => $denyreason,
+                'diagnostics' => (array)($schema['governance_diagnostics'] ?? []),
+            ];
+        }
+
         $summary = $this->localized_string('agent_booking_explain_task_schema_found', $taskname, $outputlang);
         $debugmessage = implode("\n", [
             'Task: ' . self::TASK_NAME,

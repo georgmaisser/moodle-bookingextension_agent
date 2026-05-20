@@ -31,7 +31,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace mod_booking;
+namespace bookingextionsion_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 use bookingextension_agent\local\wbagent\ai_error_classifier;
@@ -147,7 +147,7 @@ final class agent_decision_service_test extends booking_advanced_testcase {
      */
     public function test_observation_summarizer_empty_fallback(): void {
         $obs = result_payload_summarizer::for_observation([], 3);
-        $this->assertSame('Step 3: Tool executed successfully.', $obs);
+        $this->assertSame('Step 3: No structured results returned.', $obs);
     }
 
     /**

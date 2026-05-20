@@ -271,8 +271,10 @@ class orchestrator {
         string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE
     ): array {
         $context = context_module::instance($cmid);
+        $contextid = (int)$context->id;
         $manager = di::get(ai_manager::class);
         $normalizedsteptype = $this->normalize_step_type($steptype);
+        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
 
         $routing = $this->resolve_action_class_for_step($manager, $context, $normalizedsteptype);
         $actionclass = (string)$routing['actionclass'];
@@ -281,8 +283,9 @@ class orchestrator {
         // Compute adaptive task catalog: tiered (mandatory + recency for Step 2+, full for Step 1).
         $recenttaskhistory = $this->extract_recent_task_names_from_messages($messages);
         $isfirstassistantturn = $this->is_first_assistant_turn($messages);
+        $promptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
         $adaptivecatalogresult = adaptive_task_catalog_service::get_adaptive_catalog(
-            $this->registry->get_all_prompt_contracts(),
+            $promptcontracts,
             $recenttaskhistory,
             $normalizedsteptype
         );
@@ -355,7 +358,7 @@ class orchestrator {
                                 );
                                 $subset = $retrieval->build_planner_catalog_subset(
                                     $toprows,
-                                    $this->registry->get_all_prompt_contracts()
+                                    $promptcontracts
                                 );
                                 if (!empty($subset)) {
                                     $runtimecatalog = $subset;
@@ -377,6 +380,8 @@ class orchestrator {
 
         $systemprompt = $this->build_system_prompt(
             $cmid,
+            $userid,
+            $contextid,
             $normalizedsteptype,
             $actionclass,
             $haseffectiveobservations,
@@ -652,6 +657,8 @@ PROMPT;
      */
     private function build_system_prompt(
         int $cmid,
+        int $userid,
+        int $contextid,
         string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
@@ -660,15 +667,16 @@ PROMPT;
         bool $isfirstassistantturn = false,
         bool $includetaskcatalog = false
     ): string {
-        $schemas = $this->registry->get_all_schemas();
-        $taskcatalog = $adaptivecatalog ?? $this->registry->get_all_prompt_contracts();
+        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
+        $schemas = $this->registry->get_all_schemas_for_context($evaluator, $userid, $contextid);
+        $taskcatalog = $adaptivecatalog ?? $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
         if (empty($systemtaskcatalog) && $this->normalize_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE) {
             $taskcatalog = $this->slim_prompt_catalog_for_planner($taskcatalog);
         }
         if (!empty($systemtaskcatalog)) {
             $taskcatalog = $systemtaskcatalog;
         }
-        $tasklist = implode(', ', $this->registry->get_task_names());
+        $tasklist = implode(', ', array_keys($schemas));
         $fullschemajson = json_encode($schemas, JSON_UNESCAPED_UNICODE);
         $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
         $systemtaskcatalogjson = $includetaskcatalog ? (string)$taskcatalogjson : '[]';

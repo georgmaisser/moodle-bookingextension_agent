@@ -152,6 +152,8 @@ class agent_decision_service {
         int $previewoptionid,
         bool $hasobservationscontext = false
     ): array {
+        $contextid = (int)\context_module::instance($cmid)->id;
+        $evaluator = new task_executability_evaluator($this->registry, $this->authz);
         $commandfallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
 
         // 1. Preview shortcut: if the user asked for a preview and one is available.
@@ -277,6 +279,8 @@ class agent_decision_service {
                 $threadid,
                 $cmid,
                 $userid,
+                $evaluator,
+                $contextid,
                 fn(
                     string $taskname,
                     string $message,
