@@ -18,7 +18,7 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use core\task\manager;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
-use mod_booking\task\rebuild_task_catalog_embeddings_adhoc;
+use bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc;
 
 /**
  * Task definition for booking.recreate_task_catalog.

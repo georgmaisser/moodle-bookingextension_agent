@@ -33,7 +33,7 @@ use core\task\manager as task_manager;
  */
 class embeddings_readiness_service {
     /** Fully qualified class name of the rebuild adhoc task. */
-    private const REBUILD_TASK_CLASS = '\\mod_booking\\task\\rebuild_task_catalog_embeddings_adhoc';
+    private const REBUILD_TASK_CLASS = '\\bookingextension_agent\\task\\rebuild_task_catalog_embeddings_adhoc';
 
     /**
      * Check if wunderbyte embeddings action can be used.
