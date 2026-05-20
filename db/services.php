@@ -27,7 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $functions = [
     'bookingextension_agent_ai_send_message' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_send_message',
+        'classname'   => '\\bookingextension_agent\\external\\ai_send_message',
         'methodname'  => 'execute',
         'description' => 'Send a user message to the AI booking agent and receive its response.',
         'type'        => 'write',
@@ -35,7 +35,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_privacy_precheck' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_privacy_precheck',
+        'classname'   => '\\bookingextension_agent\\external\\ai_privacy_precheck',
         'methodname'  => 'execute',
         'description' => 'Run privacy anonymization precheck on user text before forwarding to AI.',
         'type'        => 'read',
@@ -43,7 +43,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_confirm_run' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_confirm_run',
+        'classname'   => '\\bookingextension_agent\\external\\ai_confirm_run',
         'methodname'  => 'execute',
         'description' => 'Confirm a proposed AI run and enqueue asynchronous execution.',
         'type'        => 'write',
@@ -51,7 +51,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_poll_thread' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_poll_thread',
+        'classname'   => '\\bookingextension_agent\\external\\ai_poll_thread',
         'methodname'  => 'execute',
         'description' => 'Return all messages in an AI conversation thread.',
         'type'        => 'read',
@@ -59,7 +59,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_get_thread_debug_logs' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_get_thread_debug_logs',
+        'classname'   => '\\bookingextension_agent\\external\\ai_get_thread_debug_logs',
         'methodname'  => 'execute',
         'description' => 'Fetch raw LLM debug logs for a conversation thread (debug mode only).',
         'type'        => 'read',
@@ -67,7 +67,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_list_candidate_options' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_list_candidate_options',
+        'classname'   => '\\bookingextension_agent\\external\\ai_list_candidate_options',
         'methodname'  => 'execute',
         'description' => 'Return a list of booking options for AI disambiguation.',
         'type'        => 'read',
@@ -75,7 +75,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_render_command_preview' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_render_command_preview',
+        'classname'   => '\\bookingextension_agent\\external\\ai_render_command_preview',
         'methodname'  => 'execute',
         'description' => 'Render preview HTML for AI mutation commands using booking option row rendering.',
         'type'        => 'read',
@@ -83,7 +83,7 @@ $functions = [
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_get_doc_content' => [
-        'classname'   => '\\bookingextension_agent\\local\\wbagent\\external\\ai_get_doc_content',
+        'classname'   => '\\bookingextension_agent\\external\\ai_get_doc_content',
         'methodname'  => 'execute',
         'description' => 'Load a booking/docs markdown file and return it as rendered HTML for the AI preview pane.',
         'type'        => 'read',
