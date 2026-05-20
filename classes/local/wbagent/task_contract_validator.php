@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent;
 
+use core_text;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 
 /**
@@ -57,9 +58,12 @@ class task_contract_validator {
     public static function build_task_metadata(task_interface $task, string $component): array {
         $schema = (array)$task->get_schema();
         $governance = (array)($schema['governance'] ?? []);
-
-        $capabilities = self::normalize_capability_list($governance['capabilities'] ?? []);
         $taskname = trim($task->get_name());
+        $capabilities = [];
+        $defaultcapability = self::build_task_capability_name($component, $taskname);
+        if ($defaultcapability !== '') {
+            $capabilities[] = $defaultcapability;
+        }
 
         return [
             'taskname' => $taskname,
@@ -71,6 +75,29 @@ class task_contract_validator {
             'deprecated_since' => trim((string)($governance['deprecated_since'] ?? '')),
             'readonly' => (bool)$task->is_read_only(),
         ];
+    }
+
+    /**
+     * Build a deterministic task capability name for component/task combination.
+     *
+     * @param string $component
+     * @param string $taskname
+     * @return string
+     */
+    public static function build_task_capability_name(string $component, string $taskname): string {
+        $component = trim(core_text::strtolower($component));
+        $taskname = trim(core_text::strtolower($taskname));
+        if ($component === '' || $taskname === '') {
+            return '';
+        }
+
+        $normalizedtaskname = preg_replace('/[^a-z0-9]+/', '_', $taskname);
+        $normalizedtaskname = trim((string)$normalizedtaskname, '_');
+        if ($normalizedtaskname === '') {
+            return '';
+        }
+
+        return $component . ':task_' . $normalizedtaskname;
     }
 
     /**
@@ -161,29 +188,4 @@ class task_contract_validator {
         ];
     }
 
-    /**
-     * Normalize capability metadata to a unique list of non-empty strings.
-     *
-     * @param mixed $value
-     * @return array<int,string>
-     */
-    private static function normalize_capability_list($value): array {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $normalized = [];
-        foreach ($value as $entry) {
-            if (!is_string($entry)) {
-                continue;
-            }
-            $capability = trim($entry);
-            if ($capability === '') {
-                continue;
-            }
-            $normalized[] = $capability;
-        }
-
-        return array_values(array_unique($normalized));
-    }
 }

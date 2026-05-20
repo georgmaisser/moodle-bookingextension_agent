@@ -167,13 +167,21 @@ class task_executability_evaluator {
      * @return bool
      */
     private function has_required_capabilities(int $userid, int $contextid, string $taskname): bool {
+        $capabilities = $this->registry->get_task_capabilities($taskname);
+        if (empty($capabilities)) {
+            return false;
+        }
+
         try {
             $context = context::instance_by_id($contextid, MUST_EXIST);
         } catch (\Throwable $e) {
             return false;
         }
 
-        foreach ($this->registry->get_task_capabilities($taskname) as $capability) {
+        foreach ($capabilities as $capability) {
+            if (!get_capability_info($capability)) {
+                return false;
+            }
             if (!has_capability($capability, $context, $userid)) {
                 return false;
             }

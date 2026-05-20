@@ -70,7 +70,7 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching tasks to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 3;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 2;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild task. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 300;
@@ -299,11 +299,13 @@ class orchestrator {
         );
         $shouldincludetaskcatalog = ($normalizedsteptype === self::STEP_TYPE_TOOL_CALL_PARSE) && !$hasanyobservations;
         $runtimecatalog = [];
+        $unavailabletaskcatalog = [];
         $catalogselectionmode = 'none';
         $embeddingstatus = 'off';
         $embeddingrebuildqueued = false;
         $llm = new llm_call_service($this->store);
         if ($shouldincludetaskcatalog) {
+            $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
             $runtimecatalog = $this->slim_prompt_catalog_for_planner($adaptivecatalog);
             $catalogselectionmode = 'slim';
 
@@ -358,10 +360,49 @@ class orchestrator {
                                 );
                                 $subset = $retrieval->build_planner_catalog_subset(
                                     $toprows,
-                                    $promptcontracts
+                                    $allpromptcontracts
                                 );
                                 if (!empty($subset)) {
-                                    $runtimecatalog = $subset;
+                                    $evaluations = $evaluator->evaluate_all_tasks($userid, $contextid);
+                                    $descriptionindex = $this->build_task_description_index($allpromptcontracts);
+                                    $matchedtasknames = [];
+                                    $activesubset = [];
+                                    foreach ($subset as $entry) {
+                                        if (!is_array($entry)) {
+                                            continue;
+                                        }
+
+                                        $taskname = trim((string)($entry['task'] ?? ''));
+                                        if ($taskname === '') {
+                                            continue;
+                                        }
+
+                                        $matchedtasknames[] = $taskname;
+                                        $state = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
+                                        if ($state === 'deny') {
+                                            $unavailabletaskcatalog[] = [
+                                                'task' => $taskname,
+                                                'availability' => (string)(
+                                                    ($evaluations[$taskname]['deny_reason'] ?? '') === task_contract_validator::DENY_MISSING_CAPABILITY
+                                                        ? 'not_active_for_you'
+                                                        : (($evaluations[$taskname]['deny_reason'] ?? '') === task_contract_validator::DENY_CONTEXT_INVALID
+                                                            ? 'invalid_context'
+                                                            : (($evaluations[$taskname]['deny_reason'] ?? '') === task_contract_validator::DENY_RUNTIME_DISABLED
+                                                                ? 'runtime_disabled'
+                                                                : 'not_active_now'))
+                                                ),
+                                                'description' => (string)($descriptionindex[$taskname] ?? ''),
+                                            ];
+                                            continue;
+                                        }
+
+                                        $activesubset[] = $entry;
+                                    }
+
+                                    $runtimecatalog = $this->slim_prompt_catalog_for_planner($activesubset);
+                                    $unavailabletaskcatalog = array_values(array_filter($unavailabletaskcatalog, static function ($entry) {
+                                        return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
+                                    }));
                                     $catalogselectionmode = 'embed';
                                     $embeddingstatus = 'applied';
                                 } else {
@@ -396,6 +437,7 @@ class orchestrator {
             $isfirstassistantturn,
             $hasanyobservations,
             $runtimecatalog,
+            $unavailabletaskcatalog,
             $messages
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
@@ -519,6 +561,7 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - Keep instructions compact and action-oriented. Do not over-explain.
 - Route the latest user message to exactly ONE task_call OR ask for missing data.
 - Use only exact task names from the TASK CATALOG. Never invent aliases.
+- If a matching task appears in UNAVAILABLE TASKS, explicitly mention that the task exists but is currently not executable (or not executable for this user) and do not emit it in commands.
 
 IMMEDIATE EXECUTION RULE (highest priority, apply FIRST):
 - For diagnostic queries (diagnose_booking_issue task), IMMEDIATELY extract and execute.
@@ -1102,6 +1145,7 @@ PROMPT;
         bool $isfirstassistantturn = false,
         bool $hasobservations = false,
         array $taskcatalog = [],
+        array $unavailabletaskcatalog = [],
         array $messages = []
     ): string {
         $timezonename = (string)(get_config('core', 'timezone') ?? '');
@@ -1138,12 +1182,19 @@ PROMPT;
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
         }
 
-        if (!empty($taskcatalog)) {
-            $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
-            if (is_string($taskcatalogjson) && $taskcatalogjson !== '') {
+        $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
+        if (is_string($taskcatalogjson) && $taskcatalogjson !== '') {
+            $lines[] = '';
+            $lines[] = 'TASK CATALOG:';
+            $lines[] = $taskcatalogjson;
+        }
+
+        if (!empty($unavailabletaskcatalog)) {
+            $unavailablejson = json_encode($unavailabletaskcatalog, JSON_UNESCAPED_UNICODE);
+            if (is_string($unavailablejson) && $unavailablejson !== '') {
                 $lines[] = '';
-                $lines[] = 'TASK CATALOG:';
-                $lines[] = $taskcatalogjson;
+                $lines[] = 'UNAVAILABLE TASKS:';
+                $lines[] = $unavailablejson;
             }
         }
 
@@ -1161,6 +1212,39 @@ PROMPT;
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Build compact runtime metadata for tasks that are known but currently unavailable.
+     *
+     * @param array<string,array<string,mixed>> $evaluations
+     * @param array<string,string> $descriptionindex
+     * @param array<int,string> $taskfilter
+     * @return array<int,array<string,string>>
+     */
+    /**
+     * Build task-description lookup map from prompt contracts.
+     *
+     * @param array<int,array<string,mixed>> $promptcontracts
+     * @return array<string,string>
+     */
+    private function build_task_description_index(array $promptcontracts): array {
+        $index = [];
+
+        foreach ($promptcontracts as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+
+            $taskname = trim((string)($contract['task'] ?? ''));
+            if ($taskname === '') {
+                continue;
+            }
+
+            $index[$taskname] = trim((string)($contract['description'] ?? ''));
+        }
+
+        return $index;
     }
 
     /**

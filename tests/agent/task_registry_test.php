@@ -99,6 +99,58 @@ final class task_registry_test extends booking_advanced_testcase {
     }
 
     /**
+     * Task toggle config should override metadata active flag.
+     */
+    public function test_task_active_uses_config_toggle_override(): void {
+        $this->resetAfterTest(true);
+
+        $registry = new task_registry();
+        $registry->register($this->make_provider('bookingextension_agent', [
+            $this->make_task('booking.toggle_case', true),
+        ]));
+
+        $settingname = task_registry::get_task_toggle_setting_name('booking.toggle_case');
+
+        set_config($settingname, 0, 'bookingextension_agent');
+        $this->assertFalse($registry->is_task_active('booking.toggle_case'));
+
+        set_config($settingname, 1, 'bookingextension_agent');
+        $this->assertTrue($registry->is_task_active('booking.toggle_case'));
+    }
+
+    /**
+     * Task should default to inactive when no per-task toggle is configured.
+     */
+    public function test_task_active_defaults_to_off_when_unconfigured(): void {
+        $this->resetAfterTest(true);
+
+        $registry = new task_registry();
+        $registry->register($this->make_provider('bookingextension_agent', [
+            $this->make_task('booking.default_off_case', true),
+        ]));
+
+        $this->assertFalse($registry->is_task_active('booking.default_off_case'));
+    }
+
+    /**
+     * Global enable-all setting should override per-task toggle values.
+     */
+    public function test_task_active_global_enable_all_overrides_toggles(): void {
+        $this->resetAfterTest(true);
+
+        $registry = new task_registry();
+        $registry->register($this->make_provider('bookingextension_agent', [
+            $this->make_task('booking.enable_all_case', true),
+        ]));
+
+        $settingname = task_registry::get_task_toggle_setting_name('booking.enable_all_case');
+        set_config($settingname, 0, 'bookingextension_agent');
+        set_config('aitaskenableall', 1, 'bookingextension_agent');
+
+        $this->assertTrue($registry->is_task_active('booking.enable_all_case'));
+    }
+
+    /**
      * Create a lightweight task double.
      *
      * @param string $name

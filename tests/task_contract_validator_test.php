@@ -101,4 +101,24 @@ final class task_contract_validator_test extends TestCase {
         $this->assertNotEmpty($errors);
         $this->assertStringContainsString('Alias target not found', $errors[0]);
     }
+
+    /**
+     * Task capability names should be built deterministically from component and task.
+     */
+    public function test_build_task_capability_name_is_deterministic(): void {
+        $capability = task_contract_validator::build_task_capability_name(
+            'bookingextension_agent',
+            'booking.create_option'
+        );
+
+        $this->assertSame('bookingextension_agent:task_booking_create_option', $capability);
+    }
+
+    /**
+     * Empty component or task should return empty capability name.
+     */
+    public function test_build_task_capability_name_empty_parts_return_empty(): void {
+        $this->assertSame('', task_contract_validator::build_task_capability_name('', 'booking.create_option'));
+        $this->assertSame('', task_contract_validator::build_task_capability_name('bookingextension_agent', ''));
+    }
 }

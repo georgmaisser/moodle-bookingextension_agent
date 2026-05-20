@@ -17,6 +17,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\task_registry_factory;
 
 global $CFG;
 
@@ -130,5 +132,65 @@ $aisettingspage->add(
         0
     )
 );
+
+$aisettingspage->add(
+    new admin_setting_heading(
+        'bookingextension_agent_aitaskgovernance_heading',
+        get_string('aitaskgovernanceheading', 'bookingextension_agent'),
+        get_string('aitaskgovernanceheading_desc', 'bookingextension_agent')
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/aitaskenableall',
+        get_string('aitaskenableall', 'bookingextension_agent'),
+        get_string('aitaskenableall_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+try {
+    $registry = task_registry_factory::get_default();
+    $contracts = $registry->get_task_contracts();
+    ksort($contracts);
+
+    foreach ($contracts as $taskname => $meta) {
+        $capabilities = (array)($meta['capabilities'] ?? []);
+        $capabilitylabel = implode(', ', $capabilities);
+        if ($capabilitylabel === '') {
+            $capabilitylabel = '-';
+        }
+
+        $settingkey = 'bookingextension_agent/' . task_registry::get_task_toggle_setting_name((string)$taskname);
+        $settingtitle = get_string('aitaskenabled_label', 'bookingextension_agent', (string)$taskname);
+        $settingdesc = get_string(
+            'aitaskenabled_desc',
+            'bookingextension_agent',
+            (object)[
+                'component' => (string)($meta['component'] ?? ''),
+                'capability' => $capabilitylabel,
+            ]
+        );
+        $default = 0;
+
+        $aisettingspage->add(
+            new admin_setting_configcheckbox(
+                $settingkey,
+                $settingtitle,
+                $settingdesc,
+                $default
+            )
+        );
+    }
+} catch (\Throwable $e) {
+    $aisettingspage->add(
+        new admin_setting_heading(
+            'bookingextension_agent_aitaskgovernance_unavailable',
+            get_string('aitaskgovernanceunavailable', 'bookingextension_agent'),
+            get_string('aitaskgovernanceunavailable_desc', 'bookingextension_agent')
+        )
+    );
+}
 
 $adminroot->add('modbookingfolder', $aisettingspage);

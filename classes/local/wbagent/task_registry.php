@@ -25,6 +25,7 @@
 namespace bookingextension_agent\local\wbagent;
 
 use core_component;
+use core_text;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\summarizer\result_summary_contributor_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
@@ -237,7 +238,34 @@ class task_registry {
             return false;
         }
 
-        return (bool)($meta['active'] ?? false);
+        if ((bool)get_config('bookingextension_agent', 'aitaskenableall')) {
+            return true;
+        }
+
+        $settingname = self::get_task_toggle_setting_name($taskname);
+        $configured = get_config('bookingextension_agent', $settingname);
+        if ($configured !== false) {
+            return (bool)$configured;
+        }
+
+        // Default-off for newly discovered tasks until explicitly enabled.
+        return false;
+    }
+
+    /**
+     * Return config key used for system-wide task enabled/disabled flag.
+     *
+     * @param string $taskname
+     * @return string
+     */
+    public static function get_task_toggle_setting_name(string $taskname): string {
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', core_text::strtolower(trim($taskname)));
+        $normalized = trim((string)$normalized, '_');
+        if ($normalized === '') {
+            $normalized = 'unknown_task';
+        }
+
+        return 'aitaskenabled_' . $normalized;
     }
 
     /**
