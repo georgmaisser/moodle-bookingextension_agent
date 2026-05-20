@@ -24,7 +24,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\external;
+namespace bookingextension_agent\external;
 
 use core\task\manager as task_manager;
 use context_module;
@@ -42,7 +42,7 @@ use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\task_registry;
-use mod_booking\task\execute_ai_run_adhoc;
+use bookingextension_agent\task\execute_ai_run_adhoc;
 
 
 /**

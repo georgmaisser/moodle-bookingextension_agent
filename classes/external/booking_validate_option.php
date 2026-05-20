@@ -24,7 +24,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\external;
+namespace bookingextension_agent\external;
 
 use context_module;
 use core_external\external_api;

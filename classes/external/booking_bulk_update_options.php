@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * External service: create a booking option (v1 Application-Service API).
+ * External service: bulk-update booking options (v1 Application-Service API).
  *
  * @package    mod_booking
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -24,7 +24,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\external;
+namespace bookingextension_agent\external;
 
 use context_module;
 use core_external\external_api;
@@ -33,18 +33,18 @@ use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wbagent\authorization_service;
-use bookingextension_agent\local\wbagent\dto\create_option_input_dto;
+use bookingextension_agent\local\wbagent\dto\bulk_update_options_input_dto;
 use bookingextension_agent\local\wbagent\services\mutation\option_mutation_service;
 
 
 /**
- * Create a booking option via the versioned Application-Service API (v1).
+ * Bulk-update booking options via the versioned Application-Service API (v1).
  *
  * @package    mod_booking
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class booking_create_option extends external_api {
+class booking_bulk_update_options extends external_api {
     /**
      * Describe the parameters.
      *
@@ -53,7 +53,10 @@ class booking_create_option extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'cmid'           => new external_value(PARAM_INT, 'Course-module id.'),
-            'fields'         => new external_value(PARAM_RAW, 'JSON-encoded option fields (must include "text").'),
+            'fields'         => new external_value(
+                PARAM_RAW,
+                'JSON-encoded fields (optionids, optionquery, or apply_to_all=true required).'
+            ),
             'idempotencykey' => new external_value(
                 PARAM_ALPHANUMEXT,
                 'Client-supplied idempotency key for safe retries.',
@@ -64,11 +67,11 @@ class booking_create_option extends external_api {
     }
 
     /**
-     * Create a booking option.
+     * Bulk-update booking options.
      *
      * @param int    $cmid
-     * @param string $fields          JSON-encoded option fields.
-     * @param string $idempotencykey  Optional client-supplied idempotency key.
+     * @param string $fields         JSON-encoded fields.
+     * @param string $idempotencykey Optional client-supplied idempotency key.
      * @return array
      */
     public static function execute(int $cmid, string $fields, string $idempotencykey = ''): array {
@@ -106,15 +109,10 @@ class booking_create_option extends external_api {
             return ['status' => 'error', 'detail' => 'Invalid JSON in fields parameter.', 'resultid' => 0, 'warnings' => []];
         }
 
-        try {
-            $dto = create_option_input_dto::from_array($fieldsarray);
-        } catch (\InvalidArgumentException $e) {
-            return ['status' => 'error', 'detail' => $e->getMessage(), 'resultid' => 0, 'warnings' => []];
-        }
-
+        $dto     = bulk_update_options_input_dto::from_array($fieldsarray);
         $service = new option_mutation_service();
 
-        $validation = $service->validate_create($dto, $params['cmid']);
+        $validation = $service->validate_bulk_update($dto, $params['cmid']);
         if (!($validation['valid'] ?? false)) {
             $detail = implode('; ', array_merge(
                 array_values((array)($validation['errors'] ?? [])),
@@ -123,7 +121,7 @@ class booking_create_option extends external_api {
             return ['status' => 'error', 'detail' => $detail, 'resultid' => 0, 'warnings' => []];
         }
 
-        $result = $service->create_option($dto, $params['cmid'], (int)$USER->id);
+        $result = $service->bulk_update_options($dto, $params['cmid'], (int)$USER->id);
         return [
             'status'   => $result->status,
             'detail'   => $result->detail,
@@ -141,7 +139,7 @@ class booking_create_option extends external_api {
         return new external_single_structure([
             'status'   => new external_value(PARAM_TEXT, 'Result status (executed|error|skipped).'),
             'detail'   => new external_value(PARAM_RAW, 'Human-readable detail message.'),
-            'resultid' => new external_value(PARAM_INT, 'ID of the created option, or 0.'),
+            'resultid' => new external_value(PARAM_INT, 'First updated option id, or 0.'),
             'warnings' => new external_multiple_structure(
                 new external_value(PARAM_TEXT, 'Warning text.'),
                 'Warnings.',
