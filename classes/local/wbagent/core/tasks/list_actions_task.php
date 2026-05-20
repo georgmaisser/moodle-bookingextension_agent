@@ -360,6 +360,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
 
         if (
             isset($available[list_option_properties_task::TASK_NAME])
+            || isset($available[explain_task_schema_task::TASK_NAME])
             || isset($available[self::TASK_NAME])
         ) {
             $capabilities[] = [

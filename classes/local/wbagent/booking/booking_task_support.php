@@ -36,6 +36,7 @@ use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
 use bookingextension_agent\local\wbagent\booking\tasks\search_users_task;
 use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
 use bookingextension_agent\local\wbagent\core\tasks\create_user_task;
+use bookingextension_agent\local\wbagent\core\tasks\explain_task_schema_task;
 use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
 use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
 use bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task;
@@ -1601,6 +1602,7 @@ class booking_task_support {
             add_price_category_task::TASK_NAME => 'ai_action_add_price_category',
             list_option_properties_task::TASK_NAME => 'ai_action_list_option_properties',
             list_actions_task::TASK_NAME => 'ai_action_list_actions',
+            explain_task_schema_task::TASK_NAME => 'ai_action_explain_task_schema',
             get_current_user_task::TASK_NAME => 'ai_action_get_current_user',
             'booking.recall_memory' => 'ai_action_recall_memory',
             recreate_task_catalog_task::TASK_NAME => 'ai_action_recreate_task_catalog',
