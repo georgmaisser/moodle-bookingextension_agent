@@ -1,0 +1,204 @@
+{{!
+    AI Instructions chat interface template.
+
+    @template bookingextension_agent/aiinstructions
+
+    @package    mod_booking
+    @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
+    @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+
+    Example context (json):
+    {
+        "cmid": 1,
+        "threadid": 0,
+        "sesskey": "abc123",
+        "ready_for_chat": false,
+        "num_options": 0,
+        "num_booked": 0,
+        "debug_mode": false,
+        "welcome_text": "",
+        "intro_text": "",
+        "admin_text": "",
+        "nonadmin_text": "",
+        "show_trial_button": false,
+        "show_trial_activate_button": false,
+        "activation_question_text": "",
+        "readiness_checks": []
+    }
+}}
+<div id="booking-ai-wrapper" class="booking-ai-instructions" data-cmid="{{cmid}}" data-threadid="{{threadid}}" data-sesskey="{{sesskey}}" data-ready-for-chat="{{#ready_for_chat}}1{{/ready_for_chat}}{{^ready_for_chat}}0{{/ready_for_chat}}" data-num-options="{{num_options}}" data-num-booked="{{num_booked}}" data-debug-mode="{{#debug_mode}}1{{/debug_mode}}{{^debug_mode}}0{{/debug_mode}}" data-trial-success-default="{{#str}}aitrial_success_activated, mod_booking{{/str}}" data-trial-reloading-label="{{#str}}aitrial_js_reloading, mod_booking{{/str}}" data-trial-failed-default="{{#str}}aitrial_js_failed_default, mod_booking{{/str}}" data-trial-unexpected-error="{{#str}}aitrial_js_unexpected_error, mod_booking{{/str}}" data-trial-activation-question="{{#str}}aitrial_activation_question, mod_booking{{/str}}" data-trial-activate-success="{{#str}}aitrial_activate_success, mod_booking{{/str}}" data-trial-activate-button="{{#str}}aitrial_activate_now, mod_booking{{/str}}" data-privacy-check-running="{{#str}}ai_privacy_check_running, mod_booking{{/str}}" data-privacy-answer-note="{{#str}}ai_privacy_response_note, mod_booking{{/str}}" data-ai-trial-token-invalid-title="{{#str}}ai_trial_token_invalid_title, mod_booking{{/str}}" data-ai-trial-token-invalid-message="{{#str}}ai_trial_token_invalid_message, mod_booking{{/str}}" data-ai-trial-token-invalid-ok="{{#str}}ok, moodle{{/str}}" data-step-planning-label="{{#str}}ai_step_planning, mod_booking{{/str}}" data-step-executing-label="{{#str}}ai_step_executing, mod_booking{{/str}}">
+
+    {{#ready_for_chat}}
+    <div class="booking-ai-chat-container card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h5 class="mb-0">{{#str}}aiinstructions, mod_booking{{/str}}</h5>
+            <span class="badge badge-success">{{#str}}ai_provider_active, mod_booking{{/str}}</span>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="booking-ai-body-layout" id="booking-ai-body-layout">
+                <div class="booking-ai-main-pane" id="booking-ai-main-pane">
+                    {{! Message history }}
+                    <div id="booking-ai-messages" class="booking-ai-messages p-3" style="min-height:300px; max-height:500px; overflow-y:auto;">
+                        {{! Welcome message }}
+                        <div class="booking-ai-msg assistant mb-3" id="booking-ai-welcome-msg">
+                            <div class="bubble" id="booking-ai-welcome-text">
+                                <p>{{welcome_text}}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{! Confirmation panel – shown when AI proposes commands }}
+                    <div id="booking-ai-confirm-panel" class="booking-ai-confirm-panel alert alert-info m-3 d-none">
+                        <h6>{{#str}}ai_confirm_heading, mod_booking{{/str}}</h6>
+                        <div id="booking-ai-confirm-preview" class="mb-2"></div>
+                        <div id="booking-ai-option-preview-wrap" class="mb-3 d-none">
+                            <div id="booking-ai-option-preview"></div>
+                        </div>
+                        <button id="booking-ai-btn-confirm" class="btn btn-primary mr-2">
+                            {{#str}}ai_btn_confirm, mod_booking{{/str}}
+                        </button>
+                        <button id="booking-ai-btn-confirm-session" class="btn btn-outline-primary mr-2">
+                            {{#str}}ai_btn_confirm_session, mod_booking{{/str}}
+                        </button>
+                        <button id="booking-ai-btn-cancel" class="btn btn-secondary">
+                            {{#str}}ai_btn_cancel, mod_booking{{/str}}
+                        </button>
+                    </div>
+
+                    {{! Run status panel }}
+                    <div id="booking-ai-run-status" class="booking-ai-run-status alert m-3 d-none"></div>
+                    <div id="booking-ai-run-preview-wrap" class="m-3 d-none">
+                        <div id="booking-ai-run-preview"></div>
+                    </div>
+                </div>
+
+                <div class="booking-ai-splitter" id="booking-ai-splitter" role="separator" aria-orientation="vertical" aria-label="Resize preview panel">
+                    <span class="booking-ai-splitter-handle"></span>
+                </div>
+
+                <aside class="booking-ai-preview-pane" id="booking-ai-preview-pane">
+                    <div class="booking-ai-preview-header">Preview</div>
+                    <div id="booking-ai-side-preview" class="booking-ai-side-preview-content">
+                        <div class="text-muted small">No preview yet.</div>
+                    </div>
+                </aside>
+            </div>
+            <button type="button" class="booking-ai-mobile-toggle d-lg-none" id="booking-ai-mobile-toggle" aria-controls="booking-ai-main-pane booking-ai-preview-pane" aria-pressed="false">
+                <span class="booking-ai-mobile-toggle-label">Preview</span>
+            </button>
+        </div>
+
+        <div class="card-footer">
+            <div class="input-group">
+                <textarea id="booking-ai-input"
+                          class="form-control booking-ai-input"
+                          rows="2"
+                          placeholder="{{#str}}ai_input_placeholder, mod_booking{{/str}}"
+                          ></textarea>
+                <div class="input-group-append">
+                    <button id="booking-ai-send" class="btn btn-primary">
+                        {{#str}}ai_btn_send, mod_booking{{/str}}
+                    </button>
+                </div>
+            </div>
+            <div id="booking-ai-thinking" class="text-muted small mt-1 d-none booking-ai-thinking-bar">
+                <span class="booking-ai-thinking-spinner" aria-hidden="true"></span>
+                <span id="booking-ai-thinking-label">{{#str}}ai_thinking, mod_booking{{/str}}</span>
+                <button id="booking-ai-btn-stop" type="button"
+                        class="btn btn-link btn-sm p-0 ml-2 booking-ai-btn-stop d-none">
+                    {{#str}}ai_btn_stop, mod_booking{{/str}}
+                </button>
+            </div>
+        </div>
+    </div>
+    {{/ready_for_chat}}
+
+    {{^ready_for_chat}}
+    <div class="card border-warning booking-ai-onboarding-card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h5 class="mb-0">{{#str}}aiinstructions, mod_booking{{/str}}</h5>
+            <span class="badge badge-warning text-dark">{{#str}}aiready_setup_required, mod_booking{{/str}}</span>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-light border booking-ai-intro mb-3">
+                <strong>{{#str}}aiready_intro_heading, mod_booking{{/str}}</strong>
+                <p class="mb-0 mt-2">{{intro_text}}</p>
+            </div>
+
+            {{#admin_text}}
+            <div class="alert alert-info">{{admin_text}}</div>
+            {{/admin_text}}
+
+            {{#nonadmin_text}}
+            <div class="alert alert-secondary">{{nonadmin_text}}</div>
+            {{/nonadmin_text}}
+
+            {{#show_trial_button}}
+            <div class="booking-ai-trial-wrap mt-3 mb-3">
+                <button id="booking-ai-trial-btn"
+                        class="btn btn-primary btn-lg"
+                        data-cmid="{{cmid}}"
+                        data-sesskey="{{sesskey}}">
+                    <i class="fa fa-rocket mr-2" aria-hidden="true"></i>
+                    {{#str}}aitrial_button_start, mod_booking{{/str}}
+                </button>
+                <div id="booking-ai-trial-spinner" class="ml-3 d-none" style="display:inline-block">
+                    <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
+                    <span class="ml-1 text-muted small">{{#str}}aitrial_activating, mod_booking{{/str}}</span>
+                </div>
+                <div id="booking-ai-trial-result" class="mt-2 d-none"></div>
+                <div id="booking-ai-trial-activate-wrap" class="mt-3 d-none">
+                    <div class="alert alert-warning mb-2">{{activation_question_text}}</div>
+                    <button id="booking-ai-activate-btn" class="btn btn-warning">
+                        <i class="fa fa-toggle-on mr-2" aria-hidden="true"></i>{{#str}}aitrial_activate_now, mod_booking{{/str}}
+                    </button>
+                </div>
+                <p class="text-muted small mt-2 mb-0">
+                    {{#str}}aitrial_disclaimer, mod_booking{{/str}}
+                </p>
+            </div>
+            {{/show_trial_button}}
+
+            {{#show_trial_activate_button}}
+            <div class="booking-ai-trial-wrap mt-3 mb-3">
+                <div id="booking-ai-trial-spinner" class="ml-3 d-none" style="display:inline-block">
+                    <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
+                    <span class="ml-1 text-muted small">{{#str}}aitrial_activating, mod_booking{{/str}}</span>
+                </div>
+                <div id="booking-ai-trial-result" class="mt-2 d-none"></div>
+                <div id="booking-ai-trial-activate-wrap" class="mt-3">
+                    <div class="alert alert-warning mb-2">{{activation_question_text}}</div>
+                    <button id="booking-ai-activate-btn" class="btn btn-warning">
+                        <i class="fa fa-toggle-on mr-2" aria-hidden="true"></i>{{#str}}aitrial_activate_now, mod_booking{{/str}}
+                    </button>
+                </div>
+            </div>
+            {{/show_trial_activate_button}}
+
+            <ul class="list-group booking-ai-readiness-list mb-0">
+                {{#readiness_checks}}
+                <li class="list-group-item d-flex align-items-start">
+                    <span class="mr-3 mt-1">{{{icon}}}</span>
+                    <div>
+                        <strong>{{label}}</strong>
+                        <div class="small text-muted mt-1">{{detail}}</div>
+                        {{#configureurl}}
+                        <div class="small mt-1"><a href="{{configureurl}}">{{configurelabel}}</a></div>
+                        {{/configureurl}}
+                    </div>
+                </li>
+                {{/readiness_checks}}
+            </ul>
+        </div>
+    </div>
+    {{/ready_for_chat}}
+
+
+</div>
+
+{{#js}}
+require(['bookingextension_agent/aiinstructions'], function(AIInstructions) {
+    AIInstructions.init();
+});
+{{/js}}
