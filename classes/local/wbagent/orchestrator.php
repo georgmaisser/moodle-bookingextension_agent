@@ -70,7 +70,7 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching tasks to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 2;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 3;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild task. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 300;
@@ -1222,6 +1222,55 @@ PROMPT;
      * @param array<int,string> $taskfilter
      * @return array<int,array<string,string>>
      */
+    private function build_unavailable_task_catalog_for_runtime(
+        array $evaluations,
+        array $descriptionindex = [],
+        array $taskfilter = []
+    ): array {
+        $catalog = [];
+        $taskfiltermap = [];
+
+        foreach ($taskfilter as $taskname) {
+            $name = trim((string)$taskname);
+            if ($name !== '') {
+                $taskfiltermap[$name] = true;
+            }
+        }
+
+        foreach ($evaluations as $taskname => $evaluation) {
+            if (!empty($taskfiltermap) && empty($taskfiltermap[(string)$taskname])) {
+                continue;
+            }
+
+            $state = trim((string)($evaluation['executable_state'] ?? ''));
+            if ($state !== 'deny') {
+                continue;
+            }
+
+            $reason = trim((string)($evaluation['deny_reason'] ?? ''));
+            $availability = 'not_active_now';
+            if ($reason === task_contract_validator::DENY_MISSING_CAPABILITY) {
+                $availability = 'not_active_for_you';
+            } else if ($reason === task_contract_validator::DENY_CONTEXT_INVALID) {
+                $availability = 'invalid_context';
+            } else if ($reason === task_contract_validator::DENY_RUNTIME_DISABLED) {
+                $availability = 'runtime_disabled';
+            }
+
+            $catalog[] = [
+                'task' => (string)$taskname,
+                'availability' => $availability,
+                'description' => (string)($descriptionindex[(string)$taskname] ?? ''),
+            ];
+        }
+
+        if (count($catalog) > 60) {
+            $catalog = array_slice($catalog, 0, 60);
+        }
+
+        return $catalog;
+    }
+
     /**
      * Build task-description lookup map from prompt contracts.
      *
@@ -1255,6 +1304,7 @@ PROMPT;
      */
     private function extract_completed_commands_from_messages(array $messages): array {
         $completed = [];
+        $latestassistantpayload = null;
 
         foreach ($messages as $msg) {
             if ((string)($msg->role ?? '') !== 'assistant') {
@@ -1266,34 +1316,41 @@ PROMPT;
                 continue;
             }
 
-            $results = (array)($structured['loop_results'] ?? []);
-            if (empty($results)) {
-                $results = (array)($structured['results'] ?? []);
+            $latestassistantpayload = $structured;
+            break;
+        }
+
+        if (!is_array($latestassistantpayload) || empty($latestassistantpayload)) {
+            return [];
+        }
+
+        $results = (array)($latestassistantpayload['loop_results'] ?? []);
+        if (empty($results)) {
+            $results = (array)($latestassistantpayload['results'] ?? []);
+        }
+
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
             }
 
-            foreach ($results as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-
-                $status = trim((string)($entry['status'] ?? ''));
-                if ($status !== 'executed') {
-                    continue;
-                }
-
-                $task = trim((string)($entry['task'] ?? ''));
-                if ($task === '') {
-                    continue;
-                }
-
-                $input = (array)($entry['executed_input'] ?? $entry['input'] ?? []);
-                $compact = ['task' => $task];
-                $normalizedinput = $this->normalize_completed_command_input($input);
-                if (!empty($normalizedinput)) {
-                    $compact['input'] = $normalizedinput;
-                }
-                $completed[] = $compact;
+            $status = trim((string)($entry['status'] ?? ''));
+            if ($status !== 'executed') {
+                continue;
             }
+
+            $task = trim((string)($entry['task'] ?? ''));
+            if ($task === '') {
+                continue;
+            }
+
+            $input = (array)($entry['executed_input'] ?? $entry['input'] ?? []);
+            $compact = ['task' => $task];
+            $normalizedinput = $this->normalize_completed_command_input($input);
+            if (!empty($normalizedinput)) {
+                $compact['input'] = $normalizedinput;
+            }
+            $completed[] = $compact;
         }
 
         if (count($completed) > 12) {

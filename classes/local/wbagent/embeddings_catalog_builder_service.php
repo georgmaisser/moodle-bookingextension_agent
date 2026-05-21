@@ -58,6 +58,7 @@ class embeddings_catalog_builder_service {
             $minimalinput = (array)($contract['minimal_input'] ?? []);
             $exampleinput = (array)($contract['example_input'] ?? []);
             $messagetriggers = (array)($contract['message_triggers'] ?? []);
+            $contextualpromptpacks = $this->get_contextual_prompt_packs_for_task($registry, $task);
 
             $canonical = [
                 'task' => $task,
@@ -67,6 +68,7 @@ class embeddings_catalog_builder_service {
                 'minimal_input' => $minimalinput,
                 'example_input' => $exampleinput,
                 'message_triggers' => $messagetriggers,
+                'contextual_prompt_packs' => $contextualpromptpacks,
             ];
 
             $contenthash = $this->compute_content_hash($canonical, $model, $dimensions);
@@ -119,6 +121,7 @@ class embeddings_catalog_builder_service {
         $minimalinput = json_encode($canonicalrow['minimal_input'] ?? [], JSON_UNESCAPED_UNICODE);
         $exampleinput = json_encode($canonicalrow['example_input'] ?? [], JSON_UNESCAPED_UNICODE);
         $messagetriggers = json_encode($canonicalrow['message_triggers'] ?? [], JSON_UNESCAPED_UNICODE);
+        $contextualpromptpacks = json_encode($canonicalrow['contextual_prompt_packs'] ?? [], JSON_UNESCAPED_UNICODE);
 
         return implode("\n", [
             'task: ' . (string)($canonicalrow['task'] ?? ''),
@@ -128,6 +131,29 @@ class embeddings_catalog_builder_service {
             'minimal_input: ' . (string)$minimalinput,
             'example_input: ' . (string)$exampleinput,
             'message_triggers: ' . (string)$messagetriggers,
+            'contextual_prompt_packs: ' . (string)$contextualpromptpacks,
         ]);
+    }
+
+    /**
+     * Extract task-specific contextual prompt packs for embedding enrichment.
+     *
+     * @param task_registry $registry
+     * @param string $taskname
+     * @return array<int,array<string,mixed>>
+     */
+    private function get_contextual_prompt_packs_for_task(task_registry $registry, string $taskname): array {
+        $task = $registry->get_task($taskname);
+        if ($task === null || !method_exists($task, 'get_contextual_prompt_packs')) {
+            return [];
+        }
+
+        try {
+            $packs = (array)$task->get_contextual_prompt_packs();
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        return array_values(array_filter($packs, static fn($pack): bool => is_array($pack)));
     }
 }

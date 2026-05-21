@@ -304,7 +304,7 @@ final class task_registry_test extends booking_advanced_testcase {
             /**
              * Get contextual prompt packs.
              *
-             * @return array
+             * @return array<int,array<string,mixed>>
              */
             public function get_contextual_prompt_packs(): array {
                 return [];
