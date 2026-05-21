@@ -43,6 +43,8 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
+use mod_booking\singleton_service;
+
 /**
  * CONV-09 / CONV-10: booking.diagnose_cancellation_issue real-LLM tests.
  *

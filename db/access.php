@@ -44,6 +44,8 @@ $teachertasks = [
     'booking_core_list_grade_items',
     'booking_core_list_user_calendar_events',
     'booking_create_option',
+    'booking_create_selflearning_option',
+    'booking_create_slotbooking_option',
     'booking_diagnose_booking_issue',
     'booking_diagnose_cancellation_issue',
     'booking_explain_docs_topic',

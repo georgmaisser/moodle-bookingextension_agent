@@ -30,6 +30,8 @@ use bookingextension_agent\local\wbagent\task_discovery;
 use bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task;
 use bookingextension_agent\local\wbagent\booking\tasks\booking_task_base;
 use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
+    use bookingextension_agent\local\wbagent\booking\tasks\create_selflearning_option_task;
+    use bookingextension_agent\local\wbagent\booking\tasks\create_slotbooking_option_task;
 use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task;
 use bookingextension_agent\local\wbagent\booking\tasks\search_courses_task;
 use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
@@ -1594,6 +1596,8 @@ class booking_task_support {
     private static function get_localized_action_label(string $taskname): string {
         $map = [
             create_option_task::TASK_NAME => 'ai_action_create_option',
+              create_slotbooking_option_task::TASK_NAME => 'ai_action_create_option',
+              create_selflearning_option_task::TASK_NAME => 'ai_action_create_option',
             create_user_task::TASK_NAME => 'ai_action_create_user',
             update_option_task::TASK_NAME => 'ai_action_update_option',
             search_options_task::TASK_NAME => 'ai_action_search_options',

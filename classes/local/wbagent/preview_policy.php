@@ -41,6 +41,8 @@ class preview_policy {
     /** @var string[] Tasks that support visual preview rendering. */
     private const PREVIEW_ENABLED_TASKS = [
         'booking.create_option',
+        'booking.create_slotbooking_option',
+        'booking.create_selflearning_option',
         'booking.update_option',
     ];
 

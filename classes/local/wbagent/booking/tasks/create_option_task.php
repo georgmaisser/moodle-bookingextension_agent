@@ -78,8 +78,10 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         $schema = [
             'version' => 1,
             'description' => 'Create a new booking option inside the current booking instance. '
-                . 'Use this for natural booking requests that specify a date/time, duration, capacity, '
-                . 'participant count, or similar scheduling details. New options are always created as invisible.',
+                . 'Use this task for standard options (normal type with fixed dates/times). '
+                . 'For slot-based appointment booking use booking.create_slotbooking_option. '
+                . 'For self-learning courses use booking.create_selflearning_option. '
+                . 'New options are always created as invisible.',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'ai_status_confirm_booking_create_option',
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_create_option',
@@ -121,7 +123,13 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             ],
             [
                 'id' => 'booking.select_option_type_change',
-                'description' => 'User explicitly selects or confirms the booking option type (normal/selflearning/slotbooking).',
+                'description' => 'User explicitly selects or confirms option type. '
+                    . 'Use booking.create_option for normal options only. '
+                    . 'Use booking.create_slotbooking_option for slot-based appointment booking. '
+                    . 'Use booking.create_selflearning_option for self-learning courses.',
+                'examples' => [
+                    'My tennis court should be bookable every weekday from 10 a.m. to 6 p.m., in 1-hour slots. Create the booking availability for July.',
+                ],
             ],
         ];
     }
@@ -182,7 +190,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         array $missingprops = [],
         bool $includeenlabelkeymap = false
     ): string {
-        $parts = ['Retry booking.create_option once with corrected canonical keys.'];
+        $parts = ['Retry ' . static::TASK_NAME . ' once with corrected canonical keys.'];
 
         $labelkeymap = $includeenlabelkeymap ? $this->build_supported_property_reference(false, true) : '';
         if ($includeenlabelkeymap && $labelkeymap !== '') {
@@ -375,7 +383,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         array $missingrequired,
         array $confirmablewithoutfields = []
     ): string {
-        $parts = ['Preflight: booking.create_option needs additional input.'];
+        $parts = ['Preflight: ' . static::TASK_NAME . ' needs additional input.'];
 
         if (!empty($missingrequired)) {
             $parts[] = 'Missing required fields: ' . implode(', ', array_values(array_unique($missingrequired))) . '.';
@@ -1009,6 +1017,8 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                     '- If the user explicitly wants the option visible, first create it, then run booking.update_option '
                         . 'to set visibility/invisible.',
                     '- For create requests, set optiontype explicitly whenever possible: normal|selflearning|slotbooking.',
+                    '- Use this task for normal options. For slotbooking use booking.create_slotbooking_option.',
+                    '- For self-learning use booking.create_selflearning_option.',
                     '- Do not ask end users for internal type names; infer the best type from intent and phrasing.',
                     '- If type is still unclear, ask behavior-focused questions (e.g. fixed dates, self-paced, or bookable slots),'
                         . ' not technical labels.',

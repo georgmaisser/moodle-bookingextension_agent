@@ -49,6 +49,14 @@ abstract class booking_task_base extends base_task {
             'input_fields_for_prompt' => ['text'],
             'anchor_fields' => ['option'],
         ],
+        'booking.create_slotbooking_option' => [
+            'input_fields_for_prompt' => ['text'],
+            'anchor_fields' => ['option'],
+        ],
+        'booking.create_selflearning_option' => [
+            'input_fields_for_prompt' => ['text'],
+            'anchor_fields' => ['option'],
+        ],
         'booking.create_user' => [
             'input_fields_for_prompt' => ['userquery'],
             'anchor_fields' => ['user'],
@@ -270,6 +278,25 @@ abstract class booking_task_base extends base_task {
             'maxanswers' => 30,
             'coursestarttime' => '2026-12-12T20:00:00',
             'courseendtime' => '2026-12-12T22:00:00',
+        ],
+        'booking.create_slotbooking_option' => [
+            'text' => 'Tennisplatz Slots Juli',
+            'slot_opening_time' => '10:00',
+            'slot_closing_time' => '18:00',
+            'slot_duration_minutes' => 60,
+            'slot_day_1' => true,
+            'slot_day_2' => true,
+            'slot_day_3' => true,
+            'slot_day_4' => true,
+            'slot_day_5' => true,
+            'slot_day_6' => false,
+            'slot_day_7' => false,
+        ],
+        'booking.create_selflearning_option' => [
+            'text' => 'Selbstlernkurs ANON_USER_1',
+            'maxanswers' => 30,
+            'duration' => 14400,
+            'teacherquery' => 'ANON_USER_1',
         ],
         'booking.create_rule_from_template' => [
             'templatequery' => 'booking confirmation',
