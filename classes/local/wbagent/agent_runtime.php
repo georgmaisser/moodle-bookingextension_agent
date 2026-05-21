@@ -452,7 +452,6 @@ class agent_runtime {
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
     }
-
     /**
      * Increment readonly signature counters and check whether loop budget is reached.
      *
@@ -1299,7 +1298,7 @@ class agent_runtime {
         $selected = [];
         foreach ($attemptedtasks as $taskname) {
             if (isset($bytask[$taskname])) {
-                $selected[] = $bytask[$taskname];
+                $selected[] = $this->slim_retry_task_contract((array)$bytask[$taskname]);
             }
         }
 
@@ -1314,6 +1313,25 @@ class agent_runtime {
 
         $json = json_encode($selected, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         return is_string($json) ? $json : '';
+    }
+
+    /**
+     * Keep retry task context compact and stable for planner repair steps.
+     *
+     * @param array $contract
+     * @return array
+     */
+    private function slim_retry_task_contract(array $contract): array {
+        return [
+            'task' => trim((string)($contract['task'] ?? '')),
+            'description' => trim((string)($contract['description'] ?? '')),
+            'readonly' => !empty($contract['readonly']),
+            'intent' => trim((string)($contract['intent'] ?? '')),
+            'anchors' => array_values((array)($contract['anchors'] ?? [])),
+            'minimal_input' => array_values((array)($contract['minimal_input'] ?? [])),
+            'example_input' => (array)($contract['example_input'] ?? []),
+            'message_triggers' => array_values((array)($contract['message_triggers'] ?? [])),
+        ];
     }
 
     /**
@@ -1664,9 +1682,10 @@ class agent_runtime {
             return $optiontypeshortcut;
         }
 
-        // Plan: initial step uses tool_call_parse; follow-up steps with observations
-        // switch to simple_retrieval so prompt/catalog are significantly smaller.
-        $plannersteptype = (!empty($observations) && !$this->observations_are_framework_retry_hints($observations))
+        // Plan: initial step uses tool_call_parse; every follow-up step with
+        // observations (including framework retry hints) stays append-only via
+        // simple_retrieval.
+        $plannersteptype = !empty($observations)
             ? orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
             : orchestrator::STEP_TYPE_TOOL_CALL_PARSE;
 
@@ -2043,9 +2062,9 @@ class agent_runtime {
                 $cmid,
                 $userid,
                 $retryobservations,
-                (!empty($retryobservations) && !$this->observations_are_framework_retry_hints($retryobservations))
-                    ? orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
-                    : orchestrator::STEP_TYPE_TOOL_CALL_PARSE
+                  !empty($retryobservations)
+                      ? orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
+                      : orchestrator::STEP_TYPE_TOOL_CALL_PARSE
             );
 
             $retryrawresponse = is_string($retryresult['_planner_raw_response'] ?? null)

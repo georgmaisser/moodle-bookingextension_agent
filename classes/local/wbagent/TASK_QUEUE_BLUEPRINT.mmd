@@ -42,7 +42,7 @@ flowchart TD
     LS -->|ok| GR{Goal reached?}
 
     GR -->|yes| S[Final Synthesis]
-    GR -->|no - observations insufficient| T[Re-Plan: new LLM step - nur anhaengen]
+    GR -->|no - observations insufficient| T[Re-Plan: new LLM step - nur anhaengen - simple_retrieval - kein neuer initialer Catalog/Embedding-Start]
     T --> B
 
     DEPCHECK{depends_on auf failed Item?} -->|yes| SK[skipped - terminal]
