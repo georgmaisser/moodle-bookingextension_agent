@@ -17,7 +17,7 @@
 /**
  * External service: poll thread messages.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -38,7 +38,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
 /**
  * Return all messages in a conversation thread for the current user.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

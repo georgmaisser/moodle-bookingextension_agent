@@ -22,7 +22,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
 /**
  * Task definition for booking.core_get_user_profile.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  */
 class core_get_user_profile_task extends core_task_base implements task_trigger_provider_interface {
     public const TASK_NAME = 'booking.core_get_user_profile';

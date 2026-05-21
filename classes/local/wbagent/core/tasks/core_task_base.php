@@ -21,7 +21,7 @@ use context_course;
 /**
  * Shared helper base for core Moodle data tasks.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  */
 abstract class core_task_base extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base {
     /**

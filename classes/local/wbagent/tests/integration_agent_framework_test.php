@@ -28,7 +28,7 @@ use PHPUnit\Framework\TestCase;
  * Validates that the framework successfully abstracts plugin-specific logic
  * and maintains genericity for multi-plugin environments.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -414,7 +414,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that trigger-provider discovery ignores non-trigger classes without failing.
      */
     public function test_trigger_provider_discovery_ignores_non_trigger_classes(): void {
-        $providers = \bookingextension_agent\local\wbagent\task_discovery::get_trigger_provider_instances('mod_booking');
+        $providers = \bookingextension_agent\local\wbagent\task_discovery::get_trigger_provider_instances('bookingextension_agent');
 
         $this->assertNotEmpty($providers);
         foreach ($providers as $provider) {

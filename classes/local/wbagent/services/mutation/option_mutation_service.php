@@ -17,7 +17,7 @@
 /**
  * Application service for booking option mutations.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -41,7 +41,7 @@ use bookingextension_agent\local\wbagent\dto\mutation_result_dto;
  * Tasks orchestrate, services execute.  Both paths call the same underlying logic
  * so architectural tests can verify identical results for identical input.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

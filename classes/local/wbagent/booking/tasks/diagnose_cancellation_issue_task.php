@@ -16,8 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
-use mod_booking\bo_availability\bo_info;
-use mod_booking\bo_availability\conditions\cancelmyself;
+use bookingextension_agent\bo_availability\bo_info;
+use bookingextension_agent\bo_availability\conditions\cancelmyself;
 use mod_booking\booking;
 use mod_booking\booking_option;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
@@ -27,7 +27,7 @@ use mod_booking\singleton_service;
 /**
  * Task definition for booking.diagnose_cancellation_issue.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -557,7 +557,7 @@ class diagnose_cancellation_issue_task extends booking_task_base implements task
             if (!empty($reasoncontext['hasprice']) && !empty($reasoncontext['shoppingcartexists'])) {
                 $item = (object)[
                     'itemid' => $settings->id,
-                    'componentname' => 'mod_booking',
+                    'componentname' => 'bookingextension_agent',
                     'canceluntil' => $effectivecanceluntil,
                 ];
                 if (!\local_shopping_cart\shopping_cart::allowed_to_cancel_for_item($item, 'option')) {

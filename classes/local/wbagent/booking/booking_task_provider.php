@@ -21,7 +21,7 @@ namespace bookingextension_agent\local\wbagent\booking;
  *
  * New provider discovery uses \bookingextension_agent\local\wbagent\task_provider.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -17,7 +17,7 @@
 /**
  * LLM output interpreter pipeline.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -41,7 +41,7 @@ use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
  * performed here.  It is delegated to agent_decision_service via task->preflight()
  * during the routing phase.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

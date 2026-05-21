@@ -17,7 +17,7 @@
 /**
  * Whole-agent webservice tests with mocked LLM responses.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -38,8 +38,8 @@ use bookingextension_agent\local\wbagent\conversation_store;
 /**
  * Whole-agent ai_send_message tests with scripted AI output.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  * @runTestsInSeparateProcesses
  */
@@ -193,7 +193,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
                 $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
                 $this->assertGreaterThan(0, (int)($confirm['runid'] ?? 0));
 
-                $created = $DB->get_record('booking_options', [
+                $created = $DB->get_record('local_wbagent_options', [
                     'bookingid' => (int)$this->booking->id,
                     'text' => (string)$case['title'],
                 ]);
@@ -686,7 +686,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
         $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
         $this->assertGreaterThan(0, (int)($confirm['runid'] ?? 0));
 
-        $created = $DB->get_record('booking_options', [
+        $created = $DB->get_record('local_wbagent_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);
@@ -796,7 +796,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
 
         $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
 
-        $created = $DB->get_record('booking_options', [
+        $created = $DB->get_record('local_wbagent_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);

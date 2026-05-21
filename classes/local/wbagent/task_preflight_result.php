@@ -22,7 +22,7 @@
  *   - prepared_input    — input with IDs resolved, values normalised; ready for execute()
  *   - issues            — structured issue descriptors (same shape as the legacy issues array)
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -38,7 +38,7 @@ namespace bookingextension_agent\local\wbagent;
  *  - issues with severity === 'needs_confirmation' → may trigger a confirmation_request flow.
  *  - issues with severity === 'needs_clarification' → must be resolved before confirmation.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

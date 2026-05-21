@@ -17,7 +17,7 @@
 /**
  * Tests for the AI agent conversation store.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -31,7 +31,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
 /**
  * Tests for the AI agent conversation store (DB layer).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>

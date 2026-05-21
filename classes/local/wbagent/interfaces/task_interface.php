@@ -36,7 +36,7 @@ use bookingextension_agent\local\wbagent\task_preflight_result;
  * SHOULD NOT be overridden in new tasks.  It is called only by the
  * executor's stale-state guard and by legacy callers.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

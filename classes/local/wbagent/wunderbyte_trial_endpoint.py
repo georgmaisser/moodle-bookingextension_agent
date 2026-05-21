@@ -162,7 +162,7 @@ async def _create_trial_key(site_id: str, wwwroot: str) -> str:
 @router.post("/moodle-trial", response_model=TrialResponse)
 async def request_moodle_trial(body: TrialRequest) -> TrialResponse:
     """
-    Entry point called by the Moodle mod_booking plugin when an admin clicks
+    Entry point called by the Moodle bookingextension_agent plugin when an admin clicks
     "Start my free trial".
 
     Steps

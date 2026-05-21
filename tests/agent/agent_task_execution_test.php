@@ -22,7 +22,7 @@
  * - search_options, search_users, search_courses
  * - list_actions, list_option_properties, get_current_user, add_price_category
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,8 +40,8 @@ use bookingextension_agent\local\wbagent\task_registry;
 /**
  * Focused tests for booking agent tasks.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class agent_task_execution_test extends abstract_agent_testcase {

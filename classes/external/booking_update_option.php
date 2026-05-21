@@ -17,7 +17,7 @@
 /**
  * External service: update a booking option (v1 Application-Service API).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,7 +40,7 @@ use bookingextension_agent\local\wbagent\services\mutation\option_mutation_servi
 /**
  * Update a booking option via the versioned Application-Service API (v1).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

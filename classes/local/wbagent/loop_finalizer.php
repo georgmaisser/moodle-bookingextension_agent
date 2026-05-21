@@ -17,7 +17,7 @@
 /**
  * Loop finalizer service.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -147,7 +147,7 @@ class loop_finalizer {
         }
 
         if ($message === '' || $this->is_low_information_message($message)) {
-            $message = (string)$localizedstring('ai_run_executed', 'mod_booking', null, (string)($result['lang'] ?? ''));
+            $message = (string)$localizedstring('ai_run_executed', 'bookingextension_agent', null, (string)($result['lang'] ?? ''));
             if ($message === 'ai_run_executed') {
                 $message = 'I found enough information to answer your question.';
             }

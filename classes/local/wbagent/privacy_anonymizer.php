@@ -17,7 +17,7 @@
 /**
  * Privacy anonymization helper for LLM-bound text.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -783,7 +783,7 @@ class privacy_anonymizer {
     private function get_user_name_match_index(): array {
         global $DB;
 
-        $cache = \cache::make('mod_booking', 'aiprivacynames');
+        $cache = \cache::make('bookingextension_agent', 'aiprivacynames');
         $cached = $cache->get(self::NAME_MATCH_INDEX_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;
@@ -876,7 +876,7 @@ class privacy_anonymizer {
     private function get_distinct_name_index(): array {
         global $DB;
 
-        $cache = \cache::make('mod_booking', 'aiprivacynames');
+        $cache = \cache::make('bookingextension_agent', 'aiprivacynames');
         $cached = $cache->get(self::NAME_INDEX_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;

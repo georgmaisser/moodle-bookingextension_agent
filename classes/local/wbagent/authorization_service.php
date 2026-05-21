@@ -17,7 +17,7 @@
 /**
  * Agent authorization service implementation.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -33,7 +33,7 @@ use required_capability_exception;
 /**
  * Handles authorization checks for the AI agent feature.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -69,7 +69,7 @@ class authorization_service implements agent_authorization_service {
         }
         $cm = get_coursemodule_from_id('booking', (int)$context->instanceid);
         if (!$cm) {
-            throw new moodle_exception('invalidcoursemodule', 'mod_booking');
+            throw new moodle_exception('invalidcoursemodule', 'bookingextension_agent');
         }
         return $context;
     }

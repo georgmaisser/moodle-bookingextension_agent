@@ -17,7 +17,7 @@
 /**
  * Tests for the booking task provider (schema validation).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -31,7 +31,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_provider;
 /**
  * Tests for the booking domain task provider.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>

@@ -17,7 +17,7 @@
 /**
  * End-to-end tests: booking.create_option via executor (no real LLM).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -36,7 +36,7 @@ require_once(__DIR__ . '/abstract_agent_testcase.php');
  * is involved.  After execution the option is verified in the DB and via the
  * bookingoptions_wbtable helper.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

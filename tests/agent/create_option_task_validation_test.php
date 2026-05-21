@@ -17,7 +17,7 @@
 /**
  * Validation tests for create_option_task.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -31,7 +31,7 @@ use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
 /**
  * Task-level tests for explicit override behavior.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

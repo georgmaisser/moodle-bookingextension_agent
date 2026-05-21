@@ -17,7 +17,7 @@
 /**
  * Contract tests for ai_send_message external API schema.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -34,7 +34,7 @@ use bookingextension_agent\external\ai_send_message;
  * @runTestsInSeparateProcesses
  * @coversNothing
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  */
 final class ai_send_message_internal_test extends booking_advanced_testcase {

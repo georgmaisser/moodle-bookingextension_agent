@@ -16,7 +16,7 @@
 
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
-use mod_booking\bo_availability\bo_info;
+use bookingextension_agent\bo_availability\bo_info;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
@@ -26,7 +26,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  * Books one or more users into a booking option by running them through the
  * standard bookit flow. All existing booking conditions are enforced.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

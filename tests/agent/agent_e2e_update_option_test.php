@@ -17,7 +17,7 @@
 /**
  * End-to-end tests: booking.update_option via executor (no real LLM).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -32,7 +32,7 @@ require_once(__DIR__ . '/abstract_agent_testcase.php');
 /**
  * E2E tests for the booking.update_option agent task.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -214,7 +214,7 @@ final class agent_e2e_update_option_test extends abstract_agent_testcase {
             ],
         ]);
 
-        $beforecount = $DB->count_records('booking_optiondates', ['optionid' => (int)$option->id]);
+        $beforecount = $DB->count_records('local_wbagent_optiondates', ['optionid' => (int)$option->id]);
         $this->assertEquals(2, $beforecount);
 
         $result = $this->exec_command('booking.update_option', [
@@ -229,7 +229,7 @@ final class agent_e2e_update_option_test extends abstract_agent_testcase {
 
         $this->assertEquals('executed', $result['status'], $result['detail'] ?? '');
 
-        $aftercount = $DB->count_records('booking_optiondates', ['optionid' => (int)$option->id]);
+        $aftercount = $DB->count_records('local_wbagent_optiondates', ['optionid' => (int)$option->id]);
         $this->assertEquals(3, $aftercount, 'A new session should be added without deleting existing sessions.');
     }
 }

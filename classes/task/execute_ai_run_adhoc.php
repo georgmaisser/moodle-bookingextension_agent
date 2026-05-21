@@ -17,7 +17,7 @@
 /**
  * Adhoc task to execute a confirmed AI agent run asynchronously.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -42,7 +42,7 @@ use bookingextension_agent\local\wbagent\task_registry;
  *   "idempotencykey": string
  * }
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -53,7 +53,7 @@ class execute_ai_run_adhoc extends adhoc_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_execute_ai_run', 'mod_booking');
+        return get_string('task_execute_ai_run', 'bookingextension_agent');
     }
 
     /**

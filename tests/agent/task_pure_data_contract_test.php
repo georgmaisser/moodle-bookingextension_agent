@@ -39,7 +39,7 @@ use bookingextension_agent\local\wbagent\task_registry;
  * – they return structured data only
  * – they do NOT call LLMs internally
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

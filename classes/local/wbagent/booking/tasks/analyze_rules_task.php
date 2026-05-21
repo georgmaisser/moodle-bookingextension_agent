@@ -23,7 +23,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
 /**
  * Task definition for booking.analyze_rules.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -17,7 +17,7 @@
 /**
  * External service: run strict privacy precheck before LLM processing.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -88,7 +88,7 @@ class ai_privacy_precheck extends external_api {
         if ($message === '') {
             return [
                 'status' => 'blocked',
-                'message' => get_string('ai_empty_message', 'mod_booking'),
+                'message' => get_string('ai_empty_message', 'bookingextension_agent'),
                 'sanitizedmessage' => '',
                 'anonymizedcount' => 0,
                 'anonymizedemails' => 0,
@@ -119,8 +119,8 @@ class ai_privacy_precheck extends external_api {
         ];
 
         $summary = $count > 0
-            ? get_string('ai_privacy_precheck_summary', 'mod_booking', $a)
-            : get_string('ai_privacy_precheck_summary_none', 'mod_booking');
+            ? get_string('ai_privacy_precheck_summary', 'bookingextension_agent', $a)
+            : get_string('ai_privacy_precheck_summary_none', 'bookingextension_agent');
 
         return [
             'status' => 'ok',

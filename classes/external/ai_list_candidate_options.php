@@ -17,7 +17,7 @@
 /**
  * External service: list candidate booking options for disambiguation.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,7 +40,7 @@ use bookingextension_agent\local\wbagent\authorization_service;
  * Used by the UI to let users pick a specific option when the AI is
  * ambiguous about which one should be updated.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -29,7 +29,7 @@
  *
  * Activation: set BOOKING_AI_REAL_LLM=1 (see AGENT_CONVERSATIONS.md).
  *
- * @package   mod_booking
+ * @package   bookingextension_agent
  * @category  test
  * @copyright 2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -44,8 +44,8 @@ require_once(__DIR__ . '/../abstract_agent_testcase.php');
 /**
  * CONV-03 / CONV-04: booking.update_option real-LLM tests.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class update_option_real_llm_test extends abstract_agent_testcase {

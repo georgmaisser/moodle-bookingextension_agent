@@ -31,7 +31,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_interface;
  *  3. Override execute()         to use $preparedinput from preflight().
  *  4. Remove (or keep as a no-op) the old validate() override.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

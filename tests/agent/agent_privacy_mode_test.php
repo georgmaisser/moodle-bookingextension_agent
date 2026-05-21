@@ -22,7 +22,7 @@
  * - MODE_SOFT: Names anonymized
  * - MODE_STRICT: Names and emails anonymized
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,8 +40,8 @@ use bookingextension_agent\local\wbagent\privacy_anonymizer;
 /**
  * Privacy mode validation tests.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class agent_privacy_mode_test extends abstract_agent_testcase {
@@ -57,7 +57,7 @@ final class agent_privacy_mode_test extends abstract_agent_testcase {
             'firstname' => 'John',
             'lastname' => 'Smith',
         ]);
-        \cache_helper::purge_by_definition('mod_booking', 'aiprivacynames');
+        \cache_helper::purge_by_definition('bookingextension_agent', 'aiprivacynames');
 
         // Create a conversation store in soft mode.
         $store = new conversation_store();
@@ -168,7 +168,7 @@ final class agent_privacy_mode_test extends abstract_agent_testcase {
             'lastname' => 'Teachy',
             'email' => 'billy.' . uniqid('', true) . '@example.com',
         ]);
-        \cache_helper::purge_by_definition('mod_booking', 'aiprivacynames');
+        \cache_helper::purge_by_definition('bookingextension_agent', 'aiprivacynames');
 
         $store = new conversation_store();
         $anonymizer = new privacy_anonymizer($store);

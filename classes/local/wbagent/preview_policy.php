@@ -17,7 +17,7 @@
 /**
  * Policy class defining which tasks support booking option preview rendering.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -33,7 +33,7 @@ namespace bookingextension_agent\local\wbagent;
  * booking-option row previews.  All other tasks (entities.create_entity, etc.)
  * are treated as a silent no-op — no HTML is rendered and no error is returned.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

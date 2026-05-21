@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\task_registry;
 /**
  * Contract and integration tests for new core Moodle tasks.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  */

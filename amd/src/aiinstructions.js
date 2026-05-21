@@ -611,7 +611,7 @@ const initResizableLayout = () => {
     }
 
     const desktopMedia = window.matchMedia('(min-width: 992px)');
-    const storageKey = 'mod_booking_ai_preview_width';
+    const storageKey = 'bookingextension_agent_ai_preview_width';
 
     const applyColumns = (previewPercent) => {
         const safePreview = Math.min(90, Math.max(20, Number(previewPercent || 42)));
@@ -1567,7 +1567,7 @@ const clearActivePlanBubble = () => {
 const showRunStatus = (status, message, results = []) => {
     // Notify the page that AI has finished so other components (e.g. booking list) can reload.
     if (status === 'completed') {
-        document.dispatchEvent(new CustomEvent('mod_booking_ai_run_completed', {bubbles: true}));
+        document.dispatchEvent(new CustomEvent('bookingextension_agent_ai_run_completed', {bubbles: true}));
     }
 
     const friendlyMessage = buildFriendlyRunMessage(status, message, results);
@@ -2328,7 +2328,7 @@ const requestTrialKey = () => {
     }
 
     Ajax.call([{
-        methodname: 'mod_booking_request_trial_key',
+        methodname: 'bookingextension_agent_request_trial_key',
         args: {cmid: Number(ctx.trialBtn.dataset.cmid || 0)},
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {
@@ -2389,7 +2389,7 @@ const activateTrialContext = () => {
     }
 
     Ajax.call([{
-        methodname: 'mod_booking_activate_trial_context',
+        methodname: 'bookingextension_agent_activate_trial_context',
         args: {cmid: Number((ctx.trialBtn && ctx.trialBtn.dataset.cmid) || (ctx.wrapper && ctx.wrapper.dataset.cmid) || 0)},
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {

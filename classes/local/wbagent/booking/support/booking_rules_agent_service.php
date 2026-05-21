@@ -20,7 +20,7 @@ use context_module;
 use core_text;
 use mod_booking\booking_rules\booking_rules;
 use mod_booking\booking_rules\rules_info;
-use mod_booking\local\templaterule;
+use bookingextension_agent\local\templaterule;
 use moodle_url;
 use stdClass;
 
@@ -30,7 +30,7 @@ use stdClass;
  * Uses the same rules handler pipeline as the dynamic AJAX form
  * (rules_info::set_data_for_form + rules_info::save_booking_rule).
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -564,11 +564,11 @@ class booking_rules_agent_service {
         $actionname    = is_object($json) ? (string)($json->actionname ?? '') : '';
 
         $rulecomponent      = (is_object($json) && isset($json->ruledata->component))
-            ? (string)$json->ruledata->component : 'mod_booking';
+            ? (string)$json->ruledata->component : 'bookingextension_agent';
         $conditioncomponent = (is_object($json) && isset($json->conditioncomponent))
-            ? (string)$json->conditioncomponent : 'mod_booking';
+            ? (string)$json->conditioncomponent : 'bookingextension_agent';
         $actioncomponent    = (is_object($json) && isset($json->actiondata->component))
-            ? (string)$json->actiondata->component : 'mod_booking';
+            ? (string)$json->actiondata->component : 'bookingextension_agent';
 
         $lrulename      = str_replace('_', '', $rulename);
         $lconditionname = str_replace('_', '', $conditionname);

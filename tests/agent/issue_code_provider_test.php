@@ -20,7 +20,7 @@
  * Tests that domain-specific issue codes are correctly isolated in a plugin-specific
  * provider rather than hardcoded in the generic agent runtime.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -35,8 +35,8 @@ use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interfac
 /**
  * Tests for issue_code_provider pattern.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wbagent\booking_issue_code_provider
  * @covers \bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface
  */

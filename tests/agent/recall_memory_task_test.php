@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
 /**
  * Tests for booking.recall_memory task.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  */

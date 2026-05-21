@@ -17,7 +17,7 @@
 /**
  * Centralised AI-provider error code classifier.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -35,7 +35,7 @@ use core_text;
  *  - orchestrator::detect_token_issue_codes()  (inline string matching)
  *  - agent_runtime::infer_issue_codes_from_recent_core_ai_failure()  (DB lookup)
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

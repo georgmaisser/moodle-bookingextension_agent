@@ -21,7 +21,7 @@ use mod_booking\local\testing\booking_advanced_testcase;
 /**
  * Upgrade tests for local_wbagent_ai_messages.userid migration.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  */

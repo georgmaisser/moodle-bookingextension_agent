@@ -17,7 +17,7 @@
 /**
  * Booking task support service.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -42,12 +42,12 @@ use bookingextension_agent\local\wbagent\core\tasks\explain_task_schema_task;
 use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
 use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
 use bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task;
-use mod_booking\bo_availability\bo_info;
+use bookingextension_agent\bo_availability\bo_info;
 use mod_booking\booking;
 use mod_booking\booking_bookit;
-use mod_booking\external\search_courses;
-use mod_booking\external\search_users;
-use mod_booking\option\fields_info;
+use bookingextension_agent\external\search_courses;
+use bookingextension_agent\external\search_users;
+use bookingextension_agent\option\fields_info;
 use mod_booking\output\view;
 use mod_booking\singleton_service;
 use mod_booking\table\bookingoptions_wbtable;
@@ -1462,27 +1462,27 @@ class booking_task_support {
             'bookingopeningtime' => ['bookingopeningtime', 'booking'],
             'bookingclosingtime' => ['bookingclosingtime', 'booking'],
             'disablecancel' => ['disablecancel', 'booking'],
-            'invisible' => ['optionvisibility', 'mod_booking'],
-            'visibility' => ['optionvisibility', 'mod_booking'],
-            'visible' => ['optionvisibility', 'mod_booking'],
+            'invisible' => ['optionvisibility', 'bookingextension_agent'],
+            'visibility' => ['optionvisibility', 'bookingextension_agent'],
+            'visible' => ['optionvisibility', 'bookingextension_agent'],
             'duration' => ['duration', 'booking'],
             'coursequery' => ['associatedcourse', 'booking'],
             'prices' => ['price', 'booking'],
             'bookusersquery' => ['bookusers', 'booking'],
-            'optionid' => ['ai_property_optionid', 'mod_booking'],
-            'optionquery' => ['ai_property_optionquery', 'mod_booking'],
-            'optionwhen' => ['ai_property_optionwhen', 'mod_booking'],
-            'teacherquery' => ['ai_property_teacherquery', 'mod_booking'],
-            'teacheremail' => ['ai_property_teacheremail', 'mod_booking'],
-            'optiontype' => ['optiontype', 'mod_booking'],
-            'slot_enabled' => ['optiontype_slotbooking', 'mod_booking'],
-            'selflearningcourse' => ['ai_property_selflearningcourse', 'mod_booking'],
-            'bookuserscompleted' => ['ai_property_bookuserscompleted', 'mod_booking'],
-            'bookuserstimebooked' => ['ai_property_bookuserstimebooked', 'mod_booking'],
-            'bookusersupdateexisting' => ['ai_property_bookusersupdateexisting', 'mod_booking'],
-            'customformjson' => ['ai_property_customformjson', 'mod_booking'],
-            'customformelements' => ['ai_property_customformelements', 'mod_booking'],
-            'customformdeleteinfoscheckboxadmin' => ['ai_property_customformdeleteinfoscheckboxadmin', 'mod_booking'],
+            'optionid' => ['ai_property_optionid', 'bookingextension_agent'],
+            'optionquery' => ['ai_property_optionquery', 'bookingextension_agent'],
+            'optionwhen' => ['ai_property_optionwhen', 'bookingextension_agent'],
+            'teacherquery' => ['ai_property_teacherquery', 'bookingextension_agent'],
+            'teacheremail' => ['ai_property_teacheremail', 'bookingextension_agent'],
+            'optiontype' => ['optiontype', 'bookingextension_agent'],
+            'slot_enabled' => ['optiontype_slotbooking', 'bookingextension_agent'],
+            'selflearningcourse' => ['ai_property_selflearningcourse', 'bookingextension_agent'],
+            'bookuserscompleted' => ['ai_property_bookuserscompleted', 'bookingextension_agent'],
+            'bookuserstimebooked' => ['ai_property_bookuserstimebooked', 'bookingextension_agent'],
+            'bookusersupdateexisting' => ['ai_property_bookusersupdateexisting', 'bookingextension_agent'],
+            'customformjson' => ['ai_property_customformjson', 'bookingextension_agent'],
+            'customformelements' => ['ai_property_customformelements', 'bookingextension_agent'],
+            'customformdeleteinfoscheckboxadmin' => ['ai_property_customformdeleteinfoscheckboxadmin', 'bookingextension_agent'],
         ];
 
         if (isset($exactmap[$propertyname])) {
@@ -1510,7 +1510,7 @@ class booking_task_support {
 
             $base = self::resolve_string(
                 $stringkey,
-                str_starts_with($stringkey, 'ai_') ? 'mod_booking' : 'booking',
+                str_starts_with($stringkey, 'ai_') ? 'bookingextension_agent' : 'booking',
                 $lang
             );
             $suffix = substr($propertyname, strlen($prefix));
@@ -1581,7 +1581,7 @@ class booking_task_support {
         ];
 
         if (isset($map[$normalized])) {
-            return self::resolve_string($map[$normalized], 'mod_booking', $lang);
+            return self::resolve_string($map[$normalized], 'bookingextension_agent', $lang);
         }
 
         return $normalized;
@@ -1613,7 +1613,7 @@ class booking_task_support {
         ];
 
         if (isset($map[$taskname])) {
-            return get_string($map[$taskname], 'mod_booking');
+            return get_string($map[$taskname], 'bookingextension_agent');
         }
 
         return $taskname;

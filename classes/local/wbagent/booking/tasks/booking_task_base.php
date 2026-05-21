@@ -24,7 +24,7 @@ use bookingextension_agent\local\wbagent\task_preflight_result;
 /**
  * Base task delegating schema, validation and execution to booking support logic.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -50,7 +50,14 @@ abstract class booking_task_base extends base_task {
             'anchor_fields' => ['option'],
         ],
         'booking.create_slotbooking_option' => [
-            'input_fields_for_prompt' => ['text'],
+            'input_fields_for_prompt' => [
+                'text',
+                'slot_opening_time',
+                'slot_closing_time',
+                'slot_duration_minutes',
+                'slot_valid_from',
+                'slot_valid_until',
+            ],
             'anchor_fields' => ['option'],
         ],
         'booking.create_selflearning_option' => [
@@ -284,6 +291,8 @@ abstract class booking_task_base extends base_task {
             'slot_opening_time' => '10:00',
             'slot_closing_time' => '18:00',
             'slot_duration_minutes' => 60,
+            'slot_valid_from' => '2026-07-01',
+            'slot_valid_until' => '2026-07-31',
             'slot_day_1' => true,
             'slot_day_2' => true,
             'slot_day_3' => true,
@@ -710,10 +719,10 @@ abstract class booking_task_base extends base_task {
     protected function localized_string(string $identifier, $a = null, string $lang = ''): string {
         $targetlang = trim($lang);
         if ($targetlang === '') {
-            return get_string($identifier, 'mod_booking', $a);
+            return get_string($identifier, 'bookingextension_agent', $a);
         }
 
-        return get_string_manager()->get_string($identifier, 'mod_booking', $a, $targetlang);
+        return get_string_manager()->get_string($identifier, 'bookingextension_agent', $a, $targetlang);
     }
 
     /**

@@ -22,7 +22,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
 /**
  * Task definition for booking.search_users.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -54,7 +54,7 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Search users via mod_booking external search_users functionality.',
+            'description' => 'Search users via bookingextension_agent external search_users functionality.',
             'readonly' => $this->is_read_only(),
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_search_users',
             'properties' => [

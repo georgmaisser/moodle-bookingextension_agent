@@ -633,3 +633,6 @@ $string['aitaskenabled_label'] = 'Enable task: {$a}';
 $string['aitaskenabled_desc'] = 'Provider component: {$a->component}. Required capability: {$a->capability}';
 $string['aitaskgovernanceunavailable'] = 'Task governance list unavailable';
 $string['aitaskgovernanceunavailable_desc'] = 'The task registry could not be loaded while opening this settings page.';
+$string['cachedef_aiprivacynames'] = 'AI privacy names (cache)';
+$string['cachedef_aiwaitmailbox'] = 'AI wait mailbox (session cache)';
+$string['cachedef_aiwaitstate'] = 'AI wait state (session cache)';

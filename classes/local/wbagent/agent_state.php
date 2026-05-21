@@ -17,7 +17,7 @@
 /**
  * Internal agent loop state value object.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,7 +39,7 @@ namespace bookingextension_agent\local\wbagent;
  * - Observations are plain-text summaries of completed tool executions,
  *   passed back to the orchestrator so the LLM can reason about results.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

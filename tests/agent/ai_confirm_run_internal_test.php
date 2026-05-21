@@ -17,7 +17,7 @@
 /**
  * Contract tests for ai_confirm_run external API schema.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -34,7 +34,7 @@ use mod_booking\local\testing\booking_advanced_testcase;
  * @runTestsInSeparateProcesses
  * @coversNothing
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  */
 final class ai_confirm_run_internal_test extends booking_advanced_testcase {

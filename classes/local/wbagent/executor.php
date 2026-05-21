@@ -17,7 +17,7 @@
 /**
  * Agent command executor.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,7 +40,7 @@ use bookingextension_agent\local\wbagent\privacy_anonymizer;
  * Enforces idempotency, capability checks, and produces structured per-command
  * results.  Partial success is allowed; no rollback is performed.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -531,9 +531,9 @@ class executor implements agent_executor {
     private function localized_string(string $identifier, $a = null, string $lang = ''): string {
         $targetlang = trim($lang);
         if ($targetlang === '') {
-            return get_string($identifier, 'mod_booking', $a);
+            return get_string($identifier, 'bookingextension_agent', $a);
         }
 
-        return get_string_manager()->get_string($identifier, 'mod_booking', $a, $targetlang);
+        return get_string_manager()->get_string($identifier, 'bookingextension_agent', $a, $targetlang);
     }
 }

@@ -19,7 +19,7 @@
  *
  * Enabled only when BOOKING_AI_REAL_LLM=1.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @group      real_llm
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -20,7 +20,7 @@
  * Reuses the simulated scenario catalog so prompts and fixture setup stay aligned
  * across mock and live-webservice coverage.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -39,8 +39,8 @@ use bookingextension_agent\external\ai_send_message;
 /**
  * Whole-agent ai_send_message tests with a live provider.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @group real_llm
  * @coversNothing
  * @runTestsInSeparateProcesses
@@ -189,7 +189,7 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
                 );
 
                 $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
-                $created = $DB->get_record('booking_options', [
+                $created = $DB->get_record('local_wbagent_options', [
                     'bookingid' => (int)$this->booking->id,
                     'text' => (string)$case['title'],
                 ]);
@@ -670,7 +670,7 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
         }
 
         // Final assertion: Billy must be booked.
-        $matchingoptions = $DB->get_records('booking_options', [
+        $matchingoptions = $DB->get_records('local_wbagent_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ], 'id DESC');

@@ -25,7 +25,7 @@
  *
  * No LLM calls are made; all tests are deterministic.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -41,8 +41,8 @@ use bookingextension_agent\local\wbagent\result_payload_summarizer;
 /**
  * Tests for agent_decision_service and supporting infrastructure.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wbagent\ai_error_classifier
  * @covers \bookingextension_agent\local\wbagent\result_payload_summarizer
  * @covers \bookingextension_agent\local\wbagent\privacy_anonymizer

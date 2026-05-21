@@ -17,7 +17,7 @@
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use core_text;
-use mod_booking\bo_availability\bo_info;
+use bookingextension_agent\bo_availability\bo_info;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\task_preflight_result;
@@ -26,7 +26,7 @@ use mod_booking\singleton_service;
 /**
  * Task definition for booking.diagnose_booking_issue.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

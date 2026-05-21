@@ -25,7 +25,7 @@
  * Each mutating step must remain separately confirmed. The test acts as the
  * multistep DoD for the confirmation-flow work.
  *
- * @package   mod_booking
+ * @package   bookingextension_agent
  * @category  test
  * @copyright 2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -42,8 +42,8 @@ use bookingextension_agent\external\ai_confirm_run;
 /**
  * Multistep confirmation flow with a real LLM.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
@@ -109,7 +109,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         );
         $this->assertTrue((bool)($createconfirm['success'] ?? false), (string)($createconfirm['message'] ?? ''));
 
-        $option = $DB->get_record('booking_options', [
+        $option = $DB->get_record('local_wbagent_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);

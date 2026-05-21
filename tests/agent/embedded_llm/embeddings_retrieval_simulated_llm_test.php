@@ -17,7 +17,7 @@
 /**
  * Simulated embedded-catalog retrieval tests.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @group      simulated_llm
  * @group      embedded_llm

@@ -74,7 +74,7 @@ class core_send_user_message_task extends core_task_base implements task_trigger
         $to = \core_user::get_user($recipientid, '*', MUST_EXIST);
 
         $payload = new \core\message\message();
-        $payload->component = 'mod_booking';
+        $payload->component = 'bookingextension_agent';
         $payload->name = 'agent_message';
         $payload->userfrom = $from;
         $payload->userto = $to;

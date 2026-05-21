@@ -17,7 +17,7 @@
 /**
  * Error and security matrix tests for the AI agent pipeline.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -36,7 +36,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_provider;
 /**
  * Comprehensive error and edge-case matrix for the interpreter + executor.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

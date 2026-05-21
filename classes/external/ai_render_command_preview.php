@@ -17,7 +17,7 @@
 /**
  * External service: render AI command preview as booking option row.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -41,7 +41,7 @@ use mod_booking\table\bookingoptions_wbtable;
 /**
  * Render a preview row for confirmed AI commands using wunderbyte_table path.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -149,7 +149,7 @@ class ai_render_command_preview extends external_api {
                 return [
                     'success' => false,
                     'html' => '',
-                    'message' => get_string('ai_preview_no_matching_option', 'mod_booking'),
+                    'message' => get_string('ai_preview_no_matching_option', 'bookingextension_agent'),
                     'javascript' => (string)$PAGE->requires->get_end_code(),
                 ];
             }
@@ -182,7 +182,7 @@ class ai_render_command_preview extends external_api {
                 return [
                     'success' => false,
                     'html' => '',
-                    'message' => get_string('ai_preview_no_matching_option', 'mod_booking'),
+                    'message' => get_string('ai_preview_no_matching_option', 'bookingextension_agent'),
                     'javascript' => (string)$PAGE->requires->get_end_code(),
                 ];
             }
@@ -203,7 +203,7 @@ class ai_render_command_preview extends external_api {
                 return [
                     'success' => false,
                     'html' => '',
-                    'message' => get_string('ai_preview_no_commands', 'mod_booking'),
+                    'message' => get_string('ai_preview_no_commands', 'bookingextension_agent'),
                     'javascript' => (string)$PAGE->requires->get_end_code(),
                 ];
             }
@@ -213,7 +213,7 @@ class ai_render_command_preview extends external_api {
                 return [
                     'success' => false,
                     'html' => '',
-                    'message' => get_string('ai_preview_no_commands', 'mod_booking'),
+                    'message' => get_string('ai_preview_no_commands', 'bookingextension_agent'),
                     'javascript' => (string)$PAGE->requires->get_end_code(),
                 ];
             }
@@ -278,7 +278,7 @@ class ai_render_command_preview extends external_api {
                         return [
                             'success' => false,
                             'html' => '',
-                            'message' => get_string('agent_booking_create_option_exists_multiple', 'mod_booking'),
+                            'message' => get_string('agent_booking_create_option_exists_multiple', 'bookingextension_agent'),
                             'javascript' => (string)$PAGE->requires->get_end_code(),
                         ];
                     }
@@ -296,7 +296,7 @@ class ai_render_command_preview extends external_api {
             return [
                 'success' => false,
                 'html' => '',
-                'message' => get_string('ai_preview_no_matching_option', 'mod_booking'),
+                'message' => get_string('ai_preview_no_matching_option', 'bookingextension_agent'),
                 'javascript' => (string)$PAGE->requires->get_end_code(),
             ];
         }
@@ -316,7 +316,7 @@ class ai_render_command_preview extends external_api {
             return [
                 'success' => false,
                 'html' => '',
-                'message' => get_string('ai_preview_no_matching_option', 'mod_booking'),
+                'message' => get_string('ai_preview_no_matching_option', 'bookingextension_agent'),
                 'javascript' => (string)$PAGE->requires->get_end_code(),
             ];
         }
@@ -336,7 +336,7 @@ class ai_render_command_preview extends external_api {
             return [
                 'success' => false,
                 'html' => '',
-                'message' => get_string('ai_preview_no_matching_option', 'mod_booking'),
+                'message' => get_string('ai_preview_no_matching_option', 'bookingextension_agent'),
                 'javascript' => (string)$PAGE->requires->get_end_code(),
             ];
         }

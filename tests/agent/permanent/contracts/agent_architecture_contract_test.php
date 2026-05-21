@@ -17,7 +17,7 @@
 /**
  * Permanent architecture contracts for booking AI agent stack.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -185,7 +185,7 @@ final class agent_architecture_contract_test extends booking_advanced_testcase {
         ]);
 
         // Create at least one option so booking.search_options can execute successfully.
-        $this->getDataGenerator()->get_plugin_generator('mod_booking')->create_option([
+        $this->getDataGenerator()->get_plugin_generator('bookingextension_agent')->create_option([
             'bookingid' => (int)$booking->id,
             'text' => 'Readonly Contract Option',
             'status' => 0,

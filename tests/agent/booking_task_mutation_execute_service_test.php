@@ -17,7 +17,7 @@
 /**
  * Tests for booking task mutation execute service extraction.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -35,7 +35,7 @@ require_once(__DIR__ . '/abstract_agent_testcase.php');
 /**
  * Ensure mutating execute orchestration can live outside booking_task_support.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  */

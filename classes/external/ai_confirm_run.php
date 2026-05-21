@@ -17,7 +17,7 @@
 /**
  * External service: confirm an AI agent run.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -41,6 +41,7 @@ use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\result_payload_summarizer;
  use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\task_registry;
 use bookingextension_agent\task\execute_ai_run_adhoc;
@@ -49,7 +50,7 @@ use bookingextension_agent\task\execute_ai_run_adhoc;
 /**
  * Confirm a proposed AI run and execute directly or via async task.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -191,7 +192,7 @@ class ai_confirm_run extends external_api {
         $executionmode = (string)(get_config('bookingextension_agent', 'aiexecutionmode') ?? 'direct');
         if ($executionmode === 'adhoc') {
             $store->update_run_status($runid, 'queued');
-            $store->add_message((int)$params['threadid'], 'assistant', get_string('ai_run_queued', 'mod_booking'), [
+            $store->add_message((int)$params['threadid'], 'assistant', get_string('ai_run_queued', 'bookingextension_agent'), [
                 'response_type' => 'execution_result',
                 'runid' => (int)$runid,
                 'status' => 'queued',
@@ -213,8 +214,8 @@ class ai_confirm_run extends external_api {
                 'runid'   => $runid,
                 'threadid' => (int)$params['threadid'],
                 'response_type' => 'queued',
-                'message' => get_string('ai_run_queued', 'mod_booking'),
-                'displaymessage' => get_string('ai_run_queued', 'mod_booking'),
+                'message' => get_string('ai_run_queued', 'bookingextension_agent'),
+                'displaymessage' => get_string('ai_run_queued', 'bookingextension_agent'),
                 'privacyapplied' => 0,
                 'autoconfirm' => 0,
                 'commands' => json_encode($commandsforrun),
@@ -288,16 +289,40 @@ class ai_confirm_run extends external_api {
             }
 
             $store->update_run_status($runid, 'completed', $results);
-            $store->add_message((int)$params['threadid'], 'assistant', (string)$feedback['message'], [
-                'response_type' => 'execution_result',
-                'runid' => (int)$runid,
-                'status' => 'completed',
-                'results' => $results,
-            ]);
 
-            $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
-            $runtime = new agent_runtime($registry, $orchestrator, $store, $authz);
-            $finalresult = $runtime->run_loop((int)$params['threadid'], (int)$params['cmid'], (int)$USER->id);
+            if (self::should_continue_with_runtime_loop($rawresults, $cmdsarray, $commandsforrun)) {
+                $seedobservations = [];
+                $feedbackobservation = trim((string)($feedback['message'] ?? ''));
+                if ($feedbackobservation !== '') {
+                    $seedobservations[] = $feedbackobservation;
+                }
+                $seedobservation = trim((string)result_payload_summarizer::for_observation($results, 1));
+                if ($seedobservation !== '') {
+                    $seedobservations[] = $seedobservation;
+                }
+                if (!empty($seedobservations)) {
+                    $store->set_thread_metadata_value(
+                        (int)$params['threadid'],
+                        '_loop_seed_observations',
+                        array_values(array_unique($seedobservations))
+                    );
+                }
+                $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
+                $runtime = new agent_runtime($registry, $orchestrator, $store, $authz);
+                $finalresult = $runtime->run_loop((int)$params['threadid'], (int)$params['cmid'], (int)$USER->id);
+            } else {
+                $finalresult = [
+                    'response_type' => 'sufficient',
+                    'message' => (string)($feedback['message'] ?? ''),
+                    'commands' => [],
+                    'results' => $results,
+                    'attempted_tasks' => self::extract_attempted_tasks_from_commands($commandsforrun),
+                    'issue_codes' => [],
+                    'errors' => [],
+                    'pending_confirmation_code' => '',
+                ];
+                $store->add_message((int)$params['threadid'], 'assistant', (string)$finalresult['message'], $finalresult);
+            }
 
             if (!is_array($finalresult)) {
                 $finalresult = [];
@@ -375,12 +400,6 @@ class ai_confirm_run extends external_api {
             }
 
             $store->update_run_status($runid, 'failed', $feedback['results']);
-            $store->add_message((int)$params['threadid'], 'assistant', (string)$feedback['message'], [
-                'response_type' => 'execution_result',
-                'runid' => (int)$runid,
-                'status' => 'failed',
-                'results' => $feedback['results'],
-            ]);
             return [
                 'success' => false,
                 'runid'   => $runid,
@@ -557,6 +576,60 @@ class ai_confirm_run extends external_api {
         }
 
         return array_values($normalized);
+    }
+
+    /**
+     * Continue planner/runtime follow-up only when execution indicates repair
+     * needs or when additional staged commands still remain.
+     *
+     * @param array $rawresults
+     * @param array $allconfirmedcommands
+     * @param array $executedcommands
+     * @return bool
+     */
+    private static function should_continue_with_runtime_loop(
+        array $rawresults,
+        array $allconfirmedcommands,
+        array $executedcommands
+    ): bool {
+        if (count($allconfirmedcommands) > count($executedcommands)) {
+            return true;
+        }
+
+        foreach ($rawresults as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $status = trim((string)($entry['status'] ?? ''));
+            if (in_array($status, ['error', 'failed'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Extract attempted task names from commands for structured response payload.
+     *
+     * @param array $commands
+     * @return array<int,string>
+     */
+    private static function extract_attempted_tasks_from_commands(array $commands): array {
+        $tasks = [];
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+
+            $task = trim((string)($command['task'] ?? ''));
+            if ($task !== '') {
+                $tasks[] = $task;
+            }
+        }
+
+        return array_values(array_unique($tasks));
     }
 
     /**

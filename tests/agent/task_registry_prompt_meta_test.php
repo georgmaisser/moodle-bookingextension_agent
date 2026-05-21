@@ -20,7 +20,7 @@
  * Tests that task_registry correctly extracts and uses prompt_meta from task schemas
  * instead of relying on hardcoded fallback mappings.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -35,8 +35,8 @@ use bookingextension_agent\local\wbagent\interfaces\task_interface;
 /**
  * Tests for task_registry schema metadata handling.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wbagent\task_registry::build_prompt_contract
  */
 final class task_registry_prompt_meta_test extends booking_advanced_testcase {

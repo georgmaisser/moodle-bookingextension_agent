@@ -17,7 +17,7 @@
 /**
  * Tests for task registry behavior.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -33,7 +33,7 @@ use bookingextension_agent\local\wbagent\task_registry;
 /**
  * Tests for task registry duplicate handling.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

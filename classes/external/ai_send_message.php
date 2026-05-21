@@ -17,7 +17,7 @@
 /**
  * External service: send a message to the AI agent.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -51,7 +51,7 @@ use bookingextension_agent\local\wbagent\task_registry;
  *  4. Applying display-side privacy deanonymisation.
  *  5. Formatting the result for the external API contract.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -101,7 +101,7 @@ class ai_send_message extends external_api {
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
         if (empty($message)) {
-            $emptymsg = get_string('ai_empty_message', 'mod_booking');
+            $emptymsg = get_string('ai_empty_message', 'bookingextension_agent');
             return [
                 'response_type'         => 'error',
                 'message'               => $emptymsg,
@@ -129,11 +129,11 @@ class ai_send_message extends external_api {
 
         $runtimeproviderstatus = $orchestrator->get_runtime_provider_status($cmid);
         if (empty($runtimeproviderstatus['runtimeavailable'])) {
-            $errormessage = get_string('ai_provider_not_configured', 'mod_booking');
+            $errormessage = get_string('ai_provider_not_configured', 'bookingextension_agent');
             if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['courseenabled'])) {
-                $errormessage = get_string('aiready_check_course_enabled_todo', 'mod_booking');
+                $errormessage = get_string('aiready_check_course_enabled_todo', 'bookingextension_agent');
             } else if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['contextenabled'])) {
-                $errormessage = get_string('aiready_check_context_enabled_todo', 'mod_booking');
+                $errormessage = get_string('aiready_check_context_enabled_todo', 'bookingextension_agent');
             }
 
             return [
@@ -159,7 +159,7 @@ class ai_send_message extends external_api {
         $thread = null;
         if ($threadid > 0) {
             global $DB;
-            $candidate = $DB->get_record('booking_ai_threads', [
+            $candidate = $DB->get_record('local_wbagent_ai_threads', [
                 'id' => $threadid,
                 'userid' => (int)$USER->id,
                 'cmid' => $cmid,
@@ -184,7 +184,7 @@ class ai_send_message extends external_api {
 
         // Progress-only status for polling UI; this must not trigger extra LLM calls.
         $store->clear_step_messages($threadid);
-        $store->add_step_message($threadid, 1, (string)get_string('ai_thinking', 'mod_booking'), 'runtime.loop');
+        $store->add_step_message($threadid, 1, (string)get_string('ai_thinking', 'bookingextension_agent'), 'runtime.loop');
 
         // Release the session lock before the blocking LLM call so that
         // concurrent step-polling requests (ai_poll_thread) can be served

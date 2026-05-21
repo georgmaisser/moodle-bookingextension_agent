@@ -17,7 +17,7 @@
 /**
  * AI orchestration layer.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -43,7 +43,7 @@ use bookingextension_agent\local\wbagent\adaptive_task_catalog_service;
  *  - Send the conversation context to the AI provider.
  *  - Hand the raw response off to the interpreter.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

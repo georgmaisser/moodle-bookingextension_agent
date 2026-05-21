@@ -17,7 +17,7 @@
 /**
  * Shared base test case for AI agent tests.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -47,7 +47,7 @@ use stdClass;
  * the executor directly (without a real LLM) so that Prompt→Result tests are
  * fully deterministic.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -255,12 +255,12 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return void
      */
     protected function maybe_load_embeddings_fixture(): void {
-        $fixturepath = __DIR__ . '/embedded_llm/fixtures/task_catalog_embeddings.csv';
+        $fixturepath = __DIR__ . '/fixtures/task_catalog_embeddings.csv';
         if (!file_exists($fixturepath)) {
             return; // Fixture not available.
         }
 
-        $runtimedir = make_temp_directory('mod_booking/wbagent');
+        $runtimedir = make_temp_directory('bookingextension_agent/wbagent');
         $runtimepath = $runtimedir . '/task_catalog_embeddings.csv';
 
         if (!copy($fixturepath, $runtimepath)) {
@@ -360,7 +360,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      */
     protected function get_option_from_db(int $optionid): stdClass {
         global $DB;
-        return $DB->get_record('booking_options', ['id' => $optionid], '*', MUST_EXIST);
+        return $DB->get_record('local_wbagent_options', ['id' => $optionid], '*', MUST_EXIST);
     }
 
     /**
@@ -370,7 +370,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      */
     protected function get_all_options(): array {
         global $DB;
-        return $DB->get_records('booking_options', ['bookingid' => $this->booking->id]);
+        return $DB->get_records('local_wbagent_options', ['bookingid' => $this->booking->id]);
     }
 
     // -------------------------------------------------------------------------

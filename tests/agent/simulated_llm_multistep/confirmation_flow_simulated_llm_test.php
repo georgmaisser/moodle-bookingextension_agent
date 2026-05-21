@@ -25,7 +25,7 @@
  * This folder mirrors the real_llm_multistep coverage with deterministic
  * scripted responses.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,8 +40,8 @@ require_once(__DIR__ . '/../simulated_llm/abstract_simulated_llm_testcase.php');
 /**
  * Multistep confirmation flow with scripted responses.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class confirmation_flow_simulated_llm_test extends abstract_simulated_llm_testcase {
@@ -114,7 +114,7 @@ final class confirmation_flow_simulated_llm_test extends abstract_simulated_llm_
         ]));
         $this->assertSame('executed', (string)($exec1['status'] ?? ''), (string)($exec1['detail'] ?? ''));
 
-        $option = $DB->get_record('booking_options', [
+        $option = $DB->get_record('local_wbagent_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);

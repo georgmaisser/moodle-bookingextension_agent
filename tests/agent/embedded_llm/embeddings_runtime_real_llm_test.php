@@ -17,7 +17,7 @@
 /**
  * Real-LLM embedded planner telemetry tests.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @group      real_llm
  * @group      embedded_llm

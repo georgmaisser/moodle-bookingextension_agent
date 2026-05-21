@@ -17,7 +17,7 @@
 /**
  * Tests that booking task classes own schema/validation responsibilities.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,7 +40,7 @@ use bookingextension_agent\local\wbagent\core\tasks\recall_memory_task;
 /**
  * Ensures task classes own schema and validation behavior.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  */

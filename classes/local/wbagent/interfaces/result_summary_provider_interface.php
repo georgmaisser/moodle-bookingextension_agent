@@ -22,7 +22,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  * Components can implement this interface on their task_provider to register
  * task/domain-specific summary contributors for result payload summarization.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

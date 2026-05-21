@@ -23,7 +23,7 @@
  * Real-LLM conversation tests have been consolidated into per-task files
  * (see AGENT_CONVERSATIONS.md for the full index).
  *
- * @package   mod_booking
+ * @package   bookingextension_agent
  * @category  test
  * @copyright 2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -42,8 +42,8 @@ use bookingextension_agent\local\wbagent\booking\support\slot_booking_normalizer
  *
  * No LLM required — runs always.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wbagent\booking\support\slot_booking_normalizer
  */
 final class agent_runtime_unit_test extends abstract_agent_testcase {

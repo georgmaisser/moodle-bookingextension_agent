@@ -16,8 +16,8 @@
 
 namespace bookingextension_agent;
 
-use mod_booking\plugininfo\bookingextension;
-use mod_booking\plugininfo\bookingextension_interface;
+use bookingextension_agent\plugininfo\bookingextension;
+use bookingextension_agent\plugininfo\bookingextension_interface;
 
 /**
  * Booking extension entrypoint.

@@ -17,7 +17,7 @@
 /**
  * Adhoc task to rebuild task-catalog embeddings CSV.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -183,11 +183,11 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
         $reusedtasks = array_values(array_unique($reusedtasks));
         sort($reusedtasks);
 
-        mtrace('mod_booking embeddings rebuild: generated embeddings for '
+        mtrace('bookingextension_agent embeddings rebuild: generated embeddings for '
             . count($embeddedtasks) . ' tasks.');
-        mtrace('mod_booking embeddings rebuild: reused embeddings for '
+        mtrace('bookingextension_agent embeddings rebuild: reused embeddings for '
             . count($reusedtasks) . ' tasks.');
-        mtrace('mod_booking embeddings rebuild: removed stale tasks from CSV: '
+        mtrace('bookingextension_agent embeddings rebuild: removed stale tasks from CSV: '
             . count($removedtasks) . '.');
 
         $statecounts = [
@@ -201,14 +201,14 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
                 $statecounts[$state]++;
             }
         }
-        mtrace('mod_booking embeddings rebuild states summary: '
+        mtrace('bookingextension_agent embeddings rebuild states summary: '
             . 'created=' . $statecounts['created']
             . ', updated=' . $statecounts['updated']
             . ', deleted=' . $statecounts['deleted']
             . ', untouched=' . $statecounts['untouched']);
         if (!empty($taskstates)) {
             ksort($taskstates);
-            mtrace('mod_booking embeddings rebuild task states:');
+            mtrace('bookingextension_agent embeddings rebuild task states:');
             foreach ($taskstates as $taskname => $state) {
                 mtrace(' - ' . $state . ' ' . $taskname);
             }

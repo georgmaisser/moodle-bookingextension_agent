@@ -23,7 +23,7 @@ use bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc;
 /**
  * Task definition for booking.recreate_task_catalog.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

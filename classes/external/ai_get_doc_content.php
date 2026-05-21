@@ -17,7 +17,7 @@
 /**
  * External service: load a booking/docs markdown file and return it as rendered HTML.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -37,10 +37,10 @@ use moodle_url;
 /**
  * Read one booking/docs markdown file and return it as safe HTML.
  *
- * The path is resolved strictly inside the mod_booking/docs directory;
+ * The path is resolved strictly inside the bookingextension_agent/docs directory;
  * any traversal attempt results in an error response.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

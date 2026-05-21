@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 /**
  * Shared option schema properties used by booking mutation tasks.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

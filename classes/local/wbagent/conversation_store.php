@@ -17,7 +17,7 @@
 /**
  * DB-backed conversation store.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -30,7 +30,7 @@ use stdClass;
 /**
  * Persists agent conversation threads, messages, and runs in the Moodle DB.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,7 +39,7 @@ class conversation_store implements agent_conversation_store {
     private const PENDING_INTENT_TTL = 900;
 
     /** Preference key that stores session allowlist entries. */
-    private const CONFIRMATION_SESSION_ALLOWLIST_KEY = 'mod_booking_ai_confirmation_session_allowlist';
+    private const CONFIRMATION_SESSION_ALLOWLIST_KEY = 'bookingextension_agent_ai_confirmation_session_allowlist';
 
     /** Default lifetime for a confirmation allowlist entry in seconds (12h). */
     private const CONFIRMATION_SESSION_ALLOWLIST_TTL = 43200;

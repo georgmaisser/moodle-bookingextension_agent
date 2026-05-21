@@ -17,7 +17,7 @@
 /**
  * Tests for trigger catalog and normalization.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,7 +40,7 @@ use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
 /**
  * Trigger registry tests.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -109,7 +109,7 @@ final class message_trigger_registry_test extends booking_advanced_testcase {
     }
 
     /**
-     * High/medium-priority mod_booking tasks should expose dedicated trigger ids.
+     * High/medium-priority bookingextension_agent tasks should expose dedicated trigger ids.
      *
      * @covers \bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task::get_message_triggers
      * @covers \bookingextension_agent\local\wbagent\booking\tasks\bulk_update_options_task::get_message_triggers

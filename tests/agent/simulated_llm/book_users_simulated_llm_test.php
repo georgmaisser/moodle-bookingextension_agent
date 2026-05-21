@@ -17,7 +17,7 @@
 /**
  * Simulated-LLM conversation tests for booking.book_users.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -32,8 +32,8 @@ require_once(__DIR__ . '/abstract_simulated_llm_testcase.php');
 /**
  * Deterministic book-users tests with scripted LLM output.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class book_users_simulated_llm_test extends abstract_simulated_llm_testcase {
@@ -74,7 +74,7 @@ final class book_users_simulated_llm_test extends abstract_simulated_llm_testcas
         $execresult = $this->execute_command($command);
         $this->assertSame('executed', (string)($execresult['status'] ?? ''), (string)($execresult['detail'] ?? ''));
 
-        $answer = $DB->get_record('booking_answers', [
+        $answer = $DB->get_record('local_wbagent_answers', [
             'optionid' => (int)$option->id,
             'userid' => (int)$target->id,
         ]);

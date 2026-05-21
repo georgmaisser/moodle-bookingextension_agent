@@ -17,7 +17,7 @@
 /**
  * Central agent runtime: owns the full agent loop.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -52,7 +52,7 @@ use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interfac
  * Adding a new task MUST NOT require changes here — the task registry discovers
  * tasks automatically from all installed components.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -224,6 +224,17 @@ class agent_runtime {
         $preflightclarificationretryused = false;
         $readonlysignaturerepeatcounts = [];
 
+        $seedobservationsraw = $this->store->get_thread_metadata_value($threadid, '_loop_seed_observations');
+        $seedobservations = [];
+        if (is_array($seedobservationsraw)) {
+            foreach ($seedobservationsraw as $observation) {
+                $trimmed = trim((string)$observation);
+                if ($trimmed !== '') {
+                    $seedobservations[] = $trimmed;
+                }
+            }
+        }
+
         // Check whether the previous call hit the step limit and stored its observations
         // for resumption.  If the resume payload is still fresh, pre-load those observations
         // so the LLM receives full context from earlier steps without repeating tool calls.
@@ -252,7 +263,14 @@ class agent_runtime {
             && !empty($resumedata['observations'])
             && ((int)($resumedata['expiresat'] ?? 0)) > time()
         );
-        if ($isresume) {
+        if (!empty($seedobservations)) {
+            $state = agent_state::make_resumed($limit, $seedobservations);
+            $this->store->set_thread_metadata_value($threadid, '_loop_seed_observations', null);
+            // New seeded turn: reset planner-result cache so stale payloads cannot
+            // leak into follow-up planner blocks.
+            $this->store->set_thread_metadata_value($threadid, 'last_planner_result_json', null);
+            $this->store->set_thread_metadata_value($threadid, 'planner_trace_history', []);
+        } else if ($isresume) {
             $state = agent_state::make_resumed($limit, (array)$resumedata['observations']);
             $this->store->set_thread_metadata_value($threadid, '_loop_resume', null);
         } else {
@@ -617,7 +635,7 @@ class agent_runtime {
         ];
         $stringid = $stringmap[$responsetype] ?? 'ai_fallback_summary';
 
-        return $this->localized_string($stringid, 'mod_booking', null, $lang);
+        return $this->localized_string($stringid, 'bookingextension_agent', null, $lang);
     }
 
     /**
@@ -999,7 +1017,7 @@ class agent_runtime {
         }
 
         if ($message === '' || $this->is_low_information_message($message)) {
-            $message = $this->localized_string('ai_run_executed', 'mod_booking', null, (string)($result['lang'] ?? ''));
+            $message = $this->localized_string('ai_run_executed', 'bookingextension_agent', null, (string)($result['lang'] ?? ''));
             if ($message === 'ai_run_executed') {
                 $message = 'I found enough information to answer your question.';
             }
@@ -1084,7 +1102,7 @@ class agent_runtime {
             $lang = trim((string)($result['lang'] ?? ''));
             $summary = $this->localized_string(
                 'ai_agent_malformed_taskcall_clarification',
-                'mod_booking',
+                'bookingextension_agent',
                 null,
                 $lang
             );
@@ -1749,7 +1767,7 @@ class agent_runtime {
             if (trim((string)($result['message'] ?? '')) === '') {
                 $result['message'] = $this->localized_string(
                     'ai_agent_malformed_taskcall_clarification',
-                    'mod_booking',
+                    'bookingextension_agent',
                     null,
                     $outputlang
                 );
@@ -1829,7 +1847,7 @@ class agent_runtime {
         if (!empty(array_intersect(self::TOKEN_SUBSCRIPTION_ISSUE_CODES, $issuecodes))) {
             $result['message'] = $this->localized_string(
                 'ai_trial_token_invalid_subscription_message',
-                'mod_booking',
+                'bookingextension_agent',
                 (object)[
                     'basicurl'       => self::BASIC_SUBSCRIPTION_URL,
                     'privacyplusurl' => self::PRIVACY_PLUS_SUBSCRIPTION_URL,
@@ -1913,7 +1931,7 @@ class agent_runtime {
         if ($this->is_low_information_message($currentmessage)) {
             $result['message'] = $this->localized_string(
                 'ai_redundant_readonly_blocked',
-                'mod_booking',
+                'bookingextension_agent',
                 null,
                 $outputlang
             );
@@ -1959,7 +1977,7 @@ class agent_runtime {
         if ($this->is_low_information_message($currentmessage)) {
             $result['message'] = $this->localized_string(
                 'ai_diagnose_recall_blocked_use_existing',
-                'mod_booking',
+                'bookingextension_agent',
                 null,
                 $outputlang
             );
@@ -2088,7 +2106,7 @@ class agent_runtime {
             'response_type'             => 'clarification',
             'message'                   => $this->localized_string(
                 'ai_agent_malformed_taskcall_clarification',
-                'mod_booking',
+                'bookingextension_agent',
                 null,
                 $outputlang
             ),
@@ -2187,8 +2205,8 @@ class agent_runtime {
             'user_lang' => (string)($structured['user_lang'] ?? ''),
         ]);
 
-        $message = $this->localized_string('ai_optiontype_help_message', 'mod_booking', null, $lang);
-        $nextstepintent = $this->localized_string('ai_optiontype_help_next_step_intent', 'mod_booking', null, $lang);
+        $message = $this->localized_string('ai_optiontype_help_message', 'bookingextension_agent', null, $lang);
+        $nextstepintent = $this->localized_string('ai_optiontype_help_next_step_intent', 'bookingextension_agent', null, $lang);
 
         return [
             'response_type' => 'clarification',
@@ -2331,7 +2349,7 @@ class agent_runtime {
     private function loop_continue_result(string $lang, int $maxsteps): array {
         $message = $this->localized_string(
             'ai_agent_loop_continue_question',
-            'mod_booking',
+            'bookingextension_agent',
             (object)['steps' => $maxsteps],
             $lang
         );
@@ -2680,7 +2698,7 @@ class agent_runtime {
         if ($message === '') {
             $message = $this->localized_string(
                 'ai_agent_loop_repeat_message',
-                'mod_booking',
+                'bookingextension_agent',
                 (object)['steps' => $state->step_count()],
                 $lang
             );
@@ -2721,7 +2739,7 @@ class agent_runtime {
         if ($message === '') {
             $message = $this->localized_string(
                 'ai_agent_loop_repeat_message',
-                'mod_booking',
+                'bookingextension_agent',
                 (object)['steps' => $stepcount],
                 $lang
             );

@@ -31,7 +31,7 @@
  *
  * Activation: set BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL + BOOKING_TEST_AI_ENDPOINT.
  *
- * @package   mod_booking
+ * @package   bookingextension_agent
  * @category  test
  * @copyright 2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -48,8 +48,8 @@ use mod_booking\singleton_service;
 /**
  * CONV-09 / CONV-10: booking.diagnose_cancellation_issue real-LLM tests.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @coversNothing
  */
 final class diagnose_cancellation_issue_real_llm_test extends abstract_agent_testcase {

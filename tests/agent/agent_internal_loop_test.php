@@ -28,7 +28,7 @@
  * require a live LLM.  The executor runs against the real DB so that
  * read-only task execution (booking.search_options) is exercised.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -50,8 +50,8 @@ use bookingextension_agent\local\wbagent\task_registry;
 /**
  * Internal agent loop tests — mock orchestrator, real executor.
  *
- * @group mod_booking
- * @group mod_booking_agent
+ * @group bookingextension_agent
+ * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wbagent\agent_runtime
  * @covers \bookingextension_agent\local\wbagent\agent_state
  */

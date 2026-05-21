@@ -4,7 +4,7 @@
 
 **Status**: Active and maintained. Use folder-based runs below for the current ground truth.
 
-This document provides a complete overview of the three-wave test architecture for `mod_booking`'s AI agent (`wbagent`) subsystem. The test suite validates:
+This document provides a complete overview of the three-wave test architecture for `bookingextension_agent`'s AI agent (`wbagent`) subsystem. The test suite validates:
 - Architecture contracts and interface stability
 - Privacy mode implementation (MODE_OFF, MODE_SOFT, MODE_STRICT)
 - LLM simulation with realistic response parsing

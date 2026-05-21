@@ -1,4 +1,4 @@
-# Task-Queue Blueprint fuer den Multi-Step-Agent (mod_booking)
+# Task-Queue Blueprint fuer den Multi-Step-Agent (bookingextension_agent)
 
 ## Ziel
 
@@ -161,7 +161,7 @@ Regel:
 
 ## Beobachtbarkeit
 
-Das UI pollt bereits heute per `mod_booking_ai_poll_thread` gegen den Server und holt
+Das UI pollt bereits heute per `bookingextension_agent_ai_poll_thread` gegen den Server und holt
 laufende Step-Messages ab. Dieser Mechanismus wird auch fuer Queue-Status-Updates genutzt.
 
 Keine neue Polling-Infrastruktur noetig. Stattdessen:

@@ -17,7 +17,7 @@
 /**
  * Tests for the AI agent interpreter pipeline.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -35,7 +35,7 @@ use bookingextension_agent\local\wbagent\task_registry;
 /**
  * Tests for the AI agent interpreter.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @coversNothing
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>

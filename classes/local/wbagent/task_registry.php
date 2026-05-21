@@ -17,7 +17,7 @@
 /**
  * Task schema registry.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,7 +39,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  * to embed task schemas in the system prompt and the executor uses it to
  * dispatch commands to the correct provider.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

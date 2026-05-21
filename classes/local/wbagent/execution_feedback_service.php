@@ -17,7 +17,7 @@
 /**
  * Build user-facing execution feedback after task execution.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -1146,7 +1146,7 @@ class execution_feedback_service {
     /**
      * Return a localized string, optionally forcing a specific output language.
      *
-     * @param string $identifier  Lang string key in mod_booking.
+     * @param string $identifier  Lang string key in bookingextension_agent.
      * @param mixed  $a           Optional substitution parameter.
      * @param string $lang        Target language code (empty = current session language).
      * @return string
@@ -1154,8 +1154,8 @@ class execution_feedback_service {
     private function localized_string(string $identifier, $a = null, string $lang = ''): string {
         $targetlang = trim($lang);
         if ($targetlang === '') {
-            return get_string($identifier, 'mod_booking', $a);
+            return get_string($identifier, 'bookingextension_agent', $a);
         }
-        return get_string_manager()->get_string($identifier, 'mod_booking', $a, $targetlang);
+        return get_string_manager()->get_string($identifier, 'bookingextension_agent', $a, $targetlang);
     }
 }
