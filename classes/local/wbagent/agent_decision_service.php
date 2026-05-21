@@ -29,6 +29,8 @@ namespace bookingextension_agent\local\wbagent;
 use core_text;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\queue\observation_builder;
 
 /**
  * Routing and decision layer for the agent runtime.
@@ -105,6 +107,12 @@ class agent_decision_service {
     /** @var recovery_enrichment_service */
     private recovery_enrichment_service $recoverysvc;
 
+    /** @var queue_manager */
+    private queue_manager $queuesvc;
+
+    /** @var observation_builder */
+    private observation_builder $observationbuilder;
+
     /**
      * Constructor.
      *
@@ -124,6 +132,8 @@ class agent_decision_service {
         $this->authz    = $authz;
         $this->issuecodeprovider = $issuecodeprovider ?? new booking_issue_code_provider();
         $this->recoverysvc = new recovery_enrichment_service($registry);
+        $this->queuesvc = new queue_manager($store);
+        $this->observationbuilder = new observation_builder();
     }
 
     // -------------------------------------------------------------------------
@@ -828,7 +838,48 @@ class agent_decision_service {
         $split = $this->split_commands_by_mutability($commands);
         $readonlycommands = $split['readonly'];
         $mutatingcommands = $split['mutating'];
+        $readonlyqueueids = [];
+        $mutatingqueueids = [];
         $readonlyexecution = null;
+
+        // Shadow-queue ingestion: record all commands before execution/routing.
+        // This preserves current behavior while making queue state observable.
+        $runid = 0;
+        if (is_int($result['runid'] ?? null)) {
+            $runid = (int)$result['runid'];
+        }
+        $stepid = (int)($result['loop_step'] ?? 0);
+
+        foreach ($readonlycommands as $readonlycommand) {
+            $queued = $this->queuesvc->enqueue_command(
+                $threadid,
+                $runid,
+                $stepid,
+                (array)$readonlycommand,
+                'readonly',
+                'ready'
+            );
+            $readonlyqueueids[] = (string)($queued['queue_item_id'] ?? '');
+        }
+
+        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
+        foreach ($mutatingcommands as $idx => $mutatingcommand) {
+            $status = $autoconfirmmode ? 'ready' : ($idx === 0 ? 'blocked_confirmation' : 'queued');
+            $dependson = [];
+            if ($idx > 0 && !empty($mutatingqueueids[$idx - 1])) {
+                $dependson[] = (string)$mutatingqueueids[$idx - 1];
+            }
+            $queued = $this->queuesvc->enqueue_command(
+                $threadid,
+                $runid,
+                $stepid,
+                (array)$mutatingcommand,
+                'mutating',
+                $status,
+                $dependson
+            );
+            $mutatingqueueids[] = (string)($queued['queue_item_id'] ?? '');
+        }
 
         if (!empty($readonlycommands)) {
             $readonlycommands = $this->enrich_readonly_commands_with_planner(
@@ -842,6 +893,7 @@ class agent_decision_service {
         if (!empty($readonlycommands)) {
             $readonlyexecution = $this->execute_readonly_commands(
                 $readonlycommands,
+                $readonlyqueueids,
                 $threadid,
                 $cmid,
                 $userid,
@@ -895,6 +947,15 @@ class agent_decision_service {
                 }
             } else {
                 $result['message'] = $confirmmessage;
+            }
+
+            // Mark non-first staged mutating items as skipped if the first fails later.
+            // Current runtime stages only one mutation command per confirmation step.
+            if (count($mutatingqueueids) > 1) {
+                $result['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    ['QUEUE_MUTATION_STAGED']
+                )));
             }
         } else if (is_array($readonlyexecution)) {
             $result = $readonlyexecution;
@@ -1355,6 +1416,7 @@ class agent_decision_service {
      */
     private function execute_readonly_commands(
         array $commands,
+        array $queueitemids,
         int $threadid,
         int $cmid,
         int $userid,
@@ -1386,6 +1448,7 @@ class agent_decision_service {
             $this->store->update_run_status($runid, 'running');
             $feedback = $this->with_output_language($outputlang, function () use (
                 $preparedcommands,
+                $queueitemids,
                 $cmid,
                 $userid,
                 $idempotencykey,
@@ -1396,7 +1459,7 @@ class agent_decision_service {
                 $exec = new executor($this->registry, $this->store, $this->authz);
                 $rawresults = $exec->execute_commands($preparedcommands, $cmid, $userid, $idempotencykey, $runid);
                 $feedbackservice = new execution_feedback_service($this->store, $this->registry);
-                return $feedbackservice->build_completion_feedback(
+                $feedback = $feedbackservice->build_completion_feedback(
                     $threadid,
                     $cmid,
                     $userid,
@@ -1404,12 +1467,52 @@ class agent_decision_service {
                     $rawresults,
                     $outputlang
                 );
+
+                // Queue status projection: running -> succeeded/failed per readonly item.
+                foreach ($queueitemids as $idx => $queueitemid) {
+                    $queueitemid = (string)$queueitemid;
+                    if ($queueitemid === '') {
+                        continue;
+                    }
+
+                    if ($this->queuesvc->has_running_item($threadid, $queueitemid)) {
+                        // Preserve invariant: max one running item per thread_id.
+                        $this->queuesvc->update_status($threadid, $queueitemid, 'ready');
+                        continue;
+                    }
+
+                    $this->queuesvc->update_status($threadid, $queueitemid, 'running');
+                    $entry = is_array($rawresults[$idx] ?? null) ? (array)$rawresults[$idx] : [];
+                    $status = trim((string)($entry['status'] ?? ''));
+                    $failed = ($status === 'error' || $status === 'failed');
+                    $issuecodes = array_values(array_map('strval', (array)($entry['issue_codes'] ?? [])));
+
+                    if ($failed) {
+                        $this->queuesvc->update_status(
+                            $threadid,
+                            $queueitemid,
+                            'failed',
+                            $issuecodes,
+                            'domain_error',
+                            trim((string)($entry['detail'] ?? ''))
+                        );
+                    } else {
+                        $this->queuesvc->update_status($threadid, $queueitemid, 'succeeded', $issuecodes);
+                    }
+                }
+
+                return $feedback;
             });
             $results = $feedback['results'];
             $this->store->update_run_status($runid, 'completed', $results);
             $message = trim((string)($feedback['message'] ?? ''));
             if ($message === '') {
                 $message = $this->localized_string('ai_run_executed', 'mod_booking', null, $outputlang);
+            }
+
+            $queueobservation = $this->observationbuilder->build_observation($this->queuesvc->get_queue_items($threadid));
+            if ($queueobservation !== '') {
+                $message .= "\n\n" . $queueobservation;
             }
 
             $payload = [
@@ -1454,6 +1557,15 @@ class agent_decision_service {
                 'detail'   => $e->getMessage(),
                 'resultid' => null,
             ]];
+
+            foreach ($queueitemids as $queueitemid) {
+                $queueitemid = (string)$queueitemid;
+                if ($queueitemid === '') {
+                    continue;
+                }
+                $this->queuesvc->update_status($threadid, $queueitemid, 'failed', [], 'provider_error', $e->getMessage());
+            }
+
             $this->store->update_run_status($runid, 'failed', $failureresults);
 
             return [

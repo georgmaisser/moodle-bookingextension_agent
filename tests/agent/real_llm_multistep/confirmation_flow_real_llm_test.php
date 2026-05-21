@@ -37,7 +37,7 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
-use mod_booking\external\ai_confirm_run;
+use bookingextension_agent\external\ai_confirm_run;
 
 /**
  * Multistep confirmation flow with a real LLM.

@@ -41,6 +41,7 @@ use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+ use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\task_registry;
 use bookingextension_agent\task\execute_ai_run_adhoc;
 
@@ -125,13 +126,22 @@ class ai_confirm_run extends external_api {
                 'pendingconfirmationcode' => '',
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
-                    $params['cmid'], (int)$USER->id, []
+                    $params['cmid'],
+                    (int)$USER->id,
+                    []
                 ),
             ];
         }
 
         $cmdsarray = array_values((array)$pendingintent['commands']);
         $commandsforrun = self::slice_first_confirmation_stage($cmdsarray);
+        $queuesvc = new queue_manager($store);
+        $activequeueitemid = self::resolve_active_queue_item_id($queuesvc, (int)$params['threadid'], $commandsforrun);
+
+        if ($activequeueitemid !== '') {
+            $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
+        }
+
         $outputlang = trim((string)$store->get_thread_metadata_value((int)$params['threadid'], 'last_output_lang'));
         if ($outputlang === '') {
             $outputlang = current_language();
@@ -160,7 +170,9 @@ class ai_confirm_run extends external_api {
                     'pendingconfirmationcode' => '',
                     'previewoptionid' => $previewoptionid,
                     'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
-                        $params['cmid'], (int)$USER->id, []
+                        $params['cmid'],
+                        (int)$USER->id,
+                        []
                     ),
                 ];
             }
@@ -213,7 +225,9 @@ class ai_confirm_run extends external_api {
                 'pendingconfirmationcode' => '',
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
-                    $params['cmid'], (int)$USER->id, []
+                    $params['cmid'],
+                    (int)$USER->id,
+                    []
                 ),
             ];
         }
@@ -224,6 +238,14 @@ class ai_confirm_run extends external_api {
 
         $store->update_run_status($runid, 'running');
         try {
+            if ($activequeueitemid !== '') {
+                if ($queuesvc->has_running_item((int)$params['threadid'], $activequeueitemid)) {
+                    $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
+                } else {
+                    $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'running');
+                }
+            }
+
             $registry = task_registry::make_default();
             $exec = new executor($registry, $store, $authz);
             $rawresults = $exec->execute_commands(
@@ -243,6 +265,28 @@ class ai_confirm_run extends external_api {
                 $outputlang
             );
             $results = $feedback['results'];
+
+            if ($activequeueitemid !== '') {
+                $primary = is_array($rawresults[0] ?? null) ? (array)$rawresults[0] : [];
+                $status = trim((string)($primary['status'] ?? ''));
+                $failed = ($status === 'error' || $status === 'failed');
+                $issuecodes = self::normalize_string_list($primary['issue_codes'] ?? []);
+
+                if ($failed) {
+                    $queuesvc->update_status(
+                        (int)$params['threadid'],
+                        $activequeueitemid,
+                        'failed',
+                        $issuecodes,
+                        'domain_error',
+                        trim((string)($primary['detail'] ?? ''))
+                    );
+                    self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
+                } else {
+                    $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'succeeded', $issuecodes);
+                }
+            }
+
             $store->update_run_status($runid, 'completed', $results);
             $store->add_message((int)$params['threadid'], 'assistant', (string)$feedback['message'], [
                 'response_type' => 'execution_result',
@@ -301,7 +345,9 @@ class ai_confirm_run extends external_api {
                 'pendingconfirmationcode' => (string)($finalresult['pending_confirmation_code'] ?? ''),
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
-                    $params['cmid'], (int)$USER->id, $results
+                    $params['cmid'],
+                    (int)$USER->id,
+                    $results
                 ),
             ];
         } catch (\Throwable $e) {
@@ -315,6 +361,19 @@ class ai_confirm_run extends external_api {
                 $rawresults,
                 $outputlang
             );
+
+            if ($activequeueitemid !== '') {
+                $queuesvc->update_status(
+                    (int)$params['threadid'],
+                    $activequeueitemid,
+                    'failed',
+                    [],
+                    'provider_error',
+                    $e->getMessage()
+                );
+                self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
+            }
+
             $store->update_run_status($runid, 'failed', $feedback['results']);
             $store->add_message((int)$params['threadid'], 'assistant', (string)$feedback['message'], [
                 'response_type' => 'execution_result',
@@ -343,7 +402,9 @@ class ai_confirm_run extends external_api {
                     (array)($feedback['results'] ?? [])
                 ),
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
-                    $params['cmid'], (int)$USER->id, (array)($feedback['results'] ?? [])
+                    $params['cmid'],
+                    (int)$USER->id,
+                    (array)($feedback['results'] ?? [])
                 ),
             ];
         }
@@ -371,7 +432,12 @@ class ai_confirm_run extends external_api {
             'errorsjson' => new external_value(PARAM_RAW, 'JSON-encoded errors.'),
             'pendingconfirmationcode' => new external_value(PARAM_TEXT, 'One-time pending confirmation code for debug.'),
             'previewoptionid' => new external_value(PARAM_INT, 'Latest option id to preview directly, if available.'),
-            'previewoptionidsjson' => new external_value(PARAM_RAW, 'JSON-encoded array of all preview option ids.', VALUE_DEFAULT, '[]'),
+            'previewoptionidsjson' => new external_value(
+                PARAM_RAW,
+                'JSON-encoded array of all preview option ids.',
+                VALUE_DEFAULT,
+                '[]'
+            ),
         ]);
     }
 
@@ -506,5 +572,100 @@ class ai_confirm_run extends external_api {
         }
 
         return [$commands[0]];
+    }
+
+      /**
+       * Resolve queue item id for the first confirmed command.
+       *
+       * @param queue_manager $queuesvc
+       * @param int $threadid
+       * @param array $commandsforrun
+       * @return string
+       */
+    private static function resolve_active_queue_item_id(
+        queue_manager $queuesvc,
+        int $threadid,
+        array $commandsforrun
+    ): string {
+        $command = is_array($commandsforrun[0] ?? null) ? (array)$commandsforrun[0] : [];
+        $task = trim((string)($command['task'] ?? ''));
+        $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+        if ($task === '') {
+            return '';
+        }
+
+        $signature = $queuesvc->build_input_signature($task, $input);
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+
+            if ((string)($item['task'] ?? '') !== $task) {
+                continue;
+            }
+
+            if ((string)($item['input_signature'] ?? '') !== $signature) {
+                continue;
+            }
+
+            $status = (string)($item['status'] ?? '');
+            if (in_array($status, ['blocked_confirmation', 'ready', 'queued'], true)) {
+                return (string)($item['queue_item_id'] ?? '');
+            }
+        }
+
+        return '';
+    }
+
+      /**
+       * Mark dependent queue items as skipped after a failed prerequisite.
+       *
+       * @param queue_manager $queuesvc
+       * @param int $threadid
+       * @param string $failedqueueitemid
+       * @return void
+       */
+    private static function mark_dependents_skipped(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $failedqueueitemid
+    ): void {
+        if ($failedqueueitemid === '') {
+            return;
+        }
+
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $queueitemid = (string)($item['queue_item_id'] ?? '');
+            if ($queueitemid === '') {
+                continue;
+            }
+
+            $dependson = array_values(array_map('strval', (array)($item['depends_on'] ?? [])));
+            if (!in_array($failedqueueitemid, $dependson, true)) {
+                continue;
+            }
+
+            $status = (string)($item['status'] ?? '');
+            if (!in_array($status, ['queued', 'blocked_confirmation', 'ready'], true)) {
+                continue;
+            }
+
+            $queuesvc->update_status(
+                $threadid,
+                $queueitemid,
+                'skipped',
+                ['DEPENDENCY_FAILED'],
+                'domain_conflict',
+                'Skipped because a dependent queue item failed.'
+            );
+        }
     }
 }

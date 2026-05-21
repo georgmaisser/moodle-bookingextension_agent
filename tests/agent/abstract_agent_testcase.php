@@ -116,6 +116,9 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $this->gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
 
+        // Test baseline: keep governance task gates open unless a test overrides it explicitly.
+        set_config('aitaskenableall', 1, 'bookingextension_agent');
+
         $this->maybe_register_live_ai_provider();
         $this->maybe_load_embeddings_fixture();
     }

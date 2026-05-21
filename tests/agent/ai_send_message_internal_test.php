@@ -25,12 +25,8 @@
 
 namespace bookingextionsion_agent;
 
-defined('MOODLE_INTERNAL') || die();
-
-require_once(__DIR__ . '/../../classes/local/testing/booking_advanced_testcase.php');
-
 use mod_booking\local\testing\booking_advanced_testcase;
-use mod_booking\external\ai_send_message;
+use bookingextension_agent\external\ai_send_message;
 
 /**
  * Keep the ai_send_message external contract stable.

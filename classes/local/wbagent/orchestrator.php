@@ -102,9 +102,9 @@ class orchestrator {
         agent_interpreter $interpreter,
         conversation_store $store
     ) {
-        $this->registry    = $registry;
+        $this->registry = $registry;
         $this->interpreter = $interpreter;
-        $this->store       = $store;
+        $this->store = $store;
     }
 
     /**

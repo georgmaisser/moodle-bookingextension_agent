@@ -1,0 +1,59 @@
+flowchart TD
+    A[LLM Planner Output] --> B[Queue Ingestion + Idempotency Check]
+
+    B --> C{Mutability?}
+
+    C -->|readonly| D[queued - readonly]
+    C -->|mutating| E[queued - mutating]
+
+    D --> F[ready]
+
+    E --> G[Preflight - laeuft immer auch im autoconfirmmode]
+    G --> H{Hard block?}
+    H -->|validation_error / permission_error| O[failed - terminal]
+    H -->|domain_conflict| DC[blocked_confirmation - domain]
+    DC --> J[User Confirm or Clarification]
+    H -->|autoconfirmmode active| F
+    H -->|normal mode| I[blocked_confirmation - awaiting confirm]
+    I --> J
+    J --> F
+
+    F --> SL{Scheduler-Lock - max 1 running per thread_id}
+    SL -->|slot free| K[running]
+    SL -->|slot occupied| F
+
+    K --> L{Execution Result}
+
+    L -->|success| M[succeeded]
+    L -->|transient error - provider_timeout / io| N[retry_waiting]
+    N --> F
+    L -->|contract_repair - CONTRACT issue_codes| RP[Neuer Queue-Eintrag mit depends_on]
+    RP --> B
+    L -->|domain error - recoverable| P[failed + Observation with error detail]
+
+    M --> OB[Observation Builder]
+    P --> OB
+    O --> OB
+
+    OB --> RR{Repair needed?}
+    RR -->|yes - LLM emits new command| B
+    RR -->|no| LS{MAX_LOOP_STEPS Budget ok?}
+    LS -->|exhausted| FAIL[failed - budget exceeded]
+    LS -->|ok| GR{Goal reached?}
+
+    GR -->|yes| S[Final Synthesis]
+    GR -->|no - observations insufficient| T[Re-Plan: new LLM step - nur anhaengen]
+    T --> B
+
+    DEPCHECK{depends_on auf failed Item?} -->|yes| SK[skipped - terminal]
+
+    style M fill:#2d6a4f,color:#fff
+    style O fill:#9b2226,color:#fff
+    style SK fill:#9b2226,color:#fff
+    style FAIL fill:#9b2226,color:#fff
+    style S fill:#1d3557,color:#fff
+    style I fill:#e9c46a,color:#000
+    style DC fill:#e9c46a,color:#000
+    style RP fill:#457b9d,color:#fff
+    style SL fill:#264653,color:#fff
+    style LS fill:#264653,color:#fff

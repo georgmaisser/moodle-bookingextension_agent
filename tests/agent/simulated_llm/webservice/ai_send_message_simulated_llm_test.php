@@ -31,8 +31,8 @@ require_once(__DIR__ . '/../../abstract_agent_testcase.php');
 require_once(__DIR__ . '/../routed_ai_manager_mock.php');
 require_once(__DIR__ . '/ai_send_message_mock_scenarios.php');
 
-use mod_booking\external\ai_confirm_run;
-use mod_booking\external\ai_send_message;
+use bookingextension_agent\external\ai_confirm_run;
+use bookingextension_agent\external\ai_send_message;
 use bookingextension_agent\local\wbagent\conversation_store;
 
 /**
