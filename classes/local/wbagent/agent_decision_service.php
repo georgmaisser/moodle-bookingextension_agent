@@ -31,6 +31,11 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
+use bookingextension_agent\local\wbagent\services\preflight_audit_logger;
+use bookingextension_agent\local\wbagent\services\preflight_domain_check_runner;
+use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
+use bookingextension_agent\local\wbagent\services\preflight_schema_validator;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Routing and decision layer for the agent runtime.
@@ -113,6 +118,18 @@ class agent_decision_service {
     /** @var observation_builder */
     private observation_builder $observationbuilder;
 
+    /** @var preflight_schema_validator */
+    private preflight_schema_validator $preflightschemavalidator;
+
+    /** @var preflight_domain_check_runner */
+    private preflight_domain_check_runner $preflightdomainrunner;
+
+    /** @var preflight_execution_gate */
+    private preflight_execution_gate $preflightexecutiongate;
+
+    /** @var preflight_audit_logger */
+    private preflight_audit_logger $preflightauditlogger;
+
     /**
      * Constructor.
      *
@@ -134,6 +151,10 @@ class agent_decision_service {
         $this->recoverysvc = new recovery_enrichment_service($registry);
         $this->queuesvc = new queue_manager($store);
         $this->observationbuilder = new observation_builder();
+        $this->preflightschemavalidator = new preflight_schema_validator();
+        $this->preflightdomainrunner = new preflight_domain_check_runner();
+        $this->preflightexecutiongate = new preflight_execution_gate();
+        $this->preflightauditlogger = new preflight_audit_logger($store);
     }
 
     // -------------------------------------------------------------------------
@@ -163,6 +184,15 @@ class agent_decision_service {
         bool $hasobservationscontext = false
     ): array {
         $contextid = (int)\context_module::instance($cmid)->id;
+        if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
+            $expiredblocked = $this->queuesvc->fail_expired_blocked_items($threadid);
+            if ($expiredblocked > 0) {
+                $result['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    ['BLOCKED_CONFIRMATION_TIMEOUT']
+                )));
+            }
+        }
         $evaluator = new task_executability_evaluator($this->registry, $this->authz);
         $commandfallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
 
@@ -740,7 +770,7 @@ class agent_decision_service {
         }
 
         // Re-run preflight so that prepared_input is refreshed for the executor.
-        $preflightresult = $this->run_preflight_on_commands($confirmcommands, $threadid, $cmid, $userid);
+        $preflightresult = $this->run_preflight_pipeline_on_commands($confirmcommands, $threadid, $cmid, $userid);
         if (!$preflightresult['valid']) {
             $invalidmessage = implode(' ', array_values(array_unique(array_filter((array)($preflightresult['errors'] ?? [])))));
             return [
@@ -865,9 +895,20 @@ class agent_decision_service {
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
             $status = $autoconfirmmode ? 'ready' : ($idx === 0 ? 'blocked_confirmation' : 'queued');
-            $dependson = [];
+            $dependson = array_values(array_map('strval', (array)($mutatingcommand['depends_on'] ?? [])));
             if ($idx > 0 && !empty($mutatingqueueids[$idx - 1])) {
                 $dependson[] = (string)$mutatingqueueids[$idx - 1];
+            }
+            $dependson = array_values(array_unique(array_filter($dependson)));
+            if ((bool)get_config('bookingextension_agent', 'queue_dag_validation_enabled')) {
+                $existingitems = $this->queuesvc->get_queue_items($threadid);
+                if (!$this->queuesvc->validate_depends_on_is_dag($existingitems, $dependson)) {
+                    $result['issue_codes'] = array_values(array_unique(array_merge(
+                        (array)($result['issue_codes'] ?? []),
+                        ['DEPENDENCY_CYCLE']
+                    )));
+                    $status = 'failed';
+                }
             }
             $queued = $this->queuesvc->enqueue_command(
                 $threadid,
@@ -1737,6 +1778,205 @@ class agent_decision_service {
             'attempted_tasks'   => array_values(array_unique($attemptedtasks)),
             'issue_codes'       => array_values(array_unique($issuecodes)),
         ];
+    }
+
+    /**
+     * Run legacy preflight and optional V2 pipeline/shadow comparison.
+     *
+     * Pipeline behavior:
+     * - Always runs legacy preflight for backward compatibility.
+     * - Optionally evaluates V2 in shadow mode for audit-only comparison.
+     * - Optionally enforces V2 result for runtime gating when enabled.
+     *
+     * @param array $commands
+     * @param int $threadid
+     * @param int $cmid
+     * @param int $userid
+     * @return array{valid:bool,prepared_commands:array,errors:array,attempted_tasks:array,issue_codes:array,v2_result:array<string,mixed>}
+     */
+    private function run_preflight_pipeline_on_commands(
+        array $commands,
+        int $threadid,
+        int $cmid,
+        int $userid
+    ): array {
+        $legacy = $this->run_preflight_on_commands($commands, $threadid, $cmid, $userid);
+        $legacy['v2_result'] = [];
+
+        $v2enabled = (bool)get_config('bookingextension_agent', 'preflight_v2_enabled');
+        $shadowmode = (bool)get_config('bookingextension_agent', 'preflight_v2_shadow_mode');
+        if (!$v2enabled && !$shadowmode) {
+            return $legacy;
+        }
+
+        $v2 = $this->evaluate_preflight_v2_result($commands, $legacy, $threadid);
+        $legacy['v2_result'] = $v2->to_array();
+        $this->log_preflight_v2_shadow_comparison($threadid, $legacy, $v2);
+
+        if (!$v2enabled) {
+            return $legacy;
+        }
+
+        $status = $v2->status;
+        if ($status === 'pass') {
+            return $legacy;
+        }
+
+        $issuecodes = !empty($v2->issuecodes) ? $v2->issuecodes : (array)($legacy['issue_codes'] ?? []);
+        $legacy['issue_codes'] = array_values(array_unique(array_map('strval', $issuecodes)));
+        if ($status === 'retry_hint') {
+            $legacy['valid'] = false;
+            $legacy['errors'] = array_values(array_unique(array_merge(
+                (array)($legacy['errors'] ?? []),
+                ['Preflight retry requested. Please retry after backoff.']
+            )));
+            return $legacy;
+        }
+
+        $legacy['valid'] = false;
+        if (empty($legacy['errors'])) {
+            $legacy['errors'] = [
+                $status === 'soft_block'
+                    ? 'Preflight requires clarification/confirmation before execution.'
+                    : 'Preflight blocked execution.',
+            ];
+        }
+
+        return $legacy;
+    }
+
+    /**
+     * Evaluate preflight contract v2 from command batch + legacy result.
+     *
+     * @param array $commands
+     * @param array $legacy
+     * @param int $threadid
+     * @return preflight_result_v2
+     */
+    private function evaluate_preflight_v2_result(array $commands, array $legacy, int $threadid): preflight_result_v2 {
+        $startedat = microtime(true);
+
+        foreach ($commands as $command) {
+            $command = is_array($command) ? $command : [];
+            $schemavalidation = $this->preflightschemavalidator->validate($command);
+            if (($schemavalidation['valid'] ?? false) === true) {
+                continue;
+            }
+            $result = new preflight_result_v2(
+                'hard_block',
+                ['SCHEMA_ERROR'],
+                'schema',
+                0,
+                0,
+                (int)max(0, (microtime(true) - $startedat) * 1000)
+            );
+            $this->preflightauditlogger->append($threadid, 0, [
+                'layer' => 'schema',
+                'status' => $result->status,
+                'issue_codes' => $result->issuecodes,
+                'retry_count' => 0,
+                'duration_ms' => $result->durationms,
+                'error_class' => 'schema_error',
+            ]);
+            return $result;
+        }
+
+        $domainresult = $this->preflightdomainrunner->run((array)($legacy['issue_codes'] ?? []), $startedat);
+        if (!$legacy['valid'] && $domainresult->status === 'pass') {
+            $domainresult = new preflight_result_v2(
+                'hard_block',
+                (array)($legacy['issue_codes'] ?? []),
+                'domain',
+                0,
+                0,
+                $domainresult->durationms
+            );
+        }
+
+        $errorclass = $this->infer_error_class_from_issue_codes((array)($legacy['issue_codes'] ?? []));
+        $result = $domainresult;
+        if ($errorclass !== '' && in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+            $result = $this->preflightexecutiongate->evaluate(
+                $errorclass,
+                0,
+                (array)($legacy['issue_codes'] ?? [])
+            );
+        }
+
+        $this->preflightauditlogger->append($threadid, 0, [
+            'layer' => $result->blockinglayer !== '' ? $result->blockinglayer : 'preflight',
+            'status' => $result->status,
+            'issue_codes' => $result->issuecodes,
+            'retry_count' => $result->retrycount,
+            'duration_ms' => $result->durationms,
+            'error_class' => $errorclass,
+        ]);
+        return $result;
+    }
+
+    /**
+     * Infer gate-relevant error_class from issue codes.
+     *
+     * @param array<int,string> $issuecodes
+     * @return string
+     */
+    private function infer_error_class_from_issue_codes(array $issuecodes): string {
+        foreach ($issuecodes as $code) {
+            $upper = core_text::strtoupper(trim((string)$code));
+            if ($upper === '') {
+                continue;
+            }
+            if (str_contains($upper, 'TIMEOUT')) {
+                return 'provider_timeout';
+            }
+            if (str_contains($upper, 'TRANSIENT_IO') || str_contains($upper, 'IO_TRANSIENT')) {
+                return 'transient_io';
+            }
+            if (str_contains($upper, 'PERMISSION')) {
+                return 'permission_error';
+            }
+            if (str_contains($upper, 'CONFLICT')) {
+                return 'domain_conflict';
+            }
+            if (str_contains($upper, 'VALIDATION') || str_contains($upper, 'MISSING_')) {
+                return 'validation_error';
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Log legacy-vs-v2 comparison in shadow mode.
+     *
+     * @param int $threadid
+     * @param array $legacy
+     * @param preflight_result_v2 $v2
+     * @return void
+     */
+    private function log_preflight_v2_shadow_comparison(int $threadid, array $legacy, preflight_result_v2 $v2): void {
+        if (!(bool)get_config('bookingextension_agent', 'preflight_v2_shadow_mode')) {
+            return;
+        }
+
+        $legacyvalid = !empty($legacy['valid']);
+        $v2allows = $v2->status === 'pass';
+        $shadowissuecodes = [];
+        if ($legacyvalid !== $v2allows) {
+            $shadowissuecodes[] = 'PREFLIGHT_V2_SHADOW_MISMATCH';
+        }
+        $shadowissuecodes = array_values(array_unique(array_merge(
+            $shadowissuecodes,
+            (array)($v2->issuecodes ?? [])
+        )));
+
+        $this->preflightauditlogger->append($threadid, 0, [
+            'layer' => 'shadow_compare',
+            'status' => $v2->status,
+            'issue_codes' => $shadowissuecodes,
+            'retry_count' => $v2->retrycount,
+            'duration_ms' => $v2->durationms,
+            'error_class' => $this->infer_error_class_from_issue_codes((array)($legacy['issue_codes'] ?? [])),
+        ]);
     }
 
     /**

@@ -134,6 +134,51 @@ $aisettingspage->add(
 );
 
 $aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/preflight_v2_enabled',
+        get_string('preflight_v2_enabled', 'bookingextension_agent'),
+        get_string('preflight_v2_enabled_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/preflight_v2_shadow_mode',
+        get_string('preflight_v2_shadow_mode', 'bookingextension_agent'),
+        get_string('preflight_v2_shadow_mode_desc', 'bookingextension_agent'),
+        1
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/queue_dag_validation_enabled',
+        get_string('queue_dag_validation_enabled', 'bookingextension_agent'),
+        get_string('queue_dag_validation_enabled_desc', 'bookingextension_agent'),
+        1
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/queue_blocked_ttl_enabled',
+        get_string('queue_blocked_ttl_enabled', 'bookingextension_agent'),
+        get_string('queue_blocked_ttl_enabled_desc', 'bookingextension_agent'),
+        1
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/preflight_audit_enabled',
+        get_string('preflight_audit_enabled', 'bookingextension_agent'),
+        get_string('preflight_audit_enabled_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+$aisettingspage->add(
     new admin_setting_heading(
         'bookingextension_agent_aitaskgovernance_heading',
         get_string('aitaskgovernanceheading', 'bookingextension_agent'),

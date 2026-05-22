@@ -42,7 +42,8 @@ use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
- use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\services\preflight_audit_logger;
 use bookingextension_agent\local\wbagent\task_registry;
 use bookingextension_agent\task\execute_ai_run_adhoc;
 
@@ -137,10 +138,22 @@ class ai_confirm_run extends external_api {
         $cmdsarray = array_values((array)$pendingintent['commands']);
         $commandsforrun = self::slice_first_confirmation_stage($cmdsarray);
         $queuesvc = new queue_manager($store);
+        $auditlogger = new preflight_audit_logger($store);
+        if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
+            $queuesvc->fail_expired_blocked_items((int)$params['threadid']);
+        }
         $activequeueitemid = self::resolve_active_queue_item_id($queuesvc, (int)$params['threadid'], $commandsforrun);
 
         if ($activequeueitemid !== '') {
             $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
+            $auditlogger->append((int)$params['threadid'], 0, [
+                'layer' => 'confirmation',
+                'status' => 'ready',
+                'issue_codes' => [],
+                'retry_count' => 0,
+                'duration_ms' => 0,
+                'error_class' => '',
+            ]);
         }
 
         $outputlang = trim((string)$store->get_thread_metadata_value((int)$params['threadid'], 'last_output_lang'));
@@ -244,6 +257,14 @@ class ai_confirm_run extends external_api {
                     $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
                 } else {
                     $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'running');
+                    $auditlogger->append((int)$params['threadid'], (int)$runid, [
+                        'layer' => 'execution',
+                        'status' => 'running',
+                        'issue_codes' => [],
+                        'retry_count' => 0,
+                        'duration_ms' => 0,
+                        'error_class' => '',
+                    ]);
                 }
             }
 
@@ -282,9 +303,25 @@ class ai_confirm_run extends external_api {
                         'domain_error',
                         trim((string)($primary['detail'] ?? ''))
                     );
+                    $auditlogger->append((int)$params['threadid'], (int)$runid, [
+                        'layer' => 'execution',
+                        'status' => 'failed',
+                        'issue_codes' => $issuecodes,
+                        'retry_count' => 0,
+                        'duration_ms' => 0,
+                        'error_class' => 'domain_error',
+                    ]);
                     self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
                 } else {
                     $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'succeeded', $issuecodes);
+                    $auditlogger->append((int)$params['threadid'], (int)$runid, [
+                        'layer' => 'execution',
+                        'status' => 'succeeded',
+                        'issue_codes' => $issuecodes,
+                        'retry_count' => 0,
+                        'duration_ms' => 0,
+                        'error_class' => '',
+                    ]);
                 }
             }
 
@@ -396,6 +433,14 @@ class ai_confirm_run extends external_api {
                     'provider_error',
                     $e->getMessage()
                 );
+                $auditlogger->append((int)$params['threadid'], (int)$runid, [
+                    'layer' => 'execution',
+                    'status' => 'failed',
+                    'issue_codes' => [],
+                    'retry_count' => 0,
+                    'duration_ms' => 0,
+                    'error_class' => 'provider_error',
+                ]);
                 self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
             }
 

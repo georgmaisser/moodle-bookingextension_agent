@@ -41,6 +41,19 @@ class queue_manager {
     /** @var conversation_store */
     private conversation_store $store;
 
+    /** @var int Default TTL for blocked confirmations in seconds. */
+    private const DEFAULT_BLOCKED_TTL_SECONDS = 900;
+
+    /** @var array<int,string> Queue fields allowed via update_status extra payload. */
+    private const ALLOWED_EXTRA_STATUS_FIELDS = [
+        'preflight_retry_count',
+        'retry_after_ms',
+        'backoff_ms',
+        'blocked_expires_at',
+        'next_retry_at',
+        'retry_count',
+    ];
+
     /**
      * Constructor.
      *
@@ -72,6 +85,44 @@ class queue_manager {
         array $dependson = []
     ): array {
         $items = $this->get_queue_items($threadid);
+        $dependson = array_values(array_map('strval', $dependson));
+
+        if (
+            (bool)get_config('bookingextension_agent', 'queue_dag_validation_enabled')
+            && !empty($dependson)
+            && !$this->validate_depends_on_is_dag($items, $dependson)
+        ) {
+            $now = time();
+            $seq = $this->next_sequence($threadid);
+            $faileditem = [
+                'queue_item_id' => 'q' . $threadid . '_' . $seq,
+                'thread_id' => $threadid,
+                'run_id' => $runid,
+                'step_id' => $stepid,
+                'task' => trim((string)($command['task'] ?? '')),
+                'input' => is_array($command['input'] ?? null) ? (array)$command['input'] : [],
+                'prepared_input' => null,
+                'input_signature' => '',
+                'mutability' => $mutability,
+                'depends_on' => $dependson,
+                'status' => 'failed',
+                'retry_count' => 0,
+                'preflight_retry_count' => 0,
+                'next_retry_at' => null,
+                'retry_after_ms' => 0,
+                'backoff_ms' => 0,
+                'blocked_expires_at' => null,
+                'issue_codes' => ['DEPENDENCY_CYCLE'],
+                'error_class' => 'dependency_cycle',
+                'last_error_message' => 'depends_on cycle detected during queue ingestion.',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            $items[] = $faileditem;
+            $this->save_queue_items($threadid, $items);
+            return $faileditem;
+        }
+
         $seq = $this->next_sequence($threadid);
         $now = time();
 
@@ -89,10 +140,14 @@ class queue_manager {
             'prepared_input' => null,
             'input_signature' => $signature,
             'mutability' => $mutability,
-            'depends_on' => array_values(array_map('strval', $dependson)),
+            'depends_on' => $dependson,
             'status' => $status,
             'retry_count' => 0,
+            'preflight_retry_count' => 0,
             'next_retry_at' => null,
+            'retry_after_ms' => 0,
+            'backoff_ms' => 0,
+            'blocked_expires_at' => $this->resolve_blocked_expires_at($status, $now),
             'issue_codes' => [],
             'error_class' => '',
             'last_error_message' => '',
@@ -114,6 +169,7 @@ class queue_manager {
      * @param array $issuecodes
      * @param string $errorclass
      * @param string $lasterrormessage
+     * @param array<string,mixed> $extrafields
      * @return void
      */
     public function update_status(
@@ -122,7 +178,8 @@ class queue_manager {
         string $status,
         array $issuecodes = [],
         string $errorclass = '',
-        string $lasterrormessage = ''
+        string $lasterrormessage = '',
+        array $extrafields = []
     ): void {
         $items = $this->get_queue_items($threadid);
         $now = time();
@@ -132,6 +189,7 @@ class queue_manager {
             }
             $item['status'] = $status;
             $item['updated_at'] = $now;
+            $item['blocked_expires_at'] = $this->resolve_blocked_expires_at($status, $now);
             if (!empty($issuecodes)) {
                 $item['issue_codes'] = array_values(array_unique(array_map('strval', $issuecodes)));
             }
@@ -140,6 +198,15 @@ class queue_manager {
             }
             if ($lasterrormessage !== '') {
                 $item['last_error_message'] = $lasterrormessage;
+            }
+            if (!empty($extrafields)) {
+                foreach ($extrafields as $key => $value) {
+                    $normalizedkey = trim((string)$key);
+                    if (!in_array($normalizedkey, self::ALLOWED_EXTRA_STATUS_FIELDS, true)) {
+                        continue;
+                    }
+                    $item[$normalizedkey] = $value;
+                }
             }
             break;
         }
@@ -191,6 +258,105 @@ class queue_manager {
     }
 
     /**
+     * Determine whether a queue item can be picked up right now.
+     *
+     * @param array<string,mixed> $item
+     * @param int|null $now
+     * @return bool
+     */
+    public function can_pickup_now(array $item, ?int $now = null): bool {
+        $now = $now ?? time();
+        $status = trim((string)($item['status'] ?? ''));
+        if (!in_array($status, ['ready', 'retry_waiting'], true)) {
+            return false;
+        }
+
+        $blockedexpiresat = (int)($item['blocked_expires_at'] ?? 0);
+        if ($blockedexpiresat > 0 && $blockedexpiresat > $now) {
+            return false;
+        }
+
+        $nextretryat = (int)($item['next_retry_at'] ?? 0);
+        if ($nextretryat > 0 && $nextretryat > $now) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Validate that appending a node with given dependencies keeps graph acyclic.
+     *
+     * @param array<int,array<string,mixed>> $existingitems
+     * @param array<int,string> $newdependson
+     * @return bool
+     */
+    public function validate_depends_on_is_dag(array $existingitems, array $newdependson): bool {
+        if (empty($newdependson)) {
+            return true;
+        }
+
+        $graph = [];
+        foreach ($existingitems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $id = trim((string)($item['queue_item_id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $graph[$id] = array_values(array_map('strval', (array)($item['depends_on'] ?? [])));
+        }
+
+        $newid = '__new__';
+        $graph[$newid] = array_values(array_map('strval', $newdependson));
+        $state = [];
+        foreach (array_keys($graph) as $node) {
+            if ($this->dfs_cycle_detect($node, $graph, $state)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Fail blocked confirmation queue items where TTL expired.
+     *
+     * @param int $threadid
+     * @return int Number of changed items.
+     */
+    public function fail_expired_blocked_items(int $threadid): int {
+        $changed = 0;
+        $now = time();
+        $items = $this->get_queue_items($threadid);
+        foreach ($items as &$item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if ((string)($item['status'] ?? '') !== 'blocked_confirmation') {
+                continue;
+            }
+            $expiresat = (int)($item['blocked_expires_at'] ?? 0);
+            if ($expiresat <= 0 || $expiresat > $now) {
+                continue;
+            }
+            $item['status'] = 'failed';
+            $item['issue_codes'] = ['BLOCKED_CONFIRMATION_TIMEOUT'];
+            $item['error_class'] = 'blocked_timeout';
+            $item['last_error_message'] = 'blocked_confirmation TTL expired.';
+            $item['updated_at'] = $now;
+            $changed++;
+        }
+        unset($item);
+
+        if ($changed > 0) {
+            $this->save_queue_items($threadid, $items);
+        }
+        return $changed;
+    }
+
+    /**
      * Build deterministic input signature.
      *
      * @param string $task
@@ -237,5 +403,57 @@ class queue_manager {
         $seq = max(0, (int)$raw) + 1;
         $this->store->set_thread_metadata_value($threadid, self::META_QUEUE_SEQ, $seq);
         return $seq;
+    }
+
+    /**
+     * Resolve blocked_confirmation expiry timestamp by config.
+     *
+     * @param string $status
+     * @param int $now
+     * @return int|null
+     */
+    private function resolve_blocked_expires_at(string $status, int $now): ?int {
+        if ($status !== 'blocked_confirmation') {
+            return null;
+        }
+        if (!(bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
+            return null;
+        }
+
+        $configuredttl = (int)get_config('bookingextension_agent', 'queue_blocked_ttl_seconds');
+        $ttl = $configuredttl > 0 ? $configuredttl : self::DEFAULT_BLOCKED_TTL_SECONDS;
+        $ttl = max(1, $ttl);
+        return $now + $ttl;
+    }
+
+    /**
+     * DFS helper for cycle detection.
+     *
+     * @param string $node
+     * @param array<string,array<int,string>> $graph
+     * @param array<string,int> $state
+     * @return bool
+     */
+    private function dfs_cycle_detect(string $node, array $graph, array &$state): bool {
+        $mark = (int)($state[$node] ?? 0);
+        if ($mark === 1) {
+            return true;
+        }
+        if ($mark === 2) {
+            return false;
+        }
+
+        $state[$node] = 1;
+        foreach ((array)($graph[$node] ?? []) as $dep) {
+            $dep = trim((string)$dep);
+            if ($dep === '' || !array_key_exists($dep, $graph)) {
+                continue;
+            }
+            if ($this->dfs_cycle_detect($dep, $graph, $state)) {
+                return true;
+            }
+        }
+        $state[$node] = 2;
+        return false;
     }
 }

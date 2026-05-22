@@ -29,6 +29,8 @@
 
 namespace bookingextension_agent\local\wbagent;
 
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+
 /**
  * Immutable result of task preflight validation.
  *
@@ -148,5 +150,67 @@ final class task_preflight_result {
      */
     public function has_confirmable_issues(): bool {
         return !empty($this->get_issues_by_severity('needs_confirmation'));
+    }
+
+    /**
+     * Map legacy task_preflight_result into preflight_result_v2.
+     *
+     * @param int $durationms
+     * @param int $retrycount
+     * @param int $retryafterms
+     * @return preflight_result_v2
+     */
+    public function to_preflight_result_v2(
+        int $durationms = 0,
+        int $retrycount = 0,
+        int $retryafterms = 0
+    ): preflight_result_v2 {
+        $status = 'pass';
+        if (!$this->isvalid && $this->has_confirmable_issues()) {
+            $status = 'soft_block';
+        } else if (!$this->isvalid) {
+            $status = 'hard_block';
+        }
+
+        $blockinglayer = $status === 'pass' ? '' : 'domain';
+        return new preflight_result_v2(
+            $status,
+            $this->get_issue_codes(),
+            $blockinglayer,
+            $retryafterms,
+            $retrycount,
+            $durationms
+        );
+    }
+
+    /**
+     * Map preflight_result_v2 into legacy task_preflight_result.
+     *
+     * @param preflight_result_v2 $resultv2
+     * @param array<string,mixed> $preparedinput
+     * @return self
+     */
+    public static function from_preflight_result_v2(preflight_result_v2 $resultv2, array $preparedinput = []): self {
+        if ($resultv2->status === 'pass') {
+            return self::ok($preparedinput);
+        }
+
+        $issues = [];
+        foreach ($resultv2->issuecodes as $code) {
+            $severity = $resultv2->status === 'soft_block'
+                ? 'needs_confirmation'
+                : 'needs_clarification';
+            $issues[] = [
+                'code' => trim((string)$code),
+                'severity' => $severity,
+                'message' => trim((string)$code),
+            ];
+        }
+
+        if ($resultv2->status === 'soft_block') {
+            return self::confirmable($preparedinput, $issues);
+        }
+
+        return self::invalid($issues);
     }
 }
