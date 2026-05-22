@@ -118,7 +118,7 @@ $buildtaskcapability = static function(string $tasksuffix, string $role): array 
         ];
     }
 
-    return ['bookingextension_agent:task_' . $tasksuffix => $definition];
+    return ['bookingextension/agent:task_' . $tasksuffix => $definition];
 };
 
 foreach ($teachertasks as $tasksuffix) {
