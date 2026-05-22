@@ -111,7 +111,7 @@ final class task_contract_validator_test extends TestCase {
             'booking.create_option'
         );
 
-        $this->assertSame('bookingextension_agent:task_booking_create_option', $capability);
+        $this->assertSame('bookingextension/agent:task_booking_create_option', $capability);
     }
 
     /**

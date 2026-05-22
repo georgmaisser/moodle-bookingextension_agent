@@ -28,6 +28,10 @@
 
 namespace bookingextionsion_agent;
 
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/../abstract_agent_testcase.php');
+
 use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\external\ai_send_message;
 use bookingextension_agent\local\wbagent\interpreter;
@@ -88,6 +92,9 @@ final class agent_real_llm_test extends abstract_agent_testcase {
             );
         }
 
+        if (!empty($response['threadid'])) {
+            $this->trackedllmthreadids[] = (int)$response['threadid'];
+        }
         $this->assertNotEquals('error', (string)$response['response_type']);
         $this->assertGreaterThan(0, (int)$response['threadid']);
         $this->assert_generate_text_logged_for_thread((int)$response['threadid']);
@@ -115,6 +122,9 @@ final class agent_real_llm_test extends abstract_agent_testcase {
         foreach ($prompts as $prompt) {
             $_POST['sesskey'] = sesskey();
             $response = ai_send_message::execute((int)$this->booking->cmid, $prompt);
+            if (!empty($response['threadid'])) {
+                $this->trackedllmthreadids[] = (int)$response['threadid'];
+            }
 
             $commandsjson = (string)($response['commands'] ?? '[]');
             $commands = json_decode($commandsjson, true);
@@ -170,6 +180,9 @@ final class agent_real_llm_test extends abstract_agent_testcase {
             'Zeige mir die vorhandenen Buchungsoptionen.'
         );
 
+        if (!empty($response['threadid'])) {
+            $this->trackedllmthreadids[] = (int)$response['threadid'];
+        }
         $this->assertNotEquals('error', (string)$response['response_type']);
         $this->assertGreaterThan(0, (int)$response['threadid']);
         $this->assert_generate_text_logged_for_thread((int)$response['threadid']);

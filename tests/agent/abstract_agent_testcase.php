@@ -97,7 +97,11 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         parent::setUp();
         $this->resetAfterTest();
 
-        $this->course  = $this->getDataGenerator()->create_course();
+        $coursekey = substr(sha1(uniqid('booking_agent_', true)), 0, 12);
+        $this->course  = $this->getDataGenerator()->create_course([
+            'shortname' => 'tc_' . $coursekey,
+            'fullname' => 'Test Course ' . $coursekey,
+        ]);
         $this->booking = $this->getDataGenerator()->create_module('booking', [
             'course'          => $this->course->id,
             'name'            => 'Agent Test Booking',
@@ -111,6 +115,8 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $this->getDataGenerator()->enrol_user($this->teacher->id, $this->course->id, 'editingteacher');
         $this->getDataGenerator()->enrol_user($this->student->id, $this->course->id, 'student');
 
+        $this->grant_agent_capabilities_to_editingteacher();
+
         global $PAGE;
         $PAGE->set_url('/mod/booking/view.php', ['id' => (int)$this->booking->cmid]);
 
@@ -121,6 +127,42 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $this->maybe_register_live_ai_provider();
         $this->maybe_load_embeddings_fixture();
+    }
+
+    /**
+     * Ensure editingteacher can run all bookingextension/agent test tasks in this module context.
+     *
+     * @return void
+     */
+    protected function grant_agent_capabilities_to_editingteacher(): void {
+        $roles = get_archetype_roles('editingteacher');
+        if (empty($roles)) {
+            return;
+        }
+
+        $role = reset($roles);
+        $roleid = (int)$role->id;
+        $systemcontext = \context_system::instance();
+        $modulecontext = \context_module::instance((int)$this->booking->cmid);
+
+        if (function_exists('update_capabilities')) {
+            update_capabilities('bookingextension_agent');
+        }
+
+        $capabilities = [];
+        require(__DIR__ . '/../../db/access.php');
+
+        foreach (array_keys($capabilities) as $capability) {
+            if (!str_starts_with((string)$capability, 'bookingextension/agent:')) {
+                continue;
+            }
+            assign_capability((string)$capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
+        }
+
+        role_assign($roleid, (int)$this->teacher->id, (int)$modulecontext->id);
+
+        accesslib_clear_all_caches(true);
+        accesslib_reset_role_cache();
     }
 
     // -------------------------------------------------------------------------
