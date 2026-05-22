@@ -84,10 +84,10 @@ class authorization_service implements agent_authorization_service {
     public function require_use_capability(int $userid, int $contextid): void {
         $context = $this->require_booking_module_context($contextid);
         if (!self::is_agent_extension_installed()) {
-            throw new required_capability_exception($context, 'mod/booking:useaiinstructions', 'nopermissions', '');
+            throw new required_capability_exception($context, 'bookingextension/agent:useaiinstructions', 'nopermissions', '');
         }
-        if (!has_capability('mod/booking:useaiinstructions', $context, $userid)) {
-            throw new required_capability_exception($context, 'mod/booking:useaiinstructions', 'nopermissions', '');
+        if (!has_capability('bookingextension/agent:useaiinstructions', $context, $userid)) {
+            throw new required_capability_exception($context, 'bookingextension/agent:useaiinstructions', 'nopermissions', '');
         }
     }
 
@@ -105,7 +105,7 @@ class authorization_service implements agent_authorization_service {
 
         try {
             $context = $this->require_booking_module_context($contextid);
-            return has_capability('mod/booking:useaiinstructions', $context, $userid);
+            return has_capability('bookingextension/agent:useaiinstructions', $context, $userid);
         } catch (\Throwable $e) {
             return false;
         }

@@ -59,10 +59,10 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     /** @var stdClass Booking module record (has ->cmid, ->id as bookingid). */
     protected stdClass $booking;
 
-    /** @var stdClass Teacher user with mod/booking:useaiinstructions capability. */
+    /** @var stdClass Teacher user with bookingextension/agent:useaiinstructions capability. */
     protected stdClass $teacher;
 
-    /** @var stdClass Student user without mod/booking:useaiinstructions capability. */
+    /** @var stdClass Student user without bookingextension/agent:useaiinstructions capability. */
     protected stdClass $student;
 
     /** @var \mod_booking_generator */

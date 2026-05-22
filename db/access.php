@@ -25,7 +25,15 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$capabilities = [];
+$capabilities = [
+    'bookingextension/agent:useaiinstructions' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_MODULE,
+        'archetypes' => [
+            'editingteacher' => CAP_ALLOW,
+        ],
+    ],
+];
 
 $teachertasks = [
     'booking_add_price_category',
@@ -91,14 +99,7 @@ $adminonlytasks = [
     'booking_recreate_task_catalog',
 ];
 
-/**
- * Build one task capability definition.
- *
- * @param string $tasksuffix
- * @param string $role
- * @return array<string,mixed>
- */
-$buildtaskcapability = static function(string $tasksuffix, string $role): array {
+$buildtaskcapability = static function (string $tasksuffix, string $role): array {
     $definition = [
         'riskbitmask' => RISK_DATALOSS | RISK_XSS,
         'captype' => 'write',
@@ -106,18 +107,19 @@ $buildtaskcapability = static function(string $tasksuffix, string $role): array 
     ];
 
     if ($role === 'teacher') {
-        $definition['clonepermissionsfrom'] = 'mod/booking:useaiinstructions';
+        $definition['captype'] = 'write';
+        $definition['contextlevel'] = CONTEXT_MODULE;
         $definition['archetypes'] = [
             'teacher' => CAP_ALLOW,
             'editingteacher' => CAP_ALLOW,
         ];
     } else if ($role === 'manager') {
-        $definition['clonepermissionsfrom'] = 'mod/booking:useaiinstructions';
+        $definition['captype'] = 'write';
+        $definition['contextlevel'] = CONTEXT_MODULE;
         $definition['archetypes'] = [
             'manager' => CAP_ALLOW,
         ];
     }
-
     return ['bookingextension/agent:task_' . $tasksuffix => $definition];
 };
 

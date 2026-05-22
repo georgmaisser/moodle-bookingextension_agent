@@ -115,7 +115,7 @@ class aiready {
         $moduleconfigurl = (new \moodle_url('/course/modedit.php', ['update' => $this->cmid, 'return' => 1]))->out(false);
         $capabilityurl = (new \moodle_url('/admin/roles/check.php', [
             'contextid' => $context->id,
-            'capability' => 'mod/booking:useaiinstructions',
+            'capability' => 'bookingextension/agent:useaiinstructions',
         ]))->out(false);
 
         if (class_exists('\\core_ai\\manager')) {

@@ -31,7 +31,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Send a user message to the AI booking agent and receive its response.',
         'type'        => 'write',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_privacy_precheck' => [
@@ -39,7 +39,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Run privacy anonymization precheck on user text before forwarding to AI.',
         'type'        => 'read',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_confirm_run' => [
@@ -47,7 +47,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Confirm a proposed AI run and enqueue asynchronous execution.',
         'type'        => 'write',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_poll_thread' => [
@@ -55,7 +55,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Return all messages in an AI conversation thread.',
         'type'        => 'read',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_get_thread_debug_logs' => [
@@ -63,7 +63,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Fetch raw LLM debug logs for a conversation thread (debug mode only).',
         'type'        => 'read',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_list_candidate_options' => [
@@ -71,7 +71,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Return a list of booking options for AI disambiguation.',
         'type'        => 'read',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_render_command_preview' => [
@@ -79,7 +79,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Render preview HTML for AI mutation commands using booking option row rendering.',
         'type'        => 'read',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_ai_get_doc_content' => [
@@ -87,7 +87,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Load a booking/docs markdown file and return it as rendered HTML for the AI preview pane.',
         'type'        => 'read',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_request_trial_key' => [
@@ -95,7 +95,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Create a short-lived trial challenge nonce and return trial onboarding status.',
         'type'        => 'write',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
     'bookingextension_agent_activate_trial_context' => [
@@ -103,7 +103,7 @@ $functions = [
         'methodname'  => 'execute',
         'description' => 'Enable AI tools for this course and booking module after trial onboarding.',
         'type'        => 'write',
-        'capabilities' => 'mod/booking:useaiinstructions',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
 ];
