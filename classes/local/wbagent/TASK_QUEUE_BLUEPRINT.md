@@ -269,3 +269,247 @@ Pflichtfaelle:
 
 Eine echte Queue reduziert unnötige Re-Planning-Schleifen und macht den Agent-Loop reproduzierbarer.
 Die Sicherheitseigenschaften (Confirmation fuer Mutationen) bleiben erhalten, werden aber als expliziter Queue-Zustand modelliert statt als implizite Sonderbehandlung.
+
+## Agent-Ready Implementierungs-Checkliste (Commit-weise)
+
+Hinweis fuer Agentenlauf:
+- Jeder Schritt ist bewusst klein gehalten (ein Commit pro Schritt).
+- Nach jedem Schritt genau den angegebenen Test-Command ausfuehren.
+- Bei Fehlern zuerst Test stabilisieren oder Contract korrigieren, dann erst naechster Schritt.
+
+### Schritt 1: Feature-Flags + Konfigurationsrahmen anlegen
+
+Ziel:
+- Refactor sicher hinter Flags einhaengen (ohne sofortiges Runtime-Verhalten zu brechen).
+
+Dateien (voraussichtlich):
+- `mod/booking/bookingextension/agent/settings.php`
+- `mod/booking/bookingextension/agent/lang/en/bookingextension_agent.php`
+
+Umsetzung:
+- Neue Flags einfuehren:
+  - `preflight_v2_enabled`
+  - `preflight_v2_shadow_mode`
+  - `queue_dag_validation_enabled`
+  - `queue_blocked_ttl_enabled`
+  - `preflight_audit_enabled`
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter agent_architecture_contract_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/permanent/contracts/agent_architecture_contract_test.php
+```
+
+### Schritt 2: Zentrales Command-Schema + Schema-Validator Service
+
+Ziel:
+- Layer 1 (Schema Validation) zentralisieren und gecacht laden.
+
+Dateien (neu/angepasst):
+- `mod/booking/bookingextension/agent/classes/local/wbagent/config/command_schema.json` (neu)
+- `mod/booking/bookingextension/agent/classes/local/wbagent/services/preflight_schema_validator.php` (neu)
+
+Umsetzung:
+- Validator liefert bei Fehler eindeutig `schema_error`.
+- Nur lesen/validieren, keine DB/I/O-Nebenwirkungen ausser initialem Schema-Load.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter interpreter_realistic_llm_matrix_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/permanent/llm_sim/interpreter_realistic_llm_matrix_test.php
+```
+
+### Schritt 3: PreflightResult v2 Vertrag als DTO/Mapper einfuehren
+
+Ziel:
+- Einheitliches Resultat fuer Layer 1-3 herstellen.
+
+Dateien (neu/angepasst):
+- `mod/booking/bookingextension/agent/classes/local/wbagent/services/preflight_result_v2.php` (neu)
+- `mod/booking/bookingextension/agent/classes/local/wbagent/task_preflight_result.php` (nur kompatible Erweiterung/Mapper)
+
+Umsetzung:
+- Vertrag enthalten:
+  - `status` (`pass|soft_block|hard_block|retry_hint`)
+  - `issue_codes`
+  - `blocking_layer`
+  - `retry_after_ms`
+  - `retry_count`
+  - `duration_ms`
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter task_validation_matrix_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/permanent/tasks/task_validation_matrix_test.php
+```
+
+### Schritt 4: Domain-Check Runner (Layer 2) einbauen
+
+Ziel:
+- Conflict/Permission/Precondition Checks unter gemeinsamem Timeout orchestrieren.
+
+Dateien (neu/angepasst):
+- `mod/booking/bookingextension/agent/classes/local/wbagent/services/preflight_domain_check_runner.php` (neu)
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_decision_service.php`
+
+Umsetzung:
+- Read-only Domain-Checks, keine Writes.
+- Shared timeout (500 ms) als harte Guard.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter booking_task_mutation_execute_service_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/booking_task_mutation_execute_service_test.php
+```
+
+### Schritt 5: Execution Gate (Layer 3) mit Backoff und Retry-Limit
+
+Ziel:
+- `retry_hint` von terminalen Blocks trennen; Backoff zentral steuern.
+
+Dateien (neu/angepasst):
+- `mod/booking/bookingextension/agent/classes/local/wbagent/services/preflight_execution_gate.php` (neu)
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_decision_service.php`
+
+Umsetzung:
+- Parameter:
+  - `base_ms=500`
+  - `jitter_ms=200`
+  - `max_retries=4`
+- Formel:
+  - `backoff_ms = base_ms * 2^retry_count + random(0, jitter_ms)`
+- Bei Exhaustion: `hard_block` + `max_retries_exceeded`.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter ai_send_message_simulated_llm_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/simulated_llm/webservice/ai_send_message_simulated_llm_test.php
+```
+
+### Schritt 6: DAG-Validierung bei Queue-Ingestion
+
+Ziel:
+- Zyklische `depends_on`-Ketten beim Einreihen verhindern.
+
+Dateien:
+- `mod/booking/bookingextension/agent/classes/local/wbagent/queue/queue_manager.php`
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_decision_service.php`
+
+Umsetzung:
+- `validate_depends_on_is_dag()` vor persistenter Aufnahme.
+- Bei Zyklus: terminal fail + `dependency_cycle`.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter ai_send_message_simulated_llm_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/simulated_llm/webservice/ai_send_message_simulated_llm_test.php
+```
+
+
+### Schritt 7: Queue-Modell erweitern (Retry, TTL, Backoff-Felder)
+
+Ziel:
+- Queue-Items um alle benoetigten Gate/TTL-Felder erweitern.
+
+Dateien:
+- `mod/booking/bookingextension/agent/classes/local/wbagent/queue/queue_manager.php`
+
+Umsetzung:
+- Neue Felder/API:
+  - `preflight_retry_count`
+  - `retry_after_ms`
+  - `backoff_ms`
+  - `blocked_expires_at`
+  - Helper: `can_pickup_now()`
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter agent_architecture_contract_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/permanent/contracts/agent_architecture_contract_test.php
+```
+
+### Schritt 8: blocked_confirmation TTL + Eskalation
+
+Ziel:
+- Hängende blocked-States automatisch terminieren.
+
+Dateien:
+- `mod/booking/bookingextension/agent/classes/external/ai_confirm_run.php`
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_decision_service.php`
+- `mod/booking/bookingextension/agent/classes/local/wbagent/queue/queue_manager.php`
+
+Umsetzung:
+- TTL beim Setzen von `blocked_confirmation` schreiben.
+- Bei Ablauf: `failed` + klarer Issue-Code.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter confirmation_flow_real_llm_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php
+```
+
+### Schritt 9: Budget-Guard vor jedem LLM-Call
+
+Ziel:
+- Teure Calls abbrechen, bevor Budget bereits exhausted ist.
+
+Dateien:
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_runtime.php`
+
+Umsetzung:
+- Guard vor Repair-LLM-Call.
+- Guard vor Re-Plan-LLM-Call.
+- Bestehendes LS-Limit als sekundäre Absicherung beibehalten.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter slotbooking_autoconfirm_real_llm_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/real_llm_multistep/slotbooking_autoconfirm_real_llm_test.php
+```
+
+### Schritt 10: Immutable Preflight Audit-Logging
+
+Ziel:
+- Forensisch nachvollziehbar machen, warum Jobs (auch im autoconfirmmode) durchgelassen oder blockiert wurden.
+
+Dateien (neu/angepasst):
+- `mod/booking/bookingextension/agent/classes/local/wbagent/services/preflight_audit_logger.php` (neu)
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_decision_service.php`
+- `mod/booking/bookingextension/agent/classes/external/ai_confirm_run.php`
+
+Umsetzung:
+- Log bei jedem Preflight-Durchlauf (auch `pass`).
+- Logfelder mindestens: layer, status, issue_codes, retry_count, duration_ms, thread_id, run_id.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --filter agent_runtime_unit_test /var/www/moodle/public/mod/booking/bookingextension/agent/tests/agent/agent_runtime_unit_test.php
+```
+
+### Schritt 11: Contract-Hardening und Shadow-Mode Vergleich
+
+Ziel:
+- V2-Resultate auf bestehende API-Antwortform mappen, ohne Frontend/WS zu brechen.
+
+Dateien:
+- `mod/booking/bookingextension/agent/classes/local/wbagent/agent_decision_service.php`
+- `mod/booking/bookingextension/agent/classes/external/ai_send_message.php`
+- `mod/booking/bookingextension/agent/classes/external/ai_confirm_run.php`
+
+Umsetzung:
+- Shadow-Mode: alt vs. neu vergleichen und nur loggen.
+- Danach Flag `preflight_v2_enabled` fuer aktive Steuerung aktivieren.
+
+Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --testsuite bookingextension_agent_testsuite --filter "ai_send_message_simulated_llm_test|confirmation_flow_real_llm_test|slotbooking_autoconfirm_real_llm_test"
+```
+
+### Schritt 12: Abschlusslauf und Freigabekriterien
+
+Ziel:
+- Saubere Abnahme der Zielarchitektur fuer weitere Implementierungswellen.
+
+Freigabe nur wenn:
+- Kein Busy-Loop bei transient errors.
+- Kein unendlicher Preflight-Retry.
+- blocked_confirmation hat TTL und endet deterministisch.
+- DAG-Zyklen werden beim Ingest verhindert.
+- Budget-Guard stoppt vor zusaetzlichen LLM-Calls.
+- Audit-Logs sind fuer alle Preflight-Resultate vorhanden.
+
+Abschluss-Test-Command:
+```bash
+php /var/www/moodle/vendor/phpunit/phpunit/phpunit -c /var/www/moodle/phpunit.xml --testsuite bookingextension_agent_testsuite
+```

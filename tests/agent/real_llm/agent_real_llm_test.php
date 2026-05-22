@@ -28,10 +28,6 @@
 
 namespace bookingextionsion_agent;
 
-use mod_booking\local\testing\booking_advanced_testcase;
-use core_ai\aiactions\explain_text;
-use core_ai\aiactions\generate_text;
-use core_ai\aiactions\summarise_text;
 use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\external\ai_send_message;
 use bookingextension_agent\local\wbagent\interpreter;
@@ -45,111 +41,13 @@ use bookingextension_agent\local\wbagent\conversation_store;
  * @coversNothing
  * @runTestsInSeparateProcesses
  */
-final class agent_real_llm_test extends booking_advanced_testcase {
-    /** @var \stdClass */
-    private $course;
-
-    /** @var \stdClass */
-    private $booking;
-
-    /** @var \stdClass */
-    private $teacher;
-
+final class agent_real_llm_test extends abstract_agent_testcase {
     /**
      * Shared setup for real-LLM tests.
      */
     protected function setUp(): void {
         parent::setUp();
-        $this->resetAfterTest();
-
-        $this->maybe_register_live_ai_provider();
-
-        $this->course = $this->getDataGenerator()->create_course();
-        $this->booking = $this->getDataGenerator()->create_module('booking', [
-            'course' => $this->course->id,
-            'name' => 'Real LLM Test Booking',
-            'eventtype' => 'Webinar',
-            'bookingmanager' => 'admin',
-        ]);
-
-        $this->teacher = $this->getDataGenerator()->create_user();
-        $this->getDataGenerator()->enrol_user($this->teacher->id, $this->course->id, 'editingteacher');
         $this->setUser($this->teacher);
-    }
-
-    /**
-     * Skip test only when real-LLM credentials are unavailable.
-     */
-    private function require_real_llm_opt_in(): void {
-        $hascredentials = (string)getenv('BOOKING_TEST_AI_KEY') !== ''
-            && (string)getenv('BOOKING_TEST_AI_MODEL') !== ''
-            && (string)getenv('BOOKING_TEST_AI_ENDPOINT') !== '';
-
-        if (!$hascredentials) {
-            $this->markTestSkipped(
-                'Real-LLM tests require BOOKING_TEST_AI_KEY/BOOKING_TEST_AI_MODEL/BOOKING_TEST_AI_ENDPOINT.'
-            );
-        }
-    }
-
-    /**
-     * Register a real OpenAI-compatible provider from BOOKING_TEST_AI_* env vars.
-     *
-     * Uses the Moodle core_ai manager API directly so smoke tests can run in an
-     * isolated PHPUnit context without manual provider setup.
-     */
-    private function maybe_register_live_ai_provider(): void {
-        $apikey = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
-        $model = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
-        $minimodel = trim((string)(getenv('BOOKING_TEST_AI_MODEL_MINI') ?: ''));
-        $endpoint = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
-
-        if ($apikey === '' || $model === '' || $endpoint === '') {
-            return;
-        }
-
-        if ($minimodel === '') {
-            $minimodel = $model;
-        }
-
-        $endpoint = rtrim($endpoint, '/');
-        if (!preg_match('#/chat/completions$#', $endpoint)) {
-            $endpoint .= '/chat/completions';
-        }
-
-        $manager = \core\di::get(\core_ai\manager::class);
-        $manager->create_provider_instance(
-            classname: '\\aiprovider_openai\\provider',
-            name: 'booking-real-llm-smoke',
-            enabled: true,
-            config: ['apikey' => $apikey],
-            actionconfig: [
-                generate_text::class => [
-                    'enabled' => true,
-                    'settings' => [
-                        'model' => $model,
-                        'endpoint' => $endpoint,
-                        'systeminstruction' => '',
-                    ],
-                ],
-                summarise_text::class => [
-                    'enabled' => true,
-                    'settings' => [
-                        'model' => $minimodel,
-                        'endpoint' => $endpoint,
-                        'systeminstruction' => '',
-                    ],
-                ],
-                explain_text::class => [
-                    'enabled' => true,
-                    'settings' => [
-                        'model' => $minimodel,
-                        'endpoint' => $endpoint,
-                        'systeminstruction' => '',
-                    ],
-                ],
-            ],
-        );
     }
 
     /**
@@ -166,37 +64,10 @@ final class agent_real_llm_test extends booking_advanced_testcase {
     }
 
     /**
-     * Assert that LLM debug logging contains at least one generate_text call.
-     *
-     * @param int $threadid
-     * @return void
-     */
-    private function assert_generate_text_logged_for_thread(int $threadid): void {
-        global $DB;
-
-        $entries = $DB->get_records('local_wbagent_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
-        $this->assertNotEmpty($entries, 'local_wbagent_ai_llm_debug must contain entries for thread ' . $threadid . '.');
-
-        $hasgenerate = false;
-        foreach ($entries as $entry) {
-            $source = (string)($entry->source ?? '');
-            if (strpos($source, 'ac=gen') !== false || strpos($source, 'ac=wpl') !== false) {
-                $hasgenerate = true;
-                break;
-            }
-        }
-
-        $this->assertTrue(
-            $hasgenerate,
-            'Expected at least one generate_text entry (source contains ac=gen or ac=wpl) in local_wbagent_ai_llm_debug.'
-        );
-    }
-
-    /**
      * Smoke: create prompt should not return hard error and should provide a run context.
      */
     public function test_real_llm_create_prompt_smoke(): void {
-        $this->require_real_llm_opt_in();
+        $this->require_real_llm();
         $this->require_provider_available();
 
         $_POST['sesskey'] = sesskey();
@@ -226,7 +97,7 @@ final class agent_real_llm_test extends booking_advanced_testcase {
      * Smoke: confirming a generated command run should create a run with a non-failure state.
      */
     public function test_real_llm_confirm_run_smoke(): void {
-        $this->require_real_llm_opt_in();
+        $this->require_real_llm();
         $this->require_provider_available();
 
         $response = [];
@@ -290,7 +161,7 @@ final class agent_real_llm_test extends booking_advanced_testcase {
      * Smoke: read-only search should not return hard errors.
      */
     public function test_real_llm_search_prompt_smoke(): void {
-        $this->require_real_llm_opt_in();
+        $this->require_real_llm();
         $this->require_provider_available();
 
         $_POST['sesskey'] = sesskey();

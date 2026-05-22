@@ -47,7 +47,7 @@ use mod_booking\booking;
 use mod_booking\booking_bookit;
 use bookingextension_agent\external\search_courses;
 use bookingextension_agent\external\search_users;
-use bookingextension_agent\option\fields_info;
+use mod_booking\option\fields_info;
 use mod_booking\output\view;
 use mod_booking\singleton_service;
 use mod_booking\table\bookingoptions_wbtable;

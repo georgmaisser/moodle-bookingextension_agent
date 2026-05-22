@@ -161,12 +161,125 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
             $minimodel = $model;
         }
 
-        $endpoint = rtrim($endpoint, '/');
-        if (!preg_match('#/chat/completions$#', $endpoint)) {
-            $endpoint .= '/chat/completions';
+        $chatendpoint = $this->normalize_chat_endpoint($endpoint);
+        $embeddingendpoint = $this->chat_endpoint_to_embeddings_endpoint($chatendpoint);
+
+        if (class_exists('\\aiprovider_wunderbyte\\provider')) {
+            $this->register_live_wunderbyte_provider(
+                $apikey,
+                $model,
+                $minimodel,
+                $embeddingmodel,
+                $chatendpoint,
+                $embeddingendpoint
+            );
+        } else {
+            $this->register_live_openai_provider($apikey, $model, $minimodel, $chatendpoint);
         }
 
+        // Keep embeddings tests stable: enforce a dedicated embeddings model on
+        // existing wunderbyte provider instances when present in the test DB.
+        // Chat models like minimax-m2.7 cannot be used for /v1/embeddings.
+        if ($embeddingmodel !== '') {
+            $this->configure_wunderbyte_embeddings_model($embeddingmodel);
+        }
+
+        $this->hasliveprovider = true;
+    }
+
+    /**
+     * Register and enable a live Wunderbyte provider for agent tests.
+     *
+     * @param string $apikey
+     * @param string $model
+     * @param string $minimodel
+     * @param string $embeddingmodel
+     * @param string $chatendpoint
+     * @param string $embeddingendpoint
+     * @return void
+     */
+    protected function register_live_wunderbyte_provider(
+        string $apikey,
+        string $model,
+        string $minimodel,
+        string $embeddingmodel,
+        string $chatendpoint,
+        string $embeddingendpoint
+    ): void {
         $manager = \core\di::get(\core_ai\manager::class);
+        $actionconfig = [
+            'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $minimodel,
+                    'endpoint' => $chatendpoint,
+                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $model,
+                    'endpoint' => $chatendpoint,
+                    'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $embeddingmodel,
+                    'endpoint' => $embeddingendpoint,
+                    'dimensions' => 1536,
+                ],
+            ],
+        ];
+
+        $instances = $manager->get_provider_instances([
+            'provider' => 'aiprovider_wunderbyte\\provider',
+        ]);
+
+        if (!empty($instances)) {
+            foreach ($instances as $instance) {
+                if (!$instance->enabled) {
+                    $manager->enable_provider_instance($instance);
+                }
+
+                $providerid = (int)($instance->id ?? 0);
+                if ($providerid > 0) {
+                    $this->update_provider_actionconfig($providerid, $actionconfig);
+                }
+            }
+            return;
+        }
+
+        $manager->create_provider_instance(
+            classname: '\\aiprovider_wunderbyte\\provider',
+            name: 'booking-test-provider',
+            enabled: true,
+            config: ['apikey' => $apikey],
+            actionconfig: $actionconfig,
+        );
+    }
+
+    /**
+     * Register and enable a live OpenAI provider for agent tests.
+     *
+     * This is only used when aiprovider_wunderbyte is not installed.
+     *
+     * @param string $apikey
+     * @param string $model
+     * @param string $minimodel
+     * @param string $chatendpoint
+     * @return void
+     */
+    protected function register_live_openai_provider(
+        string $apikey,
+        string $model,
+        string $minimodel,
+        string $chatendpoint
+    ): void {
+        $manager = \core\di::get(\core_ai\manager::class);
+
         $manager->create_provider_instance(
             classname: '\aiprovider_openai\provider',
             name: 'booking-test-provider',
@@ -177,7 +290,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
                     'enabled'  => true,
                     'settings' => [
                         'model'             => $model,
-                        'endpoint'          => $endpoint,
+                        'endpoint'          => $chatendpoint,
                         'systeminstruction' => '',
                     ],
                 ],
@@ -185,7 +298,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
                     'enabled'  => true,
                     'settings' => [
                         'model'             => $minimodel,
-                        'endpoint'          => $endpoint,
+                        'endpoint'          => $chatendpoint,
                         'systeminstruction' => '',
                     ],
                 ],
@@ -193,21 +306,63 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
                     'enabled'  => true,
                     'settings' => [
                         'model'             => $minimodel,
-                        'endpoint'          => $endpoint,
+                        'endpoint'          => $chatendpoint,
                         'systeminstruction' => '',
                     ],
                 ],
             ],
         );
+    }
 
-        // Keep embeddings tests stable: enforce a dedicated embeddings model on
-        // existing wunderbyte provider instances when present in the test DB.
-        // Chat models like minimax-m2.7 cannot be used for /v1/embeddings.
-        if ($embeddingmodel !== '') {
-            $this->configure_wunderbyte_embeddings_model($embeddingmodel);
+    /**
+     * Normalize an endpoint to the chat-completions route.
+     *
+     * @param string $endpoint
+     * @return string
+     */
+    protected function normalize_chat_endpoint(string $endpoint): string {
+        $endpoint = rtrim($endpoint, '/');
+        if (!preg_match('#/chat/completions$#', $endpoint)) {
+            $endpoint .= '/chat/completions';
+        }
+        return $endpoint;
+    }
+
+    /**
+     * Derive an embeddings endpoint from a chat endpoint.
+     *
+     * @param string $chatendpoint
+     * @return string
+     */
+    protected function chat_endpoint_to_embeddings_endpoint(string $chatendpoint): string {
+        if (preg_match('#/chat/completions$#', $chatendpoint)) {
+            return preg_replace('#/chat/completions$#', '/embeddings', $chatendpoint);
+        }
+        return rtrim($chatendpoint, '/') . '/embeddings';
+    }
+
+    /**
+     * Merge actionconfig into an existing provider record.
+     *
+     * @param int $providerid
+     * @param array $actionconfig
+     * @return void
+     */
+    protected function update_provider_actionconfig(int $providerid, array $actionconfig): void {
+        global $DB;
+
+        $provider = $DB->get_record('ai_providers', ['id' => $providerid], '*', MUST_EXIST);
+        $existing = json_decode((string)($provider->actionconfig ?? ''), true);
+        if (!is_array($existing)) {
+            $existing = [];
         }
 
-        $this->hasliveprovider = true;
+        foreach ($actionconfig as $actionkey => $actionentry) {
+            $existing[$actionkey] = $actionentry;
+        }
+
+        $provider->actionconfig = json_encode($existing, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $DB->update_record('ai_providers', $provider);
     }
 
     /**

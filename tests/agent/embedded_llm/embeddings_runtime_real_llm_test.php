@@ -62,6 +62,9 @@ final class embeddings_runtime_real_llm_test extends abstract_agent_testcase {
         $runtimeminimodel = trim((string)(getenv('BOOKING_TEST_AI_RUNTIME_MODEL_MINI') ?: 'wunderbyte-privat-mini'));
         $this->configure_runtime_test_models($runtimechatmodel, $runtimeminimodel);
 
+        // Ensure runtime starts with a seeded embeddings catalog fixture.
+        $this->maybe_load_embeddings_fixture();
+
         // This suite validates embeddings telemetry markers, not generate_text routing.
         $this->enforcegeneratetextassertion = false;
     }
@@ -112,12 +115,8 @@ final class embeddings_runtime_real_llm_test extends abstract_agent_testcase {
 
         $this->setUser($this->teacher);
 
-        // Force a cold-start catalog state so fallback + queue telemetry is visible.
         $repo = new embeddings_csv_repository();
-        $path = $repo->get_csv_path();
-        if (is_file($path)) {
-            @unlink($path);
-        }
+        $this->assertTrue($repo->exists(), 'Expected runtime embeddings catalog fixture to be present before first call.');
 
         [$store, $runtime, $threadid] = $this->build_runtime();
         $result = $this->chat(

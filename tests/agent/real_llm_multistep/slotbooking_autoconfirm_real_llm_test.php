@@ -59,9 +59,10 @@ final class slotbooking_autoconfirm_real_llm_test extends abstract_agent_testcas
      * Real flow: create slotbooking with weekday hourly slots for July.
      */
     public function test_slotbooking_autoconfirm_flow_with_loop_guard(): void {
-        global $DB, $USER;
+        global $DB;
 
-        $this->setUser($this->teacher);
+        $admin = get_admin();
+        $this->setUser($admin);
 
         $beforeoptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id');
         $beforeids = array_map('intval', array_keys($beforeoptions));
@@ -71,13 +72,13 @@ final class slotbooking_autoconfirm_real_llm_test extends abstract_agent_testcas
 
         $trace = [];
         $seensignatures = [];
-        $maxsteps = 10;
+        $maxsteps = 5;
         $completed = false;
 
         // Keep real-LLM thread tracking consistent with other tests so tearDown
         // can validate generate_text debug entries.
         [$store, $runtime, $threadid] = $this->build_runtime();
-        $store->allow_confirmation_for_thread($USER->id, 0, $threadid);
+        $store->allow_confirmation_for_thread((int)$admin->id, (int)$this->booking->cmid, $threadid);
 
         $_POST['sesskey'] = sesskey();
         $response = ai_send_message::execute((int)$this->booking->cmid, $prompt, (int)$threadid);
@@ -97,7 +98,7 @@ final class slotbooking_autoconfirm_real_llm_test extends abstract_agent_testcas
             $signature = $this->build_loop_signature($response);
             $seensignatures[$signature] = (int)($seensignatures[$signature] ?? 0) + 1;
             if ($seensignatures[$signature] >= 3) {
-                $this->markTestSkipped(
+                $this->fail(
                     'Loop detected (same response signature repeated >=3 times). Trace: ' . implode(' | ', $trace)
                 );
             }
@@ -154,14 +155,14 @@ final class slotbooking_autoconfirm_real_llm_test extends abstract_agent_testcas
             }
 
             if ($responsetype === 'error') {
-                $this->markTestSkipped('Flow ended in error. Trace: ' . implode(' | ', $trace));
+                $this->fail('Flow ended in error. Trace: ' . implode(' | ', $trace));
             }
 
-            $this->markTestSkipped('Unexpected response_type=' . $responsetype . '. Trace: ' . implode(' | ', $trace));
+            $this->fail('Unexpected response_type=' . $responsetype . '. Trace: ' . implode(' | ', $trace));
         }
 
         if (!$completed) {
-            $this->markTestSkipped('Reached max steps without terminal completion. Trace: ' . implode(' | ', $trace));
+            $this->fail('Reached max steps without terminal completion. Trace: ' . implode(' | ', $trace));
         }
 
         $afteroptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text');
