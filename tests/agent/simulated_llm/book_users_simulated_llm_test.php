@@ -74,7 +74,7 @@ final class book_users_simulated_llm_test extends abstract_simulated_llm_testcas
         $execresult = $this->execute_command($command);
         $this->assertSame('executed', (string)($execresult['status'] ?? ''), (string)($execresult['detail'] ?? ''));
 
-        $answer = $DB->get_record('local_wbagent_answers', [
+        $answer = $DB->get_record('booking_answers', [
             'optionid' => (int)$option->id,
             'userid' => (int)$target->id,
         ]);

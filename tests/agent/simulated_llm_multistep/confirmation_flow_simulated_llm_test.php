@@ -114,7 +114,7 @@ final class confirmation_flow_simulated_llm_test extends abstract_simulated_llm_
         ]));
         $this->assertSame('executed', (string)($exec1['status'] ?? ''), (string)($exec1['detail'] ?? ''));
 
-        $option = $DB->get_record('local_wbagent_options', [
+        $option = $DB->get_record('booking_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);

@@ -193,7 +193,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
                 $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
                 $this->assertGreaterThan(0, (int)($confirm['runid'] ?? 0));
 
-                $created = $DB->get_record('local_wbagent_options', [
+                $created = $DB->get_record('booking_options', [
                     'bookingid' => (int)$this->booking->id,
                     'text' => (string)$case['title'],
                 ]);
@@ -686,7 +686,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
         $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
         $this->assertGreaterThan(0, (int)($confirm['runid'] ?? 0));
 
-        $created = $DB->get_record('local_wbagent_options', [
+        $created = $DB->get_record('booking_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);
@@ -796,7 +796,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
 
         $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
 
-        $created = $DB->get_record('local_wbagent_options', [
+        $created = $DB->get_record('booking_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);
