@@ -107,7 +107,7 @@ final class task_contract_validator_test extends TestCase {
      */
     public function test_build_task_capability_name_is_deterministic(): void {
         $capability = task_contract_validator::build_task_capability_name(
-            'bookingextension_agent',
+            'bookingextension/agent',
             'booking.create_option'
         );
 
@@ -119,6 +119,6 @@ final class task_contract_validator_test extends TestCase {
      */
     public function test_build_task_capability_name_empty_parts_return_empty(): void {
         $this->assertSame('', task_contract_validator::build_task_capability_name('', 'booking.create_option'));
-        $this->assertSame('', task_contract_validator::build_task_capability_name('bookingextension_agent', ''));
+        $this->assertSame('', task_contract_validator::build_task_capability_name('bookingextension/agent', ''));
     }
 }

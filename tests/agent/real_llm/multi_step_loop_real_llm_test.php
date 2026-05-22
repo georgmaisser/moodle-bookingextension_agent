@@ -174,7 +174,7 @@ final class multi_step_loop_real_llm_test extends abstract_agent_testcase {
         $execresult = $this->execute_command($command);
         $this->assertSame('executed', (string)($execresult['status'] ?? ''), (string)($execresult['detail'] ?? ''));
 
-        $answer = $DB->get_record('local_wbagent_answers', [
+        $answer = $DB->get_record('booking_answers', [
             'optionid' => (int)$option->id,
             'userid' => (int)$target->id,
         ]);
@@ -274,7 +274,7 @@ final class multi_step_loop_real_llm_test extends abstract_agent_testcase {
         $optionid = (int)($execresult['resultid'] ?? 0);
         $this->assertGreaterThan(0, $optionid, 'booking.create_option must return a valid option id.');
 
-        $optionrecord = $DB->get_record('local_wbagent_options', [
+        $optionrecord = $DB->get_record('booking_options', [
             'id' => $optionid,
             'bookingid' => (int)$this->booking->id,
         ]);

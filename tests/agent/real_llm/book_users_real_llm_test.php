@@ -153,7 +153,7 @@ final class book_users_real_llm_test extends abstract_agent_testcase {
                         ];
                         $execresult = $this->execute_command($command);
                         $this->assertEquals('executed', $execresult['status'] ?? '', (string)($execresult['detail'] ?? ''));
-                        $answer = $DB->get_record('local_wbagent_answers', [
+                        $answer = $DB->get_record('booking_answers', [
                             'optionid' => (int)$option->id,
                             'userid'   => (int)$target->id,
                         ]);
@@ -180,7 +180,7 @@ final class book_users_real_llm_test extends abstract_agent_testcase {
         $execresult = $this->execute_command($command);
         $this->assertEquals('executed', $execresult['status'] ?? '', (string)($execresult['detail'] ?? ''));
 
-        $answer = $DB->get_record('local_wbagent_answers', [
+        $answer = $DB->get_record('booking_answers', [
             'optionid' => (int)$option->id,
             'userid'   => (int)$target->id,
         ]);
@@ -297,7 +297,7 @@ final class book_users_real_llm_test extends abstract_agent_testcase {
                     $execresult = $this->execute_command($command);
                     $this->assertEquals('executed', $execresult['status'] ?? '', (string)($execresult['detail'] ?? ''));
 
-                    $answer = $DB->get_record('local_wbagent_answers', [
+                    $answer = $DB->get_record('booking_answers', [
                         'optionid' => (int)$option->id,
                         'userid'   => (int)$target->id,
                     ]);
@@ -322,7 +322,7 @@ final class book_users_real_llm_test extends abstract_agent_testcase {
         $execresult = $this->execute_command($command);
         $this->assertEquals('executed', $execresult['status'] ?? '', (string)($execresult['detail'] ?? ''));
 
-        $answer = $DB->get_record('local_wbagent_answers', [
+        $answer = $DB->get_record('booking_answers', [
             'optionid' => (int)$option->id,
             'userid'   => (int)$target->id,
         ]);

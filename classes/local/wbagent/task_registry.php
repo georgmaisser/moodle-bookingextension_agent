@@ -662,7 +662,7 @@ class task_registry {
             $registeredcomponents[$provider->get_component()] = true;
         }
 
-        if (!isset($registeredcomponents['bookingextension_agent'])) {
+        if (!isset($registeredcomponents['bookingextension/agent'])) {
             $provider = new task_provider();
             $registry->register($provider);
         }

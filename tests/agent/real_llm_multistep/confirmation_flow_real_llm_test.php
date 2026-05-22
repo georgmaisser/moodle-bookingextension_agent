@@ -109,7 +109,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         );
         $this->assertTrue((bool)($createconfirm['success'] ?? false), (string)($createconfirm['message'] ?? ''));
 
-        $option = $DB->get_record('local_wbagent_options', [
+        $option = $DB->get_record('booking_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ]);

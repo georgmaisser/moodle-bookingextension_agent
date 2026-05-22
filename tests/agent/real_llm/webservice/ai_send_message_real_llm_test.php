@@ -189,7 +189,7 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
                 );
 
                 $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
-                $created = $DB->get_record('local_wbagent_options', [
+                $created = $DB->get_record('booking_options', [
                     'bookingid' => (int)$this->booking->id,
                     'text' => (string)$case['title'],
                 ]);
@@ -670,7 +670,7 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
         }
 
         // Final assertion: Billy must be booked.
-        $matchingoptions = $DB->get_records('local_wbagent_options', [
+        $matchingoptions = $DB->get_records('booking_options', [
             'bookingid' => (int)$this->booking->id,
             'text' => $title,
         ], 'id DESC');

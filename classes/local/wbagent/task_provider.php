@@ -40,7 +40,7 @@ class task_provider implements result_summary_provider_interface, task_provider_
      * @return string
      */
     public function get_component(): string {
-        return 'bookingextension_agent';
+        return 'bookingextension/agent';
     }
 
     /**

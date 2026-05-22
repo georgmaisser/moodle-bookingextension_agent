@@ -42,7 +42,7 @@ use bookingextension_agent\local\wbagent\core\tasks\explain_task_schema_task;
 use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
 use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
 use bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task;
-use bookingextension_agent\bo_availability\bo_info;
+use mod_booking\bo_availability\bo_info;
 use mod_booking\booking;
 use mod_booking\booking_bookit;
 use bookingextension_agent\external\search_courses;

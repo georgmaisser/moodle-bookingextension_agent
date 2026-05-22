@@ -557,7 +557,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      */
     protected function get_option_from_db(int $optionid): stdClass {
         global $DB;
-        return $DB->get_record('local_wbagent_options', ['id' => $optionid], '*', MUST_EXIST);
+        return $DB->get_record('booking_options', ['id' => $optionid], '*', MUST_EXIST);
     }
 
     /**
@@ -567,7 +567,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      */
     protected function get_all_options(): array {
         global $DB;
-        return $DB->get_records('local_wbagent_options', ['bookingid' => $this->booking->id]);
+        return $DB->get_records('booking_options', ['bookingid' => $this->booking->id]);
     }
 
     // -------------------------------------------------------------------------
