@@ -44,4 +44,10 @@ $definitions = [
         'staticacceleration' => false,
         'ttl' => 60,
     ],
+    'trialnonce' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => false,
+        'ttl' => 600,
+    ],
 ];

@@ -636,3 +636,5 @@ $string['aitaskgovernanceunavailable_desc'] = 'The task registry could not be lo
 $string['cachedef_aiprivacynames'] = 'AI privacy names (cache)';
 $string['cachedef_aiwaitmailbox'] = 'AI wait mailbox (session cache)';
 $string['cachedef_aiwaitstate'] = 'AI wait state (session cache)';
+$string['cachedef_trialnonce'] = 'Trial nonce (cache)';
+$string['task_execute_ai_run'] = 'Execute AI agent run';

@@ -90,6 +90,22 @@ $functions = [
         'capabilities' => 'mod/booking:useaiinstructions',
         'ajax'        => 1,
     ],
+    'bookingextension_agent_request_trial_key' => [
+        'classname'   => '\\bookingextension_agent\\external\\request_trial_key',
+        'methodname'  => 'execute',
+        'description' => 'Create a short-lived trial challenge nonce and return trial onboarding status.',
+        'type'        => 'write',
+        'capabilities' => 'mod/booking:useaiinstructions',
+        'ajax'        => 1,
+    ],
+    'bookingextension_agent_activate_trial_context' => [
+        'classname'   => '\\bookingextension_agent\\external\\activate_trial_context',
+        'methodname'  => 'execute',
+        'description' => 'Enable AI tools for this course and booking module after trial onboarding.',
+        'type'        => 'write',
+        'capabilities' => 'mod/booking:useaiinstructions',
+        'ajax'        => 1,
+    ],
 ];
 
 $services = [
@@ -103,6 +119,8 @@ $services = [
             'bookingextension_agent_ai_list_candidate_options',
             'bookingextension_agent_ai_render_command_preview',
             'bookingextension_agent_ai_get_doc_content',
+            'bookingextension_agent_request_trial_key',
+            'bookingextension_agent_activate_trial_context',
         ],
         'restrictedusers' => 0,
         'enabled' => 1,

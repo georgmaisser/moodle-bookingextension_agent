@@ -631,3 +631,5 @@ $string['aitaskenabled_label'] = 'Task aktivieren: {$a}';
 $string['aitaskenabled_desc'] = 'Provider-Komponente: {$a->component}. Erforderliche Capability: {$a->capability}';
 $string['aitaskgovernanceunavailable'] = 'Task-Governance-Liste nicht verfuegbar';
 $string['aitaskgovernanceunavailable_desc'] = 'Beim Oeffnen dieser Einstellungsseite konnte die Task-Registry nicht geladen werden.';
+$string['cachedef_trialnonce'] = 'Trial-Nonce (Cache)';
+$string['task_execute_ai_run'] = 'AI-Agent-Lauf ausfuehren';

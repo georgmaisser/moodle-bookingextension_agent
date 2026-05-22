@@ -78,7 +78,7 @@ async def _verify_origin(wwwroot: str, nonce: str) -> bool:
     from the declared domain.
     """
     return True  # -- DISABLED FOR TESTING --
-    challenge_url = f"{wwwroot.rstrip('/')}/mod/booking/trial_challenge.php"
+    challenge_url = f"{wwwroot.rstrip('/')}/mod/booking/bookingextension/agent/trial_challenge.php"
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             resp = await client.get(challenge_url, params={"token": nonce})
