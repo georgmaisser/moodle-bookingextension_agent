@@ -65,7 +65,7 @@ class ai_confirm_run extends external_api {
         return new external_function_parameters([
             'cmid'     => new external_value(PARAM_INT, 'Course-module id.'),
             'threadid' => new external_value(PARAM_INT, 'Thread id.'),
-            'commands' => new external_value(PARAM_RAW, 'JSON-encoded commands to confirm.'),
+            'queue_item_id' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id to confirm.'),
             'allow_session' => new external_value(
                 PARAM_BOOL,
                 'Allow confirmations for this thread in the current session.',
@@ -75,16 +75,16 @@ class ai_confirm_run extends external_api {
         ]);
     }
 
-     /**
-      * Create a run and execute it (direct by default, queue optional).
-      *
-      * @param int    $cmid
-      * @param int    $threadid
-      * @param string $commands JSON-encoded commands array.
-      * @param bool $allowsession
-      * @return array
-      */
-    public static function execute(int $cmid, int $threadid, string $commands, bool $allowsession = false): array {
+    /**
+     * Create a run and execute it (direct by default, queue optional).
+     *
+     * @param int    $cmid
+     * @param int    $threadid
+     * @param string $queueitemid Queue item id to confirm.
+     * @param bool $allowsession
+     * @return array
+     */
+    public static function execute(int $cmid, int $threadid, string $queueitemid, bool $allowsession = false): array {
         global $USER;
 
         require_sesskey();
@@ -92,7 +92,7 @@ class ai_confirm_run extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), [
             'cmid'     => $cmid,
             'threadid' => $threadid,
-            'commands' => $commands,
+            'queue_item_id' => $queueitemid,
             'allow_session' => $allowsession,
         ]);
 
@@ -104,13 +104,36 @@ class ai_confirm_run extends external_api {
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
+        $requestedqueueitemid = trim((string)$params['queue_item_id']);
+        if ($requestedqueueitemid === '') {
+            return [
+                'success' => false,
+                'runid' => 0,
+                'threadid' => (int)$params['threadid'],
+                'response_type' => 'error',
+                'message' => 'Missing queue item id. Please confirm the latest assistant proposal.',
+                'displaymessage' => 'Missing queue item id. Please confirm the latest assistant proposal.',
+                'privacyapplied' => 0,
+                'autoconfirm' => 0,
+                'commands' => '[]',
+                'resultsjson' => '[]',
+                'attemptedtasksjson' => '[]',
+                'issuecodesjson' => json_encode(['INVALID_QUEUE_ITEM_ID']),
+                'errorsjson' => json_encode(['Missing queue item id.']),
+                'pendingconfirmationcode' => '',
+                'queueitemid' => '',
+                'previewoptionid' => 0,
+                'previewoptionidsjson' => '[]',
+            ];
+        }
+
         $store = new conversation_store();
         $previewoptionid = self::resolve_preview_option_id_for_response($params['cmid'], (int)$USER->id, []);
         if (!empty($params['allow_session'])) {
             $store->allow_confirmation_for_thread((int)$USER->id, (int)$params['cmid'], (int)$params['threadid']);
         }
         $pendingintent = $store->consume_pending_intent((int)$params['threadid'], (int)$USER->id, (int)$params['cmid']);
-        if ($pendingintent === null || empty($pendingintent['commands']) || !is_array($pendingintent['commands'])) {
+        if ($pendingintent === null) {
             return [
                 'success' => false,
                 'runid' => 0,
@@ -126,6 +149,7 @@ class ai_confirm_run extends external_api {
                 'issuecodesjson' => '[]',
                 'errorsjson' => '[]',
                 'pendingconfirmationcode' => '',
+                'queueitemid' => '',
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
                     $params['cmid'],
@@ -141,7 +165,39 @@ class ai_confirm_run extends external_api {
             $queuesvc->fail_expired_blocked_items((int)$params['threadid']);
         }
         $cmdsarray = array_values((array)$pendingintent['commands']);
-        $activequeueitemid = self::resolve_pending_queue_item_id($queuesvc, (int)$params['threadid'], $pendingintent);
+        $activequeueitemid = self::resolve_pending_queue_item_id(
+            $queuesvc,
+            (int)$params['threadid'],
+            $pendingintent,
+            $requestedqueueitemid
+        );
+
+        if ($activequeueitemid === '') {
+            return [
+                'success' => false,
+                'runid' => 0,
+                'threadid' => (int)$params['threadid'],
+                'response_type' => 'error',
+                'message' => 'Invalid or stale queue item id. Please confirm the latest assistant proposal.',
+                'displaymessage' => 'Invalid or stale queue item id. Please confirm the latest assistant proposal.',
+                'privacyapplied' => 0,
+                'autoconfirm' => 0,
+                'commands' => '[]',
+                'resultsjson' => '[]',
+                'attemptedtasksjson' => '[]',
+                'issuecodesjson' => json_encode(['INVALID_QUEUE_ITEM_ID']),
+                'errorsjson' => json_encode(['Invalid or stale queue item id.']),
+                'pendingconfirmationcode' => '',
+                'queueitemid' => '',
+                'previewoptionid' => $previewoptionid,
+                'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $params['cmid'],
+                    (int)$USER->id,
+                    []
+                ),
+            ];
+        }
+
         $commandsforrun = self::resolve_commands_for_run($queuesvc, (int)$params['threadid'], $pendingintent, $activequeueitemid);
 
         if (empty($commandsforrun)) {
@@ -160,6 +216,7 @@ class ai_confirm_run extends external_api {
                 'issuecodesjson' => '[]',
                 'errorsjson' => '[]',
                 'pendingconfirmationcode' => '',
+                'queueitemid' => $activequeueitemid,
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
                     $params['cmid'],
@@ -167,6 +224,43 @@ class ai_confirm_run extends external_api {
                     []
                 ),
             ];
+        }
+
+        if ($activequeueitemid !== '') {
+            $activeitem = $queuesvc->get_queue_item((int)$params['threadid'], $activequeueitemid);
+            $activestatus = is_array($activeitem) ? trim((string)($activeitem['status'] ?? '')) : '';
+            if (is_array($activeitem) && $activestatus === 'retry_waiting' && !$queuesvc->can_pickup_now($activeitem)) {
+                $waitinguntil = (int)($activeitem['next_retry_at'] ?? 0);
+                $waitseconds = max(0, $waitinguntil - time());
+                $errors = ['Queue item is waiting for retry and cannot be picked up yet.'];
+                if ($waitseconds > 0) {
+                    $errors[] = 'Retry available in about ' . $waitseconds . 's.';
+                }
+
+                return [
+                    'success' => false,
+                    'runid' => 0,
+                    'threadid' => (int)$params['threadid'],
+                    'response_type' => 'error',
+                    'message' => implode(' ', $errors),
+                    'displaymessage' => implode(' ', $errors),
+                    'privacyapplied' => 0,
+                    'autoconfirm' => 0,
+                    'commands' => '[]',
+                    'resultsjson' => '[]',
+                    'attemptedtasksjson' => '[]',
+                    'issuecodesjson' => json_encode(['RETRY_WAITING']),
+                    'errorsjson' => json_encode($errors),
+                    'pendingconfirmationcode' => '',
+                    'queueitemid' => $activequeueitemid,
+                    'previewoptionid' => $previewoptionid,
+                    'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                        $params['cmid'],
+                        (int)$USER->id,
+                        []
+                    ),
+                ];
+            }
         }
 
         if ($activequeueitemid !== '') {
@@ -184,37 +278,6 @@ class ai_confirm_run extends external_api {
         $outputlang = trim((string)$store->get_thread_metadata_value((int)$params['threadid'], 'last_output_lang'));
         if ($outputlang === '') {
             $outputlang = current_language();
-        }
-
-        // Optional tamper check: if client sent commands, they must match the server-side pending intent.
-        $clientcommands = json_decode($params['commands'], true);
-        if (is_array($clientcommands) && !empty($clientcommands)) {
-            $clientchecksum = hash('sha256', json_encode($clientcommands));
-            $pendingchecksum = (string)($pendingintent['checksum'] ?? '');
-            if ($pendingchecksum !== '' && $clientchecksum !== $pendingchecksum) {
-                return [
-                    'success' => false,
-                    'runid' => 0,
-                    'threadid' => (int)$params['threadid'],
-                    'response_type' => 'error',
-                    'message' => 'Confirmation payload mismatch. Please confirm the latest assistant proposal.',
-                    'displaymessage' => 'Confirmation payload mismatch. Please confirm the latest assistant proposal.',
-                    'privacyapplied' => 0,
-                    'autoconfirm' => 0,
-                    'commands' => '[]',
-                    'resultsjson' => '[]',
-                    'attemptedtasksjson' => '[]',
-                    'issuecodesjson' => '[]',
-                    'errorsjson' => '[]',
-                    'pendingconfirmationcode' => '',
-                    'previewoptionid' => $previewoptionid,
-                    'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
-                        $params['cmid'],
-                        (int)$USER->id,
-                        []
-                    ),
-                ];
-            }
         }
 
         $idempotencykey = hash('sha256', $USER->id . ':' . $params['cmid'] . ':' . $params['threadid']
@@ -262,6 +325,7 @@ class ai_confirm_run extends external_api {
                 'issuecodesjson' => '[]',
                 'errorsjson' => '[]',
                 'pendingconfirmationcode' => '',
+                'queueitemid' => $activequeueitemid,
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
                     $params['cmid'],
@@ -320,23 +384,46 @@ class ai_confirm_run extends external_api {
                 $issuecodes = self::normalize_string_list($primary['issue_codes'] ?? []);
 
                 if ($failed) {
-                    $queuesvc->update_status(
-                        (int)$params['threadid'],
-                        $activequeueitemid,
-                        'failed',
-                        $issuecodes,
-                        'domain_error',
-                        trim((string)($primary['detail'] ?? ''))
-                    );
+                    $errorclass = self::infer_execution_error_class($issuecodes, (string)($primary['detail'] ?? ''));
+                    $retrymeta = [];
+                    if (in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+                        $retrymeta = self::build_retry_waiting_meta(
+                            $queuesvc,
+                            (int)$params['threadid'],
+                            $activequeueitemid
+                        );
+                        $queuesvc->update_status(
+                            (int)$params['threadid'],
+                            $activequeueitemid,
+                            'retry_waiting',
+                            $issuecodes,
+                            $errorclass,
+                            trim((string)($primary['detail'] ?? '')),
+                            $retrymeta
+                        );
+                    } else {
+                        $queuesvc->update_status(
+                            (int)$params['threadid'],
+                            $activequeueitemid,
+                            'failed',
+                            $issuecodes,
+                            'domain_error',
+                            trim((string)($primary['detail'] ?? ''))
+                        );
+                    }
                     $auditlogger->append((int)$params['threadid'], (int)$runid, [
                         'layer' => 'execution',
-                        'status' => 'failed',
+                        'status' => in_array($errorclass, ['provider_timeout', 'transient_io'], true)
+                            ? 'retry_waiting'
+                            : 'failed',
                         'issue_codes' => $issuecodes,
-                        'retry_count' => 0,
+                        'retry_count' => (int)($retrymeta['retry_count'] ?? 0),
                         'duration_ms' => 0,
-                        'error_class' => 'domain_error',
+                        'error_class' => $errorclass !== '' ? $errorclass : 'domain_error',
                     ]);
-                    self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
+                    if (!in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+                        self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
+                    }
                 } else {
                     $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'succeeded', $issuecodes);
                     $auditlogger->append((int)$params['threadid'], (int)$runid, [
@@ -352,7 +439,14 @@ class ai_confirm_run extends external_api {
 
             $store->update_run_status($runid, 'completed', $results);
 
-            if (self::should_continue_with_runtime_loop($rawresults, $cmdsarray, $commandsforrun)) {
+            $shouldcontinue = self::should_continue_with_runtime_loop($rawresults, $cmdsarray, $commandsforrun)
+                || self::has_remaining_mutating_queue_items(
+                    $queuesvc,
+                    (int)$params['threadid'],
+                    $activequeueitemid
+                );
+
+            if ($shouldcontinue) {
                 $seedobservations = [];
                 $feedbackobservation = trim((string)($feedback['message'] ?? ''));
                 if ($feedbackobservation !== '') {
@@ -390,6 +484,54 @@ class ai_confirm_run extends external_api {
                 $finalresult = [];
             }
 
+            $pendingintent = $store->get_pending_intent((int)$params['threadid']);
+            if (!is_array($pendingintent)) {
+                $nextqueueitem = self::find_next_mutating_queue_item($queuesvc, (int)$params['threadid']);
+                if (is_array($nextqueueitem)) {
+                    $nextqueueitemid = (string)($nextqueueitem['queue_item_id'] ?? '');
+                    $nexttask = trim((string)($nextqueueitem['task'] ?? ''));
+                    $nextinput = is_array($nextqueueitem['prepared_input'] ?? null) && !empty($nextqueueitem['prepared_input'])
+                        ? (array)$nextqueueitem['prepared_input']
+                        : (is_array($nextqueueitem['input'] ?? null) ? (array)$nextqueueitem['input'] : []);
+                    if ($nextqueueitemid !== '' && $nexttask !== '') {
+                        $nextcommand = [
+                            'task' => $nexttask,
+                            'version' => max(1, (int)($nextqueueitem['version'] ?? 1)),
+                            'input' => $nextinput,
+                        ];
+                        $nextdependson = array_values(array_filter(array_map(
+                            'strval',
+                            (array)($nextqueueitem['depends_on'] ?? [])
+                        )));
+                        if (!empty($nextdependson)) {
+                            $nextcommand['depends_on'] = $nextdependson;
+                        }
+
+                        $intentkey = hash(
+                            'sha256',
+                            (string)$USER->id . ':' . (int)$params['threadid'] . '::' . json_encode([$nextcommand])
+                        );
+                        $store->set_pending_intent(
+                            (int)$params['threadid'],
+                            [$nextcommand],
+                            $intentkey,
+                            (int)$USER->id,
+                            (int)$params['cmid'],
+                            ['queue_item_ids' => [$nextqueueitemid]]
+                        );
+
+                        $pendingintent = $store->get_pending_intent((int)$params['threadid']);
+                        $finalresult['pending_confirmation_code'] = (string)($pendingintent['confirmationcode'] ?? '');
+                        if (empty((array)($finalresult['commands'] ?? []))) {
+                            $finalresult['commands'] = [$nextcommand];
+                        }
+                        if (trim((string)($finalresult['response_type'] ?? '')) === '') {
+                            $finalresult['response_type'] = 'confirmation_request';
+                        }
+                    }
+                }
+            }
+
             $displaymessage = (string)($finalresult['message'] ?? '');
             $privacyapplied = 0;
             $anonymizer = new privacy_anonymizer($store);
@@ -410,6 +552,14 @@ class ai_confirm_run extends external_api {
                 (int)$USER->id,
                 (array)($finalresult['results'] ?? [])
             );
+            $responsequeueitemid = '';
+            if (is_array($pendingintent)) {
+                $responsequeueitemid = self::resolve_pending_queue_item_id(
+                    $queuesvc,
+                    (int)$params['threadid'],
+                    $pendingintent
+                );
+            }
 
             return [
                 'success' => true,
@@ -430,6 +580,7 @@ class ai_confirm_run extends external_api {
                 'issuecodesjson' => json_encode($issuecodes),
                 'errorsjson' => json_encode($errors),
                 'pendingconfirmationcode' => (string)($finalresult['pending_confirmation_code'] ?? ''),
+                'queueitemid' => $responsequeueitemid,
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
                     $params['cmid'],
@@ -450,23 +601,46 @@ class ai_confirm_run extends external_api {
             );
 
             if ($activequeueitemid !== '') {
-                $queuesvc->update_status(
-                    (int)$params['threadid'],
-                    $activequeueitemid,
-                    'failed',
-                    [],
-                    'provider_error',
-                    $e->getMessage()
-                );
+                $errorclass = self::infer_execution_error_class([], $e->getMessage());
+                $retrymeta = [];
+                if (in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+                    $retrymeta = self::build_retry_waiting_meta(
+                        $queuesvc,
+                        (int)$params['threadid'],
+                        $activequeueitemid
+                    );
+                    $queuesvc->update_status(
+                        (int)$params['threadid'],
+                        $activequeueitemid,
+                        'retry_waiting',
+                        [],
+                        $errorclass,
+                        $e->getMessage(),
+                        $retrymeta
+                    );
+                } else {
+                    $queuesvc->update_status(
+                        (int)$params['threadid'],
+                        $activequeueitemid,
+                        'failed',
+                        [],
+                        'provider_error',
+                        $e->getMessage()
+                    );
+                }
                 $auditlogger->append((int)$params['threadid'], (int)$runid, [
                     'layer' => 'execution',
-                    'status' => 'failed',
+                    'status' => in_array($errorclass, ['provider_timeout', 'transient_io'], true)
+                        ? 'retry_waiting'
+                        : 'failed',
                     'issue_codes' => [],
-                    'retry_count' => 0,
+                    'retry_count' => (int)($retrymeta['retry_count'] ?? 0),
                     'duration_ms' => 0,
-                    'error_class' => 'provider_error',
+                    'error_class' => $errorclass !== '' ? $errorclass : 'provider_error',
                 ]);
-                self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
+                if (!in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+                    self::mark_dependents_skipped($queuesvc, (int)$params['threadid'], $activequeueitemid);
+                }
             }
 
             $store->update_run_status($runid, 'failed', $feedback['results']);
@@ -485,6 +659,7 @@ class ai_confirm_run extends external_api {
                 'issuecodesjson' => '[]',
                 'errorsjson' => '[]',
                 'pendingconfirmationcode' => '',
+                'queueitemid' => '',
                 'previewoptionid' => self::resolve_preview_option_id_for_response(
                     $params['cmid'],
                     (int)$USER->id,
@@ -520,6 +695,7 @@ class ai_confirm_run extends external_api {
             'issuecodesjson' => new external_value(PARAM_RAW, 'JSON-encoded issue codes.'),
             'errorsjson' => new external_value(PARAM_RAW, 'JSON-encoded errors.'),
             'pendingconfirmationcode' => new external_value(PARAM_TEXT, 'One-time pending confirmation code for debug.'),
+            'queueitemid' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id for the next confirmation step.'),
             'previewoptionid' => new external_value(PARAM_INT, 'Latest option id to preview directly, if available.'),
             'previewoptionidsjson' => new external_value(
                 PARAM_RAW,
@@ -649,6 +825,64 @@ class ai_confirm_run extends external_api {
     }
 
     /**
+     * Infer execution error class from issue codes and detail text.
+     *
+     * @param array<int,string> $issuecodes
+     * @param string $detail
+     * @return string
+     */
+    private static function infer_execution_error_class(array $issuecodes, string $detail): string {
+        foreach ($issuecodes as $code) {
+            $upper = strtoupper(trim((string)$code));
+            if ($upper === '') {
+                continue;
+            }
+            if (str_contains($upper, 'TIMEOUT')) {
+                return 'provider_timeout';
+            }
+            if (str_contains($upper, 'TRANSIENT_IO') || str_contains($upper, 'IO_TRANSIENT')) {
+                return 'transient_io';
+            }
+        }
+
+        $normalized = strtolower(trim($detail));
+        if ($normalized !== '') {
+            if (str_contains($normalized, 'timeout') || str_contains($normalized, 'timed out')) {
+                return 'provider_timeout';
+            }
+            if (str_contains($normalized, 'temporary') || str_contains($normalized, 'transient io')) {
+                return 'transient_io';
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Build queue metadata for retry_waiting state.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param string $queueitemid
+     * @return array<string,int>
+     */
+    private static function build_retry_waiting_meta(queue_manager $queuesvc, int $threadid, string $queueitemid): array {
+        $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+        $retrycount = is_array($item) ? max(0, (int)($item['retry_count'] ?? 0)) : 0;
+        $nextretrycount = $retrycount + 1;
+        $backoffms = min(4000, 500 * (2 ** max(0, min(8, $nextretrycount - 1))));
+        $nextretryat = time() + (int)ceil($backoffms / 1000);
+
+        return [
+            'retry_count' => $nextretrycount,
+            'preflight_retry_count' => $nextretrycount,
+            'retry_after_ms' => $backoffms,
+            'backoff_ms' => $backoffms,
+            'next_retry_at' => $nextretryat,
+        ];
+    }
+
+    /**
      * Continue planner/runtime follow-up only when execution indicates repair
      * needs or when additional staged commands still remain.
      *
@@ -677,7 +911,75 @@ class ai_confirm_run extends external_api {
             }
         }
 
+        if (!empty($executedcommands)) {
+            return true;
+        }
+
         return false;
+    }
+
+    /**
+     * Check whether additional mutating queue work is still pending after this run.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param string $activequeueitemid
+     * @return bool
+     */
+    private static function has_remaining_mutating_queue_items(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $activequeueitemid
+    ): bool {
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+
+            $queueitemid = (string)($item['queue_item_id'] ?? '');
+            if ($queueitemid === '' || $queueitemid === $activequeueitemid) {
+                continue;
+            }
+
+            $status = trim((string)($item['status'] ?? ''));
+            if (in_array($status, ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Find the next pending mutating queue item that still needs confirmation/execution.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @return array<string,mixed>|null
+     */
+    private static function find_next_mutating_queue_item(queue_manager $queuesvc, int $threadid): ?array {
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+
+            $status = trim((string)($item['status'] ?? ''));
+            if (!in_array($status, ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'], true)) {
+                continue;
+            }
+
+            return $item;
+        }
+
+        return null;
     }
 
     /**
@@ -703,21 +1005,6 @@ class ai_confirm_run extends external_api {
     }
 
     /**
-     * Execute at most one command per explicit confirmation interaction.
-     *
-     * @param array $commands
-     * @return array
-     */
-    private static function slice_first_confirmation_stage(array $commands): array {
-        $commands = array_values(array_filter($commands, static fn($entry): bool => is_array($entry)));
-        if (empty($commands)) {
-            return [];
-        }
-
-        return [$commands[0]];
-    }
-
-    /**
      * Resolve the active queue item id for the current pending intent.
      *
      * @param queue_manager $queuesvc
@@ -728,8 +1015,33 @@ class ai_confirm_run extends external_api {
     private static function resolve_pending_queue_item_id(
         queue_manager $queuesvc,
         int $threadid,
-        array $pendingintent
+        array $pendingintent,
+        string $requestedqueueitemid = ''
     ): string {
+        $requestedqueueitemid = trim($requestedqueueitemid);
+        if ($requestedqueueitemid !== '') {
+            $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+            if (!empty($queueitemids) && !in_array($requestedqueueitemid, $queueitemids, true)) {
+                return '';
+            }
+
+            $requesteditem = $queuesvc->get_queue_item($threadid, $requestedqueueitemid);
+            if (!is_array($requesteditem)) {
+                return '';
+            }
+
+            if ((string)($requesteditem['mutability'] ?? '') !== 'mutating') {
+                return '';
+            }
+
+            $requestedstatus = (string)($requesteditem['status'] ?? '');
+            if (!in_array($requestedstatus, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+                return '';
+            }
+
+            return $requestedqueueitemid;
+        }
+
         $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
         foreach ($queueitemids as $queueitemid) {
             $item = $queuesvc->get_queue_item($threadid, $queueitemid);
@@ -740,13 +1052,12 @@ class ai_confirm_run extends external_api {
                 continue;
             }
             $status = (string)($item['status'] ?? '');
-            if (in_array($status, ['blocked_confirmation', 'ready', 'queued'], true)) {
+            if (in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
                 return $queueitemid;
             }
         }
 
-        $commands = self::slice_first_confirmation_stage((array)($pendingintent['commands'] ?? []));
-        return self::resolve_active_queue_item_id($queuesvc, $threadid, $commands);
+        return '';
     }
 
     /**
@@ -786,54 +1097,7 @@ class ai_confirm_run extends external_api {
             }
         }
 
-        return self::slice_first_confirmation_stage((array)($pendingintent['commands'] ?? []));
-    }
-
-      /**
-       * Resolve queue item id for the first confirmed command.
-       *
-       * @param queue_manager $queuesvc
-       * @param int $threadid
-       * @param array $commandsforrun
-       * @return string
-       */
-    private static function resolve_active_queue_item_id(
-        queue_manager $queuesvc,
-        int $threadid,
-        array $commandsforrun
-    ): string {
-        $command = is_array($commandsforrun[0] ?? null) ? (array)$commandsforrun[0] : [];
-        $task = trim((string)($command['task'] ?? ''));
-        $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-        if ($task === '') {
-            return '';
-        }
-
-        $signature = $queuesvc->build_input_signature($task, $input);
-        foreach ($queuesvc->get_queue_items($threadid) as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-
-            if ((string)($item['task'] ?? '') !== $task) {
-                continue;
-            }
-
-            if ((string)($item['input_signature'] ?? '') !== $signature) {
-                continue;
-            }
-
-            $status = (string)($item['status'] ?? '');
-            if (in_array($status, ['blocked_confirmation', 'ready', 'queued'], true)) {
-                return (string)($item['queue_item_id'] ?? '');
-            }
-        }
-
-        return '';
+        return [];
     }
 
       /**

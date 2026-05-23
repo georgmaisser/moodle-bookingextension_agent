@@ -842,7 +842,7 @@ class interpreter implements agent_interpreter {
      * Validate all commands using structural (pure) checks only.
      *
      * This method MUST NOT:
-     *  - call task->validate()
+    *  - call task->check_structure()
      *  - perform any DB lookups
      *  - resolve entity IDs
      *

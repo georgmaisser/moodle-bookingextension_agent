@@ -18,7 +18,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use bookingextension_agent\local\wbagent\booking\support\booking_rules_agent_service;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.create_rule_from_template.
@@ -151,9 +151,9 @@ class create_rule_from_template_task extends booking_task_base implements task_t
      * @param array $input
      * @param int $cmid
      * @param int $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         $issues = [];
 
         $templateid = (int)($input['templateid'] ?? 0);
@@ -188,7 +188,7 @@ class create_rule_from_template_task extends booking_task_base implements task_t
                 ];
             }
 
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $resolved = $this->ruleservice->resolve_template(
@@ -206,7 +206,7 @@ class create_rule_from_template_task extends booking_task_base implements task_t
                 $prepared = $input;
                 $prepared['templateid'] = (int)($autoselected['templateid'] ?? 0);
                 $prepared['template_name_resolved'] = (string)($autoselected['name'] ?? '');
-                return task_preflight_result::ok($prepared);
+                return preflight_result_v2::ok($prepared);
             }
 
             $issues[] = [
@@ -214,7 +214,7 @@ class create_rule_from_template_task extends booking_task_base implements task_t
                 'severity' => 'needs_clarification',
                 'message' => (string)($resolved['message'] ?? 'Template konnte nicht aufgeloest werden.'),
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         if (($resolved['status'] ?? '') === 'ambiguity') {
@@ -227,7 +227,7 @@ class create_rule_from_template_task extends booking_task_base implements task_t
                 $prepared = $input;
                 $prepared['templateid'] = (int)($autoselected['templateid'] ?? 0);
                 $prepared['template_name_resolved'] = (string)($autoselected['name'] ?? '');
-                return task_preflight_result::ok($prepared);
+                return preflight_result_v2::ok($prepared);
             }
 
             $issues[] = [
@@ -248,7 +248,7 @@ class create_rule_from_template_task extends booking_task_base implements task_t
                         . ' name=' . (string)($candidate['name'] ?? ''),
                 ];
             }
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $template = (array)($resolved['template'] ?? []);
@@ -258,14 +258,14 @@ class create_rule_from_template_task extends booking_task_base implements task_t
                 'severity' => 'needs_clarification',
                 'message' => 'Template konnte nicht aufgeloest werden.',
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $prepared = $input;
         $prepared['templateid'] = (int)$template['templateid'];
         $prepared['template_name_resolved'] = (string)($template['name'] ?? '');
 
-        return task_preflight_result::ok($prepared);
+        return preflight_result_v2::ok($prepared);
     }
 
     /**

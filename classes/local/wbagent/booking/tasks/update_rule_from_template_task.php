@@ -18,7 +18,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use bookingextension_agent\local\wbagent\booking\support\booking_rules_agent_service;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.update_rule_from_template.
@@ -142,9 +142,9 @@ class update_rule_from_template_task extends booking_task_base implements task_t
      * @param array $input
      * @param int $cmid
      * @param int $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         $issues = [];
         $contextid = $this->ruleservice->get_module_contextid($cmid);
 
@@ -160,7 +160,7 @@ class update_rule_from_template_task extends booking_task_base implements task_t
                 'severity' => 'needs_clarification',
                 'message' => (string)($ruleresolution['message'] ?? 'Regel konnte nicht aufgeloest werden.'),
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         if (($ruleresolution['status'] ?? '') === 'ambiguity') {
@@ -176,7 +176,7 @@ class update_rule_from_template_task extends booking_task_base implements task_t
                     'message' => 'id=' . (int)($candidate['id'] ?? 0) . ' name=' . (string)($candidate['name'] ?? ''),
                 ];
             }
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $prepared = $input;
@@ -197,7 +197,7 @@ class update_rule_from_template_task extends booking_task_base implements task_t
                     'severity' => 'needs_clarification',
                     'message' => (string)($templateresolution['message'] ?? 'Template konnte nicht aufgeloest werden.'),
                 ];
-                return task_preflight_result::invalid($issues);
+                return preflight_result_v2::invalid($issues);
             }
 
             if (($templateresolution['status'] ?? '') === 'ambiguity') {
@@ -214,14 +214,14 @@ class update_rule_from_template_task extends booking_task_base implements task_t
                             . ' name=' . (string)($candidate['name'] ?? ''),
                     ];
                 }
-                return task_preflight_result::invalid($issues);
+                return preflight_result_v2::invalid($issues);
             }
 
             $template = (array)($templateresolution['template'] ?? []);
             $prepared['templateid'] = (int)($template['templateid'] ?? 0);
         }
 
-        return task_preflight_result::ok($prepared);
+        return preflight_result_v2::ok($prepared);
     }
 
     /**

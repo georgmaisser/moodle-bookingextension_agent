@@ -20,7 +20,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_mutation_execute_s
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.update_option.
@@ -176,9 +176,9 @@ class update_option_task extends booking_task_base implements task_trigger_provi
      * @param  array $input
      * @param  int   $cmid
      * @param  int   $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         global $DB;
 
         $lang = $this->get_output_language($input);
@@ -190,7 +190,7 @@ class update_option_task extends booking_task_base implements task_trigger_provi
             !empty($input['optionquery'])
             && privacy_anonymizer::looks_like_anon_token((string)$input['optionquery'])
         ) {
-            return task_preflight_result::ok($input);
+            return preflight_result_v2::ok($input);
         }
 
         $preparedinput = $input;
@@ -208,7 +208,7 @@ class update_option_task extends booking_task_base implements task_trigger_provi
                     ),
                     'remedy_options' => ['PROVIDE_OPTIONQUERY', 'PROVIDE_OPTIONID'],
                 ];
-                return task_preflight_result::invalid($issues);
+                return preflight_result_v2::invalid($issues);
             } else if (booking_task_support::is_last_preview_selection_reference((string)$input['optionquery'])) {
                 $previewids = booking_task_support::resolve_last_preview_option_ids_for_user_for_execute(
                     $cmid,
@@ -230,7 +230,7 @@ class update_option_task extends booking_task_base implements task_trigger_provi
                         ),
                         'remedy_options' => ['PROVIDE_OPTIONQUERY', 'PROVIDE_OPTIONID'],
                     ];
-                    return task_preflight_result::invalid($issues);
+                    return preflight_result_v2::invalid($issues);
                 }
                 // Resolve preview IDs into prepared_input.
                 if (count($previewids) === 1) {
@@ -256,7 +256,7 @@ class update_option_task extends booking_task_base implements task_trigger_provi
                         ),
                         'remedy_options' => ['PROVIDE_MORE_SPECIFIC_OPTIONQUERY', 'PROVIDE_OPTIONID'],
                     ];
-                    return task_preflight_result::invalid($issues);
+                    return preflight_result_v2::invalid($issues);
                 } else if ($result['status'] === 'ambiguity') {
                     $issues[] = [
                         'code'          => 'OPTION_RESOLUTION_AMBIGUOUS',
@@ -269,7 +269,7 @@ class update_option_task extends booking_task_base implements task_trigger_provi
                         ),
                         'remedy_options' => ['SELECT_EXACT_OPTION', 'PROVIDE_OPTIONID'],
                     ];
-                    return task_preflight_result::invalid($issues);
+                    return preflight_result_v2::invalid($issues);
                 } else if ($result['status'] === 'ok') {
                     // Store resolved ID in prepared_input.
                     $preparedinput['optionid'] = (int)$result['optionid'];
@@ -300,47 +300,12 @@ class update_option_task extends booking_task_base implements task_trigger_provi
                     ),
                     'remedy_options' => ['PROVIDE_VALID_OPTIONID', 'PROVIDE_OPTIONQUERY'],
                 ];
-                return task_preflight_result::invalid($issues);
+                return preflight_result_v2::invalid($issues);
             }
         }
 
         // Run service-level preflight (teacher resolution, dates, etc.) and enrich prepared_input.
         return $this->apply_service_preflight(self::TASK_NAME, $preparedinput, $cmid, $userid, $issues, $lang);
-    }
-
-    /**
-     * Legacy validate — delegates to preflight() for backward-compatibility.
-     *
-     * Called only by the executor's stale-state guard.  New callers should
-     * use preflight() directly.
-     *
-     * @param  array $input
-     * @param  int   $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>,issues:array}
-     * @deprecated since 2026 — use preflight() instead.
-     */
-    public function validate(array $input, int $cmid): array {
-        global $USER;
-        $result = $this->preflight($input, $cmid, (int)($USER->id ?? 0));
-
-        $errors = [];
-        $ambiguities = [];
-        foreach ($result->issues as $issue) {
-            $msg = (string)($issue['message'] ?? '');
-            if ($msg === '') {
-                continue;
-            }
-            if (($issue['severity'] ?? '') === 'needs_clarification') {
-                $errors[] = $msg;
-            }
-        }
-
-        return [
-            'valid'       => $result->isvalid,
-            'errors'      => $errors,
-            'ambiguities' => $ambiguities,
-            'issues'      => $result->issues,
-        ];
     }
 
     /**

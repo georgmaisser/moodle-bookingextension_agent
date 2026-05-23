@@ -105,7 +105,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $createconfirm = ai_confirm_run::execute(
             (int)$this->booking->cmid,
             (int)$threadid,
-            json_encode([$createcommand], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            (string)($result1['queueitemid'] ?? '')
         );
         $this->assertTrue((bool)($createconfirm['success'] ?? false), (string)($createconfirm['message'] ?? ''));
 
@@ -141,7 +141,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $teacherconfirm = ai_confirm_run::execute(
             (int)$this->booking->cmid,
             (int)$threadid,
-            json_encode([$teachercommand], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            (string)($result2['queueitemid'] ?? '')
         );
         $this->assertTrue((bool)($teacherconfirm['success'] ?? false), (string)($teacherconfirm['message'] ?? ''));
 
@@ -180,7 +180,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $visibleconfirm = ai_confirm_run::execute(
             (int)$this->booking->cmid,
             (int)$threadid,
-            json_encode([$visiblecommand], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            (string)($result3['queueitemid'] ?? '')
         );
         $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
 

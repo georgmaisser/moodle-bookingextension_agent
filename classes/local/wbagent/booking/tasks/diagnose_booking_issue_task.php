@@ -17,10 +17,10 @@
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use core_text;
-use bookingextension_agent\bo_availability\bo_info;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use mod_booking\bo_availability\bo_info;
 use mod_booking\singleton_service;
 
 /**
@@ -86,7 +86,8 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
                     'type' => 'string',
                     'description' => 'User reference (name, email, id-like text) when diagnosing for another person. '
                         . 'Omit (do NOT send empty string) to diagnose for the current user. '
-                        . 'CRITICAL: Omit this field entirely for self-diagnosis — do not send fuzzy phrases like "vous", "me", "ich", etc. '
+                        . 'CRITICAL: Omit this field entirely for self-diagnosis. '
+                        . 'Do not send fuzzy phrases like "vous", "me", "ich", etc. '
                         . 'Only send concrete user identifiers (names, emails, user IDs).',
                     'required' => false,
                 ],
@@ -202,9 +203,9 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
      * @param  array $input
      * @param  int   $cmid
      * @param  int   $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         $lang = $this->get_output_language($input);
         $issues = [];
 
@@ -216,7 +217,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
                 'severity' => 'needs_clarification',
                 'message'  => $this->localized_string('agent_booking_diagnose_required_question', null, $lang),
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $preparedinput = $input;
@@ -231,7 +232,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
                 'severity' => 'needs_clarification',
                 'message'  => $this->localized_string('agent_booking_diagnose_ambiguity_option_required', null, $lang),
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         if ($optionid <= 0 && $optionquery !== '') {
@@ -244,7 +245,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
                         'message'  => (string)($resolved['message']
                             ?? $this->localized_string('agent_booking_diagnose_ambiguity_option_specify', null, $lang)),
                     ];
-                    return task_preflight_result::invalid($issues);
+                    return preflight_result_v2::invalid($issues);
                 } else if (($resolved['status'] ?? '') === 'error') {
                     $issues[] = [
                         'code'     => 'OPTION_RESOLUTION_FAILED',
@@ -252,7 +253,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
                         'message'  => (string)($resolved['message']
                             ?? $this->localized_string('agent_booking_diagnose_error_option_resolve', null, $lang)),
                     ];
-                    return task_preflight_result::invalid($issues);
+                    return preflight_result_v2::invalid($issues);
                 } else if (($resolved['status'] ?? '') === 'ok') {
                     $preparedinput['optionid'] = (int)($resolved['optionid'] ?? 0);
                 }
@@ -260,38 +261,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
             // Is_last_option_reference is handled at execute() time using user-session data.
         }
 
-        return task_preflight_result::ok($preparedinput);
-    }
-
-    /**
-     * Legacy validate — delegates to preflight() for backward-compatibility.
-     *
-     * @param  array $input
-     * @param  int   $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
-     * @deprecated since 2026 — use preflight() instead.
-     */
-    public function validate(array $input, int $cmid): array {
-        global $USER;
-        $result = $this->preflight($input, $cmid, (int)($USER->id ?? 0));
-
-        $errors = [];
-        $ambiguities = [];
-        foreach ($result->issues as $issue) {
-            $msg = (string)($issue['message'] ?? '');
-            if ($msg === '') {
-                continue;
-            }
-            if (($issue['severity'] ?? '') === 'needs_clarification') {
-                $errors[] = $msg;
-            }
-        }
-
-        return [
-            'valid'       => $result->isvalid,
-            'errors'      => $errors,
-            'ambiguities' => $ambiguities,
-        ];
+        return preflight_result_v2::ok($preparedinput);
     }
 
     /**
@@ -857,7 +827,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
         $reasons = [];
         $userstatus = (string)($optionstats['userstatus'] ?? 'notbooked');
 
-        // --- Fundamental access checks (evaluated for all issue types) ---
+        // Fundamental access checks (evaluated for all issue types).
 
         // Check 2: Option visibility.
         // invisible=1 → hidden for non-privileged users (hard blocker).
@@ -933,7 +903,7 @@ class diagnose_booking_issue_task extends booking_task_base implements task_trig
             );
         }
 
-        // --- Issue-type specific checks ---
+        // Issue-type specific checks.
 
         $statusstats = [];
         foreach (['notbooked', 'iambooked', 'iamreserved', 'onwaitinglist', 'onnotifylist'] as $statuskey) {

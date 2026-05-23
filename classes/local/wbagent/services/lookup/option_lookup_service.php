@@ -57,8 +57,8 @@ class option_lookup_service {
     /**
      * Resolve a single booking option by query.
      *
-     * Runs the update_option validation against the query and returns
-     * the underlying validation result so callers can inspect errors/ambiguities.
+     * Runs structural checks for update_option against the query and returns
+     * the result so callers can inspect errors/ambiguities.
      *
      * @param int    $cmid
      * @param string $query
@@ -66,7 +66,7 @@ class option_lookup_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function resolve_single_option(int $cmid, string $query, string $when = ''): array {
-        return (new booking_task_support())->validate(
+        return (new booking_task_support())->check_structure(
             'booking.update_option',
             ['optionquery' => $query, 'optionwhen' => $when],
             $cmid

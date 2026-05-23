@@ -53,6 +53,15 @@ class preflight_result_v2 {
     /** @var int */
     public readonly int $durationms;
 
+    /** @var bool Legacy-kompatibel: execution allowed. */
+    public readonly bool $isvalid;
+
+    /** @var array<string,mixed> Legacy-kompatibel: prepared execute input. */
+    public readonly array $preparedinput;
+
+    /** @var array<int,array<string,mixed>> Legacy-kompatibel: structured issues. */
+    public readonly array $issues;
+
     /**
      * Create immutable preflight contract v2 result.
      *
@@ -62,6 +71,8 @@ class preflight_result_v2 {
      * @param int $retryafterms
      * @param int $retrycount
      * @param int $durationms
+     * @param array<string,mixed> $preparedinput
+     * @param array<int,array<string,mixed>> $issues
      */
     public function __construct(
         string $status,
@@ -69,7 +80,9 @@ class preflight_result_v2 {
         string $blockinglayer = '',
         int $retryafterms = 0,
         int $retrycount = 0,
-        int $durationms = 0
+        int $durationms = 0,
+        array $preparedinput = [],
+        array $issues = []
     ) {
         $allowed = ['pass', 'soft_block', 'hard_block', 'retry_hint'];
         $normalizedstatus = trim($status);
@@ -83,6 +96,9 @@ class preflight_result_v2 {
         $this->retryafterms = max(0, $retryafterms);
         $this->retrycount = max(0, $retrycount);
         $this->durationms = max(0, $durationms);
+        $this->preparedinput = $preparedinput;
+        $this->issues = $issues;
+        $this->isvalid = in_array($this->status, ['pass', 'soft_block'], true);
     }
 
     /**
@@ -134,5 +150,108 @@ class preflight_result_v2 {
             'retry_count' => $this->retrycount,
             'duration_ms' => $this->durationms,
         ];
+    }
+
+    /**
+     * Legacy helper: successful preflight with normalized input.
+     *
+     * @param array<string,mixed> $preparedinput
+     * @return self
+     */
+    public static function ok(array $preparedinput): self {
+        return new self('pass', [], '', 0, 0, 0, $preparedinput, []);
+    }
+
+    /**
+     * Legacy helper: preflight passed with confirmable issues.
+     *
+     * @param array<string,mixed> $preparedinput
+     * @param array<int,array<string,mixed>> $issues
+     * @return self
+     */
+    public static function confirmable(array $preparedinput, array $issues): self {
+        $issuecodes = self::extract_issue_codes_from_issues($issues);
+        return new self(
+            'soft_block',
+            $issuecodes,
+            self::BLOCKING_LAYER_DOMAIN,
+            0,
+            0,
+            0,
+            $preparedinput,
+            $issues
+        );
+    }
+
+    /**
+     * Legacy helper: preflight failed.
+     *
+     * @param array<int,array<string,mixed>> $issues
+     * @return self
+     */
+    public static function invalid(array $issues): self {
+        $issuecodes = self::extract_issue_codes_from_issues($issues);
+        return new self(
+            'hard_block',
+            $issuecodes,
+            self::BLOCKING_LAYER_DOMAIN,
+            0,
+            0,
+            0,
+            [],
+            $issues
+        );
+    }
+
+    /**
+     * Legacy helper: filter issues by severity.
+     *
+     * @param string $severity
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_issues_by_severity(string $severity): array {
+        if (empty($this->issues)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $this->issues,
+            static fn(array $issue): bool => ($issue['severity'] ?? '') === $severity
+        ));
+    }
+
+    /**
+     * Legacy helper: return issue codes.
+     *
+     * @return array<int,string>
+     */
+    public function get_issue_codes(): array {
+        if (!empty($this->issues)) {
+            return self::extract_issue_codes_from_issues($this->issues);
+        }
+
+        return $this->issuecodes;
+    }
+
+    /**
+     * Legacy helper: whether confirmable soft issues are present.
+     *
+     * @return bool
+     */
+    public function has_confirmable_issues(): bool {
+        return !empty($this->get_issues_by_severity('needs_confirmation'));
+    }
+
+    /**
+     * Extract canonical issue codes from legacy issue arrays.
+     *
+     * @param array<int,array<string,mixed>> $issues
+     * @return array<int,string>
+     */
+    private static function extract_issue_codes_from_issues(array $issues): array {
+        return array_values(array_filter(array_map(
+            static fn(array $issue): string => trim((string)($issue['code'] ?? '')),
+            $issues
+        )));
     }
 }

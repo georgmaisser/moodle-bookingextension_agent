@@ -17,7 +17,7 @@
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use context_module;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use stdClass;
 
 /**
@@ -282,13 +282,13 @@ class configure_booking_instance_task extends booking_task_base {
      * @param array $input
      * @param int   $cmid
      * @param int   $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         // Capability check.
         $context = context_module::instance($cmid);
         if (!has_capability('mod/booking:updatebooking', $context, $userid)) {
-            return task_preflight_result::invalid([[
+            return preflight_result_v2::invalid([[
                 'severity' => 'needs_clarification',
                 'message' => get_string('nopermissions', 'error', 'mod/booking:updatebooking'),
                 'code' => 'NO_CAPABILITY_CONFIGURE_INSTANCE',
@@ -299,7 +299,7 @@ class configure_booking_instance_task extends booking_task_base {
 
         // list_fields is safe — no further checks needed.
         if ($action === 'list_fields') {
-            return task_preflight_result::ok($input);
+            return preflight_result_v2::ok($input);
         }
 
         // For update: validate field types.
@@ -326,10 +326,10 @@ class configure_booking_instance_task extends booking_task_base {
         }
 
         if (!empty($issues)) {
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
-        return task_preflight_result::ok($input);
+        return preflight_result_v2::ok($input);
     }
 
     /**

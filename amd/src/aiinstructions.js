@@ -28,6 +28,7 @@ import Templates from 'core/templates';
 
 /** Pending commands waiting for user confirmation. */
 let pendingCommands = null;
+let pendingQueueItemId = '';
 let currentThreadId = 0;
 let currentCmid = 0;
 let debugModeEnabled = false;
@@ -1379,6 +1380,7 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
     const responseType = String(resp.response_type || '');
     const cmds = parseCommandPayload(resp.commands || '[]');
     const messageText = String(resp.displaymessage || resp.message || '').trim();
+    pendingQueueItemId = String(resp.queueitemid || '').trim();
 
     appendAssistantPrivacyNote(resp, source);
 
@@ -1389,6 +1391,7 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
         || responseType === 'clarification'
         || responseType === 'error'
     ) {
+        pendingQueueItemId = '';
         handleFinalAgentResponse(resp, source, responseType, messageText);
         return;
     }
@@ -1404,6 +1407,9 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
  */
 const showConfirmPanel = (message, commands) => {
     pendingCommands = commands;
+    if (pendingQueueItemId === '' && Array.isArray(commands) && commands.length > 0) {
+        pendingQueueItemId = String((commands[0] && commands[0].queue_item_id) || '').trim();
+    }
 
     const panel = document.getElementById('booking-ai-confirm-panel');
     const preview = document.getElementById('booking-ai-confirm-preview');
@@ -1535,9 +1541,14 @@ const buildTaskPreviewHtml = (results = []) => {
 
 /**
  * Hide the confirmation panel.
+ *
+ * @param {boolean} clearPendingState Whether pending confirmation state should be reset.
  */
-const hideConfirmPanel = () => {
-    pendingCommands = null;
+const hideConfirmPanel = (clearPendingState = true) => {
+    if (clearPendingState) {
+        pendingCommands = null;
+        pendingQueueItemId = '';
+    }
     const panel = document.getElementById('booking-ai-confirm-panel');
     if (panel) {
         panel.classList.add('d-none');
@@ -2231,22 +2242,26 @@ const confirmRun = (allowSession = false) => {
         return;
     }
 
+    if (pendingQueueItemId === '') {
+        showRunStatus('failed', 'Missing queue item id. Please confirm the latest assistant proposal again.');
+        return;
+    }
+
     clearStepBubbles();
     appendStepBubble(stepExecutingLabel, 0);
 
-    const commandsToSend = pendingCommands;
     const effectiveAllowSession = Boolean(allowSession || sessionAutoConfirmEnabled);
     if (effectiveAllowSession) {
         sessionAutoConfirmEnabled = true;
     }
-    hideConfirmPanel();
+    hideConfirmPanel(false);
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_confirm_run',
         args: {
             cmid:     currentCmid,
             threadid: currentThreadId,
-            commands: JSON.stringify(commandsToSend),
+            queue_item_id: pendingQueueItemId,
             allow_session: effectiveAllowSession,
         },
     }])[0].then((resp) => {
@@ -2270,6 +2285,7 @@ const confirmRun = (allowSession = false) => {
             clearActivePlanBubble();
             showRunStatus('failed', resp.message);
         }
+        pendingCommands = null;
         return resp;
     }).catch((err) => {
         Notification.exception(err);

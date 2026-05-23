@@ -108,7 +108,7 @@ final class slotbooking_autoconfirm_real_llm_test extends abstract_agent_testcas
                 $confirm = ai_confirm_run::execute(
                     (int)$this->booking->cmid,
                     $threadid,
-                    '[]',
+                    (string)($response['queueitemid'] ?? ''),
                     false
                 );
                 $trace[] = $this->build_trace_line('confirm', $i + 1, $confirm);
@@ -128,7 +128,7 @@ final class slotbooking_autoconfirm_real_llm_test extends abstract_agent_testcas
                 $confirm = ai_confirm_run::execute(
                     (int)$this->booking->cmid,
                     $threadid,
-                    '[]',
+                    (string)($response['queueitemid'] ?? ''),
                     true
                 );
                 $trace[] = $this->build_trace_line('confirm_allow_session', $i + 1, $confirm);

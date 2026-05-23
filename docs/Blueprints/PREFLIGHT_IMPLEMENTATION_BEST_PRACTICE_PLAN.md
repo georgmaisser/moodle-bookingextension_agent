@@ -40,9 +40,8 @@ Die aktuelle Preflight-Steuerung verteilt sich ueber folgende Kernstellen:
 
 - agent_decision_service.php
   - handle_command_routing() ingestiert Queue-Items und staged weiterhin nur die erste Mutation fuer die aktuelle Confirmation-Stufe.
-  - handle_preflight() ruft direkt task->preflight() pro Command auf.
-  - run_preflight_on_commands() ist ein zweiter Legacy-Sammelpfad fuer confirm_pending.
-  - run_preflight_pipeline_on_commands() legt optional V2 darueber, aber nur per Flags.
+  - handle_preflight() nutzt den zentralen preflight_pipeline-Entry pro Command-Batch.
+  - Confirm-Pfade nutzen denselben Preflight-Entry wie der Initialpfad.
 - ai_send_message.php
   - startet den agentic loop und loggt optional nur Shadow-/API-Mapping.
 - ai_confirm_run.php
@@ -86,7 +85,7 @@ Was vorhanden ist:
 
 Was tatsaechlich passiert:
 
-- handle_preflight() und run_preflight_on_commands() verlassen sich primaer auf task->preflight().
+- handle_preflight() verlaesst sich primaer auf den zentralen preflight_pipeline-Entry und den Task-Preflight-Vertrag.
 - preflight_domain_check_runner.php fuehrt keine echten parallelen conflict, permission und precondition checks aus.
 - Stattdessen klassifiziert er bereits entstandene issue codes nachtraeglich in hard_block, soft_block oder retry_hint.
 - Der Timeout ist kein echter gemeinsamer async timeout ueber mehrere Checks, sondern nur eine Messung verstrichener Zeit.

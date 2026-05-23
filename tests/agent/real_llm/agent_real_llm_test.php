@@ -148,7 +148,7 @@ final class agent_real_llm_test extends abstract_agent_testcase {
         $confirm = ai_confirm_run::execute(
             (int)$this->booking->cmid,
             (int)$response['threadid'],
-            $commandsjson
+            (string)($response['queueitemid'] ?? '')
         );
 
         $this->assertTrue((bool)$confirm['success']);

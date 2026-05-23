@@ -190,7 +190,7 @@ class preflight_pipeline {
             );
         }
 
-        $errorclass = $this->infer_error_class_from_issue_codes($combinedissuecodes);
+        $errorclass = $this->classify_error_class($combinedissuecodes);
         $result = $domainresult;
         if ($errorclass !== '' && in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
             $result = $this->executiongate->evaluate($errorclass, 0, $combinedissuecodes);
@@ -270,7 +270,7 @@ class preflight_pipeline {
      * @param array<int,string> $issuecodes
      * @return string
      */
-    private function infer_error_class_from_issue_codes(array $issuecodes): string {
+    private function classify_error_class(array $issuecodes): string {
         foreach ($issuecodes as $code) {
             $upper = core_text::strtoupper(trim((string)$code));
             if ($upper === '') {

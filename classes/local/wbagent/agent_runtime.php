@@ -31,6 +31,7 @@ use context_module;
 use bookingextension_agent\local\wbagent\agent_state;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 
 /**
@@ -132,6 +133,9 @@ class agent_runtime {
     /** @var loop_finalizer */
     private loop_finalizer $loopfinalizer;
 
+    /** @var queue_manager */
+    private queue_manager $queuesvc;
+
     /**
      * Constructor.
      *
@@ -156,6 +160,7 @@ class agent_runtime {
         $this->decisionsvc  = new agent_decision_service($registry, $store, $authz, $this->issuecodeprovider);
         $this->messagepersistence = new message_persistence_service($store);
         $this->loopfinalizer = new loop_finalizer();
+        $this->queuesvc = new queue_manager($store);
     }
 
     // -------------------------------------------------------------------------
@@ -192,6 +197,7 @@ class agent_runtime {
      */
     public function run(int $threadid, int $cmid, int $userid): array {
         $result = $this->run_internal($threadid, $cmid, $userid, [], null);
+        $this->refresh_pending_queue_retry_state($threadid);
         $result = $this->enforce_final_response_contract($result, $threadid);
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
@@ -246,6 +252,77 @@ class agent_runtime {
             'loop_step' => $state->step_count(),
             'loop_max_steps' => $limit,
         ];
+    }
+
+    /**
+     * Refresh retry state for any pending intent queue items.
+     *
+     * Queue-backed confirmation intents carry queue_item_ids in thread metadata.
+     * This keeps retry-waiting items moving once their pickup time has arrived,
+     * and stores a compact snapshot when items are still blocked.
+     *
+     * @param int $threadid
+     * @return void
+     */
+    private function refresh_pending_queue_retry_state(int $threadid): void {
+        $pendingintent = $this->store->get_pending_intent($threadid);
+        if ($pendingintent === null) {
+            $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', null);
+            return;
+        }
+
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        if (empty($queueitemids)) {
+            $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', null);
+            return;
+        }
+
+        $snapshot = [
+            'queue_item_ids' => [],
+            'ready' => [],
+            'waiting' => [],
+        ];
+
+        foreach ($queueitemids as $queueitemid) {
+            $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $snapshot['queue_item_ids'][] = $queueitemid;
+            $status = trim((string)($item['status'] ?? ''));
+            if ($status !== 'retry_waiting') {
+                continue;
+            }
+
+            if ($this->queuesvc->can_pickup_now($item)) {
+                $this->queuesvc->update_status(
+                    $threadid,
+                    $queueitemid,
+                    'ready',
+                    (array)($item['issue_codes'] ?? []),
+                    (string)($item['error_class'] ?? ''),
+                    (string)($item['last_error_message'] ?? '')
+                );
+                $snapshot['ready'][] = $queueitemid;
+                continue;
+            }
+
+            $snapshot['waiting'][] = [
+                'queue_item_id' => $queueitemid,
+                'next_retry_at' => (int)($item['next_retry_at'] ?? 0),
+                'retry_after_ms' => (int)($item['retry_after_ms'] ?? 0),
+                'backoff_ms' => (int)($item['backoff_ms'] ?? 0),
+                'blocked_expires_at' => (int)($item['blocked_expires_at'] ?? 0),
+            ];
+        }
+
+        if (empty($snapshot['queue_item_ids'])) {
+            $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', null);
+            return;
+        }
+
+        $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', $snapshot);
     }
 
     /**
@@ -347,6 +424,7 @@ class agent_runtime {
 
             // Plan + route — does NOT persist anything.
             $result = $this->run_internal($threadid, $cmid, $userid, $state->get_observations(), $state);
+            $this->refresh_pending_queue_retry_state($threadid);
 
             $result['loop_step']      = $step + 1;
             $result['loop_max_steps'] = $limit;
@@ -2152,9 +2230,9 @@ class agent_runtime {
                 $cmid,
                 $userid,
                 $retryobservations,
-                  !empty($retryobservations)
-                      ? orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
-                      : orchestrator::STEP_TYPE_TOOL_CALL_PARSE
+                !empty($retryobservations)
+                    ? orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
+                    : orchestrator::STEP_TYPE_TOOL_CALL_PARSE
             );
 
             $retryrawresponse = is_string($retryresult['_planner_raw_response'] ?? null)

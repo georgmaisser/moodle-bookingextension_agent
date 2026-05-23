@@ -30,8 +30,8 @@ use bookingextension_agent\local\wbagent\task_discovery;
 use bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task;
 use bookingextension_agent\local\wbagent\booking\tasks\booking_task_base;
 use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
-    use bookingextension_agent\local\wbagent\booking\tasks\create_selflearning_option_task;
-    use bookingextension_agent\local\wbagent\booking\tasks\create_slotbooking_option_task;
+use bookingextension_agent\local\wbagent\booking\tasks\create_selflearning_option_task;
+use bookingextension_agent\local\wbagent\booking\tasks\create_slotbooking_option_task;
 use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task;
 use bookingextension_agent\local\wbagent\booking\tasks\search_courses_task;
 use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
@@ -42,11 +42,11 @@ use bookingextension_agent\local\wbagent\core\tasks\explain_task_schema_task;
 use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
 use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
 use bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task;
+use mod_booking\external\search_courses;
+use mod_booking\external\search_users;
 use mod_booking\bo_availability\bo_info;
 use mod_booking\booking;
 use mod_booking\booking_bookit;
-use bookingextension_agent\external\search_courses;
-use bookingextension_agent\external\search_users;
 use mod_booking\option\fields_info;
 use mod_booking\output\view;
 use mod_booking\singleton_service;
@@ -137,14 +137,14 @@ class booking_task_support {
     }
 
     /**
-     * Validate task input.
+     * Run structural-only validation for a task input payload.
      *
      * @param string $taskname
      * @param array  $input
      * @param int    $cmid
      * @return array
      */
-    public function validate(string $taskname, array $input, int $cmid): array {
+    public function check_structure(string $taskname, array $input, int $cmid): array {
         $task = $this->get_task_instances()[$taskname] ?? null;
         if (!$task) {
             return [
@@ -154,7 +154,12 @@ class booking_task_support {
             ];
         }
 
-        return $task->validate($input, $cmid);
+        $structure = $task->check_structure($input);
+        return [
+            'valid' => (bool)($structure['valid'] ?? false),
+            'errors' => array_values(array_unique(array_map('strval', (array)($structure['errors'] ?? [])))),
+            'ambiguities' => [],
+        ];
     }
 
     /**

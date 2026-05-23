@@ -185,7 +185,7 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
                 $confirm = ai_confirm_run::execute(
                     (int)$this->booking->cmid,
                     (int)$response['threadid'],
-                    (string)($response['commands'] ?? '[]')
+                    (string)($response['queueitemid'] ?? '')
                 );
 
                 $this->assertTrue((bool)($confirm['success'] ?? false), (string)($confirm['message'] ?? ''));
@@ -619,6 +619,7 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
             . ' | msg=' . trim((string)($first['displaymessage'] ?? ''));
 
         $responsetype = (string)($first['response_type'] ?? '');
+        $queueitemid = (string)($first['queueitemid'] ?? '');
 
         // Step 2+: Handle follow-up loop (clarifications, confirmations, completion).
         for ($i = 0; $i < 8; $i++) {
@@ -633,11 +634,12 @@ final class ai_send_message_real_llm_test extends abstract_agent_testcase {
                 $confirmresult = ai_confirm_run::execute(
                     (int)$this->booking->cmid,
                     $threadid,
-                    '[]',
+                    $queueitemid,
                     false
                 );
                 $confirmrunid = (int)($confirmresult['runid'] ?? 0);
                 $responsetype = (string)($confirmresult['response_type'] ?? '');
+                $queueitemid = (string)($confirmresult['queueitemid'] ?? '');
 
                 $attemptlogs[] = 'confirm[' . $i . ']: success=' . (string)($confirmresult['success'] ?? 0)
                     . ' | runid=' . $confirmrunid

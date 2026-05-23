@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 use bookingextension_agent\local\wbagent\base_task;
 use bookingextension_agent\local\wbagent\booking\booking_task_mutation_execute_service;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Base task delegating schema, validation and execution to booking support logic.
@@ -565,9 +565,10 @@ abstract class booking_task_base extends base_task {
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function validate(array $input, int $cmid): array {
+        $structure = $this->check_structure($input);
         return [
-            'valid' => true,
-            'errors' => [],
+            'valid' => (bool)($structure['valid'] ?? false),
+            'errors' => array_values(array_unique(array_map('strval', (array)($structure['errors'] ?? [])))),
             'ambiguities' => [],
         ];
     }
@@ -605,7 +606,7 @@ abstract class booking_task_base extends base_task {
     }
 
     /**
-     * Run service-level preflight validation and return an enriched task_preflight_result.
+     * Run service-level preflight validation and return an enriched preflight_result_v2.
      *
      * Centralises the repeated pattern across mutation tasks:
      *  1. Call booking_task_mutation_execute_service::preflight_validate().
@@ -618,7 +619,7 @@ abstract class booking_task_base extends base_task {
      * @param  int    $userid
      * @param  array  $existingissues Issues already collected before calling this helper.
      * @param  string $lang           Output language code (may be empty).
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
     protected function apply_service_preflight(
         string $taskname,
@@ -627,7 +628,7 @@ abstract class booking_task_base extends base_task {
         int $userid,
         array $existingissues = [],
         string $lang = ''
-    ): task_preflight_result {
+    ): preflight_result_v2 {
         $service = new booking_task_mutation_execute_service();
         $servicepreflight = $service->preflight_validate($taskname, $preparedinput, $cmid, $userid);
 
@@ -647,14 +648,14 @@ abstract class booking_task_base extends base_task {
                     'message'  => (string)$amb,
                 ];
             }
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         if (is_array($servicepreflight['normalized_input'] ?? null)) {
             $preparedinput = (array)$servicepreflight['normalized_input'];
         }
 
-        return task_preflight_result::ok($preparedinput);
+        return preflight_result_v2::ok($preparedinput);
     }
 
     /**

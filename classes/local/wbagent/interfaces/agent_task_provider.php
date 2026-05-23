@@ -55,16 +55,6 @@ interface agent_task_provider {
     public function get_task_schema(string $taskname): array;
 
     /**
-     * Validate task input against the schema and domain rules.
-     *
-     * @param string $taskname  Namespaced task name.
-     * @param array  $input     Task input payload.
-     * @param int    $cmid      Course-module id for context scoping.
-     * @return array ['valid' => bool, 'errors' => string[], 'ambiguities' => string[]]
-     */
-    public function validate(string $taskname, array $input, int $cmid): array;
-
-    /**
      * Execute a single validated command.
      *
      * Must only be called by the executor after all validations pass.

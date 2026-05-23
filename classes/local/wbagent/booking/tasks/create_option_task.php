@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 use bookingextension_agent\local\wbagent\booking\booking_task_mutation_execute_service;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.create_option.
@@ -128,7 +128,8 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                     . 'Use booking.create_slotbooking_option for slot-based appointment booking. '
                     . 'Use booking.create_selflearning_option for self-learning courses.',
                 'examples' => [
-                    'My tennis court should be bookable every weekday from 10 a.m. to 6 p.m., in 1-hour slots. Create the booking availability for July.',
+                    'My tennis court should be bookable every weekday from 10 a.m. to 6 p.m., '
+                        . 'in 1-hour slots. Create the booking availability for July.',
                 ],
             ],
         ];
@@ -299,6 +300,31 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             ];
         }
 
+        $missingrequired = [];
+        if ((int)($input['maxanswers'] ?? 0) <= 0) {
+            $missingrequired[] = 'maxanswers';
+        }
+
+        $hasoptiondates = !empty($input['optiondates']) && is_array($input['optiondates']);
+        if (!$hasoptiondates && trim((string)($input['coursestarttime'] ?? '')) === '') {
+            $missingrequired[] = 'coursestarttime';
+        }
+
+        $hasduration = (int)($input['duration'] ?? 0) > 0;
+        $hasendtime = trim((string)($input['courseendtime'] ?? '')) !== '';
+        if (!$hasoptiondates && !$hasduration && !$hasendtime) {
+            $missingrequired[] = 'duration|courseendtime';
+        }
+
+        if (!empty($missingrequired)) {
+            return [
+                'valid' => false,
+                'errors' => [
+                    $this->build_create_option_retry_message($appliedaliases, [], $missingrequired, true),
+                ],
+            ];
+        }
+
         if (!empty($unknownprops)) {
             $observation = $this->build_unknown_property_observation($unknownprops, $rawinput);
             return [
@@ -408,9 +434,9 @@ class create_option_task extends booking_task_base implements task_trigger_provi
      * @param  array $input
      * @param  int   $cmid
      * @param  int   $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         $lang = $this->get_output_language($input);
         $issues = [];
         $errors = [];
@@ -430,7 +456,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                 'user_question'  => $this->localized_string('agent_booking_create_option_which_title_question', null, $lang),
                 'remedy_options' => ['ASK_TITLE'],
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $overrides = self::normalize_overrides(is_array($input['override'] ?? null) ? $input['override'] : []);
@@ -451,7 +477,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                 ),
                 'remedy_options' => ['CONFIRM_CREATE_WITH_DUPLICATE_TITLE', 'UPDATE_EXISTING_INSTEAD'],
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         } else if (!$allowduplicatetitle && ($duplicatecheck['status'] ?? '') === 'multiple') {
             $issues[] = [
                 'code'           => 'DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED',
@@ -468,7 +494,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                 ),
                 'remedy_options' => ['CONFIRM_CREATE_WITH_DUPLICATE_TITLE', 'SELECT_EXISTING_OPTION_TO_UPDATE'],
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $resolvedtype = self::resolve_requested_option_type($input);
@@ -531,7 +557,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             foreach ((array)($servicepreflight['ambiguities'] ?? []) as $amb) {
                 $issues[] = ['code' => 'PREFLIGHT_AMBIGUITY', 'severity' => 'needs_clarification', 'message' => (string)$amb];
             }
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         $preparedinput = is_array($servicepreflight['normalized_input'] ?? null)
@@ -544,47 +570,13 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             static fn(array $i): bool => ($i['severity'] ?? '') === 'needs_clarification'
         );
         if (!empty($blockingissues)) {
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
         if (!empty($issues)) {
-            return task_preflight_result::confirmable($preparedinput, $issues);
+            return preflight_result_v2::confirmable($preparedinput, $issues);
         }
 
-        return task_preflight_result::ok($preparedinput);
-    }
-
-    /**
-     * Legacy validate — delegates to preflight() for backward-compatibility.
-     *
-     * @param  array $input
-     * @param  int   $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>,issues:array}
-     * @deprecated since 2026 — use preflight() instead.
-     */
-    public function validate(array $input, int $cmid): array {
-        global $USER;
-        $result = $this->preflight($input, $cmid, (int)($USER->id ?? 0));
-
-        $errors = [];
-        $ambiguities = [];
-        foreach ($result->issues as $issue) {
-            $msg = (string)($issue['message'] ?? '');
-            if ($msg === '') {
-                continue;
-            }
-            if (($issue['severity'] ?? '') === 'needs_clarification') {
-                $errors[] = $msg;
-            } else if (($issue['severity'] ?? '') === 'needs_confirmation') {
-                $ambiguities[] = $msg;
-            }
-        }
-
-        return [
-            'valid'       => $result->isvalid,
-            'errors'      => $errors,
-            'ambiguities' => $ambiguities,
-            'issues'      => $result->issues,
-        ];
+        return preflight_result_v2::ok($preparedinput);
     }
 
     /**

@@ -54,7 +54,7 @@ class option_mutation_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function validate_create(create_option_input_dto $dto, int $cmid): array {
-        return (new booking_task_support())->validate(create_option_task::TASK_NAME, $dto->to_array(), $cmid);
+        return (new booking_task_support())->check_structure(create_option_task::TASK_NAME, $dto->to_array(), $cmid);
     }
 
     /**
@@ -65,7 +65,7 @@ class option_mutation_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function validate_update(update_option_input_dto $dto, int $cmid): array {
-        return (new booking_task_support())->validate(update_option_task::TASK_NAME, $dto->to_array(), $cmid);
+        return (new booking_task_support())->check_structure(update_option_task::TASK_NAME, $dto->to_array(), $cmid);
     }
 
     /**
@@ -76,7 +76,7 @@ class option_mutation_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function validate_bulk_update(bulk_update_options_input_dto $dto, int $cmid): array {
-        return (new booking_task_support())->validate(bulk_update_options_task::TASK_NAME, $dto->to_array(), $cmid);
+        return (new booking_task_support())->check_structure(bulk_update_options_task::TASK_NAME, $dto->to_array(), $cmid);
     }
 
     /**

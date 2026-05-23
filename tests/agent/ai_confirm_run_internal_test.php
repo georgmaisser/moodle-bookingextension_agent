@@ -45,7 +45,7 @@ final class ai_confirm_run_internal_test extends booking_advanced_testcase {
         $params = ai_confirm_run::execute_parameters();
         $this->assertNotNull($params->keys['cmid'] ?? null);
         $this->assertNotNull($params->keys['threadid'] ?? null);
-        $this->assertNotNull($params->keys['commands'] ?? null);
+        $this->assertNotNull($params->keys['queue_item_id'] ?? null);
         $this->assertNotNull($params->keys['allow_session'] ?? null);
     }
 
@@ -70,6 +70,7 @@ final class ai_confirm_run_internal_test extends booking_advanced_testcase {
             'issuecodesjson',
             'errorsjson',
             'pendingconfirmationcode',
+            'queueitemid',
             'previewoptionid',
         ];
 

@@ -20,7 +20,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_mutation_execute_s
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.bulk_update_options.
@@ -143,9 +143,9 @@ class bulk_update_options_task extends booking_task_base implements task_trigger
      * @param  array $input
      * @param  int   $cmid
      * @param  int   $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         global $DB;
 
         $lang = $this->get_output_language($input);
@@ -168,7 +168,7 @@ class bulk_update_options_task extends booking_task_base implements task_trigger
                 'user_question'  => $this->localized_string('agent_booking_bulk_update_issue_user_question', null, $lang),
                 'remedy_options' => ['SET_APPLY_TO_ALL', 'PROVIDE_OPTIONQUERY', 'PROVIDE_OPTIONIDS'],
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         // Validate and resolve explicit optionids.
@@ -194,7 +194,7 @@ class bulk_update_options_task extends booking_task_base implements task_trigger
                     }
                 }
                 if (!empty($issues)) {
-                    return task_preflight_result::invalid($issues);
+                    return preflight_result_v2::invalid($issues);
                 }
             }
             // Store fully resolved IDs in prepared_input.
@@ -211,7 +211,7 @@ class bulk_update_options_task extends booking_task_base implements task_trigger
                     'severity' => 'needs_clarification',
                     'message'  => $this->localized_string('agent_booking_bulk_update_no_preview', null, $lang),
                 ];
-                return task_preflight_result::invalid($issues);
+                return preflight_result_v2::invalid($issues);
             }
             // Swap query reference for resolved IDs.
             unset($preparedinput['optionquery']);
@@ -225,43 +225,11 @@ class bulk_update_options_task extends booking_task_base implements task_trigger
                 'severity' => 'needs_clarification',
                 'message'  => $this->localized_string('agent_booking_bulk_update_bookusersquery_unsupported', null, $lang),
             ];
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
         // Run service-level preflight (teacher resolution, dates, etc.) and enrich prepared_input.
         return $this->apply_service_preflight(self::TASK_NAME, $preparedinput, $cmid, $userid, $issues, $lang);
-    }
-
-    /**
-     * Legacy validate — delegates to preflight() for backward-compatibility.
-     *
-     * @param  array $input
-     * @param  int   $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>,issues:array}
-     * @deprecated since 2026 — use preflight() instead.
-     */
-    public function validate(array $input, int $cmid): array {
-        global $USER;
-        $result = $this->preflight($input, $cmid, (int)($USER->id ?? 0));
-
-        $errors = [];
-        $ambiguities = [];
-        foreach ($result->issues as $issue) {
-            $msg = (string)($issue['message'] ?? '');
-            if ($msg === '') {
-                continue;
-            }
-            if (($issue['severity'] ?? '') === 'needs_clarification') {
-                $errors[] = $msg;
-            }
-        }
-
-        return [
-            'valid'       => $result->isvalid,
-            'errors'      => $errors,
-            'ambiguities' => $ambiguities,
-            'issues'      => $result->issues,
-        ];
     }
 
     /**

@@ -66,6 +66,7 @@ final class ai_send_message_internal_test extends booking_advanced_testcase {
             'attemptedtasksjson',
             'issuecodesjson',
             'pendingconfirmationcode',
+            'queueitemid',
             'threadid',
             'runid',
             'resultsjson',

@@ -59,7 +59,7 @@ final class agent_architecture_contract_test extends booking_advanced_testcase {
         $cases = [
             ['response_type' => 'clarification', 'message' => 'clarify'],
             ['response_type' => 'error', 'message' => 'error'],
-            ['response_type' => 'confirm_pending', 'message' => ''],
+            ['response_type' => 'confirm_pending', 'message' => 'pending confirmation'],
         ];
 
         foreach ($cases as $case) {

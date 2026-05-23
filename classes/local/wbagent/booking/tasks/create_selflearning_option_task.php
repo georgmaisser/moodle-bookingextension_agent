@@ -16,7 +16,7 @@
 
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for self-learning booking options.
@@ -85,9 +85,9 @@ class create_selflearning_option_task extends create_option_task {
      * @param array $input
      * @param int $cmid
      * @param int $userid
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
         unset($input['slot_enabled']);
         foreach (array_keys($input) as $key) {
             if (is_string($key) && str_starts_with($key, 'slot_')) {

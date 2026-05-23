@@ -766,7 +766,7 @@ class agent_decision_service {
         }
 
         // Re-run preflight so that prepared_input is refreshed for the executor.
-        $preflightresult = $this->run_preflight_pipeline_on_commands($confirmcommands, $threadid, $cmid, $userid);
+        $preflightresult = $this->preflightpipeline->run($confirmcommands, $threadid, $cmid, $userid);
         if (!$preflightresult['valid']) {
             $invalidmessage = implode(' ', array_values(array_unique(array_filter((array)($preflightresult['errors'] ?? [])))));
             return [
@@ -1320,7 +1320,8 @@ class agent_decision_service {
             $updatedcommand['input'] = $preflightresult->preparedinput;
             $updatedcommands[] = $updatedcommand;
 
-            $queueitemid = trim((string)((array)($result['queue_item_ids'] ?? [])[$idx] ?? ''));
+            $queueitemids = array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? []))));
+            $queueitemid = trim((string)($queueitemids[$idx] ?? ''));
             if ($queueitemid !== '') {
                 $this->queuesvc->set_prepared_input($threadid, $queueitemid, $preflightresult->preparedinput);
             }
@@ -1698,24 +1699,6 @@ class agent_decision_service {
     }
 
     // Private: preflight helpers.
-
-    /**
-     * Run the unified preflight pipeline on a list of commands.
-     *
-     * @param array $commands
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @return array{valid:bool,prepared_commands:array,errors:array,attempted_tasks:array,issue_codes:array,v2_result:array<string,mixed>}
-     */
-    private function run_preflight_pipeline_on_commands(
-        array $commands,
-        int $threadid,
-        int $cmid,
-        int $userid
-    ): array {
-        return $this->preflightpipeline->run($commands, $threadid, $cmid, $userid);
-    }
 
     /**
      * Build a user-facing clarification text from pre-confirmation validation result.
@@ -2888,7 +2871,6 @@ class agent_decision_service {
         }
 
         $patterns = [
-                'queue_item_ids'  => array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? [])))),
             '/\boption\s*id\s*[:#-]?\s*(\d{1,10})\b/iu',
             '/\boptionid\s*[:#-]?\s*(\d{1,10})\b/iu',
             '/\bbooking\s*option\s*id\s*[:#-]?\s*(\d{1,10})\b/iu',

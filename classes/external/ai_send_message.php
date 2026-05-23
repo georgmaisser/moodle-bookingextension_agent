@@ -115,10 +115,12 @@ class ai_send_message extends external_api {
                 'attemptedtasksjson'    => '[]',
                 'issuecodesjson'        => '[]',
                 'pendingconfirmationcode' => '',
+                'queueitemid'           => '',
                 'threadid'              => 0,
                 'runid'                 => 0,
                 'resultsjson'           => '[]',
                 'previewoptionid'       => 0,
+                'previewoptionidsjson'  => '[]',
             ];
         }
 
@@ -149,10 +151,12 @@ class ai_send_message extends external_api {
                 'attemptedtasksjson'    => '[]',
                 'issuecodesjson'        => '[]',
                 'pendingconfirmationcode' => '',
+                'queueitemid'           => '',
                 'threadid'              => 0,
                 'runid'                 => 0,
                 'resultsjson'           => '[]',
                 'previewoptionid'       => 0,
+                'previewoptionidsjson'  => '[]',
             ];
         }
 
@@ -216,6 +220,7 @@ class ai_send_message extends external_api {
             (int)$USER->id,
             (array)($result['results'] ?? [])
         );
+        $responsequeueitemid = self::resolve_response_queue_item_id($store, $threadid);
 
         return [
             'response_type'         => $result['response_type'] ?? 'error',
@@ -234,6 +239,7 @@ class ai_send_message extends external_api {
             'attemptedtasksjson'    => json_encode($result['attempted_tasks'] ?? []),
             'issuecodesjson'        => json_encode($issuecodes),
             'pendingconfirmationcode' => (string)($result['pending_confirmation_code'] ?? ''),
+            'queueitemid'           => $responsequeueitemid,
             'threadid'              => $threadid,
             'runid'                 => (int)($result['runid'] ?? 0),
             'resultsjson'           => json_encode($result['results'] ?? []),
@@ -285,6 +291,23 @@ class ai_send_message extends external_api {
         }
 
         return array_values($normalized);
+    }
+
+    /**
+     * Resolve queue item id for the active confirmation step in a thread.
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @return string
+     */
+    private static function resolve_response_queue_item_id(conversation_store $store, int $threadid): string {
+        $pendingintent = $store->get_pending_intent($threadid);
+        if (!is_array($pendingintent)) {
+            return '';
+        }
+
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        return (string)($queueitemids[0] ?? '');
     }
 
     /**
@@ -383,6 +406,7 @@ class ai_send_message extends external_api {
             'attemptedtasksjson' => new external_value(PARAM_RAW, 'JSON-encoded attempted task names.'),
             'issuecodesjson' => new external_value(PARAM_RAW, 'JSON-encoded issue codes from task validation.'),
             'pendingconfirmationcode' => new external_value(PARAM_TEXT, 'One-time pending confirmation code for debug.'),
+            'queueitemid' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id for confirmation.'),
             'threadid'      => new external_value(PARAM_INT, 'Thread id.'),
             'runid'         => new external_value(PARAM_INT, 'Run id (0 if not yet created).'),
             'resultsjson'   => new external_value(PARAM_RAW, 'JSON-encoded execution results (if available).'),
