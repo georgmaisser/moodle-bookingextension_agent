@@ -1442,7 +1442,7 @@ class agent_decision_service {
             if (!is_array($command['input'] ?? null)) {
                 $command['input'] = [];
             }
-            if (isset($codeset['MISSING_LOCATION_CONFIRM_REQUIRED'])) {
+            if (isset($codeset['MISSING_LOCATION_CONFIRM_REQUIRED']) || isset($codeset['LOCATION_NOT_FOUND_POSSIBLE'])) {
                 $overrides = is_array($command['input']['override'] ?? null)
                     ? $command['input']['override']
                     : [];
