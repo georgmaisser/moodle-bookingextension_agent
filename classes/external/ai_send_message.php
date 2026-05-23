@@ -38,7 +38,6 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\services\preflight_audit_logger;
 use bookingextension_agent\local\wbagent\task_registry;
 
 /**
@@ -197,17 +196,6 @@ class ai_send_message extends external_api {
         // response (clarification, confirmation_request, error) is persisted.
         $runtime = new agent_runtime($registry, $orchestrator, $store, $authz);
         $result = $runtime->run_loop($threadid, $cmid, (int)$USER->id);
-        if ((bool)get_config('bookingextension_agent', 'preflight_v2_shadow_mode')) {
-            $auditlogger = new preflight_audit_logger($store);
-            $auditlogger->append($threadid, (int)($result['runid'] ?? 0), [
-                'layer' => 'api_mapping',
-                'status' => trim((string)($result['response_type'] ?? '')),
-                'issue_codes' => (array)($result['issue_codes'] ?? []),
-                'retry_count' => 0,
-                'duration_ms' => 0,
-                'error_class' => '',
-            ]);
-        }
 
         // Display-side privacy deanonymisation (presentation concern, stays here).
         $displaymessage = (string)($result['message'] ?? '');
@@ -399,7 +387,12 @@ class ai_send_message extends external_api {
             'runid'         => new external_value(PARAM_INT, 'Run id (0 if not yet created).'),
             'resultsjson'   => new external_value(PARAM_RAW, 'JSON-encoded execution results (if available).'),
             'previewoptionid' => new external_value(PARAM_INT, 'Latest option id to preview directly, if available.'),
-            'previewoptionidsjson' => new external_value(PARAM_RAW, 'JSON-encoded array of all preview option ids.', VALUE_DEFAULT, '[]'),
+            'previewoptionidsjson' => new external_value(
+                PARAM_RAW,
+                'JSON-encoded array of all preview option ids.',
+                VALUE_DEFAULT,
+                '[]'
+            ),
         ]);
     }
 }

@@ -135,14 +135,39 @@ class ai_confirm_run extends external_api {
             ];
         }
 
-        $cmdsarray = array_values((array)$pendingintent['commands']);
-        $commandsforrun = self::slice_first_confirmation_stage($cmdsarray);
         $queuesvc = new queue_manager($store);
         $auditlogger = new preflight_audit_logger($store);
         if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
             $queuesvc->fail_expired_blocked_items((int)$params['threadid']);
         }
-        $activequeueitemid = self::resolve_active_queue_item_id($queuesvc, (int)$params['threadid'], $commandsforrun);
+        $cmdsarray = array_values((array)$pendingintent['commands']);
+        $activequeueitemid = self::resolve_pending_queue_item_id($queuesvc, (int)$params['threadid'], $pendingintent);
+        $commandsforrun = self::resolve_commands_for_run($queuesvc, (int)$params['threadid'], $pendingintent, $activequeueitemid);
+
+        if (empty($commandsforrun)) {
+            return [
+                'success' => false,
+                'runid' => 0,
+                'threadid' => (int)$params['threadid'],
+                'response_type' => 'error',
+                'message' => 'No pending confirmation is available for this action. Please ask the assistant again.',
+                'displaymessage' => 'No pending confirmation is available for this action. Please ask the assistant again.',
+                'privacyapplied' => 0,
+                'autoconfirm' => 0,
+                'commands' => '[]',
+                'resultsjson' => '[]',
+                'attemptedtasksjson' => '[]',
+                'issuecodesjson' => '[]',
+                'errorsjson' => '[]',
+                'pendingconfirmationcode' => '',
+                'previewoptionid' => $previewoptionid,
+                'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $params['cmid'],
+                    (int)$USER->id,
+                    []
+                ),
+            ];
+        }
 
         if ($activequeueitemid !== '') {
             $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
@@ -690,6 +715,78 @@ class ai_confirm_run extends external_api {
         }
 
         return [$commands[0]];
+    }
+
+    /**
+     * Resolve the active queue item id for the current pending intent.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param array<string,mixed> $pendingintent
+     * @return string
+     */
+    private static function resolve_pending_queue_item_id(
+        queue_manager $queuesvc,
+        int $threadid,
+        array $pendingintent
+    ): string {
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        foreach ($queueitemids as $queueitemid) {
+            $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+            if (!is_array($item)) {
+                continue;
+            }
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+            $status = (string)($item['status'] ?? '');
+            if (in_array($status, ['blocked_confirmation', 'ready', 'queued'], true)) {
+                return $queueitemid;
+            }
+        }
+
+        $commands = self::slice_first_confirmation_stage((array)($pendingintent['commands'] ?? []));
+        return self::resolve_active_queue_item_id($queuesvc, $threadid, $commands);
+    }
+
+    /**
+     * Resolve the concrete command batch to execute for the current confirmation.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param array<string,mixed> $pendingintent
+     * @param string $activequeueitemid
+     * @return array<int,array<string,mixed>>
+     */
+    private static function resolve_commands_for_run(
+        queue_manager $queuesvc,
+        int $threadid,
+        array $pendingintent,
+        string $activequeueitemid
+    ): array {
+        if ($activequeueitemid !== '') {
+            $item = $queuesvc->get_queue_item($threadid, $activequeueitemid);
+            if (is_array($item)) {
+                $task = trim((string)($item['task'] ?? ''));
+                $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
+                    ? (array)$item['prepared_input']
+                    : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
+                if ($task !== '') {
+                    $command = [
+                        'task' => $task,
+                        'version' => max(1, (int)($item['version'] ?? 1)),
+                        'input' => $input,
+                    ];
+                    $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
+                    if (!empty($dependson)) {
+                        $command['depends_on'] = $dependson;
+                    }
+                    return [$command];
+                }
+            }
+        }
+
+        return self::slice_first_confirmation_stage((array)($pendingintent['commands'] ?? []));
     }
 
       /**

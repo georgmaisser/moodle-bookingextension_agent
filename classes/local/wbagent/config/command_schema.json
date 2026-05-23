@@ -4,12 +4,17 @@
   "type": "object",
   "required": [
     "task",
+    "version",
     "input"
   ],
   "properties": {
     "task": {
       "type": "string",
       "minLength": 1
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
     },
     "input": {
       "type": "object"

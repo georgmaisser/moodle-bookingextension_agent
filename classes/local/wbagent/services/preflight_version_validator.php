@@ -81,7 +81,7 @@ class preflight_version_validator {
                 'valid' => false,
                 'error_class' => 'schema_error',
                 'issue_codes' => [task_version_policy::ISSUE_UNSUPPORTED],
-                'errors' => ['Field "task_version" must be an integer > 0 when provided.'],
+                'errors' => ['Field "version" must be an integer > 0 when provided.'],
             ];
         }
 
@@ -124,11 +124,14 @@ class preflight_version_validator {
      * @return int
      */
     private function resolve_requested_version(array $command, array $contract): int {
-        if (!array_key_exists('task_version', $command)) {
+        if (array_key_exists('version', $command)) {
+            $value = $command['version'];
+        } else if (array_key_exists('task_version', $command)) {
+            $value = $command['task_version'];
+        } else {
             return (int)($contract['version'] ?? 1);
         }
 
-        $value = $command['task_version'];
         if (is_int($value)) {
             return $value;
         }

@@ -614,6 +614,7 @@ class conversation_store implements agent_conversation_store {
      * @param string $intentkey A caller-generated hash to identify this intent.
      * @param int    $userid
      * @param int    $cmid
+     * @param array  $metadata
      * @param int    $ttl
      * @return void
      */
@@ -623,12 +624,13 @@ class conversation_store implements agent_conversation_store {
         string $intentkey,
         int $userid = 0,
         int $cmid = 0,
+        array $metadata = [],
         int $ttl = self::PENDING_INTENT_TTL
     ): void {
         $now = time();
         $confirmationcode = 'C' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        $this->set_thread_metadata_value($threadid, 'pending_intent', [
+        $pendingintent = [
             'commands' => $commands,
             'intentkey' => $intentkey,
             'checksum' => hash('sha256', json_encode($commands)),
@@ -638,7 +640,17 @@ class conversation_store implements agent_conversation_store {
             'userid' => $userid,
             'cmid' => $cmid,
             'confirmationcode' => $confirmationcode,
-        ]);
+        ];
+
+        foreach ($metadata as $key => $value) {
+            $normalizedkey = trim((string)$key);
+            if ($normalizedkey === '') {
+                continue;
+            }
+            $pendingintent[$normalizedkey] = $value;
+        }
+
+        $this->set_thread_metadata_value($threadid, 'pending_intent', $pendingintent);
     }
 
     /**

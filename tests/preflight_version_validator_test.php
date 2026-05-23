@@ -72,6 +72,28 @@ final class preflight_version_validator_test extends TestCase {
     }
 
     /**
+     * Runtime command payloads using version should be accepted as the canonical field.
+     */
+    public function test_validate_accepts_runtime_version_field(): void {
+        $registry = $this->createMock(task_registry::class);
+        $registry->method('get_task_contract')->willReturn([
+            'taskname' => 'booking.create_option',
+            'version' => 1,
+            'deprecated_since' => '',
+        ]);
+
+        $validator = new preflight_version_validator($registry);
+        $result = $validator->validate([
+            'task' => 'booking.create_option',
+            'version' => 1,
+            'input' => [],
+        ]);
+
+        $this->assertTrue($result['valid']);
+        $this->assertSame([], $result['issue_codes']);
+    }
+
+    /**
      * Deprecated task metadata should surface warning issue code but still validate.
      */
     public function test_validate_returns_deprecated_issue_for_supported_deprecated_task(): void {

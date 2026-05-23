@@ -136,6 +136,7 @@ class queue_manager {
             'run_id' => $runid,
             'step_id' => $stepid,
             'task' => $task,
+            'version' => max(1, (int)($command['version'] ?? 1)),
             'input' => $input,
             'prepared_input' => null,
             'input_signature' => $signature,
@@ -227,6 +228,28 @@ class queue_manager {
     }
 
     /**
+     * Return a single queue item by id.
+     *
+     * @param int $threadid
+     * @param string $queueitemid
+     * @return array<string,mixed>|null
+     */
+    public function get_queue_item(int $threadid, string $queueitemid): ?array {
+        $queueitemid = trim($queueitemid);
+        if ($queueitemid === '') {
+            return null;
+        }
+
+        foreach ($this->get_queue_items($threadid) as $item) {
+            if ((string)($item['queue_item_id'] ?? '') === $queueitemid) {
+                return $item;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Save queue items for a thread.
      *
      * @param int $threadid
@@ -235,6 +258,30 @@ class queue_manager {
      */
     public function save_queue_items(int $threadid, array $items): void {
         $this->store->set_thread_metadata_value($threadid, self::META_QUEUE_ITEMS, array_values($items));
+    }
+
+    /**
+     * Persist prepared_input for a queue item once preflight resolved it.
+     *
+     * @param int $threadid
+     * @param string $queueitemid
+     * @param array<string,mixed> $preparedinput
+     * @return void
+     */
+    public function set_prepared_input(int $threadid, string $queueitemid, array $preparedinput): void {
+        $items = $this->get_queue_items($threadid);
+        $now = time();
+        foreach ($items as &$item) {
+            if ((string)($item['queue_item_id'] ?? '') !== $queueitemid) {
+                continue;
+            }
+            $item['prepared_input'] = $preparedinput;
+            $item['updated_at'] = $now;
+            break;
+        }
+        unset($item);
+
+        $this->save_queue_items($threadid, $items);
     }
 
     /**

@@ -171,4 +171,31 @@ final class agent_conversation_store_test extends booking_advanced_testcase {
         $this->assertSame('Private A', (string)$resulta[0]->content);
         $this->assertSame([], $resultmismatch);
     }
+
+    /**
+     * Test pending intent preserves additional queue metadata for confirmation flow.
+     */
+    public function test_pending_intent_preserves_queue_metadata(): void {
+        $this->resetAfterTest();
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread(83, 81, 22);
+
+        $store->set_pending_intent(
+            (int)$thread->id,
+            [[
+                'task' => 'booking.create_option',
+                'version' => 1,
+                'input' => ['text' => 'Queue metadata test'],
+            ]],
+            'intent-key-queue-metadata',
+            83,
+            81,
+            ['queue_item_ids' => ['q' . $thread->id . '_1']]
+        );
+
+        $pending = $store->get_pending_intent((int)$thread->id);
+
+        $this->assertNotNull($pending);
+        $this->assertSame(['q' . $thread->id . '_1'], (array)($pending['queue_item_ids'] ?? []));
+    }
 }

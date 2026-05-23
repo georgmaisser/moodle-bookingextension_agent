@@ -86,6 +86,15 @@ class preflight_schema_validator {
             $errors[] = 'Field "input" must be an object.';
         }
 
+        if (array_key_exists('version', $command)) {
+            $version = $command['version'];
+            $isvalidversion = is_int($version)
+                || (is_string($version) && preg_match('/^\d+$/', $version) === 1);
+            if (!$isvalidversion || (int)$version <= 0) {
+                $errors[] = 'Field "version" must be an integer > 0.';
+            }
+        }
+
         if (array_key_exists('depends_on', $command)) {
             $dependson = $command['depends_on'];
             if (!is_array($dependson)) {
