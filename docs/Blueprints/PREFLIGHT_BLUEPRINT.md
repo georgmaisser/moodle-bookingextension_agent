@@ -1,26 +1,66 @@
-Zwei Diagramme: erst die Gesamtarchitektur des Preflight-Systems als Strukturdiagramm, dann der detaillierte Ablauf mit allen Zuständen.
+# Preflight Blueprint
 
-pix/preflight_flow_with_backoff.svg
+Status: aktiv, auf das finale Zielbild harmonisiert.
 
-Das ist die Struktur der drei Schichten. Jetzt der konkrete Ablauf mit allen Entscheidungspfaden und dem Backoff-Mechanismus:
+## Zweck
 
-pix/preflight_target_architecture.svg
+Dieses Dokument beschreibt die kanonische Preflight-Architektur fuer den bookingextension_agent.
 
-Hier die konkreten Implementierungsziele, die direkt aus dieser Architektur folgen:
+Es gilt ohne Migrationspfad und ohne Legacy-Kompatibilitaetslayer.
 
-Schicht 1 – Schema-Validation (Implementierungsziel)
-Ein synchroner, I/O-freier Validator der gegen ein zentrales command_schema.json läuft – einmal geladen, gecacht, nie neu geladen pro Request. Schlägt er fehl, gibt er sofort hard_block mit issue_code: schema_error zurück. Keine Weiterleitung, kein Retry. Zieldauer: unter 5 ms. In Moodle konkret: ein PreflightSchemaValidator-Service der im DI-Container als Singleton lebt.
-Schicht 2 – Domain-Checks (Implementierungsziel)
-Die drei Checks (Conflict, Permission, Precondition) laufen parallel als Promise.all mit einem gemeinsamen Timeout von 500 ms. Jeder Check gibt einen eigenen CheckResult zurück mit status: pass | soft_block | hard_block und einem issue_code. Der Conflict Detector fragt dabei den Queue-State ab – er muss read-only sein und darf nie selbst etwas schreiben. Das ist wichtig weil Preflight auch im autoconfirmmode läuft: Seiteneffekte hier würden den Modus unterlaufen.
-Schicht 3 – Execution Gate mit Backoff (Implementierungsziel)
-Das ist der Kern der fehlenden Logik. Das Gate liest retry_count aus dem Queue-Item und entscheidet:
+## Schichtenmodell
 
-backoff_ms = base_ms × 2^retry_count + random(0, jitter_ms)
-Konkrete Startwerte für deinen Moodle-Kontext: base_ms = 500, jitter_ms = 200, max_retries = 4. Nach dem vierten Versuch gibt das Gate hard_block mit issue_code: max_retries_exceeded zurück – unabhängig davon ob der eigentliche Check ein retry_hint hatte. Der backoff_ms-Wert wird als Attribut in den Queue-Eintrag geschrieben, der Scheduler liest ihn vor dem nächsten Pickup.
-PreflightResult-Kontrakt (Implementierungsziel)
-Alle drei Ausgabepfade deines bestehenden Diagramms (PR-Node) müssen auf diesen einheitlichen Typ mappen:
+### Layer 1: Contract and Schema Gate
 
-typescript
+Prueft synchron und I/O-frei:
+
+- task registration
+- task activation
+- task version supported
+- task contract Pflichtfelder
+- command envelope und input schema
+- depends_on syntax
+
+Fehlerverhalten:
+
+- hard_block mit issue_codes wie SCHEMA_ERROR oder TASK_VERSION_UNSUPPORTED
+
+### Layer 2: Domain Gate
+
+Prueft read-only:
+
+- permission
+- context validity
+- preconditions
+- conflict
+- task-local preflight
+
+Ergebnisstatus:
+
+- pass
+- soft_block
+- hard_block
+- retry_hint
+
+### Layer 3: Execution Gate
+
+Zentrale Queue-State-Entscheidung und Retry-Steuerung:
+
+- retry_count aus queue item
+- backoff_ms = base_ms * 2^retry_count + jitter
+- max_retries Exhaution -> hard_block max_retries_exceeded
+
+Queue-State-Mapping:
+
+- pass + autoconfirm -> ready
+- pass + no autoconfirm -> blocked_confirmation
+- soft_block -> blocked_confirmation
+- retry_hint -> retry_waiting
+- hard_block -> failed
+
+## PreflightResult Kontrakt
+
+```typescript
 type PreflightResult = {
   status: 'pass' | 'soft_block' | 'hard_block' | 'retry_hint';
   issue_codes: string[];
@@ -28,7 +68,30 @@ type PreflightResult = {
   retry_after_ms: number | null;
   retry_count: number;
   duration_ms: number;
-}
-retry_hint ist kein Terminal-State – er geht zurück in den Execution Gate der dann über Backoff oder hard_block entscheidet. Das trennt "was der Check sagt" von "was der Loop tut", was in deinem aktuellen Diagramm noch vermischt ist.
-Audit Logger (Implementierungsziel)
-Jeder Preflight-Durchlauf schreibt einen unveränderlichen Log-Eintrag – auch bei pass. Das ist notwendig damit du nachvollziehen kannst warum ein Job im autoconfirmmode durchgelassen wurde ohne blocked_confirmation zu erzeugen. Ohne diesen Log ist autoconfirmmode forensisch blind.
+  prepared_input: Record<string, unknown> | null;
+};
+```
+
+## Audit
+
+Jeder Durchlauf schreibt immutable audit events, inklusive pass.
+
+Pflichtfelder:
+
+- thread_id
+- run_id
+- queue_item_id
+- taskname
+- task_version
+- layer
+- status
+- issue_codes
+- retry_count
+- retry_after_ms
+- duration_ms
+
+## Referenzen
+
+- PREFLIGHT_FINAL_TARGET_FOR_REVIEW
+- PREFLIGHT_IMPLEMENTATION_AGENT_RUNBOOK
+- flowcharts/PREFLIGHT_FINAL_TARGET_FOR_REVIEW.mmd

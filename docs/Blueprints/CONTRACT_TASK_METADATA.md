@@ -6,6 +6,13 @@
 - `capability` (string[], deklarativ, z.B. ["mod/booking:readoption"])
 - `activation` (bool|callable, ob Task grundsätzlich aktiv ist)
 
+**Versionsregel (Pflicht):**
+- Jede Task-Version wird gegen eine zentrale Supported-Version-Policy geprüft.
+- Veraltete oder nicht unterstützte Versionen dürfen nicht stillschweigend laufen.
+- Standard-Issue-Codes:
+  - `TASK_VERSION_UNSUPPORTED`
+  - `TASK_VERSION_DEPRECATED`
+
 **Optionale Felder:**
 - `alias_of` (string, falls Alias)
 - `deprecated_since` (string, Version/Datum)
@@ -17,6 +24,7 @@
 - Pflichtfelder müssen gesetzt sein, optionale Felder dürfen fehlen.
 - `capability` muss als Array von Strings vorliegen.
 - `activation` muss bool oder Callback sein.
+- `version` muss in der Supported-Version-Policy zugelassen sein.
 
 **Beispiel (gültig):**
 ```php
@@ -42,6 +50,7 @@
 - `missing_capability`
 - `context_invalid`
 - `runtime_disabled`
+- `task_version_unsupported`
 
 **Evaluationslogik (Reihenfolge):**
 1. Global deny

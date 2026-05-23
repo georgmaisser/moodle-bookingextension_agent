@@ -1,0 +1,119 @@
+flowchart TD
+    A[Planner output] --> B[Queue ingestion]
+    B --> C[Queue item with contract snapshot]
+
+    C --> DEP{depends_on satisfied}
+    DEP -->|no| WDEP[waiting_for_dependency]
+    WDEP --> PICKDEP[worker pickup]
+    PICKDEP --> DEP
+    DEP -->|yes| M
+
+    M{Mutability}
+    M -->|readonly| RREADY[ready]
+    M -->|mutating| PR[PreflightRequest]
+
+    PR --> L1[Layer 1: Contract and Schema Gate]
+    L1 --> L1D{Decision}
+    L1D -->|hard_block| F1[failed: contract or schema]
+    L1D -->|pass| V1{task version supported}
+    V1 -->|no| FV[failed: task_version_unsupported]
+    V1 -->|yes| L2[Layer 2: Domain Gate]
+
+    L2 --> C1[Permission]
+    L2 --> C2[Context]
+    L2 --> C3[Preconditions]
+    L2 --> C4[Conflict]
+    L2 --> C5[Task local preflight]
+    C1 --> AGG[Aggregate domain result]
+    C2 --> AGG
+    C3 --> AGG
+    C4 --> AGG
+    C5 --> AGG
+
+    AGG --> PPI[prepared_input assembled]
+    PPI --> L2D
+
+    L2D{Decision}
+    L2D -->|hard_block| F2[failed: domain hard block]
+    L2D -->|soft_block| L3
+    L2D -->|pass| L3[Layer 3: Execution Gate]
+    L2D -->|retry_hint| L3
+
+    L3 --> RD{queue-state decision}
+    RD -->|soft_block| BC[blocked_confirmation]
+    RD -->|retry_hint and retries left| RW[retry_waiting]
+    RD -->|retry_hint and exhausted| F3[failed: max_retries_exceeded]
+    RD -->|pass| AC{autoconfirm}
+
+    AC -->|yes| MREADY[ready]
+    AC -->|no| BC
+
+    RW --> BO[persist backoff and next_retry_at]
+    BO --> PICK[worker pickup]
+    PICK --> PR
+
+    BC --> TTL{TTL expired}
+    TTL -->|yes| F4[failed: blocked_timeout]
+    TTL -->|no| UCONF[user confirm]
+    UCONF --> REPRE[rebuild request from contract snapshot]
+    REPRE --> L1
+
+    RREADY --> LOCK{scheduler lock}
+    MREADY --> LOCK
+    LOCK -->|slot free| RUN[running]
+    LOCK -->|slot busy| HOLD[stay ready]
+    HOLD --> LOCK
+
+    RUN --> EX[execute with prepared_input]
+    EX --> ER{execution result}
+    ER -->|success| SUC[succeeded]
+    ER -->|transient| RWX[retry_waiting]
+    ER -->|terminal| FX[failed]
+    ER -->|recoverable domain| OBS[observation builder]
+
+    RWX --> BOX[persist execution backoff]
+    BOX --> LOCK
+
+    SUC --> OBS
+    FX --> OBS
+    F1 --> OBS
+    FV --> OBS
+    F2 --> OBS
+    F3 --> OBS
+    F4 --> OBS
+
+    OBS --> REP{repair needed}
+    REP -->|yes| NP[new planner append step]
+    REP -->|no| GOAL{goal reached}
+    NP --> BG1{budget exceeded}
+    BG1 -->|yes| FB1[failed: budget_exceeded]
+    BG1 -->|no| B
+    GOAL -->|yes| END[final synthesis]
+    GOAL -->|no| BG2{budget exceeded}
+    BG2 -->|yes| FB2[failed: budget_exceeded]
+    BG2 -->|no| NP
+
+    AUD[(immutable preflight audit)]
+    L1 -.-> AUD
+    V1 -.-> AUD
+    AGG -.-> AUD
+    L3 -.-> AUD
+    BC -.-> AUD
+    RW -.-> AUD
+    RREADY -.-> AUD
+    EX -.-> AUD
+    OBS -.-> AUD
+
+    style END fill:#1d3557,color:#fff
+    style SUC fill:#2d6a4f,color:#fff
+    style BC fill:#e9c46a,color:#000
+    style RW fill:#f4a261,color:#000
+    style RWX fill:#f4a261,color:#000
+    style F1 fill:#9b2226,color:#fff
+    style FV fill:#9b2226,color:#fff
+    style F2 fill:#9b2226,color:#fff
+    style F3 fill:#9b2226,color:#fff
+    style F4 fill:#9b2226,color:#fff
+    style FB1 fill:#9b2226,color:#fff
+    style FB2 fill:#9b2226,color:#fff
+    style FX fill:#9b2226,color:#fff

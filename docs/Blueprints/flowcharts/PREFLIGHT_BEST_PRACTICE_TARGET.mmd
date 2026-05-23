@@ -1,0 +1,101 @@
+flowchart TD
+    A[Planner output: command batch] --> B[Queue ingestion]
+    B --> C[Build queue items with task contract snapshot]
+
+    C --> D{Mutability}
+    D -->|readonly| R1[ready]
+    D -->|mutating| P0[PreflightRequest]
+
+    P0 --> L1[Layer 1: Contract and schema gate]
+    L1 --> L1D{L1 decision}
+    L1D -->|hard_block| F1[failed: contract or schema]
+    L1D -->|pass| V1{Task version supported}
+    V1 -->|no| FV[failed: task_version_unsupported]
+    V1 -->|yes| L2[Layer 2: Domain gate]
+
+    L2 --> DCHK1[Permission check]
+    L2 --> DCHK2[Precondition check]
+    L2 --> DCHK3[Conflict check]
+    L2 --> DCHK4[Task-local preflight]
+
+    DCHK1 --> L2A[Aggregate CheckResults]
+    DCHK2 --> L2A
+    DCHK3 --> L2A
+    DCHK4 --> L2A
+
+    L2A --> L2D{L2 decision}
+    L2D -->|hard_block| F2[failed: domain hard block]
+    L2D -->|soft_block| BC[blocked_confirmation]
+    L2D -->|retry_hint| L3[Layer 3: Execution gate]
+    L2D -->|pass| L3
+
+    L3 --> G1{retry_count < max_retries}
+    G1 -->|no and retry_hint| F3[failed: max_retries_exceeded]
+    G1 -->|yes and retry_hint| RW[retry_waiting]
+    G1 -->|pass| G2{autoconfirm mode}
+
+    G2 -->|yes| R2[ready]
+    G2 -->|no| BC
+
+    RW --> BK[Persist backoff_ms and next_retry_at]
+    BK --> PICKUP[Scheduler pickup after backoff]
+    PICKUP --> P0
+
+    BC --> TTL{TTL expired}
+    TTL -->|yes| F4[failed: blocked_confirmation_timeout]
+    TTL -->|no| U1[User confirm or clarification]
+    U1 --> REPRE[Rebuild PreflightRequest]
+    REPRE --> L1
+
+    R1 --> S0{Scheduler lock}
+    R2 --> S0
+    S0 -->|slot free| X1[running]
+    S0 -->|slot busy| WAIT[stay ready]
+    WAIT --> S0
+
+    X1 --> EX[Executor with prepared_input]
+    EX --> ER{Execution result}
+    ER -->|success| SUC[succeeded]
+    ER -->|transient error| RW2[retry_waiting]
+    ER -->|domain error recoverable| OBS[Observation builder]
+    ER -->|terminal error| FAILX[failed]
+
+    RW2 --> BK2[Persist execution backoff]
+    BK2 --> S0
+
+    SUC --> OBS
+    FAILX --> OBS
+    F1 --> OBS
+    FV --> OBS
+    F2 --> OBS
+    F3 --> OBS
+    F4 --> OBS
+
+    OBS --> REP{Repair needed}
+    REP -->|yes| NP[Planner append-only repair step]
+    REP -->|no| GOAL{Goal reached}
+    NP --> B
+    GOAL -->|yes| END[Final synthesis]
+    GOAL -->|no| NP
+
+    AUD[(Immutable preflight audit log)]
+    L1 -.-> AUD
+    V1 -.-> AUD
+    L2A -.-> AUD
+    L3 -.-> AUD
+    BC -.-> AUD
+    RW -.-> AUD
+    EX -.-> AUD
+    OBS -.-> AUD
+
+    style SUC fill:#2d6a4f,color:#fff
+    style END fill:#1d3557,color:#fff
+    style BC fill:#e9c46a,color:#000
+    style RW fill:#f4a261,color:#000
+    style RW2 fill:#f4a261,color:#000
+    style F1 fill:#9b2226,color:#fff
+    style FV fill:#9b2226,color:#fff
+    style F2 fill:#9b2226,color:#fff
+    style F3 fill:#9b2226,color:#fff
+    style F4 fill:#9b2226,color:#fff
+    style FAILX fill:#9b2226,color:#fff
