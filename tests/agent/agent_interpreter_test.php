@@ -236,6 +236,17 @@ final class agent_interpreter_test extends booking_advanced_testcase {
             }
 
             /**
+             * Get example input.
+             *
+             * @return array<string,mixed>
+             */
+            public function get_example_input(): array {
+                return [
+                    'question' => 'Example question',
+                ];
+            }
+
+            /**
              * check_structure — returns a structural error when 'question' is missing.
              *
              * @param array $input
@@ -334,6 +345,24 @@ final class agent_interpreter_test extends booking_advanced_testcase {
              * @return array
              */
             public function get_contextual_prompt_packs(): array {
+                return [];
+            }
+
+            /**
+             * Get optional issue code provider.
+             *
+             * @return \bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface|null
+             */
+            public function get_issue_code_provider(): ?\bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface {
+                return null;
+            }
+
+            /**
+             * Get optional prompt guidance.
+             *
+             * @return array<string,mixed>
+             */
+            public function get_prompt_guidance(): array {
                 return [];
             }
         };

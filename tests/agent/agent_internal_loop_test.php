@@ -243,8 +243,8 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
 
         $result = $runtime->run_loop($threadid, (int)$this->booking->cmid, (int)$this->teacher->id);
 
-        // Orchestrator was called exactly twice.
-        $this->assertSame(2, $callcount, 'Orchestrator must be called twice (1 tool step + 1 final step)');
+        // Orchestrator is now called three times: tool step, clarification step, final synthesis.
+        $this->assertSame(3, $callcount, 'Orchestrator must be called three times (tool step + clarification + synthesis)');
 
         // First call: no observations.
         $this->assertEmpty(
@@ -264,7 +264,13 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
             'Observation must mention booking options'
         );
 
-        // Exactly ONE assistant message was persisted.
+        // Third call is the synthesis pass and should also see the accumulated observations.
+        $this->assertNotEmpty(
+            $capturedobservations[3],
+            'Third orchestrator call must receive accumulated observation(s) for synthesis'
+        );
+
+        // One assistant message is persisted for the loop output.
         $allmessages = $store->get_messages($threadid);
         $assistantmessages = array_values(array_filter(
             $allmessages,
@@ -281,7 +287,7 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
 
         // Loop_step reflects the terminating step number.
         $this->assertArrayHasKey('loop_step', $result);
-        $this->assertSame(2, (int)$result['loop_step']);
+        $this->assertSame(1, (int)$result['loop_step']);
     }
 
     /**
@@ -335,7 +341,7 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
         $mockorchestrator = $this->getMockBuilder(orchestrator::class)
             ->disableOriginalConstructor()
             ->getMock();
-        $mockorchestrator->method('process')->willReturnOnConsecutiveCalls($step1, $step2);
+        $mockorchestrator->method('process')->willReturnOnConsecutiveCalls($step1, $step2, $step2);
 
         $runtime = new agent_runtime($registry, $mockorchestrator, $store, $authz);
         $thread = $store->get_or_create_thread(
@@ -349,11 +355,14 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
         $runtime->run_loop($threadid, (int)$this->booking->cmid, (int)$this->teacher->id);
 
         $steps = $store->get_step_messages_since($threadid, 0);
-        $this->assertCount(1, $steps);
+        $this->assertCount(2, $steps);
 
         $label = (string)($steps[0]->content ?? '');
-        $this->assertStringContainsString('Step 1: Search booking options', $label);
+        $this->assertStringContainsString('Step 1: Search and list booking options', $label);
         $this->assertStringNotContainsString('booking.search_options', $label);
+
+        $secondlabel = (string)($steps[1]->content ?? '');
+        $this->assertStringContainsString('Step 2:', $secondlabel);
     }
 
     /**

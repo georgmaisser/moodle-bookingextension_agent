@@ -47,7 +47,14 @@ use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
  */
 class interpreter implements agent_interpreter {
     /** Allowed response_type values from the LLM. */
-    private const ALLOWED_RESPONSE_TYPES = ['clarification', 'confirmation_request', 'task_call', 'error', 'confirm_pending', 'sufficient'];
+    private const ALLOWED_RESPONSE_TYPES = [
+        'clarification',
+        'confirmation_request',
+        'task_call',
+        'error',
+        'confirm_pending',
+        'sufficient',
+    ];
 
     /** Canonical token representing the current executor user. */
     private const CURRENT_USER_TOKEN = '__current_user__';
@@ -568,7 +575,7 @@ class interpreter implements agent_interpreter {
         // Heal it to clarification so the synthesis path can proceed rather than
         // triggering an unnecessary recovery loop iteration.
         $fallbackmessage = $this->safe_string($parsed['message'] ?? '');
-        if ($fallbackmessage !== '') {
+        if ($responsetype === '' && $fallbackmessage !== '') {
             $modellang = $this->safe_string($parsed['lang'] ?? '');
             if ($modellang === '' && $modeluserlang !== '') {
                 $modellang = $modeluserlang;
@@ -694,6 +701,8 @@ class interpreter implements agent_interpreter {
         if (preg_match('/^\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60$/i', $candidate, $matches) === 1) {
             $candidate = trim((string)($matches[1] ?? ''));
         }
+
+        $candidate = trim(strip_tags($candidate));
 
         if ($candidate === '' || $candidate[0] !== '{' || substr($candidate, -1) !== '}') {
             $this->lastparseissuecode = 'CONTRACT_PARSE_ERROR';
