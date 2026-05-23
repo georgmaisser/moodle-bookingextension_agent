@@ -151,7 +151,7 @@ class agent_decision_service {
         $this->recoverysvc = new recovery_enrichment_service($registry);
         $this->queuesvc = new queue_manager($store);
         $this->observationbuilder = new observation_builder();
-        $this->preflightschemavalidator = new preflight_schema_validator();
+        $this->preflightschemavalidator = new preflight_schema_validator($registry);
         $this->preflightdomainrunner = new preflight_domain_check_runner();
         $this->preflightexecutiongate = new preflight_execution_gate();
         $this->preflightauditlogger = new preflight_audit_logger($store);
@@ -1855,51 +1855,71 @@ class agent_decision_service {
      */
     private function evaluate_preflight_v2_result(array $commands, array $legacy, int $threadid): preflight_result_v2 {
         $startedat = microtime(true);
+        $layer1issuecodes = [];
 
         foreach ($commands as $command) {
             $command = is_array($command) ? $command : [];
             $schemavalidation = $this->preflightschemavalidator->validate($command);
+            $layer1issuecodes = array_values(array_unique(array_merge(
+                $layer1issuecodes,
+                (array)($schemavalidation['issue_codes'] ?? [])
+            )));
             if (($schemavalidation['valid'] ?? false) === true) {
                 continue;
             }
             $result = new preflight_result_v2(
                 'hard_block',
-                ['SCHEMA_ERROR'],
-                'schema',
+                !empty($schemavalidation['issue_codes']) ? (array)$schemavalidation['issue_codes'] : ['SCHEMA_ERROR'],
+                preflight_result_v2::BLOCKING_LAYER_SCHEMA,
                 0,
                 0,
                 (int)max(0, (microtime(true) - $startedat) * 1000)
             );
             $this->preflightauditlogger->append($threadid, 0, [
-                'layer' => 'schema',
+                'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
                 'status' => $result->status,
                 'issue_codes' => $result->issuecodes,
                 'retry_count' => 0,
                 'duration_ms' => $result->durationms,
-                'error_class' => 'schema_error',
+                'error_class' => (string)($schemavalidation['error_class'] ?? 'schema_error'),
             ]);
             return $result;
         }
 
-        $domainresult = $this->preflightdomainrunner->run((array)($legacy['issue_codes'] ?? []), $startedat);
+        $combinedissuecodes = array_values(array_unique(array_merge(
+            (array)($legacy['issue_codes'] ?? []),
+            $layer1issuecodes
+        )));
+        $domainresult = $this->preflightdomainrunner->run($combinedissuecodes, $startedat);
         if (!$legacy['valid'] && $domainresult->status === 'pass') {
             $domainresult = new preflight_result_v2(
                 'hard_block',
-                (array)($legacy['issue_codes'] ?? []),
-                'domain',
+                $combinedissuecodes,
+                preflight_result_v2::BLOCKING_LAYER_DOMAIN,
                 0,
                 0,
                 $domainresult->durationms
             );
         }
 
-        $errorclass = $this->infer_error_class_from_issue_codes((array)($legacy['issue_codes'] ?? []));
+        $errorclass = $this->infer_error_class_from_issue_codes($combinedissuecodes);
         $result = $domainresult;
         if ($errorclass !== '' && in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
             $result = $this->preflightexecutiongate->evaluate(
                 $errorclass,
                 0,
-                (array)($legacy['issue_codes'] ?? [])
+                $combinedissuecodes
+            );
+        }
+
+        if ($result->status === 'pass' && !empty($layer1issuecodes)) {
+            $result = new preflight_result_v2(
+                'pass',
+                $layer1issuecodes,
+                '',
+                $result->retryafterms,
+                $result->retrycount,
+                $result->durationms
             );
         }
 

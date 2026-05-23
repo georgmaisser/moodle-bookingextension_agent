@@ -48,6 +48,15 @@ class task_contract_validator {
     /** Deny reason: runtime is globally disabled. */
     public const DENY_RUNTIME_DISABLED = 'runtime_disabled';
 
+    /** Deny reason: requested task version is unsupported. */
+    public const DENY_TASK_VERSION_UNSUPPORTED = 'task_version_unsupported';
+
+    /** Issue code for unsupported task versions. */
+    public const ISSUE_TASK_VERSION_UNSUPPORTED = 'TASK_VERSION_UNSUPPORTED';
+
+    /** Issue code for deprecated task versions. */
+    public const ISSUE_TASK_VERSION_DEPRECATED = 'TASK_VERSION_DEPRECATED';
+
     /**
      * Build normalized governance metadata for one task.
      *
@@ -185,7 +194,7 @@ class task_contract_validator {
             self::DENY_INACTIVE,
             self::DENY_MISSING_CAPABILITY,
             self::DENY_CONTEXT_INVALID,
+            self::DENY_TASK_VERSION_UNSUPPORTED,
         ];
     }
-
 }

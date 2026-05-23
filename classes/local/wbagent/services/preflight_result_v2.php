@@ -26,6 +26,15 @@ namespace bookingextension_agent\local\wbagent\services;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preflight_result_v2 {
+    /** @var string Layer-1 blocking id. */
+    public const BLOCKING_LAYER_SCHEMA = 'schema';
+
+    /** @var string Layer-2 blocking id. */
+    public const BLOCKING_LAYER_DOMAIN = 'domain';
+
+    /** @var string Layer-3 blocking id. */
+    public const BLOCKING_LAYER_EXECUTION_GATE = 'execution_gate';
+
     /** @var string pass|soft_block|hard_block|retry_hint */
     public readonly string $status;
 
@@ -45,6 +54,8 @@ class preflight_result_v2 {
     public readonly int $durationms;
 
     /**
+     * Create immutable preflight contract v2 result.
+     *
      * @param string $status pass|soft_block|hard_block|retry_hint
      * @param array<int,string> $issuecodes
      * @param string $blockinglayer
@@ -68,13 +79,50 @@ class preflight_result_v2 {
 
         $this->status = $normalizedstatus;
         $this->issuecodes = array_values(array_unique(array_filter(array_map('strval', $issuecodes))));
-        $this->blockinglayer = trim($blockinglayer);
+        $this->blockinglayer = $this->normalize_blocking_layer($blockinglayer);
         $this->retryafterms = max(0, $retryafterms);
         $this->retrycount = max(0, $retrycount);
         $this->durationms = max(0, $durationms);
     }
 
     /**
+     * Normalize blocking-layer value to a strict, known set.
+     *
+     * @param string $blockinglayer
+     * @return string
+     */
+    private function normalize_blocking_layer(string $blockinglayer): string {
+        $normalized = trim($blockinglayer);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $aliases = [
+            '1' => self::BLOCKING_LAYER_SCHEMA,
+            '2' => self::BLOCKING_LAYER_DOMAIN,
+            '3' => self::BLOCKING_LAYER_EXECUTION_GATE,
+            'layer_1' => self::BLOCKING_LAYER_SCHEMA,
+            'layer_2' => self::BLOCKING_LAYER_DOMAIN,
+            'layer_3' => self::BLOCKING_LAYER_EXECUTION_GATE,
+            'execution' => self::BLOCKING_LAYER_EXECUTION_GATE,
+        ];
+
+        if (array_key_exists($normalized, $aliases)) {
+            return $aliases[$normalized];
+        }
+
+        $allowed = [
+            self::BLOCKING_LAYER_SCHEMA,
+            self::BLOCKING_LAYER_DOMAIN,
+            self::BLOCKING_LAYER_EXECUTION_GATE,
+        ];
+
+        return in_array($normalized, $allowed, true) ? $normalized : '';
+    }
+
+    /**
+     * Export DTO as normalized associative array.
+     *
      * @return array<string,mixed>
      */
     public function to_array(): array {
@@ -88,4 +136,3 @@ class preflight_result_v2 {
         ];
     }
 }
-

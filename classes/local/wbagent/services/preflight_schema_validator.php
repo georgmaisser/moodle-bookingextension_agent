@@ -18,6 +18,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\task_registry;
+
 /**
  * Validates command payloads against the central command schema.
  *
@@ -28,6 +30,19 @@ namespace bookingextension_agent\local\wbagent\services;
 class preflight_schema_validator {
     /** @var array<string,mixed>|null Cached decoded schema. */
     private static ?array $cachedschema = null;
+
+    /** @var preflight_version_validator */
+    private preflight_version_validator $versionvalidator;
+
+    /**
+     * Constructor.
+     *
+     * @param task_registry $registry
+     * @param preflight_version_validator|null $versionvalidator
+     */
+    public function __construct(task_registry $registry, ?preflight_version_validator $versionvalidator = null) {
+        $this->versionvalidator = $versionvalidator ?? new preflight_version_validator($registry);
+    }
 
     /**
      * Validate one command array against the command schema.
@@ -93,10 +108,20 @@ class preflight_schema_validator {
             ];
         }
 
+        $versionvalidation = $this->versionvalidator->validate($command);
+        if (($versionvalidation['valid'] ?? false) !== true) {
+            return [
+                'valid' => false,
+                'error_class' => (string)($versionvalidation['error_class'] ?? 'schema_error'),
+                'issue_codes' => array_values(array_unique((array)($versionvalidation['issue_codes'] ?? []))),
+                'errors' => array_values(array_unique((array)($versionvalidation['errors'] ?? []))),
+            ];
+        }
+
         return [
             'valid' => true,
             'error_class' => '',
-            'issue_codes' => [],
+            'issue_codes' => array_values(array_unique((array)($versionvalidation['issue_codes'] ?? []))),
             'errors' => [],
         ];
     }
