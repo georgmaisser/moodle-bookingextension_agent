@@ -198,6 +198,57 @@ class agent_runtime {
     }
 
     /**
+     * Check if another LLM call is still allowed within the loop budget.
+     *
+     * @param int $step Zero-based current step index.
+     * @param int $limit Max configured loop steps.
+     * @return bool
+     */
+    private function budget_guard_allows_next_llm_call(int $step, int $limit): bool {
+        return ($step + 1) < $limit;
+    }
+
+    /**
+     * Build a deterministic budget-exceeded result payload.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @param agent_state $state
+     * @param int $limit
+     * @return array
+     */
+    private function build_budget_exceeded_result(int $threadid, array $result, agent_state $state, int $limit): array {
+        $lang = $this->resolve_output_language($threadid, $result);
+        $message = $this->localized_string('ai_agent_loop_continue_question', 'bookingextension_agent', (object)[
+            'steps' => $limit,
+        ], $lang);
+        if ($message === '' || $message === 'ai_agent_loop_continue_question') {
+            $message = 'Execution stopped because the loop budget is exhausted. Please simplify your request and try again.';
+        }
+
+        return [
+            'response_type' => 'error',
+            'message' => $message,
+            'commands' => [],
+            'ambiguities' => [],
+            'ambiguity_options' => [],
+            'errors' => [],
+            'attempted_tasks' => (array)($result['attempted_tasks'] ?? []),
+            'issue_codes' => array_values(array_unique(array_merge(
+                (array)($result['issue_codes'] ?? []),
+                ['BUDGET_EXCEEDED']
+            ))),
+            'pending_confirmation_code' => '',
+            'used_triggers' => (array)($result['used_triggers'] ?? []),
+            'runid' => (int)($result['runid'] ?? 0),
+            'results' => [],
+            'lang' => $lang,
+            'loop_step' => $state->step_count(),
+            'loop_max_steps' => $limit,
+        ];
+    }
+
+    /**
      * Multi-step agent loop entry point.
      *
      * Implements a true internal agent loop: the LLM plans, tools execute,
@@ -386,6 +437,13 @@ class agent_runtime {
                 }
 
                 // Do NOT persist — continue to next internal step.
+                if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
+                    $budgetfailed = $this->build_budget_exceeded_result($threadid, $result, $state, $limit);
+                    $budgetfailed = $this->attach_loop_results($budgetfailed, $state);
+                    $budgetfailed = $this->enforce_final_response_contract($budgetfailed, $threadid);
+                    $this->messagepersistence->persist_assistant_message($threadid, $budgetfailed);
+                    return $budgetfailed;
+                }
                 continue;
             }
 
@@ -416,6 +474,13 @@ class agent_runtime {
             if ($this->should_retry_preflight_clarification($result, $state, $preflightclarificationretryused)) {
                 $preflightclarificationretryused = true;
                 $state->record_step([], [], $this->build_preflight_retry_observation($result, $step + 1));
+                if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
+                    $budgetfailed = $this->build_budget_exceeded_result($threadid, $result, $state, $limit);
+                    $budgetfailed = $this->attach_loop_results($budgetfailed, $state);
+                    $budgetfailed = $this->enforce_final_response_contract($budgetfailed, $threadid);
+                    $this->messagepersistence->persist_assistant_message($threadid, $budgetfailed);
+                    return $budgetfailed;
+                }
                 continue;
             }
 
@@ -425,6 +490,13 @@ class agent_runtime {
                 // without commands, give it one silent corrective retry.
                 if (!$missingcommandsretryused) {
                     $missingcommandsretryused = true;
+                    if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
+                        $budgetfailed = $this->build_budget_exceeded_result($threadid, $result, $state, $limit);
+                        $budgetfailed = $this->attach_loop_results($budgetfailed, $state);
+                        $budgetfailed = $this->enforce_final_response_contract($budgetfailed, $threadid);
+                        $this->messagepersistence->persist_assistant_message($threadid, $budgetfailed);
+                        return $budgetfailed;
+                    }
                     continue;
                 }
             }
