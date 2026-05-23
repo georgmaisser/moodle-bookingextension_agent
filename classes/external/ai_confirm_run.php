@@ -377,6 +377,16 @@ class ai_confirm_run extends external_api {
             );
             $results = $feedback['results'];
 
+            // Phase 2 T5: update status for ALL batch items (not just the active/first one).
+            // Build an index: queue_item_id -> result index for efficient lookup.
+            $allbatchitemids = array_values(
+                array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? [])))
+            );
+            $batchitemresultindex = [];
+            foreach ($allbatchitemids as $batchidx => $batchitemid) {
+                $batchitemresultindex[$batchitemid] = $batchidx;
+            }
+
             if ($activequeueitemid !== '') {
                 $primary = is_array($rawresults[0] ?? null) ? (array)$rawresults[0] : [];
                 $status = trim((string)($primary['status'] ?? ''));
@@ -434,6 +444,35 @@ class ai_confirm_run extends external_api {
                         'duration_ms' => 0,
                         'error_class' => '',
                     ]);
+                }
+            }
+
+            // Phase 2 T5: update all remaining batch items so has_remaining_mutating_queue_items()
+            // returns false after a full batch execution and no run_loop re-entry is triggered.
+            foreach ($allbatchitemids as $batchidx => $batchitemid) {
+                if ($batchitemid === $activequeueitemid || $batchitemid === '') {
+                    continue; // already handled above
+                }
+                $batchrawresult = is_array($rawresults[$batchidx] ?? null) ? (array)$rawresults[$batchidx] : [];
+                $batchstatus = trim((string)($batchrawresult['status'] ?? ''));
+                $batchfailed = in_array($batchstatus, ['error', 'failed'], true);
+                $batchissuecodes = self::normalize_string_list($batchrawresult['issue_codes'] ?? []);
+                if ($batchfailed) {
+                    $queuesvc->update_status(
+                        (int)$params['threadid'],
+                        $batchitemid,
+                        'failed',
+                        $batchissuecodes,
+                        'domain_error',
+                        trim((string)($batchrawresult['detail'] ?? ''))
+                    );
+                } else {
+                    $queuesvc->update_status(
+                        (int)$params['threadid'],
+                        $batchitemid,
+                        'succeeded',
+                        $batchissuecodes
+                    );
                 }
             }
 
@@ -911,10 +950,6 @@ class ai_confirm_run extends external_api {
             }
         }
 
-        if (!empty($executedcommands)) {
-            return true;
-        }
-
         return false;
     }
 
@@ -1075,6 +1110,48 @@ class ai_confirm_run extends external_api {
         array $pendingintent,
         string $activequeueitemid
     ): array {
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        if (!empty($queueitemids)) {
+            $commands = [];
+            foreach ($queueitemids as $queueitemid) {
+                $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+                if (!is_array($item)) {
+                    continue;
+                }
+                if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                    continue;
+                }
+                $status = trim((string)($item['status'] ?? ''));
+                if (!in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+                    continue;
+                }
+
+                $task = trim((string)($item['task'] ?? ''));
+                if ($task === '') {
+                    continue;
+                }
+
+                $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
+                    ? (array)$item['prepared_input']
+                    : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
+
+                $command = [
+                    'task' => $task,
+                    'version' => max(1, (int)($item['version'] ?? 1)),
+                    'input' => $input,
+                ];
+                $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
+                if (!empty($dependson)) {
+                    $command['depends_on'] = $dependson;
+                }
+                $commands[] = $command;
+            }
+
+            if (!empty($commands)) {
+                return $commands;
+            }
+        }
+
         if ($activequeueitemid !== '') {
             $item = $queuesvc->get_queue_item($threadid, $activequeueitemid);
             if (is_array($item)) {

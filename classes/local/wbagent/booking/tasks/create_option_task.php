@@ -1,8 +1,5 @@
 <?php
 // This file is part of Moodle - http://moodle.org/
-//
-// Moodle is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
@@ -102,11 +99,14 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                 'id' => 'booking.create_booking_request',
                 'description' => 'User wants to create a booking or booking option
                     and includes scheduling details like date, time, duration, or participant count.
-                    Treat booking/event/course/meeting synonymously.',
+                    Treat booking/event/course/meeting synonymously.
+                    For recurring series phrased as next week without explicit weekdays,
+                    plan Monday-Friday only (5 occurrences).',
                 'examples' => [
                     'I want a booking next Friday at 12h for one hour and eight people.',
                     'Create a booking for next Friday, 12:00 to 13:00, with 8 seats.',
                     'Eine Buchung nächsten Freitag um 12 Uhr, eine Stunde lang, für acht Leute.',
+                    'Erstelle für die nächste Woche durchlaufend nummerierte Lecture x, immer von 20:00 bis 22:00, 20 Personen, Billy ist Trainer. -> create exactly 5 options (Mon-Fri).',
                 ],
             ],
             [
@@ -144,10 +144,12 @@ class create_option_task extends booking_task_base implements task_trigger_provi
      */
     private static function normalize_create_option_input(array $input, array &$appliedaliases = []): array {
         $aliasgroups = [
-            'text' => ['title', 'name', 'optionname', 'option_title'],
-            'maxanswers' => ['limit', 'spots', 'capacity', 'maxparticipants', 'max_participants'],
+            'text' => ['title', 'name', 'optionname', 'option_title', 'identifier', 'label', 'option_name'],
+            'maxanswers' => ['limit', 'limitanswers', 'spots', 'capacity', 'maxparticipants', 'max_participants'],
             'coursestarttime' => ['starttime', 'start', 'from'],
             'courseendtime' => ['endtime', 'end', 'to'],
+            'teacherquery' => ['teacher', 'trainer', 'instructor', 'instructorty', 'lecturer', 'dozent'],
+            'teacheremail' => ['instructoremail', 'teacher_mail', 'teacher_email'],
         ];
 
         foreach ($aliasgroups as $canonical => $aliases) {
@@ -166,11 +168,66 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             }
         }
 
+        // Fuzzy fallback for unpredictable planner key variants (e.g. traineruserwm).
+        foreach (array_keys($input) as $rawkey) {
+            if (!is_string($rawkey) || $rawkey === '') {
+                continue;
+            }
+            if ($rawkey === 'teacherquery' || $rawkey === 'teacheremail') {
+                continue;
+            }
+
+            $value = $input[$rawkey] ?? null;
+            if (self::is_placeholder_value($value)) {
+                continue;
+            }
+
+            $keynorm = strtolower((string)preg_replace('/[^a-z0-9]+/', '', $rawkey));
+            $ispeoplehint = (bool)preg_match('/teacher|trainer|instructor|lecturer|dozent/', $keynorm);
+            if (!$ispeoplehint) {
+                continue;
+            }
+
+            if (self::is_placeholder_value($input['teacherquery'] ?? null)) {
+                $input['teacherquery'] = $value;
+                $appliedaliases['teacherquery'] = $rawkey;
+                unset($input[$rawkey]);
+                continue;
+            }
+
+            if (
+                self::is_placeholder_value($input['teacheremail'] ?? null)
+                && is_string($value)
+                && strpos($value, '@') !== false
+            ) {
+                $input['teacheremail'] = $value;
+                $appliedaliases['teacheremail'] = $rawkey;
+                unset($input[$rawkey]);
+            }
+        }
+
         foreach ($aliasgroups as $aliases) {
             foreach ($aliases as $alias) {
                 if (array_key_exists($alias, $input)) {
                     unset($input[$alias]);
                 }
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * Remove common non-schema noise keys emitted by LLM planners.
+     *
+     * @param array $input
+     * @return array
+     */
+    private static function strip_llm_noise_keys(array $input): array {
+        foreach (['booking_closed', 'booking_open', 'booking_opened', 'meta', 'metadata',
+            'confirmed', 'is_confirmed', 'confirm', 'acknowledged', 'approved', 'status'] as $noisekey) {
+            if (array_key_exists($noisekey, $input)) {
+                unset($input[$noisekey]);
             }
         }
 
@@ -191,11 +248,20 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         array $missingprops = [],
         bool $includeenlabelkeymap = false
     ): string {
-        $parts = ['Retry ' . static::TASK_NAME . ' once with corrected canonical keys.'];
+        $parts = [
+            'Task execution was not successful.',
+            'Retry ' . static::TASK_NAME . ' once with corrected canonical keys.',
+        ];
 
-        $labelkeymap = $includeenlabelkeymap ? $this->build_supported_property_reference(false, true) : '';
-        if ($includeenlabelkeymap && $labelkeymap !== '') {
-            $parts[] = 'EN label -> key map: ' . $labelkeymap . '.';
+        if ($includeenlabelkeymap) {
+            $parts[] = 'Use canonical property keys only; do not use localized labels.';
+            $parts[] = 'If you need the full EN label -> key map, ask with: FULL_KEY_MAP ' . static::TASK_NAME . '.';
+        }
+
+        if (static::TASK_NAME === 'booking.create_slotbooking_option') {
+            $parts[] = 'For slot booking include at least: text, slot_valid_from, slot_valid_until, '
+                . 'slot_opening_time, slot_closing_time, slot_duration_minutes, '
+                . 'slot_max_participants_per_slot, and one active slot_day_X=true.';
         }
 
         if (!empty($appliedaliases)) {
@@ -214,7 +280,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             $parts[] = 'Remove unknown keys: ' . implode(', ', $unknownprops) . '.';
         }
 
-        $parts[] = 'Resend the same task once with corrected input.';
+        $parts[] = 'Resend exactly one corrected task_call.';
 
         return implode(' ', $parts);
     }
@@ -268,7 +334,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
     }
 
     /**
-     * Structural validation — pure, no DB access.
+     * Structural validation - pure, no DB access.
      *
      * Checks that the required 'text' (title) field is present.
      *
@@ -281,6 +347,18 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         $input = self::normalize_create_option_input($input, $appliedaliases);
         $input = self::strip_create_targeting_fields($input);
         $rawinput = self::strip_create_targeting_fields($rawinput);
+        $input = self::strip_llm_noise_keys($input);
+        $rawinput = self::strip_llm_noise_keys($rawinput);
+
+        if (static::TASK_NAME === 'booking.create_slotbooking_option') {
+            unset($input['optiontype'], $input['slot_enabled']);
+            unset($rawinput['optiontype'], $rawinput['slot_enabled']);
+        }
+
+        $resolvedtype = self::resolve_requested_option_type($input);
+        if (static::TASK_NAME === 'booking.create_slotbooking_option') {
+            $resolvedtype = 'slotbooking';
+        }
 
         $text = trim((string)($input['text'] ?? ''));
         $missingtitle = ($text === '');
@@ -301,19 +379,48 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         }
 
         $missingrequired = [];
-        if ((int)($input['maxanswers'] ?? 0) <= 0) {
-            $missingrequired[] = 'maxanswers';
-        }
+        if ($resolvedtype === 'slotbooking') {
+            if (!array_key_exists('slot_duration_minutes', $input)) {
+                $missingrequired[] = 'slot_duration_minutes';
+            }
+            if (!array_key_exists('slot_max_participants_per_slot', $input)) {
+                $missingrequired[] = 'slot_max_participants_per_slot';
+            }
+            if (!self::has_any_key($input, ['slot_opening_time', 'slot_closing_time'])) {
+                $missingrequired[] = 'slot_opening_time|slot_closing_time';
+            }
+            if (!self::has_any_key($input, ['slot_valid_from', 'slot_valid_until'])) {
+                $missingrequired[] = 'slot_valid_from|slot_valid_until';
+            }
 
-        $hasoptiondates = !empty($input['optiondates']) && is_array($input['optiondates']);
-        if (!$hasoptiondates && trim((string)($input['coursestarttime'] ?? '')) === '') {
-            $missingrequired[] = 'coursestarttime';
-        }
+            $slotweekdaykeys = [
+                'slot_day_1', 'slot_day_2', 'slot_day_3', 'slot_day_4', 'slot_day_5', 'slot_day_6', 'slot_day_7',
+            ];
+            $hasactiveday = false;
+            foreach ($slotweekdaykeys as $dk) {
+                if (!empty($input[$dk])) {
+                    $hasactiveday = true;
+                    break;
+                }
+            }
+            if (!$hasactiveday) {
+                $missingrequired[] = 'one slot_day_X=true';
+            }
+        } else {
+            if ((int)($input['maxanswers'] ?? 0) <= 0) {
+                $missingrequired[] = 'maxanswers';
+            }
 
-        $hasduration = (int)($input['duration'] ?? 0) > 0;
-        $hasendtime = trim((string)($input['courseendtime'] ?? '')) !== '';
-        if (!$hasoptiondates && !$hasduration && !$hasendtime) {
-            $missingrequired[] = 'duration|courseendtime';
+            $hasoptiondates = !empty($input['optiondates']) && is_array($input['optiondates']);
+            if (!$hasoptiondates && trim((string)($input['coursestarttime'] ?? '')) === '') {
+                $missingrequired[] = 'coursestarttime';
+            }
+
+            $hasduration = (int)($input['duration'] ?? 0) > 0;
+            $hasendtime = trim((string)($input['courseendtime'] ?? '')) !== '';
+            if (!$hasoptiondates && !$hasduration && !$hasendtime) {
+                $missingrequired[] = 'duration|courseendtime';
+            }
         }
 
         if (!empty($missingrequired)) {
@@ -386,7 +493,8 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         array $missingprops = []
     ): string {
         $unknowntext = empty($unknownprops) ? '(none)' : implode(', ', $unknownprops);
-        $message = 'Create option schema mismatch. Unknown properties: ' . $unknowntext . '.';
+        $message = 'Task execution was not successful. Create option schema mismatch. Unknown properties: '
+            . $unknowntext . '.';
 
         $appliedaliases = [];
         $normalized = self::normalize_create_option_input($input, $appliedaliases);
@@ -443,6 +551,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         $appliedaliases = [];
         $input = self::normalize_create_option_input($input, $appliedaliases);
         $input = self::strip_create_targeting_fields($input);
+        $input = self::strip_llm_noise_keys($input);
 
         // Title is required (structural, but re-check for safety).
         if (empty($input['text'])) {
@@ -529,7 +638,8 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         }
 
         // Location soft-confirmation.
-        if (isset($input['location']) && trim((string)$input['location']) !== '') {
+        $allowemptylocation = in_array('location', $overrides, true) || in_array('address', $overrides, true);
+        if (!$allowemptylocation && isset($input['location']) && trim((string)$input['location']) !== '') {
             $issues[] = [
                 'code'           => 'LOCATION_NOT_FOUND_POSSIBLE',
                 'severity'       => 'needs_confirmation',
@@ -1084,6 +1194,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
                     '- Resolve relative dates against current Moodle timezone and current datetime from system prompt.',
                     '- Prefer ISO 8601 for date/time fields in command input.',
                     '- Never use old hardcoded timestamps from examples.',
+                    '- For recurring series phrased as "next week" without explicit weekday constraints, default to Monday-Friday (5 occurrences).',
                     '- If a resolved date appears in the past and user did not ask for past dates, ask clarification.',
                 ],
             ],

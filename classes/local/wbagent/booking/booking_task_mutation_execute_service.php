@@ -839,7 +839,7 @@ class booking_task_mutation_execute_service {
 
         $errors = [];
         $ambiguities = [];
-        $normalizedinput = $input;
+        $normalizedinput = booking_task_support::normalize_temporal_input($input);
 
         $cm = get_coursemodule_from_id('booking', $cmid);
         if (!$cm) {

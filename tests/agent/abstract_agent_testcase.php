@@ -29,6 +29,7 @@ use mod_booking\local\testing\booking_advanced_testcase;
 use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
+use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -36,6 +37,7 @@ use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\task_registry;
 use mod_booking\singleton_service;
 use stdClass;
@@ -641,6 +643,82 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $precheck = $anon->precheck_user_message($threadid, $message);
         $store->add_message($threadid, 'user', (string)($precheck['sanitizedmessage'] ?? $message));
         return $runtime->run_loop($threadid, (int)$this->booking->cmid, (int)$this->teacher->id);
+    }
+
+    /**
+     * Resolve a queue item id suitable for ai_confirm_run from response/store state.
+     *
+     * @param array $result
+     * @param int $threadid
+     * @param conversation_store $store
+     * @return string
+     */
+    protected function resolve_queue_item_id_for_confirmation(array $result, int $threadid, conversation_store $store): string {
+        $queueitemid = trim((string)($result['queueitemid'] ?? ''));
+        if ($queueitemid !== '') {
+            return $queueitemid;
+        }
+
+        $pending = $store->get_pending_intent($threadid);
+        if (is_array($pending)) {
+            $pendingids = array_values(array_filter(array_map('strval', (array)($pending['queue_item_ids'] ?? []))));
+            if (!empty($pendingids)) {
+                return (string)$pendingids[0];
+            }
+        }
+
+        $queuesvc = new queue_manager($store);
+        $items = $queuesvc->get_queue_items($threadid);
+        if (empty($items)) {
+            return '';
+        }
+
+        usort($items, static function (array $a, array $b): int {
+            return (int)($b['updated_at'] ?? 0) <=> (int)($a['updated_at'] ?? 0);
+        });
+
+        foreach ($items as $item) {
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+            $status = (string)($item['status'] ?? '');
+            if (!in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+                continue;
+            }
+            $candidate = trim((string)($item['queue_item_id'] ?? ''));
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Confirm the current pending proposal using queue-authoritative id resolution.
+     *
+     * @param array $result
+     * @param int $threadid
+     * @param conversation_store $store
+     * @param bool $allowsession
+     * @return array
+     */
+    protected function confirm_pending_result(
+        array $result,
+        int $threadid,
+        conversation_store $store,
+        bool $allowsession = false
+    ): array {
+        $_POST['sesskey'] = sesskey();
+        $queueitemid = $this->resolve_queue_item_id_for_confirmation($result, $threadid, $store);
+        $this->assertNotSame('', $queueitemid, 'Could not resolve queue item id for confirmation.');
+
+        return ai_confirm_run::execute(
+            (int)$this->booking->cmid,
+            (int)$threadid,
+            $queueitemid,
+            $allowsession
+        );
     }
 
     /**

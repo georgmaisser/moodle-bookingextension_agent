@@ -37,8 +37,6 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
-use bookingextension_agent\external\ai_confirm_run;
-
 /**
  * Multistep confirmation flow with a real LLM.
  *
@@ -101,12 +99,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         ]);
         unset($createcommand['input']['optiondates']);
 
-        $_POST['sesskey'] = sesskey();
-        $createconfirm = ai_confirm_run::execute(
-            (int)$this->booking->cmid,
-            (int)$threadid,
-            (string)($result1['queueitemid'] ?? '')
-        );
+        $createconfirm = $this->confirm_pending_result($result1, (int)$threadid, $store, false);
         $this->assertTrue((bool)($createconfirm['success'] ?? false), (string)($createconfirm['message'] ?? ''));
 
         $option = $DB->get_record('booking_options', [
@@ -116,7 +109,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $this->assertNotFalse($option, 'Created booking option must exist.');
 
         $result2 = $this->chat(
-            'Make Billy Teacher responsible for "' . $title . '".',
+            'Make Billy Teacher responsible for "' . $title . '". Use teacher email "' . $billy->email . '".',
             $threadid,
             $store,
             $runtime
@@ -124,25 +117,31 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         if (($result2['response_type'] ?? '') !== 'confirmation_request') {
             $result2 = $this->chat(
                 'Prepare exactly one booking.update_option confirmation_request for option "' . $title . '" '
-                    . 'with teacherquery "' . fullname($billy) . '". Do not execute.',
+                    . 'with teacheremail "' . $billy->email . '". Do not execute.',
                 $threadid,
                 $store,
                 $runtime
             );
         }
         $teachercommand = $this->extract_command($result2, 'booking.update_option');
+        if (
+            $teachercommand === null
+            || empty($teachercommand['input'])
+            || (!array_key_exists('teacherquery', (array)$teachercommand['input'])
+                && !array_key_exists('teacheremail', (array)$teachercommand['input']))
+        ) {
+            $result2 = $this->chat(
+                'Prepare exactly one booking.update_option confirmation_request with optionid ' . (int)$option->id . ' '
+                    . 'and teacheremail "' . $billy->email . '". Do not execute.',
+                $threadid,
+                $store,
+                $runtime
+            );
+            $teachercommand = $this->extract_command($result2, 'booking.update_option');
+        }
         $this->assertNotNull($teachercommand, 'update_option command for teacher must be present.');
-        $teachercommand['input'] = array_merge($teachercommand['input'] ?? [], [
-            'optionid' => (int)$option->id,
-            'teacherquery' => fullname($billy),
-        ]);
 
-        $_POST['sesskey'] = sesskey();
-        $teacherconfirm = ai_confirm_run::execute(
-            (int)$this->booking->cmid,
-            (int)$threadid,
-            (string)($result2['queueitemid'] ?? '')
-        );
+        $teacherconfirm = $this->confirm_pending_result($result2, (int)$threadid, $store, false);
         $this->assertTrue((bool)($teacherconfirm['success'] ?? false), (string)($teacherconfirm['message'] ?? ''));
 
         $details = $this->exec_command('booking.get_option_details', [
@@ -170,18 +169,24 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
             );
         }
         $visiblecommand = $this->extract_command($result3, 'booking.update_option');
+        if (
+            $visiblecommand === null
+            || empty($visiblecommand['input'])
+            || (!array_key_exists('visible', (array)$visiblecommand['input'])
+                && !array_key_exists('invisible', (array)$visiblecommand['input']))
+        ) {
+            $result3 = $this->chat(
+                'Prepare exactly one booking.update_option confirmation_request with optionid ' . (int)$option->id . ' '
+                    . 'and visible=1. Do not execute.',
+                $threadid,
+                $store,
+                $runtime
+            );
+            $visiblecommand = $this->extract_command($result3, 'booking.update_option');
+        }
         $this->assertNotNull($visiblecommand, 'update_option command for visibility must be present.');
-        $visiblecommand['input'] = array_merge($visiblecommand['input'] ?? [], [
-            'optionid' => (int)$option->id,
-            'visible' => 1,
-        ]);
 
-        $_POST['sesskey'] = sesskey();
-        $visibleconfirm = ai_confirm_run::execute(
-            (int)$this->booking->cmid,
-            (int)$threadid,
-            (string)($result3['queueitemid'] ?? '')
-        );
+        $visibleconfirm = $this->confirm_pending_result($result3, (int)$threadid, $store, false);
         $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
 
         $updated = $this->get_option_from_db((int)$option->id);

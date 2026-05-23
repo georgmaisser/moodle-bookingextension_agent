@@ -906,7 +906,10 @@ class agent_decision_service {
 
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
-            $status = $autoconfirmmode ? 'ready' : ($idx === 0 ? 'blocked_confirmation' : 'queued');
+            // Phase 2 T5: stage ALL mutating items as blocked_confirmation (not just idx=0).
+            // This allows batch execution in a single ai_confirm_run call and prevents
+            // the illegitimate run_loop re-entry caused by leftover 'queued' items.
+            $status = $autoconfirmmode ? 'ready' : 'blocked_confirmation';
             $dependson = array_values(array_map('strval', (array)($mutatingcommand['depends_on'] ?? [])));
             if ($idx > 0 && !empty($mutatingqueueids[$idx - 1])) {
                 $dependson[] = (string)$mutatingqueueids[$idx - 1];
@@ -958,14 +961,14 @@ class agent_decision_service {
         if (!empty($mutatingcommands)) {
             // Write operations remain confirmation-gated.
             $result['response_type'] = 'confirmation_request';
-            $result['commands'] = $this->slice_first_mutation_confirmation_stage($mutatingcommands);
-            $result['queue_item_ids'] = array_slice($mutatingqueueids, 0, count((array)$result['commands']));
-            if (count($mutatingcommands) > 1) {
-                $result['issue_codes'] = array_values(array_unique(array_merge(
-                    (array)($result['issue_codes'] ?? []),
-                    ['MULTISTEP_MUTATION_STAGED']
-                )));
-            }
+            // Phase 2 T5: include ALL mutating commands and ALL queue item ids so the
+            // ai_confirm_run call can execute the full batch in a single round-trip.
+            $result['commands'] = array_values(
+                array_filter($mutatingcommands, static fn($e): bool => is_array($e))
+            );
+            $result['queue_item_ids'] = array_values(
+                array_filter($mutatingqueueids, static fn($id): bool => $id !== '')
+            );
 
             $confirmmessage = trim((string)($result['message'] ?? ''));
             if ($confirmmessage === '') {

@@ -502,7 +502,7 @@ class interpreter implements agent_interpreter {
             $triggermap = $this->registry->get_trigger_id_to_task_name_map();
             if (isset($triggermap[$responsetype])) {
                 $taskname = $triggermap[$responsetype];
-                $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
+                $input = $this->extract_command_input($parsed);
                 $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
                 return [
                     'response_type' => 'task_call',
@@ -524,7 +524,7 @@ class interpreter implements agent_interpreter {
         $task = (string)($parsed['task'] ?? '');
         $resolvedtask = $this->resolve_task_name_alias($task, $allowedtasks);
         if ($resolvedtask !== null) {
-            $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
+            $input = $this->extract_command_input($parsed);
             $input = $this->hydrate_question_field($resolvedtask, $input, $lastusermessage);
             return [
                 'response_type' => 'task_call',
@@ -551,7 +551,7 @@ class interpreter implements agent_interpreter {
                 if ($commandtask === null) {
                     continue;
                 }
-                $commandinput = is_array($command['input'] ?? null) ? $command['input'] : [];
+                $commandinput = $this->extract_command_input($command);
                 $commandinput = $this->hydrate_question_field($commandtask, $commandinput, $lastusermessage);
                 $normalizedcommands[] = [
                     'task' => $commandtask,
@@ -651,6 +651,22 @@ class interpreter implements agent_interpreter {
         }
 
         return $input;
+    }
+
+    /**
+     * Extract command input while tolerating common wrapper keys from LLM output.
+     *
+     * @param array $payload
+     * @return array
+     */
+    private function extract_command_input(array $payload): array {
+        foreach (['input', 'args', 'params', 'parameter'] as $key) {
+            if (is_array($payload[$key] ?? null)) {
+                return (array)$payload[$key];
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -842,7 +858,7 @@ class interpreter implements agent_interpreter {
      * Validate all commands using structural (pure) checks only.
      *
      * This method MUST NOT:
-    *  - call task->check_structure()
+     *  - call task->check_structure()
      *  - perform any DB lookups
      *  - resolve entity IDs
      *
@@ -874,8 +890,10 @@ class interpreter implements agent_interpreter {
             $commandnumber++;
             $label = 'Command #' . $commandnumber;
 
+            $rawinput = $this->extract_command_input((array)$cmd);
+
             // Deduplicate: skip exact duplicate commands (same task + same input).
-            $cmdsig = md5(json_encode(['task' => $cmd['task'] ?? '', 'input' => $cmd['input'] ?? []]));
+            $cmdsig = md5(json_encode(['task' => $cmd['task'] ?? '', 'input' => $rawinput]));
             if (isset($seencommandsigs[$cmdsig])) {
                 continue;
             }
@@ -903,7 +921,7 @@ class interpreter implements agent_interpreter {
                 continue;
             }
 
-            $input = $cmd['input'] ?? [];
+            $input = $rawinput;
             if (!is_array($input)) {
                 $errors[] = "$label: 'input' must be an object/array.";
                 continue;

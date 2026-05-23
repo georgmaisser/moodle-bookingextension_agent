@@ -562,6 +562,111 @@ class booking_task_support {
     }
 
     /**
+     * Normalize temporal input values to canonical formats used by mutation flows.
+     *
+     * - datetime fields are normalized to UNIX timestamps when parseable.
+     * - slot clock fields are normalized to HH:MM (accepts HH:MM, HH:MM:SS, or minutes since midnight).
+     *
+     * @param array $input
+     * @return array
+     */
+    public static function normalize_temporal_input(array $input): array {
+        $normalized = $input;
+
+        $datetimefields = [
+            'coursestarttime',
+            'courseendtime',
+            'bookingopeningtime',
+            'bookingclosingtime',
+            'slot_valid_from',
+            'slot_valid_until',
+            'bookuserstimebooked',
+        ];
+
+        foreach ($datetimefields as $field) {
+            if (!array_key_exists($field, $normalized)) {
+                continue;
+            }
+            $parsed = self::parse_datetime($normalized[$field]);
+            if ($parsed !== false) {
+                $normalized[$field] = $parsed;
+            }
+        }
+
+        foreach (['slot_opening_time', 'slot_closing_time'] as $clockfield) {
+            if (!array_key_exists($clockfield, $normalized)) {
+                continue;
+            }
+            $clock = self::normalize_clock_time_value($normalized[$clockfield]);
+            if ($clock !== null) {
+                $normalized[$clockfield] = $clock;
+            }
+        }
+
+        if (!empty($normalized['optiondates']) && is_array($normalized['optiondates'])) {
+            $optiondates = [];
+            foreach ($normalized['optiondates'] as $item) {
+                if (!is_array($item)) {
+                    $optiondates[] = $item;
+                    continue;
+                }
+                if (array_key_exists('coursestarttime', $item)) {
+                    $parsed = self::parse_datetime($item['coursestarttime']);
+                    if ($parsed !== false) {
+                        $item['coursestarttime'] = $parsed;
+                    }
+                }
+                if (array_key_exists('courseendtime', $item)) {
+                    $parsed = self::parse_datetime($item['courseendtime']);
+                    if ($parsed !== false) {
+                        $item['courseendtime'] = $parsed;
+                    }
+                }
+                $optiondates[] = $item;
+            }
+            $normalized['optiondates'] = $optiondates;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Normalize a clock-time value to HH:MM.
+     *
+     * @param mixed $value
+     * @return string|null
+     */
+    private static function normalize_clock_time_value(mixed $value): ?string {
+        if (is_int($value) || (is_string($value) && preg_match('/^\d+$/', trim($value)))) {
+            $minutes = (int)$value;
+            if ($minutes >= 0 && $minutes < 24 * 60) {
+                $hours = intdiv($minutes, 60);
+                $mins = $minutes % 60;
+                return sprintf('%02d:%02d', $hours, $mins);
+            }
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $time = trim($value);
+        if ($time === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::\d{2})?$/', $time, $matches) === 1) {
+            $hours = (int)$matches[1];
+            $mins = (int)$matches[2];
+            if ($hours >= 0 && $hours <= 23 && $mins >= 0 && $mins <= 59) {
+                return sprintf('%02d:%02d', $hours, $mins);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Extract date ranges from input for option date processing.
      *
      * Supports either:
@@ -937,6 +1042,8 @@ class booking_task_support {
      * @return array
      */
     public static function resolve_single_user(string $query): array {
+        global $DB;
+
         $query = self::sanitize_person_lookup_query($query);
         if ($query === '') {
             return [
@@ -975,6 +1082,80 @@ class booking_task_support {
 
         $users = self::search_user_candidates($query, 5);
         if (empty($users)) {
+            // Fallback: exact e-mail lookup, since search_users can miss mail-only queries.
+            if (strpos($query, '@') !== false) {
+                $emailquery = \core_text::strtolower(trim($query));
+                $user = $DB->get_record_sql(
+                    'SELECT id, email
+                       FROM {user}
+                      WHERE deleted = 0
+                        AND suspended = 0
+                        AND LOWER(email) = :email',
+                    ['email' => $emailquery],
+                    IGNORE_MISSING
+                );
+                if ($user) {
+                    return [
+                        'status' => 'ok',
+                        'userid' => (int)$user->id,
+                        'email' => (string)$user->email,
+                    ];
+                }
+            }
+
+            // Fallback: direct name/username lookup when directory search returns no hits.
+            $namequery = \core_text::strtolower(trim($query));
+            if ($namequery !== '') {
+                $matches = $DB->get_records_sql(
+                    'SELECT id, email, firstname, lastname
+                       FROM {user}
+                      WHERE deleted = 0
+                        AND suspended = 0
+                        AND (
+                            LOWER(firstname) = :namequery_first
+                            OR LOWER(lastname) = :namequery_last
+                            OR LOWER(CONCAT(firstname, " ", lastname)) = :namequery_full
+                            OR LOWER(username) = :namequery_user
+                        )
+                      ORDER BY id ASC',
+                    [
+                        'namequery_first' => $namequery,
+                        'namequery_last' => $namequery,
+                        'namequery_full' => $namequery,
+                        'namequery_user' => $namequery,
+                    ],
+                    0,
+                    6
+                );
+
+                if (!empty($matches)) {
+                    $matches = array_values($matches);
+                    if (count($matches) === 1) {
+                        $match = $matches[0];
+                        return [
+                            'status' => 'ok',
+                            'userid' => (int)$match->id,
+                            'email' => (string)$match->email,
+                        ];
+                    }
+
+                    $candidates = [];
+                    foreach ($matches as $match) {
+                        $fullname = trim((string)$match->firstname . ' ' . (string)$match->lastname);
+                        $candidates[] = (int)$match->id . ' (' . $fullname . ', ' . (string)$match->email . ')';
+                    }
+
+                    return [
+                        'status' => 'ambiguity',
+                        'message' => get_string(
+                            'agent_booking_resolve_user_ambiguous',
+                            'bookingextension_agent',
+                            implode(', ', $candidates)
+                        ),
+                    ];
+                }
+            }
+
             return [
                 'status' => 'error',
                 'message' => get_string('agent_booking_resolve_user_no_match', 'bookingextension_agent', $query),
