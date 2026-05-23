@@ -34,6 +34,7 @@ require_once(__DIR__ . '/ai_send_message_mock_scenarios.php');
 use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\external\ai_send_message;
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
 
 /**
  * Whole-agent ai_send_message tests with scripted AI output.
@@ -616,14 +617,14 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Confirming the first mutation must continue multistep planning in the same thread.
+    * Confirming a single queued mutation must not create unstaged follow-up work.
      *
-     * After the run completes, polling should expose a follow-up confirmation request
-     * (next mutation step) without requiring a new user message.
+    * Additional mutating work must come from the already-staged queue, not from
+    * an implicit post-execution planner call.
      *
      * @return void
      */
-    public function test_confirm_run_continues_to_next_confirmation_step(): void {
+    public function test_confirm_run_does_not_continue_without_staged_queue_item(): void {
         global $DB;
 
         $this->setUser($this->teacher);
@@ -705,9 +706,7 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
 
         $store = new conversation_store();
         $pending = $store->get_pending_intent((int)$firstresponse['threadid']);
-        $this->assertIsArray($pending);
-        $this->assertNotEmpty($pending['commands'] ?? []);
-        $this->assertSame('booking.update_option', (string)($pending['commands'][0]['task'] ?? ''));
+        $this->assertNull($pending);
     }
 
     /**
@@ -825,7 +824,12 @@ final class ai_send_message_simulated_llm_test extends abstract_agent_testcase {
         $store = new conversation_store();
         $pending = $store->get_pending_intent((int)$firstresponse['threadid']);
         $this->assertIsArray($pending);
-        $this->assertCount(1, $pending['commands'] ?? [], 'Follow-up should expose exactly the next stage command.');
-        $this->assertSame('booking.book_users', (string)($pending['commands'][0]['task'] ?? ''));
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($pending['queue_item_ids'] ?? []))));
+        $this->assertCount(1, $queueitemids, 'Follow-up should expose exactly the next staged queue item.');
+
+        $queuesvc = new queue_manager($store);
+        $queueitem = $queuesvc->get_queue_item((int)$firstresponse['threadid'], (string)$queueitemids[0]);
+        $this->assertIsArray($queueitem);
+        $this->assertSame('booking.book_users', (string)($queueitem['task'] ?? ''));
     }
 }

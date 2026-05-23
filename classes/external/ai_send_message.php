@@ -38,6 +38,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\task_registry;
 
 /**
@@ -221,6 +222,7 @@ class ai_send_message extends external_api {
             (array)($result['results'] ?? [])
         );
         $responsequeueitemid = self::resolve_response_queue_item_id($store, $threadid);
+        $responsecommands = self::resolve_response_commands($store, $threadid, $responsequeueitemid, $result);
 
         return [
             'response_type'         => $result['response_type'] ?? 'error',
@@ -232,7 +234,7 @@ class ai_send_message extends external_api {
                 && $store->is_confirmation_allowed_for_thread((int)$USER->id, $cmid, $threadid)
                 && !$autoconfirmblocked
             ),
-            'commands'              => json_encode($result['commands'] ?? []),
+            'commands'              => json_encode($responsecommands),
             'ambiguities'           => json_encode($result['ambiguities'] ?? []),
             'ambiguityoptionsjson'  => json_encode($result['ambiguity_options'] ?? []),
             'errorsjson'            => json_encode($errors),
@@ -308,6 +310,52 @@ class ai_send_message extends external_api {
 
         $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
         return (string)($queueitemids[0] ?? '');
+    }
+
+    /**
+     * Resolve the command payload that should be exposed in the WS response.
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param string $queueitemid
+     * @param array<string,mixed> $result
+     * @return array<int,array<string,mixed>>
+     */
+    private static function resolve_response_commands(
+        conversation_store $store,
+        int $threadid,
+        string $queueitemid,
+        array $result
+    ): array {
+        if ((string)($result['response_type'] ?? '') !== 'confirmation_request' || $queueitemid === '') {
+            return is_array($result['commands'] ?? null) ? (array)$result['commands'] : [];
+        }
+
+        $queuesvc = new queue_manager($store);
+        $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+        if (!is_array($item)) {
+            return is_array($result['commands'] ?? null) ? (array)$result['commands'] : [];
+        }
+
+        $task = trim((string)($item['task'] ?? ''));
+        if ($task === '') {
+            return [];
+        }
+
+        $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
+            ? (array)$item['prepared_input']
+            : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
+        $command = [
+            'task' => $task,
+            'version' => max(1, (int)($item['version'] ?? 1)),
+            'input' => $input,
+        ];
+        $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
+        if (!empty($dependson)) {
+            $command['depends_on'] = $dependson;
+        }
+
+        return [$command];
     }
 
     /**

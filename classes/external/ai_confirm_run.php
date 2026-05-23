@@ -525,7 +525,7 @@ class ai_confirm_run extends external_api {
 
             $store->update_run_status($runid, 'completed', $results);
 
-            $shouldcontinue = self::should_continue_with_runtime_loop($rawresults, $cmdsarray, $commandsforrun)
+            $shouldcontinue = self::should_continue_with_runtime_loop($rawresults, $commandsforrun, $commandsforrun)
                 || self::has_remaining_mutating_queue_items(
                     $queuesvc,
                     (int)$params['threadid'],
