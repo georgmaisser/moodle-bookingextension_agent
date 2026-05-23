@@ -13,6 +13,7 @@ jobs:
 
       # Command to install more dependencies
       extra_plugin_runners: |
+        moodle-plugin-ci add-plugin --branch agent_base_branch Wunderbyte-GmbH/moodle-mod_booking
         moodle-plugin-ci add-plugin --branch MOODLE_405_DEV Wunderbyte-GmbH/moodle-local_wunderbyte_table
         moodle-plugin-ci add-plugin --branch MOODLE_405_DEV Wunderbyte-GmbH/moodle-local_shopping_cart
         moodle-plugin-ci add-plugin --branch main Wunderbyte-GmbH/moodle-local_entities
@@ -21,9 +22,6 @@ jobs:
 
       # If you need to ignore specific paths (third-party libraries are ignored by default)
       ignore_paths: 'moodle/tests/agent/fixtures'
-
-      # Specify paths to ignore for mustache lint
-      mustache_ignore_names: 'bookingoption_dates_custom_list_items.mustache,form_booking_options_selector_suggestion.mustache,table_list_container.mustache,optiondatesteacherstable_list.mustache,optiondatesteacherstable_list_row.mustache,optiondatesteacherstable_list_container.mustache,option_collapsible_close.mustache,option_collapsible_open.mustache,static.mustache,advcheckbox.mustache,select.mustache,shorttext.mustache,mobile_details_button.mustache,mobile_mybookings_list.mustache,mobile_booking_option_details.mustache,mobile_view_page.mustache,table_cards_container.mustache'
 
       # Specify paths to ignore for code checker
       # codechecker_ignore_paths: 'OpenTBS, TinyButStrong'
@@ -89,6 +87,7 @@ jobs:
 
       # Command to install more dependencies
       extra_plugin_runners: |
+        moodle-plugin-ci add-plugin --branch MOODLE_405_DEV Wunderbyte-GmbH/moodle-mod_booking
         moodle-plugin-ci add-plugin --branch MOODLE_405_DEV Wunderbyte-GmbH/moodle-local_wunderbyte_table
         moodle-plugin-ci add-plugin --branch MOODLE_405_DEV Wunderbyte-GmbH/moodle-local_shopping_cart
         moodle-plugin-ci add-plugin --branch main Wunderbyte-GmbH/moodle-local_entities
