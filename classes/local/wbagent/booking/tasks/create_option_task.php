@@ -661,8 +661,13 @@ class create_option_task extends booking_task_base implements task_trigger_provi
         $service = new booking_task_mutation_execute_service();
         $servicepreflight = $service->preflight_validate(self::TASK_NAME, $input, $cmid, $userid);
         if (!empty($servicepreflight['errors']) || !empty($servicepreflight['ambiguities'])) {
-            foreach ((array)($servicepreflight['errors'] ?? []) as $err) {
-                $issues[] = ['code' => 'PREFLIGHT_ERROR', 'severity' => 'needs_clarification', 'message' => (string)$err];
+            $serviceissuecodes = array_values(array_filter(array_map('strval', (array)($servicepreflight['issue_codes'] ?? []))));
+            foreach ((array)($servicepreflight['errors'] ?? []) as $idx => $err) {
+                $issues[] = [
+                    'code' => (string)($serviceissuecodes[$idx] ?? 'PREFLIGHT_ERROR'),
+                    'severity' => 'needs_clarification',
+                    'message' => (string)$err,
+                ];
             }
             foreach ((array)($servicepreflight['ambiguities'] ?? []) as $amb) {
                 $issues[] = ['code' => 'PREFLIGHT_AMBIGUITY', 'severity' => 'needs_clarification', 'message' => (string)$amb];

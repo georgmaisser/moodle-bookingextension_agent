@@ -603,14 +603,14 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
-     * Store a pending intent (commands awaiting user confirmation) for a thread.
+    * Store a pending intent awaiting user confirmation for a thread.
      *
      * Call this whenever the agent returns a confirmation_request so that a
      * subsequent short confirmation ("ja", "yes", …) can re-use the commands
      * without triggering a new LLM call.
      *
      * @param int    $threadid
-     * @param array  $commands  The mutation commands awaiting confirmation.
+    * @param array  $commands  Optional mutation commands awaiting confirmation.
      * @param string $intentkey A caller-generated hash to identify this intent.
      * @param int    $userid
      * @param int    $cmid
@@ -661,7 +661,13 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_pending_intent(int $threadid): ?array {
         $value = $this->get_thread_metadata_value($threadid, 'pending_intent');
-        if (!is_array($value) || empty($value['commands']) || !is_array($value['commands'])) {
+        if (!is_array($value) || !is_array($value['commands'] ?? null)) {
+            return null;
+        }
+
+        $hascommands = !empty($value['commands']);
+        $hasqueueitems = !empty(array_filter(array_map('strval', (array)($value['queue_item_ids'] ?? []))));
+        if (!$hascommands && !$hasqueueitems) {
             return null;
         }
 

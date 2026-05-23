@@ -71,13 +71,14 @@ class preflight_pipeline {
      * @param int $threadid
      * @param int $cmid
      * @param int $userid
-     * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,v2_result:array<string,mixed>}
+      * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,issues:array<int,array<string,mixed>>,v2_result:array<string,mixed>}
      */
     public function run(array $commands, int $threadid, int $cmid, int $userid): array {
         $preparedcommands = [];
         $errors = [];
         $attemptedtasks = [];
         $issuecodes = [];
+          $issues = [];
         $layer1issuecodes = [];
         $anonymizer = new privacy_anonymizer($this->store);
         $startedat = microtime(true);
@@ -116,10 +117,13 @@ class preflight_pipeline {
                 );
 
                 $this->auditlogger->append($threadid, 0, [
+                    'taskname' => $taskname,
+                    'task_version' => max(1, (int)($command['version'] ?? 1)),
                     'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
                     'status' => $result->status,
                     'issue_codes' => $result->issuecodes,
                     'retry_count' => 0,
+                    'retry_after_ms' => 0,
                     'duration_ms' => $result->durationms,
                     'error_class' => (string)($schemavalidation['error_class'] ?? 'schema_error'),
                 ]);
@@ -130,6 +134,7 @@ class preflight_pipeline {
                     array_values(array_unique(array_merge($errors, (array)($schemavalidation['errors'] ?? [])))),
                     $attemptedtasks,
                     array_values(array_unique(array_merge($issuecodes, (array)($result->issuecodes ?? [])))),
+                    $issues,
                     $result
                 );
             }
@@ -152,18 +157,13 @@ class preflight_pipeline {
                     $issuecodes[] = $code;
                 }
             }
+            $issues = array_merge($issues, $preflightresult->issues);
 
             if (!$preflightresult->isvalid) {
                 foreach ($preflightresult->issues as $issue) {
                     $msg = trim((string)($issue['message'] ?? ''));
                     if ($msg !== '') {
                         $errors[] = $msg;
-                    }
-                }
-                foreach ($errors as $error) {
-                    $normalizederror = core_text::strtolower(trim((string)$error));
-                    if (str_contains($normalizederror, 'no user matched user query')) {
-                        $issuecodes[] = 'TEACHER_USER_NOT_FOUND';
                     }
                 }
                 continue;
@@ -207,14 +207,15 @@ class preflight_pipeline {
             );
         }
 
-        $this->auditlogger->append($threadid, 0, [
+        $this->auditlogger->append($threadid, 0, array_merge($this->build_audit_command_context($commands), [
             'layer' => $result->blockinglayer !== '' ? $result->blockinglayer : 'preflight',
             'status' => $result->status,
             'issue_codes' => $result->issuecodes,
             'retry_count' => $result->retrycount,
+            'retry_after_ms' => $result->retryafterms,
             'duration_ms' => $result->durationms,
             'error_class' => $errorclass,
-        ]);
+        ]));
 
         $valid = $result->status === 'pass' && $legacyvalid;
         if ($result->status === 'retry_hint') {
@@ -231,6 +232,7 @@ class preflight_pipeline {
             array_values(array_unique($errors)),
             $attemptedtasks,
             array_values(array_unique(array_merge($combinedissuecodes, (array)$result->issuecodes))),
+            $issues,
             $result
         );
     }
@@ -243,8 +245,9 @@ class preflight_pipeline {
      * @param array<int,string> $errors
      * @param array<int,string> $attemptedtasks
      * @param array<int,string> $issuecodes
+     * @param array<int,array<string,mixed>> $issues
      * @param preflight_result_v2 $result
-     * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,v2_result:array<string,mixed>}
+     * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,issues:array<int,array<string,mixed>>,v2_result:array<string,mixed>}
      */
     private function build_output(
         bool $valid,
@@ -252,6 +255,7 @@ class preflight_pipeline {
         array $errors,
         array $attemptedtasks,
         array $issuecodes,
+        array $issues,
         preflight_result_v2 $result
     ): array {
         return [
@@ -260,7 +264,26 @@ class preflight_pipeline {
             'errors' => array_values(array_unique(array_map('strval', $errors))),
             'attempted_tasks' => array_values(array_unique(array_map('strval', $attemptedtasks))),
             'issue_codes' => array_values(array_unique(array_map('strval', $issuecodes))),
+            'issues' => array_values(array_filter($issues, static fn($issue): bool => is_array($issue))),
             'v2_result' => $result->to_array(),
+        ];
+    }
+
+    /**
+     * Return unambiguous task audit fields for single-command preflight runs.
+     *
+     * @param array<int,array<string,mixed>> $commands
+     * @return array{taskname:string,task_version:int}
+     */
+    private function build_audit_command_context(array $commands): array {
+        if (count($commands) !== 1 || !is_array($commands[0] ?? null)) {
+            return ['taskname' => '', 'task_version' => 0];
+        }
+
+        $command = (array)$commands[0];
+        return [
+            'taskname' => trim((string)($command['task'] ?? '')),
+            'task_version' => max(1, (int)($command['version'] ?? 1)),
         ];
     }
 

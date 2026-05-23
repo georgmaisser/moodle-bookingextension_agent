@@ -309,9 +309,10 @@ class queue_manager {
      *
      * @param array<string,mixed> $item
      * @param int|null $now
+     * @param array<int,array<string,mixed>>|null $items
      * @return bool
      */
-    public function can_pickup_now(array $item, ?int $now = null): bool {
+    public function can_pickup_now(array $item, ?int $now = null, ?array $items = null): bool {
         $now = $now ?? time();
         $status = trim((string)($item['status'] ?? ''));
         if (!in_array($status, ['ready', 'retry_waiting'], true)) {
@@ -326,6 +327,66 @@ class queue_manager {
         $nextretryat = (int)($item['next_retry_at'] ?? 0);
         if ($nextretryat > 0 && $nextretryat > $now) {
             return false;
+        }
+
+        if (!$this->dependencies_succeeded_from_items($item, $items)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check whether all dependencies for a queue item have succeeded.
+     *
+     * @param int $threadid
+     * @param array<string,mixed> $item
+     * @return bool
+     */
+    public function dependencies_succeeded(int $threadid, array $item): bool {
+        return $this->dependencies_succeeded_from_items($item, $this->get_queue_items($threadid));
+    }
+
+    /**
+     * Check dependencies against a provided queue snapshot.
+     *
+     * @param array<string,mixed> $item
+     * @param array<int,array<string,mixed>>|null $items
+     * @return bool
+     */
+    private function dependencies_succeeded_from_items(array $item, ?array $items = null): bool {
+        $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
+        if (empty($dependson)) {
+            return true;
+        }
+
+        if ($items === null) {
+            $threadid = (int)($item['thread_id'] ?? 0);
+            if ($threadid <= 0) {
+                return false;
+            }
+            $items = $this->get_queue_items($threadid);
+        }
+
+        $byid = [];
+        foreach ($items as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $id = trim((string)($candidate['queue_item_id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $byid[$id] = $candidate;
+        }
+
+        foreach ($dependson as $dependencyid) {
+            if (!isset($byid[$dependencyid])) {
+                return false;
+            }
+            if ((string)($byid[$dependencyid]['status'] ?? '') !== 'succeeded') {
+                return false;
+            }
         }
 
         return true;

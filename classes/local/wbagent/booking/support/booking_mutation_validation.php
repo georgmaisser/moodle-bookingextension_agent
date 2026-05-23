@@ -35,11 +35,12 @@ class booking_mutation_validation {
      * @param array $input
      * @param int $cmid
      * @param string $taskname
-     * @return array{errors:array<int,string>,ambiguities:array<int,string>}
+      * @return array{errors:array<int,string>,ambiguities:array<int,string>,issue_codes:array<int,string>}
      */
     public static function validate_common(array $input, int $cmid, string $taskname): array {
         $errors = [];
         $ambiguities = [];
+          $issuecodes = [];
 
         try {
             $context = context_module::instance($cmid);
@@ -60,8 +61,14 @@ class booking_mutation_validation {
             $userresult = booking_task_support::resolve_single_user((string)$input['teacherquery']);
             if ($userresult['status'] === 'error') {
                 $errors[] = (string)$userresult['message'];
+                if ((string)($userresult['issue_code'] ?? '') === 'USER_NOT_FOUND') {
+                    $issuecodes[] = 'TEACHER_USER_NOT_FOUND';
+                }
             } else if ($userresult['status'] === 'ambiguity') {
                 $ambiguities[] = (string)$userresult['message'];
+                if ((string)($userresult['issue_code'] ?? '') !== '') {
+                    $issuecodes[] = (string)$userresult['issue_code'];
+                }
             }
         }
 
@@ -362,6 +369,7 @@ class booking_mutation_validation {
         return [
             'errors' => $errors,
             'ambiguities' => $ambiguities,
+            'issue_codes' => array_values(array_unique(array_filter($issuecodes))),
         ];
     }
 }

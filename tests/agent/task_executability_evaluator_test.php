@@ -35,7 +35,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
 use bookingextension_agent\local\wbagent\task_contract_validator;
 use bookingextension_agent\local\wbagent\task_executability_evaluator;
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\task_registry;
 
 /**
@@ -55,6 +55,7 @@ final class task_executability_evaluator_test extends abstract_agent_testcase {
         $registry = task_registry::make_default();
         $taskname = 'booking.create_user';
         $settingname = task_registry::get_task_toggle_setting_name($taskname);
+        set_config('aitaskenableall', 0, 'bookingextension_agent');
         set_config($settingname, 0, 'bookingextension_agent');
 
         $authz = new authorization_service();
@@ -143,10 +144,10 @@ final class task_executability_evaluator_test extends abstract_agent_testcase {
              * @param array $input
              * @param int $cmid
              * @param int $userid
-             * @return task_preflight_result
+             * @return preflight_result_v2
              */
-            public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
-                return task_preflight_result::ok($input);
+            public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+                return preflight_result_v2::ok($input);
             }
 
             /**

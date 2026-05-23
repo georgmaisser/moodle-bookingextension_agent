@@ -832,13 +832,14 @@ class booking_task_mutation_execute_service {
      * @param array $input  Already-deanonymized input.
      * @param int $cmid
      * @param int $userid
-     * @return array{errors:array<int,string>,ambiguities:array<int,string>,normalized_input:array<string,mixed>}
+      * @return array{errors:array<int,string>,ambiguities:array<int,string>,normalized_input:array<string,mixed>,issue_codes:array<int,string>}
      */
     public function preflight_validate(string $taskname, array $input, int $cmid, int $userid): array {
         global $USER;
 
         $errors = [];
         $ambiguities = [];
+          $issuecodes = [];
         $normalizedinput = booking_task_support::normalize_temporal_input($input);
 
         $cm = get_coursemodule_from_id('booking', $cmid);
@@ -848,12 +849,14 @@ class booking_task_mutation_execute_service {
                 'errors' => $errors,
                 'ambiguities' => $ambiguities,
                 'normalized_input' => $normalizedinput,
+                'issue_codes' => $issuecodes,
             ];
         }
 
         $common = booking_mutation_validation::validate_common($normalizedinput, $cmid, $taskname);
         $errors = array_merge($errors, $common['errors']);
         $ambiguities = array_merge($ambiguities, $common['ambiguities']);
+        $issuecodes = array_merge($issuecodes, (array)($common['issue_codes'] ?? []));
 
         $resolvedoptiontype = $this->resolve_option_type_from_input($normalizedinput);
         if (
@@ -919,6 +922,7 @@ class booking_task_mutation_execute_service {
             'errors' => array_values(array_unique(array_filter($errors))),
             'ambiguities' => array_values(array_unique(array_filter($ambiguities))),
             'normalized_input' => $normalizedinput,
+            'issue_codes' => array_values(array_unique(array_filter($issuecodes))),
         ];
     }
 

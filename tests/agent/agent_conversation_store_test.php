@@ -198,4 +198,32 @@ final class agent_conversation_store_test extends booking_advanced_testcase {
         $this->assertNotNull($pending);
         $this->assertSame(['q' . $thread->id . '_1'], (array)($pending['queue_item_ids'] ?? []));
     }
+
+    /**
+     * Test pending intent may be queue-only without raw commands.
+     */
+    public function test_pending_intent_accepts_queue_only_metadata(): void {
+        $this->resetAfterTest();
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread(84, 82, 24);
+
+        $store->set_pending_intent(
+            (int)$thread->id,
+            [],
+            'intent-key-queue-only',
+            84,
+            82,
+            [
+                'queue_item_ids' => ['q' . $thread->id . '_1'],
+                'queue_authoritative' => true,
+            ]
+        );
+
+        $pending = $store->get_pending_intent((int)$thread->id);
+
+        $this->assertNotNull($pending);
+        $this->assertSame([], (array)($pending['commands'] ?? []));
+        $this->assertSame(['q' . $thread->id . '_1'], (array)($pending['queue_item_ids'] ?? []));
+        $this->assertTrue((bool)($pending['queue_authoritative'] ?? false));
+    }
 }

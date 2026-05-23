@@ -212,7 +212,7 @@ class agent_decision_service {
                     static fn(string $trigger): bool => $trigger !== self::TRIGGER_DISCARD_PENDING_CONFIRMATION
                 ));
             } else if ($this->should_block_new_intent_while_pending($result)) {
-                return $this->build_pending_resolution_clarification($result, $pendingintent, $outputlang);
+                return $this->build_pending_resolution_clarification($result, $pendingintent, $threadid, $outputlang);
             }
         }
 
@@ -395,18 +395,20 @@ class agent_decision_service {
 
         // 11. Store / clear pending intent.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
+            $queueitemids = array_values(array_filter(array_map(
+                'strval',
+                (array)($result['queue_item_ids'] ?? [])
+            )));
             $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($result['commands']));
             $this->store->set_pending_intent(
                 $threadid,
-                $result['commands'],
+                !empty($queueitemids) ? [] : $result['commands'],
                 $intentkey,
                 $userid,
                 $cmid,
                 [
-                    'queue_item_ids' => array_values(array_filter(array_map(
-                        'strval',
-                        (array)($result['queue_item_ids'] ?? [])
-                    ))),
+                    'queue_item_ids' => $queueitemids,
+                    'queue_authoritative' => !empty($queueitemids),
                 ]
             );
             $pendingintent = $this->store->get_pending_intent($threadid);
@@ -456,8 +458,16 @@ class agent_decision_service {
      * @param string $outputlang
      * @return array
      */
-    private function build_pending_resolution_clarification(array $result, array $pendingintent, string $outputlang): array {
-        $pendingcommands = is_array($pendingintent['commands'] ?? null) ? (array)$pendingintent['commands'] : [];
+    private function build_pending_resolution_clarification(
+        array $result,
+        array $pendingintent,
+        int $threadid,
+        string $outputlang
+    ): array {
+        $pendingcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
+        if (empty($pendingcommands)) {
+            $pendingcommands = is_array($pendingintent['commands'] ?? null) ? (array)$pendingintent['commands'] : [];
+        }
         $summary = $this->build_pending_intent_summary($pendingcommands, $outputlang);
         $confirmationcode = trim((string)($pendingintent['confirmationcode'] ?? ''));
         $message = $this->localized_string(
@@ -508,6 +518,54 @@ class agent_decision_service {
             'commands' => $pendingcommands,
             'message' => '',
         ], $outputlang));
+    }
+
+    /**
+     * Build command payloads from pending queue item ids.
+     *
+     * @param array<string,mixed> $pendingintent
+     * @param int $threadid
+     * @return array<int,array<string,mixed>>
+     */
+    private function build_commands_from_pending_queue(array $pendingintent, int $threadid): array {
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        if (empty($queueitemids)) {
+            return [];
+        }
+
+        $commands = [];
+        foreach ($queueitemids as $queueitemid) {
+            $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
+            if (!is_array($item) || (string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+
+            $status = trim((string)($item['status'] ?? ''));
+            if (!in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+                continue;
+            }
+
+            $task = trim((string)($item['task'] ?? ''));
+            if ($task === '') {
+                continue;
+            }
+
+            $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
+                ? (array)$item['prepared_input']
+                : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
+            $command = [
+                'task' => $task,
+                'version' => max(1, (int)($item['version'] ?? 1)),
+                'input' => $input,
+            ];
+            $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
+            if (!empty($dependson)) {
+                $command['depends_on'] = $dependson;
+            }
+            $commands[] = $command;
+        }
+
+        return $commands;
     }
 
     /**
@@ -750,7 +808,10 @@ class agent_decision_service {
             );
         }
 
-        $confirmcommands = is_array($pendingintent['commands'] ?? null) ? (array)$pendingintent['commands'] : [];
+        $confirmcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
+        if (empty($confirmcommands)) {
+            $confirmcommands = is_array($pendingintent['commands'] ?? null) ? (array)$pendingintent['commands'] : [];
+        }
         if (empty($confirmcommands)) {
             if ($modelmessage !== '' && !$isplaceholdermessage) {
                 $fallback = $this->clarification_result($modelmessage);
@@ -802,11 +863,14 @@ class agent_decision_service {
         $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($preparedcommands));
         $this->store->set_pending_intent(
             $threadid,
-            $preparedcommands,
+            !empty($queueitemids) ? [] : $preparedcommands,
             $intentkey,
             $userid,
             $cmid,
-            ['queue_item_ids' => $queueitemids]
+            [
+                'queue_item_ids' => $queueitemids,
+                'queue_authoritative' => !empty($queueitemids),
+            ]
         );
         $updatedpending = $this->store->get_pending_intent($threadid);
         $confirmationcode = (string)($updatedpending['confirmationcode'] ?? '');
@@ -884,8 +948,8 @@ class agent_decision_service {
         $mutatingqueueids = [];
         $readonlyexecution = null;
 
-        // Shadow-queue ingestion: record all commands before execution/routing.
-        // This preserves current behavior while making queue state observable.
+        // Queue ingestion records commands before preflight; mutating status is
+        // assigned later from the preflight decision.
         $runid = 0;
         if (is_int($result['runid'] ?? null)) {
             $runid = (int)$result['runid'];
@@ -904,12 +968,8 @@ class agent_decision_service {
             $readonlyqueueids[] = (string)($queued['queue_item_id'] ?? '');
         }
 
-        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
-            // Phase 2 T5: stage ALL mutating items as blocked_confirmation (not just idx=0).
-            // This allows batch execution in a single ai_confirm_run call and prevents
-            // the illegitimate run_loop re-entry caused by leftover 'queued' items.
-            $status = $autoconfirmmode ? 'ready' : 'blocked_confirmation';
+            $status = 'queued';
             $dependson = array_values(array_map('strval', (array)($mutatingcommand['depends_on'] ?? [])));
             if ($idx > 0 && !empty($mutatingqueueids[$idx - 1])) {
                 $dependson[] = (string)$mutatingqueueids[$idx - 1];
@@ -1236,46 +1296,25 @@ class agent_decision_service {
     ): array {
         $commands = (array)($result['commands'] ?? []);
         $lastusermessage = trim($this->get_last_user_message($threadid));
-        $anonymizer = new privacy_anonymizer($this->store);
         $planner = new planner_service($this->store);
-        $updatedcommands = [];
-        $allissuecodes = [];
-        $allissues = [];
-        $blockingerrors = [];
-        $attemptedtasks = [];
-
-        foreach ($commands as $idx => $command) {
+        foreach ($commands as &$command) {
             if (!is_array($command)) {
-                $blockingerrors[] = get_string('agent_decision_command_malformed', 'bookingextension_agent', $idx + 1);
                 continue;
             }
 
             $taskname = trim((string)($command['task'] ?? ''));
             if ($taskname === '') {
-                $blockingerrors[] = get_string('agent_decision_command_missing_task', 'bookingextension_agent', $idx + 1);
                 continue;
             }
-            $attemptedtasks[] = $taskname;
 
             $task = $this->registry->get_task($taskname);
             if ($task === null) {
-                $blockingerrors[] = get_string('agent_decision_command_task_not_registered', 'bookingextension_agent', (object)[
-                    'idx' => $idx + 1,
-                    'task' => $taskname,
-                ]);
                 continue;
             }
 
             $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-
-            // Deanonymize before preflight so task sees real values.
-            if ($threadid > 0 && $userid > 0) {
-                $input = $anonymizer->deanonymize_command_input_for_active_user($cmid, $userid, $input);
-            }
-
-            // Enrich planner-capable tasks (especially docs explain) before preflight.
             if ($lastusermessage !== '') {
-                $input = $planner->enrich_recovery_input(
+                $command['input'] = $planner->enrich_recovery_input(
                     $taskname,
                     $task->get_schema(),
                     $lastusermessage,
@@ -1285,57 +1324,62 @@ class agent_decision_service {
                     $userid
                 );
             }
+        }
+        unset($command);
 
-            $preflightresult = $this->with_output_language(
-                $outputlang,
-                fn() => $task->preflight($input, $cmid, $userid)
-            );
-
-            // Collect issue codes.
-            foreach ($preflightresult->get_issue_codes() as $code) {
-                if ($code !== '') {
-                    $allissuecodes[] = $code;
-                }
-            }
-            $allissues = array_merge($allissues, $preflightresult->issues);
-
-            if (!$preflightresult->isvalid) {
-                // Collect blocking issues.
-                foreach ($preflightresult->get_issues_by_severity('needs_clarification') as $issue) {
-                    $msg = trim((string)($issue['message'] ?? ''));
-                    if ($msg !== '') {
-                        $blockingerrors[] = $msg;
-                    }
-                }
-                // Confirmable issues from an invalid preflight result are still blocking
-                // at this point — they were not confirmed yet.
-                foreach ($preflightresult->get_issues_by_severity('needs_confirmation') as $issue) {
-                    $msg = trim((string)($issue['message'] ?? ''));
-                    if ($msg !== '') {
-                        $blockingerrors[] = $msg;
-                    }
-                }
-                continue;
-            }
-
-            // Preflight succeeded: store prepared_input so executor never re-resolves.
-            $updatedcommand = $command;
-            $updatedcommand['input'] = $preflightresult->preparedinput;
-            $updatedcommands[] = $updatedcommand;
-
-            $queueitemids = array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? []))));
+        $preflightresult = $this->with_output_language(
+            $outputlang,
+            fn() => $this->preflightpipeline->run($commands, $threadid, $cmid, $userid)
+        );
+        $preparedcommands = array_values(array_filter(
+            (array)($preflightresult['prepared_commands'] ?? []),
+            static fn($command): bool => is_array($command)
+        ));
+        $allissuecodes = array_values(array_unique(array_map('strval', (array)($preflightresult['issue_codes'] ?? []))));
+        $attemptedtasks = array_values(array_unique(array_map('strval', (array)($preflightresult['attempted_tasks'] ?? []))));
+        $allissues = array_values(array_filter(
+            (array)($preflightresult['issues'] ?? []),
+            static fn($issue): bool => is_array($issue)
+        ));
+        $blockingerrors = array_values(array_unique(array_map('strval', (array)($preflightresult['errors'] ?? []))));
+        $v2result = is_array($preflightresult['v2_result'] ?? null) ? (array)$preflightresult['v2_result'] : [];
+        $status = trim((string)($v2result['status'] ?? ''));
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? []))));
+        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
+        $this->apply_preflight_queue_decision(
+            $threadid,
+            $queueitemids,
+            $status,
+            $allissuecodes,
+            $blockingerrors,
+            $v2result,
+            $autoconfirmmode
+        );
+        foreach ($preparedcommands as $idx => $preparedcommand) {
             $queueitemid = trim((string)($queueitemids[$idx] ?? ''));
-            if ($queueitemid !== '') {
-                $this->queuesvc->set_prepared_input($threadid, $queueitemid, $preflightresult->preparedinput);
+            $preparedinput = is_array($preparedcommand['input'] ?? null) ? (array)$preparedcommand['input'] : [];
+            if ($queueitemid !== '' && !empty($preparedinput)) {
+                $this->queuesvc->set_prepared_input($threadid, $queueitemid, $preparedinput);
             }
         }
 
-        $allissuecodes = array_values(array_unique($allissuecodes));
-        $attemptedtasks = array_values(array_unique($attemptedtasks));
-
         // If there were blocking errors, decide whether to allow confirmable continuation.
-        if (!empty($blockingerrors)) {
+        if (($preflightresult['valid'] ?? false) !== true) {
             $validationmessage = trim(implode(' ', $blockingerrors));
+            if ($status === 'retry_hint') {
+                return [
+                    'response_type'   => 'confirmation_request',
+                    'message'         => $validationmessage !== '' ? $validationmessage : 'Preflight retry requested. Please retry after backoff.',
+                    'commands'        => !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'],
+                    'queue_item_ids'  => $queueitemids,
+                    'ambiguities'     => [],
+                    'errors'          => $blockingerrors,
+                    'attempted_tasks' => $attemptedtasks,
+                    'issue_codes'     => $allissuecodes,
+                    'used_triggers'   => $result['used_triggers'] ?? [],
+                ];
+            }
+
             $hasclarificationissues = false;
             foreach ($allissues as $issue) {
                 if (!is_array($issue)) {
@@ -1348,15 +1392,17 @@ class agent_decision_service {
             }
 
             if (
-                $this->has_confirmable_prevalidation_issues($allissuecodes)
+                ($status === 'soft_block' || $this->has_confirmable_prevalidation_issues($allissuecodes))
                 && !$hasclarificationissues
                 && !empty($result['commands'])
             ) {
+                $confirmcommands = !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'];
+                $confirmcommands = $this->apply_confirmable_overrides($confirmcommands, $allissues);
                 // Soft-confirmable: show confirmation_request with augmented message.
                 return [
                     'response_type'   => 'confirmation_request',
                     'message'         => $validationmessage !== '' ? $validationmessage : $result['message'],
-                    'commands'        => (array)$result['commands'],
+                    'commands'        => $confirmcommands,
                     'queue_item_ids'  => array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? [])))),
                     'ambiguities'     => [],
                     'errors'          => $blockingerrors,
@@ -1384,7 +1430,7 @@ class agent_decision_service {
         }
 
         // All commands passed preflight.  Swap raw commands for prepared-input versions.
-        $result['commands']      = $updatedcommands;
+        $result['commands']      = $preparedcommands;
         $result['issue_codes']   = array_values(array_unique(array_merge(
             (array)($result['issue_codes'] ?? []),
             $allissuecodes
@@ -1415,6 +1461,90 @@ class agent_decision_service {
         }
 
         return $result;
+    }
+
+    /**
+     * Apply the canonical preflight decision to queued mutating items.
+     *
+     * @param int $threadid
+     * @param array<int,string> $queueitemids
+     * @param string $status
+     * @param array<int,string> $issuecodes
+     * @param array<int,string> $errors
+     * @param array<string,mixed> $v2result
+     * @param bool $autoconfirmmode
+     * @return void
+     */
+    private function apply_preflight_queue_decision(
+        int $threadid,
+        array $queueitemids,
+        string $status,
+        array $issuecodes,
+        array $errors,
+        array $v2result,
+        bool $autoconfirmmode
+    ): void {
+        $queueitemids = array_values(array_filter(array_map('strval', $queueitemids)));
+        if (empty($queueitemids)) {
+            return;
+        }
+
+        $status = trim($status);
+        $targetstatus = 'failed';
+        $errorclass = '';
+        $extrafields = [];
+        $message = trim(implode(' ', array_values(array_unique(array_map('strval', $errors)))));
+
+        if ($status === 'pass') {
+            $targetstatus = $autoconfirmmode ? 'ready' : 'blocked_confirmation';
+        } else if ($status === 'soft_block') {
+            $targetstatus = 'blocked_confirmation';
+        } else if ($status === 'retry_hint') {
+            $targetstatus = 'retry_waiting';
+            $errorclass = 'preflight_retry';
+        } else {
+            $targetstatus = 'failed';
+            $errorclass = 'preflight_block';
+        }
+
+        foreach ($queueitemids as $queueitemid) {
+            $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
+            if (!is_array($item)) {
+                continue;
+            }
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+            if ((string)($item['status'] ?? '') === 'failed' && !empty((array)($item['issue_codes'] ?? []))) {
+                continue;
+            }
+
+            if ($targetstatus === 'retry_waiting') {
+                $currentretrycount = max(0, (int)($item['preflight_retry_count'] ?? $item['retry_count'] ?? 0));
+                $nextretrycount = $currentretrycount + 1;
+                $retryafterms = max(1, (int)($v2result['retry_after_ms'] ?? 0));
+                if ($retryafterms <= 1) {
+                    $retryafterms = min(4000, 500 * (2 ** max(0, min(8, $nextretrycount - 1))));
+                }
+                $extrafields = [
+                    'retry_count' => $nextretrycount,
+                    'preflight_retry_count' => $nextretrycount,
+                    'retry_after_ms' => $retryafterms,
+                    'backoff_ms' => $retryafterms,
+                    'next_retry_at' => time() + (int)ceil($retryafterms / 1000),
+                ];
+            }
+
+            $this->queuesvc->update_status(
+                $threadid,
+                $queueitemid,
+                $targetstatus,
+                $issuecodes,
+                $errorclass,
+                $message,
+                $extrafields
+            );
+        }
     }
 
     /**
@@ -2001,25 +2131,7 @@ class agent_decision_service {
             static fn($code): string => trim(core_text::strtoupper((string)$code)),
             (array)($result['issue_codes'] ?? [])
         );
-        $errors = array_map(
-            static fn($error): string => core_text::strtolower(trim((string)$error)),
-            (array)($result['errors'] ?? [])
-        );
-
-        $hasteachernotfounderror = false;
-        foreach ($errors as $error) {
-            if (
-                $error !== ''
-                && (
-                    str_contains($error, 'no user matched user query')
-                )
-            ) {
-                $hasteachernotfounderror = true;
-                break;
-            }
-        }
-
-        if (!in_array('TEACHER_USER_NOT_FOUND', $issuecodes, true) && !$hasteachernotfounderror) {
+        if (!in_array('TEACHER_USER_NOT_FOUND', $issuecodes, true)) {
             return $result;
         }
 

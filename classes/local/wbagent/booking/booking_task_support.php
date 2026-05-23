@@ -1048,6 +1048,7 @@ class booking_task_support {
         if ($query === '') {
             return [
                 'status' => 'ambiguity',
+                'issue_code' => 'USER_QUERY_REQUIRED',
                 'message' => get_string('agent_booking_resolve_user_query_required', 'bookingextension_agent'),
             ];
         }
@@ -1147,6 +1148,7 @@ class booking_task_support {
 
                     return [
                         'status' => 'ambiguity',
+                        'issue_code' => 'USER_AMBIGUOUS',
                         'message' => get_string(
                             'agent_booking_resolve_user_ambiguous',
                             'bookingextension_agent',
@@ -1158,6 +1160,7 @@ class booking_task_support {
 
             return [
                 'status' => 'error',
+                'issue_code' => 'USER_NOT_FOUND',
                 'message' => get_string('agent_booking_resolve_user_no_match', 'bookingextension_agent', $query),
             ];
         }
@@ -1170,6 +1173,7 @@ class booking_task_support {
             }
             return [
                 'status' => 'ambiguity',
+                'issue_code' => 'USER_AMBIGUOUS',
                 'message' => get_string(
                     'agent_booking_resolve_user_ambiguous',
                     'bookingextension_agent',

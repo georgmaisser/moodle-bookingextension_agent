@@ -218,10 +218,10 @@ final class task_registry_test extends booking_advanced_testcase {
              * @param array $input
              * @param int $cmid
              * @param int $userid
-             * @return \bookingextension_agent\local\wbagent\task_preflight_result
+             * @return \bookingextension_agent\local\wbagent\services\preflight_result_v2
              */
-            public function preflight(array $input, int $cmid, int $userid): \bookingextension_agent\local\wbagent\task_preflight_result {
-                return \bookingextension_agent\local\wbagent\task_preflight_result::ok($input);
+            public function preflight(array $input, int $cmid, int $userid): \bookingextension_agent\local\wbagent\services\preflight_result_v2 {
+                return \bookingextension_agent\local\wbagent\services\preflight_result_v2::ok($input);
             }
 
             /**

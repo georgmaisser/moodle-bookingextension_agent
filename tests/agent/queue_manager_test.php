@@ -72,4 +72,43 @@ final class queue_manager_test extends booking_advanced_testcase {
         $this->assertSame(true, (bool)($updated['prepared_input']['resolved'] ?? false));
         $this->assertSame('Queue manager regression', (string)($updated['input']['text'] ?? ''));
     }
+
+    /**
+     * Ready items with dependencies must wait until prerequisites succeeded.
+     */
+    public function test_can_pickup_now_requires_succeeded_dependencies(): void {
+        $this->resetAfterTest();
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread(91, 90, 23);
+        $manager = new queue_manager($store);
+
+        $dependency = $manager->enqueue_command(
+            (int)$thread->id,
+            0,
+            1,
+            ['task' => 'booking.create_option', 'input' => ['name' => 'A']],
+            'mutating',
+            'ready'
+        );
+        $dependent = $manager->enqueue_command(
+            (int)$thread->id,
+            0,
+            2,
+            ['task' => 'booking.update_option', 'input' => ['name' => 'B']],
+            'mutating',
+            'ready',
+            [(string)$dependency['queue_item_id']]
+        );
+
+        $this->assertFalse($manager->can_pickup_now($dependent));
+        $this->assertFalse($manager->dependencies_succeeded((int)$thread->id, $dependent));
+
+        $manager->update_status((int)$thread->id, (string)$dependency['queue_item_id'], 'succeeded');
+        $updateddependent = $manager->get_queue_item((int)$thread->id, (string)$dependent['queue_item_id']);
+
+        $this->assertNotNull($updateddependent);
+        $this->assertTrue($manager->dependencies_succeeded((int)$thread->id, $updateddependent));
+        $this->assertTrue($manager->can_pickup_now($updateddependent));
+    }
 }

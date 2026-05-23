@@ -191,6 +191,15 @@ final class message_trigger_registry_test extends booking_advanced_testcase {
             }
 
             /**
+             * Get example input.
+             *
+             * @return array
+             */
+            public function get_example_input(): array {
+                return [];
+            }
+
+            /**
              * Structural input check.
              *
              * @param array $input
@@ -206,10 +215,10 @@ final class message_trigger_registry_test extends booking_advanced_testcase {
              * @param array $input
              * @param int $cmid
              * @param int $userid
-             * @return \bookingextension_agent\local\wbagent\task_preflight_result
+             * @return \bookingextension_agent\local\wbagent\services\preflight_result_v2
              */
-            public function preflight(array $input, int $cmid, int $userid): \bookingextension_agent\local\wbagent\task_preflight_result {
-                return \bookingextension_agent\local\wbagent\task_preflight_result::ok($input);
+            public function preflight(array $input, int $cmid, int $userid): \bookingextension_agent\local\wbagent\services\preflight_result_v2 {
+                return \bookingextension_agent\local\wbagent\services\preflight_result_v2::ok($input);
             }
 
             /**
@@ -307,6 +316,24 @@ final class message_trigger_registry_test extends booking_advanced_testcase {
              * @return array
              */
             public function get_contextual_prompt_packs(): array {
+                return [];
+            }
+
+            /**
+             * Get optional issue code provider.
+             *
+             * @return \bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface|null
+             */
+            public function get_issue_code_provider(): ?\bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface {
+                return null;
+            }
+
+            /**
+             * Get optional prompt guidance.
+             *
+             * @return array
+             */
+            public function get_prompt_guidance(): array {
                 return [];
             }
         };

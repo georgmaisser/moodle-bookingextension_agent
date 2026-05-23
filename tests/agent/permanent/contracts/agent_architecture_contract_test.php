@@ -185,7 +185,7 @@ final class agent_architecture_contract_test extends booking_advanced_testcase {
         ]);
 
         // Create at least one option so booking.search_options can execute successfully.
-        $this->getDataGenerator()->get_plugin_generator('bookingextension_agent')->create_option([
+        $this->getDataGenerator()->get_plugin_generator('mod_booking')->create_option([
             'bookingid' => (int)$booking->id,
             'text' => 'Readonly Contract Option',
             'status' => 0,

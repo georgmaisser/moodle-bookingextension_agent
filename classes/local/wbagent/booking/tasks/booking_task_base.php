@@ -634,9 +634,10 @@ abstract class booking_task_base extends base_task {
 
         $issues = $existingissues;
         if (!empty($servicepreflight['errors']) || !empty($servicepreflight['ambiguities'])) {
-            foreach ((array)($servicepreflight['errors'] ?? []) as $err) {
+            $serviceissuecodes = array_values(array_filter(array_map('strval', (array)($servicepreflight['issue_codes'] ?? []))));
+            foreach ((array)($servicepreflight['errors'] ?? []) as $idx => $err) {
                 $issues[] = [
-                    'code'     => 'PREFLIGHT_ERROR',
+                    'code'     => (string)($serviceissuecodes[$idx] ?? 'PREFLIGHT_ERROR'),
                     'severity' => 'needs_clarification',
                     'message'  => (string)$err,
                 ];
