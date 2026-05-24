@@ -53,8 +53,8 @@ class recovery_enrichment_service {
      * @param int $threadid
      * @param int $cmid
      * @param int $userid
-    * @param task_executability_evaluator $evaluator
-    * @param int $contextid
+     * @param task_executability_evaluator $evaluator
+     * @param int $contextid
      * @param callable $buildinput
      * @param callable $lookslookuprequest
      * @param callable $looksdiagnosticintent
@@ -78,7 +78,7 @@ class recovery_enrichment_service {
         callable $extractcontextquery
     ): array {
         $responsetype = (string)($result['response_type'] ?? '');
-        if (!in_array($responsetype, ['clarification', 'error'], true)) {
+        if (!in_array($responsetype, ['clarification', 'error', 'sufficient'], true)) {
             return $result;
         }
         if (!empty((array)($result['commands'] ?? [])) || !empty((array)($result['results'] ?? []))) {

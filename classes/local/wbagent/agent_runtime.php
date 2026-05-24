@@ -469,6 +469,7 @@ class agent_runtime {
                         ['LOOP_RESEARCH_BUDGET_REACHED']
                     )));
                     $final = $this->attach_loop_results($final, $state);
+                    $final = $this->recover_metadata_matched_mutation_drift($final, $threadid, $state);
                     $final = $this->enforce_final_response_contract($final, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $final);
                     return $final;
@@ -490,6 +491,7 @@ class agent_runtime {
                         ['LOOP_REPEAT_DETECTED']
                     )));
                     $final = $this->attach_loop_results($final, $state);
+                    $final = $this->recover_metadata_matched_mutation_drift($final, $threadid, $state);
                     $final = $this->enforce_final_response_contract($final, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $final);
                     return $final;
@@ -510,6 +512,7 @@ class agent_runtime {
                     // the final user-facing response is composed via final_synthesis.
                     $final = $this->run_synthesis_step($threadid, $cmid, $userid, $state, $final);
                     $final = $this->attach_loop_results($final, $state);
+                    $final = $this->recover_metadata_matched_mutation_drift($final, $threadid, $state);
                     $final = $this->enforce_final_response_contract($final, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $final);
                     return $final;
@@ -519,6 +522,7 @@ class agent_runtime {
                 if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
                     $budgetfailed = $this->build_budget_exceeded_result($threadid, $result, $state, $limit);
                     $budgetfailed = $this->attach_loop_results($budgetfailed, $state);
+                    $budgetfailed = $this->recover_metadata_matched_mutation_drift($budgetfailed, $threadid, $state);
                     $budgetfailed = $this->enforce_final_response_contract($budgetfailed, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $budgetfailed);
                     return $budgetfailed;
@@ -2765,6 +2769,7 @@ class agent_runtime {
         if ($this->is_final_clarification_without_commands($synthesis)) {
             $synthesislang = $this->resolve_output_language($threadid, $synthesis);
             $synthesis['lang'] = $synthesislang;
+            $synthesis['response_type'] = 'sufficient';
             $synthesis['loop_step'] = $state->step_count();
             $synthesis['loop_max_steps'] = self::MAX_LOOP_STEPS;
             return $synthesis;

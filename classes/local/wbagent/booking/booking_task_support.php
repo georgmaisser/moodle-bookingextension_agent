@@ -868,9 +868,21 @@ class booking_task_support {
      * @return array
      */
     public static function resolve_single_option(int $cmid, string $optionquery, string $when = ''): array {
+        global $DB;
+
         $query = self::sanitize_person_lookup_query($optionquery);
         if ($query === '') {
             return ['status' => 'ambiguity', 'message' => 'Please provide optionquery to identify the option.'];
+        }
+
+        if (preg_match('/^\d+$/', $query)) {
+            $cm = get_coursemodule_from_id('booking', $cmid);
+            if ($cm && $DB->record_exists('booking_options', ['id' => (int)$query, 'bookingid' => (int)$cm->instance])) {
+                return [
+                    'status' => 'ok',
+                    'optionid' => (int)$query,
+                ];
+            }
         }
 
         // If there is exactly one case-insensitive exact title match, prefer it over fuzzy hits.

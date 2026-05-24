@@ -293,7 +293,15 @@ class agent_decision_service {
             )));
         }
 
-        if ($this->should_attempt_recovery($result, $hasobservationscontext)) {
+        $shouldattemptrecovery = $this->should_attempt_recovery($result, $hasobservationscontext)
+            || $this->should_force_recoverable_diagnostic_clarification(
+                $result,
+                $usermessage,
+                $hasobservationscontext,
+                $cmid
+            );
+
+        if ($shouldattemptrecovery) {
             $hadcommandsbefore = !empty((array)($result['commands'] ?? []));
             $hadresultsbefore = !empty((array)($result['results'] ?? []));
             $result = $this->recoverysvc->promote(
@@ -713,6 +721,52 @@ class agent_decision_service {
         }
 
         return true;
+    }
+
+    /**
+     * Force readonly recovery when a diagnostic clarification is recoverable from structured anchors.
+     *
+     * @param array $result
+     * @param string $usermessage
+     * @param bool $hasobservationscontext
+     * @param int $cmid
+     * @return bool
+     */
+    private function should_force_recoverable_diagnostic_clarification(
+        array $result,
+        string $usermessage,
+        bool $hasobservationscontext,
+        int $cmid
+    ): bool {
+        $responsetype = (string)($result['response_type'] ?? '');
+        if (
+            $hasobservationscontext
+            || !in_array($responsetype, [self::RESPONSE_TYPE_CLARIFICATION, 'sufficient'], true)
+        ) {
+            return false;
+        }
+
+        if (!empty((array)($result['commands'] ?? [])) || !empty((array)($result['results'] ?? []))) {
+            return false;
+        }
+
+        if (!$this->looks_like_diagnostic_intent($usermessage)) {
+            return false;
+        }
+
+        if ($this->extract_option_id_from_message($usermessage) > 0) {
+            return true;
+        }
+
+        if ($this->extract_option_search_query($usermessage) !== '') {
+            return true;
+        }
+
+        if ($this->infer_exact_option_query_from_message($usermessage, $cmid) !== '') {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -1367,9 +1421,10 @@ class agent_decision_service {
         if (($preflightresult['valid'] ?? false) !== true) {
             $validationmessage = trim(implode(' ', $blockingerrors));
             if ($status === 'retry_hint') {
+                $retrymessage = 'Preflight retry requested. Please retry after backoff.';
                 return [
                     'response_type'   => 'confirmation_request',
-                    'message'         => $validationmessage !== '' ? $validationmessage : 'Preflight retry requested. Please retry after backoff.',
+                    'message'         => $validationmessage !== '' ? $validationmessage : $retrymessage,
                     'commands'        => !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'],
                     'queue_item_ids'  => $queueitemids,
                     'ambiguities'     => [],
