@@ -65,13 +65,13 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
      * CONV-07: Happy path — loop auto-executes diagnose, structured result in results.
      *
      * With run_loop(), diagnose_booking_issue is auto-executed inside the agentic loop.
-     * The caller receives clarification (LLM summary), not execution_result.
+     * The caller receives sufficient (LLM summary), not execution_result.
      * The diagnosis payload is surfaced via loop_results in result['results'].
      *
      * Setup:  Creates option with 5 free spots.
      * Conversation:
      *   User:  "Why can I not book option id <Y>? Just investigate."
-     *   Agent: clarification (loop auto-executed diagnose_booking_issue)
+     *   Agent: sufficient (loop auto-executed diagnose_booking_issue)
      *   Test:  result['results'] contains diagnose result with userid, optionid and reasons.
      */
     public function test_conv07_diagnose_user_can_book(): void {
@@ -92,11 +92,11 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
         $this->assertArrayHasKey('response_type', $result);
 
         // With run_loop(), read-only tasks are auto-executed internally.
-        // The caller receives clarification (LLM summary), not execution_result.
+        // The caller receives sufficient (LLM summary), not execution_result.
         $this->assertSame(
-            'clarification',
+            'sufficient',
             $result['response_type'],
-            'run_loop() must return clarification after auto-executing diagnose_booking_issue; '
+            'run_loop() must return sufficient after auto-executing diagnose_booking_issue; '
                 . 'got: ' . ($result['response_type'] ?? '?')
         );
 
@@ -132,7 +132,7 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
      *   Turn 1 — User:  "Why can't someone book?"  (no user, no option)
      *            Agent: clarification (LLM asks for details)
      *   Turn 2 — User:  "Please diagnose why I cannot book option id <Y>"
-     *            Agent: clarification with result['results'] containing the diagnosis
+     *            Agent: sufficient with result['results'] containing the diagnosis
      *   Test:   diagnosis contains reasons, userid, optionid.
      */
     public function test_conv08_diagnose_user_cannot_book_verification_loop(): void {
@@ -189,7 +189,7 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
 
         $this->assertArrayHasKey('response_type', $result2);
 
-        // With run_loop(), the diagnosis is auto-executed and the final response is clarification.
+        // With run_loop(), the diagnosis is auto-executed and the final response is sufficient.
         // Allow one recovery turn in case the LLM needs an extra nudge.
         if (
             ($result2['response_type'] ?? '') === 'clarification'
@@ -208,9 +208,9 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
         }
 
         $this->assertSame(
-            'clarification',
+            'sufficient',
             $result2['response_type'],
-            'Final turn must return clarification after loop auto-execution; got: '
+            'Final turn must return sufficient after loop auto-execution; got: '
                 . ($result2['response_type'] ?? '?')
         );
 
@@ -247,7 +247,7 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
      * Setup:  Creates option with unique title and a target user.
      * Conversation:
      *   User: "kann <firstname> <option title> buchen?"
-     *   Agent: clarification with loop results containing diagnose_booking_issue
+     *   Agent: sufficient with loop results containing diagnose_booking_issue
      *   Test:  diagnosis references target userid and optionid.
      */
     public function test_conv09_diagnose_other_user_with_plain_title_question(): void {
@@ -290,7 +290,7 @@ final class diagnose_booking_issue_real_llm_test extends abstract_agent_testcase
             }
         }
 
-        $this->assertSame('clarification', $result['response_type'], 'Expected clarification; got: ' . ($result['response_type'] ?? '?'));
+        $this->assertSame('sufficient', $result['response_type'], 'Expected sufficient; got: ' . ($result['response_type'] ?? '?'));
 
         $this->assertNotEmpty(
             $result['results'] ?? [],

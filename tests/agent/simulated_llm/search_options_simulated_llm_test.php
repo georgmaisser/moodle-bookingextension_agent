@@ -38,7 +38,7 @@ require_once(__DIR__ . '/abstract_simulated_llm_testcase.php');
  */
 final class search_options_simulated_llm_test extends abstract_simulated_llm_testcase {
     /**
-     * Simulated read-only loop: task_call auto-executes then clarification returns.
+    * Simulated read-only loop: task_call auto-executes then sufficient returns.
      */
     public function test_simulated_search_options_loop_auto_executes(): void {
         $this->setUser($this->teacher);
@@ -55,7 +55,7 @@ final class search_options_simulated_llm_test extends abstract_simulated_llm_tes
         [$store, $runtime, $threadid] = $this->build_scripted_runtime($responses);
         $result = $this->chat('Search options request', $threadid, $store, $runtime);
 
-        $this->assertSame('clarification', (string)($result['response_type'] ?? ''));
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''));
         $this->assertNotEmpty($result['results'] ?? []);
 
         $taskresult = $this->extract_task_result($result, 'booking.search_options');

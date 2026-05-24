@@ -65,7 +65,7 @@ final class diagnose_cancellation_issue_simulated_llm_test extends abstract_simu
         [$store, $runtime, $threadid] = $this->build_scripted_runtime($responses);
         $result = $this->chat('Diagnose cancellation issue request', $threadid, $store, $runtime);
 
-        $this->assertSame('clarification', (string)($result['response_type'] ?? ''));
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''));
         $this->assertNotEmpty($result['results'] ?? []);
 
         $taskresult = $this->extract_task_result($result, 'booking.diagnose_cancellation_issue');

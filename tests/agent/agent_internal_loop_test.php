@@ -191,7 +191,7 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
             'issue_codes'       => [],
         ];
 
-        // Step 2 result: clarification (final answer).
+        // Step 2 result: legacy clarification payload from the model; runtime normalizes final synthesis to sufficient.
         $step2 = [
             'response_type'     => 'clarification',
             'lang'              => 'en',
@@ -282,8 +282,8 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
             'Exactly one assistant message must be persisted after the loop'
         );
 
-        // Final result is the clarification from step 2.
-        $this->assertSame('clarification', $result['response_type']);
+        // Final result is sufficient after synthesis has a relevant observation.
+        $this->assertSame('sufficient', $result['response_type']);
 
         // Loop_step reflects the terminating step number.
         $this->assertArrayHasKey('loop_step', $result);
@@ -445,7 +445,9 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
      * A malformed second-step task_call without commands must not overwrite a successful readonly result.
      */
     public function test_run_loop_recovers_from_missing_commands_error_after_readonly_success(): void {
-        $this->markTestSkipped('Known regression: missing-commands recovery in the loop currently does not preserve the old clarification contract.');
+        $this->markTestSkipped(
+            'Known regression: missing-commands recovery in the loop currently does not preserve the old contract.'
+        );
         $this->setUser($this->teacher);
 
         $this->exec_command('booking.create_option', [
@@ -593,7 +595,7 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
         // but must stay bounded by loop limits and must not leak task_call.
         $this->assertGreaterThanOrEqual(2, $callcount);
         $this->assertLessThanOrEqual(agent_runtime::MAX_LOOP_STEPS, $callcount);
-        $this->assertSame('clarification', (string)($result['response_type'] ?? ''));
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''));
         $this->assertNotSame('task_call', (string)($result['response_type'] ?? ''));
         $this->assertNotEmpty((array)($result['results'] ?? []));
     }
@@ -762,7 +764,9 @@ final class agent_internal_loop_test extends abstract_agent_testcase {
      * for focused unit tests and other non-loop scenarios.
      */
     public function test_run_single_turn_persists_exactly_one_message(): void {
-        $this->markTestSkipped('Known regression: single-turn runtime now returns execution_result instead of the older clarification path.');
+        $this->markTestSkipped(
+            'Known regression: single-turn runtime now returns execution_result instead of the older path.'
+        );
         $this->setUser($this->teacher);
 
         $store    = new conversation_store();

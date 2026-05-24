@@ -63,13 +63,13 @@ final class search_options_real_llm_test extends abstract_agent_testcase {
      *
      * With run_loop(), search_options is auto-executed inside the agentic loop.
      * The caller never sees execution_result — the loop consumes it and the LLM
-     * returns a clarification summary. Execution results travel via loop_results
+    * returns a sufficient summary. Execution results travel via loop_results
      * which is merged into result['results'].
      *
      * Setup:  Creates two uniquely-named options with 10 and 8 spots.
      * Conversation:
      *   User:  'Show me all "<prefix>" options.'
-     *   Agent: clarification (LLM summary after auto-execution)
+    *   Agent: sufficient (LLM summary after auto-execution)
      *   Test:  result['results'] not empty; both option names present in results.
      */
     public function test_conv13_search_options_loop_auto_executes(): void {
@@ -90,11 +90,11 @@ final class search_options_real_llm_test extends abstract_agent_testcase {
         $this->assertArrayHasKey('response_type', $result);
 
         // With run_loop(), read-only tools are auto-executed inside the loop.
-        // The caller receives 'clarification' (LLM summary), never 'execution_result'.
+        // The caller receives 'sufficient' (LLM summary), never 'execution_result'.
         $this->assertSame(
-            'clarification',
+            'sufficient',
             $result['response_type'],
-            'run_loop() must return clarification after auto-executing search_options; '
+            'run_loop() must return sufficient after auto-executing search_options; '
                 . 'got: ' . ($result['response_type'] ?? '?')
         );
 

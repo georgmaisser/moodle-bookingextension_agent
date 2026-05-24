@@ -63,7 +63,7 @@ final class agent_simulated_llm_test extends abstract_simulated_llm_testcase {
     }
 
     /**
-     * Read-only loop smoke: task_call is auto-executed and ends in clarification.
+    * Read-only loop smoke: task_call is auto-executed and ends in sufficient.
      */
     public function test_simulated_read_only_loop_smoke(): void {
         $this->setUser($this->teacher);
@@ -79,7 +79,7 @@ final class agent_simulated_llm_test extends abstract_simulated_llm_testcase {
         [$store, $runtime, $threadid] = $this->build_scripted_runtime($responses);
         $result = $this->chat('Search options', $threadid, $store, $runtime);
 
-        $this->assertSame('clarification', (string)($result['response_type'] ?? ''));
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''));
         $this->assertNotEmpty($result['results'] ?? []);
     }
 }
