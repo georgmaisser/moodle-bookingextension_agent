@@ -238,6 +238,14 @@ class task_registry {
             return false;
         }
 
+        $activation = $meta['activation'] ?? ($meta['active'] ?? true);
+        if (is_bool($activation) && !$activation) {
+            return false;
+        }
+        if (is_callable($activation) && !(bool)call_user_func($activation)) {
+            return false;
+        }
+
         if ((bool)get_config('bookingextension_agent', 'aitaskenableall')) {
             return true;
         }
@@ -280,7 +288,8 @@ class task_registry {
             return [];
         }
 
-        return array_values((array)($meta['capabilities'] ?? []));
+        $capabilities = $meta['capability'] ?? ($meta['capabilities'] ?? []);
+        return array_values((array)$capabilities);
     }
 
     /**

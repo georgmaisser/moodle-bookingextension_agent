@@ -55,8 +55,8 @@ use bookingextension_agent\local\wbagent\execution_feedback_service;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \bookingextension_agent\local\wbagent\core\tasks\list_actions_task
  * @covers     \bookingextension_agent\local\wbagent\booking\tasks\search_options_task
- * @covers     \bookingextension_agent\local\wbagent\booking\tasks\search_users_task
- * @covers     \bookingextension_agent\local\wbagent\booking\tasks\search_courses_task
+ * @covers     \bookingextension_agent\local\wbagent\core\tasks\search_users_task
+ * @covers     \bookingextension_agent\local\wbagent\core\tasks\search_courses_task
  * @covers     \bookingextension_agent\local\wbagent\core\tasks\get_current_user_task
  * @covers     \bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task
  * @covers     \bookingextension_agent\local\wbagent\execution_feedback_service

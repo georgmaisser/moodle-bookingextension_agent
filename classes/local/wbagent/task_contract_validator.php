@@ -78,6 +78,8 @@ class task_contract_validator {
             'taskname' => $taskname,
             'version' => (int)($schema['version'] ?? 1),
             'component' => trim($component),
+            'capability' => $capabilities,
+            'activation' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
             'capabilities' => $capabilities,
             'active' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
             'alias_of' => trim((string)($governance['alias_of'] ?? '')),
@@ -127,15 +129,17 @@ class task_contract_validator {
             $errors[] = 'Invalid required field: version must be an integer > 0.';
         }
 
-        if (!array_key_exists('active', $taskmeta) || !is_bool($taskmeta['active'])) {
-            $errors[] = 'Invalid required field: active must be a boolean.';
+        $activation = $taskmeta['activation'] ?? ($taskmeta['active'] ?? null);
+        if (!is_bool($activation) && !is_callable($activation)) {
+            $errors[] = 'Invalid required field: activation must be a boolean or callable.';
         }
 
-        if (!array_key_exists('capabilities', $taskmeta) || !is_array($taskmeta['capabilities'])) {
-            $errors[] = 'Invalid required field: capabilities must be a string array.';
+        $capability = $taskmeta['capability'] ?? ($taskmeta['capabilities'] ?? null);
+        if (!is_array($capability)) {
+            $errors[] = 'Invalid required field: capability must be a string array.';
         } else {
-            foreach ($taskmeta['capabilities'] as $capability) {
-                if (!is_string($capability) || trim($capability) === '') {
+            foreach ($capability as $entry) {
+                if (!is_string($entry) || trim($entry) === '') {
                     $errors[] = 'Invalid capability entry: expected non-empty string.';
                     break;
                 }

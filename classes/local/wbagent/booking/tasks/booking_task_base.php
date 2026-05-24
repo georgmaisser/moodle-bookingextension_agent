@@ -612,6 +612,62 @@ abstract class booking_task_base extends base_task {
     }
 
     /**
+     * Generic structural validation from schema metadata (I/O free).
+     *
+     * This provides a contract-compliant baseline for legacy tasks that still
+     * expose validate() but do not yet override check_structure().
+     *
+     * @param array $input
+     * @return array{valid:bool,errors:array<int,string>}
+     */
+    public function check_structure(array $input): array {
+        $schema = (array)$this->get_schema();
+        $properties = (array)($schema['properties'] ?? []);
+        $errors = [];
+
+        foreach ($properties as $fieldname => $definition) {
+            if (!is_array($definition)) {
+                continue;
+            }
+
+            $required = (bool)($definition['required'] ?? false);
+            if ($required && !array_key_exists((string)$fieldname, $input)) {
+                $errors[] = 'Missing required field: ' . (string)$fieldname . '.';
+                continue;
+            }
+
+            if (!array_key_exists((string)$fieldname, $input)) {
+                continue;
+            }
+
+            $type = (string)($definition['type'] ?? '');
+            if ($type === '' || $input[(string)$fieldname] === null) {
+                continue;
+            }
+
+            $value = $input[(string)$fieldname];
+            $typematches = match ($type) {
+                'string' => is_string($value),
+                'integer' => is_int($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1),
+                'number' => is_numeric($value),
+                'boolean' => is_bool($value),
+                'array' => is_array($value),
+                'object' => is_array($value) || is_object($value),
+                default => true,
+            };
+
+            if (!$typematches) {
+                $errors[] = 'Invalid type for field: ' . (string)$fieldname . ' (expected ' . $type . ').';
+            }
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => array_values(array_unique($errors)),
+        ];
+    }
+
+    /**
      * Validate task input.
      *
      * @param array $input
