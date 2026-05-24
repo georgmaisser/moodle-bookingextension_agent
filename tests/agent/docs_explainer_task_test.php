@@ -51,7 +51,7 @@ final class docs_explainer_task_test extends abstract_agent_testcase {
         $task = task_registry::make_default()->get_task('booking.explain_docs_topic');
 
         $this->assertNotNull($task);
-        $validation = $task->validate([], (int)$this->booking->cmid);
+        $validation = $task->check_structure([]);
 
         $this->assertFalse($validation['valid']);
         $this->assertNotEmpty($validation['errors']);
@@ -110,12 +110,12 @@ final class docs_explainer_task_test extends abstract_agent_testcase {
         $task = task_registry::make_default()->get_task('booking.explain_docs_topic');
 
         $this->assertNotNull($task);
-        $validation = $task->validate([
+        $validation = $task->check_structure([
             'question' => 'Explain the actions after booking.',
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertTrue($validation['valid']);
-        $this->assertEmpty($validation['ambiguities']);
+        $this->assertEmpty($validation['errors']);
     }
 
     /**

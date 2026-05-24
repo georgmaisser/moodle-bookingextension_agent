@@ -73,18 +73,18 @@ final class diagnose_cancellation_issue_task_test extends abstract_agent_testcas
     }
 
     /**
-     * Validate asks follow-up question when option reference is missing.
+     * Preflight asks follow-up question when option reference is missing.
      */
-    public function test_validate_requests_option_reference(): void {
+    public function test_preflight_requests_option_reference(): void {
         $task = new diagnose_cancellation_issue_task();
 
-        $result = $task->validate([
+        $result = $task->preflight([
             'question' => 'Why can I not cancel?',
-        ], (int)$this->booking->cmid);
+        ], (int)$this->booking->cmid, (int)$this->teacher->id);
 
-        $this->assertFalse($result['valid']);
-        $this->assertNotEmpty($result['ambiguities']);
-        $this->assertStringContainsString('Which booking option do you mean?', (string)$result['ambiguities'][0]);
+        $this->assertFalse($result->isvalid);
+        $this->assertNotEmpty($result->issues);
+        $this->assertStringContainsString('booking option title or id', (string)($result->issues[0]['message'] ?? ''));
     }
 
     /**

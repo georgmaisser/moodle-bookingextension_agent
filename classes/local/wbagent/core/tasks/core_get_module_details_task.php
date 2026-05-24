@@ -43,7 +43,7 @@ class core_get_module_details_task extends core_task_base implements task_trigge
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         if (empty($input['cmid']) && trim((string)($input['modulequery'] ?? '')) === '') {
             $errors[] = get_string('agent_booking_core_module_reference_required', 'bookingextension_agent');

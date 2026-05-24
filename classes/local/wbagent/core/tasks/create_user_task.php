@@ -117,13 +117,13 @@ class create_user_task extends \bookingextension_agent\local\wbagent\booking\tas
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
      * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $ambiguities = [];
 

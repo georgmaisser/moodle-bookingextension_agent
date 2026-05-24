@@ -84,10 +84,9 @@ final class core_moodle_tasks_test extends abstract_agent_testcase {
         $this->assertArrayHasKey('readonly', $schema);
         $this->assertArrayHasKey('properties', $schema);
 
-        $validation = $task->validate([], (int)$this->booking->cmid);
-        $this->assertArrayHasKey('valid', $validation);
-        $this->assertArrayHasKey('errors', $validation);
-        $this->assertArrayHasKey('ambiguities', $validation);
+        $structure = $task->check_structure([]);
+        $this->assertArrayHasKey('valid', $structure);
+        $this->assertArrayHasKey('errors', $structure);
 
         $this->assertTrue(method_exists($task, 'get_message_triggers'));
         $triggers = $task->get_message_triggers();
@@ -119,8 +118,8 @@ final class core_moodle_tasks_test extends abstract_agent_testcase {
         foreach ($cases as [$taskname, $input]) {
             $task = task_registry::make_default()->get_task($taskname);
             $this->assertNotNull($task);
-            $validation = $task->validate($input, (int)$this->booking->cmid);
-            $issues = (array)($validation['issues'] ?? []);
+            $preflight = $task->preflight($input, (int)$this->booking->cmid, (int)$this->teacher->id);
+            $issues = (array)$preflight->issues;
             $this->assertNotEmpty($issues, 'Expected confirmation issue for ' . $taskname);
             $this->assertSame('needs_confirmation', (string)($issues[0]['severity'] ?? ''));
         }

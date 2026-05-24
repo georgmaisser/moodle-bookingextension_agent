@@ -42,7 +42,7 @@ class core_get_user_grades_for_course_task extends core_task_base implements tas
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         if (trim((string)($input['coursequery'] ?? '')) === '') {
             $errors[] = get_string('agent_booking_core_coursequery_required', 'bookingextension_agent');

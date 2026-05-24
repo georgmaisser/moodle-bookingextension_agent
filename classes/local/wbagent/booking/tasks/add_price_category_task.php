@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use context_system;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use mod_booking\local\pricecategories_handler;
 
 /**
@@ -123,17 +124,13 @@ class add_price_category_task extends booking_task_base implements task_trigger_
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>,issues?:array<int,array<string,mixed>>}
+     * @return array{valid:bool,errors:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
-        $ambiguities = [];
-        $issues = [];
-
         $lang = $this->get_output_language($input);
 
         $identifier = trim((string)($input['identifier'] ?? ''));
@@ -149,28 +146,86 @@ class add_price_category_task extends booking_task_base implements task_trigger_
             $errors[] = $this->localized_string('agent_booking_pricecat_defaultvalue_nonnegative', null, $lang);
         }
 
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Deep preflight validation and normalized input preparation.
+     *
+     * @param array $input
+     * @param int $cmid
+     * @param int $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            return preflight_result_v2::invalid($this->build_preflight_issues((array)($structure['errors'] ?? [])));
+        }
+
+        $lang = $this->get_output_language($input);
+        if (!has_capability('moodle/site:config', context_system::instance(), $userid)) {
+            return preflight_result_v2::invalid([[
+                'code' => 'PRICE_CATEGORY_CAPABILITY_REQUIRED',
+                'severity' => 'needs_clarification',
+                'message' => get_string('agent_booking_add_pricecat_capability_required', 'bookingextension_agent'),
+            ]]);
+        }
+
+        $identifier = trim((string)($input['identifier'] ?? ''));
+        $override = array_map('strval', (array)($input['override'] ?? []));
+        $allowduplicate = in_array('duplicate_identifier', $override, true);
+
         $handler = new pricecategories_handler();
         $existing = $handler->get_pricecategories_indexed_by_identifier();
         if (
             $identifier !== ''
             && isset($existing[strtolower($identifier)])
             && (int)$existing[strtolower($identifier)]->disabled === 0
+            && !$allowduplicate
         ) {
-            $errors[] = $this->localized_string('agent_booking_pricecat_duplicate_exists', $identifier, $lang);
-            $issues[] = [
+            return preflight_result_v2::confirmable($input, [[
                 'code' => 'DUPLICATE_PRICE_CATEGORY_CONFIRM_REQUIRED',
                 'severity' => 'needs_confirmation',
                 'user_question' => $this->localized_string('agent_booking_pricecat_duplicate_user_question', $identifier, $lang),
                 'remedy_options' => ['CONFIRM_DUPLICATE_IDENTIFIER', 'USE_DIFFERENT_IDENTIFIER'],
-            ];
+            ]]);
         }
 
-        return [
-            'valid' => empty($errors) && empty($ambiguities),
-            'errors' => $errors,
-            'ambiguities' => $ambiguities,
-            'issues' => $issues,
-        ];
+        $preparedinput = $input;
+        $preparedinput['identifier'] = $identifier;
+        $preparedinput['name'] = trim((string)($input['name'] ?? ''));
+        $preparedinput['defaultvalue'] = isset($input['defaultvalue']) ? (float)$input['defaultvalue'] : 0.0;
+        if (isset($input['pricecatsortorder'])) {
+            $preparedinput['pricecatsortorder'] = (int)$input['pricecatsortorder'];
+        }
+
+        return preflight_result_v2::ok($preparedinput);
+    }
+
+    /**
+     * Convert messages to preflight issues.
+     *
+     * @param array<int,string> $messages
+     * @return array<int,array<string,string>>
+     */
+    private function build_preflight_issues(array $messages): array {
+        $issues = [];
+        foreach ($messages as $message) {
+            $message = trim((string)$message);
+            if ($message === '') {
+                continue;
+            }
+            $issues[] = [
+                'code' => 'PRICE_CATEGORY_PREFLIGHT_BLOCKED',
+                'severity' => 'needs_clarification',
+                'message' => $message,
+            ];
+        }
+        return $issues;
     }
 
     /**

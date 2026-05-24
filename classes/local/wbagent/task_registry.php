@@ -69,7 +69,17 @@ class task_registry {
         $this->providers[$provider->get_component()] = $provider;
 
         if ($provider instanceof result_summary_provider_interface) {
-            foreach ($provider->get_result_summary_contributors() as $contributor) {
+            try {
+                $contributors = $provider->get_result_summary_contributors();
+            } catch (\Throwable $e) {
+                $this->add_contract_diagnostic(
+                    'Ignoring result summary contributors from component ' . $provider->get_component()
+                    . ' due to provider error: ' . get_class($e) . ': ' . $e->getMessage()
+                );
+                $contributors = [];
+            }
+
+            foreach ($contributors as $contributor) {
                 if (!$contributor instanceof result_summary_contributor_interface) {
                     continue;
                 }
@@ -89,8 +99,38 @@ class task_registry {
             }
         }
 
-        foreach ($provider->get_tasks() as $task) {
-            $taskname = trim($task->get_name());
+        try {
+            $providertasks = $provider->get_tasks();
+        } catch (\Throwable $e) {
+            $this->add_contract_diagnostic(
+                'Ignoring AI tasks from component ' . $provider->get_component()
+                . ' due to provider error: ' . get_class($e) . ': ' . $e->getMessage()
+            );
+            $this->append_provider_discovery_diagnostics($provider);
+            $this->fail_on_contract_diagnostics_when_strict();
+            return;
+        }
+
+        $this->append_provider_discovery_diagnostics($provider);
+
+        foreach ($providertasks as $task) {
+            if (!$task instanceof task_interface) {
+                $this->add_contract_diagnostic(
+                    'Ignoring non-task contribution from component ' . $provider->get_component()
+                );
+                continue;
+            }
+
+            try {
+                $taskname = trim($task->get_name());
+            } catch (\Throwable $e) {
+                $this->add_contract_diagnostic(
+                    'Ignoring AI task from component ' . $provider->get_component()
+                    . ' because get_name() failed: ' . get_class($e) . ': ' . $e->getMessage()
+                );
+                continue;
+            }
+
             if ($taskname === '') {
                 $this->add_contract_diagnostic(
                     'Ignoring AI task with empty name from component ' . $provider->get_component()
@@ -106,7 +146,16 @@ class task_registry {
                 continue;
             }
 
-            $metadata = task_contract_validator::build_task_metadata($task, $provider->get_component());
+            try {
+                $metadata = task_contract_validator::build_task_metadata($task, $provider->get_component());
+            } catch (\Throwable $e) {
+                $this->add_contract_diagnostic(
+                    'Ignoring task due to metadata build error: ' . $taskname
+                    . ' [' . get_class($e) . ': ' . $e->getMessage() . ']'
+                );
+                continue;
+            }
+
             $validation = task_contract_validator::validate_task_metadata($metadata);
             if (!$validation['valid']) {
                 $this->add_contract_diagnostic(
@@ -647,6 +696,10 @@ class task_registry {
             try {
                 $provider = new $classname();
             } catch (\Throwable $e) {
+                $registry->add_contract_diagnostic(
+                    'Ignoring AI task provider ' . $classname . ' because construction failed: '
+                    . get_class($e) . ': ' . $e->getMessage()
+                );
                 continue;
             }
 
@@ -657,6 +710,10 @@ class task_registry {
             try {
                 $registry->register($provider);
             } catch (\Throwable $e) {
+                $registry->add_contract_diagnostic(
+                    'Ignoring AI task provider ' . $classname . ' because registration failed: '
+                    . get_class($e) . ': ' . $e->getMessage()
+                );
                 continue;
             }
             $registeredcomponents[$provider->get_component()] = true;
@@ -664,10 +721,44 @@ class task_registry {
 
         if (!isset($registeredcomponents['bookingextension/agent'])) {
             $provider = new task_provider();
-            $registry->register($provider);
+            try {
+                $registry->register($provider);
+            } catch (\Throwable $e) {
+                $registry->add_contract_diagnostic(
+                    'Ignoring default bookingextension_agent provider because registration failed: '
+                    . get_class($e) . ': ' . $e->getMessage()
+                );
+            }
         }
 
+        $registry->fail_on_contract_diagnostics_when_strict();
         return $registry;
+    }
+
+    /**
+     * Append optional discovery diagnostics exposed by a provider.
+     *
+     * @param task_provider_interface $provider
+     * @return void
+     */
+    private function append_provider_discovery_diagnostics(task_provider_interface $provider): void {
+        if (!method_exists($provider, 'get_discovery_diagnostics')) {
+            return;
+        }
+
+        try {
+            $diagnostics = (array)$provider->get_discovery_diagnostics();
+        } catch (\Throwable $e) {
+            $this->add_contract_diagnostic(
+                'Could not read discovery diagnostics for component ' . $provider->get_component()
+                . ': ' . get_class($e) . ': ' . $e->getMessage()
+            );
+            return;
+        }
+
+        foreach ($diagnostics as $diagnostic) {
+            $this->add_contract_diagnostic((string)$diagnostic);
+        }
     }
 
     /**
@@ -683,7 +774,6 @@ class task_registry {
         }
 
         $this->contractdiagnostics[] = $message;
-        \debugging($message, DEBUG_DEVELOPER);
     }
 
     /**

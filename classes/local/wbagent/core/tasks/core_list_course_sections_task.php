@@ -41,7 +41,7 @@ class core_list_course_sections_task extends core_task_base implements task_trig
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         if (trim((string)($input['coursequery'] ?? '')) === '') {
             $errors[] = get_string('agent_booking_core_coursequery_required', 'bookingextension_agent');

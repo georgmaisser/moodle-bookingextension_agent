@@ -28,17 +28,21 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class task_discovery {
+    /** @var array<int,string> diagnostics collected during the last discovery run */
+    private static array $lastdiagnostics = [];
+
     /**
      * Return all concrete task instances keyed by task name.
      *
-     * Discovery is intentionally broad: every PHP class below
-     * classes/local/wbagent is considered. Non-task classes and classes that
-     * cannot be instantiated are ignored silently.
+     * Discovery is intentionally constrained to canonical task directories.
+     * Broken task classes are skipped and reported as diagnostics so a single
+     * third-party task cannot break the whole agent.
      *
      * @param string $component
      * @return array<string,task_interface>
      */
     public static function get_task_instances(string $component = 'bookingextension_agent'): array {
+        self::$lastdiagnostics = [];
         $classes = self::find_candidate_classes($component);
         usort($classes, [self::class, 'compare_task_classes']);
 
@@ -49,8 +53,19 @@ class task_discovery {
                 continue;
             }
 
-            $taskname = trim($instance->get_name());
+            try {
+                $taskname = trim($instance->get_name());
+            } catch (\Throwable $e) {
+                self::add_diagnostic('Skipping discovered task that failed get_name(): ' . $classname, $e);
+                continue;
+            }
+
             if ($taskname === '' || isset($tasks[$taskname])) {
+                if ($taskname === '') {
+                    self::add_diagnostic('Skipping discovered task with empty task name: ' . $classname);
+                } else {
+                    self::add_diagnostic('Skipping duplicate discovered task name: ' . $taskname . ' from ' . $classname);
+                }
                 continue;
             }
 
@@ -87,6 +102,15 @@ class task_discovery {
     }
 
     /**
+     * Return diagnostics collected during the last discovery run.
+     *
+     * @return array<int,string>
+     */
+    public static function get_last_diagnostics(): array {
+        return self::$lastdiagnostics;
+    }
+
+    /**
      * Find all PHP classes under a component's local/wbagent tree.
      *
      * @param string $component
@@ -110,30 +134,58 @@ class task_discovery {
 
         $classes = [];
         $classesdir = $plugindir . '/classes/';
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($basedir, \FilesystemIterator::SKIP_DOTS)
-        );
+        $taskdirs = self::get_task_directories($basedir);
 
-        foreach ($iterator as $fileinfo) {
-            if (!$fileinfo->isFile() || $fileinfo->getExtension() !== 'php') {
-                continue;
+        foreach ($taskdirs as $taskdir) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($taskdir, \FilesystemIterator::SKIP_DOTS)
+            );
+
+            foreach ($iterator as $fileinfo) {
+                if (!$fileinfo->isFile() || $fileinfo->getExtension() !== 'php') {
+                    continue;
+                }
+
+                $path = $fileinfo->getPathname();
+                if (strpos($path, '/tests/') !== false) {
+                    continue;
+                }
+
+                $relative = substr($path, strlen($classesdir));
+                if ($relative === false || $relative === '') {
+                    continue;
+                }
+
+                $relativeclass = str_replace(['/', '.php'], ['\\', ''], $relative);
+                $classes[] = core_component::normalize_componentname($component) . '\\' . $relativeclass;
             }
-
-            $path = $fileinfo->getPathname();
-            if (strpos($path, '/tests/') !== false) {
-                continue;
-            }
-
-            $relative = substr($path, strlen($classesdir));
-            if ($relative === false || $relative === '') {
-                continue;
-            }
-
-            $relativeclass = str_replace(['/', '.php'], ['\\', ''], $relative);
-            $classes[] = core_component::normalize_componentname($component) . '\\' . $relativeclass;
         }
 
         return array_values(array_unique($classes));
+    }
+
+    /**
+     * Return canonical task directories below local/wbagent.
+     *
+     * @param string $basedir
+     * @return array<int,string>
+     */
+    private static function get_task_directories(string $basedir): array {
+        $taskdirs = [];
+        $iterator = new \DirectoryIterator($basedir);
+        foreach ($iterator as $fileinfo) {
+            if (!$fileinfo->isDir() || $fileinfo->isDot()) {
+                continue;
+            }
+
+            $taskdir = $fileinfo->getPathname() . '/tasks';
+            if (is_dir($taskdir)) {
+                $taskdirs[] = $taskdir;
+            }
+        }
+
+        sort($taskdirs);
+        return $taskdirs;
     }
 
     /**
@@ -144,9 +196,9 @@ class task_discovery {
      * @return object|null
      */
     private static function instantiate_if_supported(string $classname, string $interfacename): ?object {
-        self::ensure_class_loaded($classname);
-
         try {
+            self::ensure_class_loaded($classname);
+
             $reflection = new \ReflectionClass($classname);
             if ($reflection->isAbstract()) {
                 return null;
@@ -154,6 +206,7 @@ class task_discovery {
 
             $instance = $reflection->newInstance();
         } catch (\Throwable $e) {
+            self::add_diagnostic('Skipping discovered class that cannot be instantiated: ' . $classname, $e);
             return null;
         }
 
@@ -200,6 +253,21 @@ class task_discovery {
         if (is_file($file)) {
             require_once($file);
         }
+    }
+
+    /**
+     * Add a discovery diagnostic.
+     *
+     * @param string $message
+     * @param \Throwable|null $exception
+     * @return void
+     */
+    private static function add_diagnostic(string $message, ?\Throwable $exception = null): void {
+        if ($exception !== null) {
+            $message .= ' (' . get_class($exception) . ': ' . $exception->getMessage() . ')';
+        }
+
+        self::$lastdiagnostics[] = $message;
     }
 
     /**

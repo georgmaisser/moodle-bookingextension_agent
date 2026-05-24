@@ -42,7 +42,7 @@ class core_get_site_summary_task extends core_task_base implements task_result_s
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
     }
 

@@ -227,13 +227,13 @@ class configure_booking_instance_task extends booking_task_base {
     }
 
     /**
-     * Structural validation (no DB access).
+     * Check task input structure (no DB access).
      *
      * @param array $input
      * @param int   $cmid
      * @return array{valid:bool,errors:array,ambiguities:array}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $action = trim((string)($input['action'] ?? ''));
 

@@ -47,7 +47,7 @@ class core_get_user_profile_task extends core_task_base implements task_trigger_
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
     }
 

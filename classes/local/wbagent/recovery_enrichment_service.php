@@ -93,6 +93,18 @@ class recovery_enrichment_service {
             true
         );
 
+        $normalizedmessage = core_text::strtolower($usermessage);
+        foreach (array_keys($allowedtasknames) as $taskname) {
+            $taskname = trim((string)$taskname);
+            if ($taskname === '' || !str_contains($normalizedmessage, core_text::strtolower($taskname))) {
+                continue;
+            }
+            if (!$this->registry->is_read_only_task($taskname) || $this->registry->get_task($taskname) === null) {
+                continue;
+            }
+            $candidatetasks[$taskname] = true;
+        }
+
         if (empty($candidatetasks) && $lookslookuprequest($usermessage, $result)) {
             $taskname = 'booking.explain_docs_topic';
             if (

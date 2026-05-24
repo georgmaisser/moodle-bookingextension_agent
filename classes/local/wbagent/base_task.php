@@ -92,7 +92,7 @@ abstract class base_task implements task_interface {
         $structure = $this->check_structure($input);
         if (!($structure['valid'] ?? true)) {
             $issues = [];
-            foreach ((array)($structure['errors'] ?? []) as $error) {
+            foreach (array_merge((array)($structure['errors'] ?? []), (array)($structure['ambiguities'] ?? [])) as $error) {
                 $issues[] = [
                     'code' => 'VALIDATION_ERROR',
                     'severity' => 'needs_clarification',
@@ -100,6 +100,14 @@ abstract class base_task implements task_interface {
                 ];
             }
             return preflight_result_v2::invalid($issues);
+        }
+
+        $confirmableissues = array_values(array_filter(
+            (array)($structure['issues'] ?? []),
+            static fn($issue): bool => is_array($issue) && (string)($issue['severity'] ?? '') === 'needs_confirmation'
+        ));
+        if (!empty($confirmableissues)) {
+            return preflight_result_v2::confirmable($input, $confirmableissues);
         }
 
         return preflight_result_v2::ok($input);

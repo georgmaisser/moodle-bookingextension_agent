@@ -26,12 +26,12 @@ use bookingextension_agent\local\wbagent\booking\tasks\diagnose_booking_issue_ta
 use bookingextension_agent\local\wbagent\booking\tasks\diagnose_cancellation_issue_task;
 use bookingextension_agent\local\wbagent\booking\tasks\explain_docs_topic_task;
 use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task;
-use bookingextension_agent\local\wbagent\booking\tasks\search_courses_task;
 use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
-use bookingextension_agent\local\wbagent\booking\tasks\search_users_task;
 use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
 use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
 use bookingextension_agent\local\wbagent\core\tasks\recall_memory_task;
+use bookingextension_agent\local\wbagent\core\tasks\search_courses_task;
+use bookingextension_agent\local\wbagent\core\tasks\search_users_task;
 use bookingextension_agent\local\wbagent\task_registry;
 
 /**
@@ -44,8 +44,8 @@ use bookingextension_agent\local\wbagent\task_registry;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \bookingextension_agent\local\wbagent\booking\tasks\search_options_task
- * @covers     \bookingextension_agent\local\wbagent\booking\tasks\search_users_task
- * @covers     \bookingextension_agent\local\wbagent\booking\tasks\search_courses_task
+ * @covers     \bookingextension_agent\local\wbagent\core\tasks\search_users_task
+ * @covers     \bookingextension_agent\local\wbagent\core\tasks\search_courses_task
  * @covers     \bookingextension_agent\local\wbagent\booking\tasks\diagnose_booking_issue_task
  * @covers     \bookingextension_agent\local\wbagent\booking\tasks\explain_docs_topic_task
  * @covers     \bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task

@@ -612,22 +612,6 @@ abstract class booking_task_base extends base_task {
     }
 
     /**
-     * Validate task input.
-     *
-     * @param array $input
-     * @param int $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
-     */
-    public function validate(array $input, int $cmid): array {
-        $structure = $this->check_structure($input);
-        return [
-            'valid' => (bool)($structure['valid'] ?? false),
-            'errors' => array_values(array_unique(array_map('strval', (array)($structure['errors'] ?? [])))),
-            'ambiguities' => [],
-        ];
-    }
-
-    /**
      * Execute the task.
      *
      * @param array $input

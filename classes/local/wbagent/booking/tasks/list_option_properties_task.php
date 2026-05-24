@@ -117,13 +117,13 @@ class list_option_properties_task extends booking_task_base implements task_trig
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
      * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $allowed = ['all', 'create', 'update', 'shared'];

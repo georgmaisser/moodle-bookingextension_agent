@@ -168,13 +168,13 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
      * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $question = trim((string)($input['question'] ?? ''));
         $lang = $this->get_output_language($input);

@@ -16,9 +16,10 @@
 
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
-use bookingextension_agent\bo_availability\bo_info;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use mod_booking\bo_availability\bo_info;
 
 /**
  * Task definition for booking.book_users.
@@ -153,7 +154,7 @@ class book_users_task extends booking_task_base implements task_trigger_provider
                     '- Pass optionquery with the option title when the option is named in the request.',
                     '- Do NOT use booking.update_option just to book users; use booking.book_users instead.',
                     '- If the option cannot be found, ask the user for clarification before proceeding.',
-                    '- If validate() returns a soft-override ambiguity, ask the user for confirmation and '
+                    '- If preflight returns a soft-override confirmation issue, ask the user for confirmation and '
                         . 'then call again with confirmed=true to proceed.',
                 ],
             ],
@@ -161,63 +162,82 @@ class book_users_task extends booking_task_base implements task_trigger_provider
     }
 
     /**
-     * Validate task input.
-     *
-     * Runs a two-level condition pre-check for each resolved user:
-     *   1. get_condition_results(..., false) - all blockers (soft + hard)
-     *   2. get_condition_results(..., true)  - only true hard blockers
-     *
-     * When only soft blockers exist (e.g. selectuser), the current admin actor can still
-     * book on behalf of the user. In that case a structured confirmation issue is returned
-     * for explicit confirmation (confirmed=true) before execute() is called.
+     * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
-     * @return array
+     * @return array{valid:bool,errors:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
-        $ambiguities = [];
-        $issues = [];
         $lang = $this->get_output_language($input);
 
         $bookusersquery = trim((string)($input['bookusersquery'] ?? ''));
         if ($bookusersquery === '') {
             $errors[] = $this->localized_string('agent_booking_book_users_required_bookusersquery', null, $lang);
-            return ['valid' => false, 'errors' => $errors, 'ambiguities' => $ambiguities, 'issues' => $issues];
         }
 
-        // Attempt to capture the resolved option id so we can run condition pre-checks below.
-        $resolvedoptionid = 0;
         $optionid = (int)($input['optionid'] ?? 0);
         $optionquery = trim((string)($input['optionquery'] ?? ''));
         if ($optionid <= 0 && $optionquery === '') {
-            $ambiguities[] = $this->localized_string('agent_booking_diagnose_ambiguity_option_required', null, $lang);
-        } else if ($optionid <= 0 && $optionquery !== '') {
-            if (!booking_task_support::is_last_option_reference($optionquery)) {
-                $resolved = booking_task_support::resolve_single_option(
-                    $cmid,
-                    $optionquery,
-                    (string)($input['optionwhen'] ?? '')
-                );
-                if (($resolved['status'] ?? '') === 'ambiguity') {
-                    $ambiguities[] = (string)($resolved['message'] ?? '');
-                } else if (($resolved['status'] ?? '') === 'error') {
-                    $errors[] = (string)($resolved['message'] ?? '');
-                } else {
-                    $resolvedoptionid = (int)($resolved['optionid'] ?? 0);
-                }
-            }
-        } else if ($optionid > 0) {
-            $resolvedoptionid = $optionid;
+            $errors[] = $this->localized_string('agent_booking_diagnose_ambiguity_option_required', null, $lang);
         }
 
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * Deep preflight validation and entity preparation.
+     *
+     * Runs a two-level condition pre-check for each resolved user:
+     *   1. get_condition_results(..., false) - all blockers (soft + hard)
+     *   2. get_condition_results(..., true)  - only true hard blockers
+     *
+     * @param array $input
+     * @param int $cmid
+     * @param int $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            return preflight_result_v2::invalid($this->build_preflight_issues((array)($structure['errors'] ?? [])));
+        }
+
+        $errors = [];
+        $ambiguities = [];
+        $issues = [];
+        $lang = $this->get_output_language($input);
+        $preparedinput = $input;
+
+        $resolvedoption = $this->resolve_option_id($input, $cmid, $userid, $lang);
+        $resolvedoptionid = 0;
+        if (($resolvedoption['status'] ?? '') === 'ok') {
+            $resolvedoptionid = (int)($resolvedoption['optionid'] ?? 0);
+            $preparedinput['resolvedoptionid'] = $resolvedoptionid;
+            $preparedinput['optionid'] = $resolvedoptionid;
+        } else if (($resolvedoption['status'] ?? '') === 'ambiguity') {
+            $ambiguities[] = (string)($resolvedoption['message'] ?? '');
+        } else {
+            $errors[] = (string)($resolvedoption['message'] ?? get_string(
+                'agent_booking_book_users_option_resolve_failed',
+                'bookingextension_agent'
+            ));
+        }
+
+        $bookusersquery = trim((string)($input['bookusersquery'] ?? ''));
         $usersforbooking = booking_task_support::resolve_users_for_booking($bookusersquery);
         if (!empty($usersforbooking['errors'])) {
             $errors = array_merge($errors, $usersforbooking['errors']);
         }
         if (!empty($usersforbooking['ambiguities'])) {
             $ambiguities = array_merge($ambiguities, $usersforbooking['ambiguities']);
+        }
+        $bookuserids = array_values(array_filter(array_map('intval', (array)($usersforbooking['userids'] ?? []))));
+        if (!empty($bookuserids)) {
+            $preparedinput['resolvedbookuserids'] = $bookuserids;
         }
 
         // Condition pre-check: detect soft-only blockers that an admin can override.
@@ -234,7 +254,6 @@ class book_users_task extends booking_task_base implements task_trigger_provider
         // Skip the check when the caller already confirmed (confirmed=true).
         $confirmed = !empty($input['confirmed']);
         if (!$confirmed && $resolvedoptionid > 0 && empty($errors) && empty($ambiguities)) {
-            $bookuserids = $usersforbooking['userids'] ?? [];
             $softoverridelines = [];
             foreach ($bookuserids as $uid) {
                 $uid = (int)$uid;
@@ -289,12 +308,37 @@ class book_users_task extends booking_task_base implements task_trigger_provider
             }
         }
 
-        return [
-            'valid' => empty($errors) && empty($ambiguities) && empty($issues),
-            'errors' => $errors,
-            'ambiguities' => $ambiguities,
-            'issues' => $issues,
-        ];
+        if (!empty($errors) || !empty($ambiguities)) {
+            return preflight_result_v2::invalid($this->build_preflight_issues(array_merge($errors, $ambiguities)));
+        }
+
+        if (!empty($issues)) {
+            return preflight_result_v2::confirmable($preparedinput, $issues);
+        }
+
+        return preflight_result_v2::ok($preparedinput);
+    }
+
+    /**
+     * Convert messages to preflight issues.
+     *
+     * @param array<int,string> $messages
+     * @return array<int,array<string,string>>
+     */
+    private function build_preflight_issues(array $messages): array {
+        $issues = [];
+        foreach ($messages as $message) {
+            $message = trim((string)$message);
+            if ($message === '') {
+                continue;
+            }
+            $issues[] = [
+                'code' => 'BOOK_USERS_PREFLIGHT_BLOCKED',
+                'severity' => 'needs_clarification',
+                'message' => $message,
+            ];
+        }
+        return $issues;
     }
 
     /**
@@ -308,41 +352,44 @@ class book_users_task extends booking_task_base implements task_trigger_provider
     public function execute(array $input, int $cmid, int $userid): array {
         $outputlang = $this->get_output_language($input);
 
-        // Resolve option.
-        $resolvedoption = $this->resolve_option_id($input, $cmid, $userid, $outputlang);
-        if (($resolvedoption['status'] ?? '') !== 'ok') {
-            return [
-                'status' => 'error',
-                'detail' => (string)($resolvedoption['message'] ?? get_string(
-                    'agent_booking_book_users_option_resolve_failed',
-                    'bookingextension_agent'
-                )),
-                'resultid' => null,
-                'debugmessage' => $this->build_task_debug_message(self::TASK_NAME, $input, ['Status: error']),
-            ];
-        }
-        $optionid = (int)$resolvedoption['optionid'];
-
-        // Resolve users.
-        $bookusersquery = (string)($input['bookusersquery'] ?? '');
-        $usersforbooking = booking_task_support::resolve_users_for_booking($bookusersquery);
-        if (!empty($usersforbooking['errors']) || !empty($usersforbooking['ambiguities'])) {
-            return [
-                'status' => 'error',
-                'detail' => trim(implode(' ', array_merge(
-                    $usersforbooking['errors'],
-                    $usersforbooking['ambiguities']
-                ))),
-                'resultid' => null,
-                'debugmessage' => $this->build_task_debug_message(
-                    self::TASK_NAME,
-                    $input,
-                    ['Status: error (user resolve)']
-                ),
-            ];
+        $optionid = (int)($input['resolvedoptionid'] ?? 0);
+        if ($optionid <= 0) {
+            $resolvedoption = $this->resolve_option_id($input, $cmid, $userid, $outputlang);
+            if (($resolvedoption['status'] ?? '') !== 'ok') {
+                return [
+                    'status' => 'error',
+                    'detail' => (string)($resolvedoption['message'] ?? get_string(
+                        'agent_booking_book_users_option_resolve_failed',
+                        'bookingextension_agent'
+                    )),
+                    'resultid' => null,
+                    'debugmessage' => $this->build_task_debug_message(self::TASK_NAME, $input, ['Status: error']),
+                ];
+            }
+            $optionid = (int)$resolvedoption['optionid'];
         }
 
-        $bookuserids = $usersforbooking['userids'];
+        $bookuserids = array_values(array_filter(array_map('intval', (array)($input['resolvedbookuserids'] ?? []))));
+        if (empty($bookuserids)) {
+            $bookusersquery = (string)($input['bookusersquery'] ?? '');
+            $usersforbooking = booking_task_support::resolve_users_for_booking($bookusersquery);
+            if (!empty($usersforbooking['errors']) || !empty($usersforbooking['ambiguities'])) {
+                return [
+                    'status' => 'error',
+                    'detail' => trim(implode(' ', array_merge(
+                        $usersforbooking['errors'],
+                        $usersforbooking['ambiguities']
+                    ))),
+                    'resultid' => null,
+                    'debugmessage' => $this->build_task_debug_message(
+                        self::TASK_NAME,
+                        $input,
+                        ['Status: error (user resolve)']
+                    ),
+                ];
+            }
+            $bookuserids = array_values(array_filter(array_map('intval', (array)($usersforbooking['userids'] ?? []))));
+        }
         if (empty($bookuserids)) {
             return [
                 'status' => 'error',

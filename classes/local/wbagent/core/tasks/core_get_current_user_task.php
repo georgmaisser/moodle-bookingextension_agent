@@ -44,7 +44,7 @@ class core_get_current_user_task extends core_task_base implements task_trigger_
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
     }
 

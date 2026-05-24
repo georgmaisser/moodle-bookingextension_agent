@@ -91,13 +91,13 @@ class explain_task_schema_task extends \bookingextension_agent\local\wbagent\boo
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
      * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $taskname = trim((string)($input['taskname'] ?? ''));
 

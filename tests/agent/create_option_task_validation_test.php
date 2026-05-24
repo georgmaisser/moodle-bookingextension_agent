@@ -65,14 +65,14 @@ final class create_option_task_validation_test extends booking_advanced_testcase
 
         $task = new create_option_task();
 
-        $result = $task->validate([
+        $result = $task->check_structure([
             'text' => 'Meine Veranstaltung um 12',
             'maxanswers' => 20,
             'coursestarttime' => '2036-06-04T12:00:00',
             'duration' => 3600,
             'teacheremail' => (string)$USER->email,
             'override' => ['location', 'address'],
-        ], $this->cmid);
+        ]);
 
         $this->assertTrue($result['valid'], implode(' | ', $result['errors'] ?? []));
         $this->assertEmpty($result['errors']);
@@ -86,13 +86,13 @@ final class create_option_task_validation_test extends booking_advanced_testcase
 
         $task = new create_option_task();
 
-        $result = $task->validate([
+        $result = $task->check_structure([
             'text' => 'Meine Veranstaltung um 12',
             'maxanswers' => 20,
             'coursestarttime' => '2036-06-04T12:00:00',
             'duration' => 3600,
             'teacheremail' => (string)$USER->email,
-        ], $this->cmid);
+        ]);
 
         $this->assertTrue($result['valid']);
         $this->assertEmpty($result['errors']);
@@ -104,9 +104,9 @@ final class create_option_task_validation_test extends booking_advanced_testcase
     public function test_title_only_payload_is_valid(): void {
         $task = new create_option_task();
 
-        $result = $task->validate([
+        $result = $task->check_structure([
             'text' => 'Nur Titel',
-        ], $this->cmid);
+        ]);
 
         $this->assertTrue($result['valid']);
         $this->assertEmpty($result['errors']);
@@ -120,14 +120,14 @@ final class create_option_task_validation_test extends booking_advanced_testcase
 
         $task = new create_option_task();
 
-        $result = $task->validate([
+        $result = $task->check_structure([
             'title' => 'Aliased Option Title',
             'limit' => 25,
             'starttime' => '2036-06-04T12:00:00',
             'endtime' => '2036-06-04T14:00:00',
             'teacheremail' => (string)$USER->email,
             'location' => 'Room 1',
-        ], $this->cmid);
+        ]);
 
         $this->assertTrue($result['valid'], implode(' | ', $result['errors'] ?? []));
         $this->assertEmpty($result['errors']);

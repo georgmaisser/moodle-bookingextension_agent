@@ -44,7 +44,7 @@ class core_get_activity_completion_status_task extends core_task_base implements
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         if (trim((string)($input['coursequery'] ?? '')) === '') {
             $errors[] = get_string('agent_booking_core_coursequery_required', 'bookingextension_agent');

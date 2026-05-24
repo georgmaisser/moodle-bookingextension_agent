@@ -88,19 +88,18 @@ final class diagnose_booking_issue_task_test extends abstract_agent_testcase {
     }
 
     /**
-     * Validate recognizes "nicht mehr anmelden" as cannot-book issue.
+     * Preflight recognizes "nicht mehr anmelden" as cannot-book issue.
      */
-    public function test_validate_recognizes_nicht_mehr_anmelden(): void {
+    public function test_preflight_recognizes_nicht_mehr_anmelden(): void {
         $task = new diagnose_booking_issue_task();
         $option = $this->create_generated_option('Anmeldecheck Option');
 
-        $result = $task->validate([
+        $result = $task->preflight([
             'question' => 'Warum kann ich mich nicht mehr anmelden für die buchungsoption "Anmeldecheck Option"?',
             'optionid' => (int)$option->id,
-        ], (int)$this->booking->cmid);
+        ], (int)$this->booking->cmid, (int)$this->teacher->id);
 
-        $this->assertTrue($result['valid'], implode('; ', array_merge($result['errors'], $result['ambiguities'])));
-        $this->assertEmpty($result['ambiguities']);
+        $this->assertTrue($result->isvalid, implode('; ', array_column($result->issues, 'message')));
     }
 
     /**

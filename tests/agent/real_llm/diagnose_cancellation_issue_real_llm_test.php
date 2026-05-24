@@ -21,13 +21,13 @@
  *
  *   CONV-09  Happy path (loop auto-execute)
  *            — User is booked. diagnose_cancellation_issue is read-only: the loop
-    *              auto-executes it and returns a sufficient summary.
+ *              auto-executes it and returns a sufficient summary.
  *              Structured results surface in result['results'] (loop_results).
  *
  *   CONV-10  Verification loop
  *            — Turn 1: vague question → clarification (no results).
  *            — Turn 2: explicit option id → loop auto-executes diagnose →
-    *              sufficient with result['results'] containing the diagnosis.
+ *              sufficient with result['results'] containing the diagnosis.
  *
  * Activation: set BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL + BOOKING_TEST_AI_ENDPOINT.
  *
@@ -66,13 +66,13 @@ final class diagnose_cancellation_issue_real_llm_test extends abstract_agent_tes
      * CONV-09: Happy path — booked user, loop auto-executes diagnose, result in results.
      *
      * With run_loop(), diagnose_cancellation_issue is auto-executed inside the loop.
-    * The caller receives sufficient (LLM summary), not execution_result.
+     * The caller receives sufficient (LLM summary), not execution_result.
      * The diagnosis payload is surfaced via loop_results in result['results'].
      *
      * Setup:  Creates option, books teacher via executor.
      * Conversation:
      *   User:  "Can I cancel my booking for option id <Y>? Just diagnose."
-    *   Agent: sufficient (loop auto-executed diagnose_cancellation_issue)
+     *   Agent: sufficient (loop auto-executed diagnose_cancellation_issue)
      *   Test:  result['results'] contains diagnose result with reasons.
      */
     public function test_conv09_diagnose_cancellation_happy_path(): void {
@@ -170,7 +170,7 @@ final class diagnose_cancellation_issue_real_llm_test extends abstract_agent_tes
      *   Turn 1 — User:  "Why can't the user cancel?"  (no user, no option)
      *            Agent: clarification (no results — no ids given, no tool called)
      *   Turn 2 — User:  "Diagnose cancellation for option id <Y>"
-    *            Agent: sufficient with result['results'] containing the diagnosis
+     *            Agent: sufficient with result['results'] containing the diagnosis
      *   Test:   diagnosis contains reasons.
      */
     public function test_conv10_diagnose_cancellation_verification_loop(): void {

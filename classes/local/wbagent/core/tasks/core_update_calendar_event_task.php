@@ -46,7 +46,7 @@ class core_update_calendar_event_task extends core_task_base implements task_tri
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $issues = [];
         if (empty($input['eventid'])) {

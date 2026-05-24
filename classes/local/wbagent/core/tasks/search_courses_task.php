@@ -120,13 +120,13 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
      * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         if (empty($input['query']) || !is_string($input['query'])) {
             $errors[] = get_string('agent_booking_search_courses_query_required', 'bookingextension_agent');

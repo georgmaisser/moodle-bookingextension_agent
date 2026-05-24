@@ -44,7 +44,7 @@ class core_send_user_message_task extends core_task_base implements task_trigger
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $issues = [];
         if (trim((string)($input['recipient'] ?? '')) === '') {

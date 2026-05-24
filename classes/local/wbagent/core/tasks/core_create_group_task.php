@@ -44,7 +44,7 @@ class core_create_group_task extends core_task_base implements task_trigger_prov
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         $issues = [];
         if (trim((string)($input['coursequery'] ?? '')) === '') {

@@ -67,13 +67,11 @@ final class task_validation_matrix_test extends booking_advanced_testcase {
             $this->assertIsArray($schema, 'Schema must be array for task: ' . $taskname);
             $this->assertNotEmpty($schema, 'Schema must not be empty for task: ' . $taskname);
 
-            $validation = $task->validate([], $this->cmid);
-            $this->assertIsArray($validation, 'Validation must return array for task: ' . $taskname);
-            $this->assertArrayHasKey('valid', $validation, 'Missing valid key for task: ' . $taskname);
-            $this->assertArrayHasKey('errors', $validation, 'Missing errors key for task: ' . $taskname);
-            $this->assertArrayHasKey('ambiguities', $validation, 'Missing ambiguities key for task: ' . $taskname);
-            $this->assertIsArray($validation['errors'], 'Errors must be array for task: ' . $taskname);
-            $this->assertIsArray($validation['ambiguities'], 'Ambiguities must be array for task: ' . $taskname);
+            $structure = $task->check_structure([]);
+            $this->assertIsArray($structure, 'Structure check must return array for task: ' . $taskname);
+            $this->assertArrayHasKey('valid', $structure, 'Missing valid key for task: ' . $taskname);
+            $this->assertArrayHasKey('errors', $structure, 'Missing errors key for task: ' . $taskname);
+            $this->assertIsArray($structure['errors'], 'Errors must be array for task: ' . $taskname);
         }
     }
 
@@ -89,8 +87,8 @@ final class task_validation_matrix_test extends booking_advanced_testcase {
         $task = $this->registry->get_task($taskname);
         $this->assertNotNull($task, 'Task missing: ' . $taskname);
 
-        $validation = $task->validate($input, $this->cmid);
-        $this->assertSame($expectvalid, (bool)($validation['valid'] ?? false));
+        $structure = $task->check_structure($input);
+        $this->assertSame($expectvalid, (bool)($structure['valid'] ?? false));
     }
 
     /**

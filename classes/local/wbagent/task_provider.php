@@ -56,6 +56,15 @@ class task_provider implements result_summary_provider_interface, task_provider_
     }
 
     /**
+     * Return discovery diagnostics from the last get_tasks() call.
+     *
+     * @return array<int,string>
+     */
+    public function get_discovery_diagnostics(): array {
+        return task_discovery::get_last_diagnostics();
+    }
+
+    /**
      * Return contextual prompt packs.
      *
      * @return array<int,array<string,mixed>>

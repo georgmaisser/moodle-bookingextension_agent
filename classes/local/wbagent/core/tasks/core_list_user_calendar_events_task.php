@@ -42,7 +42,7 @@ class core_list_user_calendar_events_task extends core_task_base implements task
         ]);
     }
 
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
         if (!empty($input['timestart']) && !empty($input['timeend']) && (int)$input['timestart'] > (int)$input['timeend']) {
             $errors[] = get_string('agent_booking_core_time_range_invalid', 'bookingextension_agent');

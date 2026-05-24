@@ -22,6 +22,7 @@ use mod_booking\booking;
 use mod_booking\booking_option;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use mod_booking\singleton_service;
 
 /**
@@ -153,15 +154,13 @@ class diagnose_cancellation_issue_task extends booking_task_base implements task
     }
 
     /**
-     * Validate task input.
+    * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
-     * @return array
+    * @return array{valid:bool,errors:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
-        $ambiguities = [];
         $lang = $this->get_output_language($input);
 
         $question = trim((string)($input['question'] ?? ''));
@@ -170,19 +169,89 @@ class diagnose_cancellation_issue_task extends booking_task_base implements task
             $errors[] = $this->localized_string('agent_booking_diagnose_cancel_required_question', null, $lang);
         }
 
-        $optionvalidation = $this->validate_option_reference($input, $cmid, $lang);
-        $errors = array_merge($errors, $optionvalidation['errors']);
-        $ambiguities = array_merge($ambiguities, $optionvalidation['ambiguities']);
 
         $uservalidation = $this->validate_target_user_reference($input, $lang);
         $errors = array_merge($errors, $uservalidation['errors']);
-        $ambiguities = array_merge($ambiguities, $uservalidation['ambiguities']);
 
         return [
-            'valid' => empty($errors) && empty($ambiguities),
+            'valid' => empty($errors),
             'errors' => $errors,
-            'ambiguities' => $ambiguities,
         ];
+    }
+
+    /**
+     * Deep preflight validation and diagnostic entity preparation.
+     *
+     * @param array $input
+     * @param int $cmid
+     * @param int $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            return preflight_result_v2::invalid($this->build_preflight_issues((array)($structure['errors'] ?? [])));
+        }
+
+        $errors = [];
+        $ambiguities = [];
+        $lang = $this->get_output_language($input);
+        $preparedinput = $input;
+
+        $resolveduser = $this->resolve_diagnostic_user($input, $userid, $lang);
+        if (($resolveduser['status'] ?? '') !== 'ok') {
+            $errors[] = (string)($resolveduser['message']
+                ?? get_string('agent_booking_diagnose_cancellation_user_resolve_failed', 'bookingextension_agent'));
+        } else {
+            $diagnosticuserid = (int)($resolveduser['userid'] ?? $userid);
+            if ($diagnosticuserid !== $userid && !$this->can_analyze_other_user($cmid, $userid)) {
+                $errors[] = $this->get_other_user_permission_error_message($lang);
+            } else {
+                $preparedinput['resolveddiagnosticuserid'] = $diagnosticuserid;
+                $preparedinput['targetuserid'] = $diagnosticuserid;
+            }
+        }
+
+        $resolvedoption = $this->resolve_option_id($input, $cmid, $userid, $lang);
+        if (($resolvedoption['status'] ?? '') === 'ok') {
+            $optionid = (int)($resolvedoption['optionid'] ?? 0);
+            $preparedinput['resolvedoptionid'] = $optionid;
+            $preparedinput['optionid'] = $optionid;
+        } else if (($resolvedoption['status'] ?? '') === 'ambiguity') {
+            $ambiguities[] = (string)($resolvedoption['message']
+                ?? $this->localized_string('agent_booking_diagnose_ambiguity_option_specify', null, $lang));
+        } else {
+            $errors[] = (string)($resolvedoption['message']
+                ?? $this->localized_string('agent_booking_diagnose_error_option_resolve', null, $lang));
+        }
+
+        if (!empty($errors) || !empty($ambiguities)) {
+            return preflight_result_v2::invalid($this->build_preflight_issues(array_merge($errors, $ambiguities)));
+        }
+
+        return preflight_result_v2::ok($preparedinput);
+    }
+
+    /**
+     * Convert messages to preflight issues.
+     *
+     * @param array<int,string> $messages
+     * @return array<int,array<string,string>>
+     */
+    private function build_preflight_issues(array $messages): array {
+        $issues = [];
+        foreach ($messages as $message) {
+            $message = trim((string)$message);
+            if ($message === '') {
+                continue;
+            }
+            $issues[] = [
+                'code' => 'DIAGNOSE_CANCELLATION_PREFLIGHT_BLOCKED',
+                'severity' => 'needs_clarification',
+                'message' => $message,
+            ];
+        }
+        return $issues;
     }
 
     /**
@@ -198,23 +267,26 @@ class diagnose_cancellation_issue_task extends booking_task_base implements task
 
         $outputlang = $this->get_output_language($input);
 
-        // Step 1: Resolve which user to diagnose.
-        // Priority: explicit targetuserid > userquery (resolved via DB) > current user.
-        $resolveduser = $this->resolve_diagnostic_user($input, $userid, $outputlang);
-        if (($resolveduser['status'] ?? '') !== 'ok') {
-            $resolveusermessage = (string)($resolveduser['message']
-                ?? get_string('agent_booking_diagnose_cancellation_user_resolve_failed', 'bookingextension_agent'));
-            return [
-                'status' => 'error',
-                'detail' => $resolveusermessage,
-                'resultid' => null,
-                'debugmessage' => $this->build_task_debug_message(self::TASK_NAME, $input, ['Status: error']),
-            ];
+        $diagnosticuserid = (int)($input['resolveddiagnosticuserid'] ?? 0);
+        if ($diagnosticuserid <= 0) {
+            // Step 1: Resolve which user to diagnose.
+            // Priority: explicit targetuserid > userquery (resolved via DB) > current user.
+            $resolveduser = $this->resolve_diagnostic_user($input, $userid, $outputlang);
+            if (($resolveduser['status'] ?? '') !== 'ok') {
+                $resolveusermessage = (string)($resolveduser['message']
+                    ?? get_string('agent_booking_diagnose_cancellation_user_resolve_failed', 'bookingextension_agent'));
+                return [
+                    'status' => 'error',
+                    'detail' => $resolveusermessage,
+                    'resultid' => null,
+                    'debugmessage' => $this->build_task_debug_message(self::TASK_NAME, $input, ['Status: error']),
+                ];
+            }
+            $diagnosticuserid = (int)($resolveduser['userid'] ?? $userid);
         }
 
         // Step 2: Permission check — diagnosing another user requires mod/booking:bookforothers.
-        $diagnosticuserid = (int)($resolveduser['userid'] ?? $userid);
-        if ($diagnosticuserid !== $userid && !$this->can_analyze_other_user($cmid)) {
+        if ($diagnosticuserid !== $userid && !$this->can_analyze_other_user($cmid, $userid)) {
             return [
                 'status' => 'error',
                 'detail' => $this->get_other_user_permission_error_message($outputlang),
@@ -225,25 +297,28 @@ class diagnose_cancellation_issue_task extends booking_task_base implements task
                     ['Status: error', 'Permission denied for diagnosing other users.']
                 ),
             ];
-        }
+            }
 
         // Step 3: Resolve the booking option.
         // Priority: explicit optionid > "last option" session reference > optionquery (DB search).
-        $resolvedoption = $this->resolve_option_id($input, $cmid, $userid, $outputlang);
-        if (($resolvedoption['status'] ?? '') !== 'ok') {
-            return [
-                'status' => 'error',
-                'detail' => (string)($resolvedoption['message']
-                    ?? $this->localized_string('agent_booking_diagnose_error_option_resolve', null, $outputlang)),
-                'resultid' => null,
-                'debugmessage' => $this->build_task_debug_message(self::TASK_NAME, $input, ['Status: error']),
-            ];
+        $optionid = (int)($input['resolvedoptionid'] ?? 0);
+        if ($optionid <= 0) {
+            $resolvedoption = $this->resolve_option_id($input, $cmid, $userid, $outputlang);
+            if (($resolvedoption['status'] ?? '') !== 'ok') {
+                return [
+                    'status' => 'error',
+                    'detail' => (string)($resolvedoption['message']
+                        ?? $this->localized_string('agent_booking_diagnose_error_option_resolve', null, $outputlang)),
+                    'resultid' => null,
+                    'debugmessage' => $this->build_task_debug_message(self::TASK_NAME, $input, ['Status: error']),
+                ];
+            }
+            $optionid = (int)($resolvedoption['optionid'] ?? 0);
         }
 
         // Step 4: Load option settings, booking answers and availability condition results.
         // conditionresults is a sorted array of all active bo_availability conditions for this user;
         // the last entry is the highest-priority blocker.
-        $optionid = (int)($resolvedoption['optionid'] ?? 0);
         $settings = singleton_service::get_instance_of_booking_option_settings($optionid);
         $bookingsettings = singleton_service::get_instance_of_booking_settings_by_cmid($settings->cmid);
         $conditionresults = bo_info::get_condition_results($optionid, $diagnosticuserid);
@@ -688,11 +763,12 @@ class diagnose_cancellation_issue_task extends booking_task_base implements task
      * Check if current user may diagnose another user in this booking context.
      *
      * @param int $cmid
+     * @param int $userid
      * @return bool
      */
-    private function can_analyze_other_user(int $cmid): bool {
+    private function can_analyze_other_user(int $cmid, int $userid): bool {
         $context = \context_module::instance($cmid);
-        return has_capability('mod/booking:bookforothers', $context);
+        return has_capability('mod/booking:bookforothers', $context, $userid);
     }
 
     /**
