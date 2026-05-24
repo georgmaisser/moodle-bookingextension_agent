@@ -131,9 +131,14 @@ class task_contract_validator {
             $errors[] = 'Invalid required field: version must be an integer > 0.';
         }
 
-        $activation = $taskmeta['activation'] ?? ($taskmeta['active'] ?? null);
-        if (!is_bool($activation) && !is_callable($activation)) {
-            $errors[] = 'Invalid required field: activation must be a boolean or callable.';
+        $hasactivation = array_key_exists('activation', $taskmeta) || array_key_exists('active', $taskmeta);
+        if (!$hasactivation) {
+            $errors[] = 'Missing required field: activation.';
+        } else {
+            $activation = $taskmeta['activation'] ?? $taskmeta['active'];
+            if (!is_bool($activation) && !is_callable($activation)) {
+                $errors[] = 'Invalid required field: activation must be a boolean or callable.';
+            }
         }
 
         $capability = $taskmeta['capability'] ?? ($taskmeta['capabilities'] ?? null);

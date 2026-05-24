@@ -649,7 +649,7 @@ abstract class booking_task_base extends base_task {
             $typematches = match ($type) {
                 'string' => is_string($value),
                 // Accept numeric strings because LLM JSON and WS payloads can serialize ints as strings.
-                // Reject leading-zero forms like "007" to keep integer normalization deterministic.
+                // Reject multi-digit leading-zero forms like "007"; the literal "0" stays valid.
                 'integer' => is_int($value) || (is_string($value) && preg_match('/^-?(0|[1-9]\d*)$/', $value) === 1),
                 'number' => is_numeric($value),
                 'boolean' => is_bool($value),
