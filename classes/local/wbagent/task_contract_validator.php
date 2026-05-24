@@ -68,22 +68,23 @@ class task_contract_validator {
         $schema = (array)$task->get_schema();
         $governance = (array)($schema['governance'] ?? []);
         $taskname = trim($task->get_name());
-        $capability = [];
+        $capabilities = [];
         $defaultcapability = self::build_task_capability_name($component, $taskname);
         if ($defaultcapability !== '') {
-            $capability[] = $defaultcapability;
+            $capabilities[] = $defaultcapability;
         }
+        $isactive = array_key_exists('active', $governance) ? (bool)$governance['active'] : true;
 
         return [
             'taskname' => $taskname,
             'version' => (int)($schema['version'] ?? 1),
             'component' => trim($component),
             // Canonical blueprint-aligned fields.
-            'capability' => $capability,
-            'activation' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
+            'capability' => $capabilities,
+            'activation' => $isactive,
             // Backward-compatible aliases kept for existing runtime/tests.
-            'capabilities' => $capability,
-            'active' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
+            'capabilities' => $capabilities,
+            'active' => $isactive,
             'alias_of' => trim((string)($governance['alias_of'] ?? '')),
             'deprecated_since' => trim((string)($governance['deprecated_since'] ?? '')),
             'readonly' => (bool)$task->is_read_only(),
