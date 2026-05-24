@@ -63,8 +63,8 @@ class core_list_course_calendar_events_task extends core_task_base implements ta
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_course_not_found', null, $lang), 'resultid' => null];
         }
 
-        $context = context_course::instance($courseid);
-        if (!has_capability('moodle/course:view', $context)) {
+        $course = get_course($courseid);
+        if (!can_access_course($course, $userid)) {
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_calendar_permission_denied', null, $lang), 'resultid' => null];
         }
 

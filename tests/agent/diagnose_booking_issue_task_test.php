@@ -73,19 +73,18 @@ final class diagnose_booking_issue_task_test extends abstract_agent_testcase {
     }
 
     /**
-     * Validate asks follow-up question when option is missing.
+     * Preflight asks follow-up question when option is missing.
      */
-    public function test_validate_requests_option_reference(): void {
+    public function test_preflight_requests_option_reference(): void {
         $task = new diagnose_booking_issue_task();
 
-        $result = $task->validate([
+        $result = $task->preflight([
             'question' => 'Warum kann ich mich nicht eintragen?',
-        ], (int)$this->booking->cmid);
+        ], (int)$this->booking->cmid, (int)$this->teacher->id);
 
-        $this->assertFalse($result['valid']);
-        // OPTION_REFERENCE_REQUIRED is needs_clarification → surfaced in errors (not ambiguities).
-        $this->assertNotEmpty($result['errors']);
-        $this->assertStringContainsString('Which booking option do you mean?', (string)$result['errors'][0]);
+        $this->assertFalse($result->isvalid);
+        $this->assertContains('OPTION_REFERENCE_REQUIRED', $result->get_issue_codes());
+        $this->assertStringContainsString('Which booking option do you mean?', (string)($result->issues[0]['message'] ?? ''));
     }
 
     /**
@@ -229,26 +228,25 @@ final class diagnose_booking_issue_task_test extends abstract_agent_testcase {
     }
 
     /**
-     * Validation error message is localized to German when current language is de.
+     * Preflight error message is localized to German when current language is de.
      */
-    public function test_validate_ambiguity_is_localized_for_german(): void {
+    public function test_preflight_ambiguity_is_localized_for_german(): void {
         $task = new diagnose_booking_issue_task();
 
-        $result = $task->validate([
+        $result = $task->preflight([
             'question' => 'Warum kann ich mich nicht eintragen?',
             'outputlang' => 'de',
-        ], (int)$this->booking->cmid);
+        ], (int)$this->booking->cmid, (int)$this->teacher->id);
 
-        $this->assertFalse($result['valid']);
-        // OPTION_REFERENCE_REQUIRED is needs_clarification → surfaced in errors (not ambiguities).
-        $this->assertNotEmpty($result['errors']);
+        $this->assertFalse($result->isvalid);
+        $this->assertContains('OPTION_REFERENCE_REQUIRED', $result->get_issue_codes());
         $expectedmessage = get_string_manager()->get_string(
             'agent_booking_diagnose_ambiguity_option_required',
             'bookingextension_agent',
             null,
             'de'
         );
-        $this->assertSame($expectedmessage, (string)$result['errors'][0]);
+        $this->assertSame($expectedmessage, (string)($result->issues[0]['message'] ?? ''));
     }
 
     /**

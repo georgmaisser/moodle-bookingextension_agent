@@ -59,7 +59,7 @@ class core_get_user_enrolments_task extends core_task_base implements task_trigg
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_user_permission_denied', null, $outputlang), 'resultid' => null];
         }
 
-        require_once($GLOBALS['CFG']->dirroot . '/enrol/lib.php');
+        require_once($GLOBALS['CFG']->dirroot . '/lib/enrollib.php');
         $courses = enrol_get_users_courses($targetid, true);
         $items = [];
         foreach ($courses as $course) {

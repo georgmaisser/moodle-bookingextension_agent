@@ -61,7 +61,7 @@ class core_enrol_user_manual_task extends core_task_base implements task_trigger
     }
 
     public function execute(array $input, int $cmid, int $userid): array {
-        require_once($GLOBALS['CFG']->dirroot . '/enrol/lib.php');
+        require_once($GLOBALS['CFG']->dirroot . '/lib/enrollib.php');
 
         $lang = $this->get_output_language($input);
         $targetid = $this->resolve_userid($input, $userid);

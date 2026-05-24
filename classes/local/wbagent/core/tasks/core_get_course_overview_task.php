@@ -56,12 +56,11 @@ class core_get_course_overview_task extends core_task_base implements task_trigg
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_course_not_found', null, $lang), 'resultid' => null];
         }
 
-        $context = context_course::instance($courseid);
-        if (!has_capability('moodle/course:view', $context)) {
+        $course = get_course($courseid);
+        if (!can_access_course($course, $userid)) {
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_course_permission_denied', null, $lang), 'resultid' => null];
         }
 
-        $course = get_course($courseid);
         $modinfo = get_fast_modinfo($course);
         $sections = [];
         foreach ($modinfo->get_section_info_all() as $section) {

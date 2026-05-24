@@ -378,57 +378,11 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             ];
         }
 
-        $missingrequired = [];
-        if ($resolvedtype === 'slotbooking') {
-            if (!array_key_exists('slot_duration_minutes', $input)) {
-                $missingrequired[] = 'slot_duration_minutes';
-            }
-            if (!array_key_exists('slot_max_participants_per_slot', $input)) {
-                $missingrequired[] = 'slot_max_participants_per_slot';
-            }
-            if (!self::has_any_key($input, ['slot_opening_time', 'slot_closing_time'])) {
-                $missingrequired[] = 'slot_opening_time|slot_closing_time';
-            }
-            if (!self::has_any_key($input, ['slot_valid_from', 'slot_valid_until'])) {
-                $missingrequired[] = 'slot_valid_from|slot_valid_until';
-            }
-
-            $slotweekdaykeys = [
-                'slot_day_1', 'slot_day_2', 'slot_day_3', 'slot_day_4', 'slot_day_5', 'slot_day_6', 'slot_day_7',
-            ];
-            $hasactiveday = false;
-            foreach ($slotweekdaykeys as $dk) {
-                if (!empty($input[$dk])) {
-                    $hasactiveday = true;
-                    break;
-                }
-            }
-            if (!$hasactiveday) {
-                $missingrequired[] = 'one slot_day_X=true';
-            }
-        } else {
-            if ((int)($input['maxanswers'] ?? 0) <= 0) {
-                $missingrequired[] = 'maxanswers';
-            }
-
-            $hasoptiondates = !empty($input['optiondates']) && is_array($input['optiondates']);
-            if (!$hasoptiondates && trim((string)($input['coursestarttime'] ?? '')) === '') {
-                $missingrequired[] = 'coursestarttime';
-            }
-
-            $hasduration = (int)($input['duration'] ?? 0) > 0;
-            $hasendtime = trim((string)($input['courseendtime'] ?? '')) !== '';
-            if (!$hasoptiondates && !$hasduration && !$hasendtime) {
-                $missingrequired[] = 'duration|courseendtime';
-            }
-        }
-
-        if (!empty($missingrequired)) {
+        $commonerrors = $this->validate_common_mutation_structure($input, true);
+        if (!empty($commonerrors)) {
             return [
                 'valid' => false,
-                'errors' => [
-                    $this->build_create_option_retry_message($appliedaliases, [], $missingrequired, true),
-                ],
+                'errors' => $commonerrors,
             ];
         }
 

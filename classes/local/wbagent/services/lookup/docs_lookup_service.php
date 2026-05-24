@@ -40,7 +40,7 @@ class docs_lookup_service {
      * @param string|null $rootdocpath
      */
     public function __construct(?string $docsroot = null, ?string $rootdocpath = null) {
-        $this->docsroot = $docsroot ?? dirname(__DIR__, 5) . '/docs';
+        $this->docsroot = $docsroot ?? dirname(__DIR__, 7) . '/docs';
         $this->rootdocpath = trim((string)($rootdocpath ?? 'README.md'));
         if ($this->rootdocpath === '') {
             $this->rootdocpath = 'README.md';
@@ -713,7 +713,8 @@ class docs_lookup_service {
         $source = trim((string)($doc['chunk_content'] ?? $doc['content'] ?? ''));
         $steps = $this->extract_first_ordered_steps($source);
         if ($steps !== '') {
-            return $steps;
+            $title = trim($this->strip_markdown((string)($doc['title'] ?? '')));
+            return $title !== '' ? $title . ': ' . $steps : $steps;
         }
 
         $excerpt = $this->strip_markdown((string)($doc['excerpt'] ?? ''));

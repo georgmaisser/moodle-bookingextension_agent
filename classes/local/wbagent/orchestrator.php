@@ -70,7 +70,7 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching tasks to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 3;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 6;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild task. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 300;
@@ -297,7 +297,10 @@ class orchestrator {
         $plannertracehistory = $this->normalize_planner_trace_history(
             $this->store->get_thread_metadata_value($threadid, 'planner_trace_history')
         );
-        $shouldincludetaskcatalog = ($normalizedsteptype === self::STEP_TYPE_TOOL_CALL_PARSE) && !$hasanyobservations;
+        $shouldincludetaskcatalog = (
+            ($normalizedsteptype === self::STEP_TYPE_TOOL_CALL_PARSE && !$hasanyobservations)
+            || ($normalizedsteptype === self::STEP_TYPE_SIMPLE_RETRIEVAL && $haseffectiveobservations)
+        );
         $runtimecatalog = [];
         $unavailabletaskcatalog = [];
         $catalogselectionmode = 'none';
@@ -399,11 +402,15 @@ class orchestrator {
                                         $activesubset[] = $entry;
                                     }
 
-                                    $runtimecatalog = $this->slim_prompt_catalog_for_planner($activesubset);
+                                    $boostedcatalog = $this->merge_embedding_subset_with_fallback_catalog(
+                                        $activesubset,
+                                        $adaptivecatalog
+                                    );
+                                    $runtimecatalog = $this->slim_prompt_catalog_for_planner($boostedcatalog);
                                     $unavailabletaskcatalog = array_values(array_filter($unavailabletaskcatalog, static function ($entry) {
                                         return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
                                     }));
-                                    $catalogselectionmode = 'embed';
+                                    $catalogselectionmode = 'embed_boost';
                                     $embeddingstatus = 'applied';
                                 } else {
                                     $embeddingstatus = 'nomatch';
@@ -823,6 +830,36 @@ PROMPT;
         }
 
         return $slimcatalog;
+    }
+
+    /**
+     * Put embedding matches first while preserving the adaptive catalog as a safety net.
+     *
+     * @param array<int,array<string,mixed>> $prioritycatalog
+     * @param array<int,array<string,mixed>> $fallbackcatalog
+     * @return array<int,array<string,mixed>>
+     */
+    private function merge_embedding_subset_with_fallback_catalog(array $prioritycatalog, array $fallbackcatalog): array {
+        $merged = [];
+        $seen = [];
+        $add = static function (array $entries) use (&$merged, &$seen): void {
+            foreach ($entries as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $taskname = trim((string)($entry['task'] ?? ''));
+                if ($taskname === '' || isset($seen[$taskname])) {
+                    continue;
+                }
+                $seen[$taskname] = true;
+                $merged[] = $entry;
+            }
+        };
+
+        $add($prioritycatalog);
+        $add($fallbackcatalog);
+
+        return $merged;
     }
 
     /**

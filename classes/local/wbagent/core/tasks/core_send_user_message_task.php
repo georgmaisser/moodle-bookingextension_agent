@@ -66,7 +66,7 @@ class core_send_user_message_task extends core_task_base implements task_trigger
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_user_not_found', null, $lang), 'resultid' => null];
         }
 
-        if ($recipientid !== $userid && !has_capability('moodle/site:sendmessage', context_system::instance()) && !is_siteadmin($userid)) {
+        if ($recipientid !== $userid && !has_capability('moodle/site:sendmessage', context_system::instance(), $userid) && !is_siteadmin($userid)) {
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_message_permission_denied', null, $lang), 'resultid' => null];
         }
 
@@ -74,8 +74,9 @@ class core_send_user_message_task extends core_task_base implements task_trigger
         $to = \core_user::get_user($recipientid, '*', MUST_EXIST);
 
         $payload = new \core\message\message();
-        $payload->component = 'bookingextension_agent';
-        $payload->name = 'agent_message';
+        $payload->component = 'moodle';
+        $payload->name = 'instantmessage';
+        $payload->courseid = SITEID;
         $payload->userfrom = $from;
         $payload->userto = $to;
         $payload->subject = trim((string)($input['subject'] ?? get_string('agent_booking_core_message_default_subject', 'bookingextension_agent')));

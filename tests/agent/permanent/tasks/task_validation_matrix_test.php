@@ -112,10 +112,10 @@ final class task_validation_matrix_test extends booking_advanced_testcase {
                 ],
                 true,
             ],
-            'create_option_missing_required' => [
+            'create_option_title_only_valid' => [
                 'booking.create_option',
                 ['text' => 'Matrix Incomplete'],
-                false,
+                true,
             ],
             'update_option_missing_target' => [
                 'booking.update_option',

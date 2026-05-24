@@ -25,29 +25,55 @@
 defined('MOODLE_INTERNAL') || die();
 
 /**
+ * Ensure AI messages carry the owning user id from their thread.
+ *
+ * @return void
+ */
+function xmldb_bookingextension_agent_ensure_ai_messages_userid(): void {
+    global $DB;
+
+    $dbman = $DB->get_manager();
+    $table = new xmldb_table('local_wbagent_ai_messages');
+    $field = new xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'threadid');
+
+    if (!$dbman->field_exists($table, $field)) {
+        $dbman->add_field($table, $field);
+    }
+
+    $records = $DB->get_recordset_sql(
+        'SELECT m.id, t.userid
+           FROM {local_wbagent_ai_messages} m
+           JOIN {local_wbagent_ai_threads} t
+             ON t.id = m.threadid
+          WHERE m.userid = :emptyuserid',
+        ['emptyuserid' => 0]
+    );
+    foreach ($records as $record) {
+        $DB->set_field('local_wbagent_ai_messages', 'userid', (int)$record->userid, ['id' => (int)$record->id]);
+    }
+    $records->close();
+
+    $index = new xmldb_index('useridthreadidx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'threadid']);
+    if (!$dbman->index_exists($table, $index)) {
+        $dbman->add_index($table, $index);
+    }
+}
+
+/**
  * Upgrade function.
  *
  * @param int $oldversion
  * @return bool
  */
 function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
-    global $DB;
-
-    $dbman = $DB->get_manager();
-
     if ($oldversion < 2026052205) {
-        $table = new xmldb_table('local_wbagent_ai_messages');
-        $field = new xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'threadid');
-
-        if (!$dbman->field_exists($table, $field)) {
-            $dbman->add_field($table, $field);
-        }
-
-        $index = new xmldb_index('useridthreadidx', XMLDB_INDEX_NOTUNIQUE, ['userid', 'threadid']);
-        if (!$dbman->index_exists($table, $index)) {
-            $dbman->add_index($table, $index);
-        }
+        xmldb_bookingextension_agent_ensure_ai_messages_userid();
         upgrade_plugin_savepoint(true, 2026052205, 'bookingextension', 'agent');
+    }
+
+    if ($oldversion < 2026052300) {
+        xmldb_bookingextension_agent_ensure_ai_messages_userid();
+        upgrade_plugin_savepoint(true, 2026052300, 'bookingextension', 'agent');
     }
 
     return true;

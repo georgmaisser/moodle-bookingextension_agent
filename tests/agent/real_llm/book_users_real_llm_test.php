@@ -228,6 +228,7 @@ final class book_users_real_llm_test extends abstract_agent_testcase {
         if (($result1['response_type'] ?? '') !== 'clarification') {
             $this->fail(
                 'Expected clarification on turn 1 for vague book_users input; got: ' . ($result1['response_type'] ?? '?')
+                . '. Payload: ' . json_encode($result1, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
             );
         }
 

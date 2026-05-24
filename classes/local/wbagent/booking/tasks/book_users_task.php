@@ -124,6 +124,7 @@ class book_users_task extends booking_task_base implements task_trigger_provider
                 'id' => 'booking.book_users_for_option',
                 'description' => 'User asks to book one or more people into a booking option.',
                 'examples' => [
+                    'Book a user into an option.',
                     'Book Max Müller into option "Spring Workshop".',
                     'Please register Anna and Bob for the cooking course.',
                     'Buche Lisa für die Lesung mit Georg.',

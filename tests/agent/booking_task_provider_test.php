@@ -27,6 +27,8 @@ namespace bookingextionsion_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 use bookingextension_agent\local\wbagent\booking\booking_task_provider;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wbagent\task_discovery;
 
 /**
  * Tests for the booking domain task provider.
@@ -63,6 +65,30 @@ final class booking_task_provider_test extends booking_advanced_testcase {
                 ],
             ],
         ], $overrides);
+    }
+
+    /**
+     * Run pure structural validation through the provider contract.
+     *
+     * @param string $taskname
+     * @param array $input
+     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     */
+    private function check_structure(string $taskname, array $input): array {
+        return $this->provider->check_structure($taskname, $input, (int)$this->booking->cmid);
+    }
+
+    /**
+     * Run DB-aware preflight through the concrete task contract.
+     *
+     * @param string $taskname
+     * @param array $input
+     * @return preflight_result_v2
+     */
+    private function preflight(string $taskname, array $input): preflight_result_v2 {
+        $tasks = task_discovery::get_task_instances();
+        $this->assertArrayHasKey($taskname, $tasks);
+        return $tasks[$taskname]->preflight($input, (int)$this->booking->cmid, (int)get_admin()->id);
     }
 
     /**
@@ -121,7 +147,7 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Test create_option validation fails without text.
      */
     public function test_create_option_validation_fails_without_text(): void {
-        $result = $this->provider->validate('booking.create_option', [], (int)$this->booking->cmid);
+        $result = $this->check_structure('booking.create_option', []);
         $this->assertFalse($result['valid']);
         $this->assertNotEmpty($result['errors']);
     }
@@ -130,10 +156,9 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Test create_option validation passes with the minimal required payload.
      */
     public function test_create_option_validation_passes_with_required_fields(): void {
-        $result = $this->provider->validate(
+        $result = $this->check_structure(
             'booking.create_option',
-            $this->create_option_payload(),
-            (int)$this->booking->cmid
+            $this->create_option_payload()
         );
         $this->assertTrue($result['valid']);
         $this->assertEmpty($result['errors']);
@@ -144,7 +169,7 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Test update_option validation produces ambiguity without optionid.
      */
     public function test_update_option_validation_ambiguity_without_optionid(): void {
-        $result = $this->provider->validate('booking.update_option', ['location' => 'Room A'], (int)$this->booking->cmid);
+        $result = $this->check_structure('booking.update_option', ['location' => 'Room A']);
         $this->assertFalse($result['valid']);
         $this->assertNotEmpty($result['errors']);
     }
@@ -153,7 +178,7 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Test that invalid datetime produces an error.
      */
     public function test_invalid_datetime_produces_error(): void {
-        $result = $this->provider->validate(
+        $result = $this->check_structure(
             'booking.create_option',
             $this->create_option_payload([
                 'optiondates' => [
@@ -162,8 +187,7 @@ final class booking_task_provider_test extends booking_advanced_testcase {
                         'courseendtime' => '2036-06-01T17:00:00',
                     ],
                 ],
-            ]),
-            (int)$this->booking->cmid
+            ])
         );
         $this->assertFalse($result['valid']);
         $this->assertNotEmpty($result['errors']);
@@ -173,10 +197,9 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Test that valid ISO 8601 datetime passes validation.
      */
     public function test_valid_iso_datetime_passes(): void {
-        $result = $this->provider->validate(
+        $result = $this->check_structure(
             'booking.create_option',
-            $this->create_option_payload(),
-            (int)$this->booking->cmid
+            $this->create_option_payload()
         );
         $this->assertTrue($result['valid']);
     }
@@ -185,10 +208,10 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Visibility aliases should validate for update_option.
      */
     public function test_update_option_visibility_alias_passes_validation(): void {
-        $result = $this->provider->validate('booking.update_option', [
+        $result = $this->check_structure('booking.update_option', [
             'optionquery' => 'last option',
             'visibility' => 'directlink',
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertTrue($result['valid']);
         $this->assertEmpty($result['errors']);
@@ -198,10 +221,10 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Legacy visible alias should validate for update_option and map to visible state.
      */
     public function test_update_option_visible_alias_passes_validation(): void {
-        $result = $this->provider->validate('booking.update_option', [
+        $result = $this->check_structure('booking.update_option', [
             'optionquery' => 'last option',
             'visible' => 1,
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertTrue($result['valid']);
         $this->assertEmpty($result['errors']);
@@ -211,10 +234,10 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * Invalid visibility values should be rejected.
      */
     public function test_update_option_visibility_rejects_invalid_value(): void {
-        $result = $this->provider->validate('booking.update_option', [
+        $result = $this->check_structure('booking.update_option', [
             'optionquery' => 'last option',
             'visibility' => 'semi-visible',
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertFalse($result['valid']);
         $this->assertNotEmpty($result['errors']);
@@ -224,10 +247,10 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * optiondatesmode must be append or replace.
      */
     public function test_update_option_optiondatesmode_rejects_invalid_value(): void {
-        $result = $this->provider->validate('booking.update_option', [
+        $result = $this->check_structure('booking.update_option', [
             'optionquery' => 'last option',
             'optiondatesmode' => 'merge',
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertFalse($result['valid']);
         $this->assertNotEmpty($result['errors']);
@@ -248,9 +271,9 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * bulk_update_options must fail when no target selector is supplied.
      */
     public function test_bulk_update_validation_requires_target(): void {
-        $result = $this->provider->validate('booking.bulk_update_options', [
+        $result = $this->check_structure('booking.bulk_update_options', [
             'maxanswers' => 10,
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertFalse($result['valid']);
         $this->assertNotEmpty($result['errors']);
@@ -260,11 +283,11 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * bulk_update_options must reject bookusersquery.
      */
     public function test_bulk_update_validation_forbids_bookusersquery(): void {
-        $result = $this->provider->validate('booking.bulk_update_options', [
+        $result = $this->check_structure('booking.bulk_update_options', [
             'apply_to_all' => true,
             'bookusersquery' => 'john',
             'maxanswers' => 8,
-        ], (int)$this->booking->cmid);
+        ]);
 
         $this->assertFalse($result['valid']);
         $detail = implode(' ', array_merge($result['errors'] ?? [], $result['ambiguities'] ?? []));
@@ -275,12 +298,12 @@ final class booking_task_provider_test extends booking_advanced_testcase {
      * bulk_update_options must reject option ids that are not part of this booking instance.
      */
     public function test_bulk_update_validation_rejects_foreign_optionid(): void {
-        $result = $this->provider->validate('booking.bulk_update_options', [
+        $result = $this->preflight('booking.bulk_update_options', [
             'optionids' => [999999],
             'maxanswers' => 8,
-        ], (int)$this->booking->cmid);
+        ]);
 
-        $this->assertFalse($result['valid']);
-        $this->assertNotEmpty($result['errors']);
+        $this->assertFalse($result->isvalid);
+        $this->assertNotEmpty($result->issues);
     }
 }

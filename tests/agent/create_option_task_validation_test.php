@@ -153,7 +153,8 @@ final class create_option_task_validation_test extends booking_advanced_testcase
             'Retry booking.create_option once with corrected canonical keys.',
             $observation
         );
-        $this->assertStringContainsString('EN label -> key map:', $observation);
+        $this->assertStringContainsString('Use canonical property keys only;', $observation);
+        $this->assertStringContainsString('FULL_KEY_MAP booking.create_option', $observation);
         $this->assertStringContainsString('Applied alias mapping: limit -> maxanswers', $observation);
         $this->assertStringContainsString('Remove unknown keys: foo', $observation);
     }

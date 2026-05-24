@@ -17,8 +17,8 @@
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
 use context_system;
-use bookingextension_agent\local\pricecategories_handler;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use mod_booking\local\pricecategories_handler;
 
 /**
  * Task definition for booking.add_price_category.

@@ -48,6 +48,11 @@ class executor implements agent_executor {
     /** @var int Maximum number of follow-up suggestions returned per result. */
     private const MAX_FOLLOW_UP_SUGGESTIONS = 3;
 
+    /** @var array<string,array<int,string>> Fields omitted from result echoes for privacy. */
+    private const SENSITIVE_EXECUTED_INPUT_FIELDS = [
+        'booking.recall_memory' => ['query'],
+    ];
+
     /** @var task_registry */
     private task_registry $registry;
 
@@ -166,7 +171,7 @@ class executor implements agent_executor {
             if (is_array($result) && !isset($result['executed_input']) && is_array($input)) {
                 // Keep normalized executed input in loop results so follow-up planner turns
                 // can deterministically avoid repeating already completed commands.
-                $result['executed_input'] = $input;
+                $result['executed_input'] = $this->build_safe_executed_input($taskname, $input);
             }
             if (!empty($result['previewoptionids']) && is_array($result['previewoptionids'])) {
                 booking_task_support::remember_last_preview_options_for_user_for_execute(
@@ -180,6 +185,36 @@ class executor implements agent_executor {
         }
 
         return $results;
+    }
+
+    /**
+     * Build a result-safe echo of the executed input.
+     *
+     * @param string $taskname
+     * @param array $input
+     * @return array
+     */
+    private function build_safe_executed_input(string $taskname, array $input): array {
+        $task = $this->registry->get_task($taskname);
+        $allowedkeys = [];
+        if ($task !== null) {
+            $schema = $task->get_schema();
+            $allowedkeys = array_fill_keys(array_keys((array)($schema['properties'] ?? [])), true);
+        }
+
+        $safe = [];
+        foreach ($input as $key => $value) {
+            if (!is_string($key) || ($task !== null && !isset($allowedkeys[$key]))) {
+                continue;
+            }
+            $safe[$key] = $value;
+        }
+
+        foreach (self::SENSITIVE_EXECUTED_INPUT_FIELDS[$taskname] ?? [] as $fieldname) {
+            unset($safe[$fieldname]);
+        }
+
+        return $safe;
     }
 
     /**

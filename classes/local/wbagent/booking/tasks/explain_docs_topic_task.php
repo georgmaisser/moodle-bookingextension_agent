@@ -221,6 +221,7 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
 
         $service = $this->create_docs_lookup_service();
         $directdoc = null;
+        $topicidused = '';
 
         // Deterministic path mode: direct doc_path has highest priority.
         // Ignore ungrounded root doc placeholders so semantic retrieval can choose better docs.
@@ -271,6 +272,7 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
         if ($topichint !== '') {
             $resolvedtopic = $this->resolve_topic_hint_to_topic_id($service, $topichint);
             if ($resolvedtopic !== '') {
+                $topicidused = $resolvedtopic;
                 $docs = $service->search_in_topic(
                     $resolvedtopic,
                     $question,
@@ -292,6 +294,7 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
                 && $topicscore >= self::TOPIC_MIN_SCORE
                 && ($plannerconfidence >= self::TOPIC_CONFIDENCE_THRESHOLD || $topicconfidence >= self::TOPIC_CONFIDENCE_THRESHOLD)
             ) {
+                $topicidused = $topictouse;
                 $docs = $service->search_in_topic(
                     $topictouse,
                     $question,
@@ -305,6 +308,7 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
             $docs = $service->search_multi($allqueries, self::DOC_CANDIDATE_POOL_LIMIT);
         }
 
+        $docs = $this->promote_topic_overview_for_broad_query($docs, $service, $topicidused);
         $docs = $this->apply_configure_intent_boost($docs, $question, $retrievalgoal);
         $docs = $this->prioritize_docs($docs);
 
@@ -487,6 +491,65 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
     }
 
     /**
+     * Prefer a topic overview when retrieval only knows the topic, not a specific doc basename.
+     *
+     * @param array $docs
+     * @param docs_lookup_service $service
+     * @param string $topicid
+     * @return array
+     */
+    private function promote_topic_overview_for_broad_query(
+        array $docs,
+        docs_lookup_service $service,
+        string $topicid
+    ): array {
+        $topicid = trim($topicid);
+        if (empty($docs)) {
+            return $docs;
+        }
+
+        if ($topicid === '') {
+            $topicid = $this->extract_topic_id_from_doc_path((string)($docs[0]['path'] ?? ''));
+        }
+        if ($topicid === '') {
+            return $docs;
+        }
+
+        foreach ($docs as $doc) {
+            if (!empty($doc['exactbasenamehit'])) {
+                return $docs;
+            }
+        }
+
+        $overviewpath = $topicid === 'overview' ? $service->get_root_doc_path() : $topicid . '/README.md';
+        $overview = $service->read_doc_by_path($overviewpath, 1, self::FIRST_STEP_LINE_COUNT);
+        if ($overview === null) {
+            return $docs;
+        }
+
+        $topscores = array_map(static fn(array $doc): int => (int)($doc['score'] ?? 0), $docs);
+        $overview['score'] = (empty($topscores) ? 0 : max($topscores)) + self::ROOT_DOC_NAV_SCORE;
+        $overview['exactbasenamehit'] = false;
+
+        return $this->prepend_doc_candidate($docs, $overview);
+    }
+
+    /**
+     * Extract the docs topic id from a relative documentation path.
+     *
+     * @param string $path
+     * @return string
+     */
+    private function extract_topic_id_from_doc_path(string $path): string {
+        $path = trim(str_replace('\\', '/', $path));
+        if ($path === '' || strpos($path, '/') === false) {
+            return '';
+        }
+
+        return trim((string)(explode('/', $path)[0] ?? ''));
+    }
+
+    /**
      * Apply generic score-first ordering before taking final top docs.
      *
      * @param array $docs
@@ -564,6 +627,10 @@ class explain_docs_topic_task extends booking_task_base implements task_trigger_
 
         $usermessage = $service->build_summary($doc, $cmid, $outputlang, $question);
         if ($url !== '') {
+            $maxsummarylength = max(120, 500 - \core_text::strlen("\n" . $url));
+            if (\core_text::strlen($usermessage) > $maxsummarylength) {
+                $usermessage = rtrim(\core_text::substr($usermessage, 0, $maxsummarylength - 3)) . '...';
+            }
             $usermessage .= "\n" . $url;
         }
 

@@ -163,6 +163,25 @@ final class core_moodle_tasks_test extends abstract_agent_testcase {
      * Cross-user profile lookup should be denied for student without privilege.
      */
     public function test_profile_cross_user_permission_gate(): void {
+        $roles = get_archetype_roles('student');
+        $role = reset($roles);
+        $this->assertNotFalse($role);
+        assign_capability(
+            'bookingextension/agent:useaiinstructions',
+            CAP_ALLOW,
+            (int)$role->id,
+            (int)\context_module::instance((int)$this->booking->cmid)->id,
+            true
+        );
+        assign_capability(
+            'bookingextension/agent:task_booking_core_get_user_profile',
+            CAP_ALLOW,
+            (int)$role->id,
+            (int)\context_module::instance((int)$this->booking->cmid)->id,
+            true
+        );
+        accesslib_clear_all_caches(true);
+
         $this->setUser($this->student);
         $result = $this->exec_command('booking.core_get_user_profile', [
             'userquery' => (string)$this->teacher->id,

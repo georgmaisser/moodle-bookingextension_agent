@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests that booking task classes own schema/validation responsibilities.
+ * Tests that booking task classes expose stable framework contracts.
  *
  * @package    bookingextension_agent
  * @category   test
@@ -36,9 +36,10 @@ use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
 use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
 use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
 use bookingextension_agent\local\wbagent\core\tasks\recall_memory_task;
+use bookingextension_agent\local\wbagent\interfaces\task_interface;
 
 /**
- * Ensures task classes own schema and validation behavior.
+ * Ensures task classes expose schema and structural validation behavior.
  *
  * @package    bookingextension_agent
  * @category   test
@@ -46,7 +47,7 @@ use bookingextension_agent\local\wbagent\core\tasks\recall_memory_task;
  */
 final class booking_task_class_ownership_test extends booking_advanced_testcase {
     /**
-     * Data provider for tasks expected to declare get_schema() directly.
+    * Data provider for tasks expected to expose a task schema.
      *
      * @return array
      */
@@ -66,46 +67,51 @@ final class booking_task_class_ownership_test extends booking_advanced_testcase 
     }
 
     /**
-     * Data provider for tasks expected to declare validate() directly.
+    * Data provider for tasks expected to expose a pure structure contract.
      *
      * @return array
      */
-    public static function validate_owner_provider(): array {
+    public static function structure_contract_provider(): array {
         return self::schema_owner_provider();
     }
 
     /**
-     * Task classes should define get_schema() in their own class.
+     * Task classes should expose a stable schema through the task interface.
      *
      * @dataProvider schema_owner_provider
      * @param string $classname
      */
-    public function test_task_declares_own_schema_method(string $classname): void {
-        $reflection = new \ReflectionClass($classname);
-        $method = $reflection->getMethod('get_schema');
+    public function test_task_exposes_schema_contract(string $classname): void {
+        $task = new $classname();
 
-        $this->assertSame(
-            $classname,
-            $method->getDeclaringClass()->getName(),
-            'Expected get_schema() to be declared on task class itself for ' . $classname
-        );
+        $this->assertInstanceOf(task_interface::class, $task);
+
+        $schema = $task->get_schema();
+        $this->assertIsArray($schema);
+        $this->assertNotSame('', trim($task->get_name()));
+        $this->assertArrayHasKey('version', $schema);
+        $this->assertGreaterThanOrEqual(1, (int)$schema['version']);
+        $this->assertArrayHasKey('properties', $schema);
+        $this->assertIsArray($schema['properties']);
     }
 
     /**
-     * Task classes should define validate() in their own class.
+     * Task classes should expose pure structural validation through the task interface.
      *
-     * @dataProvider validate_owner_provider
+     * @dataProvider structure_contract_provider
      * @param string $classname
      */
-    public function test_task_declares_own_validate_method(string $classname): void {
-        $reflection = new \ReflectionClass($classname);
-        $method = $reflection->getMethod('validate');
+    public function test_task_exposes_structure_contract(string $classname): void {
+        $task = new $classname();
 
-        $this->assertSame(
-            $classname,
-            $method->getDeclaringClass()->getName(),
-            'Expected validate() to be declared on task class itself for ' . $classname
-        );
+        $this->assertInstanceOf(task_interface::class, $task);
+
+        $result = $task->check_structure([]);
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('valid', $result);
+        $this->assertIsBool($result['valid']);
+        $this->assertArrayHasKey('errors', $result);
+        $this->assertIsArray($result['errors']);
     }
 
     /**

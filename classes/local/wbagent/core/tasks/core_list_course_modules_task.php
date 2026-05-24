@@ -59,8 +59,7 @@ class core_list_course_modules_task extends core_task_base implements task_trigg
         }
 
         $course = get_course($courseid);
-        $context = context_course::instance($courseid);
-        if (!has_capability('moodle/course:view', $context)) {
+        if (!can_access_course($course, $userid)) {
             return ['status' => 'error', 'detail' => $this->localized_string('agent_booking_core_course_permission_denied', null, $lang), 'resultid' => null];
         }
 

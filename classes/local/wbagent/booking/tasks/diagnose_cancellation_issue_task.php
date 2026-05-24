@@ -16,8 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\booking\tasks;
 
-use bookingextension_agent\bo_availability\bo_info;
-use bookingextension_agent\bo_availability\conditions\cancelmyself;
+use mod_booking\bo_availability\bo_info;
+use mod_booking\bo_availability\conditions\cancelmyself;
 use mod_booking\booking;
 use mod_booking\booking_option;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;

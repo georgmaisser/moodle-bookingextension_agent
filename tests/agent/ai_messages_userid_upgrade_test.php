@@ -30,7 +30,7 @@ final class ai_messages_userid_upgrade_test extends booking_advanced_testcase {
      * Upgrade must backfill local_wbagent_ai_messages.userid from local_wbagent_ai_threads.userid.
      */
     public function test_upgrade_backfills_local_wbagent_ai_messages_userid(): void {
-        global $DB;
+        global $CFG, $DB;
 
         $this->resetAfterTest();
 
@@ -81,7 +81,9 @@ final class ai_messages_userid_upgrade_test extends booking_advanced_testcase {
         ]);
 
         require_once(__DIR__ . '/../../db/upgrade.php');
-        xmldb_booking_upgrade(2026042204);
+    require_once($CFG->libdir . '/upgradelib.php');
+    set_config('version', 2026052204, 'bookingextension_agent');
+        xmldb_bookingextension_agent_upgrade(2026052204);
 
         $notnullfield = new \xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'threadid');
         $this->assertTrue($dbman->field_exists($table, $notnullfield));

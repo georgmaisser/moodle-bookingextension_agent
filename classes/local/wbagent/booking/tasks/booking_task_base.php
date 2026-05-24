@@ -558,6 +558,60 @@ abstract class booking_task_base extends base_task {
     }
 
     /**
+     * Validate common mutation fields without DB access.
+     *
+     * @param array $input
+     * @param bool $allowbookusersquery
+     * @return array<int,string>
+     */
+    protected function validate_common_mutation_structure(array $input, bool $allowbookusersquery = true): array {
+        $errors = [];
+
+        if (
+            array_key_exists('invisible', $input)
+            || array_key_exists('visibility', $input)
+            || array_key_exists('visible', $input)
+        ) {
+            $normalizedvisibility = booking_task_support::normalize_visibility_input($input);
+            if (!empty($normalizedvisibility['error'])) {
+                $errors[] = (string)$normalizedvisibility['error'];
+            }
+        }
+
+        if (array_key_exists('optiondatesmode', $input)) {
+            $mode = strtolower(trim((string)$input['optiondatesmode']));
+            if (!in_array($mode, ['append', 'replace'], true)) {
+                $errors[] = get_string('agent_validation_optiondatesmode_invalid', 'bookingextension_agent');
+            }
+        }
+
+        $overrides = is_array($input['override'] ?? null) ? $input['override'] : [];
+        foreach (['coursestarttime', 'courseendtime', 'bookingopeningtime', 'bookingclosingtime'] as $fieldname) {
+            if (!array_key_exists($fieldname, $input) || array_key_exists('optiondates', $input)) {
+                continue;
+            }
+            $value = $input[$fieldname];
+            $isplaceholder = $value === 0 || $value === '0' || $value === '' || $value === null;
+            if ($isplaceholder && in_array($fieldname, $overrides, true)) {
+                continue;
+            }
+            if (!booking_task_support::parse_datetime($value)) {
+                $errors[] = get_string('agent_validation_' . $fieldname . '_invalid', 'bookingextension_agent');
+            }
+        }
+
+        if (!empty($input['optiondates']) && empty(booking_task_support::extract_optiondates($input))) {
+            $errors[] = get_string('agent_validation_optiondates_invalid', 'bookingextension_agent');
+        }
+
+        if (!$allowbookusersquery && !empty($input['bookusersquery'])) {
+            $errors[] = get_string('agent_booking_bulk_update_bookusersquery_unsupported', 'bookingextension_agent');
+        }
+
+        return array_values(array_unique($errors));
+    }
+
+    /**
      * Validate task input.
      *
      * @param array $input

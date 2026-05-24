@@ -82,6 +82,8 @@ final class docs_explainer_task_test extends abstract_agent_testcase {
      * Docs explain task returns a concise task-authored summary derived from the matched documentation.
      */
     public function test_docs_explain_task_returns_concise_summary(): void {
+        set_config('aifollowupsuggestionscount', 3, 'bookingextension_agent');
+
         $result = $this->exec_command('booking.explain_docs_topic', [
             'question' => 'Explain bookotheroptions briefly.',
         ]);

@@ -310,14 +310,19 @@ class prompt_policy_builder {
                 . " When observations are available:\n"
                 . "  1. FIRST check if observations contain diagnostic, search, or factual results "
                 . "relevant to the user's request.\n"
-                . "  2. IF YES: return response_type=sufficient with commands=[] and optional message field. "
+                . "  2. IF YES and the user's primary intent is read-only: return response_type=sufficient "
+                . "with commands=[] and optional message field. "
                 . "Do NOT summarize or interpret observations. "
                 . "Synthesis (next step) will compose the final user-facing answer.\n"
-                . "  3. IF NO: return response_type=clarification with explanation of what is missing.\n"
-                . "  4. NEVER re-call the same command signature "
+                . "  3. IF the user's primary intent is a mutation, a read-only or documentation observation "
+                . "does not complete that mutation by itself. Use the TASK CATALOG to either return "
+                . "confirmation_request for a grounded mutation command, or clarification for missing "
+                . "required mutation fields.\n"
+                . "  4. IF NO: return response_type=clarification with explanation of what is missing.\n"
+                . "  5. NEVER re-call the same command signature "
                 . "(task + normalized input) if it already exists in OBSERVATION blocks.\n"
-                . "  5. Re-calling the same task with DIFFERENT grounded input may be valid.\n"
-                . "  6. Re-calling a command signature whose result already exists is a PROTOCOL VIOLATION.";
+                . "  6. Re-calling the same task with DIFFERENT grounded input may be valid.\n"
+                . "  7. Re-calling a command signature whose result already exists is a PROTOCOL VIOLATION.";
         }
 
         return $policy;

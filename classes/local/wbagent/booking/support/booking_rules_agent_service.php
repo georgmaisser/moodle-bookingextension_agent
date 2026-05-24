@@ -20,7 +20,7 @@ use context_module;
 use core_text;
 use mod_booking\booking_rules\booking_rules;
 use mod_booking\booking_rules\rules_info;
-use bookingextension_agent\local\templaterule;
+use mod_booking\local\templaterule;
 use moodle_url;
 use stdClass;
 

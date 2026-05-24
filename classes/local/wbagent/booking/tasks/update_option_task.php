@@ -164,6 +164,15 @@ class update_option_task extends booking_task_base implements task_trigger_provi
                 'errors' => [get_string('agent_booking_update_option_missing_target', 'bookingextension_agent')],
             ];
         }
+
+        $commonerrors = $this->validate_common_mutation_structure($input, false);
+        if (!empty($commonerrors)) {
+            return [
+                'valid' => false,
+                'errors' => $commonerrors,
+            ];
+        }
+
         return ['valid' => true, 'errors' => []];
     }
 

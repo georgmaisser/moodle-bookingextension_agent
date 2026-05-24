@@ -125,11 +125,11 @@ abstract class core_task_base extends \bookingextension_agent\local\wbagent\book
 
         if ($courseid > 0) {
             $context = context_course::instance($courseid, IGNORE_MISSING);
-            if ($context && has_capability('moodle/user:viewdetails', $context)) {
+            if ($context && has_capability('moodle/user:viewdetails', $context, $actinguserid)) {
                 return true;
             }
         }
 
-        return has_capability('moodle/user:viewdetails', \context_system::instance());
+        return has_capability('moodle/user:viewdetails', \context_system::instance(), $actinguserid);
     }
 }

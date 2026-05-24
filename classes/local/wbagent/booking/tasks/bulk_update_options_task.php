@@ -131,6 +131,15 @@ class bulk_update_options_task extends booking_task_base implements task_trigger
                 'errors' => [get_string('agent_booking_bulk_update_missing_target', 'bookingextension_agent')],
             ];
         }
+
+        $commonerrors = $this->validate_common_mutation_structure($input, false);
+        if (!empty($commonerrors)) {
+            return [
+                'valid' => false,
+                'errors' => $commonerrors,
+            ];
+        }
+
         return ['valid' => true, 'errors' => []];
     }
 

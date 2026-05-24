@@ -38,6 +38,9 @@ final class interpreter_realistic_llm_matrix_test extends booking_advanced_testc
     /** @var int */
     private int $cmid;
 
+    /** @var int */
+    private int $userid;
+
     /** @var interpreter */
     private interpreter $interpreter;
 
@@ -46,6 +49,7 @@ final class interpreter_realistic_llm_matrix_test extends booking_advanced_testc
         $this->resetAfterTest();
         $this->setAdminUser();
         $this->preventResetByRollback();
+        set_config('aitaskenableall', 1, 'bookingextension_agent');
 
         $course = $this->getDataGenerator()->create_course();
         $booking = $this->getDataGenerator()->create_module('booking', [
@@ -54,6 +58,7 @@ final class interpreter_realistic_llm_matrix_test extends booking_advanced_testc
         ]);
 
         $this->cmid = (int)$booking->cmid;
+        $this->userid = (int)$GLOBALS['USER']->id;
         $this->interpreter = new interpreter(task_registry::make_default());
     }
 
@@ -65,9 +70,9 @@ final class interpreter_realistic_llm_matrix_test extends booking_advanced_testc
      * @param string $expectedtype
      */
     public function test_realistic_simulated_llm_payloads(string $raw, string $expectedtype): void {
-        $result = $this->interpreter->interpret($raw, $this->cmid, 1);
+        $result = $this->interpreter->interpret($raw, $this->cmid, $this->userid);
 
-        $this->assertSame($expectedtype, (string)($result['response_type'] ?? ''));
+        $this->assertSame($expectedtype, (string)($result['response_type'] ?? ''), json_encode($result));
         $this->assertArrayHasKey('commands', $result);
         $this->assertArrayHasKey('ambiguities', $result);
         $this->assertArrayHasKey('errors', $result);

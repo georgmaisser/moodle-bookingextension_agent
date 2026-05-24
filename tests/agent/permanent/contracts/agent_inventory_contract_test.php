@@ -60,7 +60,7 @@ final class agent_inventory_contract_test extends booking_advanced_testcase {
      * AI instructions behat feature must remain available.
      */
     public function test_critical_ai_behat_feature_exists(): void {
-        $feature = dirname(__DIR__, 3) . '/behat/booking_ai_instructions.feature';
+        $feature = dirname(__DIR__, 6) . '/tests/behat/booking_ai_instructions.feature';
         $this->assertFileExists($feature, 'Missing critical Behat feature booking_ai_instructions.feature');
     }
 
