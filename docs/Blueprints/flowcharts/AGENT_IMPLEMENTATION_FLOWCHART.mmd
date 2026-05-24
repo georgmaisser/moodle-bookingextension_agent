@@ -116,12 +116,12 @@ flowchart TD
     %% QUEUE MANAGER (queue/queue_manager.php)
     %% =========================================================
     subgraph QUEUE["Shadow Queue (queue/queue_manager.php)"]
-        Q_ENQUEUE["enqueue_command(\n  threadid, runid, stepid,\n  command, mutability, status, depends_on)\n→ validate_depends_on_is_dag()\n→ build_input_signature()"]
+        Q_ENQUEUE["enqueue_command(\n  threadid, runid, stepid,\n  command, mutability, status, depends_on)\n→ validate_depends_on_is_dag()\n→ build_input_signature()\n→ idempotency: return existing if same signature + non-terminal"]
         Q_DAG{"DAG\nvalid?"}
         Q_DAGFAIL["status: failed\nISSUE: DEPENDENCY_CYCLE"]
         Q_DEPCHECK{"dependencies\n_succeeded()?"}
         Q_SKIP["status: skipped — terminal"]
-        Q_RUNNING["has_running_item(threadid)?\n[Scheduler-Lock: max 1 per thread]"]
+        Q_RUNNING["try_mark_running(threadid, queueitemid)\n[Atomic: SELECT FOR UPDATE + check + set\nmax 1 running per thread]"]
         Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
         Q_READY["status: ready"]
         Q_BLOCKED["status: blocked_confirmation\nblocked_expires_at = now + TTL(900s)"]
@@ -138,7 +138,7 @@ flowchart TD
         EXC["executor::execute_commands(\n  commands, cmid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
         EXC_EVAL["task_executability_evaluator\n::evaluate_task(taskname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
-        EXC_RUN["task::execute(prepared_input, cmid, userid)\n→ result payload"]
+        EXC_PREFLIGHT["task::preflight(input, cmid, userid)\n[Pre-execute re-validation — mutating only\nDomain state may have changed during confirmation window]"]\n        EXC_PF_OK{"preflight\npass?"}\n        EXC_RUN["task::execute(prepared_input, cmid, userid)\n→ result payload"]
         EXC_SUCC["status: succeeded\n→ result / follow-up suggestions"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
         EXC_CONTRACT["contract repair\nCONTRACT issue codes\n→ new queue entry with depends_on"]
@@ -283,7 +283,10 @@ flowchart TD
     EXC_IDEM -->|"already executed → skipped"| FAIL_OUT
     EXC_IDEM -->|"first run"| EXC_EVAL
     EXC_EVAL --> TCV
-    TCV -->|allow| EXC_RUN
+    TCV -->|allow| EXC_PREFLIGHT
+    EXC_PREFLIGHT --> EXC_PF_OK
+    EXC_PF_OK -->|"pass (or read-only)"| EXC_RUN
+    EXC_PF_OK -->|"fail (mutating stale state)"| FAIL_OUT
     TCV -->|deny| FAIL_OUT
     EXC_RUN --> EXC_SUCC
     EXC_RUN --> EXC_TRANSIENT
@@ -363,6 +366,8 @@ flowchart TD
     style Q_RETRY fill:#457b9d,color:#fff
     style EXC_TRANSIENT fill:#457b9d,color:#fff
     style EXC_CONTRACT fill:#457b9d,color:#fff
+    style EXC_PREFLIGHT fill:#264653,color:#fff
+    style EXC_PF_OK fill:#264653,color:#fff
     style Q_RUNNING fill:#264653,color:#fff
     style BUDG_CHECK fill:#264653,color:#fff
     style GOAL_CHECK fill:#264653,color:#fff
