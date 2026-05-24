@@ -472,10 +472,8 @@ class agent_decision_service {
         int $threadid,
         string $outputlang
     ): array {
+        // Phase 2: queue is single source of truth; no fallback to stored commands.
         $pendingcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
-        if (empty($pendingcommands)) {
-            $pendingcommands = is_array($pendingintent['commands'] ?? null) ? (array)$pendingintent['commands'] : [];
-        }
         $summary = $this->build_pending_intent_summary($pendingcommands, $outputlang);
         $confirmationcode = trim((string)($pendingintent['confirmationcode'] ?? ''));
         $message = $this->localized_string(
@@ -862,10 +860,8 @@ class agent_decision_service {
             );
         }
 
+        // Phase 2: queue is single source of truth; no fallback to stored commands.
         $confirmcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
-        if (empty($confirmcommands)) {
-            $confirmcommands = is_array($pendingintent['commands'] ?? null) ? (array)$pendingintent['commands'] : [];
-        }
         if (empty($confirmcommands)) {
             if ($modelmessage !== '' && !$isplaceholdermessage) {
                 $fallback = $this->clarification_result($modelmessage);
