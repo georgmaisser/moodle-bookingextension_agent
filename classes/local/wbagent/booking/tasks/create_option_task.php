@@ -710,21 +710,8 @@ class create_option_task extends booking_task_base implements task_trigger_provi
             return 'selflearning';
         }
 
-        $combinedtext = trim(implode(' ', array_values(array_filter([
-            isset($input['text']) ? (string)$input['text'] : '',
-            isset($input['description']) ? (string)$input['description'] : '',
-            isset($input['location']) ? (string)$input['location'] : '',
-        ]))));
-        if ($combinedtext !== '') {
-            $normalized = strtolower($combinedtext);
-            $slotintentpattern = '/\b(slot|sprechstunde|timeslot|time slot|termin(?:e)?\s+(?:vereinbaren|buchen)|appointment)\b/u';
-            if (preg_match($slotintentpattern, $normalized)) {
-                return 'slotbooking';
-            }
-            if (preg_match('/\b(selbstlern|self\s*learning|selflearning)\b/u', $normalized)) {
-                return 'selflearning';
-            }
-        }
+        // Keep type resolution strictly schema-driven. Do not infer control flow from
+        // free text or language-specific tokens.
 
         foreach (array_keys($input) as $key) {
             if (is_string($key) && str_starts_with($key, 'slot_')) {

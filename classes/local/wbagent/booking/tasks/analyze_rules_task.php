@@ -19,6 +19,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 use core_text;
 use bookingextension_agent\local\wbagent\booking\support\booking_rules_agent_service;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.analyze_rules.
@@ -127,6 +128,40 @@ class analyze_rules_task extends booking_task_base implements task_trigger_provi
                 ],
             ],
         ];
+    }
+
+    /**
+     * Structural validation — no DB access.
+     *
+     * @param array $input
+     * @return array{valid:bool,errors:array<int,string>}
+     */
+    public function check_structure(array $input): array {
+        return ['valid' => true, 'errors' => []];
+    }
+
+    /**
+     * Explicit preflight for readonly task — validates structure and passes input unchanged.
+     *
+     * @param array $input
+     * @param int   $cmid
+     * @param int   $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            $issues = [];
+            foreach ((array)($structure['errors'] ?? []) as $error) {
+                $issues[] = [
+                    'code' => 'VALIDATION_ERROR',
+                    'severity' => 'needs_clarification',
+                    'message' => (string)$error,
+                ];
+            }
+            return preflight_result_v2::invalid($issues);
+        }
+        return preflight_result_v2::ok($input);
     }
 
     /**

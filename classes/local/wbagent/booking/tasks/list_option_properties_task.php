@@ -19,6 +19,7 @@ namespace bookingextension_agent\local\wbagent\booking\tasks;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Task definition for booking.list_option_properties.
@@ -140,6 +141,30 @@ class list_option_properties_task extends booking_task_base implements task_trig
             'errors' => $errors,
             'ambiguities' => [],
         ];
+    }
+
+    /**
+     * Explicit preflight for readonly task — validates structure and passes input unchanged.
+     *
+     * @param array $input
+     * @param int   $cmid
+     * @param int   $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            $issues = [];
+            foreach ((array)($structure['errors'] ?? []) as $error) {
+                $issues[] = [
+                    'code' => 'VALIDATION_ERROR',
+                    'severity' => 'needs_clarification',
+                    'message' => (string)$error,
+                ];
+            }
+            return preflight_result_v2::invalid($issues);
+        }
+        return preflight_result_v2::ok($input);
     }
 
     /**

@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use context_course;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Shared helper base for core Moodle data tasks.
@@ -131,5 +132,33 @@ abstract class core_task_base extends \bookingextension_agent\local\wbagent\book
         }
 
         return has_capability('moodle/user:viewdetails', \context_system::instance(), $actinguserid);
+    }
+
+    /**
+     * Explicit preflight for core readonly tasks — validates structure and passes input unchanged.
+     *
+     * Core tasks are read-only. No domain writes are performed. This override makes the
+     * preflight contract explicit for all concrete core tasks without requiring individual
+     * overrides in each task file.
+     *
+     * @param array $input
+     * @param int   $cmid
+     * @param int   $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            $issues = [];
+            foreach ((array)($structure['errors'] ?? []) as $error) {
+                $issues[] = [
+                    'code' => 'VALIDATION_ERROR',
+                    'severity' => 'needs_clarification',
+                    'message' => (string)$error,
+                ];
+            }
+            return preflight_result_v2::invalid($issues);
+        }
+        return preflight_result_v2::ok($input);
     }
 }
