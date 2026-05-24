@@ -78,8 +78,10 @@ class task_contract_validator {
             'taskname' => $taskname,
             'version' => (int)($schema['version'] ?? 1),
             'component' => trim($component),
+            // Canonical blueprint-aligned fields.
             'capability' => $capabilities,
             'activation' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
+            // Backward-compatible aliases kept for existing runtime/tests.
             'capabilities' => $capabilities,
             'active' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
             'alias_of' => trim((string)($governance['alias_of'] ?? '')),
