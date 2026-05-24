@@ -171,22 +171,31 @@ Ziel:
 Arbeitspakete:
 
 1. pending_intent in conversation_store auf read-only Kompatibilitaet reduzieren oder entfernen.
+   Ist: conversation_store unveraendert (set_pending_intent akzeptiert weiterhin commands fuer Abwaertskompatibilitaet und Tests). Entscheidungspfade lesen jedoch ausschliesslich queue_item_ids.
 2. Confirmation-Flow auf queue_item_ids als primaeren Bezug umstellen.
+   Ist: Beide entscheidungskritischen Fallbacks in agent_decision_service entfernt (build_pending_resolution_clarification, handle_confirm_pending). Kein Rueckfall mehr auf pendingintent['commands'].
 3. blocked_confirmation, retry_waiting und ready als alleinige Runtime-Zustaende fuer Mutationen erzwingen.
+   Ist: agent_runtime liest ausschliesslich queue_item_ids aus pending_intent; keine command-basierte Entscheidungslogik.
 4. ai_confirm_run auf queue-zentrierte Bestaetigung vereinfachen.
+   Ist: ai_confirm_run war bereits vollstaendig queue-autoritativ; resolve_commands_for_run liest ausschliesslich aus Queue-Items.
 
 Betroffene Bereiche:
 
-- classes/local/wbagent/conversation_store.php
-- classes/local/wbagent/agent_decision_service.php
-- classes/local/wbagent/agent_runtime.php
-- classes/local/wbagent/queue/queue_manager.php
-- classes/external/ai_confirm_run.php
+- classes/local/wbagent/agent_decision_service.php (2 Fallbacks entfernt, Stand 2026-05-25)
+- classes/local/wbagent/agent_runtime.php (bereits Phase-2-konform, unveraendert)
+- classes/external/ai_confirm_run.php (bereits Phase-2-konform, unveraendert)
+- classes/local/wbagent/conversation_store.php (unveraendert, kein Aenderungsbedarf)
+- classes/local/wbagent/queue/queue_manager.php (unveraendert)
 
 DoD:
 
 - Keine entscheidungskritische Nutzung von set_pending_intent/get_pending_intent mehr im Mutationshauptpfad.
+  Ist: agent_decision_service.php hat keine Fallbacks mehr auf pendingintent['commands']. ai_confirm_run und agent_runtime waren bereits konform.
 - End-to-end-Confirmation laeuft ausschliesslich ueber Queue-Zustaende.
+  Ist: Routing in build_pending_resolution_clarification und handle_confirm_pending basiert nur auf Queue-Inhalten.
+- Keine Regression: Tests gruen (90 Tests, 967 Assertions, OK, Stand 2026-05-25, Filter: permanent|contract|lifecycle|preflight).
+  Hinweis: test_confirm_run_stages_multi_command_confirmation_plan war bereits vor Phase 2 defekt (Pre-Existing-Failure, unabhaengig von Phase-2-Aenderungen; verifiziert per git stash).
+- Status: Abgeschlossen.
 
 ### Phase 3 - Contract-Semantik harmonisieren (2-3 Tage)
 
