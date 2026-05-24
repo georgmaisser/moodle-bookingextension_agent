@@ -1,0 +1,370 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "12px"}}}%%
+flowchart TD
+
+    %% =========================================================
+    %% ENTRY LAYER
+    %% =========================================================
+    subgraph ENTRY["External API Layer (classes/external/)"]
+        ASM["ai_send_message::execute()\ncmid · message · threadid"]
+        ACR["ai_confirm_run::execute()\ncmid · runid · confirmed"]
+        APO["ai_poll_thread::execute()"]
+        APREVIEW["ai_render_command_preview::execute()"]
+    end
+
+    %% =========================================================
+    %% AUTH + STORE (shared dependencies)
+    %% =========================================================
+    subgraph AUTHZ["authorization_service"]
+        AZ1["require_use_capability(userid, contextid)"]
+        AZ2["require_valid_context(contextid)"]
+        AZ3["is_agent_extension_installed()"]
+    end
+
+    subgraph CSTORE["conversation_store (DB-backed)"]
+        CS1["get_or_create_thread(userid, cmid, bookingid)"]
+        CS2["add_message(threadid, role, text, meta)"]
+        CS3["get_recent_messages(threadid, limit)"]
+        CS4["get_run(runid) / create_run()"]
+        CS5["get_pending_intent(threadid)"]
+        CS6["set_pending_intent(threadid, intent)"]
+        CS7["get_thread_metadata_value(key)"]
+        CS8["set_thread_metadata_value(key, value)"]
+        CS9["clear_step_messages(threadid)"]
+        CS10["run_exists_other_than(idem_key, runid)"]
+    end
+
+    %% =========================================================
+    %% AGENT RUNTIME (classes/local/wbagent/agent_runtime.php)
+    %% =========================================================
+    subgraph RUNTIME["agent_runtime — Agent Loop Coordinator"]
+        RUN["run(threadid, cmid, userid)\n▸ single-step entry point"]
+        RUNLOOP["run_loop(threadid, cmid, userid, maxsteps=0)\nMAX_LOOP_STEPS = 6"]
+        LOOP_INIT["agent_state::make(limit)\nor make_resumed() if _loop_resume exists\nor seed observations from _loop_seed_observations"]
+        LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\nclear_step_messages()"]
+        RUNINT["run_internal(threadid, cmid, userid, observations, state)"]
+        EXEC_RESULT_CHECK{"response_type\n== execution_result?"}
+        OBS_ACCUM["result_payload_summarizer::for_observation()\nprivacy_anonymizer::anonymize_value_for_llm()\nstate.add_observation(observation)"]
+        LF_CHECK["loop_finalizer::finalize()\nshould_finalize_after_execution_result()"]
+        LF_STOP["Loop terminates:\nresponse_type → sufficient"]
+        BUDG_CHECK{"budget_guard_allows\n_next_llm_call(step, limit)?"}
+        BUDGX["build_budget_exceeded_result()\nissue_codes: BUDGET_EXCEEDED"]
+        LOOP_STOP["Loop stop:\nconfirmation_request / clarification\n/ error / sufficient"]
+        REFRESH["refresh_pending_queue_retry_state()\nqueue items: retry_waiting → ready if can_pickup_now()"]
+        ENFORCE["enforce_final_response_contract(result, threadid)"]
+        MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
+    end
+
+    %% =========================================================
+    %% ORCHESTRATOR (orchestrator.php + llm_call_service.php)
+    %% =========================================================
+    subgraph ORCH["orchestrator — LLM Call Assembler"]
+        ORC["process(threadid, cmid, userid, step_type, observations)\nstep_type: tool_call_parse | simple_retrieval\n  final_reasoning | final_synthesis"]
+        PPB["prompt_policy_builder::build()\ninitial_system_prompt.md"]
+        ACAT["adaptive_task_catalog_service\n::get_adaptive_catalog()\n→ embeddings_retrieval_service (top-k=6)\n→ mandatory tasks filter\n→ recency scored"]
+        LLMSVC["llm_call_service::invoke(threadid, cmid, userid,\n  source, prompt, action_class)\naction: planner_decide | generate_agent_reply\n  generate_text | generate_embeddings"]
+        INTERP["interpreter::interpret(rawresponse, cmid, userid, lastmsg)\nStage 1: parse() — JSON extraction\nStage 2: classify response_type (allow-list)\nStage 3: check_structure() per task\nStage 4: normalize (dates, IDs, __current_user__)"]
+        RESP_TYPE{"parsed\nresponse_type"}
+    end
+
+    %% =========================================================
+    %% DECISION SERVICE (agent_decision_service.php)
+    %% =========================================================
+    subgraph DECIDSVC["agent_decision_service::process() — Routing Layer"]
+        PROC_IN["process(result, threadid, cmid, userid,\n  outputlang, previewoptionid)"]
+        D_PREVIEW{"core.is_preview\n_request trigger?"}
+        D_PREVIEW_OUT["→ clarification with preview message"]
+        D_CONF{"confirm_pending\nstate machine\nHas pending_intent?"}
+        D_DUPL["Duplicate-title override\nDUPLICATE_TITLE_CONFIRM_REQUIRED\nDUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED"]
+        D_MUT_GUARD["Lookup-safety mutation guard\n(no mutate during lookup-only context)"]
+        D_MUTATION{"Commands\nmutating?"}
+        D_READONLY["Read-only commands →\nexecutor::execute_commands()\n→ execution_result"]
+        D_MUT_PROMOTE["Mutate: task_call\n→ confirmation_request\n+ store_pending_intent()"]
+        D_RECOVERY["recovery_enrichment_service::promote()\nclarification/error → task_call fallback"]
+        D_FALLBACK["build_fallback_message()\n→ clarification"]
+        D_PREFLIGHT["preflight_pipeline::run(\n  commands, threadid, cmid, userid)"]
+    end
+
+    %% =========================================================
+    %% PREFLIGHT PIPELINE (services/)
+    %% =========================================================
+    subgraph PREFLIGHT["Preflight Pipeline (services/preflight_pipeline.php)"]
+        direction TB
+        PP_RUN["preflight_pipeline::run(commands, threadid, cmid, userid)\n→ returns: valid, prepared_commands, errors,\n  issue_codes, issues, v2_result"]
+
+        subgraph L1["Layer 1 — Schema Validation (sync, IO-free)"]
+            PF_L1["preflight_schema_validator::validate(command)\n+ command_schema.json (singleton cache)\n+ preflight_version_validator::validate_version()"]
+        end
+        L1_OK{"schema\nvalid?"}
+        L1_FAIL["hard_block\nblockinglayer: schema\nISSUE: SCHEMA_ERROR\n/ SCHEMA_UNAVAILABLE"]
+
+        subgraph L2["Layer 2 — Domain Checks (parallel, timeout 500ms)"]
+            PF_L2T["task::check_structure(input)\n— pure structural (no DB)"]
+            PF_L2P["task::preflight(input, cmid, userid)\n— DB-dependent deep validation\n→ returns preflight_result_v2"]
+            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\ntimeout: 500ms\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, DUPLICATE_TITLE_*"]
+        end
+        L2_STATUS{"preflight\nstatus?"}
+
+        subgraph L3["Layer 3 — Execution Gate (retry/backoff)"]
+            PF_L3["preflight_execution_gate::evaluate(\n  error_class, retry_count, issue_codes)\nbase: 500ms · jitter: 200ms\nmax_retries: 4 · max_backoff: 4000ms"]
+        end
+
+        PRV2["preflight_result_v2 (DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues"]
+        PAL["preflight_audit_logger::append()\n(if preflight_audit_enabled)\n→ conversation_store thread metadata"]
+    end
+
+    %% =========================================================
+    %% QUEUE MANAGER (queue/queue_manager.php)
+    %% =========================================================
+    subgraph QUEUE["Shadow Queue (queue/queue_manager.php)"]
+        Q_ENQUEUE["enqueue_command(\n  threadid, runid, stepid,\n  command, mutability, status, depends_on)\n→ validate_depends_on_is_dag()\n→ build_input_signature()"]
+        Q_DAG{"DAG\nvalid?"}
+        Q_DAGFAIL["status: failed\nISSUE: DEPENDENCY_CYCLE"]
+        Q_DEPCHECK{"dependencies\n_succeeded()?"}
+        Q_SKIP["status: skipped — terminal"]
+        Q_RUNNING["has_running_item(threadid)?\n[Scheduler-Lock: max 1 per thread]"]
+        Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
+        Q_READY["status: ready"]
+        Q_BLOCKED["status: blocked_confirmation\nblocked_expires_at = now + TTL(900s)"]
+        Q_RETRY["status: retry_waiting\nnext_retry_at = now + retry_after_ms\nbackoff_ms persisted"]
+        Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_TIMEOUT)"]
+        Q_UPDST["update_status(threadid, queue_item_id,\n  status, issue_codes, error_class, msg)"]
+        OB["observation_builder::build_observation(queue_items)\n→ 'Queue observation: task: status (CODES); …'"]
+    end
+
+    %% =========================================================
+    %% EXECUTOR (executor.php)
+    %% =========================================================
+    subgraph EXEC["Execution Layer (executor.php)"]
+        EXC["executor::execute_commands(\n  commands, cmid, userid,\n  idempotency_key, runid)"]
+        EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
+        EXC_EVAL["task_executability_evaluator\n::evaluate_task(taskname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
+        EXC_RUN["task::execute(prepared_input, cmid, userid)\n→ result payload"]
+        EXC_SUCC["status: succeeded\n→ result / follow-up suggestions"]
+        EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
+        EXC_CONTRACT["contract repair\nCONTRACT issue codes\n→ new queue entry with depends_on"]
+        EXC_DOMAIN["domain error (recoverable)\n→ failed + Observation with error_detail"]
+    end
+
+    %% =========================================================
+    %% TASK LAYER
+    %% =========================================================
+    subgraph TASKS["Task Layer"]
+        TR["task_registry\nregister(provider)\nget_task(name)\nis_read_only_task()\nis_task_active()\nget_task_contract()\nget_all_schemas()\nget_prompt_contracts_for_context()\nget_message_triggers()"]
+        TRFAC["task_registry_factory\n→ wires all task_provider_interface\n  implementations (auto-discovery)"]
+        TI["task_interface\nget_name() · get_schema()\ncheck_structure(input)\npreflight(input,cmid,userid): preflight_result_v2\nexecute(prepared_input,cmid,userid): array\nis_read_only(): bool"]
+        BT["base_task (abstract)\ncheck_structure() → pass\npreflight() → pass (override for DB checks)\nexecute() → abstract"]
+        BTASK["booking_task_base\n→ 20 booking tasks\n(create_option, update_option,\nbook_users, search_options, …)"]
+        CTASK["core_task_base\n→ 36 core tasks\n(get_course_overview, create_group,\nenrol_user, list_participants, …)"]
+        TCV["task_contract_validator\n::build_task_metadata(task, component)\nversion · capabilities · active flag"]
+    end
+
+    %% =========================================================
+    %% SUPPORT SERVICES
+    %% =========================================================
+    subgraph SUPPORT["Support Services"]
+        ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_for_display()"]
+        PLSVC["planner_service\n::enrich_recovery_input()\ncompact LLM call for input enrichment\n(semantic_input_enrichment capability)"]
+        EMBS["embeddings_retrieval_service\nembeddings_catalog_builder_service\n→ text-embedding-3-small\ndimensions: 1536 · top_k: 6"]
+        AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
+        ISCP["booking_issue_code_provider\nimplements issue_code_provider_interface\nget_duplicate_confirmation_issue_codes()\nget_token_subscription_issue_codes()\nget_prevalidation_confirmable_issue_codes()"]
+        BIRS["booking_issue_code_resolver\n(booking/booking_task_support.php)"]
+    end
+
+    %% =========================================================
+    %% TERMINAL STATES (Observation Builder outputs)
+    %% =========================================================
+    subgraph OUTCOMES["Observation Builder Outputs → Loop Decision"]
+        OB_OUT["observation_builder::build_observation()\n+ result_payload_summarizer::for_observation()\n→ compact observation string"]
+        GOAL_CHECK{"Goal\nreached?"}
+        REPLAN["Re-plan: run_internal() next step\n(simple_retrieval prompt)\n→ LLM receives observations as context\nNO new catalog embedding start"]
+        FINAL_SYNTH["Final Synthesis\norchestrator::process()\nstep_type: final_synthesis\n→ generate_agent_reply action"]
+        FINAL_OUT["succeeded\nFinal polished answer to user"]
+        FAIL_OUT["failed — terminal\n(hard_block / budget_exceeded\n/ retry_exhausted / dep_cycle)"]
+    end
+
+    %% =========================================================
+    %% ========== CONNECTIONS =================================
+    %% =========================================================
+
+    %% Entry → Auth → Store → Runtime
+    ASM -->|"1. require_sesskey()"| AZ1
+    ASM -->|"2. validate_parameters()"| AZ2
+    ASM -->|"3. add_message(user)"| CS2
+    ASM -->|"4. run_loop()"| RUNLOOP
+    ACR -->|"confirmed → run_loop()"| RUNLOOP
+
+    AZ1 --> CS1
+    CS1 --> RUNLOOP
+
+    %% Runtime loop setup
+    RUNLOOP --> LOOP_INIT
+    LOOP_INIT --> CS7
+    LOOP_INIT --> LOOP_STEP
+    LOOP_STEP --> CS9
+    LOOP_STEP --> RUNINT
+
+    %% run_internal → orchestrator → LLM → interpreter
+    RUNINT --> ORC
+    ORC --> PPB
+    ORC --> ACAT
+    ACAT --> EMBS
+    ACAT --> TR
+    ORC --> LLMSVC
+    LLMSVC -->|raw LLM output| INTERP
+    INTERP --> RESP_TYPE
+
+    %% interpreter output → decision service
+    RESP_TYPE -->|task_call / confirmation_request| PROC_IN
+    RESP_TYPE -->|clarification / error / sufficient| PROC_IN
+    PROC_IN --> D_PREVIEW
+    D_PREVIEW -->|yes| D_PREVIEW_OUT
+    D_PREVIEW -->|no| D_CONF
+
+    D_CONF -->|confirm_pending + has_pending_intent| D_DUPL
+    D_DUPL --> D_READONLY
+    D_CONF -->|no confirm_pending| D_MUT_GUARD
+    D_MUT_GUARD --> D_MUTATION
+
+    D_MUTATION -->|readonly| D_READONLY
+    D_MUTATION -->|mutating| D_MUT_PROMOTE
+    D_MUT_PROMOTE -->|"store_pending_intent() → task_call → confirmation_request"| D_PREFLIGHT
+
+    RESP_TYPE -->|clarification / error / sufficient| D_RECOVERY
+    D_RECOVERY -->|"promote() success → task_call"| D_MUTATION
+    D_RECOVERY -->|"promote() fails"| D_FALLBACK
+
+    %% Preflight pipeline
+    D_PREFLIGHT --> PP_RUN
+    PP_RUN --> PF_L1
+    PF_L1 --> L1_OK
+    L1_OK -->|no| L1_FAIL
+    L1_OK -->|yes| PF_L2T
+    PF_L2T --> PF_L2P
+    PF_L2P --> PF_L2D
+    PF_L2D --> L2_STATUS
+
+    L2_STATUS -->|hard_block| PRV2
+    L2_STATUS -->|soft_block| PRV2
+    L2_STATUS -->|retry_hint| PF_L3
+    L2_STATUS -->|pass| PRV2
+    PF_L3 --> PRV2
+    PRV2 --> PAL
+    PAL -->|"append() to thread metadata"| CS8
+
+    %% Preflight result → Queue
+    PRV2 -->|pass| Q_ENQUEUE
+    PRV2 -->|"soft_block: domain conflict"| Q_BLOCKED
+    PRV2 -->|"retry_hint"| Q_RETRY
+    L1_FAIL -->|"hard_block: terminal"| FAIL_OUT
+    PRV2 -->|"hard_block: terminal"| FAIL_OUT
+
+    Q_ENQUEUE --> Q_DAG
+    Q_DAG -->|cycle| Q_DAGFAIL
+    Q_DAGFAIL --> FAIL_OUT
+    Q_DAG -->|valid| Q_DEPCHECK
+    Q_DEPCHECK -->|deps failed| Q_SKIP
+    Q_SKIP --> FAIL_OUT
+    Q_DEPCHECK -->|deps ok| Q_RUNNING
+    Q_RUNNING -->|slot occupied| Q_READY
+    Q_READY -.->|"next run_loop() turn"| RUNLOOP
+    Q_RUNNING -->|slot free| EXC
+
+    %% Blocked confirmation TTL
+    Q_BLOCKED -->|"TTL check: fail_expired_blocked_items()"| Q_FAIL_TTL
+    Q_FAIL_TTL --> FAIL_OUT
+    Q_BLOCKED -->|"user confirms via ai_confirm_run"| Q_CANPICK
+    Q_CANPICK -->|"can_pickup_now() = true"| EXC
+
+    %% Read-only → executor
+    D_READONLY --> EXC
+
+    %% Executor flow
+    EXC --> EXC_IDEM
+    EXC_IDEM -->|"already executed → skipped"| FAIL_OUT
+    EXC_IDEM -->|"first run"| EXC_EVAL
+    EXC_EVAL --> TCV
+    TCV -->|allow| EXC_RUN
+    TCV -->|deny| FAIL_OUT
+    EXC_RUN --> EXC_SUCC
+    EXC_RUN --> EXC_TRANSIENT
+    EXC_RUN --> EXC_CONTRACT
+    EXC_RUN --> EXC_DOMAIN
+    EXC_TRANSIENT -->|"retry count < max_retries"| Q_RETRY
+    EXC_TRANSIENT -->|"max retries exceeded"| FAIL_OUT
+    EXC_CONTRACT -->|"new queue entry + depends_on"| Q_ENQUEUE
+    EXC_DOMAIN --> FAIL_OUT
+
+    %% Outcomes → Observation Builder
+    EXC_SUCC --> OB_OUT
+    FAIL_OUT --> OB_OUT
+    D_FALLBACK --> OB_OUT
+    D_PREVIEW_OUT --> OB_OUT
+
+    OB_OUT --> GOAL_CHECK
+    GOAL_CHECK -->|"no, loop continues"| REPLAN
+    GOAL_CHECK -->|"yes"| FINAL_SYNTH
+    REPLAN -->|"observations → agent_state"| OB_ACCUM
+    OB_ACCUM --> EXEC_RESULT_CHECK
+
+    EXEC_RESULT_CHECK -->|"yes → accumulate"| OBS_ACCUM
+    OBS_ACCUM --> LF_CHECK
+    LF_CHECK -->|"finalize → sufficient"| LF_STOP
+    LF_CHECK -->|"continue"| BUDG_CHECK
+    BUDG_CHECK -->|"ok (step+1 < limit)"| LOOP_STEP
+    BUDG_CHECK -->|"exhausted"| BUDGX
+
+    EXEC_RESULT_CHECK -->|"no → stop loop"| LOOP_STOP
+
+    %% Final steps
+    LF_STOP --> REFRESH
+    LOOP_STOP --> REFRESH
+    BUDGX --> REFRESH
+    FINAL_SYNTH --> FINAL_OUT
+    FINAL_OUT --> REFRESH
+    REFRESH --> ENFORCE
+    ENFORCE --> MPS
+    MPS -->|"add_message(assistant)"| CS2
+
+    %% Task layer wiring
+    TRFAC --> TR
+    TR --> BT
+    BT --> BTASK
+    BT --> CTASK
+    TCV --> TR
+    EXC_EVAL --> TR
+
+    %% Support services
+    INTERP -->|"slot_booking_normalizer"| INTERP
+    OB_OUT --> ANON
+    ANON --> OBS_ACCUM
+    PF_L2P -->|"planner_service::enrich_recovery_input() — if semantic_input_enrichment capability"| PLSVC
+    PLSVC --> LLMSVC
+    AIER --> LLMSVC
+    ISCP -.-> D_DUPL
+    ISCP -.-> D_MUT_PROMOTE
+
+    %% Invisible helper node for re-plan loop
+    OB_ACCUM["OB_ACCUM (observations to agent_state)"]
+
+    %% =========================================================
+    %% STYLES
+    %% =========================================================
+    style FINAL_OUT fill:#2d6a4f,color:#fff
+    style EXC_SUCC fill:#2d6a4f,color:#fff
+    style FINAL_SYNTH fill:#1d3557,color:#fff
+    style FAIL_OUT fill:#9b2226,color:#fff
+    style Q_DAGFAIL fill:#9b2226,color:#fff
+    style Q_SKIP fill:#9b2226,color:#fff
+    style BUDGX fill:#9b2226,color:#fff
+    style Q_FAIL_TTL fill:#9b2226,color:#fff
+    style Q_BLOCKED fill:#e9c46a,color:#000
+    style LOOP_STOP fill:#e9c46a,color:#000
+    style D_MUT_PROMOTE fill:#e9c46a,color:#000
+    style Q_RETRY fill:#457b9d,color:#fff
+    style EXC_TRANSIENT fill:#457b9d,color:#fff
+    style EXC_CONTRACT fill:#457b9d,color:#fff
+    style Q_RUNNING fill:#264653,color:#fff
+    style BUDG_CHECK fill:#264653,color:#fff
+    style GOAL_CHECK fill:#264653,color:#fff
+    style LF_CHECK fill:#264653,color:#fff
+    style EXEC_RESULT_CHECK fill:#264653,color:#fff
