@@ -130,6 +130,18 @@ class queue_manager {
         $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
         $signature = $this->build_input_signature($task, $input);
 
+        // Idempotency: if an equivalent item (same signature) is already in a
+        // non-terminal state, return it instead of creating a duplicate.
+        $activeterminals = ['succeeded', 'failed', 'skipped'];
+        foreach ($items as $existing) {
+            if (
+                (string)($existing['input_signature'] ?? '') === $signature
+                && !in_array((string)($existing['status'] ?? ''), $activeterminals, true)
+            ) {
+                return $existing;
+            }
+        }
+
         $item = [
             'queue_item_id' => 'q' . $threadid . '_' . $seq,
             'thread_id' => $threadid,
@@ -302,6 +314,95 @@ class queue_manager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Atomically acquire the running slot for a queue item.
+     *
+     * Uses a DB-level row lock (FOR UPDATE on MySQL/PostgreSQL) so concurrent
+     * requests cannot both pass the "no other running item" check and both
+     * proceed to execute.  On MSSQL the lock clause is omitted; the method
+     * still works correctly in single-user scenarios.
+     *
+     * @param int    $threadid     Thread that owns the queue.
+     * @param string $queueitemid  The item that wants to become 'running'.
+     * @return bool  true  – slot acquired, item is now persisted as 'running'.
+     *               false – another item (or this item) is already running, or item not found.
+     */
+    public function try_mark_running(int $threadid, string $queueitemid): bool {
+        global $DB;
+
+        $queueitemid = trim($queueitemid);
+        if ($queueitemid === '') {
+            return false;
+        }
+
+        try {
+            $transaction = $DB->start_delegated_transaction();
+
+            // Lock the thread row so concurrent callers serialise behind this transaction.
+            // FOR UPDATE is supported on MySQL/MariaDB and PostgreSQL; skip on MSSQL.
+            $forupdate = !in_array($DB->get_dbtype(), ['sqlsrv', 'odbc_mssql'], true) ? ' FOR UPDATE' : '';
+            $thread = $DB->get_record_sql(
+                "SELECT id, metadatajson FROM {local_wbagent_ai_threads} WHERE id = :id{$forupdate}",
+                ['id' => $threadid]
+            );
+
+            if (!$thread) {
+                $transaction->allow_commit();
+                return false;
+            }
+
+            $metadata = json_decode((string)($thread->metadatajson ?? ''), true);
+            if (!is_array($metadata)) {
+                $transaction->allow_commit();
+                return false;
+            }
+
+            $items = is_array($metadata[self::META_QUEUE_ITEMS] ?? null)
+                ? $metadata[self::META_QUEUE_ITEMS]
+                : [];
+
+            // Reject if ANY item is already running (including the target itself,
+            // which would indicate a concurrent request already acquired the slot).
+            foreach ($items as $item) {
+                if ((string)($item['status'] ?? '') === 'running') {
+                    $transaction->allow_commit();
+                    return false;
+                }
+            }
+
+            // Mark the target item as running.
+            $found = false;
+            foreach ($items as &$item) {
+                if ((string)($item['queue_item_id'] ?? '') === $queueitemid) {
+                    $item['status'] = 'running';
+                    $item['updated_at'] = time();
+                    $found = true;
+                    break;
+                }
+            }
+            unset($item);
+
+            if (!$found) {
+                $transaction->allow_commit();
+                return false;
+            }
+
+            $metadata[self::META_QUEUE_ITEMS] = array_values($items);
+            $update = new \stdClass();
+            $update->id = $threadid;
+            $update->metadatajson = json_encode($metadata);
+            $update->timemodified = time();
+            $DB->update_record('local_wbagent_ai_threads', $update);
+
+            $transaction->allow_commit();
+            return true;
+
+        } catch (\Throwable $e) {
+            // Transaction rolled back automatically on exception in Moodle.
+            return false;
+        }
     }
 
     /**

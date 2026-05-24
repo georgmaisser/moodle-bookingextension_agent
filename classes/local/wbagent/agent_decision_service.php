@@ -1720,13 +1720,11 @@ class agent_decision_service {
                         continue;
                     }
 
-                    if ($this->queuesvc->has_running_item($threadid, $queueitemid)) {
-                        // Preserve invariant: max one running item per thread_id.
-                        $this->queuesvc->update_status($threadid, $queueitemid, 'ready');
+                    // Atomically acquire the running slot (checks + sets in one DB transaction).
+                    if (!$this->queuesvc->try_mark_running($threadid, $queueitemid)) {
+                        // Slot already occupied by a concurrent request; skip status update.
                         continue;
                     }
-
-                    $this->queuesvc->update_status($threadid, $queueitemid, 'running');
                     $entry = is_array($rawresults[$idx] ?? null) ? (array)$rawresults[$idx] : [];
                     $status = trim((string)($entry['status'] ?? ''));
                     $failed = ($status === 'error' || $status === 'failed');

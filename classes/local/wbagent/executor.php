@@ -164,6 +164,29 @@ class executor implements agent_executor {
                 continue;
             }
 
+            // Re-validate domain state immediately before execution for mutating tasks.
+            // Domain-state may have changed during the confirmation window (up to 900 s),
+            // so we re-run the same preflight the decision service used at plan time.
+            // Read-only tasks are always safe to re-execute and are skipped here.
+            if (!$task->is_read_only()) {
+                $executeresult = $task->preflight($input, $cmid, $userid);
+                if ($executeresult->status !== 'pass') {
+                    $issuecodes = $executeresult->issuecodes;
+                    $results[] = [
+                        'status' => 'error',
+                        'detail' => 'Pre-execute preflight failed: ' . implode(', ', $issuecodes),
+                        'issue_codes' => $issuecodes,
+                        'resultid' => null,
+                        'task' => $taskname,
+                    ];
+                    continue;
+                }
+                // Use the freshly resolved input from re-validation.
+                if (!empty($executeresult->preparedinput) && is_array($executeresult->preparedinput)) {
+                    $input = $executeresult->preparedinput;
+                }
+            }
+
             $result = $task->execute($input, $cmid, $userid);
             if (is_array($result) && !isset($result['task'])) {
                 $result['task'] = $taskname;

@@ -372,10 +372,7 @@ class ai_confirm_run extends external_api {
         $store->update_run_status($runid, 'running');
         try {
             if ($activequeueitemid !== '') {
-                if ($queuesvc->has_running_item((int)$params['threadid'], $activequeueitemid)) {
-                    $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
-                } else {
-                    $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'running');
+                if ($queuesvc->try_mark_running((int)$params['threadid'], $activequeueitemid)) {
                     $auditlogger->append((int)$params['threadid'], (int)$runid, array_merge(
                         self::build_queue_audit_context($queuesvc, (int)$params['threadid'], $activequeueitemid),
                         [
@@ -387,6 +384,9 @@ class ai_confirm_run extends external_api {
                         'error_class' => '',
                         ]
                     ));
+                } else {
+                    // Slot occupied by a concurrent request; reset to ready for retry.
+                    $queuesvc->update_status((int)$params['threadid'], $activequeueitemid, 'ready');
                 }
             }
 
