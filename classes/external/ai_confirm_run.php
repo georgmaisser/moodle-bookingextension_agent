@@ -1020,6 +1020,7 @@ class ai_confirm_run extends external_api {
 
         return [
             'queue_item_id' => $queueitemid,
+            'contextid' => max(0, (int)($item['contextid'] ?? 0)),
             'taskname' => trim((string)($item['task'] ?? '')),
             'task_version' => max(0, (int)($item['version'] ?? 0)),
             'retry_after_ms' => max(0, (int)($retrymeta['retry_after_ms'] ?? ($item['retry_after_ms'] ?? 0))),

@@ -201,7 +201,7 @@ class agent_runtime {
     public function run(int $threadid, int $contextid, int $userid): array {
         $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
         $result = $this->run_internal($threadid, $cmid, $userid, [], null);
-        $this->refresh_pending_queue_retry_state($threadid);
+        $this->refresh_pending_queue_retry_state($threadid, $contextid);
         $result = $this->enforce_final_response_contract($result, $threadid);
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
@@ -268,7 +268,7 @@ class agent_runtime {
      * @param int $threadid
      * @return void
      */
-    private function refresh_pending_queue_retry_state(int $threadid): void {
+    private function refresh_pending_queue_retry_state(int $threadid, int $contextid): void {
         $pendingintent = $this->store->get_pending_intent($threadid);
         if ($pendingintent === null) {
             $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', null);
@@ -282,6 +282,7 @@ class agent_runtime {
         }
 
         $snapshot = [
+            'contextid' => $contextid,
             'queue_item_ids' => [],
             'ready' => [],
             'waiting' => [],
@@ -314,6 +315,7 @@ class agent_runtime {
 
             $snapshot['waiting'][] = [
                 'queue_item_id' => $queueitemid,
+                'contextid' => max(0, (int)($item['contextid'] ?? $contextid)),
                 'next_retry_at' => (int)($item['next_retry_at'] ?? 0),
                 'retry_after_ms' => (int)($item['retry_after_ms'] ?? 0),
                 'backoff_ms' => (int)($item['backoff_ms'] ?? 0),
@@ -429,7 +431,7 @@ class agent_runtime {
 
             // Plan + route — does NOT persist anything.
             $result = $this->run_internal($threadid, $cmid, $userid, $state->get_observations(), $state);
-            $this->refresh_pending_queue_retry_state($threadid);
+            $this->refresh_pending_queue_retry_state($threadid, $contextid);
 
             $result['loop_step']      = $step + 1;
             $result['loop_max_steps'] = $limit;

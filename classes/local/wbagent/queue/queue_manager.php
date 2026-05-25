@@ -87,6 +87,7 @@ class queue_manager {
     ): array {
         $items = $this->get_queue_items($threadid);
         $dependson = array_values(array_map('strval', $dependson));
+        $contextid = $this->resolve_thread_contextid($threadid);
 
         if (
             (bool)get_config('bookingextension_agent', 'queue_dag_validation_enabled')
@@ -98,6 +99,7 @@ class queue_manager {
             $faileditem = [
                 'queue_item_id' => 'q' . $threadid . '_' . $seq,
                 'thread_id' => $threadid,
+                'contextid' => $contextid,
                 'run_id' => $runid,
                 'step_id' => $stepid,
                 'task' => trim((string)($command['task'] ?? '')),
@@ -147,6 +149,7 @@ class queue_manager {
         $item = [
             'queue_item_id' => 'q' . $threadid . '_' . $seq,
             'thread_id' => $threadid,
+            'contextid' => $contextid,
             'run_id' => $runid,
             'step_id' => $stepid,
             'task' => $task,
@@ -619,6 +622,21 @@ class queue_manager {
         $seq = max(0, (int)$raw) + 1;
         $this->store->set_thread_metadata_value($threadid, self::META_QUEUE_SEQ, $seq);
         return $seq;
+    }
+
+    /**
+     * Resolve thread context id for queue metadata anchoring.
+     *
+     * @param int $threadid
+     * @return int
+     */
+    private function resolve_thread_contextid(int $threadid): int {
+        if ($threadid <= 0) {
+            return 0;
+        }
+
+        $thread = $this->store->get_thread($threadid);
+        return $thread ? max(0, (int)($thread->contextid ?? 0)) : 0;
     }
 
     /**

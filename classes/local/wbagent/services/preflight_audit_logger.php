@@ -35,6 +35,8 @@ class preflight_audit_logger {
     private conversation_store $store;
 
     /**
+     * Constructor.
+     *
      * @param conversation_store $store
      */
     public function __construct(conversation_store $store) {
@@ -56,9 +58,15 @@ class preflight_audit_logger {
 
         $current = $this->store->get_thread_metadata_value($threadid, self::META_KEY);
         $events = is_array($current) ? array_values($current) : [];
+        $contextid = max(0, (int)($entry['contextid'] ?? 0));
+        if ($contextid <= 0) {
+            $thread = $this->store->get_thread($threadid);
+            $contextid = $thread ? max(0, (int)($thread->contextid ?? 0)) : 0;
+        }
         $events[] = [
             'timestamp' => time(),
             'thread_id' => $threadid,
+            'contextid' => $contextid,
             'run_id' => $runid,
             'queue_item_id' => trim((string)($entry['queue_item_id'] ?? '')),
             'taskname' => trim((string)($entry['taskname'] ?? '')),

@@ -120,6 +120,7 @@ class preflight_pipeline {
                 );
 
                 $this->auditlogger->append($threadid, 0, [
+                    'contextid' => $contextid,
                     'taskname' => $taskname,
                     'task_version' => max(1, (int)($command['version'] ?? 1)),
                     'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
@@ -211,6 +212,7 @@ class preflight_pipeline {
         }
 
         $this->auditlogger->append($threadid, 0, array_merge($this->build_audit_command_context($commands), [
+            'contextid' => $contextid,
             'layer' => $result->blockinglayer !== '' ? $result->blockinglayer : 'preflight',
             'status' => $result->status,
             'issue_codes' => $result->issuecodes,
