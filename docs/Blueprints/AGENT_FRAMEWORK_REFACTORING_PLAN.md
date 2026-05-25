@@ -150,6 +150,7 @@ Gate Phase 0.5:
   - [x] Zwischenstand: ai_send_message und ai_confirm_run rufen den agent_runtime loop ueber contextid auf; execute_ai_run_adhoc verwendet im internen Task-Payload keinen cmid-Fallback mehr.
 - [x] Confirmation-Allowance fuer Session-Autoconfirm an userid + contextid binden; threadid bleibt nur Referenz fuer konkrete Konversation und pending_intent.
 - [ ] Thread-, Queue-, Audit-, Guard- und Idempotency-Daten mit contextid fuehren.
+  - [x] Zwischenstand: Queue-Items, Preflight-Audit-Events und pending_queue_retry_state tragen contextid jetzt explizit als Metadatenfeld statt nur implizit ueber threadid.
 - [ ] Context-Resolution und Capability-Checks ausschliesslich ueber Moodle context API modellieren.
 - [x] Neue DB-Struktur direkt in install.xml festlegen (kein upgrade.php, keine Datenmigration, kein Backfill).
 - [ ] Alte activity-spezifische Scope-Annahmen in Tests und Dokumentation ersetzen.
