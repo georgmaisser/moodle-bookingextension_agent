@@ -145,6 +145,7 @@ Gate Phase 0.5:
 
 ## Phase 0.6 - Contextid-Authority statt activity-spezifischem Scope (neu)
 - [ ] Externe Entry-Points, Runtime, Orchestrator, Decision-Service, Preflight, Queue, Executor und Task-Interface auf contextid als autoritative Scope-ID umstellen.
+  - [x] Zwischenstand: task_interface, base_task, core_task_base, preflight_pipeline und executor verwenden im zentralen Task-Grenzpfad contextid.
 - [x] Confirmation-Allowance fuer Session-Autoconfirm an userid + contextid binden; threadid bleibt nur Referenz fuer konkrete Konversation und pending_intent.
 - [ ] Thread-, Queue-, Audit-, Guard- und Idempotency-Daten mit contextid fuehren.
 - [ ] Context-Resolution und Capability-Checks ausschliesslich ueber Moodle context API modellieren.
@@ -167,8 +168,9 @@ Gate Phase 0:
 ## Phase 1 - Entfernen alter Entscheidungs-Pfade
 - [x] recovery_enrichment_service entfernen.
 - [x] Alle Verwendungen in agent_decision_service entfernen.
-- [ ] Zweiten generischen Recovery-Block in agent_decision_service entfernen.
+- [x] Zweiten generischen Recovery-Block in agent_decision_service entfernen.
 - [ ] UNKNOWN/invalid handling auf planner_retry <= 2 + clarification umstellen.
+  - [x] Zwischenstand: UNKNOWN_TYPE und harte Contract-Invalid-Faelle laufen im Runtime-Contract-Gate jetzt ueber max. 2 Repair-Retries und fallen danach deterministisch auf clarification zurueck.
 - [x] Dead imports in core/tasks/list_actions_task bereinigen.
 
 Gate Phase 1:
