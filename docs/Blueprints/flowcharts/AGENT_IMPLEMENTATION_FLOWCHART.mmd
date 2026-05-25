@@ -5,14 +5,14 @@ flowchart TD
     %% ENTRY LAYER
     %% =========================================================
     subgraph ENTRY["External API Layer (classes/external/)"]
-        ASM["ai_send_message::execute()\ncmid · message · threadid"]
-        ACR["ai_confirm_run::execute()\ncmid · threadid · queue_item_id · allow_session"]
+        ASM["ai_send_message::execute()\ncontextid · message · threadid"]
+        ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session"]
         APO["ai_poll_thread::execute()"]
         APREVIEW["ai_render_command_preview::execute()"]
     end
 
     %% =========================================================
-    %% AUTH + STORE (shared dependencies)
+    %% AUTH + STORE
     %% =========================================================
     subgraph AUTHZ["authorization_service"]
         AZ1["require_use_capability(userid, contextid)"]
@@ -21,7 +21,7 @@ flowchart TD
     end
 
     subgraph CSTORE["conversation_store (DB-backed)"]
-        CS1["get_or_create_thread(userid, cmid, bookingid)"]
+        CS1["get_or_create_thread(userid, contextid, bookingid)"]
         CS2["add_message(threadid, role, text, meta)"]
         CS3["get_recent_messages(threadid, limit)"]
         CS4["get_run(runid) / create_run()"]
@@ -31,98 +31,102 @@ flowchart TD
         CS8["set_thread_metadata_value(key, value)"]
         CS9["clear_step_messages(threadid)"]
         CS10["run_exists_other_than(idem_key, runid)"]
-        CS11["allow_confirmation_for_thread(userid, cmid, threadid)"]
-        CS12["is_confirmation_allowed_for_thread(userid, cmid, threadid)"]
-        CS13["consume_pending_intent(threadid, userid, cmid)"]
+        CS11["allow_confirmation_for_session(userid, contextid)\nscope: user + Moodle context"]
+        CS12["is_confirmation_allowed_for_session(userid, contextid)"]
+        CS13["consume_pending_intent(threadid, userid, contextid)"]
+        CS14["set/get user_input_lang metadata\n(authoritative turn language)"]
     end
 
     %% =========================================================
-    %% AGENT RUNTIME (classes/local/wbagent/agent_runtime.php)
+    %% AGENT RUNTIME
     %% =========================================================
     subgraph RUNTIME["agent_runtime — Agent Loop Coordinator"]
-        RUN["run(threadid, cmid, userid)\n▸ single-step entry point"]
-        RUNLOOP["run_loop(threadid, cmid, userid, maxsteps=0)\nMAX_LOOP_STEPS = 6"]
-        LOOP_INIT["agent_state::make(limit)\nor make_resumed() if _loop_resume exists\nor seed observations from _loop_seed_observations"]
+        RUN["run(threadid, contextid, userid)\ncontext entry"]
+        RUNLOOP["run_loop(threadid, contextid, userid, maxsteps=0)\nMAX_LOOP_STEPS = 6"]
+        LOOP_INIT["agent_state::make(limit)\n+ catalog_state cached once per turn\n+ load user_input_lang (no language heuristics)\nor make_resumed() if _loop_resume exists"]
         LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\nclear_step_messages()"]
-        RUNINT["run_internal(threadid, cmid, userid, observations, state)"]
-        EXEC_RESULT_CHECK{"response_type\n== execution_result?"}
-        OBS_ACCUM["result_payload_summarizer::for_observation()\nprivacy_anonymizer::anonymize_value_for_llm()\nstate.add_observation(observation)"]
-        LF_CHECK["loop_finalizer::finalize()\n(safety-net only, no task hardcoding)"]
-        LF_STOP["Safety finalize:\nplanner-style clarification"]
+        RUNINT["run_internal(threadid, contextid, userid, observations, state)\n→ StepResult"]
+        STEP_RESULT{"StepResult\ncontinue | stop | escalate"}
+        OBS_ACCUM["observation_builder + result_payload_summarizer\nprivacy_anonymizer::anonymize_value_for_llm()\nstate.add_observation(observation)"]
+        LF_CHECK["loop_finalizer::finalize_timeout_only()\n(safety-net only, no semantic routing)"]
+        LF_STOP["Timeout / budget clarification"]
         BUDG_CHECK{"budget_guard_allows\n_next_llm_call(step, limit)?"}
         BUDGX["build_budget_exceeded_result()\nissue_codes: BUDGET_EXCEEDED"]
-        LOOP_STOP["Loop stop:\nconfirmation_request / clarification\n/ error / sufficient"]
+        LOOP_STOP["Loop stop:\nconfirmation_request / clarification\n/ planner_retry_exhausted / sufficient"]
         REFRESH["refresh_pending_queue_retry_state()\nqueue items: retry_waiting → ready if can_pickup_now()"]
         ENFORCE["enforce_final_response_contract(result, threadid)"]
         MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
     end
 
     %% =========================================================
-    %% ORCHESTRATOR (orchestrator.php + llm_call_service.php)
+    %% ORCHESTRATOR
     %% =========================================================
-    subgraph ORCH["orchestrator — LLM Call Assembler"]
-        ORC["process(threadid, cmid, userid, step_type, observations)\nstep_type: tool_call_parse | simple_retrieval\n  final_reasoning | final_synthesis"]
+    subgraph ORCH["orchestrator — Explicit Planner Contract"]
+        ORC["process(threadid, contextid, userid, step_type, observations)\nstep_type: tool_call_parse | simple_retrieval\n  final_reasoning | final_synthesis"]
         PPB["prompt_policy_builder::build()\ninitial_system_prompt.md"]
-        ACAT["adaptive_task_catalog_service\n::get_adaptive_catalog()\n→ embeddings_retrieval_service (top-k=6)\n→ mandatory tasks filter\n→ recency scored"]
-        LLMSVC["llm_call_service::invoke(threadid, cmid, userid,\n  source, prompt, action_class)\naction: planner_decide | generate_agent_reply\n  generate_text | generate_embeddings"]
-        INTERP["interpreter::interpret(rawresponse, cmid, userid, lastmsg)\nStage 1: parse() — JSON extraction\nStage 2: classify response_type (allow-list)\nStage 3: check_structure() per task\nStage 4: normalize (dates, IDs, __current_user__)"]
+        ACAT["planner_catalog_service\n::get_catalog_from_agent_state()\n→ explicit task_prompt_contracts only\n→ no task-name or field-name heuristics\n→ no re-embed during loop"]
+        OR_LANG["language contract\nLLM + deterministic replies follow latest user message\n(no de/en token lists in routing)"]
+        LLMSVC["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: planner_decide | generate_agent_reply\n  generate_text | generate_embeddings"]
+        INTERP["interpreter::interpret(rawresponse, contextid, userid, lastmsg)\nStage 1: parse() — JSON extraction\nStage 2: classify response_type (allow-list)\nStage 3: check_structure() per task\nStage 4: normalize (dates, IDs, __current_user__)"]
         RESP_TYPE{"parsed\nresponse_type"}
     end
 
     %% =========================================================
-    %% DECISION SERVICE (agent_decision_service.php)
+    %% DECISION SERVICE
     %% =========================================================
-    subgraph DECIDSVC["agent_decision_service::process() — Routing Layer"]
-        PROC_IN["process(result, threadid, cmid, userid,\n  outputlang, previewoptionid)"]
+    subgraph DECIDSVC["agent_decision_service::process() — Deterministic Routing"]
+        PROC_IN["process(result, threadid, contextid, userid,\n  outputlang, previewoptionid)"]
         D_PREVIEW{"core.is_preview\n_request trigger?"}
         D_PREVIEW_OUT["→ clarification with preview message"]
-        D_CONF{"confirm_pending\nstate machine\nHas pending_intent?"}
+        D_CONF["confirmation_state_machine\nHas pending_intent?"]
         D_DUPL["Duplicate-title override\nDUPLICATE_TITLE_CONFIRM_REQUIRED\nDUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED"]
+        D_AMBIG["Ambiguity gate\nmissing/ambiguous entity resolution\n(e.g. 2x 'Billy')"]
+        D_AMBIG_OUT["→ clarification / planner re-plan\n(no spawn for unresolved entities)"]
         D_MUT_GUARD["Lookup-safety mutation guard\n(no mutate during lookup-only context)"]
-        D_MUTATION{"Commands\nmutating?"}
-        D_READONLY["Read-only commands →\nexecutor::execute_commands()\n→ execution_result"]
-        D_MUT_PROMOTE["Mutate: task_call\n→ confirmation_request\n+ store_pending_intent()"]
-        D_RECOVERY["recovery_enrichment_service::promote()\nclarification/error → task_call fallback"]
-        D_FALLBACK["build_fallback_message()\n→ clarification"]
-        D_PREFLIGHT["preflight_pipeline::run(\n  commands, threadid, cmid, userid)"]
+        D_ROUTE{"response_type"}
+        D_READONLY["Read-only task_call →\nexecutor::execute_commands()\n→ execution_result"]
+        D_MUTATE["Mutating task_call →\npreflight_pipeline v2\n(default requires confirmation)"]
+        D_CONFIRM["confirmation_request →\nconfirmation_state_machine"]
+        D_RETRY["planner_retry\nmax 2x per turn"]
+        D_RETRY_EXH["planner_retry exhausted\n→ clarification"]
     end
 
     %% =========================================================
-    %% PREFLIGHT PIPELINE (services/)
+    %% PREFLIGHT PIPELINE
     %% =========================================================
-    subgraph PREFLIGHT["Preflight Pipeline (services/preflight_pipeline.php)"]
+    subgraph PREFLIGHT["Preflight Pipeline v2 (services/preflight_pipeline.php)"]
         direction TB
-        PP_RUN["preflight_pipeline::run(commands, threadid, cmid, userid)\n→ returns: valid, prepared_commands, errors,\n  issue_codes, issues, v2_result"]
+        PP_RUN["preflight_pipeline::run(next executable slice, threadid, contextid, userid)\n→ returns preflight_result_v2 only"]
 
-        subgraph L1["Layer 1 — Schema Validation (sync, IO-free)"]
-            PF_L1["preflight_schema_validator::validate(command)\n+ command_schema.json (singleton cache)\n+ preflight_version_validator::validate_version()"]
+        subgraph L1["Layer 1 — Schema + Version Validation"]
+            PF_L1["preflight_schema_validator::validate(command)\n+ command_schema.json\n+ preflight_version_validator::validate_version()"]
         end
-        L1_OK{"schema\nvalid?"}
+        L1_OK{"schema + version\nvalid?"}
         L1_FAIL["hard_block\nblockinglayer: schema\nISSUE: SCHEMA_ERROR\n/ SCHEMA_UNAVAILABLE"]
 
-        subgraph L2["Layer 2 — Domain Checks (parallel, timeout 500ms)"]
-            PF_L2T["task::check_structure(input)\n— pure structural (no DB)"]
-            PF_L2P["task::preflight(input, cmid, userid)\n— DB-dependent deep validation\n→ returns preflight_result_v2"]
-            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\ntimeout: 500ms\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, DUPLICATE_TITLE_*"]
+        subgraph L2["Layer 2 — Domain Prepare"]
+            PF_L2P["task::preflight(input, contextid, userid)\n— DB-dependent prepare + validation\n— late-bound dependency outputs allowed\n→ preflight_result_v2"]
+            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, DUPLICATE_TITLE_*"]
         end
         L2_STATUS{"preflight\nstatus?"}
 
-        subgraph L3["Layer 3 — Execution Gate (retry/backoff)"]
+        subgraph L3["Layer 3 — Execution Gate Hint"]
             PF_L3["preflight_execution_gate::evaluate(\n  error_class, retry_count, issue_codes)\nbase: 500ms · jitter: 200ms\nmax_retries: 4 · max_backoff: 4000ms"]
         end
 
-        PRV2["preflight_result_v2 (DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues"]
+        PRV2["preflight_result_v2 (single DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues · execution_guard_token"]
         PAL["preflight_audit_logger::append()\n(if preflight_audit_enabled)\n→ conversation_store thread metadata"]
     end
 
     %% =========================================================
-    %% QUEUE MANAGER (queue/queue_manager.php)
+    %% QUEUE MANAGER
     %% =========================================================
     subgraph QUEUE["Shadow Queue (queue/queue_manager.php)"]
-        Q_ENQUEUE["enqueue_command(\n  threadid, runid, stepid,\n  command, mutability, status, depends_on)\n→ validate_depends_on_is_dag()\n→ build_input_signature()\n→ idempotency: return existing if same signature + non-terminal"]
+        Q_ENQUEUE["enqueue_command(\n  threadid, runid, stepid, contextid,\n  command, mutability, status, depends_on)\n→ validate_depends_on_is_dag()\n→ build_input_signature()\n→ idempotency: return existing if same signature + non-terminal"]
         Q_DAG{"DAG\nvalid?"}
         Q_DAGFAIL["status: failed\nISSUE: DEPENDENCY_CYCLE"]
         Q_DEPCHECK{"dependencies\n_succeeded()?"}
+        Q_BIND["bind dependency artifacts\nproducer outputs → child input\nthen late preflight"]
         Q_SKIP["status: skipped — terminal"]
         Q_RUNNING["try_mark_running(threadid, queueitemid)\n[Atomic: SELECT FOR UPDATE + check + set\nmax 1 running per thread]"]
         Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
@@ -131,23 +135,24 @@ flowchart TD
         Q_RETRY["status: retry_waiting\nnext_retry_at = now + retry_after_ms\nbackoff_ms persisted"]
         Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_TIMEOUT)"]
         Q_UPDST["update_status(threadid, queue_item_id,\n  status, issue_codes, error_class, msg)"]
-        OB["observation_builder::build_observation(queue_items)\n→ 'Queue observation: task: status (CODES); …'"]
+        Q_SPAWN["spawn_commands[]\nplanned child commands with depends_on\n+ artifact reference bindings"]
+        OB["observation_builder::build_observation(queue_items)\n→ compact queue observation"]
     end
 
     %% =========================================================
-    %% EXECUTOR (executor.php)
+    %% EXECUTOR
     %% =========================================================
     subgraph EXEC["Execution Layer (executor.php)"]
-        EXC["executor::execute_commands(\n  commands, cmid, userid,\n  idempotency_key, runid)"]
+        EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
         EXC_EVAL["task_executability_evaluator\n::evaluate_task(taskname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
-        EXC_PREFLIGHT["task::preflight(input, cmid, userid)\n[Pre-execute re-validation — mutating only\nDomain state may have changed during confirmation window]"]
-        EXC_PF_OK{"preflight\npass?"}
-        EXC_RUN["task::execute(prepared_input, cmid, userid)\n→ result payload"]
-        EXC_SUCC["status: succeeded\n→ result / follow-up suggestions"]
+        EXC_GUARD["execution_guard::verify(\n  prepared_input, execution_guard_token,\n  contextid, userid)\nno second full preflight"]
+        EXC_GUARD_OK{"guard\npass?"}
+        EXC_RUN["task::execute(prepared_input, contextid, userid)\n→ result payload"]
+        EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions\n→ spawn_commands[]"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
-        EXC_CONTRACT["contract repair\nCONTRACT issue codes\n→ new queue entry with depends_on"]
-        EXC_DOMAIN["domain error (recoverable)\n→ failed + Observation with error_detail"]
+        EXC_SPAWN["spawn_handler\nregister child commands in same queue/run"]
+        EXC_DOMAIN["domain error\n→ failed + observation with error_detail"]
     end
 
     %% =========================================================
@@ -155,12 +160,13 @@ flowchart TD
     %% =========================================================
     subgraph TASKS["Task Layer"]
         TR["task_registry\nregister(provider)\nget_task(name)\nis_read_only_task()\nis_task_active()\nget_task_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()"]
-        TRFAC["task_registry_factory\n→ wires all task_provider_interface\n  implementations (auto-discovery)"]
-        TI["task_interface\nget_name() · get_schema()\ncheck_structure(input)\npreflight(input,cmid,userid): preflight_result_v2\nexecute(prepared_input,cmid,userid): array\nis_read_only(): bool"]
+        TRFAC["task_registry_factory\n→ wires all task_provider_interface\n  implementations (auto-discovery)\n→ third-party onboarding: provider only, no framework edits"]
+        TI["task_interface\nget_name() · get_schema()\nget_prompt_contract()\ncheck_structure(input)\npreflight(input,contextid,userid): preflight_result_v2\nexecute(prepared_input,contextid,userid): array\nis_read_only(): bool"]
+        TPC["task_prompt_contract DTO\nintent · anchors · minimal_input · example_input\nnamespace · version · capabilities · context scopes"]
         BT["base_task (abstract)\ncheck_structure() → pass\npreflight() → pass (override for DB checks)\nexecute() → abstract"]
-        BTASK["booking_task_base\n→ 20 booking tasks\n(create_option, update_option,\nbook_users, search_options, …)"]
-        CTASK["core_task_base\n→ 36 core tasks\n(get_course_overview, create_group,\nenrol_user, list_participants, …)"]
-        TCV["task_contract_validator\n::build_task_metadata(task, component)\nversion · capabilities · active flag"]
+        BTASK["booking_task_base\n→ focused task set only\nnew tasks must declare explicit prompt contract"]
+        CTASK["core_task_base\n→ focused task set only\nnew tasks must declare explicit prompt contract"]
+        TCV["task_contract_validator\n::build_task_metadata(task, component)\nnamespace · version · capabilities · active flag\n+ multi-gate executability checks"]
     end
 
     %% =========================================================
@@ -168,8 +174,8 @@ flowchart TD
     %% =========================================================
     subgraph SUPPORT["Support Services"]
         ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_for_display()"]
-        PLSVC["planner_service\n::enrich_recovery_input()\ncompact LLM call for input enrichment\n(semantic_input_enrichment capability)"]
-        EMBS["embeddings_retrieval_service\nembeddings_catalog_builder_service\n→ text-embedding-3-small\ndimensions: 1536 · top_k: 6"]
+        EMBS["embeddings_retrieval_service\nused for catalog build, not per-loop recovery"]
+        LANG["language_policy_service\nsource priority: latest user message\n→ model-declared user_lang\n→ technical fallback\nformats all framework-generated replies"]
         MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→task routing)"]
         AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
         ISCP["booking_issue_code_provider\nimplements issue_code_provider_interface\nget_duplicate_confirmation_issue_codes()\nget_token_subscription_issue_codes()\nget_prevalidation_confirmable_issue_codes()"]
@@ -177,12 +183,12 @@ flowchart TD
     end
 
     %% =========================================================
-    %% TERMINAL STATES (Observation Builder outputs)
+    %% TERMINAL STATES
     %% =========================================================
     subgraph OUTCOMES["Observation Builder Outputs → Loop Decision"]
         OB_OUT["observation_builder::build_observation()\n+ result_payload_summarizer::for_observation()\n→ compact observation string"]
         GOAL_CHECK{"Goal\nreached?"}
-        REPLAN["Re-plan: run_internal() next step\n(simple_retrieval prompt)\n→ LLM receives observations as context\nNO new catalog embedding start"]
+        REPLAN["Re-plan: run_internal() next step\n(simple_retrieval prompt)\n→ LLM receives observations as context\ncatalog_state reused from agent_state"]
         FINAL_SYNTH["Final Synthesis\norchestrator::process()\nstep_type: final_synthesis\n→ generate_agent_reply action"]
         FINAL_OUT["succeeded\nFinal polished answer to user"]
         FAIL_OUT["failed — terminal\n(hard_block / budget_exceeded\n/ retry_exhausted / dep_cycle)"]
@@ -208,6 +214,7 @@ flowchart TD
     %% Runtime loop setup
     RUNLOOP --> LOOP_INIT
     LOOP_INIT --> CS7
+    LOOP_INIT --> CS14
     LOOP_INIT --> LOOP_STEP
     LOOP_STEP --> CS9
     LOOP_STEP --> RUNINT
@@ -216,39 +223,44 @@ flowchart TD
     RUNINT --> ORC
     ORC --> PPB
     ORC --> ACAT
-    ACAT --> EMBS
+    ORC --> OR_LANG
     ACAT --> TR
+    ACAT --> EMBS
+    OR_LANG --> LANG
     ORC --> LLMSVC
     LLMSVC -->|raw LLM output| INTERP
     INTERP --> RESP_TYPE
 
     %% interpreter output → decision service
-    RESP_TYPE -->|task_call / confirmation_request| PROC_IN
-    RESP_TYPE -->|clarification / error / sufficient| PROC_IN
+    RESP_TYPE --> PROC_IN
     PROC_IN --> D_PREVIEW
     D_PREVIEW -->|yes| D_PREVIEW_OUT
     D_PREVIEW -->|no| D_CONF
+    D_CONF --> D_DUPL
+    D_DUPL --> D_AMBIG
+    D_AMBIG -->|resolved| D_MUT_GUARD
+    D_AMBIG -->|ambiguous/missing| D_AMBIG_OUT
+    D_AMBIG_OUT --> LOOP_STOP
+    D_MUT_GUARD --> D_ROUTE
 
-    D_CONF -->|confirm_pending + has_pending_intent| D_DUPL
-    D_DUPL --> D_READONLY
-    D_CONF -->|no confirm_pending| D_MUT_GUARD
-    D_MUT_GUARD --> D_MUTATION
+    D_ROUTE -->|task_call readonly| D_READONLY
+    D_ROUTE -->|task_call mutating| D_MUTATE
+    D_ROUTE -->|confirmation_request| D_CONFIRM
+    D_ROUTE -->|planner_retry| D_RETRY
+    D_ROUTE -->|clarification / sufficient| LOOP_STOP
+    D_ROUTE -->|unknown / invalid| D_RETRY
 
-    D_MUTATION -->|readonly| D_READONLY
-    D_MUTATION -->|mutating| D_MUT_PROMOTE
-    D_MUT_PROMOTE -->|"store_pending_intent() → task_call → confirmation_request"| D_PREFLIGHT
-
-    RESP_TYPE -->|clarification / error / sufficient| D_RECOVERY
-    D_RECOVERY -->|"promote() success → task_call"| D_MUTATION
-    D_RECOVERY -->|"promote() fails"| D_FALLBACK
+    D_RETRY -->|"retry <= 2"| LOOP_STEP
+    D_RETRY -->|"retry exhausted"| D_RETRY_EXH
+    D_RETRY_EXH --> LOOP_STOP
 
     %% Preflight pipeline
-    D_PREFLIGHT --> PP_RUN
+    D_MUTATE --> PP_RUN
+    D_CONFIRM --> PP_RUN
     PP_RUN --> PF_L1
     PF_L1 --> L1_OK
     L1_OK -->|no| L1_FAIL
-    L1_OK -->|yes| PF_L2T
-    PF_L2T --> PF_L2P
+    L1_OK -->|yes| PF_L2P
     PF_L2P --> PF_L2D
     PF_L2D --> L2_STATUS
 
@@ -261,8 +273,9 @@ flowchart TD
     PAL -->|"append() to thread metadata"| CS8
 
     %% Preflight result → Queue
-    PRV2 -->|"pass (autoconfirm => ready)"| Q_ENQUEUE
-    PRV2 -->|"soft_block: domain conflict"| Q_BLOCKED
+    PRV2 -->|"pass + session allow => ready"| Q_ENQUEUE
+    PRV2 -->|"pass + no session allow => confirmation required"| Q_BLOCKED
+    PRV2 -->|"soft_block: confirmation required"| Q_BLOCKED
     PRV2 -->|"retry_hint"| Q_RETRY
     L1_FAIL -->|"hard_block: terminal"| FAIL_OUT
     PRV2 -->|"hard_block: terminal"| FAIL_OUT
@@ -273,7 +286,9 @@ flowchart TD
     Q_DAG -->|valid| Q_DEPCHECK
     Q_DEPCHECK -->|deps failed| Q_SKIP
     Q_SKIP --> FAIL_OUT
-    Q_DEPCHECK -->|deps ok| Q_RUNNING
+    Q_DEPCHECK -->|deps ok + prepared| Q_RUNNING
+    Q_DEPCHECK -->|deps ok + needs binding| Q_BIND
+    Q_BIND --> PP_RUN
     Q_RUNNING -->|slot occupied| Q_READY
     Q_READY -->|"try_pickup_now"| Q_RUNNING
     Q_READY -.->|"next run_loop() turn"| RUNLOOP
@@ -295,40 +310,40 @@ flowchart TD
     EXC_IDEM -->|"already executed → skipped"| FAIL_OUT
     EXC_IDEM -->|"first run"| EXC_EVAL
     EXC_EVAL --> TCV
-    TCV -->|allow| EXC_PREFLIGHT
-    EXC_PREFLIGHT --> EXC_PF_OK
-    EXC_PF_OK -->|"pass (or read-only)"| EXC_RUN
-    EXC_PF_OK -->|"fail (mutating stale state)"| FAIL_OUT
+    TCV -->|allow| EXC_GUARD
+    EXC_GUARD --> EXC_GUARD_OK
+    EXC_GUARD_OK -->|"pass"| EXC_RUN
+    EXC_GUARD_OK -->|"fail"| FAIL_OUT
     TCV -->|deny| FAIL_OUT
     EXC_RUN --> EXC_SUCC
     EXC_RUN --> EXC_TRANSIENT
-    EXC_RUN --> EXC_CONTRACT
     EXC_RUN --> EXC_DOMAIN
+    EXC_SUCC --> EXC_SPAWN
+    EXC_SPAWN -->|"spawn_commands[] + depends_on"| Q_SPAWN
+    Q_SPAWN -->|"enqueue planned child"| Q_ENQUEUE
     EXC_TRANSIENT -->|"retry count < max_retries"| Q_RETRY
     EXC_TRANSIENT -->|"max retries exceeded"| FAIL_OUT
-    EXC_CONTRACT -->|"new queue entry + depends_on"| Q_ENQUEUE
     EXC_DOMAIN --> FAIL_OUT
 
     %% Outcomes → Observation Builder
     EXC_SUCC --> OB_OUT
     FAIL_OUT --> OB_OUT
-    D_FALLBACK --> OB_OUT
     D_PREVIEW_OUT --> OB_OUT
 
     OB_OUT --> GOAL_CHECK
     GOAL_CHECK -->|"no, loop continues"| REPLAN
     GOAL_CHECK -->|"yes"| FINAL_SYNTH
-    REPLAN -->|"observations → agent_state"| OB_ACCUM
-    OB_ACCUM --> EXEC_RESULT_CHECK
+    REPLAN -->|"observations → agent_state"| OBS_ACCUM
+    OBS_ACCUM --> STEP_RESULT
 
-    EXEC_RESULT_CHECK -->|"yes → accumulate"| OBS_ACCUM
-    OBS_ACCUM --> LF_CHECK
-    LF_CHECK -->|"rare safety finalize"| LF_STOP
+    STEP_RESULT -->|"continue"| LF_CHECK
+    STEP_RESULT -->|"stop"| LOOP_STOP
+    STEP_RESULT -->|"escalate"| LOOP_STOP
+
+    LF_CHECK -->|"rare timeout finalize"| LF_STOP
     LF_CHECK -->|"continue"| BUDG_CHECK
     BUDG_CHECK -->|"ok (step+1 < limit)"| LOOP_STEP
     BUDG_CHECK -->|"exhausted"| BUDGX
-
-    EXEC_RESULT_CHECK -->|"no → stop loop"| LOOP_STOP
 
     %% Final steps
     LF_STOP --> REFRESH
@@ -342,6 +357,8 @@ flowchart TD
 
     %% Task layer wiring
     TRFAC --> TR
+    TR --> TI
+    TI --> TPC
     TR --> BT
     BT --> BTASK
     BT --> CTASK
@@ -354,24 +371,28 @@ flowchart TD
     MTRIG -.->|"core trigger signals"| PROC_IN
     OB_OUT --> ANON
     ANON --> OBS_ACCUM
-    PF_L2P -->|"planner_service::enrich_recovery_input() — if semantic_input_enrichment capability"| PLSVC
-    PLSVC --> LLMSVC
     AIER --> LLMSVC
     ISCP -.-> D_DUPL
-    ISCP -.-> D_MUT_PROMOTE
-
-    %% Invisible helper node for re-plan loop
-    OB_ACCUM["OB_ACCUM (observations to agent_state)"]
+    ISCP -.-> D_MUTATE
 
     %% =========================================================
     %% LEGEND
     %% =========================================================
     subgraph LEGEND["Legend"]
         direction TB
-        LG_AUTO["Auto-confirm\nconfirmation_request + autoconfirm/session allowlist\n→ ai_confirm_run without manual click"]
+        LG_DB["DB rollout policy\nnew schema via install.xml only\nno migration / no upgrade.php"]
+        LG_CTX["Context authority\nRuntime uses Moodle contextid\nas the scope key"]
+        LG_AUTO["Auto-confirm\nconfirmation_request + session allowlist\nkeyed by user + contextid\n→ ai_confirm_run without manual click"]
         LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
-        LG_RETRY["Retry lifecycle\nretry_waiting\n→ can_pickup_now() → execute"]
+        LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]
+        LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
+        LG_PLAN["Planner-first for ambiguity\nentity resolution and branching via planner\n(clarify instead of silent auto-pick)"]
+        LG_SPAWN_RULE["Spawn-only for deterministic follow-ups\nrequires bound outputs + valid late preflight"]
+        LG_CAP["Task release gates\nruntime + active + context + capability"]
+        LG_RETRY["Retry lifecycle\nplanner_retry / retry_waiting\n→ can_pickup_now() → execute"]
+        LG_COMPLEX["Complex workflow capable\nspawn/dependency chains, artifact refs, late preflight\nacross domains"]
         LG_TERMINAL["Terminal outcomes\nfailed / skipped / budget_exceeded / success"]
+        LG_DET["Deterministic routing only\nno recovery_enrichment fallback"]
     end
 
     %% =========================================================
@@ -387,18 +408,29 @@ flowchart TD
     style Q_FAIL_TTL fill:#9b2226,color:#fff
     style Q_BLOCKED fill:#e9c46a,color:#000
     style LOOP_STOP fill:#e9c46a,color:#000
-    style D_MUT_PROMOTE fill:#e9c46a,color:#000
+    style D_MUTATE fill:#e9c46a,color:#000
+    style D_CONFIRM fill:#e9c46a,color:#000
     style Q_RETRY fill:#457b9d,color:#fff
+    style D_RETRY fill:#457b9d,color:#fff
     style EXC_TRANSIENT fill:#457b9d,color:#fff
-    style EXC_CONTRACT fill:#457b9d,color:#fff
-    style EXC_PREFLIGHT fill:#264653,color:#fff
-    style EXC_PF_OK fill:#264653,color:#fff
+    style Q_SPAWN fill:#457b9d,color:#fff
+    style EXC_GUARD fill:#264653,color:#fff
+    style EXC_GUARD_OK fill:#264653,color:#fff
     style Q_RUNNING fill:#264653,color:#fff
     style BUDG_CHECK fill:#264653,color:#fff
     style GOAL_CHECK fill:#264653,color:#fff
     style LF_CHECK fill:#264653,color:#fff
-    style EXEC_RESULT_CHECK fill:#264653,color:#fff
+    style STEP_RESULT fill:#264653,color:#fff
+    style LG_DB fill:#264653,color:#fff
+    style LG_CTX fill:#264653,color:#fff
     style LG_AUTO fill:#264653,color:#fff
     style LG_MANUAL fill:#e9c46a,color:#000
+    style LG_LANG fill:#1d3557,color:#fff
+    style LG_3P fill:#1d3557,color:#fff
+    style LG_PLAN fill:#1d3557,color:#fff
+    style LG_SPAWN_RULE fill:#264653,color:#fff
+    style LG_CAP fill:#264653,color:#fff
     style LG_RETRY fill:#457b9d,color:#fff
+    style LG_COMPLEX fill:#2d6a4f,color:#fff
     style LG_TERMINAL fill:#9b2226,color:#fff
+    style LG_DET fill:#1d3557,color:#fff
