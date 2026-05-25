@@ -33,7 +33,6 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
  * Owns the complete agent execution loop: plan → execute → observe → decide.
@@ -469,7 +468,6 @@ class agent_runtime {
                         ['LOOP_RESEARCH_BUDGET_REACHED']
                     )));
                     $final = $this->attach_loop_results($final, $state);
-                    $final = $this->recover_metadata_matched_mutation_drift($final, $threadid, $state);
                     $final = $this->enforce_final_response_contract($final, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $final);
                     return $final;
@@ -491,7 +489,6 @@ class agent_runtime {
                         ['LOOP_REPEAT_DETECTED']
                     )));
                     $final = $this->attach_loop_results($final, $state);
-                    $final = $this->recover_metadata_matched_mutation_drift($final, $threadid, $state);
                     $final = $this->enforce_final_response_contract($final, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $final);
                     return $final;
@@ -512,7 +509,6 @@ class agent_runtime {
                     // the final user-facing response is composed via final_synthesis.
                     $final = $this->run_synthesis_step($threadid, $cmid, $userid, $state, $final);
                     $final = $this->attach_loop_results($final, $state);
-                    $final = $this->recover_metadata_matched_mutation_drift($final, $threadid, $state);
                     $final = $this->enforce_final_response_contract($final, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $final);
                     return $final;
@@ -522,7 +518,6 @@ class agent_runtime {
                 if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
                     $budgetfailed = $this->build_budget_exceeded_result($threadid, $result, $state, $limit);
                     $budgetfailed = $this->attach_loop_results($budgetfailed, $state);
-                    $budgetfailed = $this->recover_metadata_matched_mutation_drift($budgetfailed, $threadid, $state);
                     $budgetfailed = $this->enforce_final_response_contract($budgetfailed, $threadid);
                     $this->messagepersistence->persist_assistant_message($threadid, $budgetfailed);
                     return $budgetfailed;
@@ -601,7 +596,6 @@ class agent_runtime {
 
             // Persist the SINGLE final assistant message and return.
             $result = $this->attach_loop_results($result, $state);
-            $result = $this->recover_metadata_matched_mutation_drift($result, $threadid, $state);
             $result = $this->enforce_final_response_contract($result, $threadid);
             $this->messagepersistence->persist_assistant_message($threadid, $result);
             return $result;
@@ -628,7 +622,6 @@ class agent_runtime {
             $result = $this->loop_continue_result(current_language(), $limit);
         }
         $result = $this->attach_loop_results($result, $state);
-        $result = $this->recover_metadata_matched_mutation_drift($result, $threadid, $state);
         $result = $this->enforce_final_response_contract($result, $threadid);
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
@@ -886,60 +879,6 @@ class agent_runtime {
     }
 
     /**
-     * Convert docs/read-only drift back into a clarification when task metadata identifies a mutation intent.
-     *
-     * @param array $result
-     * @param int $threadid
-     * @param agent_state $state
-     * @return array
-     */
-    private function recover_metadata_matched_mutation_drift(array $result, int $threadid, agent_state $state): array {
-        $responsetype = trim((string)($result['response_type'] ?? ''));
-        if (!in_array($responsetype, ['sufficient', 'error'], true)) {
-            return $result;
-        }
-
-        if (!empty((array)($result['commands'] ?? [])) || $state->step_count() === 0) {
-            return $result;
-        }
-
-        if (!$this->loop_state_contains_only_readonly_results($state)) {
-            return $result;
-        }
-
-        $taskname = $this->find_mutating_task_from_latest_trigger_example($threadid);
-        if ($taskname === '') {
-            return $result;
-        }
-
-        $lang = trim((string)($result['lang'] ?? $result['user_lang'] ?? ''));
-        $message = $this->build_metadata_mutation_clarification_message($taskname, $lang);
-
-        return [
-            'response_type'             => 'clarification',
-            'message'                   => $message,
-            'commands'                  => [],
-            'ambiguities'               => [],
-            'ambiguity_options'         => [],
-            'errors'                    => [],
-            'attempted_tasks'           => [$taskname],
-            'issue_codes'               => array_values(array_unique(array_merge(
-                (array)($result['issue_codes'] ?? []),
-                ['MUTATION_INTENT_DOCS_DRIFT_CLARIFICATION']
-            ))),
-            'pending_confirmation_code' => '',
-            'used_triggers'             => (array)($result['used_triggers'] ?? []),
-            'runid'                     => (int)($result['runid'] ?? 0),
-            'results'                   => [],
-            'loop_results'              => (array)($result['loop_results'] ?? []),
-            'lang'                      => $lang,
-            'user_lang'                 => (string)($result['user_lang'] ?? $lang),
-            'loop_step'                 => (int)($result['loop_step'] ?? $state->step_count()),
-            'loop_max_steps'            => (int)($result['loop_max_steps'] ?? self::MAX_LOOP_STEPS),
-        ];
-    }
-
-    /**
      * Return true when all recorded loop tool results are from read-only tasks.
      *
      * @param agent_state $state
@@ -965,110 +904,6 @@ class agent_runtime {
         }
 
         return $sawresult;
-    }
-
-    /**
-     * Find a mutating task whose trigger examples exactly match the latest user message.
-     *
-     * @param int $threadid
-     * @return string
-     */
-    private function find_mutating_task_from_latest_trigger_example(int $threadid): string {
-        $latest = $this->get_latest_user_message_text($threadid);
-        $normalizedlatest = $this->normalize_trigger_example_match_text($latest);
-        if ($normalizedlatest === '') {
-            return '';
-        }
-
-        foreach ($this->registry->get_tasks() as $taskname => $task) {
-            $taskname = trim((string)$taskname);
-            if ($taskname === '' || $this->registry->is_read_only_task($taskname)) {
-                continue;
-            }
-            if (!$task instanceof task_trigger_provider_interface) {
-                continue;
-            }
-            foreach ((array)$task->get_message_triggers() as $trigger) {
-                if (!is_array($trigger)) {
-                    continue;
-                }
-                foreach ((array)($trigger['examples'] ?? []) as $example) {
-                    if ($normalizedlatest === $this->normalize_trigger_example_match_text((string)$example)) {
-                        return $taskname;
-                    }
-                }
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Get the latest user message for this thread.
-     *
-     * @param int $threadid
-     * @return string
-     */
-    private function get_latest_user_message_text(int $threadid): string {
-        $messages = $this->store->get_recent_messages($threadid, 12);
-        for ($i = count($messages) - 1; $i >= 0; $i--) {
-            if ((string)($messages[$i]->role ?? '') === 'user') {
-                return trim((string)($messages[$i]->content ?? ''));
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Normalize task-provided examples for exact, punctuation-insensitive matching.
-     *
-     * @param string $text
-     * @return string
-     */
-    private function normalize_trigger_example_match_text(string $text): string {
-        $text = core_text::strtolower(trim($text));
-        $text = trim($text, " \t\n\r\0\x0B.!?;:");
-        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
-        return trim($text);
-    }
-
-    /**
-     * Build a compact clarification from task schema metadata.
-     *
-     * @param string $taskname
-     * @param string $lang
-     * @return string
-     */
-    private function build_metadata_mutation_clarification_message(string $taskname, string $lang): string {
-        $fields = [];
-        $task = $this->registry->get_task($taskname);
-        if ($task !== null) {
-            $schema = (array)$task->get_schema();
-            foreach ((array)($schema['properties'] ?? []) as $name => $spec) {
-                if (!is_string($name) || !is_array($spec) || empty($spec['required'])) {
-                    continue;
-                }
-                $fields[] = $name;
-            }
-        }
-
-        foreach ($this->registry->get_all_prompt_contracts() as $contract) {
-            if ((string)($contract['task'] ?? '') !== $taskname) {
-                continue;
-            }
-            $fields = array_merge($fields, (array)($contract['anchors'] ?? []));
-            break;
-        }
-
-        $fields = array_values(array_unique(array_filter(array_map('strval', $fields))));
-        $suffix = empty($fields) ? '' : ' Missing details: ' . implode(', ', $fields) . '.';
-
-        if (core_text::strtolower(substr(trim($lang), 0, 2)) === 'de') {
-            return 'Welche Angaben soll ich für ' . $taskname . ' verwenden?' . $suffix;
-        }
-
-        return 'Which details should I use for ' . $taskname . '?' . $suffix;
     }
 
     /**

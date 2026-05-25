@@ -25,7 +25,6 @@
 namespace bookingextension_agent\local\wbagent;
 
 use core_text;
-use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
  * Builds and validates the trigger catalog shared between prompt, interpreter and runtime flow.
@@ -113,32 +112,6 @@ class message_trigger_registry {
                     ? array_values(array_filter(array_map(static fn($v): string => trim((string)$v), $trigger['examples'])))
                     : [],
             ];
-        }
-
-        foreach ($this->taskregistry->get_tasks() as $task) {
-            if (!$task instanceof task_trigger_provider_interface) {
-                continue;
-            }
-
-            foreach ($task->get_message_triggers() as $trigger) {
-                if (!is_array($trigger)) {
-                    continue;
-                }
-
-                $id = trim((string)($trigger['id'] ?? ''));
-                $description = trim((string)($trigger['description'] ?? ''));
-                if ($id === '' || $description === '') {
-                    continue;
-                }
-
-                $byid[$id] = [
-                    'id' => $id,
-                    'description' => $description,
-                    'examples' => isset($trigger['examples']) && is_array($trigger['examples'])
-                        ? array_values(array_filter(array_map(static fn($v): string => trim((string)$v), $trigger['examples'])))
-                        : [],
-                ];
-            }
         }
 
         return array_values($byid);

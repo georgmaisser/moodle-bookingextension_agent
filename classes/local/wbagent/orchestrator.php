@@ -730,8 +730,6 @@ PROMPT;
         $fullschemajson = json_encode($schemas, JSON_UNESCAPED_UNICODE);
         $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
         $systemtaskcatalogjson = $includetaskcatalog ? (string)$taskcatalogjson : '[]';
-        $triggerregistry = new message_trigger_registry($this->registry);
-        $triggerjson = json_encode($triggerregistry->get_available_triggers(), JSON_UNESCAPED_UNICODE);
 
         // Keep core operational prompts fixed to avoid admin misconfiguration risks.
         // Only a single optional synthesis prefix is allowed via aiinitialprompt_summarise_text.
@@ -784,7 +782,6 @@ PROMPT;
         // This is the single source of truth for dynamic policy appends.
         $policybuilder = new prompt_policy_builder();
         $prompt .= $policybuilder->build_all_policies(
-            $triggerjson,
             $steptype,
             $hasobservations,
             $isfirstassistantturn

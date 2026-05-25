@@ -497,30 +497,6 @@ class interpreter implements agent_interpreter {
             ];
         }
 
-        // LLM returned a trigger ID as response_type — map it back to the corresponding task name.
-        if ($responsetype !== '') {
-            $triggermap = $this->registry->get_trigger_id_to_task_name_map();
-            if (isset($triggermap[$responsetype])) {
-                $taskname = $triggermap[$responsetype];
-                $input = $this->extract_command_input($parsed);
-                $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
-                return [
-                    'response_type' => 'task_call',
-                    'lang' => $this->safe_string($parsed['lang'] ?? ''),
-                    'used_triggers' => [$responsetype],
-                    'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
-                    'next_step_intent' => $nextstepintent,
-                    'commands' => [
-                        [
-                            'task' => $taskname,
-                            'version' => (int)($parsed['version'] ?? 1),
-                            'input' => $input,
-                        ],
-                    ],
-                ];
-            }
-        }
-
         $task = (string)($parsed['task'] ?? '');
         $resolvedtask = $this->resolve_task_name_alias($task, $allowedtasks);
         if ($resolvedtask !== null) {

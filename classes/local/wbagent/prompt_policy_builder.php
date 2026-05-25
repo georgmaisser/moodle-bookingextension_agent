@@ -44,13 +44,11 @@ class prompt_policy_builder {
     /**
      * Build all NON-OPTIONAL policies as a single text block.
      *
-     * @param string $triggerjson    JSON string of available triggers.
      * @param string $steptype       Orchestrator step type (from orchestrator.php constants).
      * @param bool $isfirstassistantturn True when no assistant output exists yet in this thread.
      * @return string
      */
     public static function build_all_policies(
-        string $triggerjson,
         string $steptype = 'tool_call_parse',
         bool $hasobservations = false,
         bool $isfirstassistantturn = false
