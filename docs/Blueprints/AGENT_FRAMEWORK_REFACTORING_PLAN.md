@@ -137,17 +137,18 @@ Leitregel fuer Plan/Execution:
 ## 5. Refactoring-Checkliste zum Abarbeiten
 
 ## Phase 0.5 - Produktanforderungen als Contracts (neu)
-- [ ] Architektur-Contracts fuer die 6 Muss-Anforderungen dokumentieren: Contextid-Authority, Third-Party-DX, Sprachtreue, Confirmation-Default, Capability-Matrix, Complex-Scenario-Faehigkeit.
+- [x] Architektur-Contracts fuer die 6 Muss-Anforderungen dokumentieren: Contextid-Authority, Third-Party-DX, Sprachtreue, Confirmation-Default, Capability-Matrix, Complex-Scenario-Faehigkeit.
 - [ ] Privacy wird als erfuellt betrachtet (Schalter vorhanden); keine Kernarchitektur-Aenderung in dieser Welle.
 
 Gate Phase 0.5:
-- [ ] Produkt-Contracts sind als testbare Akzeptanzkriterien in docs/Blueprints fixiert.
+- [x] Produkt-Contracts sind als testbare Akzeptanzkriterien in docs/Blueprints fixiert.
 
 ## Phase 0.6 - Contextid-Authority statt activity-spezifischem Scope (neu)
 - [ ] Externe Entry-Points, Runtime, Orchestrator, Decision-Service, Preflight, Queue, Executor und Task-Interface auf contextid als autoritative Scope-ID umstellen.
   - [x] Zwischenstand: task_interface, base_task, core_task_base, preflight_pipeline und executor verwenden im zentralen Task-Grenzpfad contextid.
   - [x] Zwischenstand: privacy_anonymizer, ai_privacy_precheck, aiready und die threadbezogene Booking-Metadatenablage sprechen den Conversation-Store intern ueber contextid statt direkt ueber cmid an.
   - [x] Zwischenstand: ai_send_message und ai_confirm_run rufen den agent_runtime loop ueber contextid auf; execute_ai_run_adhoc verwendet im internen Task-Payload keinen cmid-Fallback mehr.
+  - [x] Zwischenstand: agent_decision_service verwendet in confirm/preflight/readonly-Pfaden eine konsolidierte contextid-Aufloesung statt mehrfacher ad-hoc-Konvertierung aus cmid.
 - [x] Confirmation-Allowance fuer Session-Autoconfirm an userid + contextid binden; threadid bleibt nur Referenz fuer konkrete Konversation und pending_intent.
 - [ ] Thread-, Queue-, Audit-, Guard- und Idempotency-Daten mit contextid fuehren.
   - [x] Zwischenstand: Queue-Items, Preflight-Audit-Events und pending_queue_retry_state tragen contextid jetzt explizit als Metadatenfeld statt nur implizit ueber threadid.
@@ -180,24 +181,29 @@ Gate Phase 1:
 - [ ] Kein Codepfad mehr, der aus clarification/error automatisch task_call erzeugt.
 
 ## Phase 2 - Explizite Planner-Contracts
-- [ ] task_interface um get_prompt_contract erweitern.
-- [ ] task_prompt_contract DTO einfuehren (intent, anchors, minimal_input, example_input, namespace, version, capabilities, context scopes).
-- [ ] task_registry fallback-Heuristiken entfernen (.create_, query, question etc.).
-- [ ] task_registry_factory so absichern, dass Third-Party-Provider ueber Discovery eingebunden werden, aber fehlerhafte Provider isoliert scheitern.
-- [ ] Task-Namen und Alias-Ziele namespacen und versionieren, damit Third-Party-Tasks keine Core-/Booking-Tasks ueberschreiben.
-- [ ] message_trigger_registry auf Signalnormalisierung begrenzen.
-- [ ] Third-Party-Developer-Guide: Minimalbeispiel fuer neuen Provider + Task inklusive Capability, Prompt-Contract, Schema, Preflight und Execute bereitstellen.
+- [x] task_interface um get_prompt_contract erweitern.
+- [x] task_prompt_contract DTO einfuehren (intent, anchors, minimal_input, example_input, namespace, version, capabilities, context scopes).
+- [x] task_registry fallback-Heuristiken entfernen (.create_, query, question etc.).
+- [x] task_registry_factory so absichern, dass Third-Party-Provider ueber Discovery eingebunden werden, aber fehlerhafte Provider isoliert scheitern.
+- [x] Task-Namen und Alias-Ziele namespacen und versionieren, damit Third-Party-Tasks keine Core-/Booking-Tasks ueberschreiben.
+- [x] message_trigger_registry auf Signalnormalisierung begrenzen.
+- [x] Third-Party-Developer-Guide: Minimalbeispiel fuer neuen Provider + Task inklusive Capability, Prompt-Contract, Schema, Preflight und Execute bereitstellen.
+  - [x] Zwischenstand: task_registry baut Prompt-Katalog jetzt zuerst aus task->get_prompt_contract() und reichert danach version/capabilities aus Registry-Metadaten an.
 
 Gate Phase 2:
-- [ ] Planner-Katalog wird nur aus expliziten Contracts gebaut.
-- [ ] Ein neuer Demo-Task laesst sich ausschliesslich ueber Provider-Registrierung einhaengen.
-- [ ] Ein fehlerhafter Third-Party-Task blockiert weder Registry-Build noch andere Tasks.
+- [x] Planner-Katalog wird nur aus expliziten Contracts gebaut.
+- [x] Ein neuer Demo-Task laesst sich ausschliesslich ueber Provider-Registrierung einhaengen.
+- [x] Ein fehlerhafter Third-Party-Task blockiert weder Registry-Build noch andere Tasks.
+  - [x] Zwischenstand: task_registry_factory besitzt einen nicht-fatalen Build-Fallback; ein harter Build-Fehler liefert eine leere, aber lauffaehige Registry statt Abbruch.
 
 ## Phase 2.5 - Sprachtreue ohne Sprachheuristiken (neu)
-- [ ] Sprachspezifische Keyword-/Regex-Erkennung in Routingpfaden entfernen.
-- [ ] Einheitliche Sprache-Authority festlegen: letzte User-Anfrage > modellseitig deklarierte user_lang > expliziter technischer Fallback.
+- [x] Sprachspezifische Keyword-/Regex-Erkennung in Routingpfaden entfernen.
+- [x] Einheitliche Sprache-Authority festlegen: letzte User-Anfrage > modellseitig deklarierte user_lang > expliziter technischer Fallback.
 - [ ] Antworttexte in allen Pfaden (clarification/confirmation/sufficient/error/budget/permission/retry) an dieselbe Sprache-Authority binden.
+  - [x] Zwischenstand: agent_runtime setzt `lang`/`user_lang` konsistent ueber den zentralen `language_policy_service`; fallback/next_step_intent werden lokalisiert aus String-IDs erzeugt.
+  - [x] Zwischenstand: preflight retry-hint im agent_decision_service nutzt keinen hartcodierten Text mehr, sondern einen lokalisierten language-policy String-Key.
 - [ ] Deterministische Framework-Texte ueber language_policy_service formatieren, nicht lokal in Decision-, Queue- oder Preflight-Code zusammensetzen.
+  - [x] Zwischenstand: Runtime-Fallback-Texte und Preflight-Retry-Texte sind bereits auf language_policy_service-basierte String-ID-Auswahl umgestellt.
 
 Gate Phase 2.5:
 - [ ] Gleiches Verhalten fuer z.B. Chinesisch, Deutsch, Englisch ohne Sonderlisten.
@@ -227,12 +233,17 @@ Gate Phase 4:
 
 ## Phase 5 - Subtask Primitive
 - [ ] spawn_commands[] im Task-Result-Contract standardisieren.
+  - [x] Zwischenstand: `spawn_contract_service` normalisiert `spawn_commands` deterministisch (task/version/input/output_bindings/depends_on) und filtert ungueltige Eintraege.
 - [ ] produced_outputs im Task-Result-Contract standardisieren, damit Child-Tasks erzeugte IDs, Dateien, Suchergebnisse und Zwischenartefakte referenzieren koennen.
+  - [x] Zwischenstand: `spawn_contract_service` normalisiert `produced_outputs` inkl. Alias-Aufloesung (`parent.*` und `taskname.*`) fuer stabile Binding-Referenzen.
 - [ ] Output-Bindings fuer Child-Inputs definieren (z.B. parent.created_course_id -> child.courseid).
+  - [x] Zwischenstand: `output_bindings` ist im command_schema + preflight_schema_validator formalisiert; Binding-Aufloesung erfolgt ueber `spawn_contract_service::apply_output_bindings` mit deterministischen Fehlermeldungen.
 - [ ] Spaeten Preflight fuer abhaengige Child-Commands einfuehren: erst nach erfolgreicher Parent-Ausfuehrung und Artefaktbindung validieren.
+  - [x] Zwischenstand: `executor` fuehrt fuer spawned Child-Commands nach Output-Binding explizit `check_structure` + `preflight` (late-preflight) vor `execute` aus.
 - [ ] Confirmation-Semantik fuer Ketten definieren: globale Planfreigabe nur bei Session-Allowance, sonst Bestaetigung vor der jeweils naechsten mutierenden Slice.
 - [ ] Spawn-Regel verbindlich machen: keine Spawn-Kette bei Ambiguitaet; stattdessen planner-gesteuerte Clarification/Lookup-Runde.
 - [ ] executor spawn_handler implementieren.
+  - [x] Zwischenstand: Rekursive Spawn-Ausfuehrung mit Tiefenlimit, Governance-Gate, Binding-Fehlercodes und Mutations-Blockierung fuer spawned commands ist im `executor` umgesetzt.
 - [ ] queue_manager: child enqueue mit depends_on Parent stabilisieren.
 - [ ] observation_builder fuer Parent/Child-Kette erweitern.
 - [ ] Referenz-Workflow als Spawn-Kette nachweisen (z.B. course -> questions -> quiz -> enrolment).
@@ -246,12 +257,17 @@ Gate Phase 5:
 - [ ] Neuer Contract-Test: preflight L1->L2->L3 inklusive skip-Logik.
 - [ ] Neuer Contract-Test: execution guard statt re-preflight.
 - [ ] Neuer Contract-Test: spawn_commands dependency chain inklusive produced_outputs, Output-Bindings und late-preflight.
+  - [x] Zwischenstand: neuer Contract-Testblock `spawn_contract_service_test` deckt Spawn-Contract-Normalisierung und Output-Binding-Fehlerpfade auf Service-Ebene ab.
 - [ ] Neuer Contract-Test: Planner-first bei Ambiguitaet (z.B. 2x "Billy") erzwingt clarification statt Spawn/Mutation.
 - [ ] Neuer Contract-Test: Third-Party-Task-DX mit Provider-only-Onboarding, Namespace, Version und Capability.
+  - [x] Zwischenstand: neuer Contract-Testblock prueft Namespace-Format, reservierte Namespace-Eigentuemerschaft sowie Alias-Versionskonsistenz im Validator/Registry-Gate.
+  - [x] Zwischenstand: Demo-Onboarding ueber reine Provider-Registrierung und Capability/Version im Prompt-Contract sind als Contract-Test abgedeckt.
 - [ ] Bestehende Recovery-basierte Tests entfernen/ersetzen.
 - [ ] Neuer Contract-Test: Mutationen sind per Default blocked_confirmation, Session-Autoconfirm nur ueber allow_session.
 - [ ] Neuer Contract-Test: Capability-Gating mit mehreren Freischaltkriterien (active/runtime/context/capability).
 - [ ] Neuer Contract-Test: Antwortsprache folgt Eingabesprache fuer LLM- und deterministische Antworten (mindestens de/en/zh Matrix).
+  - [x] Zwischenstand: neuer Contract-Testblock fuer language_policy_service prueft Prioritaet von `user_input_lang` gegen Modellsprachen sowie deterministische Fallback-String-Mappings.
+  - [x] Zwischenstand: de/en/zh Sprachmatrix ist fuer die zentrale language-policy authority testseitig abgedeckt.
 - [ ] Installations-Test: frische Installation mit neuer install.xml erzeugt alle benoetigten Context-basierten Strukturen ohne upgrade.php.
 
 Gate Phase 6:
@@ -261,6 +277,7 @@ Gate Phase 6:
 - [ ] Szenario A: Idealer Readonly Task + Test.
 - [ ] Szenario B: Idealer Multistep Task + Test.
 - [ ] Szenario C: Idealer Subtask/Spawn Task + Test.
+  - [x] Zwischenstand: `phase7_reference_scenarios_contract_test` bildet A/B/C als Contract-Referenzszenarien (readonly/multistep/spawn-binding) auf Service-/Schema-Ebene ab.
 - [ ] Erst danach schrittweises Onboarding weiterer Tasks.
 - [ ] Szenario D (komplex, cross-domain): Kurs erstellen -> 10 Fragen aus PDF/Bildquellen erstellen -> Quiz befuellen -> alle Nutzer mit Vorname Peter einschreiben; Nachweis ueber produced_outputs, Output-Bindings, late-preflight, Retry und Confirmation.
 
@@ -315,6 +332,7 @@ Risiko 3: Ueberambitionierte Parallel-Umbauten
 - [ ] spawn_commands, produced_outputs, Output-Bindings und late-preflight als offizieller Subtask-Mechanismus.
 - [ ] Planner-first bei Ambiguitaet ist durchgaengig erzwungen; Spawn wird nur fuer deterministische Folgeaktionen verwendet.
 - [ ] Third-Party-Task-Onboarding ohne Framework-Eingriff dokumentiert, namespaced, versioniert und getestet.
+- [x] Third-Party-Task-Onboarding ohne Framework-Eingriff dokumentiert, namespaced, versioniert und getestet.
 - [ ] Keine sprachspezifischen Routing-Heuristiken; LLM- und deterministische Antworten folgen Eingabesprache.
 - [ ] Mutationen sind per Default confirmation-required/blocked_confirmation; Session-Autoconfirm funktioniert nur ueber den vorgesehenen Flow und ist an userid + contextid gebunden.
 - [ ] Task-Freischaltung basiert auf mehrstufigem Gate (runtime/active/context/capability).

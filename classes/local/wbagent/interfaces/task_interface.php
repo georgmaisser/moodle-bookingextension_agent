@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\interfaces;
 
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 
 /**
  * Structured AI task interface.
@@ -60,6 +61,13 @@ interface task_interface {
      * @return array<string,mixed>
      */
     public function get_example_input(): array;
+
+    /**
+     * Return the explicit planner prompt contract for this task.
+     *
+     * @return task_prompt_contract
+     */
+    public function get_prompt_contract(): task_prompt_contract;
 
     /**
      * Structural (pure) validation — no DB access, no side-effects.

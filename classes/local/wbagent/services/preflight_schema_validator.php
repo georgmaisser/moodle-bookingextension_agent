@@ -108,6 +108,49 @@ class preflight_schema_validator {
             }
         }
 
+        if (array_key_exists('output_bindings', $command)) {
+            if (!is_array($command['output_bindings'])) {
+                $errors[] = 'Field "output_bindings" must be an object.';
+            } else {
+                foreach ((array)$command['output_bindings'] as $field => $bindingref) {
+                    if (trim((string)$field) === '' || trim((string)$bindingref) === '') {
+                        $errors[] = 'Field "output_bindings" must contain non-empty string pairs.';
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (array_key_exists('produced_outputs', $command) && !is_array($command['produced_outputs'])) {
+            $errors[] = 'Field "produced_outputs" must be an object.';
+        }
+
+        if (array_key_exists('spawn_commands', $command)) {
+            $spawncommands = $command['spawn_commands'];
+            if (!is_array($spawncommands)) {
+                $errors[] = 'Field "spawn_commands" must be an array.';
+            } else {
+                foreach ($spawncommands as $idx => $spawncommand) {
+                    if (!is_array($spawncommand)) {
+                        $errors[] = 'Field "spawn_commands[' . $idx . ']" must be an object.';
+                        continue;
+                    }
+                    if (trim((string)($spawncommand['task'] ?? '')) === '') {
+                        $errors[] = 'Field "spawn_commands[' . $idx . '].task" must be a non-empty string.';
+                    }
+                    if (array_key_exists('input', $spawncommand) && !is_array($spawncommand['input'])) {
+                        $errors[] = 'Field "spawn_commands[' . $idx . '].input" must be an object.';
+                    }
+                    if (
+                        array_key_exists('output_bindings', $spawncommand)
+                        && !is_array($spawncommand['output_bindings'])
+                    ) {
+                        $errors[] = 'Field "spawn_commands[' . $idx . '].output_bindings" must be an object.';
+                    }
+                }
+            }
+        }
+
         if (!empty($errors)) {
             return [
                 'valid' => false,

@@ -33,6 +33,9 @@ use bookingextension_agent\local\wbagent\interfaces\task_interface;
  * Validates and normalizes governance metadata for task registration.
  */
 class task_contract_validator {
+    /** Reserved namespaces owned by bookingextension_agent. */
+    public const RESERVED_NAMESPACES = ['booking', 'core'];
+
     /** Deny reason: task was not registered. */
     public const DENY_NOT_REGISTERED = 'not_registered';
 
@@ -76,6 +79,7 @@ class task_contract_validator {
 
         return [
             'taskname' => $taskname,
+            'namespace' => self::extract_task_namespace($taskname),
             'version' => (int)($schema['version'] ?? 1),
             'component' => trim($component),
             'capabilities' => $capabilities,
@@ -122,6 +126,18 @@ class task_contract_validator {
             $errors[] = 'Missing required field: taskname.';
         }
 
+        $taskname = trim((string)($taskmeta['taskname'] ?? ''));
+        if ($taskname !== '' && !self::is_namespaced_task_name($taskname)) {
+            $errors[] = 'Invalid required field: taskname must be namespaced as <namespace>.<task>.';
+        }
+
+        $namespace = trim((string)($taskmeta['namespace'] ?? ''));
+        if ($namespace === '') {
+            $errors[] = 'Missing required field: namespace.';
+        } else if ($taskname !== '' && self::extract_task_namespace($taskname) !== $namespace) {
+            $errors[] = 'Invalid namespace: must match the taskname prefix.';
+        }
+
         $version = $taskmeta['version'] ?? null;
         if (!is_int($version) || $version <= 0) {
             $errors[] = 'Invalid required field: version must be an integer > 0.';
@@ -145,6 +161,16 @@ class task_contract_validator {
         $aliasof = trim((string)($taskmeta['alias_of'] ?? ''));
         if ($aliasof !== '' && $aliasof === trim((string)($taskmeta['taskname'] ?? ''))) {
             $errors[] = 'Invalid alias_of: alias cannot target itself.';
+        }
+        if ($aliasof !== '' && !self::is_namespaced_task_name($aliasof)) {
+            $errors[] = 'Invalid alias_of: alias target must be namespaced as <namespace>.<task>.';
+        }
+        if (
+            $aliasof !== ''
+            && $namespace !== ''
+            && self::extract_task_namespace($aliasof) !== $namespace
+        ) {
+            $errors[] = 'Invalid alias_of: alias target must stay in the same namespace.';
         }
 
         if (!is_string((string)($taskmeta['deprecated_since'] ?? ''))) {
@@ -177,6 +203,17 @@ class task_contract_validator {
             $aliasof = trim((string)($meta['alias_of'] ?? ''));
             if ($aliasof !== '' && !isset($taskcontracts[$aliasof])) {
                 $errors[] = 'Alias target not found for task ' . $taskname . ': ' . $aliasof;
+                continue;
+            }
+
+            if ($aliasof !== '') {
+                $aliasmeta = (array)($taskcontracts[$aliasof] ?? []);
+                $version = (int)($meta['version'] ?? 0);
+                $aliasversion = (int)($aliasmeta['version'] ?? 0);
+                if ($version > 0 && $aliasversion > 0 && $version !== $aliasversion) {
+                    $errors[] = 'Alias version mismatch for task ' . $taskname
+                        . ': v' . $version . ' cannot target ' . $aliasof . ' v' . $aliasversion;
+                }
             }
         }
 
@@ -196,5 +233,53 @@ class task_contract_validator {
             self::DENY_CONTEXT_INVALID,
             self::DENY_TASK_VERSION_UNSUPPORTED,
         ];
+    }
+
+    /**
+     * Return task namespace prefix from a namespaced task name.
+     *
+     * @param string $taskname
+     * @return string
+     */
+    public static function extract_task_namespace(string $taskname): string {
+        $taskname = trim(core_text::strtolower($taskname));
+        $dotpos = strpos($taskname, '.');
+        if ($dotpos === false || $dotpos === 0) {
+            return '';
+        }
+
+        return trim((string)substr($taskname, 0, $dotpos));
+    }
+
+    /**
+     * Check whether a task name follows the required namespaced format.
+     *
+     * @param string $taskname
+     * @return bool
+     */
+    public static function is_namespaced_task_name(string $taskname): bool {
+        $taskname = trim(core_text::strtolower($taskname));
+        return preg_match('/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/', $taskname) === 1;
+    }
+
+    /**
+     * Determine whether a component may register tasks inside a namespace.
+     *
+     * @param string $component
+     * @param string $namespace
+     * @return bool
+     */
+    public static function component_may_register_namespace(string $component, string $namespace): bool {
+        $component = trim(core_text::strtolower($component));
+        $namespace = trim(core_text::strtolower($namespace));
+        if ($component === '' || $namespace === '') {
+            return false;
+        }
+
+        if (!in_array($namespace, self::RESERVED_NAMESPACES, true)) {
+            return true;
+        }
+
+        return $component === 'bookingextension_agent';
     }
 }

@@ -33,6 +33,9 @@ class task_registry_factory {
     /** @var task_registry|null */
     private static ?task_registry $registry = null;
 
+    /** @var string */
+    private static string $lastbuildwarning = '';
+
     /**
      * Return shared default task registry.
      *
@@ -40,10 +43,27 @@ class task_registry_factory {
      */
     public static function get_default(): task_registry {
         if (self::$registry === null) {
-            self::$registry = task_registry::make_default();
+            self::$lastbuildwarning = '';
+            try {
+                self::$registry = task_registry::make_default();
+            } catch (\Throwable $e) {
+                self::$registry = new task_registry();
+                self::$lastbuildwarning = 'Task registry fallback activated after build failure: '
+                    . get_class($e) . ': ' . $e->getMessage();
+                debugging(self::$lastbuildwarning, DEBUG_DEVELOPER);
+            }
         }
 
         return self::$registry;
+    }
+
+    /**
+     * Return the last non-fatal build warning from get_default().
+     *
+     * @return string
+     */
+    public static function get_last_build_warning(): string {
+        return self::$lastbuildwarning;
     }
 
     /**
@@ -55,5 +75,6 @@ class task_registry_factory {
      */
     public static function reset(): void {
         self::$registry = null;
+        self::$lastbuildwarning = '';
     }
 }

@@ -138,6 +138,15 @@ class task_registry {
                 continue;
             }
 
+            $tasknamespace = task_contract_validator::extract_task_namespace($taskname);
+            if (!task_contract_validator::component_may_register_namespace($provider->get_component(), $tasknamespace)) {
+                $this->add_contract_diagnostic(
+                    'Ignoring AI task because namespace is reserved: ' . $taskname
+                    . ' (component: ' . $provider->get_component() . ')'
+                );
+                continue;
+            }
+
             if (isset($this->tasks[$taskname])) {
                 $this->add_contract_diagnostic(
                     'Duplicate AI task name detected: ' . $taskname
@@ -464,26 +473,38 @@ class task_registry {
      */
     private function build_prompt_contract(string $taskname, task_interface $task): array {
         $schema = (array)$task->get_schema();
-        $properties = (array)($schema['properties'] ?? []);
-        $promptmeta = (array)($schema['prompt_meta'] ?? []);
+        $promptcontract = $task->get_prompt_contract()->to_array();
+        $taskmeta = (array)($this->get_task_contract($taskname) ?? []);
+        $minimalinput = array_values(array_filter(array_map('strval', (array)($promptcontract['minimal_input'] ?? []))));
+        $anchorfields = array_values(array_filter(array_map('strval', (array)($promptcontract['anchors'] ?? []))));
 
-        // Extract input fields: prefer schema metadata, fall back to legacy detection.
-        $minimalinput = [];
-        if (!empty($promptmeta['input_fields_for_prompt']) && is_array($promptmeta['input_fields_for_prompt'])) {
-            $minimalinput = array_values(array_filter($promptmeta['input_fields_for_prompt']));
-        } else {
-            $minimalinput = $this->build_minimal_input_fields($taskname, $properties);
+        $exampleinput = is_array($promptcontract['example_input'] ?? null)
+            ? (array)$promptcontract['example_input']
+            : $task->get_example_input();
+
+        $namespace = trim((string)($promptcontract['namespace'] ?? ''));
+        if ($namespace === '' && strpos($taskname, '.') !== false) {
+            $namespace = (string)substr($taskname, 0, (int)strpos($taskname, '.'));
+        }
+        if ($namespace === '') {
+            $namespace = 'core';
         }
 
-        // Extract anchor fields: prefer schema metadata, fall back to legacy detection.
-        $anchorfields = [];
-        if (!empty($promptmeta['anchor_fields']) && is_array($promptmeta['anchor_fields'])) {
-            $anchorfields = array_values(array_filter($promptmeta['anchor_fields']));
-        } else {
-            $anchorfields = $this->extract_anchor_fields($properties);
-        }
+        $contractversion = max(1, (int)($promptcontract['version'] ?? 1));
+        $metaversion = max(1, (int)($taskmeta['version'] ?? 1));
+        $version = max($contractversion, $metaversion);
 
-        $exampleinput = $task->get_example_input();
+        $capabilities = array_values(array_unique(array_filter(array_map(
+            'strval',
+            !empty($promptcontract['capabilities'])
+                ? (array)$promptcontract['capabilities']
+                : (array)($taskmeta['capabilities'] ?? [])
+        ))));
+
+        $contextscopes = array_values(array_unique(array_filter(array_map(
+            'strval',
+            (array)($promptcontract['context_scopes'] ?? ['module'])
+        ))));
 
         $messagetriggers = [];
         if ($task instanceof task_trigger_provider_interface) {
@@ -498,136 +519,19 @@ class task_registry {
             'task' => $taskname,
             'description' => trim((string)($schema['description'] ?? '')),
             'readonly' => (bool)($schema['readonly'] ?? $task->is_read_only()),
-            'intent' => $this->detect_task_intent($taskname, $schema),
+            'intent' => trim((string)($promptcontract['intent'] ?? '')) !== ''
+                ? trim((string)$promptcontract['intent'])
+                : 'task',
             'anchors' => $anchorfields,
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
+            'namespace' => $namespace,
+            'version' => $version,
+            'capabilities' => $capabilities,
+            'context_scopes' => $contextscopes,
             'message_triggers' => $messagetriggers,
         ];
     }
-
-    /**
-     * Build minimal planner input fields when schema prompt_meta is absent.
-     *
-     * @param string $taskname
-     * @param array<string,mixed> $properties
-     * @return array<int,string>
-     */
-    private function build_minimal_input_fields(string $taskname, array $properties): array {
-        $fields = [];
-
-        foreach ($properties as $name => $spec) {
-            if (!is_string($name) || $name === '' || !is_array($spec)) {
-                continue;
-            }
-            if (!empty($spec['required'])) {
-                $fields[] = $name;
-            }
-        }
-
-        if (empty($fields)) {
-            $preferred = [
-                'query',
-                'question',
-                'scope',
-                'taskname',
-                'optionquery',
-                'userquery',
-                'coursequery',
-                'doc_path',
-                'doc_path_candidates',
-                'topic_hint',
-            ];
-
-            foreach ($preferred as $name) {
-                if (array_key_exists($name, $properties)) {
-                    $fields[] = $name;
-                }
-            }
-        }
-
-        return array_values(array_unique($fields));
-    }
-
-    /**
-     * Derive compact anchor fields from available task properties.
-     *
-     * @param array<string,mixed> $properties
-     * @return array<int,string>
-     */
-    private function extract_anchor_fields(array $properties): array {
-        $anchors = [];
-
-        $keys = array_map('strval', array_keys($properties));
-        $has = static function (string $needle) use ($keys): bool {
-            return in_array($needle, $keys, true);
-        };
-
-        if ($has('optionquery') || $has('optionid') || $has('optionids')) {
-            $anchors[] = 'option';
-        }
-        if ($has('userquery') || $has('userid') || $has('userids')) {
-            $anchors[] = 'user';
-        }
-        if ($has('courseid') || $has('coursequery') || $has('courseids')) {
-            $anchors[] = 'course';
-        }
-        if ($has('question')) {
-            $anchors[] = 'question';
-        }
-        if ($has('doc_path') || $has('doc_path_candidates') || $has('search_queries') || $has('topic_hint')) {
-            $anchors[] = 'docs';
-        }
-
-        return array_values(array_unique($anchors));
-    }
-
-    /**
-     * Derive a compact intent label for routing.
-     *
-     * @param string $taskname
-     * @param array $schema
-     * @return string
-     */
-    private function detect_task_intent(string $taskname, array $schema): string {
-        if (!empty($schema['readonly'])) {
-            if (strpos($taskname, '.diagnose_') !== false) {
-                return 'diagnose';
-            }
-            if (strpos($taskname, '.explain_') !== false) {
-                return 'explain';
-            }
-            if (strpos($taskname, '.search_') !== false) {
-                return 'search';
-            }
-            if (strpos($taskname, '.list_') !== false) {
-                return 'list';
-            }
-            if (strpos($taskname, '.get_') !== false) {
-                return 'get';
-            }
-            return 'read';
-        }
-
-        if (strpos($taskname, '.bulk_') !== false) {
-            return 'bulk_update';
-        }
-        if (strpos($taskname, '.create_') !== false) {
-            return 'create';
-        }
-        if (strpos($taskname, '.update_') !== false) {
-            return 'update';
-        }
-        if (strpos($taskname, '.add_') !== false) {
-            return 'add';
-        }
-        if (strpos($taskname, '.book_') !== false) {
-            return 'book';
-        }
-
-        return 'mutate';
-    }
-
 
     /**
      * Return all context-specific prompt packs from registered providers.

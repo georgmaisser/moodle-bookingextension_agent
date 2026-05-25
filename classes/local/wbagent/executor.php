@@ -29,6 +29,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
+use bookingextension_agent\local\wbagent\services\spawn_contract_service;
 
 /**
  * Dispatches interpreter-validated commands to the appropriate task.
@@ -48,6 +49,9 @@ use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 class executor implements agent_executor {
     /** @var int Maximum number of follow-up suggestions returned per result. */
     private const MAX_FOLLOW_UP_SUGGESTIONS = 3;
+
+    /** @var int Maximum recursion depth for spawn command execution. */
+    private const MAX_SPAWN_DEPTH = 4;
 
     /** @var array<string,array<int,string>> Fields omitted from result echoes for privacy. */
     private const SENSITIVE_EXECUTED_INPUT_FIELDS = [
@@ -115,6 +119,7 @@ class executor implements agent_executor {
         $run = $this->store->get_run($runid);
         $threadid = (int)($run->threadid ?? 0);
         $anonymizer = new privacy_anonymizer($this->store);
+        $spawncontracts = new spawn_contract_service();
 
         foreach ($commands as $cmd) {
             $taskname = $cmd['task'] ?? '';
@@ -208,7 +213,210 @@ class executor implements agent_executor {
                 );
             }
             $result = $this->enrich_result_with_follow_ups($taskname, $input, $result);
+            if (is_array($result)) {
+                $result = $spawncontracts->normalize_task_result((string)$taskname, $result);
+            }
             $results[] = $result;
+
+            if (is_array($result)) {
+                $spawnresults = $this->execute_spawn_chain(
+                    (string)$taskname,
+                    $result,
+                    $contextid,
+                    $userid,
+                    $spawncontracts,
+                    $evaluator,
+                    1
+                );
+                if (!empty($spawnresults)) {
+                    $results = array_merge($results, $spawnresults);
+                }
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Execute spawned child commands from one parent task result.
+     *
+     * @param string $parenttask
+     * @param array<string,mixed> $parentresult
+     * @param int $contextid
+     * @param int $userid
+     * @param spawn_contract_service $spawncontracts
+     * @param task_executability_evaluator $evaluator
+     * @param int $depth
+     * @return array<int,array<string,mixed>>
+     */
+    private function execute_spawn_chain(
+        string $parenttask,
+        array $parentresult,
+        int $contextid,
+        int $userid,
+        spawn_contract_service $spawncontracts,
+        task_executability_evaluator $evaluator,
+        int $depth
+    ): array {
+        if ($depth > self::MAX_SPAWN_DEPTH) {
+            return [[
+                'task' => $parenttask,
+                'status' => 'error',
+                'detail' => 'Spawn chain depth exceeded the safety limit.',
+                'issue_codes' => ['SPAWN_DEPTH_EXCEEDED'],
+                'spawn_depth' => $depth,
+                'resultid' => null,
+            ]];
+        }
+
+        $spawncommands = is_array($parentresult['spawn_commands'] ?? null)
+            ? (array)$parentresult['spawn_commands']
+            : [];
+        if (empty($spawncommands)) {
+            return [];
+        }
+
+        $availableoutputs = is_array($parentresult['produced_outputs'] ?? null)
+            ? (array)$parentresult['produced_outputs']
+            : [];
+
+        $results = [];
+        foreach ($spawncommands as $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+
+            $childtask = trim((string)($command['task'] ?? ''));
+            if ($childtask === '') {
+                continue;
+            }
+
+            $childinput = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+            $bindings = is_array($command['output_bindings'] ?? null) ? (array)$command['output_bindings'] : [];
+            $bindingresolution = $spawncontracts->apply_output_bindings($childinput, $bindings, $availableoutputs);
+            $childinput = (array)($bindingresolution['input'] ?? []);
+            $bindingerrors = (array)($bindingresolution['errors'] ?? []);
+            if (!empty($bindingerrors)) {
+                $results[] = [
+                    'task' => $childtask,
+                    'status' => 'error',
+                    'detail' => implode('; ', $bindingerrors),
+                    'issue_codes' => ['SPAWN_OUTPUT_BINDING_MISSING'],
+                    'parent_task' => $parenttask,
+                    'spawn_depth' => $depth,
+                    'resultid' => null,
+                ];
+                continue;
+            }
+
+            $task = $this->registry->get_task($childtask);
+            if ($task === null) {
+                $results[] = [
+                    'task' => $childtask,
+                    'status' => 'error',
+                    'detail' => get_string('agent_executor_task_not_registered', 'bookingextension_agent', $childtask),
+                    'issue_codes' => ['SPAWN_TASK_NOT_REGISTERED'],
+                    'parent_task' => $parenttask,
+                    'spawn_depth' => $depth,
+                    'resultid' => null,
+                ];
+                continue;
+            }
+
+            if (!$task->is_read_only()) {
+                $results[] = [
+                    'task' => $childtask,
+                    'status' => 'blocked_confirmation',
+                    'detail' => 'Spawned mutating command requires explicit confirmation.',
+                    'issue_codes' => ['SPAWN_MUTATION_REQUIRES_CONFIRMATION'],
+                    'parent_task' => $parenttask,
+                    'spawn_depth' => $depth,
+                    'resultid' => null,
+                ];
+                continue;
+            }
+
+            $evaluation = $evaluator->evaluate_task($childtask, $userid, $contextid);
+            if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
+                $denyreason = trim((string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED));
+                $results[] = [
+                    'task' => $childtask,
+                    'status' => 'error',
+                    'detail' => 'Spawn task denied by governance gate (' . $denyreason . ').',
+                    'issue_codes' => ['SPAWN_TASK_DENIED'],
+                    'deny_reason' => $denyreason,
+                    'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
+                    'parent_task' => $parenttask,
+                    'spawn_depth' => $depth,
+                    'resultid' => null,
+                ];
+                continue;
+            }
+
+            $structure = $task->check_structure($childinput);
+            if (!($structure['valid'] ?? true)) {
+                $results[] = [
+                    'task' => $childtask,
+                    'status' => 'error',
+                    'detail' => implode('; ', (array)($structure['errors'] ?? [])),
+                    'issue_codes' => ['SPAWN_STRUCTURE_INVALID'],
+                    'parent_task' => $parenttask,
+                    'spawn_depth' => $depth,
+                    'resultid' => null,
+                ];
+                continue;
+            }
+
+            $preflight = $task->preflight($childinput, $contextid, $userid);
+            if (trim((string)$preflight->status) !== 'pass') {
+                $results[] = [
+                    'task' => $childtask,
+                    'status' => 'error',
+                    'detail' => 'Spawn late-preflight blocked child execution.',
+                    'issue_codes' => array_values(array_unique(array_merge(
+                        ['SPAWN_LATE_PREFLIGHT_BLOCKED'],
+                        (array)$preflight->issuecodes
+                    ))),
+                    'blocking_layer' => (string)$preflight->blockinglayer,
+                    'retry_after_ms' => (int)$preflight->retryafterms,
+                    'parent_task' => $parenttask,
+                    'spawn_depth' => $depth,
+                    'resultid' => null,
+                ];
+                continue;
+            }
+
+            $childresult = $task->execute((array)$preflight->preparedinput, $contextid, $userid);
+            if (!is_array($childresult)) {
+                $childresult = [
+                    'task' => $childtask,
+                    'status' => 'executed',
+                    'results' => [],
+                ];
+            }
+            if (!isset($childresult['task'])) {
+                $childresult['task'] = $childtask;
+            }
+            if (!isset($childresult['executed_input'])) {
+                $childresult['executed_input'] = $this->build_safe_executed_input($childtask, (array)$preflight->preparedinput);
+            }
+            $childresult['parent_task'] = $parenttask;
+            $childresult['spawn_depth'] = $depth;
+            $childresult = $spawncontracts->normalize_task_result($childtask, $childresult);
+            $results[] = $childresult;
+
+            $grandchildren = $this->execute_spawn_chain(
+                $childtask,
+                $childresult,
+                $contextid,
+                $userid,
+                $spawncontracts,
+                $evaluator,
+                $depth + 1
+            );
+            if (!empty($grandchildren)) {
+                $results = array_merge($results, $grandchildren);
+            }
         }
 
         return $results;

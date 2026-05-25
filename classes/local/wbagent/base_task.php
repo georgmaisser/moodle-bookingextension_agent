@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wbagent;
 
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 
 /**
  * Base class for AI tasks.
@@ -66,6 +67,32 @@ abstract class base_task implements task_interface {
      */
     public function get_example_input(): array {
         return [];
+    }
+
+    /**
+     * Default explicit prompt-contract derived from task schema.
+     *
+     * @return task_prompt_contract
+     */
+    public function get_prompt_contract(): task_prompt_contract {
+        $schema = (array)$this->get_schema();
+        $promptmeta = (array)($schema['prompt_meta'] ?? []);
+        $taskname = trim($this->get_name());
+        $namespace = '';
+        if ($taskname !== '' && strpos($taskname, '.') !== false) {
+            $namespace = (string)substr($taskname, 0, (int)strpos($taskname, '.'));
+        }
+
+        return new task_prompt_contract([
+            'intent' => trim((string)($promptmeta['intent'] ?? '')),
+            'anchors' => array_values(array_filter((array)($promptmeta['anchor_fields'] ?? []), 'is_string')),
+            'minimal_input' => array_values(array_filter((array)($promptmeta['input_fields_for_prompt'] ?? []), 'is_string')),
+            'example_input' => $this->get_example_input(),
+            'namespace' => $namespace,
+            'version' => max(1, (int)($schema['version'] ?? 1)),
+            'capabilities' => array_values(array_filter((array)($promptmeta['capabilities'] ?? []), 'is_string')),
+            'context_scopes' => array_values(array_filter((array)($promptmeta['context_scopes'] ?? ['module']), 'is_string')),
+        ]);
     }
 
     /**

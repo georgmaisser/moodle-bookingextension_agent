@@ -33,6 +33,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\services\language_policy_service;
 
 /**
  * Owns the complete agent execution loop: plan → execute → observe → decide.
@@ -139,6 +140,9 @@ class agent_runtime {
     /** @var queue_manager */
     private queue_manager $queuesvc;
 
+    /** @var language_policy_service */
+    private language_policy_service $languagepolicy;
+
     /**
      * Constructor.
      *
@@ -164,6 +168,7 @@ class agent_runtime {
         $this->messagepersistence = new message_persistence_service($store);
         $this->loopfinalizer = new loop_finalizer();
         $this->queuesvc = new queue_manager($store);
+        $this->languagepolicy = new language_policy_service();
     }
 
     // -------------------------------------------------------------------------
@@ -701,22 +706,7 @@ class agent_runtime {
         }
         $result['message'] = $message;
 
-        $lang = $this->normalize_iso_language((string)($result['lang'] ?? ''));
-        $userlang = $this->normalize_iso_language((string)($result['user_lang'] ?? ''));
-        if ($userlang === '') {
-            $userlang = $lang;
-        }
-        if ($userlang === '') {
-            $userlang = $this->normalize_iso_language((string)current_language());
-        }
-        if ($userlang === '') {
-            $userlang = $this->normalize_iso_language(
-                (string)$this->store->get_thread_metadata_value($threadid, 'last_output_lang')
-            );
-        }
-        if ($userlang === '') {
-            $userlang = 'en';
-        }
+        $userlang = $this->languagepolicy->resolve_output_language($this->store, $threadid, $result);
 
         // Hard policy: lang must match user_lang unless explicitly overridden upstream.
         $result['user_lang'] = $userlang;
@@ -724,9 +714,12 @@ class agent_runtime {
 
         $nextstepintent = trim((string)($result['next_step_intent'] ?? ''));
         if ($nextstepintent === '') {
-            $nextstepintent = $userlang === 'de'
-                ? 'Ich werde als Nächstes die vorhandenen Ergebnisse zusammenfassen.'
-                : 'I will now summarize the available findings.';
+            $nextstepintent = $this->localized_string(
+                'ai_next_step_intent_default',
+                'bookingextension_agent',
+                null,
+                $userlang
+            );
         }
         $result['next_step_intent'] = $nextstepintent;
 
@@ -749,12 +742,7 @@ class agent_runtime {
      * @return string
      */
     private function normalize_iso_language(string $value): string {
-        $value = trim(core_text::strtolower($value));
-        if ($value === '') {
-            return '';
-        }
-        $value = substr($value, 0, 2);
-        return preg_match('/^[a-z]{2}$/', $value) === 1 ? $value : '';
+        return $this->languagepolicy->normalize_iso_language($value);
     }
 
     /**
@@ -786,17 +774,8 @@ class agent_runtime {
      * @return string
      */
     private function build_contract_fallback_message(string $responsetype, int $threadid): string {
-        $lang = $this->normalize_iso_language((string)$this->store->get_thread_metadata_value($threadid, 'last_output_lang'));
-        if ($lang === '') {
-            $lang = $this->normalize_iso_language((string)current_language());
-        }
-
-        $stringmap = [
-            'error'                => 'ai_fallback_error',
-            'confirmation_request' => 'ai_fallback_confirmation_request',
-            'task_call'            => 'ai_fallback_task_call',
-        ];
-        $stringid = $stringmap[$responsetype] ?? 'ai_fallback_summary';
+        $lang = $this->languagepolicy->resolve_output_language($this->store, $threadid, []);
+        $stringid = $this->languagepolicy->fallback_string_id_for_response_type($responsetype);
 
         return $this->localized_string($stringid, 'bookingextension_agent', null, $lang);
     }
@@ -2415,13 +2394,12 @@ class agent_runtime {
             return null;
         }
 
-        $assistanttext = trim((string)($previousassistant->content ?? ''));
         $structured = json_decode((string)($previousassistant->structuredjson ?? ''), true);
         if (!is_array($structured)) {
             $structured = [];
         }
 
-        if (!$this->assistant_prompted_for_option_type($assistanttext, $structured)) {
+        if (!$this->assistant_prompted_for_option_type($structured)) {
             return null;
         }
 
@@ -2464,46 +2442,31 @@ class agent_runtime {
             return false;
         }
 
-        $patterns = [
-            '/^was\s+meinst\s+du\s+damit\??$/u',
-            '/^wie\s+meinst\s+du\s+das\??$/u',
-            '/^what\s+do\s+you\s+mean\??$/u',
-            '/^what\s+does\s+that\s+mean\??$/u',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text) === 1) {
-                return true;
-            }
-        }
-
-        return false;
+        // Language-neutral heuristic: short follow-up question with no command payload.
+        $isquestion = str_contains($text, '?');
+        $wordcount = count(array_values(array_filter(preg_split('/\s+/u', $text) ?: [])));
+        return $isquestion && $wordcount > 0 && $wordcount <= 8;
     }
 
     /**
      * Determine whether the previous assistant message asked for booking option type.
      *
-     * @param string $assistanttext
      * @param array $structured
      * @return bool
      */
-    private function assistant_prompted_for_option_type(string $assistanttext, array $structured): bool {
+    private function assistant_prompted_for_option_type(array $structured): bool {
         $responsetype = (string)($structured['response_type'] ?? '');
         if ($responsetype !== 'clarification' && $responsetype !== 'confirmation_request') {
             return false;
         }
 
+        $issuecodes = array_values(array_unique((array)($structured['issue_codes'] ?? [])));
+        if (in_array('OPTION_TYPE_HELP_CLARIFICATION', $issuecodes, true)) {
+            return true;
+        }
+
         $attemptedtasks = array_values(array_unique((array)($structured['attempted_tasks'] ?? [])));
-        $taskmatch = in_array('booking.create_option', $attemptedtasks, true);
-
-        $text = core_text::strtolower(trim($assistanttext));
-        $textmatch = (
-            str_contains($text, 'typ der buchungsoption')
-            || str_contains($text, 'buchungstyp')
-            || str_contains($text, 'booking option type')
-        );
-
-        return $taskmatch || $textmatch;
+        return in_array('booking.create_option', $attemptedtasks, true);
     }
 
     /**
@@ -2537,28 +2500,7 @@ class agent_runtime {
      * @return string
      */
     private function resolve_output_language(int $threadid, array $result): string {
-        $userlang = trim(core_text::strtolower((string)($result['user_lang'] ?? '')));
-        if ($userlang !== '' && preg_match('/^[a-z]{2}$/', $userlang)) {
-            return $userlang;
-        }
-
-        $modellang = trim(core_text::strtolower((string)($result['lang'] ?? '')));
-        if ($modellang !== '' && preg_match('/^[a-z]{2}$/', $modellang)) {
-            return $modellang;
-        }
-
-        // Prefer current UI/session language for this turn over stale thread metadata.
-        $uilang = trim(core_text::strtolower((string)current_language()));
-        if ($uilang !== '' && preg_match('/^[a-z]{2}$/', $uilang)) {
-            return $uilang;
-        }
-
-        $threadlang = trim(core_text::strtolower((string)$this->store->get_thread_metadata_value($threadid, 'last_output_lang')));
-        if ($threadlang !== '' && preg_match('/^[a-z]{2}$/', $threadlang)) {
-            return $threadlang;
-        }
-
-        return current_language();
+        return $this->languagepolicy->resolve_output_language($this->store, $threadid, $result);
     }
 
     /**

@@ -31,6 +31,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
+use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
 
 /**
@@ -111,6 +112,9 @@ class agent_decision_service {
     /** @var preflight_pipeline */
     private preflight_pipeline $preflightpipeline;
 
+    /** @var language_policy_service */
+    private language_policy_service $languagepolicy;
+
     /**
      * Constructor.
      *
@@ -132,6 +136,7 @@ class agent_decision_service {
         $this->queuesvc = new queue_manager($store);
         $this->observationbuilder = new observation_builder();
         $this->preflightpipeline = new preflight_pipeline($registry, $store);
+        $this->languagepolicy = new language_policy_service();
     }
 
     // -------------------------------------------------------------------------
@@ -326,7 +331,7 @@ class agent_decision_service {
                 !empty($queueitemids) ? [] : $result['commands'],
                 $intentkey,
                 $userid,
-                (int)\context_module::instance($cmid)->id,
+                $contextid,
                 [
                     'queue_item_ids' => $queueitemids,
                     'queue_authoritative' => !empty($queueitemids),
@@ -664,6 +669,7 @@ class agent_decision_service {
         int $userid,
         string $outputlang
     ): array {
+        $contextid = (int)\context_module::instance($cmid)->id;
         $modelmessage = trim((string)($result['message'] ?? ''));
         $normalizedmessage = core_text::strtolower($modelmessage);
         $isplaceholdermessage = in_array($normalizedmessage, ['executing', 'executing.', 'running', 'running.'], true);
@@ -703,7 +709,7 @@ class agent_decision_service {
         $preflightresult = $this->preflightpipeline->run(
             $confirmcommands,
             $threadid,
-            (int)\context_module::instance($cmid)->id,
+            $contextid,
             $userid
         );
         if (trim((string)($preflightresult['status'] ?? '')) !== 'pass') {
@@ -737,14 +743,14 @@ class agent_decision_service {
             $this->queuesvc->set_prepared_input(
                 $threadid,
                 $queueitemid,
-                (int)\context_module::instance($cmid)->id,
+                $contextid,
                 $preparedinput
             );
         }
 
         $preparedcommands = $this->apply_execution_guard_tokens(
             $preparedcommands,
-            (int)\context_module::instance($cmid)->id
+            $contextid
         );
 
         $confirmmessage = $this->localized_string('ai_confirm_pending_intent', 'bookingextension_agent', null, $outputlang);
@@ -754,7 +760,7 @@ class agent_decision_service {
             !empty($queueitemids) ? [] : $preparedcommands,
             $intentkey,
             $userid,
-            (int)\context_module::instance($cmid)->id,
+            $contextid,
             [
                 'queue_item_ids' => $queueitemids,
                 'queue_authoritative' => !empty($queueitemids),
@@ -1182,6 +1188,7 @@ class agent_decision_service {
         int $userid,
         string $outputlang
     ): array {
+        $contextid = (int)\context_module::instance($cmid)->id;
         $commands = (array)($result['commands'] ?? []);
         $lastusermessage = trim($this->get_last_user_message($threadid));
         $planner = new planner_service($this->store);
@@ -1220,7 +1227,7 @@ class agent_decision_service {
             fn() => $this->preflightpipeline->run(
                 $commands,
                 $threadid,
-                (int)\context_module::instance($cmid)->id,
+                $contextid,
                 $userid
             )
         );
@@ -1247,7 +1254,7 @@ class agent_decision_service {
         $queueitemids = array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? []))));
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread(
             $userid,
-            (int)\context_module::instance($cmid)->id,
+            $contextid,
             $threadid
         );
         $this->apply_preflight_queue_decision(
@@ -1266,7 +1273,7 @@ class agent_decision_service {
                 $this->queuesvc->set_prepared_input(
                     $threadid,
                     $queueitemid,
-                    (int)\context_module::instance($cmid)->id,
+                    $contextid,
                     $preparedinput
                 );
             }
@@ -1274,14 +1281,19 @@ class agent_decision_service {
 
         $preparedcommands = $this->apply_execution_guard_tokens(
             $preparedcommands,
-            (int)\context_module::instance($cmid)->id
+            $contextid
         );
 
         // If there were blocking errors, decide whether to allow confirmable continuation.
         if ($status !== 'pass') {
             $validationmessage = trim(implode(' ', $blockingerrors));
             if ($status === 'retry_hint') {
-                $retrymessage = 'Preflight retry requested. Please retry after backoff.';
+                $retrymessage = $this->localized_string(
+                    $this->languagepolicy->preflight_retry_hint_string_id(),
+                    'bookingextension_agent',
+                    null,
+                    $outputlang
+                );
                 return [
                     'response_type'   => 'confirmation_request',
                     'message'         => $validationmessage !== '' ? $validationmessage : $retrymessage,
@@ -1568,6 +1580,7 @@ class agent_decision_service {
         string $outputlang,
         string $nextstepintent = ''
     ): array {
+        $contextid = (int)\context_module::instance($cmid)->id;
         // Read-only auto-execution must use deanonymized inputs, otherwise person names
         // replaced during privacy precheck can degrade exact option/user lookups.
         $preparedcommands = $this->inject_output_language_into_commands($commands, $outputlang);
@@ -1579,7 +1592,7 @@ class agent_decision_service {
                 }
                 $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
                 $command['input'] = $anonymizer->deanonymize_command_input_for_active_user(
-                    (int)\context_module::instance($cmid)->id,
+                    $contextid,
                     $userid,
                     $input
                 );
@@ -1589,13 +1602,13 @@ class agent_decision_service {
 
         $idempotencykey = hash(
             'sha256',
-            $userid . ':' . (int)\context_module::instance($cmid)->id . ':' . $threadid
+            $userid . ':' . $contextid . ':' . $threadid
                 . ':' . json_encode($preparedcommands) . ':' . microtime(true)
         );
         $runid = $this->store->create_run(
             $threadid,
             $userid,
-            (int)\context_module::instance($cmid)->id,
+            $contextid,
             $idempotencykey,
             $preparedcommands
         );
@@ -1606,6 +1619,7 @@ class agent_decision_service {
                 $preparedcommands,
                 $queueitemids,
                 $cmid,
+                $contextid,
                 $userid,
                 $idempotencykey,
                 $runid,
@@ -1615,7 +1629,7 @@ class agent_decision_service {
                 $exec = new executor($this->registry, $this->store, $this->authz);
                 $rawresults = $exec->execute_commands(
                     $preparedcommands,
-                    (int)\context_module::instance($cmid)->id,
+                    $contextid,
                     $userid,
                     $idempotencykey,
                     $runid
