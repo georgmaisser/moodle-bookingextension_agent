@@ -83,7 +83,7 @@ Statuswerte: KEEP, REFACTOR, REMOVE_NOW, REMOVE_LATER
 | classes/local/wbagent/execution_feedback_service.php | KEEP |  |
 | classes/local/wbagent/wunderbyte_trial_endpoint.py | KEEP |  |
 | classes/local/wbagent/authorization_service.php | KEEP |  |
-| classes/local/wbagent/tests/integration_agent_framework_test.php | REMOVE_LATER | Testdatei im Klassenbaum, verschieben oder entfernen |
+| tests/agent/contracts/integration_agent_framework_test.php | KEEP | In Standard-Teststruktur verschoben |
 | classes/local/wbagent/adaptive_task_catalog_service.php | REMOVE_LATER | Falls planner_catalog_service ersetzt |
 | classes/local/wbagent/agent_runtime.php | REFACTOR | Kernumbau laut Zielarchitektur |
 | classes/local/wbagent/embeddings_catalog_builder_service.php | REMOVE_LATER | Optionaler Embeddings-Featurepfad |

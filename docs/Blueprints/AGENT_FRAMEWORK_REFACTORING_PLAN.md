@@ -115,10 +115,10 @@ Hinweis:
 - Grund: Enthaltene Erwartung auf UNKNOWN_TYPE-Recovery passt nicht mehr zum Zielbild.
 - Status: bei Implementierung der neuen Decision-Regeln anpassen/ersetzen.
 
-2) Falsch platzierte Integrationstests im Klassenbaum
-- Datei: classes/local/wbagent/tests/integration_agent_framework_test.php
-- Grund: Testdatei unter classes statt tests.
-- Status: im Refactoring in tests/agent verschieben oder entfernen.
+2) Integrationstests in Standard-Teststruktur
+- Datei: tests/agent/contracts/integration_agent_framework_test.php
+- Grund: Testdatei wurde aus dem Klassenbaum in den Standard-Testbereich verschoben.
+- Status: erledigt (Umzug in tests/agent/contracts).
 
 ## 4. Keep Core (bleibt als Kern bestehen)
 
