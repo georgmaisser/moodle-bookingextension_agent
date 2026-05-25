@@ -337,7 +337,6 @@ class ai_confirm_run extends external_api {
                 'runid'          => $runid,
                 'userid'         => (int)$USER->id,
                 'contextid'      => (int)$params['contextid'],
-                'cmid'           => $params['cmid'],
                 'idempotencykey' => $idempotencykey,
             ]);
             $task->set_userid((int)$USER->id);

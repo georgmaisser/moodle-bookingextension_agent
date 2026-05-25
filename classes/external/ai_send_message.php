@@ -201,7 +201,7 @@ class ai_send_message extends external_api {
         // needed), observations are fed back to the LLM, and only the final user-visible
         // response (clarification, confirmation_request, error) is persisted.
         $runtime = new agent_runtime($registry, $orchestrator, $store, $authz);
-        $result = $runtime->run_loop($threadid, $cmid, (int)$USER->id);
+        $result = $runtime->run_loop($threadid, $contextid, (int)$USER->id);
 
         // Display-side privacy deanonymisation (presentation concern, stays here).
         $displaymessage = (string)($result['message'] ?? '');

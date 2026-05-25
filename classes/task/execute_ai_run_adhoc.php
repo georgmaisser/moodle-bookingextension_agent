@@ -40,7 +40,6 @@ use bookingextension_agent\local\wbagent\task_registry;
  *   "runid":          int,
  *   "userid":         int,
  *   "contextid":      int,
- *   "cmid":           int, // backward-compat fallback
  *   "idempotencykey": string
  * }
  *
@@ -69,7 +68,6 @@ class execute_ai_run_adhoc extends adhoc_task {
         $runid         = (int)($data->runid ?? 0);
         $userid        = (int)($data->userid ?? 0);
         $contextid     = (int)($data->contextid ?? 0);
-        $cmid          = (int)($data->cmid ?? 0);
         $idempotency   = (string)($data->idempotencykey ?? '');
 
         if (!$runid || !$userid || !$idempotency) {
@@ -96,17 +94,12 @@ class execute_ai_run_adhoc extends adhoc_task {
         if ($contextid <= 0) {
             $contextid = (int)($run->contextid ?? 0);
         }
-        if ($contextid <= 0 && $cmid > 0) {
-            $contextid = (int)context_module::instance($cmid)->id;
-        }
         if ($contextid <= 0) {
             mtrace('execute_ai_run_adhoc: missing contextid, aborting.');
             return;
         }
 
-        if ($cmid <= 0) {
-            $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
-        }
+        $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
 
         mtrace("execute_ai_run_adhoc: processing run id={$runid} contextid={$contextid} cmid={$cmid} userid={$userid}");
 
