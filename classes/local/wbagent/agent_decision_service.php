@@ -706,7 +706,7 @@ class agent_decision_service {
             (int)\context_module::instance($cmid)->id,
             $userid
         );
-        if (!$preflightresult['valid']) {
+        if (trim((string)($preflightresult['status'] ?? '')) !== 'pass') {
             $invalidmessage = implode(' ', array_values(array_unique(array_filter((array)($preflightresult['errors'] ?? [])))));
             return [
                 'response_type'             => 'clarification',
@@ -1218,6 +1218,7 @@ class agent_decision_service {
             (array)($preflightresult['prepared_commands'] ?? []),
             static fn($command): bool => is_array($command)
         ));
+        $status = trim((string)($preflightresult['status'] ?? ''));
         $allissuecodes = array_values(array_unique(array_map('strval', (array)($preflightresult['issue_codes'] ?? []))));
         $attemptedtasks = array_values(array_unique(array_map('strval', (array)($preflightresult['attempted_tasks'] ?? []))));
         $allissues = array_values(array_filter(
@@ -1225,8 +1226,14 @@ class agent_decision_service {
             static fn($issue): bool => is_array($issue)
         ));
         $blockingerrors = array_values(array_unique(array_map('strval', (array)($preflightresult['errors'] ?? []))));
-        $v2result = is_array($preflightresult['v2_result'] ?? null) ? (array)$preflightresult['v2_result'] : [];
-        $status = trim((string)($v2result['status'] ?? ''));
+        $v2result = [
+            'status' => $status,
+            'issue_codes' => $allissuecodes,
+            'blocking_layer' => trim((string)($preflightresult['blocking_layer'] ?? '')),
+            'retry_after_ms' => (int)($preflightresult['retry_after_ms'] ?? 0),
+            'retry_count' => (int)($preflightresult['retry_count'] ?? 0),
+            'duration_ms' => (int)($preflightresult['duration_ms'] ?? 0),
+        ];
         $queueitemids = array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? []))));
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread(
             $userid,
@@ -1251,7 +1258,7 @@ class agent_decision_service {
         }
 
         // If there were blocking errors, decide whether to allow confirmable continuation.
-        if (($preflightresult['valid'] ?? false) !== true) {
+        if ($status !== 'pass') {
             $validationmessage = trim(implode(' ', $blockingerrors));
             if ($status === 'retry_hint') {
                 $retrymessage = 'Preflight retry requested. Please retry after backoff.';

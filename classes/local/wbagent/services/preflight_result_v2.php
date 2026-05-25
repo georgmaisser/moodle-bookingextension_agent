@@ -53,9 +53,6 @@ class preflight_result_v2 {
     /** @var int */
     public readonly int $durationms;
 
-    /** @var bool Legacy-kompatibel: execution allowed. */
-    public readonly bool $isvalid;
-
     /** @var array<string,mixed> Legacy-kompatibel: prepared execute input. */
     public readonly array $preparedinput;
 
@@ -98,7 +95,6 @@ class preflight_result_v2 {
         $this->durationms = max(0, $durationms);
         $this->preparedinput = $preparedinput;
         $this->issues = $issues;
-        $this->isvalid = in_array($this->status, ['pass', 'soft_block'], true);
     }
 
     /**
@@ -201,45 +197,6 @@ class preflight_result_v2 {
             [],
             $issues
         );
-    }
-
-    /**
-     * Legacy helper: filter issues by severity.
-     *
-     * @param string $severity
-     * @return array<int,array<string,mixed>>
-     */
-    public function get_issues_by_severity(string $severity): array {
-        if (empty($this->issues)) {
-            return [];
-        }
-
-        return array_values(array_filter(
-            $this->issues,
-            static fn(array $issue): bool => ($issue['severity'] ?? '') === $severity
-        ));
-    }
-
-    /**
-     * Legacy helper: return issue codes.
-     *
-     * @return array<int,string>
-     */
-    public function get_issue_codes(): array {
-        if (!empty($this->issues)) {
-            return self::extract_issue_codes_from_issues($this->issues);
-        }
-
-        return $this->issuecodes;
-    }
-
-    /**
-     * Legacy helper: whether confirmable soft issues are present.
-     *
-     * @return bool
-     */
-    public function has_confirmable_issues(): bool {
-        return !empty($this->get_issues_by_severity('needs_confirmation'));
     }
 
     /**

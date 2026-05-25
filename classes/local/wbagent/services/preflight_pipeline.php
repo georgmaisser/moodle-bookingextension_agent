@@ -72,7 +72,7 @@ class preflight_pipeline {
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-     * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,issues:array<int,array<string,mixed>>,v2_result:array<string,mixed>}
+    * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issues:array<int,array<string,mixed>>}
      */
     public function run(array $commands, int $threadid, int $contextid, int $userid): array {
         $preparedcommands = [];
@@ -155,14 +155,14 @@ class preflight_pipeline {
             }
 
             $preflightresult = $task->preflight($input, $contextid, $userid);
-            foreach ($preflightresult->get_issue_codes() as $code) {
+            foreach ($preflightresult->issuecodes as $code) {
                 if ($code !== '') {
                     $issuecodes[] = $code;
                 }
             }
             $issues = array_merge($issues, $preflightresult->issues);
 
-            if (!$preflightresult->isvalid) {
+            if ($preflightresult->status !== 'pass' && $preflightresult->status !== 'soft_block') {
                 foreach ($preflightresult->issues as $issue) {
                     $msg = trim((string)($issue['message'] ?? ''));
                     if ($msg !== '') {
@@ -250,7 +250,7 @@ class preflight_pipeline {
      * @param array<int,string> $issuecodes
      * @param array<int,array<string,mixed>> $issues
      * @param preflight_result_v2 $result
-     * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,issues:array<int,array<string,mixed>>,v2_result:array<string,mixed>}
+     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issues:array<int,array<string,mixed>>}
      */
     private function build_output(
         bool $valid,
@@ -261,15 +261,19 @@ class preflight_pipeline {
         array $issues,
         preflight_result_v2 $result
     ): array {
-        return [
-            'valid' => $valid,
+        $v2result = $result->to_array();
+        if (!$valid && ($v2result['status'] ?? '') === 'pass') {
+            $v2result['status'] = 'hard_block';
+            $v2result['blocking_layer'] = preflight_result_v2::BLOCKING_LAYER_DOMAIN;
+        }
+
+        return array_merge($v2result, [
             'prepared_commands' => $preparedcommands,
             'errors' => array_values(array_unique(array_map('strval', $errors))),
             'attempted_tasks' => array_values(array_unique(array_map('strval', $attemptedtasks))),
             'issue_codes' => array_values(array_unique(array_map('strval', $issuecodes))),
             'issues' => array_values(array_filter($issues, static fn($issue): bool => is_array($issue))),
-            'v2_result' => $result->to_array(),
-        ];
+        ]);
     }
 
     /**
