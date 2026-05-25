@@ -170,7 +170,7 @@ class executor implements agent_executor {
             // Read-only tasks are always safe to re-execute and are skipped here.
             if (!$task->is_read_only()) {
                 $executeresult = $task->preflight($input, $cmid, $userid);
-                if ($executeresult->status !== 'pass') {
+                if ($executeresult->status === 'hard_block') {
                     $issuecodes = $executeresult->issuecodes;
                     $results[] = [
                         'status' => 'error',

@@ -89,6 +89,7 @@ class loop_finalizer {
 
         $commands = (array)($result['commands'] ?? []);
         $tasks = $extractsteptasknames($commands, $results);
+
         if ($state->step_count() < 2) {
             return false;
         }

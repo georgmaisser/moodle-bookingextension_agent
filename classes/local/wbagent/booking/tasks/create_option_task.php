@@ -144,7 +144,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
      */
     private static function normalize_create_option_input(array $input, array &$appliedaliases = []): array {
         $aliasgroups = [
-            'text' => ['title', 'name', 'optionname', 'option_title', 'identifier', 'label', 'option_name'],
+            'text' => ['title', 'name', 'optionname', 'option_title', 'identifier', 'label', 'option_name', 'optiontext'],
             'maxanswers' => ['limit', 'limitanswers', 'spots', 'capacity', 'maxparticipants', 'max_participants'],
             'coursestarttime' => ['starttime', 'start', 'from'],
             'courseendtime' => ['endtime', 'end', 'to'],
@@ -224,7 +224,7 @@ class create_option_task extends booking_task_base implements task_trigger_provi
      * @return array
      */
     private static function strip_llm_noise_keys(array $input): array {
-        foreach (['booking_closed', 'booking_open', 'booking_opened', 'meta', 'metadata',
+        foreach (['booking_closed', 'booking_open', 'booking_opened', 'meta', 'metadata', 'minimal_input',
             'confirmed', 'is_confirmed', 'confirm', 'acknowledged', 'approved', 'status'] as $noisekey) {
             if (array_key_exists($noisekey, $input)) {
                 unset($input[$noisekey]);

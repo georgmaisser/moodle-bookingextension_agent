@@ -60,3 +60,10 @@ flowchart LR
 - Mutating Entscheidungen gehen ueber preflight_pipeline.
 - Queue-Status steuert Ausfuehrbarkeit fuer mutating items.
 - Task-Versionpruefung ist Layer-1-Pflicht.
+- Planner/Synthesizer-Vertrag ist verbindlich:
+    - Planner steuert nur Loop/Task-Entscheidungen (task_call, confirmation_request, clarification, sufficient).
+    - User-facing Formulierung finaler Antworten erfolgt ueber `final_synthesis`.
+    - Planner-Entscheidungen werden im Synthese-Schritt nicht stillschweigend ueberschrieben.
+- `loop_finalizer` ist nur ein Safety-Net gegen unproduktive Loop-Wiederholungen.
+    - Keine task-name-basierten Sonderregeln im Framework.
+    - Keine plugin-spezifischen String-Matches zur Laufzeitsteuerung.

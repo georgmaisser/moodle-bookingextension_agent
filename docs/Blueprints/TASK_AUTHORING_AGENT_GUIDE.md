@@ -24,6 +24,14 @@ Leitfaden fuer neue oder ueberarbeitete Tasks im Zielbild ohne Legacy-Migrations
 - validate-only Taskpfade
 - textbasierte Steuerlogik fuer Runtime-Entscheidungen
 - bypass am preflight_pipeline fuer mutating tasks
+- taskname-basierte Routing-/Loop-Sonderfaelle im Framework (Hardcoding)
+
+## Planner und Synthesizer (verbindlich)
+
+- Tasks liefern Daten und strukturierte Resultate, keine frameworkseitige User-Dialogsteuerung.
+- Ob genug Kontext vorliegt, entscheidet der Planner ueber Beobachtungen im Loop.
+- Die finale, nutzerfreundliche Antwort wird im Schritt `final_synthesis` formuliert.
+- Tasks duerfen nicht voraussetzen, dass sie direkt als User-Nachricht ausgespielt werden.
 
 ## Ziel fuer Task-Versionierung
 

@@ -87,11 +87,15 @@ class list_option_properties_task extends booking_task_base implements task_trig
         return [
             [
                 'id' => 'booking.list_option_properties_request',
-                'description' => 'User asks for a list of option properties or field definitions.',
+                'description' => 'User asks for a list of option properties or field definitions '
+                    . 'when creating or updating a booking option.',
                 'examples' => [
                     'What properties can an option have?',
                     'List fields for creating an option',
                     'Welche Felder hat eine Option?',
+                    'Welche Felder kann ich setzen, wenn ich eine neue Buchungsoption anlege?',
+                    'Which fields can I set when creating a new booking option?',
+                    'What fields are available for a booking option?',
                 ],
             ],
         ];
@@ -107,10 +111,14 @@ class list_option_properties_task extends booking_task_base implements task_trig
             [
                 'id' => 'booking.list_option_properties',
                 'triggers' => [
-                    'list properties', 'option properties', 'which fields', 'option fields', 'felder option',
+                    'list properties', 'option properties', 'which fields', 'option fields',
+                    'felder option', 'welche felder', 'kann ich setzen', 'fields can i set',
+                    'available fields', 'option fields create',
                 ],
                 'guidance' => [
                     '- Use booking.list_option_properties when the user asks about available option fields.',
+                    '- This task MUST be called when the user asks which fields or properties can be set'
+                        . ' for a booking option (creation or update scope).',
                     '- Return a concise structured list of property name, label, type and description.',
                 ],
             ],

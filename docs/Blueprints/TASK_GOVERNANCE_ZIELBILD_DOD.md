@@ -14,6 +14,10 @@ Im Endzustand gilt:
 - `list_actions` und `explain_task_schema` liefern dieselbe Wahrheit wie die Runtime-Enforcement-Logik.
 - Diagnose ist pro User/Kontext maschinenlesbar verfuegbar (mit standardisierten Deny-Reasons).
 - Task-lokale Capability-Checks bleiben als Safety-Net, sind aber nicht mehr die primäre Steuerung.
+- Planner/Synthesizer-Verantwortung ist strikt getrennt:
+	- Planner entscheidet ueber Task/Loop-Fortsetzung und Suffizienz.
+	- Synthesizer formuliert die finale User-Antwort.
+	- Framework ueberschreibt Planner-Response-Typen nicht durch taskname-basierte Sonderregeln.
 
 ## 2. In Scope / Out of Scope
 

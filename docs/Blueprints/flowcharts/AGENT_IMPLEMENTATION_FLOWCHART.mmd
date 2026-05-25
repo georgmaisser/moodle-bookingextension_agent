@@ -44,8 +44,8 @@ flowchart TD
         RUNINT["run_internal(threadid, cmid, userid, observations, state)"]
         EXEC_RESULT_CHECK{"response_type\n== execution_result?"}
         OBS_ACCUM["result_payload_summarizer::for_observation()\nprivacy_anonymizer::anonymize_value_for_llm()\nstate.add_observation(observation)"]
-        LF_CHECK["loop_finalizer::finalize()\nshould_finalize_after_execution_result()"]
-        LF_STOP["Loop terminates:\nresponse_type → sufficient"]
+        LF_CHECK["loop_finalizer::finalize()\n(safety-net only, no task hardcoding)"]
+        LF_STOP["Safety finalize:\nplanner-style clarification"]
         BUDG_CHECK{"budget_guard_allows\n_next_llm_call(step, limit)?"}
         BUDGX["build_budget_exceeded_result()\nissue_codes: BUDGET_EXCEEDED"]
         LOOP_STOP["Loop stop:\nconfirmation_request / clarification\n/ error / sufficient"]
@@ -311,7 +311,7 @@ flowchart TD
 
     EXEC_RESULT_CHECK -->|"yes → accumulate"| OBS_ACCUM
     OBS_ACCUM --> LF_CHECK
-    LF_CHECK -->|"finalize → sufficient"| LF_STOP
+    LF_CHECK -->|"rare safety finalize"| LF_STOP
     LF_CHECK -->|"continue"| BUDG_CHECK
     BUDG_CHECK -->|"ok (step+1 < limit)"| LOOP_STEP
     BUDG_CHECK -->|"exhausted"| BUDGX

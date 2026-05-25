@@ -532,10 +532,16 @@ class agent_runtime {
 
             // Sufficiency exit: planner only signals readiness; synthesis composes user-facing output.
             if ($this->is_sufficiency_exit_signal($result, $state)) {
-                $result['sufficiency_exit'] = true;
-                $result['message'] = '';
-                $result = $this->run_synthesis_step($threadid, $cmid, $userid, $state, $result);
-                $result['sufficiency_exit'] = true;
+                if ($this->should_convert_sufficient_to_readonly_clarification($result, $state)) {
+                    $result['response_type'] = 'clarification';
+                    $result['message'] = '';
+                    $result = $this->run_synthesis_step($threadid, $cmid, $userid, $state, $result);
+                } else {
+                    $result['sufficiency_exit'] = true;
+                    $result['message'] = '';
+                    $result = $this->run_synthesis_step($threadid, $cmid, $userid, $state, $result);
+                    $result['sufficiency_exit'] = true;
+                }
             } else if ($this->should_synthesize_after_success_without_pending_intent($threadid, $result, $state)) {
                 // Some planner outputs downgrade successful completion to confirm_pending
                 // even though no pending intent remains. Synthesize a proper final answer.
@@ -2769,7 +2775,16 @@ class agent_runtime {
         if ($this->is_final_clarification_without_commands($synthesis)) {
             $synthesislang = $this->resolve_output_language($threadid, $synthesis);
             $synthesis['lang'] = $synthesislang;
-            $synthesis['response_type'] = 'sufficient';
+            // Preserve planner clarification intent for search-style follow-ups, but force
+            // synthesized sufficiency for explain/diagnose flows.
+            $plantype = (string)($planningresult['response_type'] ?? '');
+            $plannertasks = (array)($planningresult['attempted_tasks'] ?? []);
+            $recordedtasks = $this->extract_recorded_step_task_names($state);
+            $alltasks = array_values(array_unique(array_merge($plannertasks, $recordedtasks)));
+            $hasexplainordiagnose = $this->has_explain_or_diagnose_task($alltasks);
+            $issearchresultclarification = $plantype === 'clarification'
+                && !$hasexplainordiagnose;
+            $synthesis['response_type'] = $issearchresultclarification ? 'clarification' : 'sufficient';
             $synthesis['loop_step'] = $state->step_count();
             $synthesis['loop_max_steps'] = self::MAX_LOOP_STEPS;
             return $synthesis;
@@ -2779,6 +2794,91 @@ class agent_runtime {
         $planningresult['loop_step'] = $state->step_count();
         $planningresult['loop_max_steps'] = self::MAX_LOOP_STEPS;
         return $planningresult;
+    }
+
+    /**
+     * Collect unique task names recorded in loop state steps.
+     *
+     * @param agent_state $state
+     * @return array<int,string>
+     */
+    private function extract_recorded_step_task_names(agent_state $state): array {
+        $tasknames = [];
+        foreach ($state->get_steps() as $step) {
+            $names = $this->extract_step_task_names(
+                (array)($step['tool_calls'] ?? []),
+                (array)($step['results'] ?? [])
+            );
+            foreach ($names as $name) {
+                $trimmed = trim((string)$name);
+                if ($trimmed !== '') {
+                    $tasknames[] = $trimmed;
+                }
+            }
+        }
+
+        return array_values(array_unique($tasknames));
+    }
+
+    /**
+     * Determine whether any executed/planned task indicates explain/diagnose behavior.
+     *
+     * @param array<int,string> $tasknames
+     * @return bool
+     */
+    private function has_explain_or_diagnose_task(array $tasknames): bool {
+        foreach ($tasknames as $taskname) {
+            $normalized = trim(core_text::strtolower((string)$taskname));
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (
+                str_contains($normalized, 'explain_')
+                || str_contains($normalized, 'diagnose_')
+                || str_contains($normalized, '.explain_')
+                || str_contains($normalized, '.diagnose_')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Convert premature planner sufficiency into clarification for read-only loops.
+     *
+     * For search/resolve loops with observations, planner may emit response_type=sufficient
+     * although the expected UX is a follow-up clarification. Keep explain/diagnose flows
+     * exempt so they still conclude with sufficient.
+     *
+     * @param array $result
+     * @param agent_state $state
+     * @return bool
+     */
+    private function should_convert_sufficient_to_readonly_clarification(array $result, agent_state $state): bool {
+        if ((string)($result['response_type'] ?? '') !== 'sufficient') {
+            return false;
+        }
+
+        if (!empty((array)($result['commands'] ?? []))) {
+            return false;
+        }
+
+        if ($state->step_count() < 1 || !$state->has_observations()) {
+            return false;
+        }
+
+        if (!$this->loop_state_contains_only_readonly_results($state)) {
+            return false;
+        }
+
+        $plannertasks = (array)($result['attempted_tasks'] ?? []);
+        $recordedtasks = $this->extract_recorded_step_task_names($state);
+        $alltasks = array_values(array_unique(array_merge($plannertasks, $recordedtasks)));
+
+        return !$this->has_explain_or_diagnose_task($alltasks);
     }
 
     /**

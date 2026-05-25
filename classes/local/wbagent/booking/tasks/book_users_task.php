@@ -171,13 +171,14 @@ class book_users_task extends booking_task_base implements task_trigger_provider
         $errors = [];
         $lang = $this->get_output_language($input);
 
-        $bookusersquery = trim((string)($input['bookusersquery'] ?? ''));
-        if ($bookusersquery === '') {
+        $bookusersquery = $this->normalize_query_text($input['bookusersquery'] ?? '');
+        $explicituserids = $this->extract_explicit_user_ids($input);
+        if ($bookusersquery === '' && empty($explicituserids)) {
             $errors[] = $this->localized_string('agent_booking_book_users_required_bookusersquery', null, $lang);
         }
 
         $optionid = (int)($input['optionid'] ?? 0);
-        $optionquery = trim((string)($input['optionquery'] ?? ''));
+        $optionquery = $this->normalize_query_text($input['optionquery'] ?? '');
         if ($optionid <= 0 && $optionquery === '') {
             $errors[] = $this->localized_string('agent_booking_diagnose_ambiguity_option_required', null, $lang);
         }
@@ -227,15 +228,18 @@ class book_users_task extends booking_task_base implements task_trigger_provider
             ));
         }
 
-        $bookusersquery = trim((string)($input['bookusersquery'] ?? ''));
-        $usersforbooking = booking_task_support::resolve_users_for_booking($bookusersquery);
-        if (!empty($usersforbooking['errors'])) {
-            $errors = array_merge($errors, $usersforbooking['errors']);
+        $bookuserids = $this->extract_explicit_user_ids($input);
+        if (empty($bookuserids)) {
+            $bookusersquery = $this->normalize_query_text($input['bookusersquery'] ?? '');
+            $usersforbooking = booking_task_support::resolve_users_for_booking($bookusersquery);
+            if (!empty($usersforbooking['errors'])) {
+                $errors = array_merge($errors, $usersforbooking['errors']);
+            }
+            if (!empty($usersforbooking['ambiguities'])) {
+                $ambiguities = array_merge($ambiguities, $usersforbooking['ambiguities']);
+            }
+            $bookuserids = array_values(array_filter(array_map('intval', (array)($usersforbooking['userids'] ?? []))));
         }
-        if (!empty($usersforbooking['ambiguities'])) {
-            $ambiguities = array_merge($ambiguities, $usersforbooking['ambiguities']);
-        }
-        $bookuserids = array_values(array_filter(array_map('intval', (array)($usersforbooking['userids'] ?? []))));
         if (!empty($bookuserids)) {
             $preparedinput['resolvedbookuserids'] = $bookuserids;
         }
@@ -371,7 +375,10 @@ class book_users_task extends booking_task_base implements task_trigger_provider
 
         $bookuserids = array_values(array_filter(array_map('intval', (array)($input['resolvedbookuserids'] ?? []))));
         if (empty($bookuserids)) {
-            $bookusersquery = (string)($input['bookusersquery'] ?? '');
+            $bookuserids = $this->extract_explicit_user_ids($input);
+        }
+        if (empty($bookuserids)) {
+            $bookusersquery = $this->normalize_query_text($input['bookusersquery'] ?? '');
             $usersforbooking = booking_task_support::resolve_users_for_booking($bookusersquery);
             if (!empty($usersforbooking['errors']) || !empty($usersforbooking['ambiguities'])) {
                 return [
@@ -488,7 +495,7 @@ class book_users_task extends booking_task_base implements task_trigger_provider
             ];
         }
 
-        $optionquery = trim((string)($input['optionquery'] ?? ''));
+        $optionquery = $this->normalize_query_text($input['optionquery'] ?? '');
         if ($optionquery === '') {
             return [
                 'status' => 'ambiguity',
@@ -541,5 +548,44 @@ class book_users_task extends booking_task_base implements task_trigger_provider
         }
         $parts = array_values(array_unique($parts));
         return implode('; ', $parts);
+    }
+
+    /**
+     * Normalize free-text task inputs that may arrive as string OR array values.
+     *
+     * @param mixed $value
+     * @return string
+     */
+    private function normalize_query_text($value): string {
+        if (is_array($value)) {
+            $parts = [];
+            foreach ($value as $item) {
+                if (is_array($item)) {
+                    continue;
+                }
+                $text = trim((string)$item);
+                if ($text !== '') {
+                    $parts[] = $text;
+                }
+            }
+            return trim(implode(', ', $parts));
+        }
+
+        return trim((string)$value);
+    }
+
+    /**
+     * Extract explicit user ids from input.userids when present.
+     *
+     * @param array $input
+     * @return array<int,int>
+     */
+    private function extract_explicit_user_ids(array $input): array {
+        $raw = $input['userids'] ?? [];
+        if (!is_array($raw)) {
+            $raw = [$raw];
+        }
+
+        return array_values(array_filter(array_map('intval', $raw)));
     }
 }

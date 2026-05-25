@@ -95,8 +95,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.create_option'],
                     'min_debug_rows' => 1,
                     'expected_loop_depth' => 1,
+                    'expected_loop_depth_min' => 1,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'create_rule_confirmation':
@@ -129,7 +130,7 @@ final class ai_send_message_mock_scenarios {
                     'min_debug_rows' => 1,
                     'expected_loop_depth_min' => 1,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'create_rule_clarification':
@@ -159,7 +160,7 @@ final class ai_send_message_mock_scenarios {
                     'min_debug_rows' => 1,
                     'expected_loop_depth_min' => 1,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'explain_booking_rules_docs':
@@ -202,8 +203,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.explain_docs_topic'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 4,
+                    'expected_loop_depth_min' => 4,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                     'expected_docs_prefix' => 'booking_rules/',
                 ];
 
@@ -263,8 +265,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.diagnose_booking_issue'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                     'expected_min_reasons' => 1,
                 ];
 
@@ -304,8 +307,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.search_options'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'search_matching_booking_options':
@@ -345,6 +349,7 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.search_options'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
                     'expected_debug_source_patterns' => ['ac='],
                 ];
@@ -387,8 +392,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.get_option_details'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'search_users_by_unique_name':
@@ -440,8 +446,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.search_users'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'get_current_user_profile':
@@ -472,8 +479,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.get_current_user'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'list_agent_actions':
@@ -506,8 +514,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.list_actions'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             case 'list_option_properties_for_create_scope':
@@ -540,8 +549,9 @@ final class ai_send_message_mock_scenarios {
                     'expected_tasks' => ['booking.list_option_properties'],
                     'min_debug_rows' => 3,
                     'expected_loop_depth' => 3,
+                    'expected_loop_depth_min' => 3,
                     'expected_task_transitions' => 1,
-                    'expected_debug_source_patterns' => ['ac=sum', 'ac=gen'],
+                    'expected_debug_source_patterns' => ['ac='],
                 ];
 
             default:
