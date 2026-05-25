@@ -832,7 +832,7 @@ class booking_task_mutation_execute_service {
      * @param array $input  Already-deanonymized input.
      * @param int $cmid
      * @param int $userid
-      * @return array{errors:array<int,string>,ambiguities:array<int,string>,normalized_input:array<string,mixed>,issue_codes:array<int,string>}
+     * @return array{errors:array<int,string>,ambiguities:array<int,string>,normalized_input:array<string,mixed>,issue_codes:array<int,string>}
      */
     public function preflight_validate(string $taskname, array $input, int $cmid, int $userid): array {
         global $USER;

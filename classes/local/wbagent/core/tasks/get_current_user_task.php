@@ -124,7 +124,7 @@ class get_current_user_task extends core_task_base implements task_trigger_provi
      * Execute task.
      *
      * @param array $input
-    * @param int $contextid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */

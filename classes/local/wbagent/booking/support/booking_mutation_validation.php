@@ -35,7 +35,7 @@ class booking_mutation_validation {
      * @param array $input
      * @param int $cmid
      * @param string $taskname
-      * @return array{errors:array<int,string>,ambiguities:array<int,string>,issue_codes:array<int,string>}
+     * @return array{errors:array<int,string>,ambiguities:array<int,string>,issue_codes:array<int,string>}
      */
     public static function validate_common(array $input, int $cmid, string $taskname): array {
         $errors = [];

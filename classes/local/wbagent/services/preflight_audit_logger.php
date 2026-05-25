@@ -74,4 +74,3 @@ class preflight_audit_logger {
         $this->store->set_thread_metadata_value($threadid, self::META_KEY, $events);
     }
 }
-

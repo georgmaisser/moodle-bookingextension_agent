@@ -70,9 +70,6 @@ class agent_decision_service {
     /** Response type constant used in routing decisions. */
     private const RESPONSE_TYPE_ERROR = 'error';
 
-    /** Response type constant for unknown/invalid responses from normalization. */
-    private const RESPONSE_TYPE_UNKNOWN = 'UNKNOWN_TYPE';
-
     /** Trigger id: user explicitly discards current pending confirmation intent. */
     private const TRIGGER_DISCARD_PENDING_CONFIRMATION = 'core.discard_pending_confirmation';
 
@@ -255,42 +252,6 @@ class agent_decision_service {
             ];
         }
 
-        // 5b. Generic readonly recovery:
-        // If the model returned a dead-end clarification or readonly-style error,
-        // attempt a task-agnostic
-        // schema-based readonly recovery BEFORE command routing so it can
-        // execute in-process and does not leak as task_call to the frontend contract.
-        $usermessage = $this->get_last_user_message($threadid);
-        $lookupintent = (
-            $this->result_has_trigger($result, 'core.is_lookup_request')
-            || $this->looks_like_lookup_request($usermessage, $result)
-        );
-        $iscontractincompleteintentonly = $this->is_contract_incomplete_intent_only(
-            $result,
-            $lookupintent,
-            $hasobservationscontext
-        );
-
-        $recentlinkresponse = $this->resolve_recent_link_lookup_response(
-            $threadid,
-            $usermessage,
-            $lookupintent,
-            $outputlang,
-            $result
-        );
-        if (is_array($recentlinkresponse)) {
-            return $recentlinkresponse;
-        }
-
-        if ($iscontractincompleteintentonly) {
-            $result['issue_codes'] = array_values(array_unique(array_merge(
-                (array)($result['issue_codes'] ?? []),
-                ['CONTRACT_INCOMPLETE_INTENT_ONLY']
-            )));
-        }
-
-        // Legacy generic recovery enrichment has been removed.
-
         // 6. Harden: if the LLM incorrectly used task_call for a mutating command, promote.
         if ($this->has_mutating_commands($result) && ($result['response_type'] ?? '') === self::RESPONSE_TYPE_TASK_CALL) {
             $result['response_type'] = self::RESPONSE_TYPE_CONFIRMATION_REQUEST;
@@ -329,6 +290,7 @@ class agent_decision_service {
         }
 
         // 9. Augment teacher autocreate when user allows it.
+        $usermessage = $this->get_last_user_message($threadid);
         $result = $this->augment_missing_teacher_autocreate_confirmation($result, $usermessage, $outputlang);
         $candidatefallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
         if (!empty($candidatefallback)) {
@@ -2149,206 +2111,6 @@ class agent_decision_service {
             }
         }
         return '';
-    }
-
-    /**
-     * Detect whether a clarification/error response indicates a documentation lookup attempt.
-     *
-     * @param string $message
-     * @param array $result
-     * @return bool
-     */
-    private function looks_like_lookup_request(string $message, array $result): bool {
-        // Use only structural signals from the parsed LLM result.
-        // Raw-message NL analysis is intentionally omitted to avoid language-specific heuristics.
-
-        // Signal 1: next_step_intent contains a structured read-only intent class
-        // (set by the routing determinism policy, e.g. info_lookup, docs_explain).
-        $nextstepintent = core_text::strtolower(trim((string)($result['next_step_intent'] ?? '')));
-        if (str_contains($nextstepintent, 'info_lookup') || str_contains($nextstepintent, 'docs_explain')) {
-            return true;
-        }
-
-        // Signal 2: commands reference only read-only task name prefixes from the task catalog.
-        $commands = $result['commands'] ?? [];
-        if (!empty($commands)) {
-            foreach ($commands as $command) {
-                $taskname = core_text::strtolower(trim((string)($command['task'] ?? '')));
-                if (
-                    str_starts_with($taskname, 'get_')
-                    || str_starts_with($taskname, 'list_')
-                    || str_starts_with($taskname, 'search_')
-                    || str_starts_with($taskname, 'find_')
-                    || str_starts_with($taskname, 'docs_')
-                    || str_starts_with($taskname, 'check_')
-                    || str_starts_with($taskname, 'diagnose_')
-                ) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Resolve short link-follow-up requests from recent structured assistant results.
-     *
-     * @param int $threadid
-     * @param string $usermessage
-     * @param bool $lookupintent
-     * @param string $outputlang
-     * @param array $result
-     * @return array|null
-     */
-    private function resolve_recent_link_lookup_response(
-        int $threadid,
-        string $usermessage,
-        bool $lookupintent,
-        string $outputlang,
-        array $result
-    ): ?array {
-        if (!$lookupintent || !$this->looks_like_link_lookup_request($usermessage)) {
-            return null;
-        }
-
-        $link = $this->extract_recent_structured_link($threadid);
-        if ($link === '') {
-            return null;
-        }
-
-        $message = (trim(core_text::strtolower($outputlang)) === 'de')
-            ? 'Hier ist der Link: ' . $link
-            : 'Here is the link: ' . $link;
-
-        return [
-            'response_type'   => self::RESPONSE_TYPE_CLARIFICATION,
-            'message'         => $message,
-            'commands'        => [],
-            'ambiguities'     => array_values(array_unique((array)($result['ambiguities'] ?? []))),
-            'errors'          => array_values(array_unique((array)($result['errors'] ?? []))),
-            'attempted_tasks' => array_values(array_unique((array)($result['attempted_tasks'] ?? []))),
-            'issue_codes'     => array_values(array_unique(array_merge(
-                (array)($result['issue_codes'] ?? []),
-                ['LOOKUP_RECENT_LINK_RESOLVED']
-            ))),
-            'used_triggers'   => (array)($result['used_triggers'] ?? []),
-        ];
-    }
-
-    /**
-     * Detect short user requests asking for a link/URL.
-     *
-     * @param string $message
-     * @return bool
-     */
-    private function looks_like_link_lookup_request(string $message): bool {
-        $normalized = core_text::strtolower(trim((string)preg_replace('/\s+/', ' ', $message)));
-        if ($normalized === '') {
-            return false;
-        }
-
-        return (bool)preg_match('/\b(link|url|href)\b/u', $normalized);
-    }
-
-    /**
-     * Extract the most recent URL-like link from structured assistant payloads.
-     *
-     * @param int $threadid
-     * @return string
-     */
-    private function extract_recent_structured_link(int $threadid): string {
-        $messages = $this->store->get_recent_messages($threadid, 16);
-        for ($i = count($messages) - 1; $i >= 0; $i--) {
-            if ((string)($messages[$i]->role ?? '') !== 'assistant') {
-                continue;
-            }
-
-            $structured = json_decode((string)($messages[$i]->structuredjson ?? ''), true);
-            if (!is_array($structured)) {
-                continue;
-            }
-
-            $link = $this->extract_link_from_value($structured);
-            if ($link !== '') {
-                return $link;
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Recursively extract the first link-like string from structured values.
-     *
-     * @param mixed $value
-     * @return string
-     */
-    private function extract_link_from_value($value): string {
-        if (is_string($value)) {
-            $candidate = trim($value);
-            if ($candidate !== '' && preg_match('#^https?://#i', $candidate)) {
-                return $candidate;
-            }
-            return '';
-        }
-
-        if (!is_array($value)) {
-            return '';
-        }
-
-        $prioritykeys = ['link', 'url', 'editlink', 'viewlink', 'editurl', 'viewurl'];
-        foreach ($prioritykeys as $key) {
-            if (!array_key_exists($key, $value)) {
-                continue;
-            }
-
-            $candidate = $this->extract_link_from_value($value[$key]);
-            if ($candidate !== '') {
-                return $candidate;
-            }
-        }
-
-        foreach ($value as $item) {
-            $candidate = $this->extract_link_from_value($item);
-            if ($candidate !== '') {
-                return $candidate;
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Detect incomplete planner contract payloads that carry intent text but no executable semantics.
-     *
-     * @param array $result
-     * @param bool $lookupintent
-     * @param bool $hasobservationscontext
-     * @return bool
-     */
-    private function is_contract_incomplete_intent_only(
-        array $result,
-        bool $lookupintent,
-        bool $hasobservationscontext
-    ): bool {
-        if ($hasobservationscontext) {
-            return false;
-        }
-
-        if (!$lookupintent) {
-            return false;
-        }
-
-        if (!empty((array)($result['commands'] ?? [])) || !empty((array)($result['results'] ?? []))) {
-            return false;
-        }
-
-        if ((string)($result['response_type'] ?? '') !== self::RESPONSE_TYPE_CLARIFICATION) {
-            return false;
-        }
-
-        return $this->is_non_substantive_clarification_message((string)($result['message'] ?? ''), $result);
     }
 
     /**

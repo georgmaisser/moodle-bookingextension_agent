@@ -144,7 +144,7 @@ class search_users_task extends core_task_base implements task_trigger_provider_
      * Execute task.
      *
      * @param array $input
-    * @param int $contextid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */

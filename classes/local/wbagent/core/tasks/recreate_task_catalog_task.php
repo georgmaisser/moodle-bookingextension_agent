@@ -130,7 +130,7 @@ class recreate_task_catalog_task extends core_task_base implements task_trigger_
      * Execute task.
      *
      * @param array $input
-    * @param int $contextid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */

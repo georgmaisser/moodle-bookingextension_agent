@@ -142,7 +142,7 @@ class search_courses_task extends core_task_base implements task_trigger_provide
      * Execute task.
      *
      * @param array $input
-    * @param int $contextid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */

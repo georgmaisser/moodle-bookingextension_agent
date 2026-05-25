@@ -398,7 +398,6 @@ class queue_manager {
 
             $transaction->allow_commit();
             return true;
-
         } catch (\Throwable $e) {
             // Transaction rolled back automatically on exception in Moodle.
             return false;

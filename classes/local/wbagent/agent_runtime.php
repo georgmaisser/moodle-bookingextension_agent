@@ -61,6 +61,9 @@ class agent_runtime {
     /** Maximum agent loop steps before bailing out. */
     public const MAX_LOOP_STEPS = 6;
 
+    /** Maximum hard-contract repair retries before falling back to clarification. */
+    private const MAX_CONTRACT_GATE_RETRIES = 2;
+
     /** Maximum identical readonly command-signature executions per loop invocation. */
     private const MAX_REPEATED_READONLY_SIGNATURE_STEPS = 2;
 
@@ -1932,6 +1935,7 @@ class agent_runtime {
         }
 
         $result['used_triggers'] = $triggerregistry->normalize_used_triggers($result['used_triggers'] ?? []);
+        $result = $this->normalize_unknown_response_type_to_contract_error($result, $outputlang, $triggerregistry);
 
         // HARD CONTRACT GATE: Detect and recover from parse/schema errors before routing.
         // These errors must NEVER reach decision_service unguarded.
@@ -1943,22 +1947,6 @@ class agent_runtime {
 
         $rawresponsetype = trim((string)($result['response_type'] ?? ''));
         $result['response_type'] = $triggerregistry->normalize_response_type($rawresponsetype);
-        if ($result['response_type'] === message_trigger_registry::UNKNOWN_RESPONSE_TYPE) {
-            $result['response_type'] = 'error';
-            $result['commands'] = [];
-            $result['issue_codes'] = array_values(array_unique(array_merge(
-                (array)($result['issue_codes'] ?? []),
-                [message_trigger_registry::UNKNOWN_RESPONSE_TYPE]
-            )));
-            if (trim((string)($result['message'] ?? '')) === '') {
-                $result['message'] = $this->localized_string(
-                    'ai_agent_malformed_taskcall_clarification',
-                    'bookingextension_agent',
-                    null,
-                    $outputlang
-                );
-            }
-        }
 
         // Server-authoritative derivation of core.is_lookup_request.
         // The LLM value is intentionally ignored: the trigger is set/cleared purely
@@ -2244,13 +2232,13 @@ class agent_runtime {
             return $result;
         }
 
-        // Check retry flag: one-time retry only.
+        // Check retry counter: bounded repair retries only.
         $retrykey = '_contract_gate_retry_' . (int)($result['runid'] ?? 0);
-        $alreadyretried = (bool)$this->store->get_thread_metadata_value($threadid, $retrykey);
+        $retrycount = (int)$this->store->get_thread_metadata_value($threadid, $retrykey);
 
-        if (!$alreadyretried) {
-            // First attempt: inject recovery observation and retry.
-            $this->store->set_thread_metadata_value($threadid, $retrykey, true);
+        if ($retrycount < self::MAX_CONTRACT_GATE_RETRIES) {
+            // Inject recovery observation and retry.
+            $this->store->set_thread_metadata_value($threadid, $retrykey, $retrycount + 1);
 
             $msg = "RETRY_HINT: CONTRACT_REPAIR_REQUIRED\n"
                 . "OUTPUT_CONTRACT: Return exactly one valid JSON object only.\n"
@@ -2280,6 +2268,13 @@ class agent_runtime {
                 $this->store->set_thread_metadata_value($threadid, 'last_planner_result_json', $retryrawresponse);
             }
 
+            $triggerregistry = new message_trigger_registry($this->registry);
+            $retryresult = $this->normalize_unknown_response_type_to_contract_error(
+                $retryresult,
+                $outputlang,
+                $triggerregistry
+            );
+
             if (!$this->is_hard_contract_error($retryresult)) {
                 // Recovery successful: return retry result.
                 return $retryresult;
@@ -2308,6 +2303,48 @@ class agent_runtime {
             'results'                   => [],
             'lang'                      => $outputlang,
         ];
+    }
+
+    /**
+     * Convert unknown response types into hard contract errors before routing.
+     *
+     * @param array $result
+     * @param string $outputlang
+     * @param message_trigger_registry $triggerregistry
+     * @return array
+     */
+    private function normalize_unknown_response_type_to_contract_error(
+        array $result,
+        string $outputlang,
+        message_trigger_registry $triggerregistry
+    ): array {
+        $rawresponsetype = trim((string)($result['response_type'] ?? ''));
+        if ($rawresponsetype === '') {
+            return $result;
+        }
+
+        $normalizedresponsetype = $triggerregistry->normalize_response_type($rawresponsetype);
+        if ($normalizedresponsetype !== message_trigger_registry::UNKNOWN_RESPONSE_TYPE) {
+            $result['response_type'] = $normalizedresponsetype;
+            return $result;
+        }
+
+        $result['response_type'] = 'error';
+        $result['commands'] = [];
+        $result['issue_codes'] = array_values(array_unique(array_merge(
+            (array)($result['issue_codes'] ?? []),
+            [message_trigger_registry::UNKNOWN_RESPONSE_TYPE]
+        )));
+        if (trim((string)($result['message'] ?? '')) === '') {
+            $result['message'] = $this->localized_string(
+                'ai_agent_malformed_taskcall_clarification',
+                'bookingextension_agent',
+                null,
+                $outputlang
+            );
+        }
+
+        return $result;
     }
 
     /**
