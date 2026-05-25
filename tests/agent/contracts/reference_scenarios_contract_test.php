@@ -23,7 +23,7 @@ use bookingextension_agent\local\wbagent\task_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Contract-level reference scenarios for phase-7 target flows.
+ * Contract-level reference scenarios for the example target flows.
  *
  * @covers \bookingextension_agent\local\wbagent\services\spawn_contract_service
  * @covers \bookingextension_agent\local\wbagent\services\preflight_schema_validator
@@ -32,7 +32,7 @@ use PHPUnit\Framework\TestCase;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-final class phase7_reference_scenarios_contract_test extends TestCase {
+final class reference_scenarios_contract_test extends TestCase {
     /**
      * Scenario A: ideal readonly task result remains deterministic without spawn.
      */

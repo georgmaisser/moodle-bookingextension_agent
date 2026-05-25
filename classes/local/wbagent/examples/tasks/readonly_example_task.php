@@ -23,7 +23,7 @@ use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 
 /**
- * Phase-7 scenario A reference: ideal readonly task.
+ * Scenario A reference: ideal readonly task.
  *
  * This class is intentionally tiny and heavily documented so third-party
  * developers can copy it as a starting point.
@@ -32,12 +32,12 @@ use bookingextension_agent\local\wbagent\services\task_prompt_contract;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class phase7_readonly_example_task extends base_task {
+class readonly_example_task extends base_task {
     /** Task name used by planner/executor. */
-    public const TASK_NAME = 'examples.phase7_readonly_example';
+    public const TASK_NAME = 'examples.readonly_example';
 
     /** Deterministic default query used when caller omits query input. */
-    private const DEFAULT_QUERY = 'phase7 demo';
+    private const DEFAULT_QUERY = 'example demo';
 
     /**
      * Constructor.
@@ -63,7 +63,7 @@ class phase7_readonly_example_task extends base_task {
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Example readonly lookup task for phase-7 scenario A.',
+            'description' => 'Example readonly lookup task for scenario A.',
             'readonly' => true,
             'properties' => [
                 'query' => [
@@ -189,8 +189,8 @@ class phase7_readonly_example_task extends base_task {
 
         return [
             'status' => 'executed',
-            'detail' => '[PHASE7-A] readonly example executed',
-            'usermessage' => '[PHASE7-A] Readonly scenario completed successfully.',
+            'detail' => '[SCENARIO-A] readonly example executed',
+            'usermessage' => '[SCENARIO-A] Readonly scenario completed successfully.',
             'resultid' => 0,
             'rows' => $rows,
             'metadata' => [

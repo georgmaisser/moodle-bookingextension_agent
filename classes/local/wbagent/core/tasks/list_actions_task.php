@@ -19,6 +19,7 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 use context_module;
 use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
+use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
@@ -157,7 +158,6 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
         $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $actions = [];
-        $selectedtasknames = [];
         $registry = task_registry_factory::get_default();
         $evaluator = new task_executability_evaluator($registry, new authorization_service());
         foreach ($registry->get_task_names_for_context($evaluator, $userid, $contextid) as $name) {
@@ -174,17 +174,16 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             }
 
             $schema = $task->get_schema();
-            $selectedtasknames[] = $name;
             $actions[] = [
                 'task' => $name,
                 'label' => booking_task_support::get_localized_action_label_for_output($name),
                 'description' => (string)($schema['description'] ?? ''),
                 'readonly' => $task->is_read_only(),
+                'provider' => (string)($registry->get_task_contract($name)['component'] ?? 'unknown'),
             ];
         }
 
-        $available = array_fill_keys($selectedtasknames, true);
-        $capabilities = $this->build_user_capabilities($available);
+        $capabilities = $this->build_user_capabilities($actions);
 
         $summary = $this->build_user_summary($scope, $capabilities);
 
@@ -258,8 +257,8 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Build a technical debug summary for developers.
      *
      * @param string $scope
-     * @param array $actions
-     * @param array $capabilities
+    * @param array<int,array<string,mixed>> $actions
+    * @param array<int,array<string,mixed>> $capabilities
      * @return string
      */
     private function build_debug_summary(string $scope, array $actions, array $capabilities): string {
@@ -267,7 +266,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             'Task: ' . self::TASK_NAME,
             'Scope: ' . $scope,
             'Returned actions: ' . count($actions),
-            'Derived capabilities: ' . count($capabilities),
+            'Provider groups: ' . count($capabilities),
         ];
         return implode("\n", $lines);
     }
@@ -276,7 +275,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Build a user-facing summary sentence for the selected scope.
      *
      * @param string $scope
-     * @param array $capabilities
+    * @param array<int,array<string,mixed>> $capabilities
      * @return string
      */
     private function build_user_summary(string $scope, array $capabilities): string {
@@ -294,26 +293,44 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             $intro = get_string('ai_list_actions_summary_all', 'bookingextension_agent');
         }
 
-        $lines = array_map(static function (array $capability): string {
-            $title = trim((string)($capability['title'] ?? ''));
-            $description = trim((string)($capability['description'] ?? ''));
-
-            if ($title !== '' && $description !== '') {
-                return '- ' . $title . ': ' . $description;
+        $lines = [];
+        foreach ($capabilities as $providerblock) {
+            $provider = trim((string)($providerblock['provider'] ?? 'unknown'));
+            $groups = (array)($providerblock['groups'] ?? []);
+            if ($provider === '') {
+                $provider = 'unknown';
             }
 
-            if ($title !== '') {
-                return '- ' . $title;
+            $lines[] = $provider . ':';
+            foreach (['readonly', 'write'] as $accesslevel) {
+                if (!isset($groups[$accesslevel])) {
+                    continue;
+                }
+
+                $lines[] = '  ' . $accesslevel . ':';
+                foreach ((array)$groups[$accesslevel] as $capability) {
+                    $tasklabel = trim((string)($capability['label'] ?? ''));
+                    $description = trim((string)($capability['description'] ?? ''));
+                    $taskname = trim((string)($capability['task'] ?? ''));
+
+                    $line = '    - ';
+                    if ($tasklabel !== '') {
+                        $line .= $tasklabel;
+                    } else if ($taskname !== '') {
+                        $line .= $taskname;
+                    } else {
+                        $line .= get_string('ai_list_actions_summary_none', 'bookingextension_agent');
+                    }
+
+                    if ($description !== '') {
+                        $line .= ': ' . $description;
+                    }
+
+                    $lines[] = $line;
+                }
             }
+        }
 
-            if ($description !== '') {
-                return '- ' . $description;
-            }
-
-            return '';
-        }, $capabilities);
-
-        $lines = array_values(array_filter($lines, static fn(string $line): bool => $line !== ''));
         if (empty($lines)) {
             return $intro;
         }
@@ -322,63 +339,59 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
     }
 
     /**
-     * Build user-friendly capability blocks from the currently selected task set.
+    * Build user-friendly capability blocks grouped by provider and read/write state.
      *
-     * @param array $available
-     * @return array<int,array<string,string>>
+     * @param array<int,array<string,mixed>> $actions
+    * @return array<int,array<string,mixed>>
      */
-    private function build_user_capabilities(array $available): array {
-        $capabilities = [];
+    private function build_user_capabilities(array $actions): array {
+        $grouped = [];
 
-        if (
-            isset($available['booking.create_option'])
-            || isset($available['booking.update_option'])
-            || isset($available['booking.bulk_update_options'])
-        ) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_manage_options_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_manage_options_desc', 'bookingextension_agent'),
+        foreach ($actions as $action) {
+            $provider = trim((string)($action['provider'] ?? 'unknown'));
+            if ($provider === '') {
+                $provider = 'unknown';
+            }
+
+            $readonly = !empty($action['readonly']) ? 'readonly' : 'write';
+            if (!isset($grouped[$provider])) {
+                $grouped[$provider] = [
+                    'provider' => $provider,
+                    'groups' => [
+                        'readonly' => [],
+                        'write' => [],
+                    ],
+                ];
+            }
+
+            $grouped[$provider]['groups'][$readonly][] = [
+                'task' => (string)($action['task'] ?? ''),
+                'label' => (string)($action['label'] ?? ''),
+                'description' => (string)($action['description'] ?? ''),
             ];
         }
 
-        if (isset($available['booking.search_options'])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_search_options_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_search_options_desc', 'bookingextension_agent'),
-            ];
-        }
+        ksort($grouped);
+        foreach ($grouped as &$providerblock) {
+            foreach (['readonly', 'write'] as $accesslevel) {
+                usort(
+                    $providerblock['groups'][$accesslevel],
+                    static function (array $left, array $right): int {
+                        $leftlabel = trim((string)($left['label'] ?? ''));
+                        $rightlabel = trim((string)($right['label'] ?? ''));
+                        $lefttask = trim((string)($left['task'] ?? ''));
+                        $righttask = trim((string)($right['task'] ?? ''));
 
-        if (isset($available[search_users_task::TASK_NAME]) || isset($available[search_courses_task::TASK_NAME])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_search_people_courses_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_search_people_courses_desc', 'bookingextension_agent'),
-            ];
-        }
+                        $leftkey = $leftlabel !== '' ? $leftlabel : $lefttask;
+                        $rightkey = $rightlabel !== '' ? $rightlabel : $righttask;
 
-        if (
-            isset($available['booking.list_option_properties'])
-            || isset($available[self::TASK_NAME])
-        ) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_explain_setup_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_explain_setup_desc', 'bookingextension_agent'),
-            ];
+                        return strcmp($leftkey, $rightkey);
+                    }
+                );
+            }
         }
+        unset($providerblock);
 
-        if (isset($available['booking.add_price_category'])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_pricing_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_pricing_desc', 'bookingextension_agent'),
-            ];
-        }
-
-        if (isset($available[get_current_user_task::TASK_NAME])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_user_context_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_user_context_desc', 'bookingextension_agent'),
-            ];
-        }
-
-        return $capabilities;
+        return array_values($grouped);
     }
 }

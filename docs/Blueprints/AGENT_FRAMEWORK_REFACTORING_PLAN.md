@@ -277,8 +277,8 @@ Gate Phase 6:
 - [x] Szenario A: Idealer Readonly Task + Test.
 - [x] Szenario B: Idealer Multistep Task + Test.
 - [x] Szenario C: Idealer Subtask/Spawn Task + Test.
-  - [x] Zwischenstand: `phase7_reference_scenarios_contract_test` bildet A/B/C als Contract-Referenzszenarien (readonly/multistep/spawn-binding) auf Service-/Schema-Ebene ab.
-  - [x] Zwischenstand: Discovery-faehige Third-Party-Referenz-Tasks unter `classes/local/wbagent/examples/tasks` (A/B/C inkl. Spawn-Child) und dedizierter Real-LLM-PHPUnit-Test `phase7_examples_real_llm_test` hinzugefuegt.
+  - [x] Zwischenstand: `reference_scenarios_contract_test` bildet A/B/C als Contract-Referenzszenarien (readonly/multistep/spawn-binding) auf Service-/Schema-Ebene ab.
+  - [x] Zwischenstand: Discovery-faehige Third-Party-Referenz-Tasks unter `classes/local/wbagent/examples/tasks` (A/B/C inkl. Spawn-Child) und dedizierter Real-LLM-PHPUnit-Test `example_tasks_real_llm_test` hinzugefuegt.
 - [ ] Erst danach schrittweises Onboarding weiterer Tasks.
 - [ ] Szenario D (komplex, cross-domain): Kurs erstellen -> 10 Fragen aus PDF/Bildquellen erstellen -> Quiz befuellen -> alle Nutzer mit Vorname Peter einschreiben; Nachweis ueber produced_outputs, Output-Bindings, late-preflight, Retry und Confirmation.
 

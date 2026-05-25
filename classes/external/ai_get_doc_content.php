@@ -149,7 +149,7 @@ class ai_get_doc_content extends external_api {
      *
      * @param  string $markdown
      * @param  string $currentpath Relative path of the currently rendered markdown doc.
-    * @param  int    $contextid
+     * @param  int    $contextid
      * @return string  Safe HTML.
      */
     private static function markdown_to_html(string $markdown, string $currentpath, int $contextid): string {
@@ -281,7 +281,7 @@ class ai_get_doc_content extends external_api {
      * so the frontend can load them via the webservice instead of navigating away.
      *
      * @param  string $text
-    * @param  int    $contextid
+     * @param  int    $contextid
      * @param  string $basedir Relative docs directory of the current document.
      * @return string HTML
      */

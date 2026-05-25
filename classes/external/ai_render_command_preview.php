@@ -86,7 +86,7 @@ class ai_render_command_preview extends external_api {
     /**
      * Render preview HTML.
      *
-    * @param int $contextid
+     * @param int $contextid
      * @param string $commands
      * @param int $optionid
      * @param string $optionids
@@ -122,7 +122,7 @@ class ai_render_command_preview extends external_api {
         } catch (\Throwable $e) {
             $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
         }
-    $cmid = (int)$context->instanceid;
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);

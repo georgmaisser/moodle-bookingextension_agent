@@ -84,14 +84,14 @@ class preflight_pipeline {
         $layer1issuecodes = [];
         $anonymizer = new privacy_anonymizer($this->store);
         $startedat = microtime(true);
-                try {
-                    $context = context::instance_by_id($contextid, MUST_EXIST);
-                    if (!($context instanceof context_module)) {
-                        throw new \coding_exception('Invalid module context id.');
-                    }
-                } catch (\Throwable $e) {
-                    $context = context_module::instance($contextid, MUST_EXIST);
-                }
+        try {
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance($contextid, MUST_EXIST);
+        }
                 $cmid = (int)$context->instanceid;
 
         foreach ($commands as $idx => $command) {

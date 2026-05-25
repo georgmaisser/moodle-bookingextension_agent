@@ -36,10 +36,10 @@ $capabilities = [
 ];
 
 $teachertasks = [
-    'examples_phase7_multistep_example',
-    'examples_phase7_readonly_example',
-    'examples_phase7_spawn_child_example',
-    'examples_phase7_spawn_parent_example',
+    'examples_multistep_example',
+    'examples_readonly_example',
+    'examples_spawn_child_example',
+    'examples_spawn_parent_example',
     'booking_add_price_category',
     'booking_book_users',
     'booking_bulk_update_options',

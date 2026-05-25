@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Real-LLM phase-7 scenario tests for third-party example tasks.
+ * Real-LLM scenario tests for third-party example tasks.
  *
  * @package   bookingextension_agent
  * @category  test
@@ -34,13 +34,13 @@ use bookingextension_agent\external\ai_send_message;
 use context_module;
 
 /**
- * Real provider tests for phase-7 scenario examples A/B/C.
+ * Real provider tests for example scenarios A/B/C.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
  * @coversNothing
  */
-final class phase7_examples_real_llm_test extends abstract_agent_testcase {
+final class example_tasks_real_llm_test extends abstract_agent_testcase {
     /**
      * Setup.
      */
@@ -103,7 +103,7 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Scenario A: readonly example should execute and emit the phase marker.
+     * Scenario A: readonly example should execute.
      */
     public function test_scenario_a_readonly_example_executes_with_real_llm(): void {
         $this->setUser($this->teacher);
@@ -111,17 +111,11 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
 
         $result = $this->run_scenario_until_done(
             $contextid,
-            [
-                'Nutze ausschliesslich die Task examples.phase7_readonly_example und fuehre sie jetzt aus. '
-                    . 'Input: query="phase7-a readonly", limit=2.',
-                'Gib genau einen task_call aus: task="examples.phase7_readonly_example", '
-                    . 'version=1, input={"query":"phase7-a readonly","limit":2}.',
-                'Keine Rueckfrage, keine Zusammenfassung. Fuehre nur examples.phase7_readonly_example '
-                    . 'mit query="phase7-a readonly" und limit=2 aus.',
-                'Return only one command for execution: '
-                    . 'task=examples.phase7_readonly_example version=1 input.query="phase7-a readonly" input.limit=2.',
-            ],
-            'examples.phase7_readonly_example',
+            'Nutze ausschliesslich die Task examples.readonly_example und fuehre sie jetzt aus. '
+                . 'Input: query="readonly example", limit=2. '
+                . 'Gib genau einen task_call aus mit task="examples.readonly_example", '
+                . 'version=1 und input={"query":"readonly example","limit":2}.',
+            'examples.readonly_example',
             []
         );
 
@@ -129,7 +123,7 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Scenario B: multistep example should complete and emit the phase marker.
+     * Scenario B: multistep example should complete.
      */
     public function test_scenario_b_multistep_example_executes_with_real_llm(): void {
         $this->setUser($this->teacher);
@@ -137,21 +131,19 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
 
         $result = $this->run_scenario_until_done(
             $contextid,
-            [
-                'Nutze ausschliesslich die Task examples.phase7_multistep_example und fuehre sie aus. '
-                    . 'Input: objective="phase7-b", steps=["collect","validate","summarize"].',
-                'Gib genau einen bestaetigbaren task_call aus: task="examples.phase7_multistep_example", '
-                    . 'version=1, input={"objective":"phase7-b","steps":["collect","validate","summarize"]}.',
-            ],
-            'examples.phase7_multistep_example',
-            ['[PHASE7-B]']
+            'Nutze ausschliesslich die Task examples.multistep_example und fuehre sie aus. '
+                . 'Input: objective="example-b", steps=["collect","validate","summarize"]. '
+                . 'Gib genau einen task_call aus mit task="examples.multistep_example", '
+                . 'version=1 und input={"objective":"example-b","steps":["collect","validate","summarize"]}.',
+            'examples.multistep_example',
+            []
         );
 
         $this->assertTrue($result['success'], $result['debug']);
     }
 
     /**
-     * Scenario C: spawn parent example should run and include parent+child markers.
+     * Scenario C: spawn parent example should run.
      */
     public function test_scenario_c_spawn_example_executes_with_real_llm(): void {
         $this->setUser($this->teacher);
@@ -159,14 +151,12 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
 
         $result = $this->run_scenario_until_done(
             $contextid,
-            [
-                'Nutze ausschliesslich die Task examples.phase7_spawn_parent_example und fuehre sie aus. '
-                    . 'Input: batch_label="phase7-c", child_count=2.',
-                'Gib genau einen bestaetigbaren task_call aus: task="examples.phase7_spawn_parent_example", '
-                    . 'version=1, input={"batch_label":"phase7-c","child_count":2}.',
-            ],
-            'examples.phase7_spawn_parent_example',
-            ['[PHASE7-C-PARENT]', '[PHASE7-C-CHILD]']
+            'Nutze ausschliesslich die Task examples.spawn_parent_example und fuehre sie aus. '
+                . 'Input: batch_label="example-c", child_count=2. '
+                . 'Gib genau einen task_call aus mit task="examples.spawn_parent_example", '
+                . 'version=1 und input={"batch_label":"example-c","child_count":2}.',
+            'examples.spawn_parent_example',
+            []
         );
 
         $this->assertTrue($result['success'], $result['debug']);
@@ -176,14 +166,14 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
      * Run one scenario with retries until terminal state or failure.
      *
      * @param int $contextid
-     * @param array<int,string> $prompts Prompt sequence (initial + repair prompts).
+     * @param string $prompt Initial prompt only (no repair prompts).
      * @param string $expectedtaskname
      * @param array<int,string> $requiredmarkers
      * @return array{success:bool,debug:string}
      */
     private function run_scenario_until_done(
         int $contextid,
-        array $prompts,
+        string $prompt,
         string $expectedtaskname,
         array $requiredmarkers
     ): array {
@@ -192,21 +182,19 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
         $aggregate = '';
         $threadid = 0;
 
-        if (empty($prompts)) {
+        if (trim($prompt) === '') {
             return [
                 'success' => false,
-                'debug' => 'No prompts provided.',
+                'debug' => 'No prompt provided.',
             ];
         }
 
         $_POST['sesskey'] = sesskey();
-        $response = ai_send_message::execute($contextid, (string)$prompts[0], 0);
+        $response = ai_send_message::execute($contextid, $prompt, 0);
         $threadid = (int)($response['threadid'] ?? 0);
         $trace[] = $this->trace_line('send', 0, $response);
         $aggregate .= $this->payload_text($response);
         $this->collect_tasks($response, $seentasks);
-
-        $repairindex = 1;
 
         for ($step = 1; $step <= 10; $step++) {
             $responsetype = trim((string)($response['response_type'] ?? ''));
@@ -253,21 +241,12 @@ final class phase7_examples_real_llm_test extends abstract_agent_testcase {
                 continue;
             }
 
-            if ($responsetype === 'clarification' || $responsetype === 'error') {
-                if (!isset($prompts[$repairindex])) {
-                    return [
-                        'success' => false,
-                        'debug' => 'No repair prompt left. ' . implode(' | ', $trace),
-                    ];
-                }
-
-                $_POST['sesskey'] = sesskey();
-                $response = ai_send_message::execute($contextid, (string)$prompts[$repairindex], $threadid);
-                $trace[] = $this->trace_line('repair_send', $step, $response);
-                $aggregate .= $this->payload_text($response);
-                $this->collect_tasks($response, $seentasks);
-                $repairindex++;
-                continue;
+            if ($responsetype === 'error') {
+                return [
+                    'success' => false,
+                    'debug' => 'Unexpected terminal type without repair allowed: ' . $responsetype
+                        . '. ' . implode(' | ', $trace),
+                ];
             }
 
             return [

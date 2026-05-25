@@ -23,75 +23,88 @@ use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 
 /**
- * Phase-7 scenario C reference: parent task with spawn_commands.
+ * Scenario B reference: ideal multistep task.
  *
- * This class demonstrates the canonical produced_outputs + output_bindings
- * pattern for spawned child commands.
+ * This task demonstrates how a single command can execute multiple internal
+ * deterministic steps while still keeping framework contracts simple.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class phase7_spawn_parent_example_task extends base_task {
+class multistep_example_task extends base_task {
     /** Stable task name. */
-    public const TASK_NAME = 'examples.phase7_spawn_parent_example';
+    public const TASK_NAME = 'examples.multistep_example';
 
     /**
      * Constructor.
      */
     public function __construct() {
+        // Marked as mutating to demonstrate explicit confirmation flow in tests.
         parent::__construct(false);
     }
 
     /**
+     * Get the stable task name.
+     *
      * @return string
+     *
      */
     public function get_name(): string {
         return self::TASK_NAME;
     }
 
     /**
-     * @return array<string,mixed>
+     * Get the schema for the task.
+     *
+     * @return array
+     *
      */
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Example parent task that spawns deterministic child tasks.',
+            'description' => 'Example multistep task for scenario B.',
             'readonly' => false,
             'properties' => [
-                'batch_label' => [
+                'objective' => [
                     'type' => 'string',
-                    'description' => 'Human-readable label shared with spawned children.',
+                    'description' => 'High-level goal label for the deterministic multistep demo.',
                     'required' => true,
                 ],
-                'child_count' => [
-                    'type' => 'integer',
-                    'description' => 'How many child commands should be spawned (1..3).',
-                    'required' => false,
+                'steps' => [
+                    'type' => 'array',
+                    'description' => 'Ordered list of 2..6 short step labels.',
+                    'required' => true,
                 ],
             ],
-            'required' => ['batch_label'],
+            'required' => ['objective', 'steps'],
         ];
     }
 
     /**
-     * @return array<string,mixed>
+     * Get example input for the task.
+     *
+     * @return array
+     *
      */
     public function get_example_input(): array {
         return [
-            'batch_label' => 'phase7 demo batch',
-            'child_count' => 2,
+            'objective' => 'Prepare rollout checklist',
+            'steps' => ['validate input', 'build plan', 'summarize'],
         ];
     }
 
     /**
+     * Explicit prompt contract for planner/executor.
+     *
      * @return task_prompt_contract
+     *
      */
     public function get_prompt_contract(): task_prompt_contract {
         return new task_prompt_contract([
-            'intent' => 'Run parent task and spawn deterministic child commands via output bindings.',
-            'anchors' => ['batch_label'],
-            'minimal_input' => ['batch_label'],
+            'intent' => 'Execute a deterministic multistep workflow in one task call.',
+            'anchors' => ['objective', 'steps'],
+            'minimal_input' => ['objective', 'steps'],
             'example_input' => $this->get_example_input(),
             'namespace' => 'examples',
             'version' => 1,
@@ -101,20 +114,33 @@ class phase7_spawn_parent_example_task extends base_task {
     }
 
     /**
-     * @param array<string,mixed> $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * [Description for check_structure]
+     *
+     * @param array $input
+     *
+     * @return array
+     *
      */
     public function check_structure(array $input): array {
         $errors = [];
-        $batchlabel = trim((string)($input['batch_label'] ?? ''));
-        if ($batchlabel === '') {
-            $errors[] = 'Field "batch_label" is required.';
+
+        $objective = trim((string)($input['objective'] ?? ''));
+        if ($objective === '') {
+            $errors[] = 'Field "objective" is required.';
         }
 
-        if (array_key_exists('child_count', $input)) {
-            $childcount = (int)$input['child_count'];
-            if ($childcount < 1 || $childcount > 3) {
-                $errors[] = 'Field "child_count" must be between 1 and 3.';
+        $steps = $input['steps'] ?? [];
+        if (!is_array($steps)) {
+            $errors[] = 'Field "steps" must be an array.';
+        } else {
+            $stepcount = count($steps);
+            if ($stepcount < 2 || $stepcount > 6) {
+                $errors[] = 'Field "steps" must contain between 2 and 6 entries.';
+            }
+            foreach ($steps as $idx => $step) {
+                if (trim((string)$step) === '') {
+                    $errors[] = 'Step at index ' . $idx . ' must not be empty.';
+                }
             }
         }
 
@@ -126,10 +152,14 @@ class phase7_spawn_parent_example_task extends base_task {
     }
 
     /**
-     * @param array<string,mixed> $input
+     * Preflight check for the task.
+     *
+     * @param array $input
      * @param int $contextid
      * @param int $userid
+     *
      * @return preflight_result_v2
+     *
      */
     public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
         $structure = $this->check_structure($input);
@@ -142,53 +172,56 @@ class phase7_spawn_parent_example_task extends base_task {
             return preflight_result_v2::invalid($issues);
         }
 
+        $steps = [];
+        foreach ((array)$input['steps'] as $step) {
+            $steps[] = trim((string)$step);
+        }
+
         return preflight_result_v2::ok([
-            'batch_label' => trim((string)$input['batch_label']),
-            'child_count' => max(1, min(3, (int)($input['child_count'] ?? 2))),
+            'objective' => trim((string)$input['objective']),
+            'steps' => $steps,
             'contextid' => $contextid,
             'userid' => $userid,
         ]);
     }
 
     /**
-     * @param array<string,mixed> $preparedinput
+     * Execute the task.
+     *
+     * @param array $preparedinput
      * @param int $contextid
      * @param int $userid
-     * @return array<string,mixed>
+     *
+     * @return array
+     *
      */
     public function execute(array $preparedinput, int $contextid, int $userid): array {
-        $batchlabel = trim((string)($preparedinput['batch_label'] ?? ''));
-        $childcount = max(1, min(3, (int)($preparedinput['child_count'] ?? 2)));
+        $objective = trim((string)($preparedinput['objective'] ?? ''));
+        $steps = (array)($preparedinput['steps'] ?? []);
 
-        $spawncommands = [];
-        for ($index = 1; $index <= $childcount; $index++) {
-            $spawncommands[] = [
-                'task' => 'examples.phase7_spawn_child_example',
-                'version' => 1,
-                'input' => [
-                    'child_label' => 'child-' . $index,
-                ],
-                'output_bindings' => [
-                    'batch_label' => 'parent.batch_label',
-                    'ticket_id' => 'parent.ticket_id',
-                ],
-                'depends_on' => [],
+        $executedsteps = [];
+        foreach ($steps as $index => $step) {
+            $executedsteps[] = [
+                'step' => $index + 1,
+                'label' => (string)$step,
+                'status' => 'done',
             ];
         }
 
-        $ticketid = 'SP-' . strtoupper(substr(sha1($batchlabel . '|' . $contextid . '|' . $userid), 0, 10));
+        $ticketid = 'MS-' . strtoupper(substr(sha1($objective . '|' . $contextid . '|' . $userid), 0, 10));
 
         return [
             'status' => 'executed',
-            'detail' => '[PHASE7-C-PARENT] spawn parent example executed',
-            'usermessage' => '[PHASE7-C] Spawn parent scenario started successfully.',
+            'detail' => '[SCENARIO-B] multistep example executed',
+            'usermessage' => '[SCENARIO-B] Multistep scenario completed successfully.',
             'resultid' => 0,
+            'ticketid' => $ticketid,
+            'objective' => $objective,
+            'executedsteps' => $executedsteps,
             'produced_outputs' => [
-                'batch_label' => $batchlabel,
-                'ticket_id' => $ticketid,
-                'requested_child_count' => $childcount,
+                'multistep_ticket_id' => $ticketid,
+                'multistep_step_count' => count($executedsteps),
             ],
-            'spawn_commands' => $spawncommands,
         ];
     }
 }

@@ -1,10 +1,10 @@
 # wbagent/examples
 
-This folder contains phase-7 reference tasks for third-party developers.
+This folder contains reference tasks for third-party developers.
 
 Goals:
 - Demonstrate minimal task contracts that are easy to copy and adapt.
-- Show one ideal task per phase-7 target scenario:
+- Show one ideal task per target scenario:
   - Scenario A: deterministic readonly task.
   - Scenario B: deterministic multistep task.
   - Scenario C: parent task with spawn_commands and a spawned child task.
@@ -15,10 +15,10 @@ Discovery behavior:
   without touching the framework registry.
 
 Task names provided:
-- `examples.phase7_readonly_example`
-- `examples.phase7_multistep_example`
-- `examples.phase7_spawn_parent_example`
-- `examples.phase7_spawn_child_example`
+- `examples.readonly_example`
+- `examples.multistep_example`
+- `examples.spawn_parent_example`
+- `examples.spawn_child_example`
 
 Adaptation guide:
 1. Copy one example class into your own component namespace.
@@ -30,5 +30,5 @@ Adaptation guide:
 
 Notes:
 - The examples avoid writes by design so they are safe in test environments.
-- Markers like `[PHASE7-A]` are intentional and used by real-LLM tests as
+- Markers like `[SCENARIO-A]` are intentional and used by real-LLM tests as
   deterministic evidence that the expected example task was executed.
