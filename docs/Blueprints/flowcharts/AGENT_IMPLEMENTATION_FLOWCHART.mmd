@@ -6,7 +6,7 @@ flowchart TD
     %% =========================================================
     subgraph ENTRY["External API Layer (classes/external/)"]
         ASM["ai_send_message::execute()\ncmid · message · threadid"]
-        ACR["ai_confirm_run::execute()\ncmid · runid · confirmed"]
+        ACR["ai_confirm_run::execute()\ncmid · threadid · queue_item_id · allow_session"]
         APO["ai_poll_thread::execute()"]
         APREVIEW["ai_render_command_preview::execute()"]
     end
@@ -31,6 +31,9 @@ flowchart TD
         CS8["set_thread_metadata_value(key, value)"]
         CS9["clear_step_messages(threadid)"]
         CS10["run_exists_other_than(idem_key, runid)"]
+        CS11["allow_confirmation_for_thread(userid, cmid, threadid)"]
+        CS12["is_confirmation_allowed_for_thread(userid, cmid, threadid)"]
+        CS13["consume_pending_intent(threadid, userid, cmid)"]
     end
 
     %% =========================================================
@@ -151,7 +154,7 @@ flowchart TD
     %% TASK LAYER
     %% =========================================================
     subgraph TASKS["Task Layer"]
-        TR["task_registry\nregister(provider)\nget_task(name)\nis_read_only_task()\nis_task_active()\nget_task_contract()\nget_all_schemas()\nget_prompt_contracts_for_context()\nget_message_triggers()"]
+        TR["task_registry\nregister(provider)\nget_task(name)\nis_read_only_task()\nis_task_active()\nget_task_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()"]
         TRFAC["task_registry_factory\n→ wires all task_provider_interface\n  implementations (auto-discovery)"]
         TI["task_interface\nget_name() · get_schema()\ncheck_structure(input)\npreflight(input,cmid,userid): preflight_result_v2\nexecute(prepared_input,cmid,userid): array\nis_read_only(): bool"]
         BT["base_task (abstract)\ncheck_structure() → pass\npreflight() → pass (override for DB checks)\nexecute() → abstract"]
@@ -167,6 +170,7 @@ flowchart TD
         ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_for_display()"]
         PLSVC["planner_service\n::enrich_recovery_input()\ncompact LLM call for input enrichment\n(semantic_input_enrichment capability)"]
         EMBS["embeddings_retrieval_service\nembeddings_catalog_builder_service\n→ text-embedding-3-small\ndimensions: 1536 · top_k: 6"]
+        MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→task routing)"]
         AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
         ISCP["booking_issue_code_provider\nimplements issue_code_provider_interface\nget_duplicate_confirmation_issue_codes()\nget_token_subscription_issue_codes()\nget_prevalidation_confirmable_issue_codes()"]
         BIRS["booking_issue_code_resolver\n(booking/booking_task_support.php)"]
@@ -193,7 +197,10 @@ flowchart TD
     ASM -->|"2. validate_parameters()"| AZ2
     ASM -->|"3. add_message(user)"| CS2
     ASM -->|"4. run_loop()"| RUNLOOP
-    ACR -->|"confirmed → run_loop()"| RUNLOOP
+    ASM -->|"response autoconfirm?"| CS12
+    ACR -->|"allow_session=true"| CS11
+    ACR -->|"consume pending intent"| CS13
+    CS13 -->|"queue item resolved"| Q_READY
 
     AZ1 --> CS1
     CS1 --> RUNLOOP
@@ -254,7 +261,7 @@ flowchart TD
     PAL -->|"append() to thread metadata"| CS8
 
     %% Preflight result → Queue
-    PRV2 -->|pass| Q_ENQUEUE
+    PRV2 -->|"pass (autoconfirm => ready)"| Q_ENQUEUE
     PRV2 -->|"soft_block: domain conflict"| Q_BLOCKED
     PRV2 -->|"retry_hint"| Q_RETRY
     L1_FAIL -->|"hard_block: terminal"| FAIL_OUT
@@ -268,13 +275,16 @@ flowchart TD
     Q_SKIP --> FAIL_OUT
     Q_DEPCHECK -->|deps ok| Q_RUNNING
     Q_RUNNING -->|slot occupied| Q_READY
+    Q_READY -->|"try_pickup_now"| Q_RUNNING
     Q_READY -.->|"next run_loop() turn"| RUNLOOP
     Q_RUNNING -->|slot free| EXC
 
     %% Blocked confirmation TTL
     Q_BLOCKED -->|"TTL check: fail_expired_blocked_items()"| Q_FAIL_TTL
     Q_FAIL_TTL --> FAIL_OUT
-    Q_BLOCKED -->|"user confirms via ai_confirm_run"| Q_CANPICK
+    Q_BLOCKED -->|"user confirms via ai_confirm_run"| CS13
+    CS13 -->|"update_status(ready)"| Q_READY
+    Q_RETRY -->|"retry window elapsed"| Q_CANPICK
     Q_CANPICK -->|"can_pickup_now() = true"| EXC
 
     %% Read-only → executor
@@ -340,6 +350,8 @@ flowchart TD
 
     %% Support services
     INTERP -->|"slot_booking_normalizer"| INTERP
+    INTERP -->|"normalize used_triggers"| MTRIG
+    MTRIG -.->|"core trigger signals"| PROC_IN
     OB_OUT --> ANON
     ANON --> OBS_ACCUM
     PF_L2P -->|"planner_service::enrich_recovery_input() — if semantic_input_enrichment capability"| PLSVC
@@ -350,6 +362,17 @@ flowchart TD
 
     %% Invisible helper node for re-plan loop
     OB_ACCUM["OB_ACCUM (observations to agent_state)"]
+
+    %% =========================================================
+    %% LEGEND
+    %% =========================================================
+    subgraph LEGEND["Legend"]
+        direction TB
+        LG_AUTO["Auto-confirm\nconfirmation_request + autoconfirm/session allowlist\n→ ai_confirm_run without manual click"]
+        LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
+        LG_RETRY["Retry lifecycle\nretry_waiting\n→ can_pickup_now() → execute"]
+        LG_TERMINAL["Terminal outcomes\nfailed / skipped / budget_exceeded / success"]
+    end
 
     %% =========================================================
     %% STYLES
@@ -375,3 +398,7 @@ flowchart TD
     style GOAL_CHECK fill:#264653,color:#fff
     style LF_CHECK fill:#264653,color:#fff
     style EXEC_RESULT_CHECK fill:#264653,color:#fff
+    style LG_AUTO fill:#264653,color:#fff
+    style LG_MANUAL fill:#e9c46a,color:#000
+    style LG_RETRY fill:#457b9d,color:#fff
+    style LG_TERMINAL fill:#9b2226,color:#fff
