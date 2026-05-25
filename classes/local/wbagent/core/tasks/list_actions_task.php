@@ -19,12 +19,6 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 use context_module;
 use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
-use bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task;
-use bookingextension_agent\local\wbagent\booking\tasks\bulk_update_options_task;
-use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task;
-use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
-use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
@@ -36,7 +30,7 @@ use bookingextension_agent\local\wbagent\task_registry_factory;
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class list_actions_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class list_actions_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
     public const TASK_NAME = 'booking.list_actions';
 
@@ -44,7 +38,6 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Constructor.
      */
     public function __construct() {
-        parent::__construct(true);
     }
 
     /**
@@ -67,7 +60,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
             'description' => 'List the AI agent capabilities and task names that this booking agent supports.'
                 . ' Use this ONLY when the user asks what the agent CAN DO or which agent tasks/commands exist.'
                 . ' Do NOT use for listing bookable options or courses — use booking.search_options for that.',
-            'readonly' => $this->is_read_only(),
+            'readonly' => true,
             'properties' => [
                 'question' => [
                     'type' => 'string',
@@ -110,7 +103,6 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function check_structure(array $input): array {
@@ -161,7 +153,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
      */
     public function execute(array $input, int $cmid, int $userid): array {
         $question = trim((string)($input['question'] ?? ''));
-        $outputlang = $this->get_output_language($input);
+        $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $actions = [];
         $selectedtasknames = [];
@@ -339,9 +331,9 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
         $capabilities = [];
 
         if (
-            isset($available[create_option_task::TASK_NAME])
-            || isset($available[update_option_task::TASK_NAME])
-            || isset($available[bulk_update_options_task::TASK_NAME])
+            isset($available['booking.create_option'])
+            || isset($available['booking.update_option'])
+            || isset($available['booking.bulk_update_options'])
         ) {
             $capabilities[] = [
                 'title' => get_string('ai_capability_manage_options_title', 'bookingextension_agent'),
@@ -349,7 +341,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
             ];
         }
 
-        if (isset($available[search_options_task::TASK_NAME])) {
+        if (isset($available['booking.search_options'])) {
             $capabilities[] = [
                 'title' => get_string('ai_capability_search_options_title', 'bookingextension_agent'),
                 'description' => get_string('ai_capability_search_options_desc', 'bookingextension_agent'),
@@ -364,8 +356,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
         }
 
         if (
-            isset($available[list_option_properties_task::TASK_NAME])
-            || isset($available[explain_task_schema_task::TASK_NAME])
+            isset($available['booking.list_option_properties'])
             || isset($available[self::TASK_NAME])
         ) {
             $capabilities[] = [
@@ -374,7 +365,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
             ];
         }
 
-        if (isset($available[add_price_category_task::TASK_NAME])) {
+        if (isset($available['booking.add_price_category'])) {
             $capabilities[] = [
                 'title' => get_string('ai_capability_pricing_title', 'bookingextension_agent'),
                 'description' => get_string('ai_capability_pricing_desc', 'bookingextension_agent'),

@@ -64,7 +64,7 @@ class ai_send_message extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid'    => new external_value(PARAM_INT, 'Course-module id of the booking instance.'),
+            'contextid'    => new external_value(PARAM_INT, 'Module context id of the booking instance.'),
             'message' => new external_value(PARAM_RAW, 'User message text.'),
             'threadid' => new external_value(
                 PARAM_INT,
@@ -78,25 +78,26 @@ class ai_send_message extends external_api {
     /**
      * Send a message to the AI agent.
      *
-     * @param int    $cmid
+     * @param int    $contextid
      * @param string $message
      * @param int    $threadid
      * @return array
      */
-    public static function execute(int $cmid, string $message, int $threadid = 0): array {
+    public static function execute(int $contextid, string $message, int $threadid = 0): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(
             self::execute_parameters(),
-            ['cmid' => $cmid, 'message' => $message, 'threadid' => $threadid]
+            ['contextid' => $contextid, 'message' => $message, 'threadid' => $threadid]
         );
-        $cmid    = $params['cmid'];
+        $contextid = (int)$params['contextid'];
         $message = trim($params['message']);
         $threadid = (int)($params['threadid'] ?? 0);
         $authz = new authorization_service();
-        $context = context_module::instance($cmid);
+        $context = context_module::instance_by_id($contextid, MUST_EXIST);
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -167,7 +168,7 @@ class ai_send_message extends external_api {
             $candidate = $DB->get_record('local_wbagent_ai_threads', [
                 'id' => $threadid,
                 'userid' => (int)$USER->id,
-                'cmid' => $cmid,
+                'contextid' => $contextid,
                 'status' => 'active',
             ]);
             if ($candidate) {
@@ -176,7 +177,7 @@ class ai_send_message extends external_api {
         }
 
         if ($thread === null) {
-            $thread = $store->get_or_create_thread((int)$USER->id, $cmid, (int)$cm->instance);
+            $thread = $store->get_or_create_thread((int)$USER->id, $contextid, (int)$cm->instance);
         }
         $threadid = (int)$thread->id;
         $anonymizer = new privacy_anonymizer($store);
@@ -231,7 +232,7 @@ class ai_send_message extends external_api {
             'privacyapplied'        => $privacyapplied,
             'autoconfirm'           => (int)(
                 (string)($result['response_type'] ?? '') === 'confirmation_request'
-                && $store->is_confirmation_allowed_for_thread((int)$USER->id, $cmid, $threadid)
+                && $store->is_confirmation_allowed_for_thread((int)$USER->id, $contextid, $threadid)
                 && !$autoconfirmblocked
             ),
             'commands'              => json_encode($responsecommands),
@@ -277,7 +278,7 @@ class ai_send_message extends external_api {
      * Normalize any list-like value into a compact non-empty string list.
      *
      * @param mixed $value
-     * @return array<int,string>
+        $result = $runtime->run_loop($threadid, $contextid, (int)$USER->id);
      */
     private static function normalize_string_list($value): array {
         if (!is_array($value)) {

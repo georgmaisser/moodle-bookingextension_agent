@@ -191,11 +191,12 @@ class agent_runtime {
      *   lang                    (string)
      *
      * @param  int $threadid
-     * @param  int $cmid
+     * @param  int $contextid
      * @param  int $userid
      * @return array
      */
-    public function run(int $threadid, int $cmid, int $userid): array {
+    public function run(int $threadid, int $contextid, int $userid): array {
+        $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
         $result = $this->run_internal($threadid, $cmid, $userid, [], null);
         $this->refresh_pending_queue_retry_state($threadid);
         $result = $this->enforce_final_response_contract($result, $threadid);
@@ -341,12 +342,13 @@ class agent_runtime {
      *   user confirmation.
      *
      * @param  int $threadid
-     * @param  int $cmid
+     * @param  int $contextid
      * @param  int $userid
      * @param  int $maxsteps Override for MAX_LOOP_STEPS (0 = use constant).
      * @return array Final normalized result (one persistent assistant message written).
      */
-    public function run_loop(int $threadid, int $cmid, int $userid, int $maxsteps = 0): array {
+    public function run_loop(int $threadid, int $contextid, int $userid, int $maxsteps = 0): array {
+        $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
         $limit = ($maxsteps > 0) ? $maxsteps : self::MAX_LOOP_STEPS;
         $missingcommandsretryused = false;
         $preflightclarificationretryused = false;

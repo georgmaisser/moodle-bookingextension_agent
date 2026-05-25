@@ -46,7 +46,6 @@ interface agent_interpreter {
      *  - 'error'                – Unrecoverable parse or schema error.
      *
      * @param string $rawresponse      Raw text output from the LLM.
-     * @param int    $cmid             Course-module id for context/domain scoping.
      * @param int    $userid           User id.
      * @param string $lastusermessage  Optional: the latest user message text, used as fallback
      *                                 when the LLM omits a required 'question' field.
@@ -58,5 +57,5 @@ interface agent_interpreter {
      *     'errors'        => string[],        // Validation error strings.
      * ]
      */
-    public function interpret(string $rawresponse, int $cmid, int $userid, string $lastusermessage = ''): array;
+    public function interpret(string $rawresponse, int $contextid, int $userid, string $lastusermessage = ''): array;
 }

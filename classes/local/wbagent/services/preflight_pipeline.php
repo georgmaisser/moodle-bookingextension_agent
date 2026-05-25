@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use core_text;
+use context_module;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\task_registry;
@@ -69,19 +70,21 @@ class preflight_pipeline {
      *
      * @param array<int,mixed> $commands
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
-      * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,issues:array<int,array<string,mixed>>,v2_result:array<string,mixed>}
+     * @return array{valid:bool,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issue_codes:array<int,string>,issues:array<int,array<string,mixed>>,v2_result:array<string,mixed>}
      */
-    public function run(array $commands, int $threadid, int $cmid, int $userid): array {
+    public function run(array $commands, int $threadid, int $contextid, int $userid): array {
         $preparedcommands = [];
         $errors = [];
         $attemptedtasks = [];
         $issuecodes = [];
-          $issues = [];
+                $issues = [];
         $layer1issuecodes = [];
         $anonymizer = new privacy_anonymizer($this->store);
         $startedat = microtime(true);
+                $context = context_module::instance_by_id($contextid, MUST_EXIST);
+                $cmid = (int)$context->instanceid;
 
         foreach ($commands as $idx => $command) {
             $label = 'Command #' . ($idx + 1);

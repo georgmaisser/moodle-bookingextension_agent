@@ -50,7 +50,7 @@ class ai_poll_thread extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid'     => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid'     => new external_value(PARAM_INT, 'Module context id.'),
             'threadid' => new external_value(PARAM_INT, 'Thread id (0 = auto-resolve for current user).'),
         ]);
     }
@@ -58,17 +58,18 @@ class ai_poll_thread extends external_api {
     /**
      * Return thread messages.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @param int $threadid
      * @return array
      */
-    public static function execute(int $cmid, int $threadid): array {
+    public static function execute(int $contextid, int $threadid): array {
         global $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['cmid' => $cmid, 'threadid' => $threadid]);
+        $params = self::validate_parameters(self::execute_parameters(), ['contextid' => $contextid, 'threadid' => $threadid]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        $context = context_module::instance_by_id((int)$params['contextid'], MUST_EXIST);
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -78,8 +79,8 @@ class ai_poll_thread extends external_api {
         if ($params['threadid'] > 0) {
             $tid = $params['threadid'];
         } else {
-            $cm     = get_coursemodule_from_id('booking', $params['cmid'], 0, false, MUST_EXIST);
-            $thread = $store->get_or_create_thread((int)$USER->id, $params['cmid'], (int)$cm->instance);
+            $cm     = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
+            $thread = $store->get_or_create_thread((int)$USER->id, (int)$params['contextid'], (int)$cm->instance);
             $tid    = $thread->id;
         }
 

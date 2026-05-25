@@ -447,7 +447,7 @@ class orchestrator {
             $unavailabletaskcatalog,
             $messages
         );
-        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $cmid, $threadid);
+        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $prompt = $this->build_prompt(
             $systemprompt,
             $messages,
@@ -512,7 +512,7 @@ class orchestrator {
             }
         }
 
-        $interpreted = $this->interpreter->interpret($rawtext, $cmid, $userid, $lastusermessage);
+        $interpreted = $this->interpreter->interpret($rawtext, $contextid, $userid, $lastusermessage);
         if (is_array($interpreted)) {
             // Preserve the exact raw planner payload so runtime can pass it unchanged
             // into the next call as PLANNER_TRACE.

@@ -79,22 +79,23 @@ class executor implements agent_executor {
         $this->authz    = $authz;
     }
 
-     /**
-      * Execute a list of validated commands.
-      *
-      * Commands are expected to carry prepared_input (resolved IDs, normalised values)
-      * produced by task->preflight() in agent_decision_service.
-      * The executor MUST NOT repeat DB-resolution logic.
-      *
-      * @param array  $commands
-      * @param int    $cmid
-      * @param int    $userid
-      * @param string $idempotencykey
-      * @param int    $runid
-      * @return array
-      */
-    public function execute_commands(array $commands, int $cmid, int $userid, string $idempotencykey, int $runid): array {
-        $contextid = (int)context_module::instance($cmid)->id;
+        /**
+         * Execute a list of validated commands.
+         *
+         * Commands are expected to carry prepared_input (resolved IDs, normalised values)
+         * produced by task->preflight() in agent_decision_service.
+         * The executor MUST NOT repeat DB-resolution logic.
+         *
+         * @param array  $commands
+         * @param int    $contextid
+         * @param int    $userid
+         * @param string $idempotencykey
+         * @param int    $runid
+         * @return array
+         */
+    public function execute_commands(array $commands, int $contextid, int $userid, string $idempotencykey, int $runid): array {
+        $context = context_module::instance_by_id($contextid, MUST_EXIST);
+        $cmid = (int)$context->instanceid;
         // Re-check authorization (always re-verify in adhoc context).
         $this->authz->require_use_capability($userid, $contextid);
         $this->authz->require_valid_context($contextid);

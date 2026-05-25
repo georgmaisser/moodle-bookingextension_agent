@@ -36,11 +36,11 @@ interface agent_conversation_store {
      * Get or create an active thread for the given user and booking context.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $bookingid
      * @return \stdClass Thread record.
      */
-    public function get_or_create_thread(int $userid, int $cmid, int $bookingid): \stdClass;
+    public function get_or_create_thread(int $userid, int $contextid, int $bookingid): \stdClass;
 
     /**
      * Append a message to the thread.
@@ -74,23 +74,23 @@ interface agent_conversation_store {
      * Return the previous thread context for a user in a booking instance.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @return \stdClass|null
      */
-    public function get_last_thread_for_user(int $userid, int $cmid): ?\stdClass;
+    public function get_last_thread_for_user(int $userid, int $contextid): ?\stdClass;
 
     /**
      * Return user-owned thread ids that contain messages in a date window.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $fromtimestamp
      * @param int $totimestamp
      * @return int[]
      */
     public function get_user_threads_by_date_window(
         int $userid,
-        int $cmid,
+        int $contextid,
         int $fromtimestamp,
         int $totimestamp
     ): array;
@@ -118,12 +118,12 @@ interface agent_conversation_store {
      *
      * @param int    $threadid
      * @param int    $userid
-     * @param int    $cmid
+     * @param int    $contextid
      * @param string $idempotencykey
      * @param array  $commands   Interpreter-validated commands.
      * @return int   New run id.
      */
-    public function create_run(int $threadid, int $userid, int $cmid, string $idempotencykey, array $commands): int;
+    public function create_run(int $threadid, int $userid, int $contextid, string $idempotencykey, array $commands): int;
 
     /**
      * Update run status and optionally store results.

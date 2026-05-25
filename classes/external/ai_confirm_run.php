@@ -64,7 +64,7 @@ class ai_confirm_run extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid'     => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid'     => new external_value(PARAM_INT, 'Module context id.'),
             'threadid' => new external_value(PARAM_INT, 'Thread id.'),
             'queue_item_id' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id to confirm.'),
             'allow_session' => new external_value(
@@ -79,19 +79,19 @@ class ai_confirm_run extends external_api {
     /**
      * Create a run and execute it (direct by default, queue optional).
      *
-     * @param int    $cmid
+     * @param int    $contextid
      * @param int    $threadid
      * @param string $queueitemid Queue item id to confirm.
      * @param bool $allowsession
      * @return array
      */
-    public static function execute(int $cmid, int $threadid, string $queueitemid, bool $allowsession = false): array {
+    public static function execute(int $contextid, int $threadid, string $queueitemid, bool $allowsession = false): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'cmid'     => $cmid,
+            'contextid'     => $contextid,
             'threadid' => $threadid,
             'queue_item_id' => $queueitemid,
             'allow_session' => $allowsession,
@@ -100,7 +100,9 @@ class ai_confirm_run extends external_api {
         require_sesskey();
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        $context = context_module::instance_by_id((int)$params['contextid'], MUST_EXIST);
+        $cmid = (int)$context->instanceid;
+        $params['cmid'] = $cmid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -131,9 +133,9 @@ class ai_confirm_run extends external_api {
         $store = new conversation_store();
         $previewoptionid = self::resolve_preview_option_id_for_response($params['cmid'], (int)$USER->id, []);
         if (!empty($params['allow_session'])) {
-            $store->allow_confirmation_for_thread((int)$USER->id, (int)$params['cmid'], (int)$params['threadid']);
+            $store->allow_confirmation_for_thread((int)$USER->id, (int)$params['contextid'], (int)$params['threadid']);
         }
-        $pendingintent = $store->consume_pending_intent((int)$params['threadid'], (int)$USER->id, (int)$params['cmid']);
+        $pendingintent = $store->consume_pending_intent((int)$params['threadid'], (int)$USER->id, (int)$params['contextid']);
         if ($pendingintent === null) {
             return [
                 'success' => false,
@@ -310,12 +312,12 @@ class ai_confirm_run extends external_api {
             $outputlang = current_language();
         }
 
-        $idempotencykey = hash('sha256', $USER->id . ':' . $params['cmid'] . ':' . $params['threadid']
+        $idempotencykey = hash('sha256', $USER->id . ':' . $params['contextid'] . ':' . $params['threadid']
             . ':' . json_encode($commandsforrun) . ':' . microtime(true));
         $runid = $store->create_run(
             $params['threadid'],
             (int)$USER->id,
-            $params['cmid'],
+            (int)$params['contextid'],
             $idempotencykey,
             $commandsforrun
         );
@@ -334,6 +336,7 @@ class ai_confirm_run extends external_api {
             $task->set_custom_data([
                 'runid'          => $runid,
                 'userid'         => (int)$USER->id,
+                'contextid'      => (int)$params['contextid'],
                 'cmid'           => $params['cmid'],
                 'idempotencykey' => $idempotencykey,
             ]);
@@ -394,7 +397,7 @@ class ai_confirm_run extends external_api {
             $exec = new executor($registry, $store, $authz);
             $rawresults = $exec->execute_commands(
                 $commandsforrun,
-                $params['cmid'],
+                (int)$params['contextid'],
                 (int)$USER->id,
                 $idempotencykey,
                 $runid
@@ -498,7 +501,7 @@ class ai_confirm_run extends external_api {
 
             foreach ($allbatchitemids as $batchidx => $batchitemid) {
                 if ($batchitemid === $activequeueitemid || $batchitemid === '') {
-                    continue; // already handled above
+                    continue; // Already handled above.
                 }
                 $batchrawresult = is_array($rawresults[$batchidx] ?? null) ? (array)$rawresults[$batchidx] : [];
                 $batchstatus = trim((string)($batchrawresult['status'] ?? ''));
@@ -551,7 +554,7 @@ class ai_confirm_run extends external_api {
                 }
                 $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
                 $runtime = new agent_runtime($registry, $orchestrator, $store, $authz);
-                $finalresult = $runtime->run_loop((int)$params['threadid'], (int)$params['cmid'], (int)$USER->id);
+                $finalresult = $runtime->run_loop((int)$params['threadid'], (int)$params['contextid'], (int)$USER->id);
             } else {
                 $finalresult = [
                     'response_type' => 'sufficient',
@@ -602,7 +605,7 @@ class ai_confirm_run extends external_api {
                             [],
                             $intentkey,
                             (int)$USER->id,
-                            (int)$params['cmid'],
+                            (int)$params['contextid'],
                             [
                                 'queue_item_ids' => [$nextqueueitemid],
                                 'queue_authoritative' => true,
@@ -660,7 +663,11 @@ class ai_confirm_run extends external_api {
                 'privacyapplied' => $privacyapplied,
                 'autoconfirm' => (int)(
                     $responsetype === 'confirmation_request'
-                    && $store->is_confirmation_allowed_for_thread((int)$USER->id, $params['cmid'], (int)$params['threadid'])
+                    && $store->is_confirmation_allowed_for_thread(
+                        (int)$USER->id,
+                        (int)$params['contextid'],
+                        (int)$params['threadid']
+                    )
                     && !$autoconfirmblocked
                 ),
                 'commands' => json_encode($finalresult['commands'] ?? []),

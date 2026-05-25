@@ -85,12 +85,11 @@ class interpreter implements agent_interpreter {
      * Parse and validate raw LLM output.
      *
      * @param string $rawresponse
-     * @param int    $cmid
      * @param int    $userid
      * @param string $lastusermessage
      * @return array
      */
-    public function interpret(string $rawresponse, int $cmid, int $userid, string $lastusermessage = ''): array {
+    public function interpret(string $rawresponse, int $contextid, int $userid, string $lastusermessage = ''): array {
         $this->lastparseissuecode = '';
         $this->lastparseinputexcerpt = '';
 
@@ -220,7 +219,7 @@ class interpreter implements agent_interpreter {
         }
 
         [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedtasks, $issuecodes, $confirmablecommands] =
-            $this->validate_commands($commands, $cmid, $userid);
+            $this->validate_commands($commands, $contextid, $userid);
 
         // Stage 5: Any ambiguity from backend validation stops execution and forces clarification.
         // The confirm button must NEVER appear when unresolved questions remain.
@@ -842,11 +841,10 @@ class interpreter implements agent_interpreter {
      * delegated to agent_decision_service via task->preflight().
      *
      * @param array $commands
-     * @param int $cmid
      * @param int $userid
      * Returns [validated, errors, ambiguities, ambiguityoptions, attemptedtasks, issuecodes, confirmablecommands].
      */
-    private function validate_commands(array $commands, int $cmid, int $userid): array {
+    private function validate_commands(array $commands, int $contextid, int $userid): array {
         $validated = [];
         $seencommandsigs = [];
         $errors = [];
@@ -857,7 +855,6 @@ class interpreter implements agent_interpreter {
         $confirmablecommands = [];
         $commandnumber = 0;
 
-        $contextid = (int)\context_module::instance($cmid)->id;
         $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
         $allowedtasks = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
         $seencommandsigs = [];

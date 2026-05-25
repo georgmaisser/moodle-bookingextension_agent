@@ -24,6 +24,7 @@
 
 namespace bookingextension_agent\task;
 
+use context_module;
 use core\task\adhoc_task;
 use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -38,7 +39,8 @@ use bookingextension_agent\local\wbagent\task_registry;
  * {
  *   "runid":          int,
  *   "userid":         int,
- *   "cmid":           int,
+ *   "contextid":      int,
+ *   "cmid":           int, // backward-compat fallback
  *   "idempotencykey": string
  * }
  *
@@ -66,15 +68,14 @@ class execute_ai_run_adhoc extends adhoc_task {
 
         $runid         = (int)($data->runid ?? 0);
         $userid        = (int)($data->userid ?? 0);
+        $contextid     = (int)($data->contextid ?? 0);
         $cmid          = (int)($data->cmid ?? 0);
         $idempotency   = (string)($data->idempotencykey ?? '');
 
-        if (!$runid || !$userid || !$cmid || !$idempotency) {
+        if (!$runid || !$userid || !$idempotency) {
             mtrace('execute_ai_run_adhoc: invalid task data, aborting.');
             return;
         }
-
-        mtrace("execute_ai_run_adhoc: processing run id={$runid} cmid={$cmid} userid={$userid}");
 
         $store   = new conversation_store();
         $authz   = new authorization_service();
@@ -92,12 +93,29 @@ class execute_ai_run_adhoc extends adhoc_task {
             return;
         }
 
+        if ($contextid <= 0) {
+            $contextid = (int)($run->contextid ?? 0);
+        }
+        if ($contextid <= 0 && $cmid > 0) {
+            $contextid = (int)context_module::instance($cmid)->id;
+        }
+        if ($contextid <= 0) {
+            mtrace('execute_ai_run_adhoc: missing contextid, aborting.');
+            return;
+        }
+
+        if ($cmid <= 0) {
+            $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
+        }
+
+        mtrace("execute_ai_run_adhoc: processing run id={$runid} contextid={$contextid} cmid={$cmid} userid={$userid}");
+
         $store->update_run_status($runid, 'running');
 
         $commands = json_decode($run->commandsjson ?? '[]', true) ?? [];
 
         try {
-            $rawresults = $exec->execute_commands($commands, $cmid, $userid, $idempotency, $runid);
+            $rawresults = $exec->execute_commands($commands, $contextid, $userid, $idempotency, $runid);
             $feedbackservice = new execution_feedback_service($store);
             $feedback = $feedbackservice->build_completion_feedback(
                 (int)$run->threadid,
