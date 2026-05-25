@@ -28,6 +28,7 @@ namespace bookingextension_agent\external;
 
 use context_module;
 use context_system;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -49,27 +50,35 @@ class activate_trial_context extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid' => new external_value(PARAM_INT, 'Course module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
         ]);
     }
 
     /**
      * Enable AI for the related course and module.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @return array
      */
-    public static function execute(int $cmid): array {
+    public static function execute(int $contextid): array {
         global $DB, $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'cmid' => $cmid,
+            'contextid' => $contextid,
         ]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -85,7 +94,7 @@ class activate_trial_context extends external_api {
         $registry = task_registry::make_default();
         $store = new conversation_store();
         $status = (new orchestrator($registry, new interpreter($registry), $store))
-            ->get_runtime_provider_status((int)$params['cmid']);
+            ->get_runtime_provider_status($cmid);
 
         if (empty($status['provideractive'])) {
             return [
@@ -94,9 +103,9 @@ class activate_trial_context extends external_api {
             ];
         }
 
-        $cm = get_coursemodule_from_id('booking', (int)$params['cmid'], 0, false, MUST_EXIST);
+        $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
         $DB->set_field('course', 'enableaitools', 1, ['id' => (int)$cm->course]);
-        $DB->set_field('course_modules', 'enableaitools', 1, ['id' => (int)$params['cmid']]);
+        $DB->set_field('course_modules', 'enableaitools', 1, ['id' => $cmid]);
 
         rebuild_course_cache((int)$cm->course, true);
 

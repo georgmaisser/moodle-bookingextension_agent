@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -53,7 +54,7 @@ class ai_render_command_preview extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid' => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
             'commands' => new external_value(PARAM_RAW, 'JSON encoded commands array.', VALUE_DEFAULT, ''),
             'optionid' => new external_value(
                 PARAM_INT,
@@ -85,7 +86,7 @@ class ai_render_command_preview extends external_api {
     /**
      * Render preview HTML.
      *
-     * @param int $cmid
+    * @param int $contextid
      * @param string $commands
      * @param int $optionid
      * @param string $optionids
@@ -94,7 +95,7 @@ class ai_render_command_preview extends external_api {
      * @return array
      */
     public static function execute(
-        int $cmid,
+        int $contextid,
         string $commands = '',
         int $optionid = 0,
         string $optionids = '[]',
@@ -104,7 +105,7 @@ class ai_render_command_preview extends external_api {
         global $DB, $USER, $OUTPUT, $PAGE;
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'commands' => $commands,
             'optionid' => $optionid,
             'optionids' => $optionids,
@@ -113,7 +114,15 @@ class ai_render_command_preview extends external_api {
         ]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
+    $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -139,11 +148,11 @@ class ai_render_command_preview extends external_api {
             }
         }
 
-        $cm = get_coursemodule_from_id('booking', $params['cmid'], 0, false, MUST_EXIST);
+        $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
         $resolvedoptionid = (int)$params['optionid'];
 
         if ($resolvedoptionid > 0) {
-            $view = new view($params['cmid'], 'showonlyone', $resolvedoptionid);
+            $view = new view($cmid, 'showonlyone', $resolvedoptionid);
             $html = (string)$view->get_rendered_showonlyone_table($resolvedoptionid);
             if (trim($html) === '') {
                 return [
@@ -177,7 +186,7 @@ class ai_render_command_preview extends external_api {
         $limit = max(1, min(50, (int)$params['limit']));
 
         if (!empty($requestedids) || $query !== '' || trim((string)$params['commands']) === '') {
-            $html = self::render_preview_table((int)$params['cmid'], $requestedids, $query, $limit);
+            $html = self::render_preview_table($cmid, $requestedids, $query, $limit);
             if (trim($html) === '') {
                 return [
                     'success' => false,
@@ -323,7 +332,7 @@ class ai_render_command_preview extends external_api {
 
         $htmlparts = [];
         foreach ($existingids as $id) {
-            $view = new view($params['cmid'], 'showonlyone', $id);
+            $view = new view($cmid, 'showonlyone', $id);
             $html = (string)$view->get_rendered_showonlyone_table($id);
             if (trim($html) !== '') {
                 $htmlparts[] = '<div class="booking-ai-preview-item mb-3">' . $html . '</div>';

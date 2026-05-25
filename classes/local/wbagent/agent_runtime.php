@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 use core_text;
+use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\agent_state;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
@@ -204,7 +205,15 @@ class agent_runtime {
      * @return array
      */
     public function run(int $threadid, int $contextid, int $userid): array {
-        $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
+        try {
+            $ctx = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($ctx instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+            $cmid = (int)$ctx->instanceid;
+        } catch (\Throwable $e) {
+            $cmid = (int)context_module::instance($contextid, MUST_EXIST)->instanceid;
+        }
         $result = $this->run_internal($threadid, $cmid, $userid, [], null);
         $this->refresh_pending_queue_retry_state($threadid, $contextid);
         $result = $this->enforce_final_response_contract($result, $threadid);
@@ -358,7 +367,15 @@ class agent_runtime {
      * @return array Final normalized result (one persistent assistant message written).
      */
     public function run_loop(int $threadid, int $contextid, int $userid, int $maxsteps = 0): array {
-        $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
+        try {
+            $ctx = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($ctx instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+            $cmid = (int)$ctx->instanceid;
+        } catch (\Throwable $e) {
+            $cmid = (int)context_module::instance($contextid, MUST_EXIST)->instanceid;
+        }
         $limit = ($maxsteps > 0) ? $maxsteps : self::MAX_LOOP_STEPS;
         $missingcommandsretryused = false;
         $preflightclarificationretryused = false;
@@ -2222,12 +2239,8 @@ class agent_runtime {
             $this->store->set_thread_metadata_value($threadid, $retrykey, $retrycount + 1);
 
             $msg = "RETRY_HINT: CONTRACT_REPAIR_REQUIRED\n"
-                . "OUTPUT_CONTRACT: Return exactly one valid JSON object only.\n"
-                . "OUTPUT_CONTRACT: Do not output markdown or code fences.\n"
-                . "OUTPUT_CONTRACT: Allowed response_type values are "
-                . "task_call, confirmation_request, confirm_pending, clarification, sufficient, error.\n"
-                . "OUTPUT_CONTRACT: For clarification/confirm_pending/sufficient/error set commands=[].\n"
-                . "OUTPUT_CONTRACT: For task_call/confirmation_request set commands as non-empty array.\n"
+                . "OUTPUT_CONTRACT: Follow the NON-OPTIONAL RESPONSE CONTRACT POLICY in the system prompt exactly.\n"
+                . "OUTPUT_CONTRACT: Return exactly one valid JSON object only (no markdown or code fences).\n"
                 . "FALLBACK_IF_UNSURE: Use response_type=clarification with commands=[] and a short message.";
             $retryobservations = array_merge((array)$observations, [$msg]);
             $retryresult = $this->call_orchestrator_step(

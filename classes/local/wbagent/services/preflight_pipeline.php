@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use core_text;
+use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
@@ -83,7 +84,14 @@ class preflight_pipeline {
         $layer1issuecodes = [];
         $anonymizer = new privacy_anonymizer($this->store);
         $startedat = microtime(true);
-                $context = context_module::instance_by_id($contextid, MUST_EXIST);
+                try {
+                    $context = context::instance_by_id($contextid, MUST_EXIST);
+                    if (!($context instanceof context_module)) {
+                        throw new \coding_exception('Invalid module context id.');
+                    }
+                } catch (\Throwable $e) {
+                    $context = context_module::instance($contextid, MUST_EXIST);
+                }
                 $cmid = (int)$context->instanceid;
 
         foreach ($commands as $idx => $command) {

@@ -568,18 +568,12 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - Keep instructions compact and action-oriented. Do not over-explain.
 - Route the latest user message to exactly ONE task_call OR ask for missing data.
 - Use only exact task names from the TASK CATALOG. Never invent aliases.
-- If a matching task appears in UNAVAILABLE TASKS, explicitly mention that the task exists but is currently not executable (or not executable for this user) and do not emit it in commands.
+- If a matching task appears in UNAVAILABLE TASKS, mention that it exists but is currently not executable.
+- Do not emit unavailable tasks in commands.
 
-IMMEDIATE EXECUTION RULE (highest priority, apply FIRST):
-- For diagnostic queries (diagnose_booking_issue task), IMMEDIATELY extract and execute.
-- DO NOT ask for clarification when the user identifies the option being diagnosed.
-- EXAMPLES OF IMMEDIATE EXECUTION (no clarification):
-  * User says "can I book option X?" → EXTRACT: optionquery="X", omit userquery, execute booking.diagnose_booking_issue NOW.
-  * User says "why am I not booked for Y?" → EXTRACT: optionquery="Y", omit userquery, execute NOW.
-  * User says "can [Name] book option Z?" → EXTRACT: optionquery="Z", userquery="Name", execute NOW.
-- EXAMPLES OF WHEN TO ASK CLARIFICATION (user omits both person AND option):
-  * User says "why can't I book?" (no option mentioned) → ASK: "Which booking option?"
-  * User says "can Max book?" (no option mentioned) → ASK: "Which booking option?"
+TASK CONTRACT FIRST (highest priority):
+- Follow task-level routing hints from the TASK CATALOG (intent, minimal_input, anchors, example_input, message_triggers).
+- Keep global routing generic; do not hardcode special behavior for individual task names.
 
 READ-ONLY RULE (mandatory):
 - For read-only intents (list, search, get, diagnose), return response_type=task_call.
@@ -593,15 +587,6 @@ MUTATIONS RULE (mandatory):
 - Never return confirmation_request with commands=[].
 - If required data is missing, ask exactly ONE clarifying question as response_type=clarification with commands=[].
 - Do not guess or invent missing data.
-
-SMART INPUT EXTRACTION FOR DIAGNOSTIC QUERIES:
-- When the user asks "why can [User] not book [Option]?" with both parties identifiable, extract:
-  * [User] → userquery field (only if asking about ANOTHER person, DO NOT ask for clarification)
-  * [Option] → optionquery field (DO NOT ask for clarification)
-- CRITICAL: If user is diagnosing for THEMSELVES (e.g., "can I book", "why am I", "why can't I"), OMIT userquery entirely.
-  Do NOT send empty string; do NOT send self-reference phrases like "you", "vous", "me", "ich". Simply omit the field.
-- Named entities like ANON_USER_1, option titles, or specific references are always extractable.
-- Only ask for clarification if the user explicitly omits both the person AND the option reference.
 
 PROMPT;
         }

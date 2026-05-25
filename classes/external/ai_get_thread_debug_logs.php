@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -50,7 +51,7 @@ class ai_get_thread_debug_logs extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid'     => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
             'threadid' => new external_value(PARAM_INT, 'Thread id.'),
             'limit'    => new external_value(PARAM_INT, 'Maximum number of logs to return (default 100).', VALUE_DEFAULT, 100),
         ]);
@@ -59,21 +60,28 @@ class ai_get_thread_debug_logs extends external_api {
     /**
      * Fetch debug logs for a thread.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @param int $threadid
      * @param int $limit
      * @return array
      */
-    public static function execute(int $cmid, int $threadid, int $limit = 100): array {
+    public static function execute(int $contextid, int $threadid, int $limit = 100): array {
         global $USER;
 
         $params = self::validate_parameters(
             self::execute_parameters(),
-            ['cmid' => $cmid, 'threadid' => $threadid, 'limit' => $limit]
+            ['contextid' => $contextid, 'threadid' => $threadid, 'limit' => $limit]
         );
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);

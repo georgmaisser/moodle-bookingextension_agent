@@ -9,7 +9,7 @@
 
     Example context (json):
     {
-        "cmid": 1,
+        "contextid": 1234,
         "threadid": 0,
         "sesskey": "abc123",
         "ready_for_chat": false,
@@ -26,7 +26,7 @@
         "readiness_checks": []
     }
 }}
-<div id="booking-ai-wrapper" class="booking-ai-instructions" data-cmid="{{cmid}}" data-threadid="{{threadid}}" data-sesskey="{{sesskey}}" data-ready-for-chat="{{#ready_for_chat}}1{{/ready_for_chat}}{{^ready_for_chat}}0{{/ready_for_chat}}" data-num-options="{{num_options}}" data-num-booked="{{num_booked}}" data-debug-mode="{{#debug_mode}}1{{/debug_mode}}{{^debug_mode}}0{{/debug_mode}}" data-trial-success-default="{{#str}}aitrial_success_activated, bookingextension_agent{{/str}}" data-trial-reloading-label="{{#str}}aitrial_js_reloading, bookingextension_agent{{/str}}" data-trial-failed-default="{{#str}}aitrial_js_failed_default, bookingextension_agent{{/str}}" data-trial-unexpected-error="{{#str}}aitrial_js_unexpected_error, bookingextension_agent{{/str}}" data-trial-activation-question="{{#str}}aitrial_activation_question, bookingextension_agent{{/str}}" data-trial-activate-success="{{#str}}aitrial_activate_success, bookingextension_agent{{/str}}" data-trial-activate-button="{{#str}}aitrial_activate_now, bookingextension_agent{{/str}}" data-privacy-check-running="{{#str}}ai_privacy_check_running, bookingextension_agent{{/str}}" data-privacy-answer-note="{{#str}}ai_privacy_response_note, bookingextension_agent{{/str}}" data-ai-trial-token-invalid-title="{{#str}}ai_trial_token_invalid_title, bookingextension_agent{{/str}}" data-ai-trial-token-invalid-message="{{#str}}ai_trial_token_invalid_message, bookingextension_agent{{/str}}" data-ai-trial-token-invalid-ok="{{#str}}ok, moodle{{/str}}" data-step-planning-label="{{#str}}ai_step_planning, bookingextension_agent{{/str}}" data-step-executing-label="{{#str}}ai_step_executing, bookingextension_agent{{/str}}">
+<div id="booking-ai-wrapper" class="booking-ai-instructions" data-contextid="{{contextid}}" data-threadid="{{threadid}}" data-sesskey="{{sesskey}}" data-ready-for-chat="{{#ready_for_chat}}1{{/ready_for_chat}}{{^ready_for_chat}}0{{/ready_for_chat}}" data-num-options="{{num_options}}" data-num-booked="{{num_booked}}" data-debug-mode="{{#debug_mode}}1{{/debug_mode}}{{^debug_mode}}0{{/debug_mode}}" data-trial-success-default="{{#str}}aitrial_success_activated, bookingextension_agent{{/str}}" data-trial-reloading-label="{{#str}}aitrial_js_reloading, bookingextension_agent{{/str}}" data-trial-failed-default="{{#str}}aitrial_js_failed_default, bookingextension_agent{{/str}}" data-trial-unexpected-error="{{#str}}aitrial_js_unexpected_error, bookingextension_agent{{/str}}" data-trial-activation-question="{{#str}}aitrial_activation_question, bookingextension_agent{{/str}}" data-trial-activate-success="{{#str}}aitrial_activate_success, bookingextension_agent{{/str}}" data-trial-activate-button="{{#str}}aitrial_activate_now, bookingextension_agent{{/str}}" data-privacy-check-running="{{#str}}ai_privacy_check_running, bookingextension_agent{{/str}}" data-privacy-answer-note="{{#str}}ai_privacy_response_note, bookingextension_agent{{/str}}" data-ai-trial-token-invalid-title="{{#str}}ai_trial_token_invalid_title, bookingextension_agent{{/str}}" data-ai-trial-token-invalid-message="{{#str}}ai_trial_token_invalid_message, bookingextension_agent{{/str}}" data-ai-trial-token-invalid-ok="{{#str}}ok, moodle{{/str}}" data-step-planning-label="{{#str}}ai_step_planning, bookingextension_agent{{/str}}" data-step-executing-label="{{#str}}ai_step_executing, bookingextension_agent{{/str}}">
 
     {{#ready_for_chat}}
     <div class="booking-ai-chat-container card">
@@ -138,7 +138,7 @@
             <div class="booking-ai-trial-wrap mt-3 mb-3">
                 <button id="booking-ai-trial-btn"
                         class="btn btn-primary btn-lg"
-                        data-cmid="{{cmid}}"
+                        data-contextid="{{contextid}}"
                         data-sesskey="{{sesskey}}">
                     <i class="fa fa-rocket mr-2" aria-hidden="true"></i>
                     {{#str}}aitrial_button_start, bookingextension_agent{{/str}}

@@ -38,6 +38,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Constructor.
      */
     public function __construct() {
+        parent::__construct(true);
     }
 
     /**

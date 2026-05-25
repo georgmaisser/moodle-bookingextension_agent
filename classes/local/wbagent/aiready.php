@@ -132,7 +132,9 @@ class aiready {
                 ]));
                 $haswunderbyteprovider = $hasnativewunderbyteprovider || $haslegacywunderbyteprovider;
 
-                $registry = task_registry::make_default();
+                // Use shared factory fallback so readiness checks stay available
+                // even when strict task-governance blocks full registry boot.
+                $registry = task_registry_factory::get_default();
                 $store = new conversation_store();
                 $interp = new interpreter($registry);
                 $orchestrator = new orchestrator($registry, $interp, $store);
@@ -163,8 +165,8 @@ class aiready {
                     $contextenabled = true;
                 }
             } catch (\Throwable $e) {
-                $providersconfigured = false;
-                $haswunderbyteprovider = false;
+                // Keep provider discovery result if it was already computed and
+                // only mark runtime gates as unavailable for this request.
                 $provideractive = false;
                 $courseenabled = false;
                 $contextenabled = false;
@@ -252,6 +254,7 @@ class aiready {
 
         return [
             'cmid' => $this->cmid,
+            'contextid' => (int)$context->id,
             'threadid' => $threadid,
             'sesskey' => sesskey(),
             'wwwroot' => $CFG->wwwroot,

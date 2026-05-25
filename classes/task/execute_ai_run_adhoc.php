@@ -25,6 +25,7 @@
 namespace bookingextension_agent\task;
 
 use context_module;
+use core\context;
 use core\task\adhoc_task;
 use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -99,7 +100,15 @@ class execute_ai_run_adhoc extends adhoc_task {
             return;
         }
 
-        $cmid = (int)context_module::instance_by_id($contextid, MUST_EXIST)->instanceid;
+        try {
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance($contextid, MUST_EXIST);
+        }
+        $cmid = (int)$context->instanceid;
 
         mtrace("execute_ai_run_adhoc: processing run id={$runid} contextid={$contextid} cmid={$cmid} userid={$userid}");
 

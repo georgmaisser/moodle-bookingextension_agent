@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
@@ -68,7 +69,14 @@ class ai_poll_thread extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), ['contextid' => $contextid, 'threadid' => $threadid]);
 
         $authz = new authorization_service();
-        $context = context_module::instance_by_id((int)$params['contextid'], MUST_EXIST);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
         $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);

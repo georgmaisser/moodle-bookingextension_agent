@@ -25,6 +25,7 @@
 namespace bookingextension_agent\local\wbagent;
 
 use context_module;
+use core\context;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
@@ -99,7 +100,14 @@ class executor implements agent_executor {
          * @return array
          */
     public function execute_commands(array $commands, int $contextid, int $userid, string $idempotencykey, int $runid): array {
-        $context = context_module::instance_by_id($contextid, MUST_EXIST);
+        try {
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance($contextid, MUST_EXIST);
+        }
         $cmid = (int)$context->instanceid;
         // Re-check authorization (always re-verify in adhoc context).
         $this->authz->require_use_capability($userid, $contextid);

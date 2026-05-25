@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
@@ -52,7 +53,7 @@ class booking_bulk_update_options extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid'           => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
             'fields'         => new external_value(
                 PARAM_RAW,
                 'JSON-encoded fields (optionids, optionquery, or apply_to_all=true required).'
@@ -69,22 +70,30 @@ class booking_bulk_update_options extends external_api {
     /**
      * Bulk-update booking options.
      *
-     * @param int    $cmid
+     * @param int    $contextid
      * @param string $fields         JSON-encoded fields.
      * @param string $idempotencykey Optional client-supplied idempotency key.
      * @return array
      */
-    public static function execute(int $cmid, string $fields, string $idempotencykey = ''): array {
+    public static function execute(int $contextid, string $fields, string $idempotencykey = ''): array {
         global $USER, $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'cmid'           => $cmid,
+            'contextid' => $contextid,
             'fields'         => $fields,
             'idempotencykey' => $idempotencykey,
         ]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         require_capability('mod/booking:updatebooking', $context);
@@ -112,7 +121,7 @@ class booking_bulk_update_options extends external_api {
         $dto     = bulk_update_options_input_dto::from_array($fieldsarray);
         $service = new option_mutation_service();
 
-        $validation = $service->validate_bulk_update($dto, $params['cmid']);
+        $validation = $service->validate_bulk_update($dto, $cmid);
         if (!($validation['valid'] ?? false)) {
             $detail = implode('; ', array_merge(
                 array_values((array)($validation['errors'] ?? [])),
@@ -121,7 +130,7 @@ class booking_bulk_update_options extends external_api {
             return ['status' => 'error', 'detail' => $detail, 'resultid' => 0, 'warnings' => []];
         }
 
-        $result = $service->bulk_update_options($dto, $params['cmid'], (int)$USER->id);
+        $result = $service->bulk_update_options($dto, $cmid, (int)$USER->id);
         return [
             'status'   => $result->status,
             'detail'   => $result->detail,

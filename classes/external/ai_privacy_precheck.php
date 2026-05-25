@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -46,7 +47,7 @@ class ai_privacy_precheck extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid' => new external_value(PARAM_INT, 'Course-module id of the booking instance.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id of the booking instance.'),
             'message' => new external_value(PARAM_RAW, 'Raw user message to precheck and sanitize.'),
             'forcenewthread' => new external_value(
                 PARAM_INT,
@@ -60,27 +61,35 @@ class ai_privacy_precheck extends external_api {
     /**
      * Execute privacy precheck.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @param string $message
      * @param int $forcenewthread
      * @return array
      */
-    public static function execute(int $cmid, string $message, int $forcenewthread = 0): array {
+    public static function execute(int $contextid, string $message, int $forcenewthread = 0): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'message' => $message,
             'forcenewthread' => $forcenewthread,
         ]);
-        $cmid = (int)$params['cmid'];
+        $contextid = (int)$params['contextid'];
         $message = trim((string)$params['message']);
         $forcenewthread = (int)$params['forcenewthread'];
 
         $authz = new authorization_service();
-        $context = context_module::instance($cmid);
+        try {
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance($contextid, MUST_EXIST);
+        }
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -100,7 +109,6 @@ class ai_privacy_precheck extends external_api {
         }
 
         $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
-        $contextid = (int)context_module::instance($cmid)->id;
         $store = new conversation_store();
         if ($forcenewthread === 1) {
             $thread = $store->create_fresh_thread((int)$USER->id, $contextid, (int)$cm->instance);

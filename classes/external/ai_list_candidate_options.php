@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
@@ -52,7 +53,7 @@ class ai_list_candidate_options extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid'   => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
             'search' => new external_value(PARAM_TEXT, 'Optional search string to filter options.', VALUE_DEFAULT, ''),
         ]);
     }
@@ -60,22 +61,30 @@ class ai_list_candidate_options extends external_api {
     /**
      * Return booking options.
      *
-     * @param int    $cmid
+     * @param int    $contextid
      * @param string $search
      * @return array
      */
-    public static function execute(int $cmid, string $search = ''): array {
+    public static function execute(int $contextid, string $search = ''): array {
         global $DB, $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['cmid' => $cmid, 'search' => $search]);
+        $params = self::validate_parameters(self::execute_parameters(), ['contextid' => $contextid, 'search' => $search]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
-        $cm = get_coursemodule_from_id('booking', $params['cmid'], 0, false, MUST_EXIST);
+        $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
 
         $searchparam = '%' . $DB->sql_like_escape(trim($params['search'])) . '%';
         $sql = 'SELECT id, text, location, maxanswers, coursestarttime, courseendtime

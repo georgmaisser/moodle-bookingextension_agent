@@ -28,6 +28,7 @@ namespace bookingextension_agent\external;
 
 use core\task\manager as task_manager;
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -100,7 +101,14 @@ class ai_confirm_run extends external_api {
         require_sesskey();
 
         $authz = new authorization_service();
-        $context = context_module::instance_by_id((int)$params['contextid'], MUST_EXIST);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
         $cmid = (int)$context->instanceid;
         $params['cmid'] = $cmid;
         $authz->require_valid_context((int)$context->id);

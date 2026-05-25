@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use context_module;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -52,7 +53,7 @@ class ai_get_doc_content extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid' => new external_value(PARAM_INT, 'Course-module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
             'path' => new external_value(PARAM_PATH, 'Relative path inside booking/docs, e.g. booking_rules/README.md'),
         ]);
     }
@@ -60,17 +61,25 @@ class ai_get_doc_content extends external_api {
     /**
      * Load and render a documentation markdown file.
      *
-     * @param int    $cmid
+     * @param int    $contextid
      * @param string $path  Relative path inside booking/docs.
      * @return array{success:bool, html:string, title:string, error:string}
      */
-    public static function execute(int $cmid, string $path): array {
+    public static function execute(int $contextid, string $path): array {
         global $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['cmid' => $cmid, 'path' => $path]);
+        $params = self::validate_parameters(self::execute_parameters(), ['contextid' => $contextid, 'path' => $path]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
+        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -102,7 +111,7 @@ class ai_get_doc_content extends external_api {
         }
 
         $relativepath = ltrim(str_replace('\\', '/', substr($requested, strlen($docsroot))), '/');
-        $html = self::markdown_to_html($markdown, $relativepath, $params['cmid']);
+        $html = self::markdown_to_html($markdown, $relativepath, (int)$params['contextid']);
 
         return ['success' => true, 'html' => $html, 'title' => $title, 'error' => ''];
     }
@@ -140,10 +149,10 @@ class ai_get_doc_content extends external_api {
      *
      * @param  string $markdown
      * @param  string $currentpath Relative path of the currently rendered markdown doc.
-     * @param  int    $cmid
+    * @param  int    $contextid
      * @return string  Safe HTML.
      */
-    private static function markdown_to_html(string $markdown, string $currentpath, int $cmid): string {
+    private static function markdown_to_html(string $markdown, string $currentpath, int $contextid): string {
         $basedir = trim(str_replace('\\', '/', dirname($currentpath)), '/.');
 
         // Normalise line endings.
@@ -191,7 +200,7 @@ class ai_get_doc_content extends external_api {
                     $tag = $isfirst ? 'th' : 'td';
                     $tablehtml .= '<tr>';
                     foreach ($cells as $cell) {
-                        $tablehtml .= "<{$tag}>" . self::inline_format($cell, $cmid, $basedir) . "</{$tag}>";
+                        $tablehtml .= "<{$tag}>" . self::inline_format($cell, $contextid, $basedir) . "</{$tag}>";
                     }
                     $tablehtml .= '</tr>' . "\n";
                     $isfirst = false;
@@ -204,7 +213,7 @@ class ai_get_doc_content extends external_api {
             // Headings.
             if (preg_match('/^(#{1,4})\s+(.+)$/', $line, $m)) {
                 $level   = strlen($m[1]);
-                $content = self::inline_format($m[2], $cmid, $basedir);
+                $content = self::inline_format($m[2], $contextid, $basedir);
                 $id      = 'doc-' . preg_replace('/[^a-z0-9]+/', '-', strtolower(strip_tags($content)));
                 $html   .= "<h{$level} id=\"{$id}\" class=\"booking-doc-h{$level}\">{$content}</h{$level}>\n";
                 $i++;
@@ -222,7 +231,7 @@ class ai_get_doc_content extends external_api {
             if (preg_match('/^(\s*)([-*])\s+(.+)$/', $line, $m)) {
                 $html .= "<ul class=\"booking-doc-list\">\n";
                 while ($i < $total && preg_match('/^(\s*)([-*])\s+(.+)$/', $lines[$i], $m)) {
-                    $html .= '<li>' . self::inline_format($m[3], $cmid, $basedir) . '</li>' . "\n";
+                    $html .= '<li>' . self::inline_format($m[3], $contextid, $basedir) . '</li>' . "\n";
                     $i++;
                 }
                 $html .= "</ul>\n";
@@ -233,7 +242,7 @@ class ai_get_doc_content extends external_api {
             if (preg_match('/^\d+\.\s+(.+)$/', $line, $m)) {
                 $html .= "<ol class=\"booking-doc-list\">\n";
                 while ($i < $total && preg_match('/^\d+\.\s+(.+)$/', $lines[$i], $m)) {
-                    $html .= '<li>' . self::inline_format($m[1], $cmid, $basedir) . '</li>' . "\n";
+                    $html .= '<li>' . self::inline_format($m[1], $contextid, $basedir) . '</li>' . "\n";
                     $i++;
                 }
                 $html .= "</ol>\n";
@@ -257,7 +266,7 @@ class ai_get_doc_content extends external_api {
                 $i++;
             }
             if ($para !== '') {
-                $html .= '<p class="booking-doc-p">' . self::inline_format($para, $cmid, $basedir) . "</p>\n";
+                $html .= '<p class="booking-doc-p">' . self::inline_format($para, $contextid, $basedir) . "</p>\n";
             }
         }
 
@@ -272,15 +281,15 @@ class ai_get_doc_content extends external_api {
      * so the frontend can load them via the webservice instead of navigating away.
      *
      * @param  string $text
-     * @param  int    $cmid
+    * @param  int    $contextid
      * @param  string $basedir Relative docs directory of the current document.
      * @return string HTML
      */
-    private static function inline_format(string $text, int $cmid, string $basedir = ''): string {
+    private static function inline_format(string $text, int $contextid, string $basedir = ''): string {
         // Links [text](url) — must run before escaping.
         $text = preg_replace_callback(
             '/\[([^\]]+)\]\(([^)]+)\)/',
-            static function (array $m) use ($cmid, $basedir): string {
+            static function (array $m) use ($contextid, $basedir): string {
                 $label = htmlspecialchars(trim($m[1]), ENT_QUOTES, 'UTF-8');
                 $href  = trim($m[2]);
 
@@ -299,11 +308,11 @@ class ai_get_doc_content extends external_api {
                     }
 
                     return '<a href="#" class="booking-doc-link" data-docpath="' . $safepath . '"'
-                        . $fragmentattr . ' data-cmid="' . (int)$cmid . '">' . $label . '</a>';
+                        . $fragmentattr . ' data-contextid="' . (int)$contextid . '">' . $label . '</a>';
                 }
 
                 // Keep non-doc relative links untouched (e.g. /mod/booking/view.php?id=...).
-                $safehref = htmlspecialchars(self::format_non_doc_link($href, $cmid), ENT_QUOTES, 'UTF-8');
+                $safehref = htmlspecialchars(self::format_non_doc_link($href, $contextid), ENT_QUOTES, 'UTF-8');
                 return '<a href="' . $safehref . '">' . $label . '</a>';
             },
             $text
@@ -416,16 +425,26 @@ class ai_get_doc_content extends external_api {
      * such as /mod/booking/editoptions.php?id=<cmid>.
      *
      * @param string $href
-     * @param int $cmid
+     * @param int $contextid
      * @return string
      */
-    private static function format_non_doc_link(string $href, int $cmid): string {
+    private static function format_non_doc_link(string $href, int $contextid): string {
         $raw = trim($href);
         if ($raw === '') {
             return '';
         }
 
-        // Replace documented placeholder with concrete module id from the active preview context.
+        // Replace documented placeholders with concrete identifiers from the active preview context.
+        $raw = preg_replace('/<\s*contextid\s*>/i', (string)$contextid, $raw) ?? $raw;
+        try {
+            $ctx = context::instance_by_id($contextid, MUST_EXIST);
+            if (!($ctx instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+            $cmid = (int)$ctx->instanceid;
+        } catch (\Throwable $e) {
+            $cmid = (int)context_module::instance($contextid, MUST_EXIST)->instanceid;
+        }
         $raw = preg_replace('/<\s*cmid\s*>/i', (string)$cmid, $raw) ?? $raw;
 
         $parts = parse_url($raw);

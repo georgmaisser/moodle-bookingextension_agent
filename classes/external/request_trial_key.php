@@ -29,6 +29,7 @@ namespace bookingextension_agent\external;
 use cache;
 use context_module;
 use context_system;
+use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
@@ -46,27 +47,34 @@ class request_trial_key extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'cmid' => new external_value(PARAM_INT, 'Course module id.'),
+            'contextid' => new external_value(PARAM_INT, 'Module context id.'),
         ]);
     }
 
     /**
      * Generate and cache nonce for trial challenge endpoint.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @return array
      */
-    public static function execute(int $cmid): array {
+    public static function execute(int $contextid): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'cmid' => $cmid,
+            'contextid' => $contextid,
         ]);
 
         $authz = new authorization_service();
-        $context = context_module::instance($params['cmid']);
+        try {
+            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+            if (!($context instanceof context_module)) {
+                throw new \coding_exception('Invalid module context id.');
+            }
+        } catch (\Throwable $e) {
+            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
+        }
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);

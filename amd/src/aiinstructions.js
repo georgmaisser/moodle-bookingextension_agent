@@ -30,7 +30,7 @@ import Templates from 'core/templates';
 let pendingCommands = null;
 let pendingQueueItemId = '';
 let currentThreadId = 0;
-let currentCmid = 0;
+let currentContextId = 0;
 let debugModeEnabled = false;
 let sessionAutoConfirmEnabled = false;
 let privacyCheckRunningLabel = 'Privacy check running...';
@@ -1114,7 +1114,7 @@ const loadDocInPreview = (docpath, fallbackUrl = '', fragment = '') => {
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_get_doc_content',
-        args: {cmid: currentCmid, path: safePath},
+        args: {contextid: currentContextId, path: safePath},
     }])[0].then((resp) => {
         if (resp && resp.success && String(resp.html || '').trim() !== '') {
             const title = String(resp.title || '').trim();
@@ -1436,7 +1436,7 @@ const showConfirmPanel = (message, commands) => {
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_render_command_preview',
         args: {
-            cmid: currentCmid,
+            contextid: currentContextId,
             commands: JSON.stringify(commands),
         },
     }])[0].then((resp) => {
@@ -1457,11 +1457,11 @@ const showConfirmPanel = (message, commands) => {
 /**
  * Render booking option previews in the side preview panel.
  *
- * @param {number} cmid
+ * @param {number} contextid
  * @param {Array<number>} optionIds
  * @returns {Promise<void>}
  */
-const renderOptionPreviewsInline = (cmid, optionIds) => {
+const renderOptionPreviewsInline = (contextid, optionIds) => {
     const uniqueIds = [...new Set((optionIds || []).map((id) => Number(id || 0)).filter((id) => id > 0))].slice(0, 100);
 
     if (uniqueIds.length === 0) {
@@ -1471,7 +1471,7 @@ const renderOptionPreviewsInline = (cmid, optionIds) => {
     return Ajax.call([{
         methodname: 'bookingextension_agent_ai_render_command_preview',
         args: {
-            cmid,
+            contextid,
             optionids: JSON.stringify(uniqueIds),
         },
     }])[0].then((resp) => {
@@ -1795,15 +1795,15 @@ const clearStepBubbles = () => {
  * Call stopStepPolling() to cancel.
  *
  * @param {number} threadid
- * @param {number} cmid
+ * @param {number} contextid
  */
-const startStepPolling = (threadid, cmid) => {
+const startStepPolling = (threadid, contextid) => {
     stopStepPolling();
     lastSeenStepId = 0;
     stepPollInterval = setInterval(() => {
         Ajax.call([{
             methodname: 'bookingextension_agent_ai_poll_thread',
-            args: {cmid, threadid},
+            args: {contextid, threadid},
         }])[0].then((resp) => {
             const messages = Array.isArray(resp.messages) ? resp.messages : [];
             messages.forEach((msg) => {
@@ -1829,13 +1829,13 @@ const startStepPolling = (threadid, cmid) => {
  * Only available in debug mode.
  */
 const refreshThreadDebugLogs = () => {
-    if (!debugModeEnabled || currentThreadId <= 0 || currentCmid <= 0) {
+    if (!debugModeEnabled || currentThreadId <= 0 || currentContextId <= 0) {
         return;
     }
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_get_thread_debug_logs',
-        args: {cmid: currentCmid, threadid: currentThreadId, limit: 100},
+        args: {contextid: currentContextId, threadid: currentThreadId, limit: 100},
     }])[0].then((resp) => {
         let debugLogs = [];
         try {
@@ -1920,8 +1920,8 @@ const stopStepPolling = () => {
  * Resume step polling for the active thread if a thread is available.
  */
 const resumeStepPolling = () => {
-    if (currentThreadId > 0 && currentCmid > 0) {
-        startStepPolling(currentThreadId, currentCmid);
+    if (currentThreadId > 0 && currentContextId > 0) {
+        startStepPolling(currentThreadId, currentContextId);
     }
 };
 
@@ -1959,7 +1959,7 @@ const sendMessage = (message) => {
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_privacy_precheck',
         args: {
-            cmid: currentCmid,
+            contextid: currentContextId,
             message,
             forcenewthread: forceNewThreadOnFirstMessage ? 1 : 0,
         },
@@ -2002,13 +2002,13 @@ const sendMessage = (message) => {
         }
 
         // Start polling for intermediate step updates while the LLM is processing.
-        startStepPolling(currentThreadId, currentCmid);
+        startStepPolling(currentThreadId, currentContextId);
         appendStepBubble(stepPlanningLabel, 0);
 
         return Ajax.call([{
         methodname: 'bookingextension_agent_ai_send_message',
         args: {
-            cmid: currentCmid,
+            contextid: currentContextId,
             message: sanitizedMessage,
             threadid: Number(currentThreadId || 0),
         },
@@ -2052,7 +2052,7 @@ const sendMessage = (message) => {
         // previewoptionidsjson carries the full id list; falls back to scalar + results.
         const earlyPreviewIds = collectPreviewOptionIds(resp, []);
         if (earlyPreviewIds.length > 0) {
-            renderOptionPreviewsInline(currentCmid, earlyPreviewIds);
+            renderOptionPreviewsInline(currentContextId, earlyPreviewIds);
         }
 
         if (resp.response_type === 'clarification' || resp.response_type === 'sufficient' || resp.response_type === 'error') {
@@ -2259,7 +2259,7 @@ const confirmRun = (allowSession = false) => {
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_confirm_run',
         args: {
-            cmid:     currentCmid,
+            contextid: currentContextId,
             threadid: currentThreadId,
             queue_item_id: pendingQueueItemId,
             allow_session: effectiveAllowSession,
@@ -2278,7 +2278,7 @@ const confirmRun = (allowSession = false) => {
             }
             const confirmPreviewIds = collectPreviewOptionIds(resp, []);
             if (confirmPreviewIds.length > 0) {
-                renderOptionPreviewsInline(currentCmid, confirmPreviewIds);
+                renderOptionPreviewsInline(currentContextId, confirmPreviewIds);
             }
             handleConfirmationResponse(resp, 'ai_confirm_run');
         } else {
@@ -2345,7 +2345,7 @@ const requestTrialKey = () => {
 
     Ajax.call([{
         methodname: 'bookingextension_agent_request_trial_key',
-        args: {cmid: Number(ctx.trialBtn.dataset.cmid || 0)},
+        args: {contextid: Number(ctx.trialBtn.dataset.contextid || 0)},
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {
             ctx.trialSpinner.classList.add('d-none');
@@ -2406,7 +2406,13 @@ const activateTrialContext = () => {
 
     Ajax.call([{
         methodname: 'bookingextension_agent_activate_trial_context',
-        args: {cmid: Number((ctx.trialBtn && ctx.trialBtn.dataset.cmid) || (ctx.wrapper && ctx.wrapper.dataset.cmid) || 0)},
+        args: {
+            contextid: Number(
+                (ctx.trialBtn && ctx.trialBtn.dataset.contextid)
+                || (ctx.wrapper && ctx.wrapper.dataset.contextid)
+                || 0
+            ),
+        },
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {
             ctx.trialSpinner.classList.add('d-none');
@@ -2718,7 +2724,7 @@ export const init = (config = null) => {
         }
 
         runtimeConfig = {
-            cmid: Number(wrapper.dataset.cmid || 0),
+            contextid: Number(wrapper.dataset.contextid || 0),
             threadid: Number(wrapper.dataset.threadid || 0),
             ready_for_chat: String(wrapper.dataset.readyForChat || '0') === '1',
             num_options: Number(wrapper.dataset.numOptions || 0),
@@ -2735,7 +2741,7 @@ export const init = (config = null) => {
         };
     }
 
-    currentCmid     = runtimeConfig.cmid || 0;
+    currentContextId = runtimeConfig.contextid || 0;
     currentThreadId = runtimeConfig.threadid || 0;
     debugModeEnabled = Boolean(runtimeConfig.debug_mode);
     privacyCheckRunningLabel = String(runtimeConfig.privacy_check_running || privacyCheckRunningLabel);

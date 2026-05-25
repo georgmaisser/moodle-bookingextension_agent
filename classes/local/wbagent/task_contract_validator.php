@@ -271,6 +271,7 @@ class task_contract_validator {
      */
     public static function component_may_register_namespace(string $component, string $namespace): bool {
         $component = trim(core_text::strtolower($component));
+        $normalizedcomponent = str_replace('/', '_', $component);
         $namespace = trim(core_text::strtolower($namespace));
         if ($component === '' || $namespace === '') {
             return false;
@@ -280,6 +281,6 @@ class task_contract_validator {
             return true;
         }
 
-        return $component === 'bookingextension_agent';
+        return $normalizedcomponent === 'bookingextension_agent';
     }
 }
