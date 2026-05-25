@@ -147,6 +147,7 @@ Gate Phase 0.5:
 - [ ] Externe Entry-Points, Runtime, Orchestrator, Decision-Service, Preflight, Queue, Executor und Task-Interface auf contextid als autoritative Scope-ID umstellen.
   - [x] Zwischenstand: task_interface, base_task, core_task_base, preflight_pipeline und executor verwenden im zentralen Task-Grenzpfad contextid.
   - [x] Zwischenstand: privacy_anonymizer, ai_privacy_precheck, aiready und die threadbezogene Booking-Metadatenablage sprechen den Conversation-Store intern ueber contextid statt direkt ueber cmid an.
+  - [x] Zwischenstand: ai_send_message und ai_confirm_run rufen den agent_runtime loop ueber contextid auf; execute_ai_run_adhoc verwendet im internen Task-Payload keinen cmid-Fallback mehr.
 - [x] Confirmation-Allowance fuer Session-Autoconfirm an userid + contextid binden; threadid bleibt nur Referenz fuer konkrete Konversation und pending_intent.
 - [ ] Thread-, Queue-, Audit-, Guard- und Idempotency-Daten mit contextid fuehren.
 - [ ] Context-Resolution und Capability-Checks ausschliesslich ueber Moodle context API modellieren.
