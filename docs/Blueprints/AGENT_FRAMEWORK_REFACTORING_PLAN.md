@@ -202,12 +202,16 @@ Gate Phase 2.5:
 
 ## Phase 3 - Preflight v2 als einziger Wahrheitskoerper
 - [ ] preflight_pipeline Rueckgabe auf preflight_result_v2-only umstellen.
+  - [x] Zwischenstand: Pipeline liefert keinen `valid`-/`v2_result`-Wrapper mehr, sondern einen flachen v2-Status-Contract plus Pipeline-Metadaten.
 - [ ] Legacy valid/errors/prepared_commands Rueckgabepfade entfernen.
+  - [x] Zwischenstand: Legacy-Felder `valid` und `v2_result` sind entfernt; `errors` und `prepared_commands` bestehen vorerst weiter als Pipeline-Metadaten.
 - [ ] preflight_result_v2 Legacy-Helfer reduzieren.
+  - [x] Zwischenstand: `isvalid`, `get_issue_codes()`, `get_issues_by_severity()` und `has_confirmable_issues()` sind entfernt; die Pipeline liest direkt `status` und `issuecodes`.
 - [ ] Agent-Decision-Queue-Mapping strikt auf v2 status (pass/soft_block/hard_block/retry_hint).
+  - [x] Zwischenstand: `agent_decision_service` mappt Block-/Retry-/Confirm-Entscheidungen direkt aus `status`; die Queue-Entscheidung bekommt denselben v2-Status uebergeben.
 
 Gate Phase 3:
-- [ ] Kein Aufrufer liest mehr Legacy-Felder aus der Pipeline.
+- [x] Kein Aufrufer liest mehr Legacy-Felder aus der Pipeline.
 
 ## Phase 4 - Execution Guard statt zweitem Voll-Preflight
 - [ ] execution_guard token/fingerprint definieren.
