@@ -72,7 +72,7 @@ class preflight_pipeline {
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-    * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issues:array<int,array<string,mixed>>}
+     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issues:array<int,array<string,mixed>>}
      */
     public function run(array $commands, int $threadid, int $contextid, int $userid): array {
         $preparedcommands = [];
@@ -151,7 +151,7 @@ class preflight_pipeline {
 
             $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
             if ($threadid > 0 && $userid > 0) {
-                $input = $anonymizer->deanonymize_command_input_for_active_user($cmid, $userid, $input);
+                $input = $anonymizer->deanonymize_command_input_for_active_user($contextid, $userid, $input);
             }
 
             $preflightresult = $task->preflight($input, $contextid, $userid);

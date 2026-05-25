@@ -28,14 +28,15 @@ use context_module;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 
 /**
  * Dispatches interpreter-validated commands to the appropriate task.
  *
  * Commands reaching execute_commands() are expected to carry prepared_input
- * (resolved by task->preflight() in agent_decision_service).  The executor
- * therefore performs ONLY lightweight structural checks (check_structure) and
- * does NOT re-run DB-dependent validation.
+ * plus a deterministic guard_token for mutating tasks, both produced during
+ * decision-service preflight. The executor therefore performs only lightweight
+ * structural checks plus guard verification and does not re-run DB validation.
  *
  * Enforces idempotency, capability checks, and produces structured per-command
  * results.  Partial success is allowed; no rollback is performed.
@@ -83,8 +84,8 @@ class executor implements agent_executor {
          * Execute a list of validated commands.
          *
          * Commands are expected to carry prepared_input (resolved IDs, normalised values)
-         * produced by task->preflight() in agent_decision_service.
-         * The executor MUST NOT repeat DB-resolution logic.
+         * and, for mutating tasks, a guard_token produced during decision-service
+         * preflight. The executor MUST NOT repeat DB-resolution logic.
          *
          * @param array  $commands
          * @param int    $contextid
@@ -149,7 +150,7 @@ class executor implements agent_executor {
             }
 
             // Lightweight structural guard only — no DB access.
-            // Deep validation was already performed by task->preflight() in agent_decision_service.
+            // Deep validation already happened in decision-service preflight.
             $structural = $task->check_structure($input);
             if (!($structural['valid'] ?? true)) {
                 $detail = implode('; ', (array)($structural['errors'] ?? []));
@@ -165,26 +166,28 @@ class executor implements agent_executor {
                 continue;
             }
 
-            // Re-validate domain state immediately before execution for mutating tasks.
-            // Domain-state may have changed during the confirmation window (up to 900 s),
-            // so we re-run the same preflight the decision service used at plan time.
-            // Read-only tasks are always safe to re-execute and are skipped here.
             if (!$task->is_read_only()) {
-                $executeresult = $task->preflight($input, $contextid, $userid);
-                if ($executeresult->status === 'hard_block') {
-                    $issuecodes = $executeresult->issuecodes;
+                $guardtoken = trim((string)($cmd['guard_token'] ?? ''));
+                if ($guardtoken === '') {
                     $results[] = [
                         'status' => 'error',
-                        'detail' => 'Pre-execute preflight failed: ' . implode(', ', $issuecodes),
-                        'issue_codes' => $issuecodes,
+                        'detail' => 'Execution guard missing for mutating command.',
+                        'issue_codes' => ['EXECUTION_GUARD_MISSING'],
                         'resultid' => null,
                         'task' => $taskname,
                     ];
                     continue;
                 }
-                // Use the freshly resolved input from re-validation.
-                if (!empty($executeresult->preparedinput) && is_array($executeresult->preparedinput)) {
-                    $input = $executeresult->preparedinput;
+
+                if (!preflight_execution_gate::verify_guard_token($guardtoken, (string)$taskname, $contextid, $input)) {
+                    $results[] = [
+                        'status' => 'error',
+                        'detail' => 'Execution guard mismatch for mutating command.',
+                        'issue_codes' => ['EXECUTION_GUARD_MISMATCH'],
+                        'resultid' => null,
+                        'task' => $taskname,
+                    ];
+                    continue;
                 }
             }
 

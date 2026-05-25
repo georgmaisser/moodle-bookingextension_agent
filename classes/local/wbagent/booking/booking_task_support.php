@@ -80,6 +80,20 @@ class booking_task_support {
     }
 
     /**
+     * Resolve booking module context id from a course-module id.
+     *
+     * @param int $cmid
+     * @return int
+     */
+    private static function resolve_contextid_from_cmid(int $cmid): int {
+        if ($cmid <= 0) {
+            return 0;
+        }
+
+        return (int)context_module::instance($cmid, MUST_EXIST)->id;
+    }
+
+    /**
      * Return the task names this provider handles.
      *
      * @return string[]
@@ -2460,7 +2474,7 @@ class booking_task_support {
         global $DB;
 
         $store = new conversation_store();
-        $thread = $store->get_active_thread($userid, $cmid);
+        $thread = $store->get_active_thread($userid, self::resolve_contextid_from_cmid($cmid));
         if (!$thread) {
             return null;
         }
@@ -2498,7 +2512,7 @@ class booking_task_support {
         }
 
         $store = new conversation_store();
-        $thread = $store->get_or_create_thread($userid, $cmid, $bookingid);
+        $thread = $store->get_or_create_thread($userid, self::resolve_contextid_from_cmid($cmid), $bookingid);
         $store->set_thread_metadata_value((int)$thread->id, 'lastworkedoptionid', $optionid);
         $store->set_thread_metadata_value((int)$thread->id, 'lastworkedoptionts', time());
     }
@@ -2518,7 +2532,7 @@ class booking_task_support {
         }
 
         $store = new conversation_store();
-        $thread = $store->get_active_thread($userid, $cmid);
+        $thread = $store->get_active_thread($userid, self::resolve_contextid_from_cmid($cmid));
         if (!$thread) {
             return [];
         }
@@ -2571,7 +2585,11 @@ class booking_task_support {
         }
 
         $store = new conversation_store();
-        $thread = $store->get_or_create_thread($userid, $cmid, (int)$cm->instance);
+        $thread = $store->get_or_create_thread(
+            $userid,
+            self::resolve_contextid_from_cmid($cmid),
+            (int)$cm->instance
+        );
         $store->set_thread_metadata_value((int)$thread->id, self::LAST_PREVIEW_OPTION_IDS_METADATA_KEY, $normalizedids);
         $store->set_thread_metadata_value((int)$thread->id, 'lastpreviewoptionsts', time());
     }

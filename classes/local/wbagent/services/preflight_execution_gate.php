@@ -79,4 +79,64 @@ class preflight_execution_gate {
             0
         );
     }
+
+    /**
+     * Build a deterministic guard token for prepared mutating input.
+     *
+     * @param string $taskname
+     * @param int $contextid
+     * @param array<string,mixed> $preparedinput
+     * @return string
+     */
+    public static function build_guard_token(string $taskname, int $contextid, array $preparedinput): string {
+        $normalized = self::normalize_for_guard($preparedinput);
+        $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return hash('sha256', trim($taskname) . ':' . max(0, $contextid) . ':' . (string)$json);
+    }
+
+    /**
+     * Verify that a guard token still matches task, context and prepared input.
+     *
+     * @param string $guardtoken
+     * @param string $taskname
+     * @param int $contextid
+     * @param array<string,mixed> $preparedinput
+     * @return bool
+     */
+    public static function verify_guard_token(
+        string $guardtoken,
+        string $taskname,
+        int $contextid,
+        array $preparedinput
+    ): bool {
+        $guardtoken = trim($guardtoken);
+        if ($guardtoken === '') {
+            return false;
+        }
+
+        return hash_equals($guardtoken, self::build_guard_token($taskname, $contextid, $preparedinput));
+    }
+
+    /**
+     * Normalize input recursively for stable guard hashing.
+     *
+     * @param mixed $value
+     * @return mixed
+     */
+    private static function normalize_for_guard($value) {
+        if (is_array($value)) {
+            if (array_is_list($value)) {
+                return array_map(fn($entry) => self::normalize_for_guard($entry), $value);
+            }
+            ksort($value);
+            foreach ($value as $key => $entry) {
+                $value[$key] = self::normalize_for_guard($entry);
+            }
+            return $value;
+        }
+        if (is_string($value)) {
+            return trim($value);
+        }
+        return $value;
+    }
 }

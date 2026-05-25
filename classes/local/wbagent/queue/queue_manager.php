@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\queue;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 
 /**
  * Shadow queue manager for queue status tracking.
@@ -102,6 +103,7 @@ class queue_manager {
                 'task' => trim((string)($command['task'] ?? '')),
                 'input' => is_array($command['input'] ?? null) ? (array)$command['input'] : [],
                 'prepared_input' => null,
+                'guard_token' => '',
                 'input_signature' => '',
                 'mutability' => $mutability,
                 'depends_on' => $dependson,
@@ -151,6 +153,7 @@ class queue_manager {
             'version' => max(1, (int)($command['version'] ?? 1)),
             'input' => $input,
             'prepared_input' => null,
+            'guard_token' => '',
             'input_signature' => $signature,
             'mutability' => $mutability,
             'depends_on' => $dependson,
@@ -277,10 +280,11 @@ class queue_manager {
      *
      * @param int $threadid
      * @param string $queueitemid
+     * @param int $contextid
      * @param array<string,mixed> $preparedinput
      * @return void
      */
-    public function set_prepared_input(int $threadid, string $queueitemid, array $preparedinput): void {
+    public function set_prepared_input(int $threadid, string $queueitemid, int $contextid, array $preparedinput): void {
         $items = $this->get_queue_items($threadid);
         $now = time();
         foreach ($items as &$item) {
@@ -288,6 +292,10 @@ class queue_manager {
                 continue;
             }
             $item['prepared_input'] = $preparedinput;
+            $taskname = trim((string)($item['task'] ?? ''));
+            $item['guard_token'] = $taskname !== ''
+                ? preflight_execution_gate::build_guard_token($taskname, $contextid, $preparedinput)
+                : '';
             $item['updated_at'] = $now;
             break;
         }
@@ -342,7 +350,7 @@ class queue_manager {
 
             // Lock the thread row so concurrent callers serialise behind this transaction.
             // FOR UPDATE is supported on MySQL/MariaDB and PostgreSQL; skip on MSSQL.
-            $forupdate = !in_array($DB->get_dbtype(), ['sqlsrv', 'odbc_mssql'], true) ? ' FOR UPDATE' : '';
+            $forupdate = $DB->get_dbfamily() !== 'mssql' ? ' FOR UPDATE' : '';
             $thread = $DB->get_record_sql(
                 "SELECT id, metadatajson FROM {local_wbagent_ai_threads} WHERE id = :id{$forupdate}",
                 ['id' => $threadid]

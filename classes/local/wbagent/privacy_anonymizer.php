@@ -187,19 +187,19 @@ class privacy_anonymizer {
     /**
      * De-anonymize command input using the active user thread in a booking context.
      *
-     * Useful during validation where only cmid/userid is available.
+     * Useful during validation where only contextid/userid is available.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $input
      * @return array
      */
-    public function deanonymize_command_input_for_active_user(int $cmid, int $userid, array $input): array {
-        if ($this->get_mode() === self::MODE_OFF || $cmid <= 0 || $userid <= 0) {
+    public function deanonymize_command_input_for_active_user(int $contextid, int $userid, array $input): array {
+        if ($this->get_mode() === self::MODE_OFF || $contextid <= 0 || $userid <= 0) {
             return $input;
         }
 
-        $thread = $this->store->get_active_thread($userid, $cmid);
+        $thread = $this->store->get_active_thread($userid, $contextid);
         if (!$thread || empty($thread->id)) {
             return $input;
         }

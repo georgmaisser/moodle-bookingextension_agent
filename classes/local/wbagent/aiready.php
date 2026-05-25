@@ -176,7 +176,7 @@ class aiready {
 
         if ($readyforchat) {
             $store = new conversation_store();
-            $thread = $store->get_or_create_thread($this->userid, $this->cmid, $this->bookingid);
+            $thread = $store->get_or_create_thread($this->userid, (int)$context->id, $this->bookingid);
             $threadid = (int)$thread->id;
         }
 

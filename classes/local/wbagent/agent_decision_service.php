@@ -734,8 +734,18 @@ class agent_decision_service {
             if ($queueitemid === '' || empty($preparedinput)) {
                 continue;
             }
-            $this->queuesvc->set_prepared_input($threadid, $queueitemid, $preparedinput);
+            $this->queuesvc->set_prepared_input(
+                $threadid,
+                $queueitemid,
+                (int)\context_module::instance($cmid)->id,
+                $preparedinput
+            );
         }
+
+        $preparedcommands = $this->apply_execution_guard_tokens(
+            $preparedcommands,
+            (int)\context_module::instance($cmid)->id
+        );
 
         $confirmmessage = $this->localized_string('ai_confirm_pending_intent', 'bookingextension_agent', null, $outputlang);
         $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($preparedcommands));
@@ -1253,9 +1263,19 @@ class agent_decision_service {
             $queueitemid = trim((string)($queueitemids[$idx] ?? ''));
             $preparedinput = is_array($preparedcommand['input'] ?? null) ? (array)$preparedcommand['input'] : [];
             if ($queueitemid !== '' && !empty($preparedinput)) {
-                $this->queuesvc->set_prepared_input($threadid, $queueitemid, $preparedinput);
+                $this->queuesvc->set_prepared_input(
+                    $threadid,
+                    $queueitemid,
+                    (int)\context_module::instance($cmid)->id,
+                    $preparedinput
+                );
             }
         }
+
+        $preparedcommands = $this->apply_execution_guard_tokens(
+            $preparedcommands,
+            (int)\context_module::instance($cmid)->id
+        );
 
         // If there were blocking errors, decide whether to allow confirmable continuation.
         if ($status !== 'pass') {
@@ -1490,6 +1510,42 @@ class agent_decision_service {
         return $commands;
     }
 
+    /**
+     * Attach deterministic execution guard tokens to mutating prepared commands.
+     *
+     * @param array<int,array<string,mixed>> $commands
+     * @param int $contextid
+     * @return array<int,array<string,mixed>>
+     */
+    private function apply_execution_guard_tokens(array $commands, int $contextid): array {
+        foreach ($commands as &$command) {
+            if (!is_array($command)) {
+                continue;
+            }
+
+            $taskname = trim((string)($command['task'] ?? ''));
+            if ($taskname === '') {
+                continue;
+            }
+
+            $task = $this->registry->get_task($taskname);
+            if ($task === null || $task->is_read_only()) {
+                unset($command['guard_token']);
+                continue;
+            }
+
+            $preparedinput = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+            $command['guard_token'] = \bookingextension_agent\local\wbagent\services\preflight_execution_gate::build_guard_token(
+                $taskname,
+                $contextid,
+                $preparedinput
+            );
+        }
+        unset($command);
+
+        return $commands;
+    }
+
     // -------------------------------------------------------------------------
     // Private: read-only command execution.
 
@@ -1522,7 +1578,11 @@ class agent_decision_service {
                     continue;
                 }
                 $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-                $command['input'] = $anonymizer->deanonymize_command_input_for_active_user($cmid, $userid, $input);
+                $command['input'] = $anonymizer->deanonymize_command_input_for_active_user(
+                    (int)\context_module::instance($cmid)->id,
+                    $userid,
+                    $input
+                );
             }
             unset($command);
         }

@@ -351,6 +351,10 @@ class ai_send_message extends external_api {
             'version' => max(1, (int)($item['version'] ?? 1)),
             'input' => $input,
         ];
+        $guardtoken = trim((string)($item['guard_token'] ?? ''));
+        if ($guardtoken !== '') {
+            $command['guard_token'] = $guardtoken;
+        }
         $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
         if (!empty($dependson)) {
             $command['depends_on'] = $dependson;

@@ -588,6 +588,10 @@ class ai_confirm_run extends external_api {
                             'version' => max(1, (int)($nextqueueitem['version'] ?? 1)),
                             'input' => $nextinput,
                         ];
+                        $nextguardtoken = trim((string)($nextqueueitem['guard_token'] ?? ''));
+                        if ($nextguardtoken !== '') {
+                            $nextcommand['guard_token'] = $nextguardtoken;
+                        }
                         $nextdependson = array_values(array_filter(array_map(
                             'strval',
                             (array)($nextqueueitem['depends_on'] ?? [])
@@ -1240,6 +1244,10 @@ class ai_confirm_run extends external_api {
                         'version' => max(1, (int)($item['version'] ?? 1)),
                         'input' => $input,
                     ];
+                    $guardtoken = trim((string)($item['guard_token'] ?? ''));
+                    if ($guardtoken !== '') {
+                        $command['guard_token'] = $guardtoken;
+                    }
                     $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
                     if (!empty($dependson)) {
                         $command['depends_on'] = $dependson;
