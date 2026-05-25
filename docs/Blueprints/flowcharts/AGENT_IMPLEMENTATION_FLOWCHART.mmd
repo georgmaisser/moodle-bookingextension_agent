@@ -138,7 +138,9 @@ flowchart TD
         EXC["executor::execute_commands(\n  commands, cmid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
         EXC_EVAL["task_executability_evaluator\n::evaluate_task(taskname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
-        EXC_PREFLIGHT["task::preflight(input, cmid, userid)\n[Pre-execute re-validation — mutating only\nDomain state may have changed during confirmation window]"]\n        EXC_PF_OK{"preflight\npass?"}\n        EXC_RUN["task::execute(prepared_input, cmid, userid)\n→ result payload"]
+        EXC_PREFLIGHT["task::preflight(input, cmid, userid)\n[Pre-execute re-validation — mutating only\nDomain state may have changed during confirmation window]"]
+        EXC_PF_OK{"preflight\npass?"}
+        EXC_RUN["task::execute(prepared_input, cmid, userid)\n→ result payload"]
         EXC_SUCC["status: succeeded\n→ result / follow-up suggestions"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
         EXC_CONTRACT["contract repair\nCONTRACT issue codes\n→ new queue entry with depends_on"]
