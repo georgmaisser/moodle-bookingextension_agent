@@ -154,7 +154,7 @@ class preflight_pipeline {
                 $input = $anonymizer->deanonymize_command_input_for_active_user($cmid, $userid, $input);
             }
 
-            $preflightresult = $task->preflight($input, $cmid, $userid);
+            $preflightresult = $task->preflight($input, $contextid, $userid);
             foreach ($preflightresult->get_issue_codes() as $code) {
                 if ($code !== '') {
                     $issuecodes[] = $code;

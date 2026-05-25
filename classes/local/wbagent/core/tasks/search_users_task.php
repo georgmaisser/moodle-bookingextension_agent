@@ -26,7 +26,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class search_users_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class search_users_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
     public const TASK_NAME = 'booking.search_users';
 
@@ -124,7 +124,6 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function check_structure(array $input): array {
@@ -145,11 +144,11 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+    * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
         $query = trim((string)($input['query'] ?? ''));
         $question = trim((string)($input['question'] ?? ''));
         $outputlang = $this->get_output_language($input);

@@ -170,7 +170,7 @@ class executor implements agent_executor {
             // so we re-run the same preflight the decision service used at plan time.
             // Read-only tasks are always safe to re-execute and are skipped here.
             if (!$task->is_read_only()) {
-                $executeresult = $task->preflight($input, $cmid, $userid);
+                $executeresult = $task->preflight($input, $contextid, $userid);
                 if ($executeresult->status === 'hard_block') {
                     $issuecodes = $executeresult->issuecodes;
                     $results[] = [
@@ -188,7 +188,7 @@ class executor implements agent_executor {
                 }
             }
 
-            $result = $task->execute($input, $cmid, $userid);
+            $result = $task->execute($input, $contextid, $userid);
             if (is_array($result) && !isset($result['task'])) {
                 $result['task'] = $taskname;
             }

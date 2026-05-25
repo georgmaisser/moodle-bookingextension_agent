@@ -84,11 +84,11 @@ abstract class base_task implements task_interface {
      * Default deep preflight keeps input unchanged after structure checks pass.
      *
      * @param  array $input
-     * @param  int   $cmid
+     * @param  int   $contextid
      * @param  int   $userid
      * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
         $structure = $this->check_structure($input);
         if (!($structure['valid'] ?? true)) {
             $issues = [];

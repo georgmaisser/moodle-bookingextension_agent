@@ -17,14 +17,137 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use context_course;
+use bookingextension_agent\local\wbagent\base_task;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
  * Shared helper base for core Moodle data tasks.
  *
  * @package    bookingextension_agent
+ * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-abstract class core_task_base extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base {
+abstract class core_task_base extends base_task {
+    /**
+     * Resolve preferred output language from task input.
+     *
+     * @param array $input
+     * @return string
+     */
+    protected function get_output_language(array $input): string {
+        foreach (['outputlang', 'user_lang', 'lang'] as $key) {
+            $value = trim((string)($input[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Resolve a plugin-localised string in the requested language.
+     *
+     * @param string $identifier
+     * @param mixed $a
+     * @param string $lang
+     * @return string
+     */
+    protected function localized_string(string $identifier, $a = null, string $lang = ''): string {
+        $lang = trim($lang);
+        if ($lang === '') {
+            return get_string($identifier, 'bookingextension_agent', $a);
+        }
+
+        return get_string_manager()->get_string($identifier, 'bookingextension_agent', $a, $lang);
+    }
+
+    /**
+     * Build a compact deterministic debug message for task results.
+     *
+     * @param string $taskname
+     * @param array $input
+     * @param array $additionallines
+     * @return string
+     */
+    protected function build_task_debug_message(string $taskname, array $input, array $additionallines = []): string {
+        $lines = ['Task: ' . $taskname];
+
+        if (!empty($input)) {
+            $debugpairs = [];
+            foreach ($input as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+                $debugpairs[] = $key . '=' . $this->stringify_debug_value($value);
+            }
+            if (!empty($debugpairs)) {
+                $lines[] = 'Input: ' . implode(', ', $debugpairs);
+            }
+        }
+
+        foreach ($additionallines as $line) {
+            $line = trim((string)$line);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Add compact prompt metadata to a schema when the task does not declare it explicitly.
+     *
+     * @param array<string,mixed> $schema
+     * @return array<string,mixed>
+     */
+    protected function enrich_schema_with_prompt_meta(array $schema): array {
+        if (!empty($schema['prompt_meta']) && is_array($schema['prompt_meta'])) {
+            return $schema;
+        }
+
+        $properties = (array)($schema['properties'] ?? []);
+        $requiredfields = [];
+        foreach ($properties as $name => $spec) {
+            if (!is_string($name) || !is_array($spec)) {
+                continue;
+            }
+            if (!empty($spec['required'])) {
+                $requiredfields[] = $name;
+            }
+        }
+
+        $anchorfields = [];
+        foreach (['query', 'question', 'optionquery', 'userquery', 'coursequery', 'groupquery'] as $field) {
+            if (array_key_exists($field, $properties)) {
+                $anchorfields[] = $field;
+            }
+        }
+
+        $schema['prompt_meta'] = [
+            'input_fields_for_prompt' => array_values($requiredfields),
+            'anchor_fields' => array_values($anchorfields),
+        ];
+
+        return $schema;
+    }
+
+    /**
+     * Convert an arbitrary value into a stable short debug string.
+     *
+     * @param mixed $value
+     * @return string
+     */
+    private function stringify_debug_value($value): string {
+        if (is_scalar($value) || $value === null) {
+            return var_export($value, true);
+        }
+
+        $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return $encoded !== false ? $encoded : '[complex]';
+    }
+
     /**
      * Resolve user id from optional userquery.
      *
@@ -66,7 +189,10 @@ abstract class core_task_base extends \bookingextension_agent\local\wbagent\book
             return (int)$query;
         }
 
-        $matches = \bookingextension_agent\local\wbagent\booking\booking_task_support::search_course_candidates_for_preview($query, 2);
+        $matches = \bookingextension_agent\local\wbagent\booking\booking_task_support::search_course_candidates_for_preview(
+            $query,
+            2
+        );
         if (count($matches) === 1) {
             return (int)($matches[0]['courseid'] ?? 0);
         }
@@ -142,11 +268,11 @@ abstract class core_task_base extends \bookingextension_agent\local\wbagent\book
      * overrides in each task file.
      *
      * @param array $input
-     * @param int   $cmid
+     * @param int   $contextid
      * @param int   $userid
      * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2 {
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
         $structure = $this->check_structure($input);
         if (!($structure['valid'] ?? false)) {
             $issues = [];

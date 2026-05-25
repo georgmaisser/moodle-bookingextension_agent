@@ -27,7 +27,7 @@ use bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class recreate_task_catalog_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class recreate_task_catalog_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
     public const TASK_NAME = 'booking.recreate_task_catalog';
 
@@ -63,7 +63,10 @@ class recreate_task_catalog_task extends \bookingextension_agent\local\wbagent\b
             'properties' => [
                 'force' => [
                     'type' => 'boolean',
-                    'description' => 'If true, force regeneration for all task embeddings (skip incremental reuse). Don\'t set if we talk of update or newly added tasks only.',
+                    'description' => 'If true, force regeneration for all task embeddings '
+                        . '(skip incremental reuse). '
+                        . 'Don\'t set if we talk of update '
+                        . 'or newly added tasks only.',
                     'required' => false,
                 ],
                 'model' => [
@@ -104,7 +107,6 @@ class recreate_task_catalog_task extends \bookingextension_agent\local\wbagent\b
      * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function check_structure(array $input): array {
@@ -128,11 +130,11 @@ class recreate_task_catalog_task extends \bookingextension_agent\local\wbagent\b
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+    * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
         $force = !empty($input['force']);
         $model = trim((string)($input['model'] ?? ''));
         $dimensions = isset($input['dimensions']) ? (int)$input['dimensions'] : 0;

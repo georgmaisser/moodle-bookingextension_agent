@@ -24,6 +24,7 @@
 
 namespace bookingextension_agent\local\wbagent\booking;
 
+use context_module;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\task_discovery;
@@ -198,7 +199,8 @@ class booking_task_support {
     public function execute(string $taskname, array $input, int $cmid, int $userid): array {
         $task = $this->get_task_instances()[$taskname] ?? null;
         if ($task) {
-            return $task->execute($input, $cmid, $userid);
+            $contextid = (int)context_module::instance($cmid, MUST_EXIST)->id;
+            return $task->execute($input, $contextid, $userid);
         }
 
         return [

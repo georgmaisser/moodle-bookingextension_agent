@@ -81,11 +81,11 @@ interface task_interface {
      * prepared_input carries resolved IDs and normalised values ready for execute().
      *
      * @param  array $input   Input that has already passed check_structure().
-     * @param  int   $cmid    Course-module ID.
+     * @param  int   $contextid Moodle context ID.
      * @param  int   $userid  Executing user ID.
      * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): preflight_result_v2;
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2;
 
     /**
      * Execute the task.
@@ -95,11 +95,11 @@ interface task_interface {
      * resolution logic already done in preflight().
      *
      * @param  array $preparedinput  Resolved, normalised input from preflight().
-     * @param  int   $cmid
+     * @param  int   $contextid
      * @param  int   $userid
      * @return array
      */
-    public function execute(array $preparedinput, int $cmid, int $userid): array;
+    public function execute(array $preparedinput, int $contextid, int $userid): array;
 
     /**
      * Whether the task is read-only and can be auto-executed.

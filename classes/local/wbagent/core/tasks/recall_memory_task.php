@@ -26,7 +26,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class recall_memory_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class recall_memory_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
     public const TASK_NAME = 'booking.recall_memory';
 
@@ -90,7 +90,6 @@ class recall_memory_task extends \bookingextension_agent\local\wbagent\booking\t
      * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function check_structure(array $input): array {
@@ -140,11 +139,11 @@ class recall_memory_task extends \bookingextension_agent\local\wbagent\booking\t
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+    * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
         $store = new conversation_store();
         $mode = trim((string)($input['mode'] ?? 'last_thread'));
         $query = trim((string)($input['query'] ?? ''));
@@ -156,7 +155,7 @@ class recall_memory_task extends \bookingextension_agent\local\wbagent\booking\t
         $messages = [];
 
         if ($mode === 'last_thread') {
-            $thread = $store->get_last_thread_for_user($userid, $cmid);
+            $thread = $store->get_last_thread_for_user($userid, $contextid);
             $threadid = (int)($thread->id ?? 0);
             if ($threadid > 0) {
                 $messages = $store->get_user_messages_for_thread($userid, $threadid, null, null, $query);
@@ -179,7 +178,7 @@ class recall_memory_task extends \bookingextension_agent\local\wbagent\booking\t
 
             $fromtimestamp = (int)$window['from_timestamp'];
             $totimestamp = (int)$window['to_timestamp'];
-            $threadids = $store->get_user_threads_by_date_window($userid, $cmid, $fromtimestamp, $totimestamp);
+            $threadids = $store->get_user_threads_by_date_window($userid, $contextid, $fromtimestamp, $totimestamp);
             foreach ($threadids as $candidateid) {
                 $threadmessages = $store->get_user_messages_for_thread(
                     $userid,

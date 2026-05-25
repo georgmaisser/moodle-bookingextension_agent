@@ -147,18 +147,17 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+    * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
         $question = trim((string)($input['question'] ?? ''));
         $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $actions = [];
         $selectedtasknames = [];
         $registry = task_registry_factory::get_default();
-        $contextid = (int)context_module::instance($cmid)->id;
         $evaluator = new task_executability_evaluator($registry, new authorization_service());
         foreach ($registry->get_task_names_for_context($evaluator, $userid, $contextid) as $name) {
             if ($scope === 'readonly' && !$registry->is_read_only_task($name)) {
