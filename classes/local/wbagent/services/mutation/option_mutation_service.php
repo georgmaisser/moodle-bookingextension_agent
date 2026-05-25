@@ -26,10 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\mutation;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
-use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\bulk_update_options_task;
 use bookingextension_agent\local\wbagent\dto\create_option_input_dto;
 use bookingextension_agent\local\wbagent\dto\update_option_input_dto;
 use bookingextension_agent\local\wbagent\dto\bulk_update_options_input_dto;
@@ -54,7 +50,11 @@ class option_mutation_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function validate_create(create_option_input_dto $dto, int $cmid): array {
-        return (new booking_task_support())->check_structure(create_option_task::TASK_NAME, $dto->to_array(), $cmid);
+        return [
+            'valid' => false,
+            'errors' => [get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.create_option')],
+            'ambiguities' => [],
+        ];
     }
 
     /**
@@ -65,7 +65,11 @@ class option_mutation_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function validate_update(update_option_input_dto $dto, int $cmid): array {
-        return (new booking_task_support())->check_structure(update_option_task::TASK_NAME, $dto->to_array(), $cmid);
+        return [
+            'valid' => false,
+            'errors' => [get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.update_option')],
+            'ambiguities' => [],
+        ];
     }
 
     /**
@@ -76,7 +80,11 @@ class option_mutation_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function validate_bulk_update(bulk_update_options_input_dto $dto, int $cmid): array {
-        return (new booking_task_support())->check_structure(bulk_update_options_task::TASK_NAME, $dto->to_array(), $cmid);
+        return [
+            'valid' => false,
+            'errors' => [get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.bulk_update_options')],
+            'ambiguities' => [],
+        ];
     }
 
     /**
@@ -88,8 +96,7 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function create_option(create_option_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        $result = (new booking_task_support())->execute(create_option_task::TASK_NAME, $dto->to_array(), $cmid, $userid);
-        return $this->map_result($result);
+        return mutation_result_dto::error(get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.create_option'));
     }
 
     /**
@@ -101,8 +108,7 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function update_option(update_option_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        $result = (new booking_task_support())->execute(update_option_task::TASK_NAME, $dto->to_array(), $cmid, $userid);
-        return $this->map_result($result);
+        return mutation_result_dto::error(get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.update_option'));
     }
 
     /**
@@ -114,32 +120,6 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function bulk_update_options(bulk_update_options_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        $result = (new booking_task_support())->execute(bulk_update_options_task::TASK_NAME, $dto->to_array(), $cmid, $userid);
-        return $this->map_result($result);
-    }
-
-    /**
-     * Map a raw booking_task_support result array to a mutation_result_dto.
-     *
-     * Expected keys in $result:
-     *   - 'status'           string  'executed' or 'error'
-     *   - 'detail'           string  Human-readable message
-     *   - 'resultid'         int     Created/updated option id (or null)
-     *   - 'warnings'         array   Warning strings (optional)
-     *   - 'previewoptionids' array   Preview option ids (optional)
-     *
-     * @param array $result Raw result from booking_task_support::execute().
-     * @return mutation_result_dto
-     */
-    private function map_result(array $result): mutation_result_dto {
-        if (($result['status'] ?? '') === 'executed') {
-            return mutation_result_dto::success(
-                (int)($result['resultid'] ?? 0),
-                (string)($result['detail'] ?? ''),
-                (array)($result['warnings'] ?? []),
-                (array)($result['previewoptionids'] ?? [])
-            );
-        }
-        return mutation_result_dto::error((string)($result['detail'] ?? 'Unknown error.'));
+        return mutation_result_dto::error(get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.bulk_update_options'));
     }
 }

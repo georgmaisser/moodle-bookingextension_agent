@@ -28,21 +28,6 @@ use context_module;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\task_discovery;
-use bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task;
-use bookingextension_agent\local\wbagent\booking\tasks\booking_task_base;
-use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\create_selflearning_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\create_slotbooking_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task;
-use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
-use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
-use bookingextension_agent\local\wbagent\core\tasks\create_user_task;
-use bookingextension_agent\local\wbagent\core\tasks\explain_task_schema_task;
-use bookingextension_agent\local\wbagent\core\tasks\get_current_user_task;
-use bookingextension_agent\local\wbagent\core\tasks\list_actions_task;
-use bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task;
-use bookingextension_agent\local\wbagent\core\tasks\search_courses_task;
-use bookingextension_agent\local\wbagent\core\tasks\search_users_task;
 use mod_booking\external\search_courses;
 use mod_booking\external\search_users;
 use mod_booking\bo_availability\bo_info;
@@ -237,14 +222,10 @@ class booking_task_support {
             return [];
         }
 
-        if ($taskname !== create_option_task::TASK_NAME && $taskname !== update_option_task::TASK_NAME) {
-            return [];
-        }
-
         try {
             $support = new self();
             $task = $support->get_task_instances()[$taskname] ?? null;
-            if (!$task instanceof booking_task_base) {
+            if (!$task || !method_exists($task, 'verify_persisted_option_state')) {
                 return [];
             }
 
@@ -1643,15 +1624,9 @@ class booking_task_support {
      * @return bool
      */
     public static function is_read_only_task(string $taskname): bool {
-        return in_array($taskname, [
-            search_options_task::TASK_NAME,
-            search_users_task::TASK_NAME,
-            search_courses_task::TASK_NAME,
-            list_option_properties_task::TASK_NAME,
-            list_actions_task::TASK_NAME,
-            get_current_user_task::TASK_NAME,
-            'booking.recall_memory',
-        ], true);
+        $support = new self();
+        $task = $support->get_task_instances()[$taskname] ?? null;
+        return $task instanceof task_interface ? $task->is_read_only() : false;
     }
 
     /**
@@ -1812,28 +1787,6 @@ class booking_task_support {
      * @return string
      */
     private static function get_localized_action_label(string $taskname): string {
-        $map = [
-            create_option_task::TASK_NAME => 'ai_action_create_option',
-              create_slotbooking_option_task::TASK_NAME => 'ai_action_create_option',
-              create_selflearning_option_task::TASK_NAME => 'ai_action_create_option',
-            create_user_task::TASK_NAME => 'ai_action_create_user',
-            update_option_task::TASK_NAME => 'ai_action_update_option',
-            search_options_task::TASK_NAME => 'ai_action_search_options',
-            search_users_task::TASK_NAME => 'ai_action_search_users',
-            search_courses_task::TASK_NAME => 'ai_action_search_courses',
-            add_price_category_task::TASK_NAME => 'ai_action_add_price_category',
-            list_option_properties_task::TASK_NAME => 'ai_action_list_option_properties',
-            list_actions_task::TASK_NAME => 'ai_action_list_actions',
-            explain_task_schema_task::TASK_NAME => 'ai_action_explain_task_schema',
-            get_current_user_task::TASK_NAME => 'ai_action_get_current_user',
-            'booking.recall_memory' => 'ai_action_recall_memory',
-            recreate_task_catalog_task::TASK_NAME => 'ai_action_recreate_task_catalog',
-        ];
-
-        if (isset($map[$taskname])) {
-            return get_string($map[$taskname], 'bookingextension_agent');
-        }
-
         return $taskname;
     }
 

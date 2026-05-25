@@ -18,8 +18,6 @@ namespace bookingextension_agent\local\wbagent\booking\support;
 
 use context_module;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
-use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
 
 /**
  * Shared validation for mutating booking tasks.
@@ -173,7 +171,7 @@ class booking_mutation_validation {
             $errors[] = get_string('agent_validation_optiondates_invalid', 'bookingextension_agent');
         }
 
-        if ($taskname === create_option_task::TASK_NAME) {
+        if (!empty($parsedoptiondates)) {
             foreach ($parsedoptiondates as $idx => $date) {
                 $startts = $date['coursestarttime'];
                 $endts = $date['courseendtime'];
@@ -274,10 +272,7 @@ class booking_mutation_validation {
             $errors[] = get_string('agent_validation_selectusersenabled_disabled', 'bookingextension_agent');
         }
 
-        if (
-            ($taskname === create_option_task::TASK_NAME || $taskname === update_option_task::TASK_NAME)
-            && !empty($input['bookusersquery'])
-        ) {
+        if (!empty($input['bookusersquery'])) {
             $users = booking_task_support::resolve_users_for_booking((string)$input['bookusersquery']);
             foreach ($users['errors'] as $error) {
                 $errors[] = $error;
@@ -287,7 +282,7 @@ class booking_mutation_validation {
             }
         }
 
-        if ($taskname === update_option_task::TASK_NAME && !empty($input['bookusersquery'])) {
+        if (!empty($input['bookusersquery'])) {
             $forbidden = booking_task_support::detect_forbidden_fields_for_bookusers_update($input);
             if (!empty($forbidden)) {
                 $errors[] = get_string(
