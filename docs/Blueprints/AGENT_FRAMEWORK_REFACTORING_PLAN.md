@@ -2,7 +2,10 @@
 
 Stand: 2026-05-25
 Scope: /mod/booking/bookingextension/agent
-Status: Planung, kein Refactoring gestartet
+Status: In Umsetzung, Teilfortschritt codebasiert verifiziert
+
+Hinweis:
+- Haken sind in diesem Dokument nur dort gesetzt, wo der Stand direkt ueber Code, Signaturen, Call-Sites oder Dateistatus belegt ist.
 
 ## 1. Ziel und Entscheidung
 
@@ -142,15 +145,15 @@ Gate Phase 0.5:
 
 ## Phase 0.6 - Contextid-Authority statt activity-spezifischem Scope (neu)
 - [ ] Externe Entry-Points, Runtime, Orchestrator, Decision-Service, Preflight, Queue, Executor und Task-Interface auf contextid als autoritative Scope-ID umstellen.
-- [ ] Confirmation-Allowance fuer Session-Autoconfirm an userid + contextid binden; threadid bleibt nur Referenz fuer konkrete Konversation und pending_intent.
+- [x] Confirmation-Allowance fuer Session-Autoconfirm an userid + contextid binden; threadid bleibt nur Referenz fuer konkrete Konversation und pending_intent.
 - [ ] Thread-, Queue-, Audit-, Guard- und Idempotency-Daten mit contextid fuehren.
 - [ ] Context-Resolution und Capability-Checks ausschliesslich ueber Moodle context API modellieren.
-- [ ] Neue DB-Struktur direkt in install.xml festlegen (kein upgrade.php, keine Datenmigration, kein Backfill).
+- [x] Neue DB-Struktur direkt in install.xml festlegen (kein upgrade.php, keine Datenmigration, kein Backfill).
 - [ ] Alte activity-spezifische Scope-Annahmen in Tests und Dokumentation ersetzen.
 
 Gate Phase 0.6:
 - [ ] Kein interner Agent-Vertrag verwendet eine activity-spezifische ID als primaeren Scope.
-- [ ] install.xml bildet die neue Context-basierten Tabellen/Felder vollstaendig ab; kein Upgrade-Skript erforderlich.
+- [x] install.xml bildet die neue Context-basierten Tabellen/Felder vollstaendig ab; kein Upgrade-Skript erforderlich.
 
 ## Phase 0 - Freeze und Safety-Net
 - [ ] Architektur-Freeze auf Zielbild in docs/Blueprints festschreiben.
@@ -162,11 +165,11 @@ Gate Phase 0:
 - [ ] Team-Entscheid: Remove-Now Liste freigegeben.
 
 ## Phase 1 - Entfernen alter Entscheidungs-Pfade
-- [ ] recovery_enrichment_service entfernen.
-- [ ] Alle Verwendungen in agent_decision_service entfernen.
+- [x] recovery_enrichment_service entfernen.
+- [x] Alle Verwendungen in agent_decision_service entfernen.
 - [ ] Zweiten generischen Recovery-Block in agent_decision_service entfernen.
 - [ ] UNKNOWN/invalid handling auf planner_retry <= 2 + clarification umstellen.
-- [ ] Dead imports in core/tasks/list_actions_task bereinigen.
+- [x] Dead imports in core/tasks/list_actions_task bereinigen.
 
 Gate Phase 1:
 - [ ] Kein Codepfad mehr, der aus clarification/error automatisch task_call erzeugt.
@@ -296,7 +299,7 @@ Risiko 3: Ueberambitionierte Parallel-Umbauten
 ## 8. Definition of Done fuer die Architektur
 
 - [ ] Interne Agent-Vertraege verwenden contextid als autoritative Scope-ID.
-- [ ] Kein recovery_enrichment_service im Code.
+- [x] Kein recovery_enrichment_service im Code.
 - [ ] Keine task_call-Promotion aus clarification/error.
 - [ ] Preflight v2 only.
 - [ ] Executor ohne zweites mutierendes Voll-Preflight.
@@ -308,13 +311,13 @@ Risiko 3: Ueberambitionierte Parallel-Umbauten
 - [ ] Task-Freischaltung basiert auf mehrstufigem Gate (runtime/active/context/capability).
 - [ ] Drei Ziel-Szenarien stabil und reproduzierbar.
 - [ ] Komplexes Cross-Domain-Szenario (course -> questions -> quiz -> enrolment) stabil und reproduzierbar mit Artefaktreferenzen, Output-Bindings, Retry und Confirmation.
-- [ ] Neue DB-Struktur ist ausschliesslich ueber install.xml ausgerollt (kein upgrade.php, keine Migration).
+- [x] Neue DB-Struktur ist ausschliesslich ueber install.xml ausgerollt (kein upgrade.php, keine Migration).
 - [ ] Dokumentation und Flowchart synchron zum Code.
 
-## 9. Was explizit noch NICHT gestartet wurde
+## 9. Realitaetscheck zum aktuellen Stand
 
-- Kein produktiver Code umgebaut.
-- Keine Klassen entfernt.
-- Keine Tests angepasst.
+- Produktiver Code wurde in mehreren Kernpfaden bereits umgebaut.
+- Mehrere Legacy-Klassen/-Dateien wurden bereits entfernt.
+- Tests sind noch nicht im selben Masse nachgezogen; belastbare Moodle-PHPUnit-Validierung steht weiterhin aus.
 
-Dies ist ausschliesslich der intensive Arbeitsplan mit Priorisierung und Abhakliste.
+Dieses Dokument bleibt der Arbeitsplan mit Priorisierung und Abhakliste; die Haken spiegeln den aktuell verifizierten Implementierungsstand wider.
