@@ -6,10 +6,21 @@ Scope: mod/booking/bookingextension/agent
 ## Ziel
 Dieses Dokument beschreibt das minimale Onboarding fuer einen neuen Task-Provider ohne Framework-Aenderung.
 
+Discovery-Modell (Provider-First):
+- Wenn ein `local/wbagent/task_provider` im Plugin existiert, werden nur dessen Tasks registriert.
+- Wenn kein Provider existiert, faellt die Registry auf direkte Task-Discovery unter
+    `classes/local/wbagent/*/tasks` zurueck.
+- Sobald ein Provider vorhanden ist, wird kein zusaetzlicher Discovery-Fallback ausgefuehrt.
+
 ## 1. Provider anlegen
 Erstellen Sie eine Klasse unter Ihrem Plugin-Namespace:
 - Pfad: classes/local/wbagent/task_provider.php
 - Interface: bookingextension_agent\\local\\wbagent\\interfaces\\task_provider_interface
+
+Wichtig:
+- Der Provider ist der bevorzugte Integrationsweg.
+- Mit Provider haben Sie volle Kontrolle ueber Taskliste, Reihenfolge und Zusatzbeitraege
+    (Prompt-Packs, Issue-Code-Provider, Guidance).
 
 Pflichtmethoden:
 - get_component(): string

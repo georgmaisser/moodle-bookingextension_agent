@@ -160,7 +160,7 @@ flowchart TD
     %% =========================================================
     subgraph TASKS["Task Layer"]
         TR["task_registry\nregister(provider)\nget_task(name)\nis_read_only_task()\nis_task_active()\nget_task_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()"]
-        TRFAC["task_registry_factory\n→ wires all task_provider_interface\n  implementations (auto-discovery)\n→ third-party onboarding: provider only, no framework edits"]
+        TRFAC["task_registry_factory\n→ provider-first wiring of task_provider_interface\n  implementations (auto-discovery)\n→ if no provider exists: direct task discovery\n  under classes/local/wbagent/*/tasks\n→ if provider exists: no additional fallback scan"]
         TI["task_interface\nget_name() · get_schema()\nget_prompt_contract()\ncheck_structure(input)\npreflight(input,contextid,userid): preflight_result_v2\nexecute(prepared_input,contextid,userid): array\nis_read_only(): bool"]
         TPC["task_prompt_contract DTO\nintent · anchors · minimal_input · example_input\nnamespace · version · capabilities · context scopes"]
         BT["base_task (abstract)\ncheck_structure() → pass\npreflight() → pass (override for DB checks)\nexecute() → abstract"]

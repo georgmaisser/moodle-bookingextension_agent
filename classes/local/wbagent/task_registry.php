@@ -27,6 +27,7 @@ namespace bookingextension_agent\local\wbagent;
 use core_component;
 use core_text;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\summarizer\result_summary_contributor_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
@@ -572,9 +573,9 @@ class task_registry {
     }
 
     /**
-     * Return a map of trigger-id → task-name for all registered trigger-providing tasks.
+     * Return a map of trigger-id to task-name for all registered trigger-providing tasks.
      *
-        * @return array<string,string>  e.g. ['vendor.help_topic' => 'vendor.read_docs']
+     * @return array<string,string>
      */
     public function get_trigger_id_to_task_name_map(): array {
         // Breaking cleanup: trigger-to-task routing is disabled.
@@ -594,6 +595,7 @@ class task_registry {
         foreach (core_component::get_component_names() as $component) {
             $classname = '\\' . $component . '\\local\\wbagent\\task_provider';
             if (!class_exists($classname)) {
+                self::register_discovered_tasks_without_provider($registry, $component, $registeredcomponents);
                 continue;
             }
 
@@ -637,6 +639,138 @@ class task_registry {
 
         $registry->fail_on_contract_diagnostics_when_strict();
         return $registry;
+    }
+
+    /**
+     * Register discovered tasks directly when a component has no task_provider class.
+     *
+     * Provider-first rule: this fallback runs only when no provider class exists.
+     *
+     * @param self $registry
+     * @param string $component
+     * @param array<string,bool> $registeredcomponents
+     * @return void
+     */
+    private static function register_discovered_tasks_without_provider(
+        self $registry,
+        string $component,
+        array &$registeredcomponents
+    ): void {
+        $tasks = array_values(task_discovery::get_task_instances($component));
+        if (empty($tasks)) {
+            return;
+        }
+
+        usort($tasks, static fn(task_interface $a, task_interface $b): int => strcmp($a->get_name(), $b->get_name()));
+
+        $providercomponent = self::normalize_provider_component_name($component);
+        if ($providercomponent === null) {
+            return;
+        }
+
+        $provider = new class ($providercomponent, $tasks) implements task_provider_interface {
+            /** @var string */
+            private string $component;
+
+            /** @var array<int,task_interface> */
+            private array $tasks;
+
+            /** @var array<int,string> */
+            private array $diagnostics;
+
+            /**
+             * Create a provider wrapper for discovered fallback tasks.
+             *
+             * @param string $component
+             * @param array<int,task_interface> $tasks
+             */
+            public function __construct(string $component, array $tasks) {
+                $this->component = $component;
+                $this->tasks = $tasks;
+                $this->diagnostics = task_discovery::get_last_diagnostics();
+            }
+
+            /**
+             * Return provider component name.
+             *
+             * @return string
+             */
+            public function get_component(): string {
+                return $this->component;
+            }
+
+            /**
+             * Return discovered task instances.
+             *
+             * @return array
+             */
+            public function get_tasks(): array {
+                return $this->tasks;
+            }
+
+            /**
+             * Return contextual prompt packs.
+             *
+             * @return array<int,array<string,mixed>>
+             */
+            public function get_contextual_prompt_packs(): array {
+                return [];
+            }
+
+            /**
+             * Return optional issue code provider.
+             *
+             * @return issue_code_provider_interface|null
+             */
+            public function get_issue_code_provider(): ?issue_code_provider_interface {
+                return null;
+            }
+
+            /**
+             * Return prompt guidance payload.
+             *
+             * @return array<string,mixed>
+             */
+            public function get_prompt_guidance(): array {
+                return [];
+            }
+
+            /**
+             * Return discovery diagnostics captured during wrapper creation.
+             *
+             * @return array<int,string>
+             */
+            public function get_discovery_diagnostics(): array {
+                return $this->diagnostics;
+            }
+        };
+
+        try {
+            $registry->register($provider);
+        } catch (\Throwable $e) {
+            $registry->add_contract_diagnostic(
+                'Ignoring direct task discovery for component ' . $providercomponent . ' because registration failed: '
+                . get_class($e) . ': ' . $e->getMessage()
+            );
+            return;
+        }
+
+        $registeredcomponents[$providercomponent] = true;
+    }
+
+    /**
+     * Convert plugin component notation (mod_booking) to provider notation (mod/booking).
+     *
+     * @param string $component
+     * @return string|null
+     */
+    private static function normalize_provider_component_name(string $component): ?string {
+        [$plugintype, $pluginname] = core_component::normalize_component($component);
+        if ($plugintype === 'core' || $pluginname === '') {
+            return null;
+        }
+
+        return $plugintype . '/' . $pluginname;
     }
 
     /**

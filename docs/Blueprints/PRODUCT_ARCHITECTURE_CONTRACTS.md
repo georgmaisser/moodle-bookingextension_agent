@@ -12,13 +12,16 @@ Akzeptanzkriterien:
 - Jeder interne Mutations-Run hat contextid in Queue-/Guard-/Run-Metadaten.
 - Runtime/Decision/Executor greifen fuer Scope-Checks auf contextid zurueck.
 
-## C2 - Third-Party DX (Provider-Only)
-- Neue Tasks werden ueber task_provider_interface eingebunden, ohne Framework-Codepatch.
+## C2 - Third-Party DX (Provider-First + Fallback)
+- Neue Tasks werden bevorzugt ueber task_provider_interface eingebunden, ohne Framework-Codepatch.
+- Wenn kein Provider existiert, werden Tasks direkt aus classes/local/wbagent/*/tasks entdeckt.
+- Wenn ein Provider existiert, wird kein zusaetzlicher Direct-Task-Fallback ausgefuehrt.
 - Registry-Build bleibt robust: fehlerhafte Provider isoliert, funktionsfaehige Provider bleiben aktiv.
 - Task-Kontrakte sind explizit (Schema, Prompt-Guidance, Capabilities, Version).
 
 Akzeptanzkriterien:
 - Demo-Provider kann registriert werden, ohne agent_runtime/agent_decision_service zu aendern.
+- Demo-Task ohne Provider wird ueber Direct-Task-Discovery gefunden.
 - Fehler in einem Provider verhindern nicht die Registrierung anderer Provider.
 
 ## C3 - Language Fidelity

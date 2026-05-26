@@ -12,7 +12,7 @@ Hinweis:
 Ziel ist ein deterministisches, erweiterbares Agent-Framework ohne heuristische Nebenpfade.
 
 Architektur-Ziele:
-- Keine Task-Erkennung per Fallback-Logik im Framework.
+- Provider-First Task-Discovery mit deterministischem Direct-Task-Fallback ohne Provider.
 - Explizite Task-Contracts fuer den Planner.
 - Preflight nur noch als v2-Contract, keine Legacy-Doppelausgabe.
 - Execution-Guard statt zweitem Voll-Preflight.
@@ -188,11 +188,12 @@ Gate Phase 1:
 - [x] Task-Namen und Alias-Ziele namespacen und versionieren, damit Third-Party-Tasks keine Core-/Booking-Tasks ueberschreiben.
 - [x] message_trigger_registry auf Signalnormalisierung begrenzen.
 - [x] Third-Party-Developer-Guide: Minimalbeispiel fuer neuen Provider + Task inklusive Capability, Prompt-Contract, Schema, Preflight und Execute bereitstellen.
+  - [x] Zwischenstand: Registry nutzt Provider-First; wenn kein Provider vorhanden ist, wird auf direkte Task-Discovery zurueckgefallen.
   - [x] Zwischenstand: task_registry baut Prompt-Katalog jetzt zuerst aus task->get_prompt_contract() und reichert danach version/capabilities aus Registry-Metadaten an.
 
 Gate Phase 2:
 - [x] Planner-Katalog wird nur aus expliziten Contracts gebaut.
-- [x] Ein neuer Demo-Task laesst sich ausschliesslich ueber Provider-Registrierung einhaengen.
+- [x] Ein neuer Demo-Task laesst sich ueber Provider-Registrierung oder providerlose Direct-Task-Discovery einhaengen.
 - [x] Ein fehlerhafter Third-Party-Task blockiert weder Registry-Build noch andere Tasks.
   - [x] Zwischenstand: task_registry_factory besitzt einen nicht-fatalen Build-Fallback; ein harter Build-Fehler liefert eine leere, aber lauffaehige Registry statt Abbruch.
 
