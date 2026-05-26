@@ -226,7 +226,10 @@ class interpreter implements agent_interpreter {
 
         if (!empty($errors)) {
             $validationmessage = $this->user_facing_validation_message($errors, $lang);
-            $recoverableinputerror = $this->is_recoverable_input_validation_error($errors);
+            $recoverableinputerror = in_array('RECOVERABLE_INPUT_ERROR', array_map(
+                static fn(string $issuecode): string => strtoupper(trim($issuecode)),
+                (array)$issuecodes
+            ), true);
             if (!empty($confirmablecommands)) {
                 return $this->with_optional_next_step_intent([
                     'response_type' => 'confirmation_request',
@@ -911,6 +914,12 @@ class interpreter implements agent_interpreter {
                 foreach ((array)($structural['errors'] ?? []) as $e) {
                     $errors[] = "$label: $e";
                 }
+                foreach ((array)($structural['issue_codes'] ?? []) as $issuecode) {
+                    $code = trim((string)$issuecode);
+                    if ($code !== '') {
+                        $issuecodes[] = $code;
+                    }
+                }
                 continue;
             }
 
@@ -1219,34 +1228,6 @@ class interpreter implements agent_interpreter {
         }
 
         return implode(' ', $clean);
-    }
-
-    /**
-     * Determine whether validation errors are recoverable missing-input cases.
-     *
-     * @param array $errors
-     * @return bool
-     */
-    private function is_recoverable_input_validation_error(array $errors): bool {
-        $joined = strtolower(implode(' ', $errors));
-
-        $markers = [
-            'please provide',
-            'slot_duration_minutes',
-            'slot_max_participants_per_slot',
-            'slot_valid_from',
-            'slot_valid_until',
-            'slot_day_',
-            'missing',
-        ];
-
-        foreach ($markers as $marker) {
-            if (strpos($joined, $marker) !== false) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**

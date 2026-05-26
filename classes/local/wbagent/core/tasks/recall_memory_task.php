@@ -54,20 +54,25 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
     public function get_schema(): array {
         $schema = [
             'version' => 1,
-            'description' => 'Recall previous user-only conversation memory for "last time", "last friday", or a '
-                . 'date-window hint. User isolation is strict and userid is never accepted from input.',
+            'description' => 'Recall previous user-only conversation memory. Use mode="last_thread" for requests like '
+                . '"last time/yesterday" and mode="date_window" only for date-specific requests. '
+                . 'When mode="date_window", date_hint is mandatory. '
+                . 'User isolation is strict and userid is never accepted from input.',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'ai_status_confirm_booking_recall_memory',
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_recall_memory',
             'properties' => [
                 'mode' => [
                     'type' => 'string',
-                    'description' => 'Retrieval mode: last_thread or date_window.',
+                    'description' => 'Retrieval mode. Set to "last_thread" for "last discussion" requests. '
+                        . 'Set to "date_window" only when the user asks for a specific day/date range.',
+                    'enum' => ['last_thread', 'date_window'],
                     'required' => true,
                 ],
                 'date_hint' => [
                     'type' => 'string',
-                    'description' => 'Optional natural language date hint (e.g. "last friday") for date_window mode.',
+                    'description' => 'Natural language date hint (e.g. "last friday" or "2026-05-20"). '
+                        . 'Required when mode="date_window"; omit for mode="last_thread".',
                     'required' => false,
                 ],
                 'query' => [
@@ -81,9 +86,28 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
                     'required' => false,
                 ],
             ],
+            'prompt_meta' => [
+                'intent' => 'Recall earlier conversation memory for the same user. '
+                    . 'Choose mode="last_thread" for generic "remember last discussion" requests. '
+                    . 'Choose mode="date_window" only when a concrete date hint is present and then always include date_hint.',
+                'input_fields_for_prompt' => ['mode'],
+                'anchor_fields' => ['date_hint', 'query'],
+                'capabilities' => ['conversation_memory_recall', 'date_window_lookup'],
+            ],
         ];
 
         return $this->enrich_schema_with_prompt_meta($schema);
+    }
+
+    /**
+     * Return deterministic example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'mode' => 'last_thread',
+        ];
     }
 
     /**
@@ -94,18 +118,22 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
      */
     public function check_structure(array $input): array {
         $errors = [];
+        $issuecodes = [];
         $mode = trim((string)($input['mode'] ?? ''));
         if (!in_array($mode, ['last_thread', 'date_window'], true)) {
             $errors[] = get_string('agent_booking_recall_memory_invalid_mode', 'bookingextension_agent');
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
         if ($mode === 'date_window' && trim((string)($input['date_hint'] ?? '')) === '') {
             $errors[] = get_string('agent_booking_recall_memory_date_hint_required', 'bookingextension_agent');
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
 
         return [
             'valid' => empty($errors),
             'errors' => $errors,
             'ambiguities' => [],
+            'issue_codes' => array_values(array_unique($issuecodes)),
         ];
     }
 
@@ -121,6 +149,7 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
                 'description' => 'User asks what was discussed previously.',
                 'examples' => [
                     'what did we talk about last time',
+                    'kannst du dich erinnern, was wir gestern gesprochen haben?',
                     'didn’t we talk about user x',
                 ],
             ],

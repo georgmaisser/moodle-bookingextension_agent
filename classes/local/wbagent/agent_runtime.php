@@ -1431,23 +1431,36 @@ class agent_runtime {
     private function build_preflight_retry_observation(array $result, int $step): string {
         $parts = [];
         $attemptedtasks = array_values(array_filter(array_map('trim', (array)($result['attempted_tasks'] ?? []))));
+        $errors = array_values(array_filter(array_map('trim', (array)($result['errors'] ?? []))));
 
         $parts[] = 'Preflight failed before any task execution. Repair the command input and retry the same task.';
+        $parts[] = 'Return response_type="task_call" with a non-empty commands array.';
 
         if (count($attemptedtasks) === 1) {
             $parts[] = 'Keep task=' . $attemptedtasks[0] . ' unless the latest user message explicitly changes the intent.';
+            $parts[] = 'Required payload shape: {"response_type":"task_call","commands":[{"task":"'
+                . $attemptedtasks[0]
+                . '","version":1,"input":{...}}]}.';
         } else if (!empty($attemptedtasks)) {
             $parts[] = 'Keep the same attempted task set unless the latest user message explicitly changes the intent.';
+            $parts[] = 'Required payload shape: '
+                . '{"response_type":"task_call","commands":[{"task":"<same_task>","version":1,"input":{...}}]}.';
+        } else {
+            $parts[] = 'Required payload shape: '
+                . '{"response_type":"task_call","commands":[{"task":"<task>","version":1,"input":{...}}]}.';
         }
 
-        $message = trim((string)($result['message'] ?? ''));
-        if ($message !== '') {
-            $parts[] = $message;
-        }
-
-        $errors = array_values(array_filter(array_map('trim', (array)($result['errors'] ?? []))));
-        if (!empty($errors)) {
-            $parts[] = 'Errors: ' . implode(' || ', array_slice($errors, 0, 12));
+        $fixinstructions = $this->build_preflight_fix_instructions($errors);
+        if (!empty($fixinstructions)) {
+            $parts[] = 'Required command corrections: ' . implode(' ', array_slice($fixinstructions, 0, 8));
+        } else {
+            $message = trim((string)($result['message'] ?? ''));
+            if ($message !== '') {
+                $parts[] = $message;
+            }
+            if (!empty($errors)) {
+                $parts[] = 'Errors: ' . implode(' || ', array_slice($errors, 0, 12));
+            }
         }
 
         $issuecodes = array_values(array_filter(array_map('trim', (array)($result['issue_codes'] ?? []))));
@@ -1526,14 +1539,59 @@ class agent_runtime {
     private function slim_retry_task_contract(array $contract): array {
         return [
             'task' => trim((string)($contract['task'] ?? '')),
-            'description' => trim((string)($contract['description'] ?? '')),
             'readonly' => !empty($contract['readonly']),
             'intent' => trim((string)($contract['intent'] ?? '')),
-            'anchors' => array_values((array)($contract['anchors'] ?? [])),
             'minimal_input' => array_values((array)($contract['minimal_input'] ?? [])),
             'example_input' => (array)($contract['example_input'] ?? []),
-            'message_triggers' => array_values((array)($contract['message_triggers'] ?? [])),
         ];
+    }
+
+    /**
+     * Build concrete, planner-friendly input correction instructions from validation errors.
+     *
+     * @param array<int,string> $errors
+     * @return array<int,string>
+     */
+    private function build_preflight_fix_instructions(array $errors): array {
+        $instructions = [];
+
+        foreach ($errors as $error) {
+            $clean = trim(preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', (string)$error) ?? (string)$error);
+            if ($clean === '') {
+                continue;
+            }
+
+            if (
+                preg_match('/Field\s+"([^"]+)"\s+is\s+required\s+for\s+mode\s+"([^"]+)"\.?/i', $clean, $m) === 1
+            ) {
+                $instructions[] = 'Wrong: input.mode="' . $m[2] . '" without input.' . $m[1]
+                    . '. Right: set input.' . $m[1] . ' to a non-empty value.';
+                continue;
+            }
+
+            if (
+                preg_match('/Field\s+"([^"]+)"\s+must\s+be\s+either\s+"([^"]+)"\s+or\s+"([^"]+)"\.?/i', $clean, $m) === 1
+            ) {
+                $instructions[] = 'Wrong: input.' . $m[1] . ' has an unsupported value. Right: set input.' . $m[1]
+                    . ' to exactly one of ["' . $m[2] . '", "' . $m[3] . '"].';
+                continue;
+            }
+
+            if (preg_match('/Field\s+"([^"]+)"\s+is\s+required\.?/i', $clean, $m) === 1) {
+                $instructions[] = 'Wrong: missing required field input.' . $m[1]
+                    . '. Right: set input.' . $m[1] . ' to a non-empty value.';
+                continue;
+            }
+
+            if (preg_match('/Field\s+"([^"]+)"\s+must\s+be\s+numeric\.?/i', $clean, $m) === 1) {
+                $instructions[] = 'Wrong: input.' . $m[1] . ' is not numeric. Right: set input.' . $m[1] . ' to a numeric value.';
+                continue;
+            }
+
+            $instructions[] = 'Wrong: ' . $clean . ' Right: correct the field values and resend the same task once.';
+        }
+
+        return array_values(array_unique($instructions));
     }
 
     /**
