@@ -534,15 +534,16 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $this->setUser($userid);
 
+        $contextid = (int)\context_module::instance($cmid)->id;
         $store   = new conversation_store();
-        $thread  = $store->get_or_create_thread($userid, $cmid, (int)$this->booking->id);
+        $thread  = $store->get_or_create_thread($userid, $contextid, (int)$this->booking->id);
         $key     = hash('sha256', $taskname . ':' . $userid . ':' . uniqid('', true));
-        $runid   = $store->create_run($thread->id, $userid, $cmid, $key, []);
+        $runid   = $store->create_run($thread->id, $userid, $contextid, $key, []);
 
         $exec    = $this->make_executor();
         $results = $exec->execute_commands(
             [['task' => $taskname, 'version' => 1, 'input' => $input]],
-            $cmid,
+            $contextid,
             $userid,
             $key,
             $runid
@@ -764,10 +765,11 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
             $command['input'] = $command['args']['input'];
         }
         $command['version'] = $command['version'] ?? 1;
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $key     = hash('sha256', 'test:exec:' . serialize($command) . ':' . uniqid('', true));
         $results = $this->make_executor()->execute_commands(
             [$command],
-            (int)$this->booking->cmid,
+            $contextid,
             (int)$this->teacher->id,
             $key,
             0
@@ -793,10 +795,11 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
             $cmd['version'] = $cmd['version'] ?? 1;
         }
         unset($cmd);
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $key = hash('sha256', 'test:bulk:' . uniqid('', true));
         return $this->make_executor()->execute_commands(
             $commands,
-            (int)$this->booking->cmid,
+            $contextid,
             (int)$this->teacher->id,
             $key,
             0

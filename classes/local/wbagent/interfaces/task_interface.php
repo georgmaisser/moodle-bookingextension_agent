@@ -39,7 +39,7 @@ use bookingextension_agent\local\wbagent\services\task_prompt_contract;
  */
 interface task_interface {
     /**
-     * Return the fully-qualified task name, e.g. booking.create_option.
+     * Return the fully-qualified task name, e.g. vendor.action_name.
      *
      * @return string
      */

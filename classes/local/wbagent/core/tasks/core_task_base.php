@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use context_course;
+use context_system;
 use bookingextension_agent\local\wbagent\base_task;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
@@ -165,9 +166,16 @@ abstract class core_task_base extends base_task {
             return (int)$query;
         }
 
-        $resolved = \bookingextension_agent\local\wbagent\booking\booking_task_support::resolve_single_user($query);
-        if (($resolved['status'] ?? '') === 'ok') {
-            return (int)($resolved['userid'] ?? 0);
+        if (strpos($query, '@') !== false) {
+            $user = \core_user::get_user_by_email($query, 'id', null, IGNORE_MISSING);
+            if ($user && !empty($user->id)) {
+                return (int)$user->id;
+            }
+        }
+
+        $matches = $this->search_user_candidates_for_preview($query, 2);
+        if (count($matches) === 1) {
+            return (int)($matches[0]['userid'] ?? 0);
         }
 
         return 0;
@@ -189,10 +197,7 @@ abstract class core_task_base extends base_task {
             return (int)$query;
         }
 
-        $matches = \bookingextension_agent\local\wbagent\booking\booking_task_support::search_course_candidates_for_preview(
-            $query,
-            2
-        );
+        $matches = $this->search_course_candidates_for_preview($query, 2);
         if (count($matches) === 1) {
             return (int)($matches[0]['courseid'] ?? 0);
         }
@@ -286,5 +291,410 @@ abstract class core_task_base extends base_task {
             return preflight_result_v2::invalid($issues);
         }
         return preflight_result_v2::ok($input);
+    }
+
+    /**
+     * Build a normalized user payload with core Moodle user data.
+     *
+     * @param \stdClass $user
+     * @return array<string,mixed>
+     */
+    protected function build_user_payload(\stdClass $user): array {
+        global $CFG;
+
+        if (empty($user->id)) {
+            return [];
+        }
+
+        require_once($CFG->dirroot . '/user/profile/lib.php');
+        require_once($CFG->libdir . '/enrollib.php');
+
+        $user = clone $user;
+        if (function_exists('profile_load_data')) {
+            profile_load_data($user);
+        }
+
+        $enrolledcourses = $this->build_user_courses_payload((int)$user->id);
+
+        return [
+            'userid' => (int)$user->id,
+            'username' => (string)($user->username ?? ''),
+            'fullname' => fullname($user),
+            'firstname' => (string)($user->firstname ?? ''),
+            'lastname' => (string)($user->lastname ?? ''),
+            'email' => (string)($user->email ?? ''),
+            'idnumber' => (string)($user->idnumber ?? ''),
+            'institution' => (string)($user->institution ?? ''),
+            'department' => (string)($user->department ?? ''),
+            'city' => (string)($user->city ?? ''),
+            'country' => (string)($user->country ?? ''),
+            'address' => (string)($user->address ?? ''),
+            'phone1' => (string)($user->phone1 ?? ''),
+            'phone2' => (string)($user->phone2 ?? ''),
+            'lang' => (string)($user->lang ?? ''),
+            'timezone' => (string)($user->timezone ?? ''),
+            'description' => (string)($user->description ?? ''),
+            'descriptionformat' => (int)($user->descriptionformat ?? 0),
+            'auth' => (string)($user->auth ?? ''),
+            'confirmed' => (int)($user->confirmed ?? 0),
+            'suspended' => (int)($user->suspended ?? 0),
+            'deleted' => (int)($user->deleted ?? 0),
+            'profileurl' => \core_user::get_profile_url($user)->out(false),
+            'enrolledcourses' => $enrolledcourses,
+            'roles' => $this->build_user_roles_payload((int)$user->id, $enrolledcourses),
+            'customprofilefields' => $this->extract_custom_profile_fields($user),
+        ];
+    }
+
+    /**
+     * Build course enrolment payload for a user.
+     *
+     * @param int $userid
+     * @return array<int,array<string,mixed>>
+     */
+    protected function build_user_courses_payload(int $userid): array {
+        $courses = enrol_get_users_courses($userid, true, 'id, fullname, shortname, visible, category, sortorder');
+        $payload = [];
+
+        foreach ($courses as $course) {
+            $courseid = (int)($course->id ?? 0);
+            if ($courseid <= 0) {
+                continue;
+            }
+
+            $coursepayload = [
+                'courseid' => $courseid,
+                'fullname' => (string)($course->fullname ?? ''),
+                'shortname' => (string)($course->shortname ?? ''),
+                'visible' => (int)($course->visible ?? 1),
+                'category' => (int)($course->category ?? 0),
+                'sortorder' => (int)($course->sortorder ?? 0),
+                'roles' => [],
+            ];
+
+            $coursecontext = context_course::instance($courseid, IGNORE_MISSING);
+            if ($coursecontext) {
+                foreach (get_user_roles($coursecontext, $userid, false, 'r.sortorder ASC') as $assignment) {
+                    $coursepayload['roles'][] = [
+                        'roleid' => (int)($assignment->roleid ?? 0),
+                        'shortname' => (string)($assignment->shortname ?? ''),
+                        'name' => (string)($assignment->name ?? ''),
+                        'contextid' => (int)($assignment->contextid ?? 0),
+                        'contextlevel' => (int)($assignment->contextlevel ?? 0),
+                        'courseid' => $courseid,
+                    ];
+                }
+            }
+
+            $payload[] = $coursepayload;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Build flattened role assignment payload for a user.
+     *
+     * @param int $userid
+     * @param array<int,array<string,mixed>> $courses
+     * @return array<int,array<string,mixed>>
+     */
+    protected function build_user_roles_payload(int $userid, array $courses = []): array {
+        $payload = [];
+        $seen = [];
+
+        $appendassignments = static function (array $assignments, ?int $courseid = null) use (&$payload, &$seen): void {
+            foreach ($assignments as $assignment) {
+                $roleid = (int)($assignment->roleid ?? 0);
+                $contextid = (int)($assignment->contextid ?? 0);
+                $key = $contextid . ':' . $roleid;
+                if ($roleid <= 0 || isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $payload[] = [
+                    'roleid' => $roleid,
+                    'shortname' => (string)($assignment->shortname ?? ''),
+                    'name' => (string)($assignment->name ?? ''),
+                    'contextid' => $contextid,
+                    'contextlevel' => (int)($assignment->contextlevel ?? 0),
+                    'courseid' => $courseid,
+                ];
+            }
+        };
+
+        $appendassignments(get_user_roles(context_system::instance(), $userid, false, 'r.sortorder ASC'), null);
+
+        foreach ($courses as $course) {
+            $courseid = (int)($course['courseid'] ?? 0);
+            if ($courseid <= 0) {
+                continue;
+            }
+
+            $coursecontext = context_course::instance($courseid, IGNORE_MISSING);
+            if ($coursecontext) {
+                $appendassignments(get_user_roles($coursecontext, $userid, false, 'r.sortorder ASC'), $courseid);
+            }
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Extract loaded custom profile fields from a user object.
+     *
+     * @param \stdClass $user
+     * @return array<string,mixed>
+     */
+    protected function extract_custom_profile_fields(\stdClass $user): array {
+        $fields = [];
+        foreach (get_object_vars($user) as $key => $value) {
+            if (strpos((string)$key, 'profile_field_') !== 0) {
+                continue;
+            }
+
+            $fields[substr((string)$key, strlen('profile_field_'))] = $value;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Search user candidates using Moodle core APIs only.
+     *
+     * @param string $query
+     * @param int $limit
+     * @return array<int,array<string,mixed>>
+     */
+    protected function search_user_candidates_for_preview(string $query, int $limit = 10): array {
+        global $CFG;
+
+        $query = trim($query);
+        if ($query === '') {
+            return [];
+        }
+
+        require_once($CFG->libdir . '/datalib.php');
+
+        if (preg_match('/^\d+$/', $query)) {
+            $user = \core_user::get_user((int)$query, 'id, firstname, lastname, email', IGNORE_MISSING);
+            if ($user && !empty($user->id)) {
+                return [[
+                    'userid' => (int)$user->id,
+                    'firstname' => (string)($user->firstname ?? ''),
+                    'lastname' => (string)($user->lastname ?? ''),
+                    'email' => (string)($user->email ?? ''),
+                ]];
+            }
+        }
+
+        $result = search_users(0, 0, $query, 'lastname ASC, firstname ASC, id ASC');
+        $normalized = [];
+        foreach ((array)$result as $user) {
+            $normalized[] = [
+                'userid' => (int)($user->id ?? 0),
+                'firstname' => (string)($user->firstname ?? ''),
+                'lastname' => (string)($user->lastname ?? ''),
+                'email' => (string)($user->email ?? ''),
+            ];
+        }
+
+        return array_slice($normalized, 0, max(1, $limit));
+    }
+
+    /**
+     * Search course candidates using Moodle core APIs only.
+     *
+     * @param string $query Search text or numeric course id.
+     * @param int $limit Maximum number of matches.
+     * @return array<int,array<string,mixed>>
+     */
+    protected function search_course_candidates_for_preview(string $query, int $limit = 10): array {
+        $query = trim($query);
+        if ($query === '') {
+            return [];
+        }
+
+        if (preg_match('/^\d+$/', $query)) {
+            $course = get_course((int)$query);
+            if (!empty($course->id)) {
+                return [[
+                    'courseid' => (int)$course->id,
+                    'fullname' => (string)($course->fullname ?? ''),
+                    'shortname' => (string)($course->shortname ?? ''),
+                ]];
+            }
+        }
+
+        $courses = \core_course_category::search_courses(
+            ['search' => $query],
+            ['limit' => max(1, $limit), 'sort' => ['fullname' => 1]]
+        );
+
+        $normalized = [];
+        foreach ($courses as $course) {
+            $courseid = (int)($course->id ?? 0);
+            if ($courseid <= 0) {
+                continue;
+            }
+            $normalized[] = [
+                'courseid' => $courseid,
+                'fullname' => (string)($course->fullname ?? ''),
+                'shortname' => (string)($course->shortname ?? ''),
+            ];
+        }
+
+        return array_slice($normalized, 0, max(1, $limit));
+    }
+
+    /**
+     * Build a full observation string for one or more normalized user payloads.
+     *
+     * @param array<int,array<string,mixed>> $users
+     * @return string
+     */
+    protected function build_user_observation_full(array $users): string {
+        $count = count($users);
+        if ($count === 0) {
+            return 'Found 0 user(s).';
+        }
+
+        $lines = ["Found {$count} user(s):"];
+        foreach ($users as $user) {
+            if (!is_array($user)) {
+                continue;
+            }
+
+            $identityparts = [
+                'userid=' . $this->format_observation_scalar($user['userid'] ?? null),
+                'username=' . $this->format_observation_scalar($user['username'] ?? null),
+                'fullname=' . $this->format_observation_scalar($user['fullname'] ?? null),
+                'firstname=' . $this->format_observation_scalar($user['firstname'] ?? null),
+                'lastname=' . $this->format_observation_scalar($user['lastname'] ?? null),
+                'email=' . $this->format_observation_scalar($user['email'] ?? null),
+                'idnumber=' . $this->format_observation_scalar($user['idnumber'] ?? null),
+                'institution=' . $this->format_observation_scalar($user['institution'] ?? null),
+                'department=' . $this->format_observation_scalar($user['department'] ?? null),
+                'city=' . $this->format_observation_scalar($user['city'] ?? null),
+                'country=' . $this->format_observation_scalar($user['country'] ?? null),
+                'address=' . $this->format_observation_scalar($user['address'] ?? null),
+                'phone1=' . $this->format_observation_scalar($user['phone1'] ?? null),
+                'phone2=' . $this->format_observation_scalar($user['phone2'] ?? null),
+                'lang=' . $this->format_observation_scalar($user['lang'] ?? null),
+                'timezone=' . $this->format_observation_scalar($user['timezone'] ?? null),
+                'auth=' . $this->format_observation_scalar($user['auth'] ?? null),
+                'confirmed=' . $this->format_observation_scalar($user['confirmed'] ?? null),
+                'suspended=' . $this->format_observation_scalar($user['suspended'] ?? null),
+                'deleted=' . $this->format_observation_scalar($user['deleted'] ?? null),
+                'profile=' . $this->format_observation_scalar($user['profileurl'] ?? null),
+            ];
+
+            $description = trim((string)($user['description'] ?? ''));
+            if ($description !== '') {
+                $identityparts[] = 'description=' . $description;
+            }
+
+            $lines[] = '- user: ' . implode(', ', $identityparts);
+            $lines[] = '  enrolledcourses=' . $this->format_course_observation((array)($user['enrolledcourses'] ?? []));
+            $lines[] = '  roles=' . $this->format_role_observation((array)($user['roles'] ?? []));
+            $lines[] = '  customprofilefields=' . $this->format_custom_profile_field_observation(
+                (array)($user['customprofilefields'] ?? [])
+            );
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Format a scalar value for observation output.
+     *
+     * @param mixed $value
+     * @return string
+     */
+    protected function format_observation_scalar($value): string {
+        if ($value === null) {
+            return '-';
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        $text = trim((string)$value);
+        return $text === '' ? '-' : $text;
+    }
+
+    /**
+     * Format enrolled course payloads for observation output.
+     *
+     * @param array<int,array<string,mixed>> $courses
+     * @return string
+     */
+    protected function format_course_observation(array $courses): string {
+        if (empty($courses)) {
+            return '[]';
+        }
+
+        $parts = [];
+        foreach ($courses as $course) {
+            if (!is_array($course)) {
+                continue;
+            }
+            $parts[] = '{courseid=' . $this->format_observation_scalar($course['courseid'] ?? null)
+                . ', shortname=' . $this->format_observation_scalar($course['shortname'] ?? null)
+                . ', fullname=' . $this->format_observation_scalar($course['fullname'] ?? null)
+                . ', visible=' . $this->format_observation_scalar($course['visible'] ?? null)
+                . ', category=' . $this->format_observation_scalar($course['category'] ?? null)
+                . ', roles=' . $this->format_role_observation((array)($course['roles'] ?? []))
+                . '}';
+        }
+
+        return '[' . implode('; ', $parts) . ']';
+    }
+
+    /**
+     * Format role payloads for observation output.
+     *
+     * @param array<int,array<string,mixed>> $roles
+     * @return string
+     */
+    protected function format_role_observation(array $roles): string {
+        if (empty($roles)) {
+            return '[]';
+        }
+
+        $parts = [];
+        foreach ($roles as $role) {
+            if (!is_array($role)) {
+                continue;
+            }
+            $parts[] = '{roleid=' . $this->format_observation_scalar($role['roleid'] ?? null)
+                . ', shortname=' . $this->format_observation_scalar($role['shortname'] ?? null)
+                . ', name=' . $this->format_observation_scalar($role['name'] ?? null)
+                . ', contextid=' . $this->format_observation_scalar($role['contextid'] ?? null)
+                . ', contextlevel=' . $this->format_observation_scalar($role['contextlevel'] ?? null)
+                . ', courseid=' . $this->format_observation_scalar($role['courseid'] ?? null)
+                . '}';
+        }
+
+        return '[' . implode('; ', $parts) . ']';
+    }
+
+    /**
+     * Format custom profile fields for observation output.
+     *
+     * @param array<string,mixed> $fields
+     * @return string
+     */
+    protected function format_custom_profile_field_observation(array $fields): string {
+        if (empty($fields)) {
+            return '[]';
+        }
+
+        $parts = [];
+        foreach ($fields as $key => $value) {
+            $parts[] = $key . '=' . $this->format_observation_scalar($value);
+        }
+
+        return '[' . implode('; ', $parts) . ']';
     }
 }

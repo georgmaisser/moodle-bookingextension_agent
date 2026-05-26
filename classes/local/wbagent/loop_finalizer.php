@@ -88,7 +88,7 @@ class loop_finalizer {
         }
 
         $commands = (array)($result['commands'] ?? []);
-        $tasks = $extractsteptasknames($commands, $results);
+        $extractsteptasknames($commands, $results);
 
         if ($state->step_count() < 2) {
             return false;
@@ -101,19 +101,16 @@ class loop_finalizer {
             return false;
         }
 
-        $isdocsexplain = in_array('booking.explain_docs_topic', $tasks, true);
-        if ($isdocsexplain) {
-            foreach ($results as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $selectedpath = trim((string)($entry['selected_doc_path'] ?? ''));
-                if ($selectedpath !== '') {
-                    return true;
-                }
-                if (!empty((array)($entry['docs'] ?? []))) {
-                    return true;
-                }
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $selectedpath = trim((string)($entry['selected_doc_path'] ?? ''));
+            if ($selectedpath !== '') {
+                return true;
+            }
+            if (!empty((array)($entry['docs'] ?? []))) {
+                return true;
             }
         }
 

@@ -132,17 +132,14 @@ class get_current_user_task extends core_task_base implements task_trigger_provi
         global $USER;
 
         $user = $USER;
-        $fullname = trim((string)$user->firstname . ' ' . (string)$user->lastname);
-        $userdata = [
-            'userid' => (int)$user->id,
-            'fullname' => $fullname,
-            'email' => (string)$user->email,
-        ];
+        $userdata = $this->build_user_payload($user);
+        $fullname = (string)($userdata['fullname'] ?? fullname($user));
+        $email = (string)($userdata['email'] ?? $user->email);
 
         $outputlang = $this->get_output_language($input);
         $usermessage = $this->localized_string(
             'agent_booking_get_current_user_fallback',
-            (object)['fullname' => $fullname, 'email' => $user->email],
+            (object)['fullname' => $fullname, 'email' => $email],
             $outputlang
         );
 
@@ -151,10 +148,13 @@ class get_current_user_task extends core_task_base implements task_trigger_provi
             'detail' => $this->localized_string('agent_booking_get_current_user_identified', null, $outputlang),
             'resultid' => (int)$user->id,
             'userid' => (int)$user->id,
-            'email' => (string)$user->email,
+            'email' => $email,
             'fullname' => $fullname,
+            'user' => $userdata,
+            'users' => [$userdata],
             'previewmode' => 'user_profile',
             'previewdata' => $userdata,
+            'observation_full' => $this->build_user_observation_full([$userdata]),
             'usermessage' => $usermessage,
             'debugmessage' => $this->build_task_debug_message(
                 self::TASK_NAME,

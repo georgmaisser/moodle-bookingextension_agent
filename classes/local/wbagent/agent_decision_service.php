@@ -1831,10 +1831,12 @@ class agent_decision_service {
             static fn($code): string => trim(core_text::strtoupper((string)$code)),
             (array)($validation['issue_codes'] ?? [])
         );
+        $createoptiontask = $this->resolve_task_name_by_suffix('create_option');
 
         if (
             in_array('TEACHER_USER_NOT_FOUND', $issuecodes, true)
-            && in_array('booking.create_option', $attemptedtasks, true)
+            && $createoptiontask !== ''
+            && in_array($createoptiontask, $attemptedtasks, true)
             && $this->has_confirmable_prevalidation_issues($issuecodes)
         ) {
             $teacherquery = $this->extract_teacher_query_from_validation_errors($errors);
@@ -2042,7 +2044,7 @@ class agent_decision_service {
     }
 
     /**
-     * Ensure create_option commands include duplicate_title override after explicit user confirmation.
+     * Ensure create-option commands include duplicate_title override after explicit user confirmation.
      *
      * @param  array $result
      * @return array
@@ -2051,13 +2053,17 @@ class agent_decision_service {
         if (!in_array((string)($result['response_type'] ?? ''), ['task_call', 'confirmation_request'], true)) {
             return $result;
         }
+        $createoptiontask = $this->resolve_task_name_by_suffix('create_option');
+        if ($createoptiontask === '') {
+            return $result;
+        }
         $commands = $result['commands'] ?? [];
         if (!is_array($commands) || empty($commands)) {
             return $result;
         }
         $changed = false;
         foreach ($commands as $idx => $command) {
-            if (!is_array($command) || (string)($command['task'] ?? '') !== 'booking.create_option') {
+            if (!is_array($command) || (string)($command['task'] ?? '') !== $createoptiontask) {
                 continue;
             }
             $input = $command['input'] ?? [];
@@ -2085,7 +2091,7 @@ class agent_decision_service {
     // Private: teacher autocreate augmentation.
 
     /**
-     * Prepend booking.create_user when user explicitly allows creating missing teacher accounts.
+     * Prepend a matching create-user task when user explicitly allows creating missing teacher accounts.
      *
      * @param  array  $result
      * @param  string $usermessage
@@ -2097,10 +2103,13 @@ class agent_decision_service {
         string $usermessage,
         string $outputlang = ''
     ): array {
+        $createusertask = $this->resolve_task_name_by_suffix('create_user');
+        $createoptiontask = $this->resolve_task_name_by_suffix('create_option');
+
         if ((string)($result['response_type'] ?? '') !== 'confirmation_request') {
             return $result;
         }
-        if ($this->registry->get_task('booking.create_user') === null) {
+        if ($createusertask === '' || $createoptiontask === '') {
             return $result;
         }
         if (!$this->user_allows_missing_user_autocreate($usermessage)) {
@@ -2123,14 +2132,14 @@ class agent_decision_service {
             if (!is_array($command)) {
                 continue;
             }
-            if ((string)($command['task'] ?? '') === 'booking.create_user') {
+            if ((string)($command['task'] ?? '') === $createusertask) {
                 return $result;
             }
         }
 
         $teacherquery = '';
         foreach ($commands as $command) {
-            if (!is_array($command) || (string)($command['task'] ?? '') !== 'booking.create_option') {
+            if (!is_array($command) || (string)($command['task'] ?? '') !== $createoptiontask) {
                 continue;
             }
             $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
@@ -2146,12 +2155,37 @@ class agent_decision_service {
         }
 
         array_unshift($commands, [
-            'task'    => 'booking.create_user',
+            'task'    => $createusertask,
             'version' => 1,
             'input'   => ['userquery' => $teacherquery, 'outputlang' => $outputlang],
         ]);
         $result['commands'] = array_values($commands);
         return $result;
+    }
+
+    /**
+     * Resolve a task name by exact suffix match (e.g. "create_option").
+     *
+     * @param string $suffix
+     * @return string
+     */
+    private function resolve_task_name_by_suffix(string $suffix): string {
+        $suffix = trim($suffix);
+        if ($suffix === '') {
+            return '';
+        }
+
+        $needle = '.' . $suffix;
+        foreach (array_keys($this->registry->get_tasks()) as $taskname) {
+            if (!is_string($taskname) || $taskname === '') {
+                continue;
+            }
+            if (str_ends_with($taskname, $needle)) {
+                return $taskname;
+            }
+        }
+
+        return '';
     }
 
     /**

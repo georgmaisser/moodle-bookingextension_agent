@@ -71,7 +71,7 @@ class result_payload_summarizer {
                 continue;
             }
 
-            // observation_full: task-provided verbatim content that must not be truncated.
+            // Observation_full: task-provided verbatim content that must not be truncated.
             // Use it directly so list-type results (rules, notifications, etc.) are never cut.
             $full = isset($entry['observation_full']) ? trim((string)$entry['observation_full']) : '';
             if ($full !== '') {
@@ -318,7 +318,7 @@ class result_payload_summarizer {
                             $keylist = implode(', ', $keys);
                             $detailsummary .= ' Custom field values NOT loaded (only keys known): '
                                 . implode(', ', $labels) . '.'
-                                . " To retrieve a custom field value, call booking.get_option_details again"
+                                . " To retrieve a custom field value, call the corresponding details task again"
                                 . " with include_customfields=true and customfield_keys=[{$keylist}].";
                         }
                     }

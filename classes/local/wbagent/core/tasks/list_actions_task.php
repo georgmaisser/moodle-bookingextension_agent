@@ -18,7 +18,6 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use context_module;
 use bookingextension_agent\local\wbagent\authorization_service;
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\task_executability_evaluator;
@@ -61,7 +60,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             'version' => 1,
             'description' => 'List the AI agent capabilities and task names that this booking agent supports.'
                 . ' Use this ONLY when the user asks what the agent CAN DO or which agent tasks/commands exist.'
-                . ' Do NOT use for listing bookable options or courses — use booking.search_options for that.',
+                . ' Do NOT use for regular entity listing requests; use the appropriate search/list task instead.',
             'readonly' => true,
             'properties' => [
                 'question' => [
@@ -137,9 +136,9 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
                     'welche felder', 'welche aktionen', 'was kannst du',
                 ],
                 'guidance' => [
-                    '- If user asks which booking option properties can be created/updated, use booking.list_option_properties.',
-                    '- If user asks which actions/tasks are supported, use booking.list_actions.',
-                    '- Do not map these capability/introspection questions to booking.search_options.',
+                    '- If user asks which actions/tasks are supported, use this introspection task.',
+                    '- If user asks for concrete entities (users, courses, options, etc.), route to a dedicated search/list task.',
+                    '- Keep introspection questions separate from entity lookup questions.',
                 ],
             ],
         ];
@@ -176,7 +175,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             $schema = $task->get_schema();
             $actions[] = [
                 'task' => $name,
-                'label' => booking_task_support::get_localized_action_label_for_output($name),
+                'label' => $name,
                 'description' => (string)($schema['description'] ?? ''),
                 'readonly' => $task->is_read_only(),
                 'provider' => (string)($registry->get_task_contract($name)['component'] ?? 'unknown'),
@@ -257,8 +256,6 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Build a technical debug summary for developers.
      *
      * @param string $scope
-    * @param array<int,array<string,mixed>> $actions
-    * @param array<int,array<string,mixed>> $capabilities
      * @return string
      */
     private function build_debug_summary(string $scope, array $actions, array $capabilities): string {
@@ -275,7 +272,6 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Build a user-facing summary sentence for the selected scope.
      *
      * @param string $scope
-    * @param array<int,array<string,mixed>> $capabilities
      * @return string
      */
     private function build_user_summary(string $scope, array $capabilities): string {
@@ -339,10 +335,10 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
     }
 
     /**
-    * Build user-friendly capability blocks grouped by provider and read/write state.
+     * Build user-friendly capability blocks grouped by provider and read/write state.
      *
      * @param array<int,array<string,mixed>> $actions
-    * @return array<int,array<string,mixed>>
+     * @return array<int,array<string,mixed>>
      */
     private function build_user_capabilities(array $actions): array {
         $grouped = [];

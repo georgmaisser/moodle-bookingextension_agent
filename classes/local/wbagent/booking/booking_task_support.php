@@ -29,7 +29,6 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\task_discovery;
 use mod_booking\external\search_courses;
-use mod_booking\external\search_users;
 use mod_booking\bo_availability\bo_info;
 use mod_booking\booking;
 use mod_booking\booking_bookit;
@@ -983,18 +982,34 @@ class booking_task_support {
      * @return array
      */
     private static function search_user_candidates(string $query, int $limit = 10): array {
+        global $CFG;
+
         $query = trim($query);
         if ($query === '') {
             return [];
         }
 
         try {
-            $result = search_users::execute($query);
+            require_once($CFG->libdir . '/datalib.php');
+
+            if (preg_match('/^\d+$/', $query)) {
+                $user = \core_user::get_user((int)$query, 'id, firstname, lastname, email', IGNORE_MISSING);
+                if ($user && !empty($user->id)) {
+                    return [[
+                        'userid' => (int)$user->id,
+                        'firstname' => (string)($user->firstname ?? ''),
+                        'lastname' => (string)($user->lastname ?? ''),
+                        'email' => (string)($user->email ?? ''),
+                    ]];
+                }
+            }
+
+            $result = search_users(0, 0, $query, 'lastname ASC, firstname ASC, id ASC');
         } catch (\Throwable $e) {
             return [];
         }
 
-        $list = $result['list'] ?? [];
+        $list = is_array($result) ? $result : [];
         $normalized = [];
         foreach ($list as $user) {
             $normalized[] = [
@@ -1090,69 +1105,48 @@ class booking_task_support {
             }
         }
 
+        if (preg_match('/^\d+$/', $query)) {
+            $user = \core_user::get_user((int)$query, 'id, email', IGNORE_MISSING);
+            if ($user && !empty($user->id)) {
+                return [
+                    'status' => 'ok',
+                    'userid' => (int)$user->id,
+                    'email' => (string)$user->email,
+                ];
+            }
+        }
+
+        if (strpos($query, '@') !== false) {
+            $user = \core_user::get_user_by_email($query, 'id, email', null, IGNORE_MISSING);
+            if ($user && !empty($user->id)) {
+                return [
+                    'status' => 'ok',
+                    'userid' => (int)$user->id,
+                    'email' => (string)$user->email,
+                ];
+            }
+        }
+
         $users = self::search_user_candidates($query, 5);
         if (empty($users)) {
-            // Fallback: exact e-mail lookup, since search_users can miss mail-only queries.
-            if (strpos($query, '@') !== false) {
-                $emailquery = \core_text::strtolower(trim($query));
-                $user = $DB->get_record_sql(
-                    'SELECT id, email
-                       FROM {user}
-                      WHERE deleted = 0
-                        AND suspended = 0
-                        AND LOWER(email) = :email',
-                    ['email' => $emailquery],
-                    IGNORE_MISSING
-                );
-                if ($user) {
+            // Fallback: direct name/username lookup when directory search returns no hits.
+            $namequery = trim($query);
+            if ($namequery !== '') {
+                $matches = self::search_user_candidates($namequery, 6);
+                if (count($matches) === 1) {
+                    $match = $matches[0];
                     return [
                         'status' => 'ok',
-                        'userid' => (int)$user->id,
-                        'email' => (string)$user->email,
+                        'userid' => (int)$match['userid'],
+                        'email' => (string)$match['email'],
                     ];
                 }
-            }
 
-            // Fallback: direct name/username lookup when directory search returns no hits.
-            $namequery = \core_text::strtolower(trim($query));
-            if ($namequery !== '') {
-                $matches = $DB->get_records_sql(
-                    'SELECT id, email, firstname, lastname
-                       FROM {user}
-                      WHERE deleted = 0
-                        AND suspended = 0
-                        AND (
-                            LOWER(firstname) = :namequery_first
-                            OR LOWER(lastname) = :namequery_last
-                            OR LOWER(CONCAT(firstname, " ", lastname)) = :namequery_full
-                            OR LOWER(username) = :namequery_user
-                        )
-                      ORDER BY id ASC',
-                    [
-                        'namequery_first' => $namequery,
-                        'namequery_last' => $namequery,
-                        'namequery_full' => $namequery,
-                        'namequery_user' => $namequery,
-                    ],
-                    0,
-                    6
-                );
-
-                if (!empty($matches)) {
-                    $matches = array_values($matches);
-                    if (count($matches) === 1) {
-                        $match = $matches[0];
-                        return [
-                            'status' => 'ok',
-                            'userid' => (int)$match->id,
-                            'email' => (string)$match->email,
-                        ];
-                    }
-
+                if (count($matches) > 1) {
                     $candidates = [];
                     foreach ($matches as $match) {
-                        $fullname = trim((string)$match->firstname . ' ' . (string)$match->lastname);
-                        $candidates[] = (int)$match->id . ' (' . $fullname . ', ' . (string)$match->email . ')';
+                        $fullname = trim((string)($match['firstname'] ?? '') . ' ' . (string)($match['lastname'] ?? ''));
+                        $candidates[] = (int)$match['userid'] . ' (' . $fullname . ', ' . (string)$match['email'] . ')';
                     }
 
                     return [

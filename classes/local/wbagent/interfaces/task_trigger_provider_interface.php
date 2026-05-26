@@ -28,7 +28,6 @@ interface task_trigger_provider_interface {
      * Return message trigger definitions this task wants the LLM to classify.
      *
      * Trigger schema:
-     * - id (string, required): stable identifier (e.g. booking.some_trigger)
      * - description (string, required): what should count as a match
      * - examples (array<int,string>, optional): non-exhaustive positive examples
      *

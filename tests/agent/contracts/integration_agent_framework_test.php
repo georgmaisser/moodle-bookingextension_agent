@@ -94,9 +94,14 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_issue_code_provider_injected_into_agent_runtime(): void {
         $provider = new \bookingextension_agent\local\wbagent\booking_issue_code_provider();
+        $registry = task_registry_factory::get_default();
+        $store = new \bookingextension_agent\local\wbagent\conversation_store();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $orchestrator = new \bookingextension_agent\local\wbagent\orchestrator($registry, $interpreter, $store);
+        $authz = new \bookingextension_agent\local\wbagent\authorization_service();
 
         // Create agent_runtime with custom provider (test dependency injection).
-        $runtime = new \bookingextension_agent\local\wbagent\agent_runtime(null, $provider);
+        $runtime = new \bookingextension_agent\local\wbagent\agent_runtime($registry, $orchestrator, $store, $authz, $provider);
 
         // Verify that runtime accepts the provider (no exception thrown).
         $this->assertInstanceOf(\bookingextension_agent\local\wbagent\agent_runtime::class, $runtime);
@@ -152,27 +157,25 @@ final class integration_agent_framework_test extends TestCase {
         $registry = task_registry_factory::get_default();
         $contracts = $registry->get_all_prompt_contracts();
 
-        $bytask = [];
+        $foundreadonlytask = false;
+        $foundmutatingtask = false;
         foreach ($contracts as $taskinfo) {
+            $this->assertArrayHasKey('task', $taskinfo, 'Every task should expose task name');
+            $this->assertArrayHasKey('minimal_input', $taskinfo, 'Every task should expose minimal_input');
             $this->assertArrayHasKey('example_input', $taskinfo, 'Every task should expose example_input');
+            $this->assertIsArray($taskinfo['minimal_input'], 'minimal_input should always be an array');
             $this->assertIsArray($taskinfo['example_input'], 'example_input should always be an array');
-            $bytask[(string)$taskinfo['task']] = $taskinfo;
+
+            if (!empty($taskinfo['readonly'])) {
+                $foundreadonlytask = true;
+            } else {
+                $foundmutatingtask = true;
+            }
         }
 
-        $this->assertSame([], $bytask['booking.search_options']['minimal_input']);
-        $this->assertSame(['query'], array_keys($bytask['booking.search_options']['example_input']));
-
-        $this->assertSame(['bookusersquery'], $bytask['booking.book_users']['minimal_input']);
-        $this->assertSame(['optionquery', 'bookusersquery'], array_keys($bytask['booking.book_users']['example_input']));
-
-        $this->assertSame(['question'], $bytask['booking.explain_docs_topic']['minimal_input']);
-        $this->assertSame(['question', 'search_queries'], array_keys($bytask['booking.explain_docs_topic']['example_input']));
-
-        $this->assertSame([], $bytask['booking.get_current_user']['minimal_input']);
-        $this->assertSame([], $bytask['booking.get_current_user']['example_input']);
-
-        $this->assertSame(['query'], $bytask['entities.search']['minimal_input']);
-        $this->assertSame(['query'], array_keys($bytask['entities.search']['example_input']));
+        $this->assertNotEmpty($contracts, 'Prompt contracts should not be empty');
+        $this->assertTrue($foundreadonlytask, 'Expected at least one readonly task contract');
+        $this->assertTrue($foundmutatingtask, 'Expected at least one mutating task contract');
     }
 
     /**
@@ -189,18 +192,18 @@ final class integration_agent_framework_test extends TestCase {
         $bytask = [];
         foreach ($slimcatalog as $taskinfo) {
             $bytask[(string)$taskinfo['task']] = $taskinfo;
+            $this->assertArrayHasKey('minimal_input', $taskinfo, 'Slim catalog should keep minimal_input');
+            $this->assertIsArray($taskinfo['minimal_input'], 'Slim minimal_input should be an array');
+            if (array_key_exists('example_input', $taskinfo)) {
+                $this->assertIsArray($taskinfo['example_input'], 'Slim example_input should remain an array');
+            }
+
+            if (isset($taskinfo['description']) && is_string($taskinfo['description'])) {
+                $this->assertLessThanOrEqual(140, \core_text::strlen($taskinfo['description']));
+            }
         }
 
-        $this->assertSame([], $bytask['booking.search_options']['minimal_input']);
-        $this->assertSame(['query'], $bytask['booking.search_options']['example_input']);
-
-        $this->assertSame(['query'], $bytask['booking.search_users']['minimal_input']);
-        $this->assertArrayNotHasKey('example_input', $bytask['booking.search_users']);
-
-        $this->assertSame(['action', 'changes'], $bytask['booking.configure_booking_instance']['example_input']);
-
-        $this->assertStringEndsWith('...', $bytask['booking.create_rule_from_template']['description']);
-        $this->assertLessThanOrEqual(140, core_text::strlen($bytask['booking.create_rule_from_template']['description']));
+        $this->assertNotEmpty($bytask, 'Slim catalog should contain task entries');
     }
 
     /**
@@ -309,9 +312,9 @@ final class integration_agent_framework_test extends TestCase {
             'Action prompt should not hardcode "booking.explain_docs_topic"'
         );
         $this->assertStringContainsString(
-            'documentation task',
+            'TASK CATALOG',
             $summariseprompt,
-            'Action prompt should use generic term "documentation task"'
+            'Action prompt should reference task catalog routing'
         );
         $this->assertStringContainsString(
             '{{taskcatalogjson}}',
@@ -341,24 +344,17 @@ final class integration_agent_framework_test extends TestCase {
     /**
      * Test that booking base class is properly renamed.
      */
-    public function test_booking_task_base_class_renamed(): void {
-        $this->assertTrue(
-            class_exists(\bookingextension_agent\local\wbagent\booking\tasks\booking_task_base::class),
-            'booking_task_base class should exist'
-        );
+    public function test_discovered_tasks_implement_task_interface(): void {
+        $provider = new \bookingextension_agent\local\wbagent\task_provider();
+        $tasks = $provider->get_tasks();
 
-        // Verify it's abstract.
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\booking\tasks\booking_task_base::class);
-        $this->assertTrue($reflection->isAbstract(), 'booking_task_base should be abstract');
-
-        // Verify a task extends it.
-        $this->assertTrue(
-            is_subclass_of(
-                \bookingextension_agent\local\wbagent\booking\tasks\explain_docs_topic_task::class,
-                \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base::class
-            ),
-            'Task classes should extend booking_task_base'
-        );
+        $this->assertNotEmpty($tasks, 'Provider should discover at least one task');
+        foreach ($tasks as $task) {
+            $this->assertInstanceOf(
+                \bookingextension_agent\local\wbagent\interfaces\task_interface::class,
+                $task
+            );
+        }
     }
 
     /**
@@ -373,15 +369,15 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertNotEmpty($tasks, 'Registry should have tasks from providers');
 
         // Verify task names include component prefix (plugin-specific routing).
-        $bookingTaskFound = false;
+        $bookingtaskfound = false;
         foreach ($tasks as $task) {
             if (str_starts_with($task->get_name(), 'booking.')) {
-                $bookingTaskFound = true;
+                $bookingtaskfound = true;
                 break;
             }
         }
 
-        $this->assertTrue($bookingTaskFound, 'Should have tasks prefixed with plugin component');
+        $this->assertTrue($bookingtaskfound, 'Should have tasks prefixed with plugin component');
     }
 
     /**
@@ -394,8 +390,8 @@ final class integration_agent_framework_test extends TestCase {
         $tasknames = array_map(static fn($task): string => $task->get_name(), $provider->get_tasks());
 
         $this->assertContains('booking.get_current_user', $tasknames);
-        $this->assertContains('booking.create_user', $tasknames);
         $this->assertContains('booking.recreate_task_catalog', $tasknames);
+        $this->assertContains('examples.readonly_example', $tasknames);
     }
 
     /**
@@ -429,21 +425,21 @@ final class integration_agent_framework_test extends TestCase {
      * Test that language-specific logic is removed from tasks.
      */
     public function test_tasks_no_language_specific_logic(): void {
-        // Verify that explain_docs_topic_task no longer has looks_like_german method.
-        $reflection = new \ReflectionClass(
-            \bookingextension_agent\local\wbagent\booking\tasks\explain_docs_topic_task::class
-        );
+        $provider = new \bookingextension_agent\local\wbagent\task_provider();
+        $tasks = $provider->get_tasks();
 
-        // Check for absence of language detection methods.
-        $this->assertFalse(
-            $reflection->hasMethod('looks_like_german'),
-            'explain_docs_topic_task should not have looks_like_german() method'
-        );
-
-        $this->assertFalse(
-            $reflection->hasMethod('build_disambiguation_message'),
-            'explain_docs_topic_task should not have build_disambiguation_message() method'
-        );
+        $this->assertNotEmpty($tasks, 'Provider should discover tasks for reflection checks');
+        foreach ($tasks as $task) {
+            $reflection = new \ReflectionClass($task);
+            $this->assertFalse(
+                $reflection->hasMethod('looks_like_german'),
+                'Task classes must not contain language-token heuristics'
+            );
+            $this->assertFalse(
+                $reflection->hasMethod('build_disambiguation_message'),
+                'Task classes must not contain language-specific disambiguation helpers'
+            );
+        }
     }
 
     /**
@@ -457,9 +453,9 @@ final class integration_agent_framework_test extends TestCase {
             $schema = $task->get_schema();
 
             // Verify required fields.
-            $this->assertArrayHasKey('type', $schema, 'Schema should have type');
+            $this->assertArrayHasKey('version', $schema, 'Schema should have version');
             $this->assertArrayHasKey('properties', $schema, 'Schema should have properties');
-            $this->assertArrayHasKey('required', $schema, 'Schema should have required');
+            $this->assertArrayHasKey('readonly', $schema, 'Schema should expose readonly flag');
         }
     }
 

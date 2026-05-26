@@ -16,7 +16,6 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
@@ -150,7 +149,6 @@ class search_users_task extends core_task_base implements task_trigger_provider_
      */
     public function execute(array $input, int $contextid, int $userid): array {
         $query = trim((string)($input['query'] ?? ''));
-        $question = trim((string)($input['question'] ?? ''));
         $outputlang = $this->get_output_language($input);
         $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
 
@@ -164,7 +162,18 @@ class search_users_task extends core_task_base implements task_trigger_provider_
 
         $debugbase = $this->build_task_debug_message(self::TASK_NAME, $input);
 
-        $users = booking_task_support::search_user_candidates_for_preview($query, $limit);
+        $users = $this->search_user_candidates_for_preview($query, $limit);
+        $payloadusers = [];
+        foreach ($users as $candidate) {
+            $candidateid = (int)($candidate['userid'] ?? 0);
+            if ($candidateid <= 0) {
+                continue;
+            }
+
+            $user = \core_user::get_user($candidateid, '*', MUST_EXIST);
+            $payloadusers[] = $this->build_user_payload($user);
+        }
+
         if (empty($users)) {
             $usermessage = $this->localized_string('agent_booking_search_users_no_results', null, $outputlang);
             return [
@@ -173,6 +182,9 @@ class search_users_task extends core_task_base implements task_trigger_provider_
                 'usermessage' => $usermessage,
                 'resultid' => null,
                 'users' => [],
+                'previewmode' => 'user_search',
+                'previewdata' => ['query' => $query, 'users' => []],
+                'observation_full' => 'Found 0 user(s).',
                 'debugmessage' => $debugbase . "\nResults: 0",
             ];
         }
@@ -193,8 +205,12 @@ class search_users_task extends core_task_base implements task_trigger_provider_
             'status' => 'executed',
             'detail' => $usermessage,
             'usermessage' => $usermessage,
-            'resultid' => (int)($users[0]['userid'] ?? 0),
-            'users' => $users,
+            'resultid' => (int)($payloadusers[0]['userid'] ?? ($users[0]['userid'] ?? 0)),
+            'users' => $payloadusers,
+            'user' => $payloadusers[0] ?? [],
+            'previewmode' => 'user_search',
+            'previewdata' => ['query' => $query, 'users' => $payloadusers],
+            'observation_full' => $this->build_user_observation_full($payloadusers),
             'previewuserids' => $previewids,
             'debugmessage' => $debugbase . "\n" . implode("\n", $debugextra),
         ];

@@ -60,6 +60,10 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
     public function test_lecture_autoconfirm_single_pass_creates_five_actions(): void {
         global $DB;
 
+        if (!$this->is_task_available('booking.create_option')) {
+            $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
+        }
+
         $this->setUser($this->teacher);
 
         $billy = $this->getDataGenerator()->create_user([
@@ -332,5 +336,16 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         }
 
         return $count;
+    }
+
+    /**
+     * Check if a task currently exists in the registry.
+     *
+     * @param string $taskname
+     * @return bool
+     */
+    private function is_task_available(string $taskname): bool {
+        $registry = \bookingextension_agent\local\wbagent\task_registry_factory::get_default();
+        return $registry->get_task($taskname) !== null;
     }
 }

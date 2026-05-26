@@ -574,7 +574,7 @@ class task_registry {
     /**
      * Return a map of trigger-id → task-name for all registered trigger-providing tasks.
      *
-     * @return array<string,string>  e.g. ['booking.explain_docs_topic_feature_help' => 'booking.explain_docs_topic']
+        * @return array<string,string>  e.g. ['vendor.help_topic' => 'vendor.read_docs']
      */
     public function get_trigger_id_to_task_name_map(): array {
         // Breaking cleanup: trigger-to-task routing is disabled.
@@ -583,7 +583,7 @@ class task_registry {
     }
 
     /**
-     * Build and return the default registry loaded with all booking task providers.
+     * Build and return the default registry loaded with all discovered task providers.
      *
      * @return self
      */

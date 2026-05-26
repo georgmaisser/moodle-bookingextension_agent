@@ -55,8 +55,8 @@ class executor implements agent_executor {
     private const MAX_SPAWN_DEPTH = 4;
 
     /** @var array<string,array<int,string>> Fields omitted from result echoes for privacy. */
-    private const SENSITIVE_EXECUTED_INPUT_FIELDS = [
-        'booking.recall_memory' => ['query'],
+    private const SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS = [
+        'recall_memory' => ['query'],
     ];
 
     /** @var task_registry */
@@ -453,7 +453,8 @@ class executor implements agent_executor {
             $safe[$key] = $value;
         }
 
-        foreach (self::SENSITIVE_EXECUTED_INPUT_FIELDS[$taskname] ?? [] as $fieldname) {
+        $tasksuffix = trim((string)(explode('.', $taskname, 2)[1] ?? $taskname));
+        foreach (self::SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS[$tasksuffix] ?? [] as $fieldname) {
             unset($safe[$fieldname]);
         }
 
@@ -573,70 +574,28 @@ class executor implements agent_executor {
         string $lang,
         array $result
     ): void {
-        $tasks = $this->registry->get_tasks();
-
-        $firstdoc = $this->get_first_row_field($result, 'docs', ['title', 'path']);
-        if ($firstdoc !== '' && $taskname !== 'booking.explain_docs_topic' && isset($tasks['booking.explain_docs_topic'])) {
-            $this->append_suggestion(
-                $suggestions,
-                $seen,
-                'booking.explain_docs_topic',
-                $this->get_task_label('booking.explain_docs_topic', $lang),
-                $this->localized_string('ai_docs_explain_followup_query', $firstdoc, $lang)
-            );
-        }
-
-        $firstoption = $this->get_first_row_field($result, 'options', ['name']);
-        if ($firstoption !== '') {
-            if (isset($tasks['booking.update_option'])) {
-                $this->append_suggestion(
-                    $suggestions,
-                    $seen,
-                    'booking.update_option',
-                    $this->get_task_label('booking.update_option', $lang),
-                    $this->localized_string('ai_followup_update_option_query', $firstoption, $lang)
-                );
-            }
-            if (isset($tasks['booking.diagnose_booking_issue'])) {
-                $this->append_suggestion(
-                    $suggestions,
-                    $seen,
-                    'booking.diagnose_booking_issue',
-                    $this->get_task_label('booking.diagnose_booking_issue', $lang),
-                    $this->localized_string('ai_followup_diagnose_option_query', $firstoption, $lang)
-                );
-            }
-            if (isset($tasks['booking.search_options'])) {
-                $this->append_suggestion(
-                    $suggestions,
-                    $seen,
-                    'booking.search_options',
-                    $this->get_task_label('booking.search_options', $lang),
-                    $this->localized_string('ai_followup_search_related_options_query', $firstoption, $lang)
-                );
+        // Keep result-driven follow-ups generic and registry-driven.
+        $contexttoken = '';
+        foreach (['options', 'docs', 'users', 'courses', 'actions', 'properties'] as $listkey) {
+            $contexttoken = $this->get_first_row_field($result, $listkey, ['label', 'name', 'title', 'fullname', 'path']);
+            if ($contexttoken !== '') {
+                break;
             }
         }
 
-        $firstproperty = $this->get_first_row_field($result, 'properties', ['label', 'name']);
-        if ($firstproperty !== '' && isset($tasks['booking.create_option'])) {
-            $this->append_suggestion(
-                $suggestions,
-                $seen,
-                'booking.create_option',
-                $this->get_task_label('booking.create_option', $lang),
-                $this->localized_string('ai_followup_create_option_with_property_query', $firstproperty, $lang)
-            );
+        if ($contexttoken === '') {
+            return;
         }
 
-        $firstaction = $this->get_first_row_field($result, 'actions', ['label']);
-        if ($firstaction !== '' && isset($tasks['booking.list_actions'])) {
-            $this->append_suggestion(
-                $suggestions,
-                $seen,
-                'booking.list_actions',
-                $this->get_task_label('booking.list_actions', $lang),
-                $this->localized_string('ai_followup_suggestion_query', $firstaction, $lang)
-            );
+        foreach ($this->get_follow_up_candidate_tasks($taskname) as $candidatetask) {
+            if ($candidatetask === $taskname) {
+                continue;
+            }
+
+            $label = $this->get_task_label($candidatetask, $lang);
+            $query = $this->localized_string('ai_followup_suggestion_query', $label, $lang) . ' (' . $contexttoken . ')';
+            $this->append_suggestion($suggestions, $seen, $candidatetask, $label, $query);
+            break;
         }
     }
 
@@ -702,59 +661,68 @@ class executor implements agent_executor {
      * @return array<int,string>
      */
     private function get_follow_up_candidate_tasks(string $taskname): array {
-        $map = [
-            'booking.explain_docs_topic' => [
-                'booking.list_actions',
-                'booking.search_options',
-                'booking.diagnose_booking_issue',
-            ],
-            'booking.list_actions' => [
-                'booking.explain_docs_topic',
-                'booking.search_options',
-                'booking.list_option_properties',
-            ],
-            'booking.search_options' => [
-                'booking.list_option_properties',
-                'booking.update_option',
-                'booking.bulk_update_options',
-            ],
-            'booking.search_users' => [
-                'booking.get_current_user',
-                'booking.search_courses',
-                'booking.list_actions',
-            ],
-            'booking.search_courses' => [
-                'booking.search_users',
-                'booking.create_option',
-                'booking.list_actions',
-            ],
-            'booking.list_option_properties' => [
-                'booking.create_option',
-                'booking.update_option',
-                'booking.list_actions',
-            ],
-            'booking.get_current_user' => [
-                'booking.search_users',
-                'booking.search_options',
-                'booking.list_actions',
-            ],
-            'booking.diagnose_booking_issue' => [
-                'booking.explain_docs_topic',
-                'booking.search_options',
-                'booking.list_actions',
-            ],
-        ];
+        $tasks = array_keys($this->registry->get_tasks());
+        if (empty($tasks)) {
+            return [];
+        }
 
-        $fallback = [
-            'booking.list_actions',
-            'booking.explain_docs_topic',
-            'booking.search_options',
-        ];
+        $iscurrentreadonly = $this->registry->is_read_only_task($taskname);
+        $currentprefix = $this->task_namespace_prefix($taskname);
 
-        $tasks = $map[$taskname] ?? $fallback;
-        return array_values(array_filter(array_unique($tasks), static function (string $candidate) use ($taskname): bool {
+        usort($tasks, function (string $left, string $right) use ($taskname, $iscurrentreadonly, $currentprefix): int {
+            $leftscore = $this->task_follow_up_score($left, $taskname, $iscurrentreadonly, $currentprefix);
+            $rightscore = $this->task_follow_up_score($right, $taskname, $iscurrentreadonly, $currentprefix);
+            if ($leftscore !== $rightscore) {
+                return $rightscore <=> $leftscore;
+            }
+            return strcmp($left, $right);
+        });
+
+        return array_values(array_filter($tasks, static function (string $candidate) use ($taskname): bool {
             return $candidate !== $taskname;
         }));
+    }
+
+    /**
+     * Compute generic ranking score for follow-up candidate tasks.
+     *
+     * @param string $candidate
+     * @param string $taskname
+     * @param bool $iscurrentreadonly
+     * @param string $currentprefix
+     * @return int
+     */
+    private function task_follow_up_score(
+        string $candidate,
+        string $taskname,
+        bool $iscurrentreadonly,
+        string $currentprefix
+    ): int {
+        if ($candidate === $taskname) {
+            return -100;
+        }
+
+        $score = 0;
+        if ($this->registry->is_read_only_task($candidate) === $iscurrentreadonly) {
+            $score += 2;
+        }
+
+        if ($this->task_namespace_prefix($candidate) === $currentprefix) {
+            $score += 1;
+        }
+
+        return $score;
+    }
+
+    /**
+     * Return task namespace prefix before first dot.
+     *
+     * @param string $taskname
+     * @return string
+     */
+    private function task_namespace_prefix(string $taskname): string {
+        $parts = explode('.', $taskname, 2);
+        return trim((string)($parts[0] ?? ''));
     }
 
     /**
@@ -765,37 +733,37 @@ class executor implements agent_executor {
      * @return string
      */
     private function get_task_label(string $taskname, string $lang): string {
-        $stringmap = [
-            'booking.create_option' => 'ai_action_create_option',
-            'booking.create_user' => 'ai_action_create_user',
-            'booking.update_option' => 'ai_action_update_option',
-            'booking.bulk_update_options' => 'ai_action_bulk_update_options',
-            'booking.search_options' => 'ai_action_search_options',
-            'booking.search_users' => 'ai_action_search_users',
-            'booking.search_courses' => 'ai_action_search_courses',
-            'booking.add_price_category' => 'ai_action_add_price_category',
-            'booking.list_option_properties' => 'ai_action_list_option_properties',
-            'booking.list_actions' => 'ai_action_list_actions',
-            'booking.get_current_user' => 'ai_action_get_current_user',
-            'booking.recreate_task_catalog' => 'ai_action_recreate_task_catalog',
-            'booking.explain_docs_topic' => 'ai_action_explain_docs_topic',
-            'booking.diagnose_booking_issue' => 'ai_action_diagnose_booking_issue',
-        ];
-
-        if (isset($stringmap[$taskname])) {
-            return $this->localized_string($stringmap[$taskname], null, $lang);
-        }
-
         $task = $this->registry->get_task($taskname);
         if ($task) {
             $schema = $task->get_schema();
             $description = trim((string)($schema['description'] ?? ''));
             if ($description !== '') {
-                return $description;
+                return $this->truncate_label($description);
             }
         }
 
         return $taskname;
+    }
+
+    /**
+     * Build a compact task label from a longer description.
+     *
+     * @param string $description
+     * @return string
+     */
+    private function truncate_label(string $description): string {
+        $description = trim($description);
+        if (strlen($description) <= 96) {
+            return $description;
+        }
+
+        $truncated = substr($description, 0, 96);
+        $lastspace = strrpos($truncated, ' ');
+        if ($lastspace !== false && $lastspace >= 40) {
+            $truncated = substr($truncated, 0, $lastspace);
+        }
+
+        return rtrim($truncated, " \t\n\r\0\x0B,.;:") . '...';
     }
 
     /**

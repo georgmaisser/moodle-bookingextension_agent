@@ -83,29 +83,48 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
             'Unexpected initial response type: ' . $responseType . "\n" . $this->payload_text($response)
         );
 
-        $finalresponse = $response;
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
+        $taskresult = $this->make_executor()->execute_commands(
+            [['task' => 'booking.list_actions', 'version' => 1, 'input' => []]],
+            $contextid,
+            (int)$this->teacher->id,
+            hash('sha256', 'booking.list_actions:' . uniqid('', true)),
+            0
+        )[0];
+        $this->assertSame('executed', (string)($taskresult['status'] ?? ''));
 
-        $payload = $this->payload_text($finalresponse);
-        $this->assertStringContainsString('booking (provider)', $payload);
-        $this->assertStringContainsString('examples (provider)', $payload);
-        $this->assertStringContainsString('readonly:', $payload);
-        $this->assertStringContainsString('write:', $payload);
+        $actions = (array)($taskresult['actions'] ?? []);
+        $this->assertNotEmpty($actions, 'Expected structured actions in the list-actions result.');
 
-        $providerpos = strpos($payload, 'booking (provider)');
-        $examplespos = strpos($payload, 'examples (provider)');
-        $readonlypos = strpos($payload, "readonly:", $providerpos === false ? 0 : $providerpos);
-        $writepos = strpos($payload, "write:", $providerpos === false ? 0 : $providerpos);
+        $firstprovider = (string)($actions[0]['provider'] ?? '');
+        $this->assertSame('bookingextension/agent', $firstprovider, 'Booking provider should be listed first.');
 
-        $this->assertNotFalse($providerpos, 'Expected provider block in output.');
-        $this->assertNotFalse($examplespos, 'Expected examples provider block in output.');
-        $this->assertNotFalse($readonlypos, 'Expected readonly section in output.');
-        $this->assertNotFalse($writepos, 'Expected write section in output.');
+        $seenexamples = false;
+        foreach ($actions as $action) {
+            $provider = (string)($action['provider'] ?? '');
+            $readonly = (bool)($action['readonly'] ?? false);
+            if ($provider === 'examples') {
+                $seenexamples = true;
+            }
 
-        $this->assertLessThan($examplespos, $providerpos, 'Booking provider block should appear before examples provider block.');
-        $this->assertLessThan($writepos, $readonlypos, 'Readonly heading should appear before write heading.');
+            if ($seenexamples) {
+                $this->assertSame('examples', $provider, 'Example actions should stay grouped after booking actions.');
+            }
+        }
 
-        $this->assertStringContainsString('booking.list_actions', $payload);
-        $this->assertStringContainsString('booking.recreate_task_catalog', $payload);
+        $capabilities = (array)($taskresult['capabilities'] ?? []);
+        $this->assertNotEmpty($capabilities, 'Expected structured capability groups in the result.');
+        $this->assertSame('bookingextension/agent', (string)($capabilities[0]['provider'] ?? ''));
+        $this->assertArrayHasKey('groups', (array)($capabilities[0] ?? []));
+        $this->assertArrayHasKey('readonly', (array)($capabilities[0]['groups'] ?? []));
+        $this->assertArrayHasKey('write', (array)($capabilities[0]['groups'] ?? []));
+
+        $usermessage = (string)($taskresult['usermessage'] ?? '');
+        $readonlypos = strpos($usermessage, 'readonly:');
+        $writepos = strpos($usermessage, 'write:');
+        $this->assertNotFalse($readonlypos, 'Expected readonly group in the user message.');
+        $this->assertNotFalse($writepos, 'Expected write group in the user message.');
+        $this->assertLessThan($writepos, $readonlypos, 'Readonly group should appear before write group.');
     }
 
     /**

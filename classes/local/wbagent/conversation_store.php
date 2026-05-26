@@ -173,7 +173,7 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int    $threadid
      * @param int    $stepnum   1-based step counter.
-     * @param string $label     Short human-readable label ("Step 1: booking.search_options").
+    * @param string $label     Short human-readable label ("Step 1: provider.task_name").
      * @param string $task      Raw task name for frontend icon selection.
      * @return int New message id.
      */

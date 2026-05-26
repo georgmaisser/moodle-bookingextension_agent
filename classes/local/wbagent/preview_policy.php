@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Policy class defining which tasks support booking option preview rendering.
+ * Policy class defining which tasks support option preview rendering.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -29,8 +29,8 @@ namespace bookingextension_agent\local\wbagent;
 /**
  * Defines which agent tasks support visual preview rendering.
  *
- * Only booking.create_option and booking.update_option produce meaningful
- * booking-option row previews.  All other tasks (entities.create_entity, etc.)
+ * Only create/update option tasks produce meaningful option row previews.
+ * All other tasks (entities.create_entity, etc.)
  * are treated as a silent no-op — no HTML is rendered and no error is returned.
  *
  * @package    bookingextension_agent
@@ -38,12 +38,12 @@ namespace bookingextension_agent\local\wbagent;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preview_policy {
-    /** @var string[] Tasks that support visual preview rendering. */
-    private const PREVIEW_ENABLED_TASKS = [
-        'booking.create_option',
-        'booking.create_slotbooking_option',
-        'booking.create_selflearning_option',
-        'booking.update_option',
+    /** @var string[] Task-name suffixes that support visual preview rendering. */
+    private const PREVIEW_ENABLED_TASK_SUFFIXES = [
+        'create_option',
+        'create_slotbooking_option',
+        'create_selflearning_option',
+        'update_option',
     ];
 
     /**
@@ -53,7 +53,8 @@ class preview_policy {
      * @return bool
      */
     public static function supports_preview(string $taskname): bool {
-        return in_array($taskname, self::PREVIEW_ENABLED_TASKS, true);
+        $suffix = trim((string)(explode('.', $taskname, 2)[1] ?? $taskname));
+        return in_array($suffix, self::PREVIEW_ENABLED_TASK_SUFFIXES, true);
     }
 
     /**

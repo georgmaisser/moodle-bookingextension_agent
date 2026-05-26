@@ -16,7 +16,6 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
@@ -110,7 +109,7 @@ class search_courses_task extends core_task_base implements task_trigger_provide
                 ],
                 'guidance' => [
                     '- Use booking.search_courses as a FIRST STEP when you need a courseid to pass to',
-                    '  booking.create_option or booking.update_option and only a course name is known.',
+                    '  a follow-up task and only a course name is known.',
                     '- Execute this task and wait for the observation; then use the resolved courseid.',
                     '- Use input.query for the search term and optionally input.limit to cap results.',
                     '- If multiple courses match, ask the user to clarify before continuing.',
@@ -148,7 +147,6 @@ class search_courses_task extends core_task_base implements task_trigger_provide
      */
     public function execute(array $input, int $contextid, int $userid): array {
         $query = trim((string)($input['query'] ?? ''));
-        $question = trim((string)($input['question'] ?? ''));
         $outputlang = $this->get_output_language($input);
         $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
 
@@ -162,7 +160,7 @@ class search_courses_task extends core_task_base implements task_trigger_provide
 
         $debugbase = $this->build_task_debug_message(self::TASK_NAME, $input);
 
-        $courses = booking_task_support::search_course_candidates_for_preview($query, $limit);
+        $courses = $this->search_course_candidates_for_preview($query, $limit);
         if (empty($courses)) {
             $usermessage = $this->localized_string('agent_booking_search_courses_no_results', null, $outputlang);
             return [

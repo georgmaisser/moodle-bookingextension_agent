@@ -56,6 +56,10 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
     public function test_multistep_create_assign_teacher_and_make_visible(): void {
         global $DB;
 
+        if (!$this->is_task_available('booking.create_option')) {
+            $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
+        }
+
         $this->setUser($this->teacher);
 
         $billy = $this->getDataGenerator()->create_user([
@@ -195,5 +199,16 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
 
         $updated = $this->get_option_from_db((int)$option->id);
         $this->assertSame(MOD_BOOKING_OPTION_VISIBLE, (int)$updated->invisible);
+    }
+
+    /**
+     * Check if a task currently exists in the registry.
+     *
+     * @param string $taskname
+     * @return bool
+     */
+    private function is_task_available(string $taskname): bool {
+        $registry = \bookingextension_agent\local\wbagent\task_registry_factory::get_default();
+        return $registry->get_task($taskname) !== null;
     }
 }

@@ -1167,19 +1167,16 @@ class agent_runtime {
             return false;
         }
 
-        $isdocsexplain = in_array('booking.explain_docs_topic', $tasks, true);
-        if ($isdocsexplain) {
-            foreach ($results as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $selectedpath = trim((string)($entry['selected_doc_path'] ?? ''));
-                if ($selectedpath !== '') {
-                    return true;
-                }
-                if (!empty((array)($entry['docs'] ?? []))) {
-                    return true;
-                }
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $selectedpath = trim((string)($entry['selected_doc_path'] ?? ''));
+            if ($selectedpath !== '') {
+                return true;
+            }
+            if (!empty((array)($entry['docs'] ?? []))) {
+                return true;
             }
         }
 
@@ -2130,7 +2127,8 @@ class agent_runtime {
         }
 
         $commands = (array)($result['commands'] ?? []);
-        if (empty($commands) || !$this->all_commands_match_task($commands, 'booking.diagnose_booking_issue')) {
+        $diagnosistasks = $this->get_diagnosis_task_names();
+        if (empty($commands) || empty($diagnosistasks) || !$this->all_commands_match_any_task($commands, $diagnosistasks)) {
             return $result;
         }
 
@@ -2180,6 +2178,59 @@ class agent_runtime {
         }
 
         return true;
+    }
+
+    /**
+     * Check whether every command targets one of the provided task names.
+     *
+     * @param array $commands
+     * @param array<int,string> $tasknames
+     * @return bool
+     */
+    private function all_commands_match_any_task(array $commands, array $tasknames): bool {
+        if (empty($commands) || empty($tasknames)) {
+            return false;
+        }
+
+        $allowed = array_fill_keys(array_values(array_unique($tasknames)), true);
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                return false;
+            }
+            $taskname = trim((string)($command['task'] ?? ''));
+            if ($taskname === '' || !isset($allowed[$taskname])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Return names of available diagnosis tasks discovered in the registry.
+     *
+     * @return array<int,string>
+     */
+    private function get_diagnosis_task_names(): array {
+        $matches = [];
+        foreach ($this->registry->get_tasks() as $taskname => $task) {
+            if (!is_string($taskname) || $taskname === '') {
+                continue;
+            }
+
+            $schemadescription = '';
+            if (is_object($task) && method_exists($task, 'get_schema')) {
+                $schema = (array)$task->get_schema();
+                $schemadescription = core_text::strtolower(trim((string)($schema['description'] ?? '')));
+            }
+
+            $namelower = core_text::strtolower($taskname);
+            if (str_contains($namelower, 'diagnose') || str_contains($schemadescription, 'diagnos')) {
+                $matches[] = $taskname;
+            }
+        }
+
+        return array_values(array_unique($matches));
     }
 
     /**
@@ -2478,8 +2529,7 @@ class agent_runtime {
             return true;
         }
 
-        $attemptedtasks = array_values(array_unique((array)($structured['attempted_tasks'] ?? [])));
-        return in_array('booking.create_option', $attemptedtasks, true);
+        return false;
     }
 
     /**
