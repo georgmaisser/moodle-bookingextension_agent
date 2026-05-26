@@ -278,7 +278,12 @@ class orchestrator {
 
         $routing = $this->resolve_action_class_for_step($manager, $context, $normalizedsteptype);
         $actionclass = (string)$routing['actionclass'];
-        $messages = $this->store->get_recent_messages($threadid, self::MAX_HISTORY_MESSAGES);
+        // Always provide full thread history (excluding ephemeral step bubbles)
+        // so follow-up turns keep complete conversation context.
+        $messages = array_values(array_filter(
+            $this->store->get_messages($threadid),
+            static fn($msg): bool => (string)($msg->role ?? '') !== 'step'
+        ));
 
         // Compute adaptive task catalog: tiered (mandatory + recency for Step 2+, full for Step 1).
         $recenttaskhistory = $this->extract_recent_task_names_from_messages($messages);
@@ -1549,19 +1554,16 @@ PROMPT;
     }
 
     /**
-     * Return history depth per prompt profile to reduce token usage.
+     * Return history depth per prompt profile.
+     *
+     * Full thread context is required so follow-up turns do not lose prior
+     * user questions or assistant answers.
      *
      * @param string $steptype
      * @return int
      */
     private function get_history_limit_for_step(string $steptype): int {
-        if ($steptype === self::STEP_TYPE_FINAL_REASONING) {
-            return 8;
-        }
-        if ($steptype === self::STEP_TYPE_SIMPLE_RETRIEVAL) {
-            return 6;
-        }
-        return 5;
+        return PHP_INT_MAX;
     }
 
     /**

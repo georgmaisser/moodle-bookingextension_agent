@@ -109,6 +109,7 @@ class ai_confirm_run extends external_api {
         } catch (\Throwable $e) {
             $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
         }
+        $params['contextid'] = (int)$context->id;
         $cmid = (int)$context->instanceid;
         $params['cmid'] = $cmid;
         $authz->require_valid_context((int)$context->id);

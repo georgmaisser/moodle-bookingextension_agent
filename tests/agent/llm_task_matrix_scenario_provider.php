@@ -206,12 +206,6 @@ final class llm_task_matrix_scenario_provider {
                         'value' => 'queued',
                     ],
                     [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'queued_task_class',
-                        'value' => 'rebuild_task_catalog_embeddings_adhoc',
-                    ],
-                    [
                         'target' => 'chat',
                         'type' => 'step_count_gte',
                         'value' => 1,

@@ -369,15 +369,21 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertNotEmpty($tasks, 'Registry should have tasks from providers');
 
         // Verify task names include component prefix (plugin-specific routing).
-        $bookingtaskfound = false;
+        // Legacy names used booking.*, current core tasks use core.*.
+        $componentprefixtaskfound = false;
+        $coretaskfound = false;
         foreach ($tasks as $task) {
-            if (str_starts_with($task->get_name(), 'booking.')) {
-                $bookingtaskfound = true;
-                break;
+            $name = (string)$task->get_name();
+            if (preg_match('/^[a-z][a-z0-9_]*\.[a-z0-9_]/', $name) === 1) {
+                $componentprefixtaskfound = true;
+            }
+            if (str_starts_with($name, 'core.')) {
+                $coretaskfound = true;
             }
         }
 
-        $this->assertTrue($bookingtaskfound, 'Should have tasks prefixed with plugin component');
+        $this->assertTrue($componentprefixtaskfound, 'Should have tasks prefixed with plugin component');
+        $this->assertTrue($coretaskfound, 'Should expose core.* tasks from bookingextension_agent');
     }
 
     /**
