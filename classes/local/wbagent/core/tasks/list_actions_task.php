@@ -20,6 +20,7 @@ use context_module;
 use bookingextension_agent\local\wbagent\authorization_service;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\task_contract_validator;
 use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 
@@ -160,36 +161,58 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
         $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $actions = [];
+        $unavailableactions = [];
         $registry = task_registry_factory::get_default();
         $evaluator = new task_executability_evaluator($registry, new authorization_service());
-        foreach ($registry->get_task_names_for_context($evaluator, $userid, $contextid) as $name) {
-            if ($scope === 'readonly' && !$registry->is_read_only_task($name)) {
-                continue;
-            }
-            if ($scope === 'mutating' && $registry->is_read_only_task($name)) {
-                continue;
-            }
-
+        foreach ($registry->get_task_names_for_context($evaluator, $userid, $contextid, true) as $name) {
             $task = $registry->get_task($name);
             if (!$task) {
                 continue;
             }
 
             $schema = $task->get_schema();
-            $actions[] = [
+            $evaluation = $evaluator->evaluate_task($name, $userid, $contextid);
+            $isallowed = (string)($evaluation['executable_state'] ?? '') === 'allow';
+
+            if ($isallowed) {
+                if ($scope === 'readonly' && !$registry->is_read_only_task($name)) {
+                    continue;
+                }
+                if ($scope === 'mutating' && $registry->is_read_only_task($name)) {
+                    continue;
+                }
+
+                $actions[] = [
+                    'task' => $name,
+                    'label' => $name,
+                    'description' => (string)($schema['description'] ?? ''),
+                    'readonly' => $task->is_read_only(),
+                    'provider' => (string)($registry->get_task_contract($name)['component'] ?? 'unknown'),
+                ];
+                continue;
+            }
+
+            if ($scope !== 'all' && $scope !== 'readonly' && $scope !== 'mutating') {
+                continue;
+            }
+
+            $unavailableactions[] = [
                 'task' => $name,
                 'label' => $name,
                 'description' => (string)($schema['description'] ?? ''),
                 'readonly' => $task->is_read_only(),
                 'provider' => (string)($registry->get_task_contract($name)['component'] ?? 'unknown'),
+                'deny_reason' => (string)($evaluation['deny_reason'] ?? ''),
+                'deny_reason_label' => $this->describe_deny_reason((string)($evaluation['deny_reason'] ?? '')),
+                'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
             ];
         }
 
         $capabilities = $this->build_user_capabilities($actions);
 
-        $summary = $this->build_user_summary($scope, $capabilities);
+        $summary = $this->build_user_summary($scope, $capabilities, $unavailableactions);
 
-        $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities);
+        $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities, $unavailableactions);
 
         // ...Observation_full: vollständige, ungekürzte Liste aller Tasks mit Beschreibungen.
         $observation = $this->build_observation_full($actions, $outputlang);
@@ -201,6 +224,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             'debugmessage' => $debugmessage,
             'capabilities' => $capabilities,
             'actions' => $actions,
+            'unavailable_actions' => $unavailableactions,
             'observation_full' => $observation,
         ];
     }
@@ -261,12 +285,18 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * @param string $scope
      * @return string
      */
-    private function build_debug_summary(string $scope, array $actions, array $capabilities): string {
+    private function build_debug_summary(
+        string $scope,
+        array $actions,
+        array $capabilities,
+        array $unavailableactions = []
+    ): string {
         $lines = [
             'Task: ' . self::TASK_NAME,
             'Scope: ' . $scope,
             'Returned actions: ' . count($actions),
             'Provider groups: ' . count($capabilities),
+            'Unavailable actions: ' . count($unavailableactions),
         ];
         return implode("\n", $lines);
     }
@@ -275,24 +305,22 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Build a user-facing summary sentence for the selected scope.
      *
      * @param string $scope
+     * @param array<int,array<string,mixed>> $capabilities
+     * @param array<int,array<string,mixed>> $unavailableactions
      * @return string
      */
-    private function build_user_summary(string $scope, array $capabilities): string {
-        $intro = '';
-
+    private function build_user_summary(string $scope, array $capabilities, array $unavailableactions = []): string {
         if (empty($capabilities)) {
-            return get_string('ai_list_actions_summary_none', 'bookingextension_agent');
-        }
-
-        if ($scope === 'readonly') {
-            $intro = get_string('ai_list_actions_summary_readonly', 'bookingextension_agent');
+            $summary = get_string('ai_list_actions_summary_none', 'bookingextension_agent');
+        } else if ($scope === 'readonly') {
+            $summary = get_string('ai_list_actions_summary_readonly', 'bookingextension_agent');
         } else if ($scope === 'mutating') {
-            $intro = get_string('ai_list_actions_summary_mutating', 'bookingextension_agent');
+            $summary = get_string('ai_list_actions_summary_mutating', 'bookingextension_agent');
         } else {
-            $intro = get_string('ai_list_actions_summary_all', 'bookingextension_agent');
+            $summary = get_string('ai_list_actions_summary_all', 'bookingextension_agent');
         }
 
-        $lines = [];
+        $lines = [$summary];
         foreach ($capabilities as $providerblock) {
             $provider = trim((string)($providerblock['provider'] ?? 'unknown'));
             $groups = (array)($providerblock['groups'] ?? []);
@@ -330,11 +358,89 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             }
         }
 
-        if (empty($lines)) {
-            return $intro;
+        if (!empty($unavailableactions)) {
+            $lines[] = '';
+            $lines[] = get_string('ai_list_actions_summary_unavailable_heading', 'bookingextension_agent');
+            foreach ($unavailableactions as $action) {
+                $taskname = trim((string)($action['task'] ?? ''));
+                $reason = trim((string)($action['deny_reason_label'] ?? ''));
+                $reasoncode = trim((string)($action['deny_reason'] ?? ''));
+                $detail = $this->build_unavailable_action_detail((array)$action);
+                $line = '  - ' . ($taskname !== '' ? $taskname : 'unknown task');
+                if ($reason !== '') {
+                    $line .= ': ' . $reason;
+                } else if ($reasoncode !== '') {
+                    $line .= ': ' . $reasoncode;
+                }
+                if ($detail !== '') {
+                    $line .= ' (' . $detail . ')';
+                }
+                $lines[] = $line;
+            }
         }
 
-        return $intro . "\n" . implode("\n", $lines);
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Return a short human-readable description for a deny reason.
+     *
+     * @param string $reason
+     * @return string
+     */
+    private function describe_deny_reason(string $reason): string {
+        return match ($reason) {
+            task_contract_validator::DENY_RUNTIME_DISABLED => get_string(
+                'ai_list_actions_unavailable_runtime_disabled',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_INACTIVE => get_string(
+                'ai_list_actions_unavailable_inactive',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_MISSING_CAPABILITY => get_string(
+                'ai_list_actions_unavailable_missing_capability',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_CONTEXT_INVALID => get_string(
+                'ai_list_actions_unavailable_context_invalid',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_TASK_VERSION_UNSUPPORTED => get_string(
+                'ai_list_actions_unavailable_version_unsupported',
+                'bookingextension_agent'
+            ),
+            default => get_string('ai_list_actions_unavailable_unknown', 'bookingextension_agent'),
+        };
+    }
+
+    /**
+     * Build a compact technical detail string for an unavailable action.
+     *
+     * @param array<string,mixed> $action
+     * @return string
+     */
+    private function build_unavailable_action_detail(array $action): string {
+        $diagnostics = (array)($action['diagnostics'] ?? []);
+        $details = [];
+
+        $requiredcapabilities = array_values(array_filter(array_map(
+            'strval',
+            (array)($diagnostics['required_capabilities'] ?? [])
+        )));
+        if (!empty($requiredcapabilities)) {
+            $details[] = 'required=' . implode(', ', $requiredcapabilities);
+        }
+
+        if (array_key_exists('active', $diagnostics) && $diagnostics['active'] === false) {
+            $details[] = 'platform disabled';
+        }
+
+        if (array_key_exists('contextid', $diagnostics)) {
+            $details[] = 'contextid=' . (string)$diagnostics['contextid'];
+        }
+
+        return implode('; ', $details);
     }
 
     /**

@@ -128,6 +128,53 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
     }
 
     /**
+     * Ensure slotbooking create task blocks when slot form fields are missing.
+     */
+    public function test_create_option_slotbooking_requires_slot_fields(): void {
+        [$teacher, $contextid] = $this->create_booking_test_context();
+
+        task_registry_factory::reset();
+        $registry = task_registry_factory::get_default();
+        $task = $registry->get_task('mod_booking.create_option_slotbooking');
+
+        $this->assertNotNull($task);
+
+        $input = [
+            'text' => 'Slot without required fields',
+        ];
+
+        $preflight = $task->preflight($input, $contextid, (int)$teacher->id);
+        $this->assertSame('hard_block', $preflight->status, 'Slotbooking create must fail without required slot fields.');
+        $this->assertNotEmpty($preflight->issues);
+        $this->assertStringContainsString(
+            'Missing required slot field: slot_opening_time.',
+            (string)($preflight->issues[0]['message'] ?? '')
+        );
+    }
+
+    /**
+     * Ensure slotbooking contracts expose explicit slotbooking intent metadata.
+     */
+    public function test_slotbooking_prompt_contracts_are_explicit(): void {
+        task_registry_factory::reset();
+        $registry = task_registry_factory::get_default();
+
+        $create = $registry->get_task('mod_booking.create_option_slotbooking');
+        $update = $registry->get_task('mod_booking.update_option_slotbooking');
+
+        $this->assertNotNull($create);
+        $this->assertNotNull($update);
+
+        $createcontract = $create->get_prompt_contract()->to_array();
+        $updatecontract = $update->get_prompt_contract()->to_array();
+
+        $this->assertSame('create_slotbooking', (string)($createcontract['intent'] ?? ''));
+        $this->assertSame('update_slotbooking', (string)($updatecontract['intent'] ?? ''));
+        $this->assertContains('slot_opening_time', (array)($createcontract['minimal_input'] ?? []));
+        $this->assertContains('slot_opening_time', (array)($updatecontract['minimal_input'] ?? []));
+    }
+
+    /**
      * Create booking/module context and a teacher with required booking capabilities.
      *
      * @return array{0:\stdClass,1:int,2:int}

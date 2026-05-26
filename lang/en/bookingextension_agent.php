@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
+$string['agent:task_booking_analyze_rules'] = 'Analyze booking rules';
 $string['agent_booking_add_pricecat_capability_required'] = 'Adding price categories requires moodle/site:config capability.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Please confirm how booking policy consent should be transmitted.';
 $string['agent_booking_blocker_followup_customform'] = 'Please provide the required custom form values that should be transmitted.';
@@ -419,7 +420,14 @@ $string['ai_input_placeholder'] = 'Describe what you want to create or update…
 $string['ai_list_actions_summary_all'] = 'I can support you with creating, updating, searching and configuring booking options.';
 $string['ai_list_actions_summary_mutating'] = 'I can support you with creating and changing booking options.';
 $string['ai_list_actions_summary_none'] = 'I can help with booking management tasks in this activity. Tell me your goal and I will suggest the next step.';
+$string['ai_list_actions_summary_unavailable_heading'] = 'Unavailable tasks and reasons:';
 $string['ai_list_actions_summary_readonly'] = 'I can support you with read-only guidance and lookups for booking options.';
+$string['ai_list_actions_unavailable_context_invalid'] = 'The current context is not valid for this task.';
+$string['ai_list_actions_unavailable_inactive'] = 'The task is not enabled on this platform right now.';
+$string['ai_list_actions_unavailable_missing_capability'] = 'You do not have enough permissions to run this task.';
+$string['ai_list_actions_unavailable_runtime_disabled'] = 'The AI task runtime is disabled on this platform.';
+$string['ai_list_actions_unavailable_unknown'] = 'The task cannot be executed right now.';
+$string['ai_list_actions_unavailable_version_unsupported'] = 'The task version is not supported by this installation.';
 $string['ai_lookup_detected_blocked_mutation'] = 'I understood your message as a lookup/list request, so I did not prepare an update. Please tell me what exactly you want to search.';
 $string['ai_next_step_intent_default'] = 'I will now summarize the available findings.';
 $string['ai_no_commands'] = 'No commands to execute.';
