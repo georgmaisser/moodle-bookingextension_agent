@@ -47,7 +47,7 @@ flowchart TD
         LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\nclear_step_messages()"]
         RUNINT["run_internal(threadid, contextid, userid, observations, state)\n→ StepResult"]
         STEP_RESULT{"StepResult\ncontinue | stop | escalate"}
-        OBS_ACCUM["observation_builder + result_payload_summarizer\nprivacy_anonymizer::anonymize_value_for_llm()\nstate.add_observation(observation)"]
+        OBS_ACCUM["observation_builder + result_payload_summarizer\nprivacy_anonymizer::anonymize_value_for_llm()\nbuild_preflight_retry_observation() on RECOVERABLE_INPUT_ERROR\nstate.add_observation(observation)"]
         LF_CHECK["loop_finalizer::finalize_timeout_only()\n(safety-net only, no semantic routing)"]
         LF_STOP["Timeout / budget clarification"]
         BUDG_CHECK{"budget_guard_allows\n_next_llm_call(step, limit)?"}
@@ -67,7 +67,7 @@ flowchart TD
         ACAT["planner_catalog_service\n::get_catalog_from_agent_state()\n→ explicit task_prompt_contracts only\n→ no task-name or field-name heuristics\n→ no re-embed during loop"]
         OR_LANG["language contract\nLLM + deterministic replies follow latest user message\n(no de/en token lists in routing)"]
         LLMSVC["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: planner_decide | generate_agent_reply\n  generate_text | generate_embeddings"]
-        INTERP["interpreter::interpret(rawresponse, contextid, userid, lastmsg)\nStage 1: parse() — JSON extraction\nStage 2: classify response_type (allow-list)\nStage 3: check_structure() per task\nStage 4: normalize (dates, IDs, __current_user__)"]
+        INTERP["interpreter::interpret(rawresponse, contextid, userid, lastmsg)\nStage 1: parse() — JSON extraction\nStage 2: classify response_type (allow-list)\nStage 3: check_structure() per task (may emit RECOVERABLE_INPUT_ERROR)\nStage 4: normalize (dates, IDs, __current_user__)\nNo task-specific heuristics"]
         RESP_TYPE{"parsed\nresponse_type"}
     end
 

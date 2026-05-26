@@ -5,6 +5,12 @@ Quelle: Vollinventur aller class/interface/trait Deklarationen unter classes
 
 Statuswerte: KEEP, REFACTOR, REMOVE_NOW, REMOVE_LATER
 
+## Recoverable Input Validation Contract
+
+- `classes/local/wbagent/core/tasks/recall_memory_task.php` definiert den Task-Contract fuer `core.recall_memory`, inklusive harter `mode`-Schema-Vorgaben und `RECOVERABLE_INPUT_ERROR` bei unvollstaendigen oder ungueltigen Planner-Eingaben.
+- `classes/local/wbagent/agent_runtime.php` wandelt solche strukturellen Rueckgabesignale in explizite Retry-Observations mit feldgenauen Korrekturhinweisen um.
+- `classes/local/wbagent/interpreter.php` bleibt generisch und task-agnostisch; er transportiert Issue-Codes aus der Task-Validierung, ohne task-spezifische Heuristiken zu enthalten.
+
 | Datei | Symbol | Typ | Status | Hinweis |
 |---|---|---|---|---|
 | classes/task/rebuild_task_catalog_embeddings_adhoc.php | rebuild_task_catalog_embeddings_adhoc | class | KEEP |  |
@@ -37,7 +43,7 @@ Statuswerte: KEEP, REFACTOR, REMOVE_NOW, REMOVE_LATER
 | classes/local/wbagent/core/tasks/core_get_site_summary_task.php | core_get_site_summary_task | class | KEEP |  |
 | classes/local/wbagent/core/tasks/core_get_user_preferences_task.php | core_get_user_preferences_task | class | KEEP |  |
 | classes/local/wbagent/core/tasks/core_list_course_calendar_events_task.php | core_list_course_calendar_events_task | class | KEEP |  |
-| classes/local/wbagent/core/tasks/recall_memory_task.php | recall_memory_task | class | KEEP |  |
+| classes/local/wbagent/core/tasks/recall_memory_task.php | recall_memory_task | class | KEEP | Definiert den Recoverable-Input-Contract fuer core.recall_memory |
 | classes/local/wbagent/core/tasks/core_search_course_enrolments_task.php | core_search_course_enrolments_task | class | KEEP |  |
 | classes/local/wbagent/core/tasks/core_create_group_task.php | core_create_group_task | class | KEEP |  |
 | classes/local/wbagent/core/tasks/create_user_task.php | create_user_task | class | KEEP |  |
@@ -86,7 +92,7 @@ Statuswerte: KEEP, REFACTOR, REMOVE_NOW, REMOVE_LATER
 | classes/local/wbagent/authorization_service.php | authorization_service | class | KEEP |  |
 | tests/agent/contracts/integration_agent_framework_test.php | integration_agent_framework_test | class | KEEP | In Standard-Teststruktur verschoben |
 | classes/local/wbagent/adaptive_task_catalog_service.php | adaptive_task_catalog_service | class | REMOVE_LATER | Falls durch expliziten planner catalog ersetzt |
-| classes/local/wbagent/agent_runtime.php | agent_runtime | class | REFACTOR | Kernumbau laut Zielarchitektur |
+| classes/local/wbagent/agent_runtime.php | agent_runtime | class | REFACTOR | Formt Preflight-/Validierungsfehler in konkrete Planner-Retry-Hinweise um |
 | classes/local/wbagent/embeddings_catalog_builder_service.php | embeddings_catalog_builder_service | class | REMOVE_LATER | Optionaler Embeddings-Featurepfad |
 | classes/local/wbagent/task_executability_evaluator.php | task_executability_evaluator | class | KEEP |  |
 | classes/local/wbagent/task_contract_validator.php | task_contract_validator | class | KEEP |  |
@@ -104,7 +110,7 @@ Statuswerte: KEEP, REFACTOR, REMOVE_NOW, REMOVE_LATER
 | classes/local/wbagent/services/preflight_schema_validator.php | preflight_schema_validator | class | KEEP |  |
 | classes/local/wbagent/services/lookup/option_lookup_service.php | option_lookup_service | class | KEEP |  |
 | classes/local/wbagent/services/lookup/docs_lookup_service.php | docs_lookup_service | class | KEEP |  |
-| classes/local/wbagent/interpreter.php | interpreter | class | KEEP |  |
+| classes/local/wbagent/interpreter.php | interpreter | class | KEEP | Bleibt task-agnostisch; keine Sonderlogik fuer Recoverable-Input-Fehler |
 | classes/local/wbagent/planner_service.php | planner_service | class | REMOVE_LATER | Nach strict preflight prepared_input entfernen |
 | classes/local/wbagent/base_task.php | base_task | class | KEEP |  |
 | classes/local/wbagent/aiready.php | aiready | class | KEEP |  |
