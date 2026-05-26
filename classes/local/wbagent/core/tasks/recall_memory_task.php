@@ -20,7 +20,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
- * Task definition for booking.recall_memory.
+ * Task definition for core.recall_memory.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -28,7 +28,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  */
 class recall_memory_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.recall_memory';
+    public const TASK_NAME = 'core.recall_memory';
 
     /**
      * Constructor.
@@ -117,7 +117,7 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.recall_memory_last_time',
+                'id' => 'core.recall_memory_last_time',
                 'description' => 'User asks what was discussed previously.',
                 'examples' => [
                     'what did we talk about last time',
@@ -125,7 +125,7 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
                 ],
             ],
             [
-                'id' => 'booking.recall_memory_date_window',
+                'id' => 'core.recall_memory_date_window',
                 'description' => 'User asks for memory in a date window.',
                 'examples' => [
                     'what did we talk about last friday',

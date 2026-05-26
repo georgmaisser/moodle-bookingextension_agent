@@ -256,7 +256,7 @@ final class integration_agent_framework_test extends TestCase {
         $retrieval = new \bookingextension_agent\local\wbagent\embeddings_retrieval_service();
         $subset = $retrieval->build_planner_catalog_subset([
             [
-                'task' => 'booking.recreate_task_catalog',
+                'task' => 'core.recreate_task_catalog',
                 'intent' => 'mutate',
                 'readonly' => '0',
                 'description' => 'stale csv description',
@@ -389,8 +389,8 @@ final class integration_agent_framework_test extends TestCase {
         $provider = new \bookingextension_agent\local\wbagent\task_provider();
         $tasknames = array_map(static fn($task): string => $task->get_name(), $provider->get_tasks());
 
-        $this->assertContains('booking.get_current_user', $tasknames);
-        $this->assertContains('booking.recreate_task_catalog', $tasknames);
+        $this->assertContains('core.get_current_user', $tasknames);
+        $this->assertContains('core.recreate_task_catalog', $tasknames);
         $this->assertContains('examples.readonly_example', $tasknames);
     }
 

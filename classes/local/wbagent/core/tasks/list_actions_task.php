@@ -24,7 +24,7 @@ use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 
 /**
- * Task definition for booking.list_actions.
+ * Task definition for core.list_actions.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -32,7 +32,7 @@ use bookingextension_agent\local\wbagent\task_registry_factory;
  */
 class list_actions_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.list_actions';
+    public const TASK_NAME = 'core.list_actions';
 
     /**
      * Constructor.
@@ -90,11 +90,11 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.list_actions_request',
+                'id' => 'core.list_actions_request',
                 'description' => 'User asks which actions/tasks the booking agent can perform.',
             ],
             [
-                'id' => 'booking.list_actions_scope_filter',
+                'id' => 'core.list_actions_scope_filter',
                 'description' => 'User asks for only readonly or only mutating actions.',
             ],
         ];

@@ -21,7 +21,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
 use bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc;
 
 /**
- * Task definition for booking.recreate_task_catalog.
+ * Task definition for core.recreate_task_catalog.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -29,7 +29,7 @@ use bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc;
  */
 class recreate_task_catalog_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.recreate_task_catalog';
+    public const TASK_NAME = 'core.recreate_task_catalog';
 
     /**
      * Constructor.
@@ -93,7 +93,7 @@ class recreate_task_catalog_task extends core_task_base implements task_trigger_
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.recreate_task_catalog_requested',
+                'id' => 'core.recreate_task_catalog_requested',
                 'description' => 'User asks to rebuild/recreate task catalog embeddings.',
             ],
             [

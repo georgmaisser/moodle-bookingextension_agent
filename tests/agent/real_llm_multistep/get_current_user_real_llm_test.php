@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Real-LLM regression test for booking.get_current_user.
+ * Real-LLM regression test for core.get_current_user.
  *
  * @package   bookingextension_agent
  * @category  test
@@ -49,16 +49,16 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
         $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
 
         $response = $this->chat(
-            'Nutze ausschliesslich die Task booking.get_current_user. '
-                . 'Gib genau einen task_call mit task="booking.get_current_user", version=1 und input={} aus.',
+            'Nutze ausschliesslich die Task core.get_current_user. '
+                . 'Gib genau einen task_call mit task="core.get_current_user", version=1 und input={} aus.',
             $threadid,
             $store,
             $runtime
         );
 
-        if (!$this->has_task_evidence($response, 'booking.get_current_user')) {
+        if (!$this->has_task_evidence($response, 'core.get_current_user')) {
             $response = $this->chat(
-                'Fuehre jetzt nur booking.get_current_user aus. Keine andere Task.',
+                'Fuehre jetzt nur core.get_current_user aus. Keine andere Task.',
                 $threadid,
                 $store,
                 $runtime
@@ -66,11 +66,11 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
         }
 
         $this->assertTrue(
-            $this->has_task_evidence($response, 'booking.get_current_user'),
-            'Expected booking.get_current_user evidence from real LLM response. Payload: ' . $this->payload_text($response)
+            $this->has_task_evidence($response, 'core.get_current_user'),
+            'Expected core.get_current_user evidence from real LLM response. Payload: ' . $this->payload_text($response)
         );
 
-        $result = $this->exec_command('booking.get_current_user', [], (int)$this->booking->cmid, (int)$this->teacher->id);
+        $result = $this->exec_command('core.get_current_user', [], (int)$this->booking->cmid, (int)$this->teacher->id);
 
         $this->assertSame('executed', (string)($result['status'] ?? ''));
         $this->assertSame((int)$this->teacher->id, (int)($result['resultid'] ?? 0));

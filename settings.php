@@ -22,6 +22,8 @@ use bookingextension_agent\local\wbagent\task_registry_factory;
 
 global $CFG;
 
+require_once($CFG->dirroot . '/mod/booking/bookingextension/agent/lib.php');
+
 if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
     $defaultsummarypromptprefix = orchestrator::get_default_summary_prompt_prefix();
 } else {
@@ -168,15 +170,6 @@ $aisettingspage->add(
     )
 );
 
-$aisettingspage->add(
-    new admin_setting_configcheckbox(
-        'bookingextension_agent/aitaskenableall',
-        get_string('aitaskenableall', 'bookingextension_agent'),
-        get_string('aitaskenableall_desc', 'bookingextension_agent'),
-        0
-    )
-);
-
 try {
     $registry = task_registry_factory::get_default();
     $contracts = $registry->get_task_contracts();
@@ -199,14 +192,13 @@ try {
                 'capability' => $capabilitylabel,
             ]
         );
-        $default = 0;
 
         $aisettingspage->add(
             new admin_setting_configcheckbox(
                 $settingkey,
                 $settingtitle,
                 $settingdesc,
-                $default
+                0
             )
         );
     }
@@ -219,5 +211,19 @@ try {
         )
     );
 }
+
+// "Enable all" is added LAST so Moodle processes individual task toggles first.
+// When this checkbox fires its callback, all per-task configs are already written
+// to the DB and the sync can safely overwrite them with 1.
+$enableallsetting = new admin_setting_configcheckbox(
+    'bookingextension_agent/aitaskenableall',
+    get_string('aitaskenableall', 'bookingextension_agent'),
+    get_string('aitaskenableall_desc', 'bookingextension_agent'),
+    0
+);
+$enableallsetting->set_updatedcallback(
+    '\\bookingextension_agent\\local\\wbagent\\task_governance_service::sync_enableall_toggles'
+);
+$aisettingspage->add($enableallsetting);
 
 $adminroot->add('modbookingfolder', $aisettingspage);

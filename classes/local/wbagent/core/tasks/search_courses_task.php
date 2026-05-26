@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
- * Task definition for booking.search_courses.
+ * Task definition for core.search_courses.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,7 +27,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  */
 class search_courses_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.search_courses';
+    public const TASK_NAME = 'core.search_courses';
 
     /**
      * Constructor.
@@ -84,11 +84,11 @@ class search_courses_task extends core_task_base implements task_trigger_provide
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.search_courses_request',
+                'id' => 'core.search_courses_request',
                 'description' => 'User asks to find/search courses by name, shortname or id.',
             ],
             [
-                'id' => 'booking.search_courses_limit_request',
+                'id' => 'core.search_courses_limit_request',
                 'description' => 'User asks for a limited number of returned courses.',
             ],
         ];
@@ -102,13 +102,13 @@ class search_courses_task extends core_task_base implements task_trigger_provide
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'booking.search_courses',
+                'id' => 'core.search_courses',
                 'triggers' => [
                     'search courses', 'find course', 'find courses', 'course id',
                     'suche kurs', 'suche kurse', 'finde kurs', 'kurs finden',
                 ],
                 'guidance' => [
-                    '- Use booking.search_courses as a FIRST STEP when you need a courseid to pass to',
+                    '- Use core.search_courses as a FIRST STEP when you need a courseid to pass to',
                     '  a follow-up task and only a course name is known.',
                     '- Execute this task and wait for the observation; then use the resolved courseid.',
                     '- Use input.query for the search term and optionally input.limit to cap results.',

@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
- * Task definition for booking.search_users.
+ * Task definition for core.search_users.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,7 +27,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  */
 class search_users_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.search_users';
+    public const TASK_NAME = 'core.search_users';
 
     /**
      * Constructor.
@@ -84,7 +84,7 @@ class search_users_task extends core_task_base implements task_trigger_provider_
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.search_users_request',
+                'id' => 'core.search_users_request',
                 'description' => 'User asks to find users by name, email or id.',
                 'examples' => [
                     'Find users called John',
@@ -103,13 +103,13 @@ class search_users_task extends core_task_base implements task_trigger_provider_
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'booking.search_users',
+                'id' => 'core.search_users',
                 'triggers' => [
                     'find user', 'search user', 'suche benutzer', 'suche nutzer', 'finde benutzer',
                     'find users', 'search users', 'finde nutzer', 'user lookup',
                 ],
                 'guidance' => [
-                    '- Use booking.search_users as a FIRST STEP whenever you need to resolve a person by name,',
+                    '- Use core.search_users as a FIRST STEP whenever you need to resolve a person by name,',
                     '  email fragment, or partial id before calling a mutating task (e.g. booking.book_users).',
                     '- Execute this task and wait for the observation before proceeding to the next step.',
                     '- Return a short preview list of matching users including userid and fullname.',

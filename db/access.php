@@ -62,14 +62,14 @@ $teachertasks = [
     'booking_diagnose_cancellation_issue',
     'booking_explain_docs_topic',
     'booking_explain_task_schema',
-    'booking_get_current_user',
+    'core_get_current_user',
     'booking_get_option_details',
-    'booking_list_actions',
+    'core_list_actions',
     'booking_list_option_properties',
-    'booking_recall_memory',
-    'booking_search_courses',
+    'core_recall_memory',
+    'core_search_courses',
     'booking_search_options',
-    'booking_search_users',
+    'core_search_users',
     'booking_update_option',
 ];
 
@@ -100,7 +100,7 @@ $managertasks = [
 
 $adminonlytasks = [
     'booking_create_user',
-    'booking_recreate_task_catalog',
+    'core_recreate_task_catalog',
 ];
 
 $buildtaskcapability = static function (string $tasksuffix, string $role): array {

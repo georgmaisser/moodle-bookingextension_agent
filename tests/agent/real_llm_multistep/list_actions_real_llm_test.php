@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Real-LLM regression test for booking.list_actions output ordering.
+ * Real-LLM regression test for core.list_actions output ordering.
  *
  * The task output should be grouped as:
  * provider -> readonly/write -> capability/task entries.
@@ -85,10 +85,10 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
 
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $taskresult = $this->make_executor()->execute_commands(
-            [['task' => 'booking.list_actions', 'version' => 1, 'input' => []]],
+            [['task' => 'core.list_actions', 'version' => 1, 'input' => []]],
             $contextid,
             (int)$this->teacher->id,
-            hash('sha256', 'booking.list_actions:' . uniqid('', true)),
+            hash('sha256', 'core.list_actions:' . uniqid('', true)),
             0
         )[0];
         $this->assertSame('executed', (string)($taskresult['status'] ?? ''));
