@@ -519,10 +519,13 @@ abstract class core_task_base extends base_task {
         if (preg_match('/^\d+$/', $query)) {
             $course = get_course((int)$query);
             if (!empty($course->id)) {
+                $courseid = (int)$course->id;
                 return [[
-                    'courseid' => (int)$course->id,
+                    'courseid' => $courseid,
                     'fullname' => (string)($course->fullname ?? ''),
                     'shortname' => (string)($course->shortname ?? ''),
+                    'courseurl' => (new \moodle_url('/course/view.php', ['id' => $courseid]))->out(false),
+                    'activeenrolledcount' => $this->count_active_course_enrolments($courseid),
                 ]];
             }
         }
@@ -542,10 +545,31 @@ abstract class core_task_base extends base_task {
                 'courseid' => $courseid,
                 'fullname' => (string)($course->fullname ?? ''),
                 'shortname' => (string)($course->shortname ?? ''),
+                'courseurl' => (new \moodle_url('/course/view.php', ['id' => $courseid]))->out(false),
+                'activeenrolledcount' => $this->count_active_course_enrolments($courseid),
             ];
         }
 
         return array_slice($normalized, 0, max(1, $limit));
+    }
+
+    /**
+     * Count currently active enrolments for a course.
+     *
+     * @param int $courseid
+     * @return int
+     */
+    protected function count_active_course_enrolments(int $courseid): int {
+        if ($courseid <= 0) {
+            return 0;
+        }
+
+        $context = context_course::instance($courseid, IGNORE_MISSING);
+        if (!$context) {
+            return 0;
+        }
+
+        return (int)count_enrolled_users($context, '', 0, true);
     }
 
     /**

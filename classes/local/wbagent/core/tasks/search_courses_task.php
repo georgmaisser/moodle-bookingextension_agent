@@ -169,6 +169,7 @@ class search_courses_task extends core_task_base implements task_trigger_provide
                 'usermessage' => $usermessage,
                 'resultid' => null,
                 'courses' => [],
+                'observation_full' => $this->build_course_observation_full([], $outputlang),
                 'debugmessage' => $debugbase . "\nResults: 0",
             ];
         }
@@ -185,8 +186,50 @@ class search_courses_task extends core_task_base implements task_trigger_provide
             'usermessage' => $usermessage,
             'resultid' => (int)($courses[0]['courseid'] ?? 0),
             'courses' => $courses,
+            'observation_full' => $this->build_course_observation_full($courses, $outputlang),
             'debugmessage' => $debugbase
                 . "\nResults: " . count($courses),
         ];
+    }
+
+    /**
+     * Build a user-facing course observation string.
+     *
+     * @param array<int,array<string,mixed>> $courses
+     * @param string $lang
+     * @return string
+     */
+    private function build_course_observation_full(array $courses, string $lang): string {
+        if (empty($courses)) {
+            return $this->localized_string('agent_booking_search_courses_no_results', null, $lang);
+        }
+
+        $lines = [];
+        $lines[] = $this->localized_string('agent_booking_search_courses_found', count($courses), $lang);
+
+        foreach ($courses as $course) {
+            $fullname = trim((string)($course['fullname'] ?? ''));
+            $shortname = trim((string)($course['shortname'] ?? ''));
+            $courseurl = trim((string)($course['courseurl'] ?? ''));
+            $activecount = (int)($course['activeenrolledcount'] ?? 0);
+
+            $label = $fullname !== '' ? $fullname : $shortname;
+            if ($label === '') {
+                $label = (string)($course['courseid'] ?? '');
+            }
+
+            $line = '- ' . $label;
+            if ($shortname !== '' && $shortname !== $label) {
+                $line .= ' (' . $shortname . ')';
+            }
+            if ($courseurl !== '') {
+                $line .= ': ' . $courseurl;
+            }
+            $line .= ' | active enrolled: ' . $activecount;
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
     }
 }

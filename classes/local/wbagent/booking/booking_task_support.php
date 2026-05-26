@@ -1033,6 +1033,8 @@ class booking_task_support {
      * @return array
      */
     private static function search_course_candidates(string $query, int $limit = 10): array {
+        global $DB;
+
         $query = trim($query);
         if ($query === '') {
             return [];
@@ -1051,14 +1053,51 @@ class booking_task_support {
             if ($courseid <= 0) {
                 continue;
             }
+            $courseurl = (new \moodle_url('/course/view.php', ['id' => $courseid]))->out(false);
             $normalized[] = [
                 'courseid' => $courseid,
                 'fullname' => (string)($course->fullname ?? $course['fullname'] ?? ''),
                 'shortname' => (string)($course->shortname ?? $course['shortname'] ?? ''),
+                'courseurl' => $courseurl,
+                'activeenrolledcount' => self::count_active_course_enrolments($courseid),
             ];
         }
 
         return array_slice($normalized, 0, max(1, $limit));
+    }
+
+    /**
+     * Count active enrolled users for a course.
+     *
+     * @param int $courseid
+     * @return int
+     */
+    private static function count_active_course_enrolments(int $courseid): int {
+        global $DB;
+
+        if ($courseid <= 0) {
+            return 0;
+        }
+
+        $now = time();
+        $sql = "SELECT COUNT(DISTINCT ue.userid)\n"
+            . "  FROM {user_enrolments} ue\n"
+            . "  JOIN {enrol} e ON e.id = ue.enrolid\n"
+            . "  JOIN {user} u ON u.id = ue.userid\n"
+            . " WHERE e.courseid = :courseid\n"
+            . "   AND e.status = :enrolstatus\n"
+            . "   AND ue.status = :uestatus\n"
+            . "   AND ue.timestart <= :now\n"
+            . "   AND (ue.timeend = 0 OR ue.timeend > :now)\n"
+            . "   AND u.deleted = 0\n"
+            . "   AND u.suspended = 0";
+
+        return (int)$DB->count_records_sql($sql, [
+            'courseid' => $courseid,
+            'enrolstatus' => ENROL_INSTANCE_ENABLED,
+            'uestatus' => ENROL_USER_ACTIVE,
+            'now' => $now,
+        ]);
     }
 
     /**
