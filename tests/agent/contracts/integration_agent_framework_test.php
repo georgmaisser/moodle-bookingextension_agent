@@ -317,12 +317,12 @@ final class integration_agent_framework_test extends TestCase {
             'Action prompt should reference task catalog routing'
         );
         $this->assertStringContainsString(
-            '{{taskcatalogjson}}',
+            'Use only exact task names from the TASK CATALOG',
             $summariseprompt,
-            'Action prompt should embed the task catalog placeholder'
+            'Action prompt should enforce task-catalog based routing'
         );
         $this->assertStringContainsString(
-            'Never invent aliases or category names such as docs.search or documentation.query',
+            'Never invent aliases',
             $summariseprompt,
             'Action prompt should explicitly forbid invented task aliases'
         );
@@ -335,9 +335,9 @@ final class integration_agent_framework_test extends TestCase {
             'Explain prompt should not hardcode booking-specific names'
         );
         $this->assertStringContainsString(
-            '{{taskcatalogjson}}',
+            'TASK CATALOG',
             $explainprompt,
-            'Explain prompt should embed the task catalog placeholder'
+            'Explain prompt should reference task-catalog based routing'
         );
     }
 
