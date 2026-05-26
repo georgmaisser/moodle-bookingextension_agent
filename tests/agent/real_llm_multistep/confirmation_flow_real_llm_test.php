@@ -56,10 +56,6 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
     public function test_multistep_create_assign_teacher_and_make_visible(): void {
         global $DB;
 
-        if (!$this->is_task_available('booking.create_option')) {
-            $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
-        }
-
         $this->setUser($this->teacher);
 
         $billy = $this->getDataGenerator()->create_user([
@@ -70,6 +66,11 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $this->getDataGenerator()->enrol_user($billy->id, $this->course->id, 'editingteacher');
 
         [$store, $runtime, $threadid] = $this->build_runtime();
+
+        if (!$this->is_task_available('booking.create_option')) {
+            $this->enforcegeneratetextassertion = false;
+            $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
+        }
 
         $title = 'Multistep Real LLM ' . uniqid('', true);
 
