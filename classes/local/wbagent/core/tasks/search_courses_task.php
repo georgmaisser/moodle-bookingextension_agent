@@ -53,7 +53,10 @@ class search_courses_task extends core_task_base implements task_trigger_provide
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Search courses via bookingextension_agent external search_courses functionality.',
+            'description' => 'Search courses and return matching course candidates '
+                . 'including courseid, shortname, fullname, course URL, and active '
+                . 'enrolment count. Use this first when a follow-up task needs a '
+                . 'concrete course identity or link.',
             'readonly' => $this->is_read_only(),
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_search_courses',
             'properties' => [
@@ -111,6 +114,10 @@ class search_courses_task extends core_task_base implements task_trigger_provide
                     '- Use core.search_courses as a FIRST STEP when you need a courseid to pass to',
                     '  a follow-up task and only a course name is known.',
                     '- Execute this task and wait for the observation; then use the resolved courseid.',
+                    '- This task already returns the course URL, so do not ask the model to invent or compose',
+                    '  a Moodle course link itself.',
+                    '- This task also returns the active enrolment count, so use it before asking a second task',
+                    '  only to learn how many active users are currently enrolled in the course.',
                     '- Use input.query for the search term and optionally input.limit to cap results.',
                     '- If multiple courses match, ask the user to clarify before continuing.',
                 ],

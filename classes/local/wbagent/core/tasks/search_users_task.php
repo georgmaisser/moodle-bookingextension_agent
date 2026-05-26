@@ -53,7 +53,9 @@ class search_users_task extends core_task_base implements task_trigger_provider_
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Search users via bookingextension_agent external search_users functionality.',
+            'description' => 'Search users and return resolved candidates with profile data, '
+                . 'enrolled courses, roles, and profile URL. Use this first when a '
+                . 'follow-up task needs a concrete user identity.',
             'readonly' => $this->is_read_only(),
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_search_users',
             'properties' => [
@@ -111,8 +113,11 @@ class search_users_task extends core_task_base implements task_trigger_provider_
                 'guidance' => [
                     '- Use core.search_users as a FIRST STEP whenever you need to resolve a person by name,',
                     '  email fragment, or partial id before calling a mutating task (e.g. booking.book_users).',
+                    '- This task already returns the matched user\'s enrolled courses and assigned roles,',
+                    '  so use it before asking for course participation or permission context about a user.',
                     '- Execute this task and wait for the observation before proceeding to the next step.',
-                    '- Return a short preview list of matching users including userid and fullname.',
+                    '- Return a short preview list of matching users including userid, fullname, profile URL,',
+                    '  enrolled courses, and roles when available.',
                     '- If more than one user matches, ask the user to clarify which one they mean.',
                 ],
             ],
