@@ -119,10 +119,12 @@ class readonly_example_task extends base_task {
      */
     public function check_structure(array $input): array {
         $errors = [];
+        $issuecodes = [];
         if (array_key_exists('query', $input)) {
             $query = trim((string)$input['query']);
             if ($query === '') {
                 $errors[] = 'Field "query" must be a non-empty string when provided.';
+                $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
             }
         }
 
@@ -130,6 +132,7 @@ class readonly_example_task extends base_task {
             $limit = (int)$input['limit'];
             if ($limit < 1 || $limit > 10) {
                 $errors[] = 'Field "limit" must be between 1 and 10.';
+                $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
             }
         }
 
@@ -137,6 +140,7 @@ class readonly_example_task extends base_task {
             'valid' => empty($errors),
             'errors' => $errors,
             'ambiguities' => [],
+            'issue_codes' => array_values(array_unique($issuecodes)),
         ];
     }
 

@@ -150,6 +150,7 @@ class booking_task_support {
                 'valid' => false,
                 'errors' => ['Unknown task: ' . $taskname],
                 'ambiguities' => [],
+                'issue_codes' => ['CONTRACT_TASK_NOT_FOUND'],
             ];
         }
 
@@ -158,6 +159,7 @@ class booking_task_support {
             'valid' => (bool)($structure['valid'] ?? false),
             'errors' => array_values(array_unique(array_map('strval', (array)($structure['errors'] ?? [])))),
             'ambiguities' => [],
+            'issue_codes' => array_values(array_unique(array_map('strval', (array)($structure['issue_codes'] ?? [])))),
         ];
     }
 
@@ -1311,13 +1313,17 @@ class booking_task_support {
         global $DB;
 
         $parts = self::split_query_list($rawquery);
-        if (empty($parts)) {
-            return ['cohortids' => [], 'errors' => ['Please provide enrolledincohortquery.'], 'ambiguities' => []];
-        }
-
         $ids = [];
         $errors = [];
         $ambiguities = [];
+        if (empty($parts)) {
+            return [
+                'cohortids' => [],
+                'errors' => ['Please provide enrolledincohortquery.'],
+                'ambiguities' => [],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+            ];
+        }
 
         foreach ($parts as $part) {
             if (preg_match('/^\d+$/', $part)) {
@@ -1355,7 +1361,12 @@ class booking_task_support {
             $ids[] = (int)reset($matches)->id;
         }
 
-        return ['cohortids' => array_values(array_unique($ids)), 'errors' => $errors, 'ambiguities' => $ambiguities];
+        return [
+            'cohortids' => array_values(array_unique($ids)),
+            'errors' => $errors,
+            'ambiguities' => $ambiguities,
+            'issue_codes' => !empty($errors) ? ['RECOVERABLE_INPUT_ERROR'] : [],
+        ];
     }
 
     /**
@@ -1368,17 +1379,17 @@ class booking_task_support {
         global $DB;
 
         $parts = self::split_query_list($rawquery);
+        $ids = [];
+        $errors = [];
+        $ambiguities = [];
         if (empty($parts)) {
             return [
                 'competencyids' => [],
                 'errors' => [get_string('agent_booking_hascompetencyquery_required', 'bookingextension_agent')],
                 'ambiguities' => [],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
             ];
         }
-
-        $ids = [];
-        $errors = [];
-        $ambiguities = [];
 
         foreach ($parts as $part) {
             if (preg_match('/^\d+$/', $part)) {
@@ -1416,7 +1427,12 @@ class booking_task_support {
             $ids[] = (int)reset($matches)->id;
         }
 
-        return ['competencyids' => array_values(array_unique($ids)), 'errors' => $errors, 'ambiguities' => $ambiguities];
+        return [
+            'competencyids' => array_values(array_unique($ids)),
+            'errors' => $errors,
+            'ambiguities' => $ambiguities,
+            'issue_codes' => !empty($errors) ? ['RECOVERABLE_INPUT_ERROR'] : [],
+        ];
     }
 
     /**
@@ -1427,13 +1443,17 @@ class booking_task_support {
      */
     public static function resolve_users_for_restriction(string $rawquery): array {
         $parts = self::split_query_list($rawquery);
-        if (empty($parts)) {
-            return ['userids' => [], 'errors' => ['Please provide selectusersquery.'], 'ambiguities' => []];
-        }
-
         $ids = [];
         $errors = [];
         $ambiguities = [];
+        if (empty($parts)) {
+            return [
+                'userids' => [],
+                'errors' => ['Please provide selectusersquery.'],
+                'ambiguities' => [],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+            ];
+        }
 
         foreach ($parts as $part) {
             if (preg_match('/^\d+$/', $part)) {
@@ -1451,7 +1471,12 @@ class booking_task_support {
             }
         }
 
-        return ['userids' => array_values(array_unique($ids)), 'errors' => $errors, 'ambiguities' => $ambiguities];
+        return [
+            'userids' => array_values(array_unique($ids)),
+            'errors' => $errors,
+            'ambiguities' => $ambiguities,
+            'issue_codes' => !empty($errors) ? ['RECOVERABLE_INPUT_ERROR'] : [],
+        ];
     }
 
     /**
@@ -1462,14 +1487,19 @@ class booking_task_support {
      */
     public static function resolve_users_for_booking(string $rawquery): array {
         $parts = self::split_query_list($rawquery);
-        if (empty($parts)) {
-            return ['userids' => [], 'emails' => [], 'errors' => ['Please provide bookusersquery.'], 'ambiguities' => []];
-        }
-
         $userids = [];
         $emails = [];
         $errors = [];
         $ambiguities = [];
+        if (empty($parts)) {
+            return [
+                'userids' => [],
+                'emails' => [],
+                'errors' => ['Please provide bookusersquery.'],
+                'ambiguities' => [],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+            ];
+        }
 
         foreach ($parts as $part) {
             if (preg_match('/^\d+$/', $part)) {
@@ -1505,6 +1535,7 @@ class booking_task_support {
             'emails' => array_values(array_unique($emails)),
             'errors' => $errors,
             'ambiguities' => $ambiguities,
+            'issue_codes' => !empty($errors) ? ['RECOVERABLE_INPUT_ERROR'] : [],
         ];
     }
 

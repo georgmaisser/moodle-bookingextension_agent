@@ -108,16 +108,19 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      */
     public function check_structure(array $input): array {
         $errors = [];
+        $issuecodes = [];
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $allowed = ['all', 'readonly', 'mutating'];
         if (!in_array($scope, $allowed, true)) {
             $errors[] = get_string('agent_booking_list_actions_scope_invalid', 'bookingextension_agent');
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
 
         return [
             'valid' => empty($errors),
             'errors' => $errors,
             'ambiguities' => [],
+            'issue_codes' => array_values(array_unique($issuecodes)),
         ];
     }
 

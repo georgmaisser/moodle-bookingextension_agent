@@ -123,23 +123,28 @@ class multistep_example_task extends base_task {
      */
     public function check_structure(array $input): array {
         $errors = [];
+        $issuecodes = [];
 
         $objective = trim((string)($input['objective'] ?? ''));
         if ($objective === '') {
             $errors[] = 'Field "objective" is required.';
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
 
         $steps = $input['steps'] ?? [];
         if (!is_array($steps)) {
             $errors[] = 'Field "steps" must be an array.';
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         } else {
             $stepcount = count($steps);
             if ($stepcount < 2 || $stepcount > 6) {
                 $errors[] = 'Field "steps" must contain between 2 and 6 entries.';
+                $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
             }
             foreach ($steps as $idx => $step) {
                 if (trim((string)$step) === '') {
                     $errors[] = 'Step at index ' . $idx . ' must not be empty.';
+                    $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
                 }
             }
         }
@@ -148,6 +153,7 @@ class multistep_example_task extends base_task {
             'valid' => empty($errors),
             'errors' => $errors,
             'ambiguities' => [],
+            'issue_codes' => array_values(array_unique($issuecodes)),
         ];
     }
 
