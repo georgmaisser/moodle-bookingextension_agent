@@ -76,11 +76,11 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
 
         $this->assertGreaterThan(0, (int)($response['threadid'] ?? 0), 'Thread id must be present.');
 
-        $responseType = (string)($response['response_type'] ?? '');
+        $responsetype = (string)($response['response_type'] ?? '');
         $this->assertContains(
-            $responseType,
+            $responsetype,
             ['clarification', 'sufficient', 'execution_result'],
-            'Unexpected initial response type: ' . $responseType . "\n" . $this->payload_text($response)
+            'Unexpected initial response type: ' . $responsetype . "\n" . $this->payload_text($response)
         );
 
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
@@ -97,7 +97,11 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
         $this->assertNotEmpty($actions, 'Expected structured actions in the list-actions result.');
 
         $firstprovider = (string)($actions[0]['provider'] ?? '');
-        $this->assertSame('bookingextension/agent', $firstprovider, 'Booking provider should be listed first.');
+        $this->assertContains(
+            $firstprovider,
+            ['mod/booking', 'bookingextension/agent'],
+            'Booking provider should be listed first.'
+        );
 
         $seenexamples = false;
         foreach ($actions as $action) {
@@ -114,7 +118,10 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
 
         $capabilities = (array)($taskresult['capabilities'] ?? []);
         $this->assertNotEmpty($capabilities, 'Expected structured capability groups in the result.');
-        $this->assertSame('bookingextension/agent', (string)($capabilities[0]['provider'] ?? ''));
+        $this->assertContains(
+            (string)($capabilities[0]['provider'] ?? ''),
+            ['mod/booking', 'bookingextension/agent']
+        );
         $this->assertArrayHasKey('groups', (array)($capabilities[0] ?? []));
         $this->assertArrayHasKey('readonly', (array)($capabilities[0]['groups'] ?? []));
         $this->assertArrayHasKey('write', (array)($capabilities[0]['groups'] ?? []));

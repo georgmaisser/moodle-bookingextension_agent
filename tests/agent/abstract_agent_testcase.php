@@ -38,6 +38,7 @@ use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\task_registry;
 use mod_booking\singleton_service;
 use stdClass;
@@ -478,7 +479,12 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return stdClass Option record (with ->id).
      */
     protected function create_option(string $name, array $extra = []): stdClass {
-        $result = $this->exec_command('booking.create_option', array_merge(
+        $registry = task_registry::make_default();
+        $taskname = $registry->get_task('mod_booking.create_option_normal')
+            ? 'mod_booking.create_option_normal'
+            : 'booking.create_option';
+
+        $result = $this->exec_command($taskname, array_merge(
             [
                 'text'            => $name,
                 'maxanswers'      => 10,
@@ -541,8 +547,13 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $runid   = $store->create_run($thread->id, $userid, $contextid, $key, []);
 
         $exec    = $this->make_executor();
+        $task    = task_registry::make_default()->get_task($taskname);
+        $command = ['task' => $taskname, 'version' => 1, 'input' => $input];
+        if ($task && !$task->is_read_only()) {
+            $command['guard_token'] = preflight_execution_gate::build_guard_token($taskname, $contextid, $input);
+        }
         $results = $exec->execute_commands(
-            [['task' => $taskname, 'version' => 1, 'input' => $input]],
+            [$command],
             $contextid,
             $userid,
             $key,

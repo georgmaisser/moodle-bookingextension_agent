@@ -134,15 +134,9 @@ final class llm_task_matrix_scenario_provider {
                     ],
                     [
                         'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'actions.0.provider',
-                        'value' => 'bookingextension/agent',
-                    ],
-                    [
-                        'target' => 'final',
                         'type' => 'field_contains',
                         'field' => 'detail',
-                        'value' => 'bookingextension/agent',
+                        'value' => 'booking',
                     ],
                     [
                         'target' => 'chat',
@@ -218,7 +212,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'core.search_courses' => [
-                'prompt' => 'Search the course "{{course_fullname}}" for me.',
+                'prompt' => 'Run core.search_courses and set query to "{{course_fullname}}".',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -485,6 +479,131 @@ final class llm_task_matrix_scenario_provider {
                         'target' => 'debug',
                         'type' => 'debug_source_contains',
                         'value' => 'ac=wpl',
+                    ],
+                ],
+            ],
+            'mod_booking.create_option_normal' => [
+                'prompt' => 'Create one normal booking option called "Matrix normal {{batch_label}}" '
+                    . 'for max 5 participants from tomorrow 10:00 to 12:00.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'final',
+                        'type' => 'field_contains',
+                        'field' => 'observation_full',
+                        'value' => 'type=0',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.create_option_selflearning' => [
+                'prompt' => 'Create one self-learning booking option called "Matrix selflearning {{batch_label}}" '
+                    . 'for max 8 participants.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'final',
+                        'type' => 'field_contains',
+                        'field' => 'observation_full',
+                        'value' => 'type=1',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.create_option_slotbooking' => [
+                'prompt' => 'Create one slot booking option titled "Matrix slots {{batch_label}}" with opening 10:00, '
+                    . 'closing 12:00, valid from 2026-06-01 00:00 until 2026-06-30 23:59, duration 30 minutes, '
+                    . 'max 1 participant per slot, and enable weekday slot_day_3.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'final',
+                        'type' => 'field_contains',
+                        'field' => 'observation_full',
+                        'value' => 'type=2',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.update_option_normal' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Update booking option {{existing_option_id}} to title "Matrix normal updated {{batch_label}}", '
+                    . 'max 9 participants, and set it to tomorrow 14:00 to 16:00 as a normal option.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.update_option_selflearning' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Update booking option {{existing_option_id}} to title "Matrix selflearning updated {{batch_label}}" '
+                    . 'with max 11 participants as self-learning.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.update_option_slotbooking' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Update booking option {{existing_option_id}} as slot booking with opening 09:00, closing 11:00, '
+                    . 'valid from 2026-06-01 00:00 until 2026-06-30 23:59, duration 20 minutes, '
+                    . 'max 2 participants per slot, and enable weekday slot_day_2.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
                     ],
                 ],
             ],

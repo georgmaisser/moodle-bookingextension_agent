@@ -356,6 +356,48 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
     }
 
     /**
+     * Seed one existing booking option and expose its id for update-task scenarios.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_update_option_scenario(): array {
+        $optionname = 'Matrix Update Target ' . substr(sha1(uniqid('', true)), 0, 8);
+        $seedoption = $this->gen->create_option([
+            'bookingid' => (int)$this->booking->id,
+            'text' => $optionname,
+            'maxanswers' => 7,
+            'type' => 0,
+        ]);
+        if (empty($seedoption->id)) {
+            throw new \coding_exception('prepare_update_option_scenario failed: seed option was not created.');
+        }
+
+        $store = new conversation_store();
+        $registry = task_registry::make_default();
+        $runtime = new agent_runtime(
+            $registry,
+            new orchestrator($registry, new interpreter($registry), $store),
+            $store,
+            new authorization_service()
+        );
+        $thread = $store->get_or_create_thread(
+            (int)$this->teacher->id,
+            (int)$this->booking->cmid,
+            (int)$this->booking->id
+        );
+
+        return [
+            'store' => $store,
+            'runtime' => $runtime,
+            'threadid' => (int)$thread->id,
+            'replacements' => [
+                'existing_option_id' => (string)$seedoption->id,
+                'existing_option_name' => $optionname,
+            ],
+        ];
+    }
+
+    /**
      * Evaluate the scenario-specific assertion contract.
      *
      * @param array<string,mixed> $scenario
