@@ -1317,14 +1317,16 @@ const buildAgentResponseMeta = (resp, source, extra = {}) => ({
 const handleFinalAgentResponse = (resp, source, responseType, messageText) => {
     clearActivePlanBubble();
 
-    if (responseType === 'execution_result') {
-        let results = [];
-        try {
-            results = JSON.parse(resp.resultsjson || '[]');
-        } catch (e) {
-            // Keep empty results on parse errors.
-        }
-        showRunStatus('completed', messageText || responseType, results);
+    let results = [];
+    try {
+        results = JSON.parse(resp.resultsjson || '[]');
+    } catch (e) {
+        // Keep empty results on parse errors.
+    }
+
+    if (responseType === 'execution_result' || (source === 'ai_confirm_run' && Array.isArray(results) && results.length > 0)) {
+        const runStatus = responseType === 'error' ? 'failed' : 'completed';
+        showRunStatus(runStatus, messageText || responseType, results);
         return;
     }
 

@@ -106,7 +106,7 @@ class aiready {
         $provideractive = false;
         $courseenabled = false;
         $contextenabled = false;
-        $debugmode = !empty(get_config('booking', 'bookingdebugmode'))
+        $debugmode = !empty(get_config('bookingextension_agent', 'bookingdebugmode'))
             || (isset($CFG->debug) && $CFG->debug >= DEBUG_DEVELOPER);
 
         $cm = get_coursemodule_from_id('booking', $this->cmid, 0, false, MUST_EXIST);

@@ -139,6 +139,9 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         );
         $this->assertSame(1, (int)($result['autoconfirm'] ?? 0), 'Autoconfirm must remain active for the follow-up step.');
         $this->assertSame((string)$queued2['queue_item_id'], (string)($result['queueitemid'] ?? ''));
+        $this->assertSame('[]', (string)($result['errorsjson'] ?? '[]'), 'Follow-up confirmation should not surface stale planner errors.');
+        $this->assertSame('[]', (string)($result['issuecodesjson'] ?? '[]'), 'Follow-up confirmation should not surface stale planner issue codes.');
+        $this->assertStringContainsString('Booking option created.', (string)($result['message'] ?? ''));
 
         $pendingintent = $store->get_pending_intent($threadid);
         $this->assertIsArray($pendingintent, 'Expected next pending intent for the remaining queue item.');
@@ -152,5 +155,18 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
             'titlelike' => 'Follow-up contract option %',
         ]);
         $this->assertCount(1, $created, 'Exactly the first queued mutation should have executed so far.');
+
+        $_POST['sesskey'] = sesskey();
+        $result2 = ai_confirm_run::execute(
+            (int)$this->booking->cmid,
+            $threadid,
+            (string)$queued2['queue_item_id'],
+            true
+        );
+
+        $this->assertTrue((bool)($result2['success'] ?? false), 'Second queued mutation should execute successfully.');
+        $previewids = json_decode((string)($result2['previewoptionidsjson'] ?? '[]'), true);
+        $this->assertIsArray($previewids);
+        $this->assertCount(2, array_values(array_unique(array_map('intval', $previewids))), 'Preview ids should aggregate all created options across the confirm chain.');
     }
 }

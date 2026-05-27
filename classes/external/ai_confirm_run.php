@@ -58,6 +58,9 @@ use bookingextension_agent\task\execute_ai_run_adhoc;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class ai_confirm_run extends external_api {
+    /** Thread metadata key for aggregated option previews across one confirm chain. */
+    private const CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY = '_confirm_preview_option_ids';
+
     /**
      * Describe the parameters.
      *
@@ -535,6 +538,11 @@ class ai_confirm_run extends external_api {
             }
 
             $store->update_run_status($runid, 'completed', $results);
+            $aggregatedpreviewids = self::remember_confirm_preview_option_ids(
+                $store,
+                (int)$params['threadid'],
+                $results
+            );
 
             $shouldcontinue = self::should_continue_with_runtime_loop($rawresults, $commandsforrun, $commandsforrun)
                 || self::has_remaining_mutating_queue_items(
@@ -633,7 +641,24 @@ class ai_confirm_run extends external_api {
                         // always surface as a confirmation_request so session
                         // autoconfirm can continue the staged mutation chain.
                         $finalresult['response_type'] = 'confirmation_request';
+                        if (self::has_successful_execution_results($results)) {
+                            $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
+                            $finalresult['issue_codes'] = [];
+                            $finalresult['errors'] = [];
+                        }
                     }
+                }
+            }
+
+            if (self::has_successful_execution_results($results)) {
+                $finalresponsetype = (string)($finalresult['response_type'] ?? '');
+                if ($finalresponsetype === 'sufficient') {
+                    $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
+                } else if ($finalresponsetype === 'error' && !is_array($pendingintent)) {
+                    $finalresult['response_type'] = 'sufficient';
+                    $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
+                    $finalresult['issue_codes'] = [];
+                    $finalresult['errors'] = [];
                 }
             }
 
@@ -691,10 +716,13 @@ class ai_confirm_run extends external_api {
                 'pendingconfirmationcode' => (string)($finalresult['pending_confirmation_code'] ?? ''),
                 'queueitemid' => $responsequeueitemid,
                 'previewoptionid' => $previewoptionid,
-                'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                'previewoptionidsjson' => self::resolve_confirm_preview_option_ids_json_for_response(
+                    $store,
+                    (int)$params['threadid'],
                     $params['cmid'],
                     (int)$USER->id,
-                    $results
+                    $results,
+                    $aggregatedpreviewids
                 ),
             ];
         } catch (\Throwable $e) {
@@ -898,6 +926,116 @@ class ai_confirm_run extends external_api {
 
         $lastworked = booking_task_support::resolve_last_option_for_user_for_execute($cmid, $userid);
         return $lastworked ? (int)$lastworked : 0;
+    }
+
+    /**
+     * Aggregate preview option ids from one execution result set into thread metadata.
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param array $results
+     * @return int[]
+     */
+    private static function remember_confirm_preview_option_ids(conversation_store $store, int $threadid, array $results): array {
+        $currentids = self::extract_preview_option_ids_from_results($results);
+        $storedids = $store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY);
+        $aggregatedids = array_values(array_unique(array_filter(array_map('intval', array_merge(
+            is_array($storedids) ? $storedids : [],
+            $currentids
+        )))));
+
+        $store->set_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY, $aggregatedids);
+
+        return $aggregatedids;
+    }
+
+    /**
+     * Resolve preview ids for confirm responses, preferring thread-level aggregation.
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param int $cmid
+     * @param int $userid
+     * @param array $results
+     * @param int[]|null $aggregatedids
+     * @return string
+     */
+    private static function resolve_confirm_preview_option_ids_json_for_response(
+        conversation_store $store,
+        int $threadid,
+        int $cmid,
+        int $userid,
+        array $results,
+        ?array $aggregatedids = null
+    ): string {
+        $ids = is_array($aggregatedids)
+            ? $aggregatedids
+            : (is_array($store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY))
+                ? $store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY)
+                : []);
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', array_merge(
+            is_array($ids) ? $ids : [],
+            self::extract_preview_option_ids_from_results($results)
+        )))));
+
+        if (empty($ids)) {
+            return self::resolve_preview_option_ids_json_for_response($cmid, $userid, $results);
+        }
+
+        return json_encode($ids);
+    }
+
+    /**
+     * Extract preview-capable option ids from execution results.
+     *
+     * @param array $results
+     * @return int[]
+     */
+    private static function extract_preview_option_ids_from_results(array $results): array {
+        $ids = [];
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if ((int)($entry['userid'] ?? 0) <= 0) {
+                $resultid = (int)($entry['resultid'] ?? 0);
+                if ($resultid > 0) {
+                    $ids[] = $resultid;
+                }
+            }
+
+            foreach ((array)($entry['previewoptionids'] ?? []) as $previewid) {
+                $normalizedid = (int)$previewid;
+                if ($normalizedid > 0) {
+                    $ids[] = $normalizedid;
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * True when at least one executed command produced a successful result.
+     *
+     * @param array $results
+     * @return bool
+     */
+    private static function has_successful_execution_results(array $results): bool {
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $status = trim((string)($entry['status'] ?? ''));
+            if (in_array($status, ['executed', 'ok'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

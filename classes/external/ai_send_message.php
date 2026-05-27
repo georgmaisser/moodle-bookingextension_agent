@@ -190,6 +190,7 @@ class ai_send_message extends external_api {
         }
         $threadid = (int)$thread->id;
         $anonymizer = new privacy_anonymizer($store);
+        $store->set_thread_metadata_value($threadid, '_confirm_preview_option_ids', []);
 
         // Privacy precheck before storing the user message.
         $precheck = $anonymizer->precheck_user_message($threadid, $message);

@@ -89,6 +89,40 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
     }
 
     /**
+     * Ensure normal create task emits a rich observation payload for follow-up planning.
+     */
+    public function test_create_option_normal_emits_rich_observation_summary(): void {
+        [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
+
+        task_registry_factory::reset();
+        $registry = task_registry_factory::get_default();
+        $task = $registry->get_task('mod_booking.create_option_normal');
+
+        $this->assertNotNull($task);
+
+        $input = [
+            'text' => 'Observation option',
+            'maxanswers' => 7,
+            'invisible' => 0,
+        ];
+
+        $preflight = $task->preflight($input, $contextid, (int)$teacher->id);
+        $this->assertSame('pass', $preflight->status, 'Preflight must pass for normal create observation test.');
+
+        $result = $task->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
+        $this->assertSame('executed', (string)($result['status'] ?? ''));
+
+        $observation = trim((string)($result['observation_full'] ?? ''));
+        $this->assertStringContainsString('Booking option created:', $observation);
+        $this->assertStringContainsString('optionid=' . (int)($result['optionid'] ?? 0), $observation);
+        $this->assertStringContainsString('title="Observation option"', $observation);
+        $this->assertStringContainsString('bookingid=' . $bookingid, $observation);
+        $this->assertStringContainsString('type=0', $observation);
+        $this->assertStringContainsString('maxanswers=7', $observation);
+        $this->assertStringContainsString('invisible=0', $observation);
+    }
+
+    /**
      * Ensure selflearning update task persists option type 1.
      */
     public function test_update_option_selflearning_sets_type_one(): void {
