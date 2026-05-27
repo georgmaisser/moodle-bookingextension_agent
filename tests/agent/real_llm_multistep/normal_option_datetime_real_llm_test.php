@@ -109,6 +109,85 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     }
 
     /**
+     * Prompt from production log should route to normal task and create five normal options.
+     */
+    public function test_weekday_series_prompt_routes_to_create_option_normal_and_creates_five_type_zero_options(): void {
+        global $DB;
+
+        $this->setUser($this->teacher);
+
+        if (!$this->is_task_available('mod_booking.create_option_normal')) {
+            $this->markTestSkipped('mod_booking.create_option_normal is not available in the current task catalog.');
+        }
+
+        $DB->delete_records_select('booking_options', 'bookingid = :bookingid AND text LIKE :titlelike', [
+            'bookingid' => (int)$this->booking->id,
+            'titlelike' => 'Sport x%',
+        ]);
+
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+
+        $prompt = 'Erstelle fuer uebernaechste Woche Buchungsmoeglichkeit mit dem Titel "Sport x", '
+            . 'durchnummeriert, fuer hoechstens fuenf Personen. immer von 10 bis 12h, an jedem Wochentag.';
+
+        $_POST['sesskey'] = sesskey();
+        $response = ai_send_message::execute((int)$this->booking->cmid, $prompt, (int)$threadid);
+
+        if ((string)($response['response_type'] ?? '') === 'clarification') {
+            $_POST['sesskey'] = sesskey();
+            $response = ai_send_message::execute(
+                (int)$this->booking->cmid,
+                'Uebernaechste Woche (KW 25, 08.06.2026 bis 12.06.2026). Bitte genauso erstellen.',
+                (int)$threadid
+            );
+        }
+
+        $this->assertContains(
+            (string)($response['response_type'] ?? ''),
+            ['confirmation_request', 'sufficient', 'execution_result'],
+            'Expected actionable response after clarification handling. Payload: ' . $this->payload_text($response)
+        );
+
+        $commands = $this->decode_commands_from_payload($response);
+        $this->assertNotEmpty($commands, 'Expected at least one create command. Payload: ' . $this->payload_text($response));
+
+        foreach ($commands as $index => $command) {
+            $this->assertIsArray($command, 'Expected command payload array at index ' . $index . '.');
+            $this->assertSame(
+                'mod_booking.create_option_normal',
+                (string)($command['task'] ?? ''),
+                'Expected only mod_booking.create_option_normal commands. Payload: ' . $this->payload_text($response)
+            );
+        }
+
+        $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option_slotbooking');
+        $this->assertNull(
+            $slotcommand,
+            'Did not expect mod_booking.create_option_slotbooking for this prompt. Payload: ' . $this->payload_text($response)
+        );
+
+        foreach ($commands as $index => $command) {
+            $result = $this->execute_command($command);
+            $this->assertContains(
+                (string)($result['status'] ?? ''),
+                ['ok', 'executed'],
+                'Expected successful command execution at index ' . $index . '. Result: ' . json_encode($result)
+            );
+        }
+
+        $created = $DB->get_records_select('booking_options', 'bookingid = :bookingid AND text LIKE :titlelike', [
+            'bookingid' => (int)$this->booking->id,
+            'titlelike' => 'Sport x%',
+        ]);
+
+        $this->assertCount(5, $created, 'Expected five created options with title prefix "Sport x".');
+        foreach ($created as $row) {
+            $this->assertSame(0, (int)$row->type, 'Expected all created options to be normal type 0.');
+        }
+    }
+
+    /**
      * Check if a task currently exists in the registry.
      *
      * @param string $taskname

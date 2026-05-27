@@ -1,0 +1,33 @@
+flowchart TD
+	U[User: Erzeuge 5 Optionen Mo-Fr] --> S[ai_send_message]
+	S --> R[agent_runtime.run_loop]
+	R --> D[agent_decision_service.process]
+	D --> C{Mutating Commands erkannt?}
+	C -- nein --> X[Read-only oder Clarification]
+	C -- ja --> H[handle_command_routing]
+	H --> Q[Queue-Ingestion: q1..q5]
+	Q --> P[handle_preflight]
+	P --> B[Queue-Status blocked_confirmation oder ready]
+	B --> PI[set_pending_intent mit queue_item_ids]
+	PI --> OUT1[response_type=confirmation_request]
+	OUT1 --> UIA[UI ruft ai_confirm_run mit queue_item_id]
+
+	UIA --> CON[consume_pending_intent]
+	CON --> RP[resolve_pending_queue_item_id]
+	RP --> RC[resolve_commands_for_run]
+	RC --> EX[Executor: fuehrt genau 1 Command aus]
+	EX --> NEXT{Weitere mutating Queue-Items vorhanden?}
+	NEXT -- nein --> DONE[Final: sufficient/execution_result]
+	NEXT -- ja --> LOOP[run_loop fuer Follow-up]
+
+	LOOP --> NP[Kein pending_intent? dann set_pending_intent fuer naechstes Queue-Item]
+	NP --> RT{response_type leer?}
+	RT -- ja --> FIXEDPATH[Setze confirmation_request]
+	RT -- nein --> BROKEN[response_type bleibt z.B. sufficient]
+	FIXEDPATH --> AUTO[autoconfirm=1 moeglich]
+	BROKEN --> NOAUTO[autoconfirm bleibt 0]
+	NOAUTO --> STOP[Kette stoppt nach erster Mutation]
+
+	style BROKEN fill:#ffdddd,stroke:#cc0000,stroke-width:2px,color:#660000
+	style NOAUTO fill:#ffdddd,stroke:#cc0000,stroke-width:2px,color:#660000
+	style STOP fill:#ffdddd,stroke:#cc0000,stroke-width:2px,color:#660000
