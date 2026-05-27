@@ -629,9 +629,10 @@ class ai_confirm_run extends external_api {
                         if (empty((array)($finalresult['commands'] ?? []))) {
                             $finalresult['commands'] = [$nextcommand];
                         }
-                        if (trim((string)($finalresult['response_type'] ?? '')) === '') {
-                            $finalresult['response_type'] = 'confirmation_request';
-                        }
+                        // A fresh pending intent for a mutating queue item must
+                        // always surface as a confirmation_request so session
+                        // autoconfirm can continue the staged mutation chain.
+                        $finalresult['response_type'] = 'confirmation_request';
                     }
                 }
             }

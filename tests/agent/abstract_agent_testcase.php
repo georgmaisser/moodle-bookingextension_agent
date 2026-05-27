@@ -613,9 +613,10 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $orc      = new orchestrator($registry, new interpreter($registry), $store);
         $authz    = new authorization_service();
         $runtime  = new agent_runtime($registry, $orc, $store, $authz);
+        $contextid = $this->booking_contextid();
         $thread   = $store->get_or_create_thread(
             (int)$this->teacher->id,
-            (int)$this->booking->cmid,
+            $contextid,
             (int)$this->booking->id
         );
         $threadid = (int)$thread->id;
@@ -643,7 +644,16 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $anon     = new privacy_anonymizer($store);
         $precheck = $anon->precheck_user_message($threadid, $message);
         $store->add_message($threadid, 'user', (string)($precheck['sanitizedmessage'] ?? $message));
-        return $runtime->run_loop($threadid, (int)$this->booking->cmid, (int)$this->teacher->id);
+        return $runtime->run_loop($threadid, $this->booking_contextid(), (int)$this->teacher->id);
+    }
+
+    /**
+     * Resolve the authoritative Moodle module context id for the shared booking.
+     *
+     * @return int
+     */
+    protected function booking_contextid(): int {
+        return (int)\context_module::instance((int)$this->booking->cmid)->id;
     }
 
     /**

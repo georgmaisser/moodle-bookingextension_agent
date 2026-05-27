@@ -21,6 +21,7 @@ Architektur-Ziele:
 - Third-Party-Onboarding: neue Tasks ueber task_provider_interface, expliziten Prompt-Contract, Namespace, Version und Capability-Deklaration ohne Framework-Eingriff einhaengbar.
 - Sprachverhalten: LLM-generierte und deterministische Framework-Antworten folgen der Sprache der letzten User-Anfrage (z.B. zh/de/en), ohne sprachspezifische Routing-Heuristiken.
 - Mutationen sind standardmaessig bestaetigungspflichtig; Session-Autoconfirm wird ueber ai_send_message und ai_confirm_run erlaubt und ist an userid + contextid gebunden.
+- Wenn ai_confirm_run nach einer erfolgreichen Mutation einen neuen pending_intent fuer verbleibende Queue-Items setzt, erzwingt der Follow-up-Vertrag erneut response_type=confirmation_request; ein geerbtes sufficient/execution_result darf die Kette nicht abbrechen.
 - Task-Freischaltung mehrstufig: Runtime-Enablement + Aktiv-Flag + Context-Validierung + task-spezifische Capabilities.
 - Zielbild fuer komplexe Moodle-Workflows: robuste Multi-Step- und Spawn-Ketten ueber mehrere Domainen mit Artefaktreferenzen, Output-Bindings und spaetem Preflight fuer abhaengige Schritte.
 
@@ -265,6 +266,7 @@ Gate Phase 5:
   - [x] Zwischenstand: Demo-Onboarding ueber reine Provider-Registrierung und Capability/Version im Prompt-Contract sind als Contract-Test abgedeckt.
 - [ ] Bestehende Recovery-basierte Tests entfernen/ersetzen.
 - [ ] Neuer Contract-Test: Mutationen sind per Default blocked_confirmation, Session-Autoconfirm nur ueber allow_session.
+- [x] Contract-Test: Ein neu gesetzter Follow-up-pending_intent in ai_confirm_run erzwingt wieder confirmation_request und haelt Session-Autoconfirm fuer die naechste Mutation aktiv.
 - [ ] Neuer Contract-Test: Capability-Gating mit mehreren Freischaltkriterien (active/runtime/context/capability).
 - [ ] Neuer Contract-Test: Antwortsprache folgt Eingabesprache fuer LLM- und deterministische Antworten (mindestens de/en/zh Matrix).
   - [x] Zwischenstand: neuer Contract-Testblock fuer language_policy_service prueft Prioritaet von `user_input_lang` gegen Modellsprachen sowie deterministische Fallback-String-Mappings.
@@ -337,6 +339,7 @@ Risiko 3: Ueberambitionierte Parallel-Umbauten
 - [x] Third-Party-Task-Onboarding ohne Framework-Eingriff dokumentiert, namespaced, versioniert und getestet.
 - [ ] Keine sprachspezifischen Routing-Heuristiken; LLM- und deterministische Antworten folgen Eingabesprache.
 - [ ] Mutationen sind per Default confirmation-required/blocked_confirmation; Session-Autoconfirm funktioniert nur ueber den vorgesehenen Flow und ist an userid + contextid gebunden.
+- [x] Follow-up-Confirmation-Vertrag: Ein neu gesetzter pending_intent fuer verbleibende mutierende Queue-Items kann nicht als sufficient/execution_result auslaufen, sondern wird deterministisch wieder als confirmation_request exponiert.
 - [ ] Task-Freischaltung basiert auf mehrstufigem Gate (runtime/active/context/capability).
 - [ ] Drei Ziel-Szenarien stabil und reproduzierbar.
 - [ ] Komplexes Cross-Domain-Szenario (course -> questions -> quiz -> enrolment) stabil und reproduzierbar mit Artefaktreferenzen, Output-Bindings, Retry und Confirmation.

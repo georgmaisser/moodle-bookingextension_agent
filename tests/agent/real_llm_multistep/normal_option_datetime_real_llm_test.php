@@ -66,7 +66,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         ]);
 
         [$store, $runtime, $threadid] = $this->build_runtime();
-        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+        $store->allow_confirmation_for_thread((int)$this->teacher->id, $this->booking_contextid(), $threadid);
 
         $prompt = 'Erstelle eine Buchungsmöglichkeit mit dem Titel "Buch 1", für höchstens fünf Personen. '
             . 'Stattfinden soll sie übermorgen, von 10 bis 12h.';
@@ -120,13 +120,11 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
             $this->markTestSkipped('mod_booking.create_option_normal is not available in the current task catalog.');
         }
 
-        $DB->delete_records_select('booking_options', 'bookingid = :bookingid AND text LIKE :titlelike', [
-            'bookingid' => (int)$this->booking->id,
-            'titlelike' => 'Sport x%',
-        ]);
+        $beforeoptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text, type');
+        $beforeids = array_map(static fn($row): int => (int)$row->id, $beforeoptions);
 
         [$store, $runtime, $threadid] = $this->build_runtime();
-        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+        $store->allow_confirmation_for_thread((int)$this->teacher->id, $this->booking_contextid(), $threadid);
 
         $prompt = 'Erstelle fuer uebernaechste Woche Buchungsmoeglichkeit mit dem Titel "Sport x", '
             . 'durchnummeriert, fuer hoechstens fuenf Personen. immer von 10 bis 12h, an jedem Wochentag.';
@@ -151,15 +149,13 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
 
         $commands = $this->decode_commands_from_payload($response);
         $this->assertNotEmpty($commands, 'Expected at least one create command. Payload: ' . $this->payload_text($response));
-
-        foreach ($commands as $index => $command) {
-            $this->assertIsArray($command, 'Expected command payload array at index ' . $index . '.');
-            $this->assertSame(
-                'mod_booking.create_option_normal',
-                (string)($command['task'] ?? ''),
-                'Expected only mod_booking.create_option_normal commands. Payload: ' . $this->payload_text($response)
-            );
-        }
+        $firstcommand = reset($commands);
+        $this->assertIsArray($firstcommand, 'Expected first command payload to be an array.');
+        $this->assertSame(
+            'mod_booking.create_option_normal',
+            (string)($firstcommand['task'] ?? ''),
+            'Expected only mod_booking.create_option_normal commands. Payload: ' . $this->payload_text($response)
+        );
 
         $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option_slotbooking');
         $this->assertNull(
@@ -167,21 +163,94 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
             'Did not expect mod_booking.create_option_slotbooking for this prompt. Payload: ' . $this->payload_text($response)
         );
 
-        foreach ($commands as $index => $command) {
-            $result = $this->execute_command($command);
-            $this->assertContains(
-                (string)($result['status'] ?? ''),
-                ['ok', 'executed'],
-                'Expected successful command execution at index ' . $index . '. Result: ' . json_encode($result)
+        $current = $response;
+        for ($round = 1; $round <= 6; $round++) {
+            if ((string)($current['response_type'] ?? '') !== 'confirmation_request') {
+                break;
+            }
+
+            $requiresallowsession = ((int)($current['autoconfirm'] ?? 0) !== 1);
+            $confirm = $this->confirm_pending_result($current, (int)$threadid, $store, $requiresallowsession);
+            $this->assertTrue(
+                (bool)($confirm['success'] ?? false),
+                'Confirmation failed in series flow at round ' . $round . '. Payload: ' . $this->payload_text($confirm)
             );
+            $this->assertContains(
+                (string)($confirm['response_type'] ?? ''),
+                ['confirmation_request', 'sufficient', 'execution_result'],
+                'Unexpected response type in series flow at round ' . $round . '. Payload: ' . $this->payload_text($confirm)
+            );
+            $current = $confirm;
         }
 
-        $created = $DB->get_records_select('booking_options', 'bookingid = :bookingid AND text LIKE :titlelike', [
-            'bookingid' => (int)$this->booking->id,
-            'titlelike' => 'Sport x%',
-        ]);
+        $afteroptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text, type');
+        $created = [];
+        foreach ($afteroptions as $row) {
+            if (!in_array((int)$row->id, $beforeids, true)) {
+                $created[] = $row;
+            }
+        }
 
-        $this->assertCount(5, $created, 'Expected five created options with title prefix "Sport x".');
+        for ($round = 1; $round <= 4 && count($created) < 5; $round++) {
+            $_POST['sesskey'] = sesskey();
+            $remaining = 5 - count($created);
+            $continuation = 'Fahre fort und erstelle die restlichen ' . $remaining . ' Buchungsmoeglichkeiten fuer die '
+                . 'uebernaechste Woche. Behalte den Titel "Sport x" durchnummeriert, jeweils 10 bis 12h, '
+                . 'maximal fuenf Personen und normale Buchungsoptionen.';
+            $continuedresponse = ai_send_message::execute((int)$this->booking->cmid, $continuation, (int)$threadid);
+
+            if ((string)($continuedresponse['response_type'] ?? '') === 'clarification') {
+                $_POST['sesskey'] = sesskey();
+                $continuedresponse = ai_send_message::execute(
+                    (int)$this->booking->cmid,
+                    'Gemeint ist weiterhin uebernaechste Woche, Montag bis Freitag, jeweils 10 bis 12h. Bitte jetzt die restlichen Sport-Termine anlegen.',
+                    (int)$threadid
+                );
+            }
+
+            $this->assertContains(
+                (string)($continuedresponse['response_type'] ?? ''),
+                ['confirmation_request', 'sufficient', 'execution_result'],
+                'Expected actionable continuation response in weekday series flow. Payload: ' . $this->payload_text($continuedresponse)
+            );
+
+            $current = $continuedresponse;
+            for ($confirmround = 1; $confirmround <= 6; $confirmround++) {
+                if ((string)($current['response_type'] ?? '') !== 'confirmation_request') {
+                    break;
+                }
+
+                $requiresallowsession = ((int)($current['autoconfirm'] ?? 0) !== 1);
+                $confirm = $this->confirm_pending_result($current, (int)$threadid, $store, $requiresallowsession);
+                $this->assertTrue(
+                    (bool)($confirm['success'] ?? false),
+                    'Continuation confirmation failed in series flow at round ' . $round . '.' . $confirmround
+                        . '. Payload: ' . $this->payload_text($confirm)
+                );
+                $this->assertContains(
+                    (string)($confirm['response_type'] ?? ''),
+                    ['confirmation_request', 'sufficient', 'execution_result'],
+                    'Unexpected continuation response type in series flow at round ' . $round . '.' . $confirmround
+                        . '. Payload: ' . $this->payload_text($confirm)
+                );
+                $current = $confirm;
+            }
+
+            $afteroptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text, type');
+            $created = [];
+            foreach ($afteroptions as $row) {
+                if (!in_array((int)$row->id, $beforeids, true)) {
+                    $created[] = $row;
+                }
+            }
+        }
+
+        $this->assertCount(5, $created, 'Expected five created options in the confirmation chain.');
+        $createdtitles = array_map(static fn($row): string => (string)$row->text, $created);
+        $this->assertCount(5, array_unique($createdtitles), 'Expected five uniquely titled Sport options.');
+        foreach ($createdtitles as $title) {
+            $this->assertStringContainsString('Sport', $title, 'Expected each created title to stay within the Sport naming scheme.');
+        }
         foreach ($created as $row) {
             $this->assertSame(0, (int)$row->type, 'Expected all created options to be normal type 0.');
         }

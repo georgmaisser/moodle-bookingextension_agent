@@ -37,10 +37,12 @@ Akzeptanzkriterien:
 - Mutationen sind per Default confirmation_request.
 - confirm_pending fuehrt nur vorbereitete Queue-Commands aus.
 - Session-Autoconfirm ist an userid + contextid gebunden.
+- Wenn ai_confirm_run nach einer erfolgreichen Mutation ein neues pending_intent fuer ein verbleibendes mutating Queue-Item setzt, muss die Antwort deterministisch wieder confirmation_request sein, unabhaengig vom vorherigen response_type.
 
 Akzeptanzkriterien:
 - Readonly-Kommandos werden direkt ausgefuehrt; mutierende Kommandos nie ohne Confirmation-Flow.
 - Confirmation-Allowance wirkt nur innerhalb des gleichen userid+contextid-Scope.
+- Ein Follow-up-pending_intent fuer weitere mutierende Queue-Items kann nicht als sufficient/execution_result an die UI auslaufen; der Continuation-Vertrag bleibt confirmation_request.
 
 ## C5 - Capability Matrix
 - Freischaltung ist mehrstufig: Runtime aktiviert, Task aktiv, Context gueltig, Capability vorhanden.
