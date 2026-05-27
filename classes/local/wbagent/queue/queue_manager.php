@@ -50,9 +50,6 @@ class queue_manager {
     /** @var int Default TTL for blocked confirmations in seconds. */
     private const DEFAULT_BLOCKED_TTL_SECONDS = 900;
 
-    /** @var array<int,string> Queue statuses considered terminal. */
-    private const TERMINAL_STATUSES = ['succeeded', 'failed', 'skipped'];
-
     /** @var array<int,string> Queue fields allowed via update_status extra payload. */
     private const ALLOWED_EXTRA_STATUS_FIELDS = [
         'preflight_retry_count',
@@ -148,22 +145,14 @@ class queue_manager {
         $signaturemode = (string)($signaturedetails['mode'] ?? 'raw_input');
         $signaturepayload = is_array($signaturedetails['payload'] ?? null) ? (array)$signaturedetails['payload'] : [];
 
-        // Idempotency: if an equivalent item (same signature) is already active,
-        // always reuse it. For mutating commands, also reuse already succeeded
-        // items to avoid replaying the same business action across follow-up calls.
+        // Idempotency: if an equivalent item (same signature) is already in a
+        // non-terminal state, return it instead of creating a duplicate.
+        $activeterminals = ['succeeded', 'failed', 'skipped'];
         foreach ($items as $existing) {
-            if ((string)($existing['input_signature'] ?? '') !== $signature) {
-                continue;
-            }
-
-            $existingstatus = trim((string)($existing['status'] ?? ''));
-            if (!in_array($existingstatus, self::TERMINAL_STATUSES, true)) {
-                $existing['dedupe_decision'] = 'reused_active';
-                return $existing;
-            }
-
-            if ($mutability === 'mutating' && $existingstatus === 'succeeded') {
-                $existing['dedupe_decision'] = 'reused_succeeded';
+            if (
+                (string)($existing['input_signature'] ?? '') === $signature
+                && !in_array((string)($existing['status'] ?? ''), $activeterminals, true)
+            ) {
                 return $existing;
             }
         }
@@ -182,7 +171,6 @@ class queue_manager {
             'input_signature' => $signature,
             'input_signature_mode' => $signaturemode,
             'input_signature_payload' => $signaturepayload,
-            'dedupe_decision' => 'enqueued',
             'mutability' => $mutability,
             'depends_on' => $dependson,
             'status' => $status,

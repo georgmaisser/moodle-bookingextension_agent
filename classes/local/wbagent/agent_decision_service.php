@@ -841,8 +841,6 @@ class agent_decision_service {
         $mutatingcommands = $split['mutating'];
         $readonlyqueueids = [];
         $mutatingqueueids = [];
-        $pendingmutatingcommands = [];
-        $queuededupeevents = [];
         $readonlyexecution = null;
 
         // Queue ingestion records commands before preflight; mutating status is
@@ -891,30 +889,7 @@ class agent_decision_service {
                 $status,
                 $dependson
             );
-            $queuedid = (string)($queued['queue_item_id'] ?? '');
-            $queuedstatus = trim((string)($queued['status'] ?? ''));
-            $dedupedecision = trim((string)($queued['dedupe_decision'] ?? ''));
-            if ($dedupedecision !== '') {
-                $queuededupeevents[] = [
-                    'queue_item_id' => $queuedid,
-                    'task' => trim((string)($mutatingcommand['task'] ?? '')),
-                    'status' => $queuedstatus,
-                    'decision' => $dedupedecision,
-                ];
-            }
-
-            if (in_array($queuedstatus, ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'], true) && $queuedid !== '') {
-                $mutatingqueueids[] = $queuedid;
-                $pendingmutatingcommands[] = (array)$mutatingcommand;
-                continue;
-            }
-
-            if ($queuedstatus === 'succeeded') {
-                $result['issue_codes'] = array_values(array_unique(array_merge(
-                    (array)($result['issue_codes'] ?? []),
-                    ['QUEUE_DUPLICATE_SKIPPED_SUCCEEDED']
-                )));
-            }
+            $mutatingqueueids[] = (string)($queued['queue_item_id'] ?? '');
         }
 
         if (!empty($readonlycommands)) {
@@ -938,13 +913,13 @@ class agent_decision_service {
             );
         }
 
-        if (!empty($pendingmutatingcommands)) {
+        if (!empty($mutatingcommands)) {
             // Write operations remain confirmation-gated.
             $result['response_type'] = 'confirmation_request';
             // Phase 2 T5: include ALL mutating commands and ALL queue item ids so the
             // ai_confirm_run call can execute the full batch in a single round-trip.
             $result['commands'] = array_values(
-                array_filter($pendingmutatingcommands, static fn($e): bool => is_array($e))
+                array_filter($mutatingcommands, static fn($e): bool => is_array($e))
             );
             $result['queue_item_ids'] = array_values(
                 array_filter($mutatingqueueids, static fn($id): bool => $id !== '')
@@ -994,24 +969,8 @@ class agent_decision_service {
                     ['QUEUE_MUTATION_STAGED']
                 )));
             }
-        } else if (!empty($mutatingcommands)) {
-            if (is_array($readonlyexecution)) {
-                $result = $readonlyexecution;
-            } else {
-                $result['response_type'] = 'sufficient';
-                $result['commands'] = [];
-                $result['queue_item_ids'] = [];
-                $result['pending_confirmation_code'] = '';
-                if (trim((string)($result['message'] ?? '')) === '') {
-                    $result['message'] = 'No new write action required. Matching action was already completed.';
-                }
-            }
         } else if (is_array($readonlyexecution)) {
             $result = $readonlyexecution;
-        }
-
-        if (!empty($queuededupeevents)) {
-            $result['queue_dedupe_decisions'] = $queuededupeevents;
         }
 
         return $result;

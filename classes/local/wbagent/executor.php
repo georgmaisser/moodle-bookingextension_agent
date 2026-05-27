@@ -29,7 +29,6 @@ use core\context;
 use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\services\spawn_contract_service;
 
@@ -180,21 +179,6 @@ class executor implements agent_executor {
                 continue;
             }
 
-            if (
-                !$task->is_read_only()
-                && $this->has_already_succeeded_mutating_identity($threadid, (string)$taskname, (array)$input)
-            ) {
-                $results[] = [
-                    'status' => 'ok',
-                    'detail' => 'Skipped mutating execution because an equivalent action already succeeded.',
-                    'issue_codes' => ['IDEMPOTENT_REPLAY_SKIPPED'],
-                    'resultid' => null,
-                    'task' => $taskname,
-                    'executed_input' => $this->build_safe_executed_input((string)$taskname, (array)$input),
-                ];
-                continue;
-            }
-
             if (!$task->is_read_only()) {
                 $guardtoken = trim((string)($cmd['guard_token'] ?? ''));
                 if ($guardtoken === '') {
@@ -259,46 +243,6 @@ class executor implements agent_executor {
         }
 
         return $results;
-    }
-
-    /**
-     * True when the same mutating command identity already succeeded in this thread.
-     *
-     * @param int $threadid
-     * @param string $taskname
-     * @param array<string,mixed> $input
-     * @return bool
-     */
-    private function has_already_succeeded_mutating_identity(int $threadid, string $taskname, array $input): bool {
-        if ($threadid <= 0 || $taskname === '') {
-            return false;
-        }
-
-        $queuesvc = new queue_manager($this->store, $this->registry);
-        $signature = $queuesvc->build_input_signature($taskname, $input);
-        if ($signature === '') {
-            return false;
-        }
-
-        foreach ($queuesvc->get_queue_items($threadid) as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-
-            if ((string)($item['status'] ?? '') !== 'succeeded') {
-                continue;
-            }
-
-            if ((string)($item['input_signature'] ?? '') === $signature) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
