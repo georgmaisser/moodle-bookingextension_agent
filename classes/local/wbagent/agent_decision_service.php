@@ -31,6 +31,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
+use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
 
@@ -133,7 +134,7 @@ class agent_decision_service {
         $this->store    = $store;
         $this->authz    = $authz;
         $this->issuecodeprovider = $issuecodeprovider ?? new booking_issue_code_provider();
-        $this->queuesvc = new queue_manager($store);
+        $this->queuesvc = new queue_manager($store, $registry);
         $this->observationbuilder = new observation_builder();
         $this->preflightpipeline = new preflight_pipeline($registry, $store);
         $this->languagepolicy = new language_policy_service();
@@ -1679,6 +1680,17 @@ class agent_decision_service {
             });
             $results = $feedback['results'];
             $this->store->update_run_status($runid, 'completed', $results);
+            $observationledger = new execution_observation_ledger($this->store);
+            $observationledger->append_from_results(
+                $threadid,
+                (array)$results,
+                [
+                    'source' => 'readonly_execute',
+                    'run_id' => (int)$runid,
+                    'commands' => $preparedcommands,
+                    'queue_item_ids' => $queueitemids,
+                ]
+            );
             $message = trim((string)($feedback['message'] ?? ''));
             if ($message === '') {
                 $message = $this->localized_string('ai_run_executed', 'bookingextension_agent', null, $outputlang);

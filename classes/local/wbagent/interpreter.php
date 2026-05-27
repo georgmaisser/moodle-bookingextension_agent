@@ -924,15 +924,15 @@ class interpreter implements agent_interpreter {
             }
 
             // Stage 6: Normalise dates.
-            if (isset($input['coursestarttime']) && !is_int($input['coursestarttime'])) {
-                $ts = strtotime($input['coursestarttime']);
-                if ($ts !== false) {
+            if (array_key_exists('coursestarttime', $input)) {
+                $ts = $this->normalize_timestamp_value($input['coursestarttime']);
+                if ($ts !== null) {
                     $input['coursestarttime'] = $ts;
                 }
             }
-            if (isset($input['courseendtime']) && !is_int($input['courseendtime'])) {
-                $ts = strtotime($input['courseendtime']);
-                if ($ts !== false) {
+            if (array_key_exists('courseendtime', $input)) {
+                $ts = $this->normalize_timestamp_value($input['courseendtime']);
+                if ($ts !== null) {
                     $input['courseendtime'] = $ts;
                 }
             }
@@ -1073,6 +1073,60 @@ class interpreter implements agent_interpreter {
         }
 
         return $input;
+    }
+
+    /**
+     * Normalize common timestamp inputs to unix timestamps.
+     *
+     * Accepts integers, numeric strings, date strings and common wrapped array forms.
+     * Returns null when no valid timestamp can be derived.
+     *
+     * @param mixed $value
+     * @return int|null
+     */
+    private function normalize_timestamp_value($value): ?int {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int)$value;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return null;
+            }
+
+            if (ctype_digit($trimmed)) {
+                return (int)$trimmed;
+            }
+
+            $ts = strtotime($trimmed);
+            return ($ts === false) ? null : $ts;
+        }
+
+        if (!is_array($value) || empty($value)) {
+            return null;
+        }
+
+        foreach (['timestamp', 'value', 'datetime', 'date', 'time', 'iso'] as $key) {
+            if (!array_key_exists($key, $value)) {
+                continue;
+            }
+
+            $nested = $this->normalize_timestamp_value($value[$key]);
+            if ($nested !== null) {
+                return $nested;
+            }
+        }
+
+        if (array_key_exists(0, $value)) {
+            return $this->normalize_timestamp_value($value[0]);
+        }
+
+        return null;
     }
 
 

@@ -27,7 +27,9 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\queue;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\interfaces\queue_identity_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
+use bookingextension_agent\local\wbagent\task_registry;
 
 /**
  * Shadow queue manager for queue status tracking.
@@ -41,6 +43,9 @@ class queue_manager {
 
     /** @var conversation_store */
     private conversation_store $store;
+
+    /** @var task_registry|null */
+    private ?task_registry $registry;
 
     /** @var int Default TTL for blocked confirmations in seconds. */
     private const DEFAULT_BLOCKED_TTL_SECONDS = 900;
@@ -60,8 +65,9 @@ class queue_manager {
      *
      * @param conversation_store $store
      */
-    public function __construct(conversation_store $store) {
+    public function __construct(conversation_store $store, ?task_registry $registry = null) {
         $this->store = $store;
+        $this->registry = $registry;
     }
 
     /**
@@ -107,6 +113,8 @@ class queue_manager {
                 'prepared_input' => null,
                 'guard_token' => '',
                 'input_signature' => '',
+                'input_signature_mode' => 'none',
+                'input_signature_payload' => [],
                 'mutability' => $mutability,
                 'depends_on' => $dependson,
                 'status' => 'failed',
@@ -132,7 +140,10 @@ class queue_manager {
 
         $task = trim((string)($command['task'] ?? ''));
         $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-        $signature = $this->build_input_signature($task, $input);
+        $signaturedetails = $this->build_input_signature_details($task, $input);
+        $signature = (string)($signaturedetails['signature'] ?? '');
+        $signaturemode = (string)($signaturedetails['mode'] ?? 'raw_input');
+        $signaturepayload = is_array($signaturedetails['payload'] ?? null) ? (array)$signaturedetails['payload'] : [];
 
         // Idempotency: if an equivalent item (same signature) is already in a
         // non-terminal state, return it instead of creating a duplicate.
@@ -158,6 +169,8 @@ class queue_manager {
             'prepared_input' => null,
             'guard_token' => '',
             'input_signature' => $signature,
+            'input_signature_mode' => $signaturemode,
+            'input_signature_payload' => $signaturepayload,
             'mutability' => $mutability,
             'depends_on' => $dependson,
             'status' => $status,
@@ -583,9 +596,48 @@ class queue_manager {
      * @return string
      */
     public function build_input_signature(string $task, array $input): string {
-        $normalized = $this->normalize_for_signature($input);
+        $details = $this->build_input_signature_details($task, $input);
+        return (string)($details['signature'] ?? '');
+    }
+
+    /**
+     * Build deterministic input signature plus debug metadata.
+     *
+     * @param string $task
+     * @param array $input
+     * @return array{signature:string,mode:string,payload:array<string,mixed>}
+     */
+    private function build_input_signature_details(string $task, array $input): array {
+        $signaturepayload = $input;
+        $mode = 'raw_input';
+
+        if ($this->registry !== null) {
+            $taskinstance = $this->registry->get_task($task);
+            if ($taskinstance instanceof queue_identity_provider_interface) {
+                try {
+                    $businessidentity = $taskinstance->build_queue_business_identity($input);
+                    if (!empty($businessidentity)) {
+                        $mode = 'task_business';
+                        $signaturepayload = [
+                            '__identity_mode' => 'task_business',
+                            'identity' => $businessidentity,
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    // Fallback to raw input signature if task-provided identity fails.
+                    $mode = 'raw_input';
+                    $signaturepayload = $input;
+                }
+            }
+        }
+
+        $normalized = $this->normalize_for_signature($signaturepayload);
         $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        return hash('sha256', $task . ':' . (string)$json);
+        return [
+            'signature' => hash('sha256', $task . ':' . (string)$json),
+            'mode' => $mode,
+            'payload' => is_array($normalized) ? $normalized : ['value' => $normalized],
+        ];
     }
 
     /**

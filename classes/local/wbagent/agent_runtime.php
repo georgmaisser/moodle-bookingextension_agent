@@ -34,6 +34,7 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 
 /**
@@ -461,6 +462,17 @@ class agent_runtime {
             // If the step executed read-only tools successfully, record the observation
             // and continue the internal loop — the LLM will see the results next step.
             if ((string)($result['response_type'] ?? '') === 'execution_result') {
+                $observationledger = new execution_observation_ledger($this->store);
+                $observationledger->append_from_results(
+                    $threadid,
+                    (array)($result['results'] ?? []),
+                    [
+                        'source' => 'runtime_loop',
+                        'run_id' => (int)($result['runid'] ?? 0),
+                        'commands' => (array)($result['commands'] ?? []),
+                    ]
+                );
+
                 $observation = result_payload_summarizer::for_observation(
                     $result['results'] ?? [],
                     $step + 1

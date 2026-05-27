@@ -44,6 +44,7 @@ use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\preflight_audit_logger;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\task_registry;
@@ -538,6 +539,17 @@ class ai_confirm_run extends external_api {
             }
 
             $store->update_run_status($runid, 'completed', $results);
+            $observationledger = new execution_observation_ledger($store);
+            $observationledger->append_from_results(
+                (int)$params['threadid'],
+                (array)$results,
+                [
+                    'source' => 'confirm_run',
+                    'run_id' => (int)$runid,
+                    'commands' => $commandsforrun,
+                    'queue_item_ids' => [$activequeueitemid],
+                ]
+            );
             $aggregatedpreviewids = self::remember_confirm_preview_option_ids(
                 $store,
                 (int)$params['threadid'],

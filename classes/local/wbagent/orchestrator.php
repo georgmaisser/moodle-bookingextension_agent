@@ -32,8 +32,10 @@ use core_ai\aiactions\summarise_text;
 use core\di;
 use core_text;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\adaptive_task_catalog_service;
+use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 
 /**
  * Orchestrates LLM interaction via core_ai.
@@ -444,6 +446,7 @@ class orchestrator {
             $shouldincludetaskcatalog
         );
         $runtimecontext = $this->build_runtime_context_block(
+            $threadid,
             $cmid,
             $normalizedsteptype,
             $isfirstassistantturn,
@@ -1164,6 +1167,7 @@ PROMPT;
      * @return string
      */
     private function build_runtime_context_block(
+        int $threadid,
         int $cmid,
         string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
         bool $isfirstassistantturn = false,
@@ -1223,11 +1227,26 @@ PROMPT;
         }
 
         $completedcommands = $this->extract_completed_commands_from_messages($messages);
+        $completedcommands = $this->merge_completed_commands_from_queue($threadid, $completedcommands);
         if (!empty($completedcommands)) {
             $lines[] = '';
             $lines[] = 'completed_commands:';
             foreach ($completedcommands as $command) {
                 $json = json_encode($command, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (!is_string($json) || $json === '') {
+                    continue;
+                }
+                $lines[] = '  - ' . $json;
+            }
+        }
+
+        $observationledger = new execution_observation_ledger($this->store);
+        $completedobservations = $observationledger->get_recent_for_runtime($threadid, 12);
+        if (!empty($completedobservations)) {
+            $lines[] = '';
+            $lines[] = 'completed_observations:';
+            foreach ($completedobservations as $observation) {
+                $json = json_encode($observation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 if (!is_string($json) || $json === '') {
                     continue;
                 }
@@ -1329,8 +1348,10 @@ PROMPT;
     private function extract_completed_commands_from_messages(array $messages): array {
         $completed = [];
         $latestassistantpayload = null;
+        $fallbackassistantpayload = null;
 
-        foreach ($messages as $msg) {
+        for ($i = count($messages) - 1; $i >= 0; $i--) {
+            $msg = $messages[$i];
             if ((string)($msg->role ?? '') !== 'assistant') {
                 continue;
             }
@@ -1340,8 +1361,20 @@ PROMPT;
                 continue;
             }
 
-            $latestassistantpayload = $structured;
-            break;
+            if (!is_array($fallbackassistantpayload)) {
+                $fallbackassistantpayload = $structured;
+            }
+
+            $loopresults = (array)($structured['loop_results'] ?? []);
+            $results = (array)($structured['results'] ?? []);
+            if (!empty($loopresults) || !empty($results)) {
+                $latestassistantpayload = $structured;
+                break;
+            }
+        }
+
+        if (!is_array($latestassistantpayload)) {
+            $latestassistantpayload = $fallbackassistantpayload;
         }
 
         if (!is_array($latestassistantpayload) || empty($latestassistantpayload)) {
@@ -1384,6 +1417,105 @@ PROMPT;
         return $completed;
     }
 
+    /**
+     * Merge queue-sourced executed commands into completed command history.
+     *
+     * Uses succeeded queue items as authoritative cross-step execution memory.
+     *
+     * @param int $threadid
+     * @param array<int,array<string,mixed>> $existing
+     * @return array<int,array<string,mixed>>
+     */
+    private function merge_completed_commands_from_queue(int $threadid, array $existing): array {
+        if ($threadid <= 0) {
+            return $existing;
+        }
+
+        $manager = new queue_manager($this->store);
+        $queueitems = $manager->get_queue_items($threadid);
+        if (empty($queueitems)) {
+            return $existing;
+        }
+
+        $queuecompleted = [];
+        $seen = [];
+
+        foreach ($queueitems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            if ((int)($item['thread_id'] ?? 0) !== $threadid) {
+                continue;
+            }
+
+            if (trim((string)($item['status'] ?? '')) !== 'succeeded') {
+                continue;
+            }
+
+            $task = trim((string)($item['task'] ?? ''));
+            if ($task === '') {
+                continue;
+            }
+
+            $input = [];
+            if (is_array($item['prepared_input'] ?? null)) {
+                $input = (array)$item['prepared_input'];
+            } else if (is_array($item['input'] ?? null)) {
+                $input = (array)$item['input'];
+            }
+
+            $compact = ['task' => $task];
+            $normalizedinput = $this->normalize_completed_command_input($input);
+            if (!empty($normalizedinput)) {
+                $compact['input'] = $normalizedinput;
+            }
+
+            $signature = $this->build_completed_command_signature($compact);
+            if ($signature === '' || isset($seen[$signature])) {
+                continue;
+            }
+
+            $seen[$signature] = true;
+            $queuecompleted[] = $compact;
+        }
+
+        // Queue is authoritative for completed mutation history in the current thread.
+        // Only if no succeeded queue items exist, fall back to message-derived evidence.
+        $merged = !empty($queuecompleted) ? $queuecompleted : $existing;
+
+        if (count($merged) > 12) {
+            $merged = array_slice($merged, -12);
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Build a deterministic signature for completed command deduplication.
+     *
+     * @param array<string,mixed> $command
+     * @return string
+     */
+    private function build_completed_command_signature(array $command): string {
+        $task = trim((string)($command['task'] ?? ''));
+        if ($task === '') {
+            return '';
+        }
+
+        $input = [];
+        if (is_array($command['input'] ?? null)) {
+            $input = (array)$command['input'];
+        }
+
+        ksort($input);
+        $json = json_encode($input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json)) {
+            $json = '{}';
+        }
+
+        return hash('sha256', $task . '|' . $json);
+    }
     /**
      * Normalize executed input for SYSTEM_RUNTIME.completed_commands.
      *
