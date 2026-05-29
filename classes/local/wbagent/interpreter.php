@@ -633,13 +633,7 @@ class interpreter implements agent_interpreter {
      * @return array
      */
     private function extract_command_input(array $payload): array {
-        foreach (['input', 'args', 'params', 'parameter'] as $key) {
-            if (is_array($payload[$key] ?? null)) {
-                return (array)$payload[$key];
-            }
-        }
-
-        return [];
+        return is_array($payload['input'] ?? null) ? (array)$payload['input'] : [];
     }
 
     /**

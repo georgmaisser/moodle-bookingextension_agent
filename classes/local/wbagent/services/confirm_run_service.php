@@ -46,6 +46,9 @@ class confirm_run_service {
     /** Thread metadata key for aggregated option previews across one confirm chain. */
     private const CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY = '_confirm_preview_option_ids';
 
+    /** Queue statuses that represent actionable mutating work. */
+    private const ACTIVE_MUTATING_STATUSES = ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'];
+
     /** @var task_registry */
     private task_registry $registry;
 
@@ -138,8 +141,8 @@ class confirm_run_service {
             );
         }
 
-        $commandsforrun = $this->resolve_commands_for_run($queuesvc, $threadid, $pendingintent, $activequeueitemid);
-        if (empty($commandsforrun)) {
+        $activeitem = $this->get_active_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
+        if (!is_array($activeitem)) {
             return $this->build_error_payload(
                 $threadid,
                 $cmid,
@@ -151,8 +154,7 @@ class confirm_run_service {
             );
         }
 
-        $activeitem = $queuesvc->get_queue_item($threadid, $activequeueitemid);
-        if (is_array($activeitem) && !$queuesvc->dependencies_succeeded($threadid, $activeitem)) {
+        if (!$queuesvc->dependencies_succeeded($threadid, $activeitem)) {
             return $this->build_error_payload(
                 $threadid,
                 $cmid,
@@ -164,8 +166,8 @@ class confirm_run_service {
             );
         }
 
-        $activestatus = is_array($activeitem) ? trim((string)($activeitem['status'] ?? '')) : '';
-        if (is_array($activeitem) && $activestatus === 'retry_waiting' && !$queuesvc->can_pickup_now($activeitem)) {
+        $activestatus = trim((string)($activeitem['status'] ?? ''));
+        if ($activestatus === 'retry_waiting' && !$queuesvc->can_pickup_now($activeitem)) {
             $errors = ['Queue item is waiting for retry and cannot be picked up yet.'];
             $waitseconds = max(0, ((int)($activeitem['next_retry_at'] ?? 0)) - time());
             if ($waitseconds > 0) {
@@ -179,6 +181,19 @@ class confirm_run_service {
                 implode(' ', $errors),
                 ['RETRY_WAITING'],
                 $errors,
+                $activequeueitemid
+            );
+        }
+
+        $commandsforrun = $this->resolve_commands_for_run($queuesvc, $threadid, $activequeueitemid);
+        if (empty($commandsforrun)) {
+            return $this->build_error_payload(
+                $threadid,
+                $cmid,
+                $userid,
+                'No pending confirmation is available for this action. Please ask the assistant again.',
+                [],
+                [],
                 $activequeueitemid
             );
         }
@@ -246,7 +261,9 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => $activequeueitemid,
-                'previewoptionid' => $this->resolve_preview_option_id_for_response($cmid, $userid, []),
+                'previewoptionid' => $this->first_preview_option_id(
+                    $this->resolve_preview_option_ids_for_response($cmid, $userid, [])
+                ),
                 'previewoptionids' => $this->resolve_preview_option_ids_for_response($cmid, $userid, []),
             ];
         }
@@ -378,9 +395,9 @@ class confirm_run_service {
                 ]
             );
 
-            $aggregatedpreviewids = $this->remember_confirm_preview_option_ids($threadid, $results);
-            $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults, $commandsforrun, $commandsforrun)
-                || $this->has_remaining_mutating_queue_items($queuesvc, $threadid, $activequeueitemid);
+            $aggregatedpreviewids = $this->remember_confirm_preview_option_ids($threadid, $cmid, $userid, $results);
+            $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults)
+                || is_array($this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid));
 
             if ($shouldcontinue) {
                 $seedobservations = [];
@@ -426,28 +443,8 @@ class confirm_run_service {
                 $nextqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid);
                 if (is_array($nextqueueitem)) {
                     $nextqueueitemid = (string)($nextqueueitem['queue_item_id'] ?? '');
-                    $nexttask = trim((string)($nextqueueitem['task'] ?? ''));
-                    $nextinput = is_array($nextqueueitem['prepared_input'] ?? null) && !empty($nextqueueitem['prepared_input'])
-                        ? (array)$nextqueueitem['prepared_input']
-                        : (is_array($nextqueueitem['input'] ?? null) ? (array)$nextqueueitem['input'] : []);
-                    if ($nextqueueitemid !== '' && $nexttask !== '') {
-                        $nextcommand = [
-                            'task' => $nexttask,
-                            'version' => max(1, (int)($nextqueueitem['version'] ?? 1)),
-                            'input' => $nextinput,
-                        ];
-                        $nextguardtoken = trim((string)($nextqueueitem['guard_token'] ?? ''));
-                        if ($nextguardtoken !== '') {
-                            $nextcommand['guard_token'] = $nextguardtoken;
-                        }
-                        $nextdependson = array_values(array_filter(array_map(
-                            'strval',
-                            (array)($nextqueueitem['depends_on'] ?? [])
-                        )));
-                        if (!empty($nextdependson)) {
-                            $nextcommand['depends_on'] = $nextdependson;
-                        }
-
+                    $nextcommand = $this->build_command_from_queue_item($nextqueueitem);
+                    if ($nextqueueitemid !== '' && is_array($nextcommand)) {
                         $intentkey = hash(
                             'sha256',
                             (string)$userid . ':' . $threadid . '::' . json_encode([$nextcommand])
@@ -523,10 +520,12 @@ class confirm_run_service {
                 'errors' => $errors,
                 'pending_confirmation_code' => (string)($finalresult['pending_confirmation_code'] ?? ''),
                 'queueitemid' => $responsequeueitemid,
-                'previewoptionid' => $this->resolve_preview_option_id_for_response(
-                    $cmid,
-                    $userid,
-                    (array)($finalresult['results'] ?? [])
+                'previewoptionid' => $this->first_preview_option_id(
+                    $this->resolve_preview_option_ids_for_response(
+                        $cmid,
+                        $userid,
+                        (array)($finalresult['results'] ?? [])
+                    )
                 ),
                 'previewoptionids' => $this->resolve_confirm_preview_option_ids_for_response(
                     $threadid,
@@ -615,7 +614,9 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => '',
-                'previewoptionid' => $this->resolve_preview_option_id_for_response($cmid, $userid, $feedbackresults),
+                'previewoptionid' => $this->first_preview_option_id(
+                    $this->resolve_preview_option_ids_for_response($cmid, $userid, $feedbackresults)
+                ),
                 'previewoptionids' => $this->resolve_preview_option_ids_for_response($cmid, $userid, $feedbackresults),
             ];
         }
@@ -656,7 +657,9 @@ class confirm_run_service {
             'errors' => $errors,
             'pending_confirmation_code' => '',
             'queueitemid' => $queueitemid,
-            'previewoptionid' => $this->resolve_preview_option_id_for_response($cmid, $userid, []),
+            'previewoptionid' => $this->first_preview_option_id(
+                $this->resolve_preview_option_ids_for_response($cmid, $userid, [])
+            ),
             'previewoptionids' => $this->resolve_preview_option_ids_for_response($cmid, $userid, []),
         ];
     }
@@ -706,40 +709,16 @@ class confirm_run_service {
     }
 
     /**
-     * Resolve preview option id for responses.
+     * Return the first available preview option id.
      *
-     * @param int $cmid
-     * @param int $userid
-     * @param array $results
+     * @param int[] $ids
      * @return int
      */
-    private function resolve_preview_option_id_for_response(int $cmid, int $userid, array $results): int {
-        foreach ($results as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $resultid = (int)($entry['resultid'] ?? 0);
-            if ($resultid > 0) {
-                return $resultid;
-            }
-
-            $previewids = is_array($entry['previewoptionids'] ?? null) ? (array)$entry['previewoptionids'] : [];
-            foreach ($previewids as $id) {
-                $optionid = (int)$id;
-                if ($optionid > 0) {
-                    return $optionid;
-                }
-            }
-        }
-
-        foreach ($this->registry->get_preview_option_memory_helpers() as $helper) {
-            $storedpreviewids = (array)$helper->resolve_last_preview_option_ids_for_execute($cmid, $userid);
-            foreach ($storedpreviewids as $id) {
-                $optionid = (int)$id;
-                if ($optionid > 0) {
-                    return $optionid;
-                }
+    private function first_preview_option_id(array $ids): int {
+        foreach ($ids as $id) {
+            $normalized = (int)$id;
+            if ($normalized > 0) {
+                return $normalized;
             }
         }
 
@@ -750,16 +729,18 @@ class confirm_run_service {
      * Aggregate preview option ids into thread metadata.
      *
      * @param int $threadid
+     * @param int $cmid
+     * @param int $userid
      * @param array $results
      * @return int[]
      */
-    private function remember_confirm_preview_option_ids(int $threadid, array $results): array {
-        $currentids = $this->extract_preview_option_ids_from_results($results);
+    private function remember_confirm_preview_option_ids(int $threadid, int $cmid, int $userid, array $results): array {
+        $currentids = $this->resolve_preview_option_ids_for_response($cmid, $userid, $results);
         $storedids = $this->store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY);
-        $aggregatedids = array_values(array_unique(array_filter(array_map('intval', array_merge(
+        $aggregatedids = $this->merge_preview_option_ids(
             is_array($storedids) ? $storedids : [],
             $currentids
-        )))));
+        );
 
         $this->store->set_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY, $aggregatedids);
         return $aggregatedids;
@@ -788,47 +769,16 @@ class confirm_run_service {
                 ? $this->store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY)
                 : []);
 
-        $ids = array_values(array_unique(array_filter(array_map('intval', array_merge(
+        $ids = $this->merge_preview_option_ids(
             is_array($ids) ? $ids : [],
-            $this->extract_preview_option_ids_from_results($results)
-        )))));
+            $this->resolve_preview_option_ids_for_response($cmid, $userid, $results)
+        );
 
         if (empty($ids)) {
             return $this->resolve_preview_option_ids_for_response($cmid, $userid, $results);
         }
 
         return $ids;
-    }
-
-    /**
-     * Extract preview-capable option ids from execution results.
-     *
-     * @param array $results
-     * @return int[]
-     */
-    private function extract_preview_option_ids_from_results(array $results): array {
-        $ids = [];
-        foreach ($results as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            if ((int)($entry['userid'] ?? 0) <= 0) {
-                $resultid = (int)($entry['resultid'] ?? 0);
-                if ($resultid > 0) {
-                    $ids[] = $resultid;
-                }
-            }
-
-            foreach ((array)($entry['previewoptionids'] ?? []) as $previewid) {
-                $normalizedid = (int)$previewid;
-                if ($normalizedid > 0) {
-                    $ids[] = $normalizedid;
-                }
-            }
-        }
-
-        return array_values(array_unique($ids));
     }
 
     /**
@@ -872,6 +822,30 @@ class confirm_run_service {
         }
 
         return array_values($normalized);
+    }
+
+    /**
+     * Merge list-like sources into positive unique integer ids.
+     *
+     * @param mixed ...$sources
+     * @return int[]
+     */
+    private function merge_preview_option_ids(...$sources): array {
+        $ids = [];
+        foreach ($sources as $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+
+            foreach ($source as $entry) {
+                $normalized = (int)$entry;
+                if ($normalized > 0) {
+                    $ids[] = $normalized;
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -974,19 +948,9 @@ class confirm_run_service {
      * Continue runtime loop only when repair/follow-up work remains.
      *
      * @param array $rawresults
-     * @param array $allconfirmedcommands
-     * @param array $executedcommands
      * @return bool
      */
-    private function should_continue_with_runtime_loop(
-        array $rawresults,
-        array $allconfirmedcommands,
-        array $executedcommands
-    ): bool {
-        if (count($allconfirmedcommands) > count($executedcommands)) {
-            return true;
-        }
-
+    private function should_continue_with_runtime_loop(array $rawresults): bool {
         foreach ($rawresults as $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -1002,60 +966,20 @@ class confirm_run_service {
     }
 
     /**
-     * Check whether additional mutating queue work is still pending.
-     *
-     * @param queue_manager $queuesvc
-     * @param int $threadid
-     * @param string $activequeueitemid
-     * @return bool
-     */
-    private function has_remaining_mutating_queue_items(
-        queue_manager $queuesvc,
-        int $threadid,
-        string $activequeueitemid
-    ): bool {
-        foreach ($queuesvc->get_queue_items($threadid) as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-
-            $queueitemid = (string)($item['queue_item_id'] ?? '');
-            if ($queueitemid === '' || $queueitemid === $activequeueitemid) {
-                continue;
-            }
-
-            $status = trim((string)($item['status'] ?? ''));
-            if (in_array($status, ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'], true)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Find next pending mutating queue item.
      *
      * @param queue_manager $queuesvc
      * @param int $threadid
+     * @param string $excludequeueitemid
      * @return array<string,mixed>|null
      */
-    private function find_next_mutating_queue_item(queue_manager $queuesvc, int $threadid): ?array {
+    private function find_next_mutating_queue_item(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $excludequeueitemid = ''
+    ): ?array {
         foreach ($queuesvc->get_queue_items($threadid) as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-
-            $status = trim((string)($item['status'] ?? ''));
-            if (!in_array($status, ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'], true)) {
+            if (!$this->is_actionable_mutating_queue_item($item, $excludequeueitemid)) {
                 continue;
             }
 
@@ -1113,17 +1037,7 @@ class confirm_run_service {
                 return '';
             }
 
-            $requesteditem = $queuesvc->get_queue_item($threadid, $requestedqueueitemid);
-            if (!is_array($requesteditem)) {
-                return '';
-            }
-
-            if ((string)($requesteditem['mutability'] ?? '') !== 'mutating') {
-                return '';
-            }
-
-            $requestedstatus = (string)($requesteditem['status'] ?? '');
-            if (!in_array($requestedstatus, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+            if (!is_array($this->get_active_mutating_queue_item($queuesvc, $threadid, $requestedqueueitemid))) {
                 return '';
             }
 
@@ -1132,15 +1046,7 @@ class confirm_run_service {
 
         $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
         foreach ($queueitemids as $candidate) {
-            $item = $queuesvc->get_queue_item($threadid, $candidate);
-            if (!is_array($item)) {
-                continue;
-            }
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-            $status = (string)($item['status'] ?? '');
-            if (in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+            if (is_array($this->get_active_mutating_queue_item($queuesvc, $threadid, $candidate))) {
                 return $candidate;
             }
         }
@@ -1153,56 +1059,60 @@ class confirm_run_service {
      *
      * @param queue_manager $queuesvc
      * @param int $threadid
-     * @param array<string,mixed> $pendingintent
      * @param string $activequeueitemid
      * @return array<int,array<string,mixed>>
      */
     private function resolve_commands_for_run(
         queue_manager $queuesvc,
         int $threadid,
-        array $pendingintent,
         string $activequeueitemid
     ): array {
-        if ($activequeueitemid === '') {
+        $item = $this->get_active_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
+        if (!is_array($item)) {
             return [];
         }
 
-        $item = $queuesvc->get_queue_item($threadid, $activequeueitemid);
-        if (!is_array($item) || (string)($item['mutability'] ?? '') !== 'mutating') {
+        $command = $this->build_command_from_queue_item($item);
+        if (!is_array($command)) {
             return [];
         }
 
-        $status = trim((string)($item['status'] ?? ''));
-        if (!in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
-            return [];
-        }
-        if (!$queuesvc->dependencies_succeeded($threadid, $item)) {
-            return [];
-        }
+        return [$command];
+    }
 
+    /**
+     * Build a normalized runtime command from a queue item.
+     *
+     * @param array<string,mixed> $item
+     * @return array<string,mixed>|null
+     */
+    private function build_command_from_queue_item(array $item): ?array {
         $task = trim((string)($item['task'] ?? ''));
+        if ($task === '') {
+            return null;
+        }
+
         $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
             ? (array)$item['prepared_input']
             : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
-        if ($task === '') {
-            return [];
-        }
 
         $command = [
             'task' => $task,
             'version' => max(1, (int)($item['version'] ?? 1)),
             'input' => $input,
         ];
+
         $guardtoken = trim((string)($item['guard_token'] ?? ''));
         if ($guardtoken !== '') {
             $command['guard_token'] = $guardtoken;
         }
+
         $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
         if (!empty($dependson)) {
             $command['depends_on'] = $dependson;
         }
 
-        return [$command];
+        return $command;
     }
 
     /**
@@ -1234,7 +1144,7 @@ class confirm_run_service {
             }
 
             $status = (string)($item['status'] ?? '');
-            if (!in_array($status, ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'], true)) {
+            if (!in_array($status, self::ACTIVE_MUTATING_STATUSES, true)) {
                 continue;
             }
 
@@ -1247,5 +1157,55 @@ class confirm_run_service {
                 'Skipped because a dependent queue item failed.'
             );
         }
+    }
+
+    /**
+     * Return a queue item only when it is an actionable mutating item.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param string $queueitemid
+     * @return array<string,mixed>|null
+     */
+    private function get_active_mutating_queue_item(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $queueitemid
+    ): ?array {
+        if (trim($queueitemid) === '') {
+            return null;
+        }
+
+        $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+        if (!$this->is_actionable_mutating_queue_item($item)) {
+            return null;
+        }
+
+        return $item;
+    }
+
+    /**
+     * True when an item is mutating and currently actionable by status.
+     *
+     * @param mixed $item
+     * @param string $excludequeueitemid
+     * @return bool
+     */
+    private function is_actionable_mutating_queue_item($item, string $excludequeueitemid = ''): bool {
+        if (!is_array($item)) {
+            return false;
+        }
+
+        $queueitemid = trim((string)($item['queue_item_id'] ?? ''));
+        if ($queueitemid === '' || $queueitemid === $excludequeueitemid) {
+            return false;
+        }
+
+        if ((string)($item['mutability'] ?? '') !== 'mutating') {
+            return false;
+        }
+
+        $status = trim((string)($item['status'] ?? ''));
+        return in_array($status, self::ACTIVE_MUTATING_STATUSES, true);
     }
 }

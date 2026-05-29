@@ -67,7 +67,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
 
         [$store, $runtime, $threadid] = $this->build_runtime();
 
-        if (!$this->is_task_available('booking.create_option')) {
+        if (!$this->is_task_available('mod_booking.create_option')) {
             $this->enforcegeneratetextassertion = false;
             $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
         }
@@ -91,7 +91,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $createcommand = $this->extract_command($result1, 'booking.create_option');
+        $createcommand = $this->extract_command($result1, 'mod_booking.create_option');
         $this->assertNotNull($createcommand, 'create_option command must be present.');
         $createcommand['input'] = array_merge($createcommand['input'] ?? [], [
             'text' => $title,

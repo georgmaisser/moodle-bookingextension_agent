@@ -79,8 +79,8 @@ flowchart TD
         D_PREVIEW{"core.is_preview\n_request trigger?"}
         D_PREVIEW_OUT["→ clarification with preview message"]
         D_CONF["confirmation_state_machine\nHas pending_intent?"]
-        D_DUPL["Duplicate-title override\nDUPLICATE_TITLE_CONFIRM_REQUIRED\nDUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED"]
-        D_AMBIG["Ambiguity gate\nmissing/ambiguous entity resolution\n(e.g. 2x 'Billy')"]
+        D_DUPL["Provider-defined confirmation override\n(e.g. duplicate / conflict confirmation codes)"]
+        D_AMBIG["Ambiguity gate\nmissing/ambiguous entity resolution\n(provider-agnostic examples)"]
         D_AMBIG_OUT["→ clarification / planner re-plan\n(no spawn for unresolved entities)"]
         D_MUT_GUARD["Lookup-safety mutation guard\n(no mutate during lookup-only context)"]
         D_ROUTE{"response_type"}
@@ -106,7 +106,7 @@ flowchart TD
 
         subgraph L2["Layer 2 — Domain Prepare"]
             PF_L2P["task::preflight(input, contextid, userid)\n— DB-dependent prepare + validation\n— late-bound dependency outputs allowed\n→ preflight_result_v2"]
-            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, DUPLICATE_TITLE_*"]
+            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, PROVIDER_CONFIRMABLE_*"]
         end
         L2_STATUS{"preflight\nstatus?"}
 
@@ -177,9 +177,10 @@ flowchart TD
         EMBS["embeddings_retrieval_service\nused for catalog build, not per-loop recovery"]
         LANG["language_policy_service\nsource priority: latest user message\n→ model-declared user_lang\n→ technical fallback\nformats all framework-generated replies"]
         MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→task routing)"]
+        DNORM["domain_normalizer_hook\nprovider-supplied normalization\n(no framework task heuristics)"]
         AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
-        ISCP["booking_issue_code_provider\nimplements issue_code_provider_interface\nget_duplicate_confirmation_issue_codes()\nget_token_subscription_issue_codes()\nget_prevalidation_confirmable_issue_codes()"]
-        BIRS["booking_issue_code_resolver\n(booking/booking_task_support.php)"]
+        ISCP["domain_issue_code_provider\nimplements issue_code_provider_interface\nprovider defines confirmable and domain-specific issue groups"]
+        BIRS["domain_issue_code_resolver\n(provider-side helper/module)"]
     end
 
     %% =========================================================
@@ -199,16 +200,22 @@ flowchart TD
     %% =========================================================
 
     %% Entry → Auth → Store → Runtime
+    ASM -->|"0. extension installed?"| AZ3
     ASM -->|"1. require_sesskey()"| AZ1
     ASM -->|"2. validate_parameters()"| AZ2
     ASM -->|"3. add_message(user)"| CS2
     ASM -->|"4. run_loop()"| RUNLOOP
     ASM -->|"response autoconfirm?"| CS12
+    ACR --> AZ3
+    APO --> AZ3
+    APREVIEW --> AZ3
     ACR -->|"allow_session=true"| CS11
     ACR -->|"consume pending intent"| CS13
     CS13 -->|"queue item resolved"| Q_READY
 
     AZ1 --> CS1
+    AZ2 --> CS1
+    RUN --> RUNLOOP
     CS1 --> RUNLOOP
 
     %% Runtime loop setup
@@ -298,7 +305,8 @@ flowchart TD
     Q_BLOCKED -->|"TTL check: fail_expired_blocked_items()"| Q_FAIL_TTL
     Q_FAIL_TTL --> FAIL_OUT
     Q_BLOCKED -->|"user confirms via ai_confirm_run"| CS13
-    CS13 -->|"update_status(ready)"| Q_READY
+    CS13 -->|"update_status(ready)"| Q_UPDST
+    Q_UPDST --> Q_READY
     Q_RETRY -->|"retry window elapsed"| Q_CANPICK
     Q_CANPICK -->|"can_pickup_now() = true"| EXC
 
@@ -366,14 +374,16 @@ flowchart TD
     EXC_EVAL --> TR
 
     %% Support services
-    INTERP -->|"slot_booking_normalizer"| INTERP
+    INTERP -->|"provider normalization hook"| DNORM
+    DNORM --> INTERP
     INTERP -->|"normalize used_triggers"| MTRIG
     MTRIG -.->|"core trigger signals"| PROC_IN
     OB_OUT --> ANON
     ANON --> OBS_ACCUM
     AIER --> LLMSVC
-    ISCP -.-> D_DUPL
-    ISCP -.-> D_MUTATE
+    ISCP -.-> BIRS
+    BIRS -.-> D_DUPL
+    BIRS -.-> D_MUTATE
 
     %% =========================================================
     %% LEGEND
@@ -386,6 +396,7 @@ flowchart TD
         LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
         LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]
         LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
+        LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
         LG_PLAN["Planner-first for ambiguity\nentity resolution and branching via planner\n(clarify instead of silent auto-pick)"]
         LG_SPAWN_RULE["Spawn-only for deterministic follow-ups\nrequires bound outputs + valid late preflight"]
         LG_CAP["Task release gates\nruntime + active + context + capability"]
@@ -427,6 +438,7 @@ flowchart TD
     style LG_MANUAL fill:#e9c46a,color:#000
     style LG_LANG fill:#1d3557,color:#fff
     style LG_3P fill:#1d3557,color:#fff
+    style LG_AGN fill:#1d3557,color:#fff
     style LG_PLAN fill:#1d3557,color:#fff
     style LG_SPAWN_RULE fill:#264653,color:#fff
     style LG_CAP fill:#264653,color:#fff

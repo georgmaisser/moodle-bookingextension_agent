@@ -123,6 +123,8 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         global $PAGE;
         $PAGE->set_url('/mod/booking/view.php', ['id' => (int)$this->booking->cmid]);
 
+        $this->preventResetByRollback();
+
         $this->gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
 
         // Test baseline: keep governance task gates open unless a test overrides it explicitly.
@@ -532,7 +534,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * Sets the current user to $userid before calling (required for capability
      * checks that use the global $USER inside Moodle helper functions).
      *
-     * @param string   $taskname   e.g. 'booking.create_option'
+     * @param string   $taskname   e.g. 'mod_booking.create_option'
      * @param array    $input      Command input fields.
      * @param int|null $cmid       Defaults to the shared booking instance cmid.
      * @param int|null $userid     Defaults to the teacher user.
@@ -756,7 +758,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * Extract the first command of a given task name from an AgentRuntime result.
      *
      * @param array  $result   AgentRuntime result.
-     * @param string $taskname e.g. 'booking.create_option'.
+     * @param string $taskname e.g. 'mod_booking.create_option'.
      * @return array|null
      */
     protected function extract_command(array $result, string $taskname): ?array {

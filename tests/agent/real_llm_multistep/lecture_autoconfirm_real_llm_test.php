@@ -30,11 +30,13 @@
 
 namespace bookingextionsion_agent;
 
+use bookingextension_agent\external\ai_confirm_run;
+use context_module;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
-use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\external\ai_send_message;
 
 /**
@@ -60,7 +62,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
     public function test_lecture_autoconfirm_single_pass_creates_five_actions(): void {
         global $DB;
 
-        if (!$this->is_task_available('booking.create_option')) {
+        if (!$this->is_task_available('mod_booking.create_option')) {
             $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
         }
 
@@ -72,17 +74,6 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
             'email' => 'billy.teacher.' . uniqid('', true) . '@example.com',
         ]);
         $this->getDataGenerator()->enrol_user((int)$billy->id, (int)$this->course->id, 'editingteacher');
-
-        // Keep this real-LLM test deterministic across reruns by removing stale lecture options
-        // that can trigger duplicate-title confirmations before the actual flow starts.
-        $DB->delete_records_select(
-            'booking_options',
-            'bookingid = :bookingid AND text LIKE :lectureprefix',
-            [
-                'bookingid' => (int)$this->booking->id,
-                'lectureprefix' => 'Lecture %',
-            ]
-        );
 
         $beforeoptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text');
         $beforeids = array_map('intval', array_keys($beforeoptions));
@@ -97,12 +88,8 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
             $lecturepromptlines[] = 'text="Lecture ' . ($dayoffset + 1) . '", coursestarttime="'
                 . $datestr . 'T20:00:00", courseendtime="' . $datestr . 'T22:00:00"';
         }
-        $explicitfallbackprompt = 'Gib jetzt genau 5 booking.create_option task_call Befehle aus. '
-            . 'Verwende ausschliesslich kanonische Keys: text, coursestarttime, courseendtime, maxanswers, teacherid. '
-            . 'Keine anderen Keys. trainer=Billy (ID=' . (int)$billy->id . '), maxanswers=20. '
-            . 'Genau diese 5 Optionen: ' . implode('; ', $lecturepromptlines) . '.';
 
-        $prompt = 'erstelle für die nächste woche durchlaufend nummerierte "Lecture x", immer von 20:00 bis 22:00h, '
+        $prompt = 'erstelle für die nächste woche Montag, Mittwoch und Donnerstag durchlaufend nummerierte "Lecture x", immer von 20:00 bis 22:00h, '
             . '20 Personen können kommen. Billy ist trainer.';
 
         $trace = [];
@@ -113,31 +100,11 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
 
         $_POST['sesskey'] = sesskey();
-        $response = ai_send_message::execute((int)$this->booking->cmid, $prompt, (int)$threadid);
+        $contextid = context_module::instance((int)$this->booking->cmid)->id;
+        $response = ai_send_message::execute((int)$contextid, $prompt, (int)$threadid);
         $threadid = (int)($response['threadid'] ?? $threadid);
         $this->assertGreaterThan(0, $threadid, 'Thread id must be present for lecture autoconfirm flow.');
         $trace[] = $this->build_trace_line('send', 0, $response);
-
-        // After send[0]: if clarification or error, send the explicit fallback with concrete ISO dates.
-        $responsetype = (string)($response['response_type'] ?? '');
-        if ($responsetype === 'clarification' || $responsetype === 'error') {
-            $_POST['sesskey'] = sesskey();
-            $response = ai_send_message::execute((int)$this->booking->cmid, $explicitfallbackprompt, (int)$threadid);
-            $trace[] = $this->build_trace_line('send', 1, $response);
-        }
-
-        // After send[0/1]: only send fallback if we got NO create_option commands at all (no pending intent).
-        // Do NOT send new ai_send_message if there is already a pending confirmation_request —
-        // that would trigger the "pending action" clarification guard.
-        if (
-            (string)($response['response_type'] ?? '') !== 'confirmation_request'
-            && (string)($response['response_type'] ?? '') !== 'sufficient'
-            && (string)($response['response_type'] ?? '') !== 'execution_result'
-        ) {
-            $_POST['sesskey'] = sesskey();
-            $response = ai_send_message::execute((int)$this->booking->cmid, $explicitfallbackprompt, (int)$threadid);
-            $trace[] = $this->build_trace_line('send', 2, $response);
-        }
 
         $this->assertSame(
             'confirmation_request',
@@ -146,6 +113,16 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         );
 
         $requiresallowsession = ((int)($response['autoconfirm'] ?? 0) !== 1);
+
+        $_POST['sesskey'] = sesskey();
+        $result2 = ai_confirm_run::execute(
+            (int)$this->booking->cmid,
+            $threadid,
+            '',
+            true
+        );
+
+
         $confirm = $this->confirm_pending_result($response, (int)$threadid, $store, $requiresallowsession);
         $trace[] = $this->build_trace_line('confirm', 1, $confirm);
 
@@ -330,7 +307,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
             if (!is_array($command)) {
                 continue;
             }
-            if ((string)($command['task'] ?? '') === 'booking.create_option') {
+            if ((string)($command['task'] ?? '') === 'mod_booking.create_option') {
                 $count++;
             }
         }

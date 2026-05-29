@@ -37,7 +37,7 @@ final class task_contract_validator_contract_test extends TestCase {
      * Validate namespaced task-name format helper.
      */
     public function test_namespaced_task_name_format(): void {
-        $this->assertTrue(task_contract_validator::is_namespaced_task_name('booking.create_option'));
+        $this->assertTrue(task_contract_validator::is_namespaced_task_name('mod_booking.create_option'));
         $this->assertTrue(task_contract_validator::is_namespaced_task_name('entities.search'));
         $this->assertFalse(task_contract_validator::is_namespaced_task_name('create_option'));
         $this->assertFalse(task_contract_validator::is_namespaced_task_name('booking.create.option'));

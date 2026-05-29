@@ -96,14 +96,7 @@ class ai_send_message extends external_api {
         $message = trim($params['message']);
         $threadid = (int)($params['threadid'] ?? 0);
         $authz = new authorization_service();
-        try {
-            $context = context::instance_by_id($contextid, MUST_EXIST);
-            if (!($context instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-        } catch (\Throwable $e) {
-            $context = context_module::instance($contextid, MUST_EXIST);
-        }
+        $context = context::instance_by_id($contextid, MUST_EXIST);
         $contextid = (int)$context->id;
         $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
