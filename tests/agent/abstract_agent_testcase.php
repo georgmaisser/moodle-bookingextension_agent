@@ -150,16 +150,28 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         if (function_exists('update_capabilities')) {
             update_capabilities('bookingextension_agent');
+            update_capabilities('mod_booking');
         }
 
-        $capabilities = [];
+        $agentcapabilities = [];
         require(__DIR__ . '/../../db/access.php');
 
-        foreach (array_keys($capabilities) as $capability) {
+        $modbookingcapabilities = [];
+        require(__DIR__ . '/../../../../db/access.php');
+
+        foreach (array_keys($agentcapabilities) as $capability) {
             if (!str_starts_with((string)$capability, 'bookingextension/agent:')) {
                 continue;
             }
             assign_capability((string)$capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
+        }
+
+        foreach (array_keys($modbookingcapabilities) as $capability) {
+            $capability = (string)$capability;
+            if (!str_starts_with($capability, 'mod/booking:task_mod_booking_')) {
+                continue;
+            }
+            assign_capability($capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
         }
 
         role_assign($roleid, (int)$this->teacher->id, (int)$modulecontext->id);
