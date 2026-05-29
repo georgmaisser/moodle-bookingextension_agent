@@ -50,7 +50,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     /**
      * Prompt should route to mod_booking.create_option and persist type 0.
      */
-    public function test_datetime_prompt_routes_to_create_option_normal_and_type_zero(): void {
+    public function test_datetime_prompt_routes_to_create_option_and_type_zero(): void {
         global $DB;
 
         $this->setUser($this->teacher);
@@ -111,7 +111,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     /**
      * Prompt from production log should route to normal task and create five normal options.
      */
-    public function test_weekday_series_prompt_routes_to_create_option_normal_and_creates_five_type_zero_options(): void {
+    public function test_weekday_series_prompt_routes_to_create_option_and_creates_five_type_zero_options(): void {
         global $DB;
 
         $this->setUser($this->teacher);

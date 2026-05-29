@@ -455,7 +455,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return void
      */
     protected function maybe_load_embeddings_fixture(): void {
-        $fixturepath = __DIR__ . '/fixtures/task_catalog_embeddings.csv';
+        $fixturepath = dirname(__DIR__) . '/fixtures/task_catalog_embeddings.csv';
         if (!file_exists($fixturepath)) {
             return; // Fixture not available.
         }
