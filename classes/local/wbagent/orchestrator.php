@@ -316,8 +316,9 @@ class orchestrator {
         $llm = new llm_call_service($this->store);
         if ($shouldincludetaskcatalog) {
             $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
-            $runtimecatalog = $this->slim_prompt_catalog_for_planner($adaptivecatalog);
-            $catalogselectionmode = 'slim';
+            // Default planner catalog without embeddings: slim view of all executable tasks.
+            $runtimecatalog = $this->slim_prompt_catalog_for_planner($allpromptcontracts);
+            $catalogselectionmode = 'slim_all';
 
             $iswunderbyteplanner = ($routing['routepolicy'] ?? '') === 'wunderbyte'
                 && $actionclass === self::WB_ACTION_PLANNER_DECIDE;
@@ -409,16 +410,17 @@ class orchestrator {
                                         $activesubset[] = $entry;
                                     }
 
-                                    $boostedcatalog = $this->merge_embedding_subset_with_fallback_catalog(
-                                        $activesubset,
-                                        $adaptivecatalog
-                                    );
-                                    $runtimecatalog = $this->slim_prompt_catalog_for_planner($boostedcatalog);
-                                    $unavailabletaskcatalog = array_values(array_filter($unavailabletaskcatalog, static function ($entry) {
-                                        return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
-                                    }));
-                                    $catalogselectionmode = 'embed_boost';
-                                    $embeddingstatus = 'applied';
+                                    if (!empty($activesubset)) {
+                                        // Embedding mode is strict top-k only: no fallback merge inflation.
+                                        $runtimecatalog = array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K);
+                                        $unavailabletaskcatalog = array_values(array_filter($unavailabletaskcatalog, static function ($entry) {
+                                            return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
+                                        }));
+                                        $catalogselectionmode = 'embed_topk';
+                                        $embeddingstatus = 'applied';
+                                    } else {
+                                        $embeddingstatus = 'nomatch';
+                                    }
                                 } else {
                                     $embeddingstatus = 'nomatch';
                                 }
@@ -713,9 +715,6 @@ PROMPT;
         $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
         $schemas = $this->registry->get_all_schemas_for_context($evaluator, $userid, $contextid);
         $taskcatalog = $adaptivecatalog ?? $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
-        if (empty($systemtaskcatalog) && $this->normalize_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE) {
-            $taskcatalog = $this->slim_prompt_catalog_for_planner($taskcatalog);
-        }
         if (!empty($systemtaskcatalog)) {
             $taskcatalog = $systemtaskcatalog;
         }
@@ -823,36 +822,6 @@ PROMPT;
     }
 
     /**
-     * Put embedding matches first while preserving the adaptive catalog as a safety net.
-     *
-     * @param array<int,array<string,mixed>> $prioritycatalog
-     * @param array<int,array<string,mixed>> $fallbackcatalog
-     * @return array<int,array<string,mixed>>
-     */
-    private function merge_embedding_subset_with_fallback_catalog(array $prioritycatalog, array $fallbackcatalog): array {
-        $merged = [];
-        $seen = [];
-        $add = static function (array $entries) use (&$merged, &$seen): void {
-            foreach ($entries as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $taskname = trim((string)($entry['task'] ?? ''));
-                if ($taskname === '' || isset($seen[$taskname])) {
-                    continue;
-                }
-                $seen[$taskname] = true;
-                $merged[] = $entry;
-            }
-        };
-
-        $add($prioritycatalog);
-        $add($fallbackcatalog);
-
-        return $merged;
-    }
-
-    /**
      * Keep task descriptions compact for planner routing.
      *
      * @param string $description
@@ -864,11 +833,11 @@ PROMPT;
             return '';
         }
 
-        if (core_text::strlen($normalized) <= 140) {
+        if (core_text::strlen($normalized) <= 240) {
             return $normalized;
         }
 
-        return rtrim(core_text::substr($normalized, 0, 137)) . '...';
+        return rtrim(core_text::substr($normalized, 0, 237)) . '...';
     }
 
     /**
@@ -895,7 +864,9 @@ PROMPT;
             return [];
         }
 
-        return array_slice($keys, 0, 6);
+        // Keep enough fields so slotbooking/selflearning task variants do not
+        // lose critical execution hints (e.g. slot_day_* or duration fields).
+        return array_slice($keys, 0, 12);
     }
 
     /**
@@ -922,7 +893,24 @@ PROMPT;
 
             $row = ['id' => $id];
             if ($description !== '') {
-                $row['description'] = core_text::substr($description, 0, 140);
+                $row['description'] = core_text::substr($description, 0, 320);
+            }
+
+            $examples = (array)($trigger['examples'] ?? []);
+            if (!empty($examples)) {
+                $row['examples'] = array_values(array_filter(array_map(
+                    static function ($example): string {
+                        $text = trim((string)$example);
+                        if ($text === '') {
+                            return '';
+                        }
+                        return (string)core_text::substr($text, 0, 160);
+                    },
+                    array_slice($examples, 0, 2)
+                )));
+                if (empty($row['examples'])) {
+                    unset($row['examples']);
+                }
             }
 
             $compact[] = $row;
