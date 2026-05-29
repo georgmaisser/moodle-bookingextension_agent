@@ -26,7 +26,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\lookup;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
+use context_module;
+use bookingextension_agent\local\wbagent\task_registry;
 
 /**
  * Provides read-only lookup operations for booking options.
@@ -36,6 +37,23 @@ use bookingextension_agent\local\wbagent\booking\booking_task_support;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class option_lookup_service {
+    /** @var task_registry */
+    private task_registry $registry;
+
+    /** @var int */
+    private int $userid;
+
+    /**
+     * Constructor.
+     *
+     * @param task_registry|null $registry
+     * @param int $userid
+     */
+    public function __construct(?task_registry $registry = null, int $userid = 0) {
+        $this->registry = $registry ?? task_registry::make_default();
+        $this->userid = max(0, $userid);
+    }
+
     /**
      * Search booking options by free-text query.
      *
@@ -46,12 +64,20 @@ class option_lookup_service {
      * @return array
      */
     public function search_options(int $cmid, string $query, int $limit = 10, string $when = ''): array {
-        return (new booking_task_support())->execute(
-            'booking.search_options',
-            ['query' => $query, 'limit' => $limit, 'when' => $when],
-            $cmid,
-            0
-        );
+        $task = $this->registry->get_task('mod_booking.search_options');
+        if ($task === null) {
+            return [];
+        }
+
+        $input = ['query' => $query, 'limit' => $limit, 'when' => $when];
+        $structural = $task->check_structure($input);
+        if (!($structural['valid'] ?? false)) {
+            return [];
+        }
+
+        $contextid = (int)context_module::instance($cmid, MUST_EXIST)->id;
+        $result = $task->execute($input, $contextid, $this->userid);
+        return is_array($result) ? $result : [];
     }
 
     /**
@@ -66,10 +92,17 @@ class option_lookup_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function resolve_single_option(int $cmid, string $query, string $when = ''): array {
-        return (new booking_task_support())->check_structure(
-            'booking.update_option',
-            ['optionquery' => $query, 'optionwhen' => $when],
-            $cmid
-        );
+        $task = $this->registry->get_task('mod_booking.update_option');
+        if ($task === null) {
+            return ['valid' => false, 'errors' => ['Task mod_booking.update_option is not registered.'], 'ambiguities' => []];
+        }
+
+        $input = ['optionquery' => $query, 'optionwhen' => $when];
+        $structural = $task->check_structure($input);
+        return [
+            'valid' => (bool)($structural['valid'] ?? false),
+            'errors' => array_values(array_map('strval', (array)($structural['errors'] ?? []))),
+            'ambiguities' => array_values(array_map('strval', (array)($structural['ambiguities'] ?? []))),
+        ];
     }
 }

@@ -24,7 +24,6 @@
 
 namespace bookingextension_agent\local\wbagent;
 
-use bookingextension_agent\local\wbagent\booking\support\slot_booking_normalizer;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 
 /**
@@ -62,9 +61,6 @@ class interpreter implements agent_interpreter {
     /** @var task_registry */
     private task_registry $registry;
 
-    /** @var slot_booking_normalizer */
-    private slot_booking_normalizer $slotbookingnormalizer;
-
     /** @var string Last parse issue code for hard contract gate handling. */
     private string $lastparseissuecode = '';
 
@@ -78,7 +74,6 @@ class interpreter implements agent_interpreter {
      */
     public function __construct(task_registry $registry) {
         $this->registry = $registry;
-        $this->slotbookingnormalizer = new slot_booking_normalizer();
     }
 
     /**
@@ -1042,16 +1037,15 @@ class interpreter implements agent_interpreter {
     /**
      * Canonicalize task input before validation/confirmation is returned to UI.
      *
-     * Delegates domain-specific normalization (slot-booking, self-learning) to
-     * {@see slot_booking_normalizer} so the interpreter itself remains free of
-     * booking domain knowledge.
+     * Delegates domain-specific normalization to provider-owned hooks registered
+     * in task_registry so the interpreter remains free of domain coupling.
      *
      * @param string $taskname
      * @param array $input
      * @return array
      */
     private function canonicalize_command_input(string $taskname, array $input): array {
-        $input = $this->slotbookingnormalizer->normalize($taskname, $input);
+        $input = $this->registry->normalize_task_input($taskname, $input);
 
         // Self-reference for diagnose_booking_issue must be explicit:
         // Planner MUST send either empty userquery (self) or the canonical token.

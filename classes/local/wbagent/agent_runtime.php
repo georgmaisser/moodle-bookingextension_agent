@@ -30,7 +30,6 @@ use core_text;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\agent_state;
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
@@ -3183,12 +3182,14 @@ class agent_runtime {
             }
         }
 
-        // Read-only discovery flows typically persist preview ids (not lastworkedoptionid).
-        $previewids = booking_task_support::resolve_last_preview_option_ids_for_user_for_execute($cmid, $userid);
-        foreach ($previewids as $id) {
-            $candidate = (int)$id;
-            if ($candidate > 0) {
-                return $candidate;
+        // Read-only discovery flows can persist preview ids via provider-owned memory helpers.
+        foreach ($this->registry->get_preview_option_memory_helpers() as $helper) {
+            $previewids = $helper->resolve_last_preview_option_ids_for_execute($cmid, $userid);
+            foreach ($previewids as $id) {
+                $candidate = (int)$id;
+                if ($candidate > 0) {
+                    return $candidate;
+                }
             }
         }
 

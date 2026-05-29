@@ -14,16 +14,32 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\booking;
+namespace bookingextension_agent\local\wbagent\interfaces;
 
 /**
- * Deprecated compatibility wrapper for legacy references.
- *
- * New provider discovery uses \bookingextension_agent\local\wbagent\task_provider.
+ * Optional provider-owned memory for last preview option ids.
  *
  * @package    bookingextension_agent
- * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class booking_task_provider extends booking_task_support {
+interface preview_option_memory_interface {
+    /**
+     * Store preview option ids for the current user+cmid execution context.
+     *
+     * @param int $userid
+     * @param int $cmid
+     * @param array<int,int> $optionids
+     * @return void
+     */
+    public function remember_last_preview_options_for_execute(int $userid, int $cmid, array $optionids): void;
+
+    /**
+     * Resolve recently remembered preview option ids for user+cmid.
+     *
+     * @param int $cmid
+     * @param int $userid
+     * @return array<int,int>
+     */
+    public function resolve_last_preview_option_ids_for_execute(int $cmid, int $userid): array;
 }

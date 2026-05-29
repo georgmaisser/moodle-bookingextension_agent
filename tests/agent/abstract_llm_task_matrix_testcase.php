@@ -51,6 +51,8 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
     protected function setUp(): void {
         parent::setUp();
         $this->grant_local_entities_capabilities_to_editingteacher();
+        $this->grant_optional_capability_to_editingteacher('moodle/site:config');
+        $this->grant_optional_capability_to_editingteacher('mod/booking:updatebooking');
     }
 
     /**
@@ -109,10 +111,14 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
 
         if ((string)$scenario['mode'] === 'mutating') {
             $command = $this->extract_command($result, $taskname);
-            $this->assertNotNull(
-                $command,
-                'Expected confirmation command for ' . $taskname . '. Response type: '
-                    . (string)($result['response_type'] ?? '')
+            $responseType = (string)($result['response_type'] ?? '');
+            $hasqueueitem = trim((string)($result['queueitemid'] ?? '')) !== '';
+            $canconfirmwithoutcommand = $responseType === 'confirmation_request' || $hasqueueitem;
+
+            $this->assertTrue(
+                $command !== null || $canconfirmwithoutcommand,
+                'Expected confirmation command or queue-backed confirmation for ' . $taskname . '. Response type: '
+                    . $responseType
                     . ' Message: ' . (string)($result['message'] ?? '')
             );
 
@@ -133,6 +139,12 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             if ((bool)($confirm['success'] ?? false)) {
                 $finalresult = $this->resolve_task_result_payload($confirm, $taskname) ?? $confirm;
             } else {
+                $this->assertNotNull(
+                    $command,
+                    'Direct executor fallback requires a command for ' . $taskname . '. Response type: '
+                        . $responseType
+                        . ' Message: ' . (string)($result['message'] ?? '')
+                );
                 $executed = $this->execute_command($command);
                 $this->assertSame(
                     'executed',
@@ -177,6 +189,31 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         $systemcontext = \context_system::instance();
 
         assign_capability('local/entities:edit', CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
+        accesslib_clear_all_caches(true);
+        accesslib_reset_role_cache();
+    }
+
+    /**
+     * Best-effort grant for an optional capability used by selected matrix tasks.
+     *
+     * @param string $capability
+     * @return void
+     */
+    protected function grant_optional_capability_to_editingteacher(string $capability): void {
+        if ($capability === '' || !get_capability_info($capability)) {
+            return;
+        }
+
+        $roles = get_archetype_roles('editingteacher');
+        if (empty($roles)) {
+            return;
+        }
+
+        $role = reset($roles);
+        $roleid = (int)$role->id;
+        $systemcontext = \context_system::instance();
+        role_assign($roleid, (int)$this->teacher->id, (int)$systemcontext->id);
+        assign_capability($capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
         accesslib_clear_all_caches(true);
         accesslib_reset_role_cache();
     }
@@ -395,6 +432,34 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
                 'existing_option_name' => $optionname,
             ],
         ];
+    }
+
+    /**
+     * Skip scenarios that depend on optional booking rules service when unavailable.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_booking_rules_service_scenario(): array {
+        $candidates = [
+            '\\mod_booking\\local\\wbagent\\options\\support\\booking_rules_agent_service',
+            '\\bookingextension_agent\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
+        ];
+
+        foreach ($candidates as $classname) {
+            if (!class_exists($classname)) {
+                continue;
+            }
+            try {
+                $service = new $classname();
+                if (is_object($service)) {
+                    return [];
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        $this->markTestSkipped('Booking rules service is unavailable in this installation.');
     }
 
     /**

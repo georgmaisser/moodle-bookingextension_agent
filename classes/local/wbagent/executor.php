@@ -26,7 +26,6 @@ namespace bookingextension_agent\local\wbagent;
 
 use context_module;
 use core\context;
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
@@ -214,11 +213,14 @@ class executor implements agent_executor {
                 $result['executed_input'] = $this->build_safe_executed_input($taskname, $input);
             }
             if (!empty($result['previewoptionids']) && is_array($result['previewoptionids'])) {
-                booking_task_support::remember_last_preview_options_for_user_for_execute(
-                    $userid,
-                    $cmid,
-                    array_map('intval', $result['previewoptionids'])
-                );
+                $previewmemory = $this->registry->get_preview_option_memory_for_task((string)$taskname);
+                if ($previewmemory !== null) {
+                    $previewmemory->remember_last_preview_options_for_execute(
+                        $userid,
+                        $cmid,
+                        array_map('intval', $result['previewoptionids'])
+                    );
+                }
             }
             $result = $this->enrich_result_with_follow_ups($taskname, $input, $result);
             if (is_array($result)) {

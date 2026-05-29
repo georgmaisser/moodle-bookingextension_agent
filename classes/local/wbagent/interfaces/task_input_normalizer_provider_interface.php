@@ -14,31 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\booking;
+namespace bookingextension_agent\local\wbagent\interfaces;
 
 /**
- * Legacy compatibility shim for booking mutations.
- *
- * The booking task framework no longer hardcodes concrete booking task names.
- * Third-party providers are expected to register their own tasks through the
- * generic discovery and registry layers.
+ * Optional provider capability for domain input normalization.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class booking_task_mutation_execute_service {
+interface task_input_normalizer_provider_interface {
     /**
-     * No-op compatibility entry point.
+     * Return a provider-owned normalizer for provider tasks.
      *
-     * @param string $taskname
-     * @param array $input
-     * @param int $cmid
-     * @param int $userid
-     * @param booking_task_support $support
-     * @return array<string,mixed>|null
+     * @return task_input_normalizer_interface|null
      */
-    public function execute(string $taskname, array $input, int $cmid, int $userid, booking_task_support $support): ?array {
-        return null;
-    }
+    public function get_task_input_normalizer(): ?task_input_normalizer_interface;
 }

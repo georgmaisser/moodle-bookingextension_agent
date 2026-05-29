@@ -28,7 +28,10 @@ use core_component;
 use core_text;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_interface;
+use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\summarizer\result_summary_contributor_interface;
+use bookingextension_agent\local\wbagent\interfaces\task_input_normalizer_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
@@ -50,6 +53,9 @@ class task_registry {
 
     /** @var array<string, task_interface> task name => task instance */
     private array $tasks = [];
+
+    /** @var array<string, task_provider_interface> task name => provider instance */
+    private array $taskproviders = [];
 
     /** @var array<string,array<string,mixed>> task name => normalized governance metadata */
     private array $taskcontracts = [];
@@ -177,6 +183,7 @@ class task_registry {
 
             $this->tasks[$taskname] = $task;
             $this->taskcontracts[$taskname] = $metadata;
+            $this->taskproviders[$taskname] = $provider;
         }
 
         $registryerrors = task_contract_validator::validate_registry_contracts($this->taskcontracts);
@@ -195,6 +202,73 @@ class task_registry {
      */
     public function get_task(string $taskname): ?task_interface {
         return $this->tasks[$taskname] ?? null;
+    }
+
+    /**
+     * Return provider owning a given task, or null when unavailable.
+     *
+     * @param string $taskname
+     * @return task_provider_interface|null
+     */
+    public function get_provider_for_task(string $taskname): ?task_provider_interface {
+        return $this->taskproviders[$taskname] ?? null;
+    }
+
+    /**
+     * Normalize task input via optional provider-owned normalizer.
+     *
+     * @param string $taskname
+     * @param array $input
+     * @return array
+     */
+    public function normalize_task_input(string $taskname, array $input): array {
+        $provider = $this->get_provider_for_task($taskname);
+        if (!($provider instanceof task_input_normalizer_provider_interface)) {
+            return $input;
+        }
+
+        $normalizer = $provider->get_task_input_normalizer();
+        if ($normalizer === null) {
+            return $input;
+        }
+
+        return $normalizer->normalize($taskname, $input);
+    }
+
+    /**
+     * Resolve provider-owned preview option memory helper for a task.
+     *
+     * @param string $taskname
+     * @return preview_option_memory_interface|null
+     */
+    public function get_preview_option_memory_for_task(string $taskname): ?preview_option_memory_interface {
+        $provider = $this->get_provider_for_task($taskname);
+        if (!($provider instanceof preview_option_memory_provider_interface)) {
+            return null;
+        }
+
+        return $provider->get_preview_option_memory();
+    }
+
+    /**
+     * Return all provider-owned preview option memory helpers.
+     *
+     * @return array<int,preview_option_memory_interface>
+     */
+    public function get_preview_option_memory_helpers(): array {
+        $helpers = [];
+        foreach ($this->providers as $provider) {
+            if (!($provider instanceof preview_option_memory_provider_interface)) {
+                continue;
+            }
+
+            $helper = $provider->get_preview_option_memory();
+            if ($helper !== null) {
+                $helpers[] = $helper;
+            }
+        }
+
+        return $helpers;
     }
 
     /**

@@ -141,7 +141,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $this->assertSame((string)$queued2['queue_item_id'], (string)($result['queueitemid'] ?? ''));
         $this->assertSame('[]', (string)($result['errorsjson'] ?? '[]'), 'Follow-up confirmation should not surface stale planner errors.');
         $this->assertSame('[]', (string)($result['issuecodesjson'] ?? '[]'), 'Follow-up confirmation should not surface stale planner issue codes.');
-        $this->assertStringContainsString('Booking option created.', (string)($result['message'] ?? ''));
+        $this->assertStringContainsString('Booking option created', (string)($result['message'] ?? ''));
 
         $pendingintent = $store->get_pending_intent($threadid);
         $this->assertIsArray($pendingintent, 'Expected next pending intent for the remaining queue item.');

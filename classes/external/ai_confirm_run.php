@@ -35,7 +35,6 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\authorization_service;
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\execution_feedback_service;
 use bookingextension_agent\local\wbagent\executor;
@@ -144,7 +143,13 @@ class ai_confirm_run extends external_api {
         }
 
         $store = new conversation_store();
-        $previewoptionid = self::resolve_preview_option_id_for_response($params['cmid'], (int)$USER->id, []);
+        $registry = task_registry::make_default();
+        $previewoptionid = self::resolve_preview_option_id_for_response(
+            $registry,
+            $params['cmid'],
+            (int)$USER->id,
+            []
+        );
         if (!empty($params['allow_session'])) {
             $store->allow_confirmation_for_thread((int)$USER->id, (int)$params['contextid'], (int)$params['threadid']);
         }
@@ -168,6 +173,7 @@ class ai_confirm_run extends external_api {
                 'queueitemid' => '',
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $registry,
                     $params['cmid'],
                     (int)$USER->id,
                     []
@@ -206,6 +212,7 @@ class ai_confirm_run extends external_api {
                 'queueitemid' => '',
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $registry,
                     $params['cmid'],
                     (int)$USER->id,
                     []
@@ -234,6 +241,7 @@ class ai_confirm_run extends external_api {
                 'queueitemid' => $activequeueitemid,
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $registry,
                     $params['cmid'],
                     (int)$USER->id,
                     []
@@ -265,6 +273,7 @@ class ai_confirm_run extends external_api {
                     'queueitemid' => $activequeueitemid,
                     'previewoptionid' => $previewoptionid,
                     'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                        $registry,
                         $params['cmid'],
                         (int)$USER->id,
                         []
@@ -297,6 +306,7 @@ class ai_confirm_run extends external_api {
                     'queueitemid' => $activequeueitemid,
                     'previewoptionid' => $previewoptionid,
                     'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                        $registry,
                         $params['cmid'],
                         (int)$USER->id,
                         []
@@ -373,6 +383,7 @@ class ai_confirm_run extends external_api {
                 'queueitemid' => $activequeueitemid,
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $registry,
                     $params['cmid'],
                     (int)$USER->id,
                     []
@@ -405,7 +416,6 @@ class ai_confirm_run extends external_api {
                 }
             }
 
-            $registry = task_registry::make_default();
             $exec = new executor($registry, $store, $authz);
             $rawresults = $exec->execute_commands(
                 $commandsforrun,
@@ -690,6 +700,7 @@ class ai_confirm_run extends external_api {
             $formattedmessage = self::format_ws_message((string)($finalresult['message'] ?? ''), $context);
             $formatteddisplaymessage = self::format_ws_message($displaymessage, $context);
             $previewoptionid = self::resolve_preview_option_id_for_response(
+                $registry,
                 $params['cmid'],
                 (int)$USER->id,
                 (array)($finalresult['results'] ?? [])
@@ -729,6 +740,7 @@ class ai_confirm_run extends external_api {
                 'queueitemid' => $responsequeueitemid,
                 'previewoptionid' => $previewoptionid,
                 'previewoptionidsjson' => self::resolve_confirm_preview_option_ids_json_for_response(
+                    $registry,
                     $store,
                     (int)$params['threadid'],
                     $params['cmid'],
@@ -818,11 +830,13 @@ class ai_confirm_run extends external_api {
                 'pendingconfirmationcode' => '',
                 'queueitemid' => '',
                 'previewoptionid' => self::resolve_preview_option_id_for_response(
+                    $registry,
                     $params['cmid'],
                     (int)$USER->id,
                     (array)($feedback['results'] ?? [])
                 ),
                 'previewoptionidsjson' => self::resolve_preview_option_ids_json_for_response(
+                    $registry,
                     $params['cmid'],
                     (int)$USER->id,
                     (array)($feedback['results'] ?? [])
@@ -869,12 +883,18 @@ class ai_confirm_run extends external_api {
      * Prefers ids explicitly set in task results (previewoptionids), then
      * falls back to the per-user cache written by executor.php at run time.
      *
+     * @param task_registry $registry
      * @param int $cmid
      * @param int $userid
      * @param array $results  Sanitized feedback results from executor (not finalresult).
      * @return string JSON-encoded int array, e.g. "[123,456]"
      */
-    private static function resolve_preview_option_ids_json_for_response(int $cmid, int $userid, array $results): string {
+    private static function resolve_preview_option_ids_json_for_response(
+        task_registry $registry,
+        int $cmid,
+        int $userid,
+        array $results
+    ): string {
         $ids = [];
         foreach ($results as $entry) {
             if (!is_array($entry)) {
@@ -893,9 +913,17 @@ class ai_confirm_run extends external_api {
             }
         }
         if (empty($ids)) {
-            $ids = array_values(array_filter(
-                array_map('intval', booking_task_support::resolve_last_preview_option_ids_for_user_for_execute($cmid, $userid))
-            ));
+            foreach ($registry->get_preview_option_memory_helpers() as $helper) {
+                $storedids = array_map(
+                    'intval',
+                    (array)$helper->resolve_last_preview_option_ids_for_execute($cmid, $userid)
+                );
+                foreach ($storedids as $storedid) {
+                    if ($storedid > 0) {
+                        $ids[] = $storedid;
+                    }
+                }
+            }
         }
         return json_encode(array_values(array_unique($ids)));
     }
@@ -903,12 +931,18 @@ class ai_confirm_run extends external_api {
     /**
      * Resolve preview option id for WS responses.
      *
+     * @param task_registry $registry
      * @param int $cmid
      * @param int $userid
      * @param array $results
      * @return int
      */
-    private static function resolve_preview_option_id_for_response(int $cmid, int $userid, array $results): int {
+    private static function resolve_preview_option_id_for_response(
+        task_registry $registry,
+        int $cmid,
+        int $userid,
+        array $results
+    ): int {
         foreach ($results as $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -928,16 +962,17 @@ class ai_confirm_run extends external_api {
             }
         }
 
-        $storedpreviewids = booking_task_support::resolve_last_preview_option_ids_for_user_for_execute($cmid, $userid);
-        foreach ($storedpreviewids as $id) {
-            $optionid = (int)$id;
-            if ($optionid > 0) {
-                return $optionid;
+        foreach ($registry->get_preview_option_memory_helpers() as $helper) {
+            $storedpreviewids = (array)$helper->resolve_last_preview_option_ids_for_execute($cmid, $userid);
+            foreach ($storedpreviewids as $id) {
+                $optionid = (int)$id;
+                if ($optionid > 0) {
+                    return $optionid;
+                }
             }
         }
 
-        $lastworked = booking_task_support::resolve_last_option_for_user_for_execute($cmid, $userid);
-        return $lastworked ? (int)$lastworked : 0;
+        return 0;
     }
 
     /**
@@ -973,6 +1008,7 @@ class ai_confirm_run extends external_api {
      * @return string
      */
     private static function resolve_confirm_preview_option_ids_json_for_response(
+        task_registry $registry,
         conversation_store $store,
         int $threadid,
         int $cmid,
@@ -992,7 +1028,7 @@ class ai_confirm_run extends external_api {
         )))));
 
         if (empty($ids)) {
-            return self::resolve_preview_option_ids_json_for_response($cmid, $userid, $results);
+            return self::resolve_preview_option_ids_json_for_response($registry, $cmid, $userid, $results);
         }
 
         return json_encode($ids);

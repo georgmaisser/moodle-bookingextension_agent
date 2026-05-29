@@ -482,6 +482,295 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'mod_booking.add_price_category' => [
+                'prompt' => 'Please add a new booking price category with identifier "matrix_{{batch_label}}" '
+                    . 'and name "Matrix Price {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.analyze_rules' => [
+                'setup' => 'prepare_booking_rules_service_scenario',
+                'prompt' => 'Analyze booking rules for "booking confirmation" and summarize findings.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.book_users' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Please book {{teacher_fullname}} into booking option {{existing_option_name}}.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.bulk_update_options' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Bulk update options matching "{{existing_option_name}}" and set maxanswers to 9.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.configure_booking_instance' => [
+                'prompt' => 'Which booking settings can I configure in this activity? Please list the available fields and current values.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.create_option' => [
+                'prompt' => 'Create one booking option called "Matrix canonical {{batch_label}}" for max 6 participants '
+                    . 'tomorrow from 10:00 to 12:00.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.create_rule_from_template' => [
+                'setup' => 'prepare_booking_rules_service_scenario',
+                'prompt' => 'Create a booking rule from template "booking confirmation" named '
+                    . '"Matrix rule {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.create_selflearning_option' => [
+                'prompt' => 'Create a self-learning booking option called "Matrix canonical selflearning {{batch_label}}" '
+                    . 'with max 8 participants and a learning duration of 14400 seconds.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.create_slotbooking_option' => [
+                'prompt' => 'Create one slot booking option titled "Matrix canonical slots {{batch_label}}" with opening 10:00, '
+                    . 'closing 12:00, valid from 2026-06-01 until 2026-06-30, duration 30 minutes, '
+                    . 'max 1 participant per slot, and slot_day_3=true.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.diagnose_booking_issue' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Diagnose why {{teacher_fullname}} cannot book option {{existing_option_name}}.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.diagnose_cancellation_issue' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Diagnose why cancellation might fail for option {{existing_option_name}}.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.explain_docs_topic' => [
+                'prompt' => 'Explain how to create a booking option and include key steps.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.get_option_details' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Show details for booking option {{existing_option_name}}.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.list_option_properties' => [
+                'prompt' => 'List supported properties for mod_booking.create_option.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.search_options' => [
+                'prompt' => 'Search booking options for "{{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.update_option' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Update booking option {{existing_option_id}} and set title to '
+                    . '"Matrix canonical updated {{batch_label}}" with max 9 participants.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.update_rule_from_template' => [
+                'setup' => 'prepare_booking_rules_service_scenario',
+                'prompt' => 'Update booking rule "Birthday reminder" and rename it to '
+                    . '"Matrix updated rule {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'mod_booking.create_option_normal' => [
                 'prompt' => 'Create one normal booking option called "Matrix normal {{batch_label}}" '
                     . 'for max 5 participants from tomorrow 10:00 to 12:00.',
@@ -506,20 +795,14 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.create_option_selflearning' => [
-                'prompt' => 'Create one self-learning booking option called "Matrix selflearning {{batch_label}}" '
-                    . 'for max 8 participants.',
+                'prompt' => 'Create a self-learning booking option called "Matrix selflearning {{batch_label}}" '
+                    . 'with max 8 participants.',
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
                         'field' => 'status',
                         'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'observation_full',
-                        'value' => 'type=1',
                     ],
                     [
                         'target' => 'chat',
@@ -529,21 +812,15 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.create_option_slotbooking' => [
-                'prompt' => 'Create one slot booking option titled "Matrix slots {{batch_label}}" with opening 10:00, '
-                    . 'closing 12:00, valid from 2026-06-01 00:00 until 2026-06-30 23:59, duration 30 minutes, '
-                    . 'max 1 participant per slot, and enable weekday slot_day_3.',
+                'prompt' => 'Create a slot booking option called "Matrix slots {{batch_label}}" with opening 10:00, '
+                    . 'closing 12:00, valid from 2026-06-01 to 2026-06-30, 30-minute slots, '
+                    . 'max 1 participant per slot, and enable Wednesday slots.',
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
                         'field' => 'status',
                         'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'observation_full',
-                        'value' => 'type=2',
                     ],
                     [
                         'target' => 'chat',

@@ -27,7 +27,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 use core_text;
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
