@@ -48,15 +48,15 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     }
 
     /**
-     * Prompt should route to mod_booking.create_option_normal and persist type 0.
+     * Prompt should route to mod_booking.create_option and persist type 0.
      */
     public function test_datetime_prompt_routes_to_create_option_normal_and_type_zero(): void {
         global $DB;
 
         $this->setUser($this->teacher);
 
-        if (!$this->is_task_available('mod_booking.create_option_normal')) {
-            $this->markTestSkipped('mod_booking.create_option_normal is not available in the current task catalog.');
+        if (!$this->is_task_available('mod_booking.create_option')) {
+            $this->markTestSkipped('mod_booking.create_option is not available in the current task catalog.');
         }
 
         // Keep test deterministic when rerun.
@@ -80,16 +80,16 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
             'Expected confirmation_request for mutating prompt. Payload: ' . $this->payload_text($response)
         );
 
-        $normalcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option_normal');
-        $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option_slotbooking');
+        $normalcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option');
+        $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_slotbooking_option');
 
         $this->assertNotNull(
             $normalcommand,
-            'Expected task mod_booking.create_option_normal in command payload. Payload: ' . $this->payload_text($response)
+            'Expected task mod_booking.create_option in command payload. Payload: ' . $this->payload_text($response)
         );
         $this->assertNull(
             $slotcommand,
-            'Did not expect task mod_booking.create_option_slotbooking for this prompt. Payload: ' . $this->payload_text($response)
+            'Did not expect task mod_booking.create_slotbooking_option for this prompt. Payload: ' . $this->payload_text($response)
         );
 
         $confirm = $this->confirm_pending_result($response, (int)$threadid, $store, false);
@@ -116,8 +116,8 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
 
         $this->setUser($this->teacher);
 
-        if (!$this->is_task_available('mod_booking.create_option_normal')) {
-            $this->markTestSkipped('mod_booking.create_option_normal is not available in the current task catalog.');
+        if (!$this->is_task_available('mod_booking.create_option')) {
+            $this->markTestSkipped('mod_booking.create_option is not available in the current task catalog.');
         }
 
         $beforeoptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text, type');
@@ -152,15 +152,15 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         $firstcommand = reset($commands);
         $this->assertIsArray($firstcommand, 'Expected first command payload to be an array.');
         $this->assertSame(
-            'mod_booking.create_option_normal',
+            'mod_booking.create_option',
             (string)($firstcommand['task'] ?? ''),
-            'Expected only mod_booking.create_option_normal commands. Payload: ' . $this->payload_text($response)
+            'Expected only mod_booking.create_option commands. Payload: ' . $this->payload_text($response)
         );
 
-        $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option_slotbooking');
+        $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_slotbooking_option');
         $this->assertNull(
             $slotcommand,
-            'Did not expect mod_booking.create_option_slotbooking for this prompt. Payload: ' . $this->payload_text($response)
+            'Did not expect mod_booking.create_slotbooking_option for this prompt. Payload: ' . $this->payload_text($response)
         );
 
         $current = $response;

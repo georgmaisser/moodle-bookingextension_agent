@@ -22,15 +22,12 @@ use mod_booking\local\testing\booking_advanced_testcase;
 use mod_booking\singleton_service;
 
 /**
- * Contracts for mod_booking option task discovery and behavior.
+ * Contracts for canonical mod_booking option task discovery and behavior.
  *
- * @covers \mod_booking\local\wbagent\options\tasks\option_mutation_task_base
- * @covers \mod_booking\local\wbagent\options\tasks\create_option_normal_task
- * @covers \mod_booking\local\wbagent\options\tasks\create_option_selflearning_task
- * @covers \mod_booking\local\wbagent\options\tasks\create_option_slotbooking_task
- * @covers \mod_booking\local\wbagent\options\tasks\update_option_normal_task
- * @covers \mod_booking\local\wbagent\options\tasks\update_option_selflearning_task
- * @covers \mod_booking\local\wbagent\options\tasks\update_option_slotbooking_task
+ * @covers \mod_booking\local\wbagent\options\tasks\create_option_task
+ * @covers \mod_booking\local\wbagent\options\tasks\create_selflearning_option_task
+ * @covers \mod_booking\local\wbagent\options\tasks\create_slotbooking_option_task
+ * @covers \mod_booking\local\wbagent\options\tasks\update_option_task
  * @covers \bookingextension_agent\local\wbagent\task_registry
  * @covers \bookingextension_agent\local\wbagent\task_registry_factory
  *
@@ -40,19 +37,17 @@ use mod_booking\singleton_service;
  */
 final class mod_booking_option_tasks_contract_test extends booking_advanced_testcase {
     /**
-     * Ensure all six mod_booking option tasks are discoverable.
+     * Ensure canonical mod_booking option tasks are discoverable.
      */
-    public function test_registry_discovers_all_mod_booking_option_tasks(): void {
+    public function test_registry_discovers_canonical_mod_booking_option_tasks(): void {
         task_registry_factory::reset();
         $registry = task_registry_factory::get_default();
 
         $expected = [
-            'mod_booking.create_option_normal',
-            'mod_booking.update_option_normal',
-            'mod_booking.create_option_selflearning',
-            'mod_booking.update_option_selflearning',
-            'mod_booking.create_option_slotbooking',
-            'mod_booking.update_option_slotbooking',
+            'mod_booking.create_option',
+            'mod_booking.create_selflearning_option',
+            'mod_booking.create_slotbooking_option',
+            'mod_booking.update_option',
         ];
 
         foreach ($expected as $taskname) {
@@ -63,12 +58,12 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
     /**
      * Ensure normal create task creates a type-0 option when no extra hints are given.
      */
-    public function test_create_option_normal_defaults_to_type_zero(): void {
+    public function test_create_option_defaults_to_type_zero(): void {
         [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
 
         task_registry_factory::reset();
         $registry = task_registry_factory::get_default();
-        $task = $registry->get_task('mod_booking.create_option_normal');
+        $task = $registry->get_task('mod_booking.create_option');
 
         $this->assertNotNull($task);
 
@@ -77,7 +72,7 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
         ];
 
         $preflight = $task->preflight($input, $contextid, (int)$teacher->id);
-        $this->assertSame('pass', $preflight->status, 'Preflight must pass for normal create.');
+        $this->assertSame('pass', $preflight->status, 'Preflight must pass for canonical create.');
 
         $result = $task->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
         $this->assertSame('executed', (string)($result['status'] ?? ''));
@@ -91,12 +86,12 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
     /**
      * Ensure normal create task emits a rich observation payload for follow-up planning.
      */
-    public function test_create_option_normal_emits_rich_observation_summary(): void {
+    public function test_create_option_emits_rich_observation_summary(): void {
         [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
 
         task_registry_factory::reset();
         $registry = task_registry_factory::get_default();
-        $task = $registry->get_task('mod_booking.create_option_normal');
+        $task = $registry->get_task('mod_booking.create_option');
 
         $this->assertNotNull($task);
 
@@ -107,7 +102,7 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
         ];
 
         $preflight = $task->preflight($input, $contextid, (int)$teacher->id);
-        $this->assertSame('pass', $preflight->status, 'Preflight must pass for normal create observation test.');
+        $this->assertSame('pass', $preflight->status, 'Preflight must pass for create observation test.');
 
         $result = $task->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
         $this->assertSame('executed', (string)($result['status'] ?? ''));
@@ -125,7 +120,7 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
     /**
      * Ensure selflearning update task persists option type 1.
      */
-    public function test_update_option_selflearning_sets_type_one(): void {
+    public function test_update_option_sets_type_one_for_selflearning_input(): void {
         [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
 
         /** @var \mod_booking_generator $gen */
@@ -138,7 +133,7 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
 
         task_registry_factory::reset();
         $registry = task_registry_factory::get_default();
-        $task = $registry->get_task('mod_booking.update_option_selflearning');
+        $task = $registry->get_task('mod_booking.update_option');
 
         $this->assertNotNull($task);
 
@@ -146,10 +141,11 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
             'optionid' => (int)$option->id,
             'text' => 'Selflearning option',
             'maxanswers' => 16,
+            'optiontype' => 'selflearning',
         ];
 
         $preflight = $task->preflight($input, $contextid, (int)$teacher->id);
-        $this->assertSame('pass', $preflight->status, 'Preflight must pass for selflearning update.');
+        $this->assertSame('pass', $preflight->status, 'Preflight must pass for canonical selflearning update.');
 
         $result = $task->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
         $this->assertSame('executed', (string)($result['status'] ?? ''));
@@ -164,12 +160,12 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
     /**
      * Ensure slotbooking create task blocks when slot form fields are missing.
      */
-    public function test_create_option_slotbooking_requires_slot_fields(): void {
+    public function test_create_slotbooking_option_requires_slot_fields(): void {
         [$teacher, $contextid] = $this->create_booking_test_context();
 
         task_registry_factory::reset();
         $registry = task_registry_factory::get_default();
-        $task = $registry->get_task('mod_booking.create_option_slotbooking');
+        $task = $registry->get_task('mod_booking.create_slotbooking_option');
 
         $this->assertNotNull($task);
 
@@ -193,8 +189,8 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
         task_registry_factory::reset();
         $registry = task_registry_factory::get_default();
 
-        $create = $registry->get_task('mod_booking.create_option_slotbooking');
-        $update = $registry->get_task('mod_booking.update_option_slotbooking');
+        $create = $registry->get_task('mod_booking.create_slotbooking_option');
+        $update = $registry->get_task('mod_booking.update_option');
 
         $this->assertNotNull($create);
         $this->assertNotNull($update);
@@ -203,9 +199,9 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
         $updatecontract = $update->get_prompt_contract()->to_array();
 
         $this->assertSame('create_slotbooking', (string)($createcontract['intent'] ?? ''));
-        $this->assertSame('update_slotbooking', (string)($updatecontract['intent'] ?? ''));
+        $this->assertSame('task', (string)($updatecontract['intent'] ?? ''));
         $this->assertContains('slot_opening_time', (array)($createcontract['minimal_input'] ?? []));
-        $this->assertContains('slot_opening_time', (array)($updatecontract['minimal_input'] ?? []));
+        $this->assertContains('optionid', array_keys((array)$update->get_schema()['properties']));
     }
 
     /**

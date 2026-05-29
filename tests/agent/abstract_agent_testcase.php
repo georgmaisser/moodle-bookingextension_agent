@@ -479,10 +479,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return stdClass Option record (with ->id).
      */
     protected function create_option(string $name, array $extra = []): stdClass {
-        $registry = task_registry::make_default();
-        $taskname = $registry->get_task('mod_booking.create_option_normal')
-            ? 'mod_booking.create_option_normal'
-            : 'booking.create_option';
+        $taskname = 'mod_booking.create_option';
 
         $result = $this->exec_command($taskname, array_merge(
             [
@@ -625,7 +622,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $authz    = new authorization_service();
         $runtime  = new agent_runtime($registry, $orc, $store, $authz);
         $contextid = $this->booking_contextid();
-        $thread   = $store->get_or_create_thread(
+        $thread   = $store->create_fresh_thread(
             (int)$this->teacher->id,
             $contextid,
             (int)$this->booking->id

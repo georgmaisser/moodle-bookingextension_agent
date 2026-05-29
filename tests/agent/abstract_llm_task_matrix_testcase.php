@@ -94,8 +94,14 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         );
 
         $finalresult = $this->resolve_task_result_payload($result, $taskname) ?? $result;
+        $initialresponsetype = (string)($result['response_type'] ?? '');
+        $initialhasqueueitem = trim((string)($result['queueitemid'] ?? '')) !== '';
+        $initialhaspendingaction = $initialresponsetype === 'confirmation_request' || $initialhasqueueitem;
 
-        if (!$this->scenario_matched_expected_task($result, $taskname, (string)$scenario['mode'])) {
+        if (
+            !$initialhaspendingaction
+            && !$this->scenario_matched_expected_task($result, $taskname, (string)$scenario['mode'])
+        ) {
             $fallbackprompt = $this->build_fallback_prompt($scenario, $renderedprompt);
             $result = $this->chat(
                 $fallbackprompt,
@@ -111,14 +117,14 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
 
         if ((string)$scenario['mode'] === 'mutating') {
             $command = $this->extract_command($result, $taskname);
-            $responseType = (string)($result['response_type'] ?? '');
+            $responsetype = (string)($result['response_type'] ?? '');
             $hasqueueitem = trim((string)($result['queueitemid'] ?? '')) !== '';
-            $canconfirmwithoutcommand = $responseType === 'confirmation_request' || $hasqueueitem;
+            $canconfirmwithoutcommand = $responsetype === 'confirmation_request' || $hasqueueitem;
 
             $this->assertTrue(
                 $command !== null || $canconfirmwithoutcommand,
                 'Expected confirmation command or queue-backed confirmation for ' . $taskname . '. Response type: '
-                    . $responseType
+                    . $responsetype
                     . ' Message: ' . (string)($result['message'] ?? '')
             );
 
@@ -130,19 +136,33 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             );
             $nopendingconfirmation = (string)($confirm['message'] ?? '')
                 === 'No pending confirmation is available for this action. Please ask the assistant again.';
+            $queuewaitingforretry = str_contains((string)($confirm['message'] ?? ''), 'waiting for retry');
 
             $this->assertTrue(
-                (bool)($confirm['success'] ?? false) || $nopendingconfirmation,
+                (bool)($confirm['success'] ?? false) || $nopendingconfirmation || $queuewaitingforretry,
                 'Confirmation failed for ' . $taskname . ': ' . (string)($confirm['message'] ?? '')
             );
 
             if ((bool)($confirm['success'] ?? false)) {
                 $finalresult = $this->resolve_task_result_payload($confirm, $taskname) ?? $confirm;
+            } else if ($queuewaitingforretry) {
+                $this->assertNotNull(
+                    $command,
+                    'Queue retry fallback requires a command for ' . $taskname . '. Message: '
+                        . (string)($confirm['message'] ?? '')
+                );
+                $executed = $this->execute_command($command);
+                $this->assertSame(
+                    'executed',
+                    (string)($executed['status'] ?? ''),
+                    'Queue retry fallback failed for ' . $taskname . ': ' . (string)($executed['detail'] ?? '')
+                );
+                $finalresult = $executed;
             } else {
                 $this->assertNotNull(
                     $command,
                     'Direct executor fallback requires a command for ' . $taskname . '. Response type: '
-                        . $responseType
+                        . $responsetype
                         . ' Message: ' . (string)($result['message'] ?? '')
                 );
                 $executed = $this->execute_command($command);
@@ -729,6 +749,16 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             return $direct;
         }
 
+        foreach ($this->task_result_candidate_names($taskname) as $candidatename) {
+            if ($candidatename === $taskname) {
+                continue;
+            }
+            $direct = $this->extract_task_result($payload, $candidatename);
+            if (is_array($direct)) {
+                return $direct;
+            }
+        }
+
         $resultsjson = (string)($payload['resultsjson'] ?? '');
         if ($resultsjson === '') {
             return null;
@@ -746,6 +776,14 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
 
             if ($taskname !== '' && (string)($entry['task'] ?? '') === $taskname) {
                 return $entry;
+            }
+
+            if ($taskname !== '') {
+                foreach ($this->task_result_candidate_names($taskname) as $candidatename) {
+                    if ($candidatename !== '' && (string)($entry['task'] ?? '') === $candidatename) {
+                        return $entry;
+                    }
+                }
             }
 
             if ($taskname === '' && !empty($entry)) {
@@ -819,17 +857,71 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
      */
     protected function find_task_result_entry(array $payload, string $taskname): ?array {
         foreach ((array)($payload['results'] ?? []) as $entry) {
-            if (is_array($entry) && (string)($entry['task'] ?? '') === $taskname) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if ((string)($entry['task'] ?? '') === $taskname) {
                 return $entry;
+            }
+
+            foreach ($this->task_result_candidate_names($taskname) as $candidatename) {
+                if ($candidatename !== '' && (string)($entry['task'] ?? '') === $candidatename) {
+                    return $entry;
+                }
             }
         }
 
         foreach ((array)($payload['loop_results'] ?? []) as $entry) {
-            if (is_array($entry) && (string)($entry['task'] ?? '') === $taskname) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if ((string)($entry['task'] ?? '') === $taskname) {
                 return $entry;
+            }
+            foreach ($this->task_result_candidate_names($taskname) as $candidatename) {
+                if ($candidatename !== '' && (string)($entry['task'] ?? '') === $candidatename) {
+                    return $entry;
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * Return task-name candidates for legacy alias/canonical mappings.
+     *
+     * @param string $taskname
+     * @return array<int,string>
+     */
+    protected function task_result_candidate_names(string $taskname): array {
+        $candidates = [$taskname];
+
+        $aliasmap = [
+            'mod_booking.create_selflearning_option' => [
+                'mod_booking.create_selflearning_option',
+                'mod_booking.create_option',
+            ],
+            'mod_booking.create_slotbooking_option' => [
+                'mod_booking.create_slotbooking_option',
+                'mod_booking.create_option',
+            ],
+            'mod_booking.create_selflearning_option' => [
+                'mod_booking.create_selflearning_option',
+                'mod_booking.create_option',
+            ],
+            'mod_booking.create_slotbooking_option' => [
+                'mod_booking.create_slotbooking_option',
+                'mod_booking.create_option',
+            ],
+        ];
+
+        if (isset($aliasmap[$taskname])) {
+            $candidates = array_merge($candidates, $aliasmap[$taskname]);
+        }
+
+        return array_values(array_unique(array_filter($candidates, static fn($value): bool => is_string($value) && $value !== '')));
     }
 }

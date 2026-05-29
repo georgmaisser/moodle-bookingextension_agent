@@ -47,9 +47,9 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $this->setUser($this->teacher);
 
         $registry = task_registry::make_default();
-        $task = $registry->get_task('mod_booking.create_option_normal');
+        $task = $registry->get_task('mod_booking.create_option');
         if ($task === null) {
-            $this->markTestSkipped('mod_booking.create_option_normal is not available in the current task catalog.');
+            $this->markTestSkipped('mod_booking.create_option is not available in the current task catalog.');
         }
 
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
@@ -65,14 +65,14 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         ]);
 
         $command1 = [
-            'task' => 'mod_booking.create_option_normal',
+            'task' => 'mod_booking.create_option',
             'version' => 1,
             'input' => [
                 'text' => 'Follow-up contract option 1',
             ],
         ];
         $command2 = [
-            'task' => 'mod_booking.create_option_normal',
+            'task' => 'mod_booking.create_option',
             'version' => 1,
             'input' => [
                 'text' => 'Follow-up contract option 2',

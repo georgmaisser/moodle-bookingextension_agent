@@ -489,8 +489,8 @@ final class llm_task_matrix_scenario_provider {
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
+                        'field' => 'observation_full',
+                        'value' => 'Booking option created',
                     ],
                     [
                         'target' => 'chat',
@@ -506,8 +506,8 @@ final class llm_task_matrix_scenario_provider {
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
+                        'field' => 'observation_full',
+                        'value' => 'Booking option created',
                     ],
                     [
                         'target' => 'chat',
@@ -771,7 +771,7 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.create_option_normal' => [
+            'mod_booking.create_option' => [
                 'prompt' => 'Create one normal booking option called "Matrix normal {{batch_label}}" '
                     . 'for max 5 participants from tomorrow 10:00 to 12:00.',
                 'assertions' => [
@@ -794,15 +794,15 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.create_option_selflearning' => [
+            'mod_booking.create_selflearning_option' => [
                 'prompt' => 'Create a self-learning booking option called "Matrix selflearning {{batch_label}}" '
-                    . 'with max 8 participants.',
+                    . 'with a duration of 4 hours, max 8 participants, and assign {{teacher_email}} as the teacher.',
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
+                        'field' => 'observation_full',
+                        'value' => 'Booking option created',
                     ],
                     [
                         'target' => 'chat',
@@ -811,10 +811,10 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.create_option_slotbooking' => [
+            'mod_booking.create_slotbooking_option' => [
                 'prompt' => 'Create a slot booking option called "Matrix slots {{batch_label}}" with opening 10:00, '
                     . 'closing 12:00, valid from 2026-06-01 to 2026-06-30, 30-minute slots, '
-                    . 'max 1 participant per slot, and enable Wednesday slots.',
+                    . 'max 1 participant per slot, and make it bookable every Wednesday.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -829,7 +829,7 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.update_option_normal' => [
+            'mod_booking.update_option' => [
                 'setup' => 'prepare_update_option_scenario',
                 'prompt' => 'Update booking option {{existing_option_id}} to title "Matrix normal updated {{batch_label}}", '
                     . 'max 9 participants, and set it to tomorrow 14:00 to 16:00 as a normal option.',
@@ -847,7 +847,7 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.update_option_selflearning' => [
+            'mod_booking.update_option' => [
                 'setup' => 'prepare_update_option_scenario',
                 'prompt' => 'Update booking option {{existing_option_id}} to title "Matrix selflearning updated {{batch_label}}" '
                     . 'with max 11 participants as self-learning.',
@@ -865,7 +865,7 @@ final class llm_task_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.update_option_slotbooking' => [
+            'mod_booking.update_option' => [
                 'setup' => 'prepare_update_option_scenario',
                 'prompt' => 'Update booking option {{existing_option_id}} as slot booking with opening 09:00, closing 11:00, '
                     . 'valid from 2026-06-01 00:00 until 2026-06-30 23:59, duration 20 minutes, '
