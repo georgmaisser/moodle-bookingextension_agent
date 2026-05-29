@@ -89,8 +89,8 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
                 . $datestr . 'T20:00:00", courseendtime="' . $datestr . 'T22:00:00"';
         }
 
-        $prompt = 'erstelle für die nächste woche Montag, Mittwoch und Donnerstag durchlaufend nummerierte "Lecture x", immer von 20:00 bis 22:00h, '
-            . '20 Personen können kommen. Billy ist trainer.';
+        $prompt = 'erstelle für die nächste woche drei veranstaltungen, Montag, Mittwoch und Donnerstag durchlaufend nummerierte mit den Namen "Lecture x",' .
+            ' immer von 20:00 bis 22:00h, 20 Personen können kommen.';
 
         $trace = [];
 
