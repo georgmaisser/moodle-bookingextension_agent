@@ -115,77 +115,21 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         $requiresallowsession = ((int)($response['autoconfirm'] ?? 0) !== 1);
 
         $_POST['sesskey'] = sesskey();
-        $result2 = ai_confirm_run::execute(
-            (int)$this->booking->cmid,
-            $threadid,
-            '',
-            true
-        );
+        $counter = 1;
+        while (((string)($response['response_type'] ?? '') === 'confirmation_request') ) {
+            $counter++;
+            $response = ai_confirm_run::execute(
+                    (int)$this->booking->cmid,
+                    $threadid,
+                    $response["queueitemid"] ?? '',
+                    true
+            );
+            $trace[] = $this->build_trace_line('send', 0, $response);
+        }
 
-
-        $confirm = $this->confirm_pending_result($response, (int)$threadid, $store, $requiresallowsession);
-        $trace[] = $this->build_trace_line('confirm', 1, $confirm);
-
-        if (empty($confirm['success'])) {
+        if ($response['response_type'] !== 'sufficient') {
             $this->fail('ai_confirm_run failed. Trace: ' . implode(' | ', $trace));
         }
-
-        // If confirm returns another confirmation_request (e.g. duplicate-title check), send a
-        // follow-up message instructing the LLM to use force_create_exceptions, then re-confirm.
-        if ((string)($confirm['response_type'] ?? '') === 'confirmation_request') {
-            $confirmmsg = strtolower((string)($confirm['displaymessage'] ?? $confirm['message'] ?? ''));
-            if (strpos($confirmmsg, 'already exists') !== false || strpos($confirmmsg, 'duplicate') !== false) {
-                $_POST['sesskey'] = sesskey();
-                $overrideprompt = 'Ja, erstelle die Optionen trotzdem neu. '
-                    . 'Setze force_create_exceptions=["duplicate_title"] in allen create_option Befehlen '
-                    . 'und sende dieselben 5 Lecture-Optionen erneut als task_call.';
-                $overridesend = ai_send_message::execute((int)$this->booking->cmid, $overrideprompt, (int)$threadid);
-                $trace[] = $this->build_trace_line('send', 4, $overridesend);
-                if ((string)($overridesend['response_type'] ?? '') === 'confirmation_request') {
-                    $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
-                    $confirmoverride = $this->confirm_pending_result($overridesend, $threadid, $store, true);
-                    $trace[] = $this->build_trace_line('confirm', 2, $confirmoverride);
-                    if (!empty($confirmoverride['success'])) {
-                        $confirm = $confirmoverride;
-                    }
-                }
-            }
-        }
-
-        // Allow one additional recovery round for schema-mismatch style command outputs.
-        if ((string)($confirm['response_type'] ?? '') === 'error') {
-            $_POST['sesskey'] = sesskey();
-            $repairprompt = 'Sende den Auftrag erneut ohne technische Feldnamen. '
-                . 'Erstelle Lecture 1 bis Lecture 5 als normale Buchungsoptionen, '
-                . 'jeweils 20:00 bis 22:00 Uhr mit Kapazitaet 20 und Trainer Billy.';
-            $repairsend = ai_send_message::execute((int)$this->booking->cmid, $repairprompt, (int)$threadid);
-            $trace[] = $this->build_trace_line('send', 5, $repairsend);
-
-            if ((string)($repairsend['response_type'] ?? '') === 'confirmation_request') {
-                $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
-                $repairconfirm = $this->confirm_pending_result($repairsend, (int)$threadid, $store, true);
-                $trace[] = $this->build_trace_line('confirm', 3, $repairconfirm);
-                if (!empty($repairconfirm['success'])) {
-                    $confirm = $repairconfirm;
-                }
-            }
-        }
-
-        // Some valid flows need one extra confirm_pending/confirmation_request turn.
-        if ((string)($confirm['response_type'] ?? '') === 'confirmation_request') {
-            $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
-            $confirmnext = $this->confirm_pending_result($confirm, (int)$threadid, $store, true);
-            $trace[] = $this->build_trace_line('confirm', 4, $confirmnext);
-            if (!empty($confirmnext['success'])) {
-                $confirm = $confirmnext;
-            }
-        }
-
-        $this->assertContains(
-            (string)($confirm['response_type'] ?? ''),
-            ['sufficient', 'execution_result', 'confirmation_request', 'clarification', 'error'],
-            'Flow ended in unexpected response type after recovery. Trace: ' . implode(' | ', $trace)
-        );
 
         $afteroptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text');
         $createdoptions = [];
