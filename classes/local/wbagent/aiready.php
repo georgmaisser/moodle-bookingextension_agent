@@ -30,6 +30,7 @@ use core\di;
 use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
 use mod_booking\singleton_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Central readiness state for the booking AI panel.

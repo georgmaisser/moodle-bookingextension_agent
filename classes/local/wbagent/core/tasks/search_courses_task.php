@@ -63,7 +63,27 @@ class search_courses_task extends core_task_base implements task_trigger_provide
                 'query' => [
                     'type' => 'string',
                     'description' => 'Search text for course full name, short name or id.',
-                    'required' => true,
+                    'required' => false,
+                ],
+                'coursequery' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query.',
+                    'required' => false,
+                ],
+                'coursename' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query when only a course name is provided.',
+                    'required' => false,
+                ],
+                'course' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query.',
+                    'required' => false,
+                ],
+                'searchterm' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query.',
+                    'required' => false,
                 ],
                 'outputlang' => [
                     'type' => 'string',
@@ -133,7 +153,7 @@ class search_courses_task extends core_task_base implements task_trigger_provide
      */
     public function check_structure(array $input): array {
         $errors = [];
-        if (empty($input['query']) || !is_string($input['query'])) {
+        if ($this->resolve_query($input) === '') {
             $errors[] = get_string('agent_booking_search_courses_query_required', 'bookingextension_agent');
         }
 
@@ -153,7 +173,7 @@ class search_courses_task extends core_task_base implements task_trigger_provide
      * @return array
      */
     public function execute(array $input, int $contextid, int $userid): array {
-        $query = trim((string)($input['query'] ?? ''));
+        $query = $this->resolve_query($input);
         $outputlang = $this->get_output_language($input);
         $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
 
@@ -238,5 +258,27 @@ class search_courses_task extends core_task_base implements task_trigger_provide
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Resolve the course search query from canonical and legacy alias fields.
+     *
+     * @param array<string,mixed> $input
+     * @return string
+     */
+    private function resolve_query(array $input): string {
+        $keys = ['query', 'coursequery', 'coursename', 'course', 'searchterm'];
+        foreach ($keys as $key) {
+            if (!isset($input[$key]) || !is_string($input[$key])) {
+                continue;
+            }
+
+            $value = trim((string)$input[$key]);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 }
