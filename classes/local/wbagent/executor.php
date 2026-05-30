@@ -112,6 +112,8 @@ class executor implements agent_executor {
             return [[
                 'status' => 'skipped',
                 'detail' => get_string('agent_executor_run_already_executed', 'bookingextension_agent'),
+                'issue_codes' => ['EXECUTOR_ALREADY_EXECUTED'],
+                'idempotency_reason' => 'EXECUTOR_RUN_EXISTS',
                 'resultid' => null,
             ]];
         }
@@ -215,7 +217,6 @@ class executor implements agent_executor {
                 }
             }
             $results[] = $result;
-
         }
 
         return $results;
@@ -251,5 +252,4 @@ class executor implements agent_executor {
 
         return $safe;
     }
-
 }

@@ -606,7 +606,6 @@ class conversation_store implements agent_conversation_store {
      * Store pending confirmation intent for a thread.
      *
      * @param int $threadid
-     * @param array $commands
      * @param string $intentkey
      * @param int $userid
      * @param int $contextid
@@ -616,7 +615,6 @@ class conversation_store implements agent_conversation_store {
      */
     public function set_pending_intent(
         int $threadid,
-        array $commands,
         string $intentkey,
         int $userid = 0,
         int $contextid = 0,
@@ -626,16 +624,20 @@ class conversation_store implements agent_conversation_store {
         $now = time();
         $confirmationcode = 'C' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($metadata['queue_item_ids'] ?? []))));
+        $queueitemids = array_values(array_unique($queueitemids));
+
         $pendingintent = [
-            'commands' => $commands,
             'intentkey' => $intentkey,
-            'checksum' => hash('sha256', json_encode($commands)),
+            'checksum' => hash('sha256', json_encode($queueitemids)),
             'timestamp' => $now,
             'expiresat' => $now + max(1, $ttl),
             'state' => 'pending',
             'userid' => $userid,
             'contextid' => $contextid,
             'confirmationcode' => $confirmationcode,
+            'queue_item_ids' => $queueitemids,
+            'queue_authoritative' => true,
         ];
 
         foreach ($metadata as $key => $value) {
@@ -657,13 +659,12 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_pending_intent(int $threadid): ?array {
         $value = $this->get_thread_metadata_value($threadid, 'pending_intent');
-        if (!is_array($value) || !is_array($value['commands'] ?? null)) {
+        if (!is_array($value)) {
             return null;
         }
 
-        $hascommands = !empty($value['commands']);
         $hasqueueitems = !empty(array_filter(array_map('strval', (array)($value['queue_item_ids'] ?? []))));
-        if (!$hascommands && !$hasqueueitems) {
+        if (!$hasqueueitems) {
             return null;
         }
 

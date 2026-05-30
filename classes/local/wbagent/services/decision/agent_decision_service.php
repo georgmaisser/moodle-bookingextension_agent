@@ -287,16 +287,11 @@ class agent_decision_service {
 
         // 9. Store / clear pending intent.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
-            $queueitemids = $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []);
-            $result['pending_confirmation_code'] = $this->pendingintentsvc->set(
+            $result['pending_confirmation_code'] = $this->persist_pending_intent_pointer(
                 $threadid,
-                !empty($queueitemids) ? [] : $result['commands'],
                 $userid,
                 $contextid,
-                [
-                    'queue_item_ids' => $queueitemids,
-                    'queue_authoritative' => !empty($queueitemids),
-                ]
+                $result['queue_item_ids'] ?? []
             );
         } else {
             $this->pendingintentsvc->clear($threadid);
@@ -536,15 +531,11 @@ class agent_decision_service {
         );
 
         $confirmmessage = $this->localized('ai_confirm_pending_intent', null, $outputlang);
-        $confirmationcode = $this->pendingintentsvc->set(
+        $confirmationcode = $this->persist_pending_intent_pointer(
             $threadid,
-            !empty($queueitemids) ? [] : $preparedcommands,
             $userid,
             $contextid,
-            [
-                'queue_item_ids' => $queueitemids,
-                'queue_authoritative' => !empty($queueitemids),
-            ]
+            $queueitemids
         );
 
         return [
@@ -953,6 +944,32 @@ class agent_decision_service {
         return $commands;
     }
 
+    /**
+     * Persist the pending-intent pointer for confirmation-bound queue items.
+     *
+     * @param int $threadid
+     * @param int $userid
+     * @param int $contextid
+     * @param array<int,mixed> $queueitemids
+     * @return string
+     */
+    private function persist_pending_intent_pointer(
+        int $threadid,
+        int $userid,
+        int $contextid,
+        array $queueitemids
+    ): string {
+        $queueitemids = $this->normalize_queue_item_ids($queueitemids);
+        return $this->pendingintentsvc->set(
+            $threadid,
+            $userid,
+            $contextid,
+            [
+                'queue_item_ids' => $queueitemids,
+            ]
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Private: read-only command execution.
 
@@ -1061,12 +1078,19 @@ class agent_decision_service {
                             $this->queuesvc,
                             $threadid,
                             $queueitemid,
+                            'READONLY_EXECUTION_FAILED',
                             $issuecodes,
                             'domain_error',
                             trim((string)($entry['detail'] ?? ''))
                         );
                     } else {
-                        $this->queuetransitionsvc->to_succeeded($this->queuesvc, $threadid, $queueitemid, $issuecodes);
+                        $this->queuetransitionsvc->to_succeeded(
+                            $this->queuesvc,
+                            $threadid,
+                            $queueitemid,
+                            'READONLY_EXECUTION_SUCCEEDED',
+                            $issuecodes
+                        );
                     }
                 }
 
@@ -1147,6 +1171,7 @@ class agent_decision_service {
                     $this->queuesvc,
                     $threadid,
                     $queueitemid,
+                    'READONLY_PROVIDER_EXCEPTION',
                     [],
                     'provider_error',
                     $e->getMessage()
@@ -1299,7 +1324,7 @@ class agent_decision_service {
                 continue;
             }
             $status = core_text::strtolower(trim((string)($entry['status'] ?? '')));
-            if (in_array($status, ['error', 'failed', 'skipped'], true)) {
+            if (in_array($status, ['error', 'failed'], true)) {
                 return true;
             }
         }

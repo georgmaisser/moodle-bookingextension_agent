@@ -59,6 +59,7 @@ class queue_manager {
         'blocked_expires_at',
         'next_retry_at',
         'retry_count',
+        'reason_code',
     ];
 
     /**
@@ -153,7 +154,10 @@ class queue_manager {
                 (string)($existing['input_signature'] ?? '') === $signature
                 && !queue_status_policy::is_terminal_status((string)($existing['status'] ?? ''))
             ) {
-                return $existing;
+                $reused = $existing;
+                $reused['idempotency_reused'] = true;
+                $reused['idempotency_reason'] = 'QUEUE_SIGNATURE_REUSE';
+                return $reused;
             }
         }
 

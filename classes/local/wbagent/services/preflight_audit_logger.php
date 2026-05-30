@@ -73,6 +73,7 @@ class preflight_audit_logger {
             'task_version' => max(0, (int)($entry['task_version'] ?? 0)),
             'layer' => trim((string)($entry['layer'] ?? '')),
             'status' => trim((string)($entry['status'] ?? '')),
+            'reason_code' => $this->resolve_reason_code($entry),
             'issue_codes' => array_values(array_unique(array_map('strval', (array)($entry['issue_codes'] ?? [])))),
             'retry_count' => (int)($entry['retry_count'] ?? 0),
             'retry_after_ms' => max(0, (int)($entry['retry_after_ms'] ?? 0)),
@@ -80,5 +81,91 @@ class preflight_audit_logger {
             'error_class' => trim((string)($entry['error_class'] ?? '')),
         ];
         $this->store->set_thread_metadata_value($threadid, self::META_KEY, $events);
+    }
+
+    /**
+     * Return normalized preflight audit events for one thread.
+     *
+     * @param int $threadid
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_events(int $threadid): array {
+        $current = $this->store->get_thread_metadata_value($threadid, self::META_KEY);
+        if (!is_array($current)) {
+            return [];
+        }
+
+        return array_values(array_filter($current, static fn($entry): bool => is_array($entry)));
+    }
+
+    /**
+     * Build a compact monitoring summary grouped by reason code.
+     *
+     * @param int $threadid
+     * @return array<string,mixed>
+     */
+    public function summarize_reason_codes(int $threadid): array {
+        $events = $this->get_events($threadid);
+        $total = count($events);
+        $counts = [];
+        $bylayer = [];
+        $bystatus = [];
+
+        foreach ($events as $event) {
+            $reasoncode = trim((string)($event['reason_code'] ?? ''));
+            if ($reasoncode === '') {
+                $reasoncode = 'UNSPECIFIED';
+            }
+            $layer = trim((string)($event['layer'] ?? ''));
+            $status = trim((string)($event['status'] ?? ''));
+
+            $counts[$reasoncode] = (int)($counts[$reasoncode] ?? 0) + 1;
+            if ($layer !== '') {
+                $bylayer[$layer] = (int)($bylayer[$layer] ?? 0) + 1;
+            }
+            if ($status !== '') {
+                $bystatus[$status] = (int)($bystatus[$status] ?? 0) + 1;
+            }
+        }
+
+        arsort($counts);
+        arsort($bylayer);
+        arsort($bystatus);
+
+        return [
+            'total_events' => $total,
+            'reason_code_counts' => $counts,
+            'layer_counts' => $bylayer,
+            'status_counts' => $bystatus,
+        ];
+    }
+
+    /**
+     * Resolve a stable reason code from audit entry context.
+     *
+     * @param array<string,mixed> $entry
+     * @return string
+     */
+    private function resolve_reason_code(array $entry): string {
+        $provided = trim((string)($entry['reason_code'] ?? ''));
+        if ($provided !== '') {
+            return $provided;
+        }
+
+        $status = trim((string)($entry['status'] ?? ''));
+        return match ($status) {
+            'pass' => 'PREFLIGHT_PASS',
+            'soft_block' => 'PREFLIGHT_SOFT_BLOCK',
+            'hard_block' => 'PREFLIGHT_HARD_BLOCK',
+            'retry_hint' => 'PREFLIGHT_RETRY_HINT',
+            'ready' => 'QUEUE_READY',
+            'running' => 'QUEUE_RUNNING',
+            'retry_waiting' => 'QUEUE_RETRY_WAITING',
+            'blocked_confirmation' => 'QUEUE_BLOCKED_CONFIRMATION',
+            'failed' => 'QUEUE_FAILED',
+            'succeeded' => 'QUEUE_SUCCEEDED',
+            'skipped' => 'QUEUE_SKIPPED',
+            default => 'UNSPECIFIED',
+        };
     }
 }

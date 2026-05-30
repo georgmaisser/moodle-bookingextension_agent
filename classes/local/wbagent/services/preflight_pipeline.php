@@ -132,6 +132,7 @@ class preflight_pipeline {
                     'task_version' => max(1, (int)($command['version'] ?? 1)),
                     'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
                     'status' => $result->status,
+                    'reason_code' => 'PREFLIGHT_SCHEMA_INVALID',
                     'issue_codes' => $result->issuecodes,
                     'retry_count' => 0,
                     'retry_after_ms' => 0,
@@ -222,6 +223,7 @@ class preflight_pipeline {
             'contextid' => $contextid,
             'layer' => $result->blockinglayer !== '' ? $result->blockinglayer : 'preflight',
             'status' => $result->status,
+            'reason_code' => $this->resolve_preflight_reason_code($result),
             'issue_codes' => $result->issuecodes,
             'retry_count' => $result->retrycount,
             'retry_after_ms' => $result->retryafterms,
@@ -301,5 +303,21 @@ class preflight_pipeline {
             'taskname' => trim((string)($command['task'] ?? '')),
             'task_version' => max(1, (int)($command['version'] ?? 1)),
         ];
+    }
+
+    /**
+     * Resolve preflight reason code from v2 result.
+     *
+     * @param preflight_result_v2 $result
+     * @return string
+     */
+    private function resolve_preflight_reason_code(preflight_result_v2 $result): string {
+        $status = trim((string)$result->status);
+        return match ($status) {
+            'pass' => 'PREFLIGHT_PASS',
+            'soft_block' => 'PREFLIGHT_SOFT_BLOCK',
+            'retry_hint' => 'PREFLIGHT_RETRY_HINT',
+            default => 'PREFLIGHT_HARD_BLOCK',
+        };
     }
 }

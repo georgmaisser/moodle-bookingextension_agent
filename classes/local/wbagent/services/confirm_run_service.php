@@ -28,6 +28,7 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use core\task\manager as task_manager;
 use bookingextension_agent\local\wbagent\agent_runtime;
+use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
@@ -190,7 +191,8 @@ class confirm_run_service {
                 implode(' ', $errors),
                 ['RETRY_WAITING'],
                 $errors,
-                $activequeueitemid
+                $activequeueitemid,
+                attempt_budget_dto::from_queue_item($activeitem)->to_array()
             );
         }
 
@@ -207,7 +209,12 @@ class confirm_run_service {
             );
         }
 
-        $this->queuetransitionsvc->to_ready($queuesvc, $threadid, $activequeueitemid);
+        $this->queuetransitionsvc->to_ready(
+            $queuesvc,
+            $threadid,
+            $activequeueitemid,
+            'CONFIRMATION_ACCEPTED'
+        );
         $auditlogger->append($threadid, 0, array_merge(
             $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
             [
@@ -270,6 +277,7 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => $activequeueitemid,
+                'attempt_budget' => attempt_budget_dto::from_queue_item($activeitem)->to_array(),
                 ...$this->build_preview_response_fields($cmid, $userid, []),
             ];
         }
@@ -292,7 +300,12 @@ class confirm_run_service {
                     ]
                 ));
             } else {
-                $this->queuetransitionsvc->to_ready($queuesvc, $threadid, $activequeueitemid);
+                $this->queuetransitionsvc->to_ready(
+                    $queuesvc,
+                    $threadid,
+                    $activequeueitemid,
+                    'RUNNING_SLOT_OCCUPIED'
+                );
             }
 
             $exec = new executor($this->registry, $this->store, $this->authz);
@@ -338,6 +351,7 @@ class confirm_run_service {
                             $queuesvc,
                             $threadid,
                             $activequeueitemid,
+                            'EXECUTION_RETRY_HINT',
                             (array)($retrydecision['issue_codes'] ?? $issuecodes),
                             $errorclass,
                             trim((string)($primary['detail'] ?? '')),
@@ -348,6 +362,7 @@ class confirm_run_service {
                             $queuesvc,
                             $threadid,
                             $activequeueitemid,
+                            'EXECUTION_RETRY_EXHAUSTED',
                             (array)($retrydecision['issue_codes'] ?? $issuecodes),
                             $errorclass,
                             trim((string)($primary['detail'] ?? ''))
@@ -358,6 +373,7 @@ class confirm_run_service {
                         $queuesvc,
                         $threadid,
                         $activequeueitemid,
+                        'EXECUTION_DOMAIN_FAILED',
                         $issuecodes,
                         'domain_error',
                         trim((string)($primary['detail'] ?? ''))
@@ -385,7 +401,13 @@ class confirm_run_service {
                     $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
                 }
             } else {
-                $this->queuetransitionsvc->to_succeeded($queuesvc, $threadid, $activequeueitemid, $issuecodes);
+                $this->queuetransitionsvc->to_succeeded(
+                    $queuesvc,
+                    $threadid,
+                    $activequeueitemid,
+                    'EXECUTION_SUCCEEDED',
+                    $issuecodes
+                );
                 $auditlogger->append($threadid, (int)$runid, array_merge(
                     $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
                     [
@@ -470,12 +492,10 @@ class confirm_run_service {
                     if ($nextqueueitemid !== '' && is_array($nextcommand)) {
                         $confirmationcode = $this->pendingintentsvc->set(
                             $threadid,
-                            [],
                             $userid,
                             $contextid,
                             [
                                 'queue_item_ids' => [$nextqueueitemid],
-                                'queue_authoritative' => true,
                             ]
                         );
 
@@ -585,6 +605,7 @@ class confirm_run_service {
                     $queuesvc,
                     $threadid,
                     $activequeueitemid,
+                    'EXECUTION_EXCEPTION_RETRY_HINT',
                     $executionissuecodes,
                     $errorclass,
                     $e->getMessage(),
@@ -595,6 +616,7 @@ class confirm_run_service {
                     $queuesvc,
                     $threadid,
                     $activequeueitemid,
+                    'EXECUTION_EXCEPTION_FATAL',
                     [],
                     'provider_error',
                     $e->getMessage()
@@ -657,7 +679,8 @@ class confirm_run_service {
         string $message,
         array $issuecodes = [],
         array $errors = [],
-        string $queueitemid = ''
+        string $queueitemid = '',
+        array $attemptbudget = []
     ): array {
         return [
             'success' => false,
@@ -673,6 +696,7 @@ class confirm_run_service {
             'errors' => $errors,
             'pending_confirmation_code' => '',
             'queueitemid' => $queueitemid,
+            'attempt_budget' => $attemptbudget,
             ...$this->build_preview_response_fields($cmid, $userid, []),
         ];
     }
@@ -760,15 +784,26 @@ class confirm_run_service {
         $decisionissuecodes = array_values(array_unique(array_merge($issuecodes, $decision->issuecodes)));
 
         if ($decision->status !== 'retry_hint') {
+            $budget = attempt_budget_dto::from_queue_item([
+                'preflight_retry_count' => $retrycount,
+                'retry_count' => $retrycount,
+            ], max(1, $retrycount + 1), 'RETRY_EXHAUSTED')->to_array();
             return [
                 'queue_status' => 'failed',
                 'issue_codes' => $decisionissuecodes,
-                'meta' => ['retry_count' => $retrycount],
+                'meta' => [
+                    'retry_count' => $retrycount,
+                    'attempt_budget' => $budget,
+                ],
             ];
         }
 
         $nextretrycount = $retrycount + 1;
         $retryafterms = max(1, (int)$decision->retryafterms);
+        $budget = attempt_budget_dto::from_queue_item([
+            'preflight_retry_count' => $nextretrycount,
+            'retry_count' => $nextretrycount,
+        ], max(1, $nextretrycount + 1))->to_array();
         return [
             'queue_status' => 'retry_waiting',
             'issue_codes' => $decisionissuecodes,
@@ -778,6 +813,7 @@ class confirm_run_service {
                 'retry_after_ms' => $retryafterms,
                 'backoff_ms' => $retryafterms,
                 'next_retry_at' => time() + (int)ceil($retryafterms / 1000),
+                'attempt_budget' => $budget,
             ],
         ];
     }
@@ -789,7 +825,7 @@ class confirm_run_service {
      * @param int $threadid
      * @param string $queueitemid
      * @param array<string,mixed> $retrymeta
-     * @return array{queue_item_id:string,taskname:string,task_version:int,retry_after_ms:int,contextid:int}
+     * @return array{queue_item_id:string,taskname:string,task_version:int,retry_after_ms:int,contextid:int,reason_code:string}
      */
     private function build_queue_audit_context(
         queue_manager $queuesvc,
@@ -806,6 +842,7 @@ class confirm_run_service {
             'taskname' => trim((string)($item['task'] ?? '')),
             'task_version' => max(0, (int)($item['version'] ?? 0)),
             'retry_after_ms' => max(0, (int)($retrymeta['retry_after_ms'] ?? ($item['retry_after_ms'] ?? 0))),
+            'reason_code' => trim((string)($item['reason_code'] ?? '')),
         ];
     }
 
@@ -977,8 +1014,9 @@ class confirm_run_service {
                 $queuesvc,
                 $threadid,
                 $queueitemid,
-                ['DEPENDENCY_FAILED'],
-                'domain_conflict',
+                'DEPENDENCY_FAILED_SKIP',
+                ['DEPENDENCY_FAILED', 'LOGICAL_SKIP'],
+                'dependency_failed',
                 'Skipped because a dependent queue item failed.'
             );
         }

@@ -44,13 +44,35 @@ class task_prompt_contract {
     public function to_array(): array {
         return [
             'intent' => trim((string)($this->payload['intent'] ?? '')),
-            'anchors' => array_values(array_filter((array)($this->payload['anchors'] ?? []), 'is_string')),
-            'minimal_input' => array_values(array_filter((array)($this->payload['minimal_input'] ?? []), 'is_string')),
+            'anchors' => self::normalize_string_list((array)($this->payload['anchors'] ?? [])),
+            'minimal_input' => self::normalize_string_list((array)($this->payload['minimal_input'] ?? [])),
             'example_input' => is_array($this->payload['example_input'] ?? null) ? (array)$this->payload['example_input'] : [],
             'namespace' => trim((string)($this->payload['namespace'] ?? '')),
             'version' => max(1, (int)($this->payload['version'] ?? 1)),
-            'capabilities' => array_values(array_filter((array)($this->payload['capabilities'] ?? []), 'is_string')),
-            'context_scopes' => array_values(array_filter((array)($this->payload['context_scopes'] ?? []), 'is_string')),
+            'capabilities' => self::normalize_string_list((array)($this->payload['capabilities'] ?? [])),
+            'context_scopes' => self::normalize_string_list((array)($this->payload['context_scopes'] ?? [])),
         ];
+    }
+
+    /**
+     * Normalize a list of scalar/string values into unique, trimmed strings.
+     *
+     * @param array<int,mixed> $values
+     * @return array<int,string>
+     */
+    private static function normalize_string_list(array $values): array {
+        $normalized = [];
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+            $entry = trim($value);
+            if ($entry === '') {
+                continue;
+            }
+            $normalized[] = $entry;
+        }
+
+        return array_values(array_unique($normalized));
     }
 }

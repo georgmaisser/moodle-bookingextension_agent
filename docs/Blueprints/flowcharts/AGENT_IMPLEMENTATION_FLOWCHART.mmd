@@ -11,6 +11,10 @@ flowchart TD
         APREVIEW["ai_render_command_preview::execute()"]
     end
 
+    subgraph WORKER["Async Worker Layer (classes/task/)"]
+        ADHOC["execute_ai_run_adhoc\nqueued by confirm_run_service\n(process confirmed run async)"]
+    end
+
     %% =========================================================
     %% AUTH + STORE
     %% =========================================================
@@ -149,9 +153,9 @@ flowchart TD
         EXC_GUARD["execution_guard::verify(\n  prepared_input, execution_guard_token,\n  contextid, userid)\nno second full preflight"]
         EXC_GUARD_OK{"guard\npass?"}
         EXC_RUN["task::execute(prepared_input, contextid, userid)\n→ result payload"]
-        EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions\n→ spawn_commands[]"]
+        EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
-        EXC_SPAWN["spawn_handler\nregister child commands in same queue/run"]
+        EXC_SPAWN["spawn_handler (contract path)\nspawn_commands schema/normalization present\nruntime enqueue path currently optional"]
         EXC_DOMAIN["domain error\n→ failed + observation with error_detail"]
     end
 
@@ -210,8 +214,10 @@ flowchart TD
     APO --> AZ3
     APREVIEW --> AZ3
     ACR -->|"allow_session=true"| CS11
+    ACR -->|"executionmode=adhoc\nqueue_adhoc_task"| ADHOC
     ACR -->|"consume pending intent"| CS13
     CS13 -->|"queue item resolved"| Q_READY
+    ADHOC -->|"process queued run"| EXC
 
     AZ1 --> CS1
     AZ2 --> CS1
@@ -337,9 +343,9 @@ flowchart TD
     EXC_RUN --> EXC_SUCC
     EXC_RUN --> EXC_TRANSIENT
     EXC_RUN --> EXC_DOMAIN
-    EXC_SUCC --> EXC_SPAWN
-    EXC_SPAWN -->|"spawn_commands[] + depends_on"| Q_SPAWN
-    Q_SPAWN -->|"enqueue planned child"| Q_ENQUEUE
+    EXC_SUCC -.->|"optional: spawn contract path"| EXC_SPAWN
+    EXC_SPAWN -.->|"optional enqueue of child commands"| Q_SPAWN
+    Q_SPAWN -.->|"optional: enqueue planned child"| Q_ENQUEUE
     EXC_TRANSIENT -->|"retry count < max_retries"| Q_RETRY
     EXC_TRANSIENT -->|"max retries exceeded"| FAIL_OUT
     EXC_DOMAIN --> FAIL_OUT
@@ -403,7 +409,8 @@ flowchart TD
         LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
         LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
         LG_PLAN["Planner contract\nread-only as task_call, mutating as confirmation_request\nfollow-up via confirm_pending"]
-        LG_SPAWN_RULE["Spawn-only for deterministic follow-ups\nrequires bound outputs + valid late preflight"]
+        LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
+        LG_ADHOC["Adhoc execution mode\nconfirmed run can be queued\nand executed async via worker task"]
         LG_CAP["Task release gates\nruntime + active + context + capability"]
         LG_RETRY["Retry lifecycle + global budget view\npreflight retry_hint + queue retry_waiting\n+ execution retry + loop budget"]
         LG_IDEM["Idempotency split\nqueue: signature reuse\nexecutor: already executed skip"]
@@ -446,6 +453,7 @@ flowchart TD
     style LG_AGN fill:#1d3557,color:#fff
     style LG_PLAN fill:#1d3557,color:#fff
     style LG_SPAWN_RULE fill:#264653,color:#fff
+    style LG_ADHOC fill:#457b9d,color:#fff
     style LG_CAP fill:#264653,color:#fff
     style LG_RETRY fill:#457b9d,color:#fff
     style LG_IDEM fill:#264653,color:#fff

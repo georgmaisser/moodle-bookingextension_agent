@@ -29,6 +29,7 @@ namespace bookingextension_agent\local\wbagent;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
+use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\messaging\message_persistence_service;
@@ -128,6 +129,9 @@ class agent_runtime {
             $result = $this->run_internal($threadid, $cmid, $userid, $state->get_observations(), $state);
             $result['loop_step'] = $step + 1;
             $result['loop_max_steps'] = $limit;
+            $result['attempt_budget'] = attempt_budget_dto::from_loop($step + 1, $limit)->to_array();
+            $result['attempt_budget']['loop_step'] = $step + 1;
+            $result['attempt_budget']['loop_max_steps'] = $limit;
 
             if ((string)($result['response_type'] ?? '') === 'execution_result') {
                 $observation = result_payload_summarizer::for_observation(
@@ -254,6 +258,13 @@ class agent_runtime {
             'lang' => $lang,
             'loop_step' => $state->step_count(),
             'loop_max_steps' => $limit,
+            'attempt_budget' => array_merge(
+                attempt_budget_dto::from_loop($state->step_count(), $limit, 'BUDGET_EXCEEDED')->to_array(),
+                [
+                    'loop_step' => $state->step_count(),
+                    'loop_max_steps' => $limit,
+                ]
+            ),
         ];
     }
 

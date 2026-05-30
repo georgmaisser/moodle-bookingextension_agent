@@ -32,6 +32,9 @@ use bookingextension_agent\local\wbagent\queue\queue_manager;
  * Centralizes queue status transitions.
  */
 class queue_transition_service {
+    /** Fallback reason code when a caller provides an empty value. */
+    private const DEFAULT_REASON_CODE = 'TRANSITION_UNSPECIFIED';
+
     /**
      * Apply canonical preflight decision to mutating queue items.
      *
@@ -110,49 +113,36 @@ class queue_transition_service {
             }
 
             if (queue_status_policy::is_ready_status($targetstatus)) {
-                $this->to_ready($queuesvc, $threadid, $queueitemid, $issuecodes);
+                $reasoncode = $autoconfirmmode ? 'PREFLIGHT_PASS_AUTOCONFIRM' : 'PREFLIGHT_PASS_READY';
+                $this->to_ready($queuesvc, $threadid, $queueitemid, $reasoncode, $issuecodes);
             } else if ($targetstatus === 'blocked_confirmation') {
-                $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, $issuecodes);
+                $reasoncode = $status === 'soft_block'
+                    ? 'PREFLIGHT_SOFT_BLOCK'
+                    : 'PREFLIGHT_PASS_NEEDS_CONFIRMATION';
+                $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, $reasoncode, $issuecodes);
             } else if (queue_status_policy::is_retry_waiting_status($targetstatus)) {
                 $this->to_retry_waiting(
                     $queuesvc,
                     $threadid,
                     $queueitemid,
+                    'PREFLIGHT_RETRY_HINT',
                     $issuecodes,
                     $errorclass,
                     $message,
                     $extrafields
                 );
             } else {
-                $this->to_failed($queuesvc, $threadid, $queueitemid, $issuecodes, $errorclass, $message);
+                $this->to_failed(
+                    $queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    'PREFLIGHT_HARD_BLOCK',
+                    $issuecodes,
+                    $errorclass,
+                    $message
+                );
             }
         }
-    }
-
-    /**
-     * Transition queue item to an arbitrary status.
-     *
-     * @param queue_manager $queuesvc
-     * @param int $threadid
-     * @param string $queueitemid
-     * @param string $status
-     * @param array<int,string> $issuecodes
-     * @param string $errorclass
-     * @param string $message
-     * @param array<string,mixed> $meta
-     * @return void
-     */
-    public function to_status(
-        queue_manager $queuesvc,
-        int $threadid,
-        string $queueitemid,
-        string $status,
-        array $issuecodes = [],
-        string $errorclass = '',
-        string $message = '',
-        array $meta = []
-    ): void {
-        $queuesvc->update_status($threadid, $queueitemid, $status, $issuecodes, $errorclass, $message, $meta);
     }
 
     /**
@@ -164,8 +154,22 @@ class queue_transition_service {
      * @param array<int,string> $issuecodes
      * @return void
      */
-    public function to_ready(queue_manager $queuesvc, int $threadid, string $queueitemid, array $issuecodes = []): void {
-        $queuesvc->update_status($threadid, $queueitemid, queue_status_policy::ready_status(), $issuecodes);
+    public function to_ready(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $queueitemid,
+        string $reasoncode,
+        array $issuecodes = []
+    ): void {
+        $queuesvc->update_status(
+            $threadid,
+            $queueitemid,
+            queue_status_policy::ready_status(),
+            $issuecodes,
+            '',
+            '',
+            ['reason_code' => $this->normalize_reason_code($reasoncode)]
+        );
     }
 
     /**
@@ -181,9 +185,18 @@ class queue_transition_service {
         queue_manager $queuesvc,
         int $threadid,
         string $queueitemid,
+        string $reasoncode,
         array $issuecodes = []
     ): void {
-        $queuesvc->update_status($threadid, $queueitemid, 'blocked_confirmation', $issuecodes);
+        $queuesvc->update_status(
+            $threadid,
+            $queueitemid,
+            'blocked_confirmation',
+            $issuecodes,
+            '',
+            '',
+            ['reason_code' => $this->normalize_reason_code($reasoncode)]
+        );
     }
 
     /**
@@ -202,12 +215,21 @@ class queue_transition_service {
         queue_manager $queuesvc,
         int $threadid,
         string $queueitemid,
+        string $reasoncode,
         array $issuecodes,
         string $errorclass,
         string $message,
         array $meta
     ): void {
-        $queuesvc->update_status($threadid, $queueitemid, 'retry_waiting', $issuecodes, $errorclass, $message, $meta);
+        $queuesvc->update_status(
+            $threadid,
+            $queueitemid,
+            'retry_waiting',
+            $issuecodes,
+            $errorclass,
+            $message,
+            array_merge($meta, ['reason_code' => $this->normalize_reason_code($reasoncode)])
+        );
     }
 
     /**
@@ -216,6 +238,7 @@ class queue_transition_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
+     * @param string $reasoncode
      * @param array<int,string> $issuecodes
      * @param string $errorclass
      * @param string $message
@@ -225,6 +248,7 @@ class queue_transition_service {
         queue_manager $queuesvc,
         int $threadid,
         string $queueitemid,
+        string $reasoncode,
         array $issuecodes = [],
         string $errorclass = '',
         string $message = ''
@@ -235,7 +259,8 @@ class queue_transition_service {
             queue_status_policy::failed_status(),
             $issuecodes,
             $errorclass,
-            $message
+            $message,
+            ['reason_code' => $this->normalize_reason_code($reasoncode)]
         );
     }
 
@@ -245,6 +270,7 @@ class queue_transition_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
+     * @param string $reasoncode
      * @param array<int,string> $issuecodes
      * @param string $errorclass
      * @param string $message
@@ -254,6 +280,7 @@ class queue_transition_service {
         queue_manager $queuesvc,
         int $threadid,
         string $queueitemid,
+        string $reasoncode,
         array $issuecodes = [],
         string $errorclass = '',
         string $message = ''
@@ -264,7 +291,8 @@ class queue_transition_service {
             queue_status_policy::skipped_status(),
             $issuecodes,
             $errorclass,
-            $message
+            $message,
+            ['reason_code' => $this->normalize_reason_code($reasoncode)]
         );
     }
 
@@ -274,11 +302,37 @@ class queue_transition_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
+     * @param string $reasoncode
      * @param array<int,string> $issuecodes
      * @return void
      */
-    public function to_succeeded(queue_manager $queuesvc, int $threadid, string $queueitemid, array $issuecodes = []): void {
-        $queuesvc->update_status($threadid, $queueitemid, queue_status_policy::succeeded_status(), $issuecodes);
+    public function to_succeeded(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $queueitemid,
+        string $reasoncode,
+        array $issuecodes = []
+    ): void {
+        $queuesvc->update_status(
+            $threadid,
+            $queueitemid,
+            queue_status_policy::succeeded_status(),
+            $issuecodes,
+            '',
+            '',
+            ['reason_code' => $this->normalize_reason_code($reasoncode)]
+        );
+    }
+
+    /**
+     * Normalize a transition reason code.
+     *
+     * @param string $reasoncode
+     * @return string
+     */
+    private function normalize_reason_code(string $reasoncode): string {
+        $value = trim($reasoncode);
+        return $value !== '' ? $value : self::DEFAULT_REASON_CODE;
     }
 
     /**

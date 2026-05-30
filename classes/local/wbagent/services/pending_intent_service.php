@@ -80,7 +80,6 @@ class pending_intent_service {
      * Persist a pending intent and return confirmation code.
      *
      * @param int $threadid
-     * @param array<int,array<string,mixed>> $commands
      * @param int $userid
      * @param int $contextid
      * @param array<string,mixed> $metadata
@@ -88,19 +87,22 @@ class pending_intent_service {
      */
     public function set(
         int $threadid,
-        array $commands,
         int $userid,
         int $contextid,
         array $metadata = []
     ): string {
-        $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($commands));
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($metadata['queue_item_ids'] ?? []))));
+        $queueitemids = array_values(array_unique($queueitemids));
+        $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($queueitemids));
         $this->store->set_pending_intent(
             $threadid,
-            $commands,
             $intentkey,
             $userid,
             $contextid,
-            $metadata
+            array_merge($metadata, [
+                'queue_item_ids' => $queueitemids,
+                'queue_authoritative' => true,
+            ])
         );
 
         $pending = $this->store->get_pending_intent($threadid);
