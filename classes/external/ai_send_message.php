@@ -215,8 +215,8 @@ class ai_send_message extends external_api {
             $privacyapplied = 1;
         }
 
-        $formattedmessage = self::format_ws_message((string)($result['message'] ?? ''), $context);
-        $formatteddisplaymessage = self::format_ws_message($displaymessage, $context);
+        $formattedmessage = ws_message_formatter::format_ws_message((string)($result['message'] ?? ''), $context);
+        $formatteddisplaymessage = ws_message_formatter::format_ws_message($displaymessage, $context);
         $issuecodes = self::normalize_string_list($result['issue_codes'] ?? []);
         $errors = self::normalize_string_list($result['errors'] ?? []);
         $autoconfirmblocked = !empty($issuecodes) || !empty($errors);
@@ -258,25 +258,6 @@ class ai_send_message extends external_api {
                 (array)($result['results'] ?? [])
             ),
         ];
-    }
-
-    /**
-     * Format a markdown-like assistant message as HTML for WS output.
-     *
-     * @param string $message
-     * @param context_module $context
-     * @return string
-     */
-    private static function format_ws_message(string $message, context_module $context): string {
-        $message = trim($message);
-        if ($message === '') {
-            return '';
-        }
-
-        return format_text(\markdown_to_html($message), 1, [
-            'context' => $context,
-            'para' => false,
-        ]);
     }
 
     /**

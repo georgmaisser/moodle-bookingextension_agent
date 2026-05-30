@@ -18,7 +18,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
-use core_text;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -202,9 +201,9 @@ class preflight_pipeline {
             );
         }
 
-        $errorclass = $this->classify_error_class($combinedissuecodes);
+        $errorclass = preflight_error_classifier::infer_from_issue_codes($combinedissuecodes);
         $result = $domainresult;
-        if ($errorclass !== '' && in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+        if (preflight_error_classifier::is_retryable_error_class($errorclass)) {
             $result = $this->executiongate->evaluate($errorclass, 0, $combinedissuecodes);
         }
 
@@ -304,35 +303,4 @@ class preflight_pipeline {
         ];
     }
 
-    /**
-     * Infer gate-relevant error class from issue codes.
-     *
-     * @param array<int,string> $issuecodes
-     * @return string
-     */
-    private function classify_error_class(array $issuecodes): string {
-        foreach ($issuecodes as $code) {
-            $upper = core_text::strtoupper(trim((string)$code));
-            if ($upper === '') {
-                continue;
-            }
-            if (str_contains($upper, 'TIMEOUT')) {
-                return 'provider_timeout';
-            }
-            if (str_contains($upper, 'TRANSIENT_IO') || str_contains($upper, 'IO_TRANSIENT')) {
-                return 'transient_io';
-            }
-            if (str_contains($upper, 'PERMISSION')) {
-                return 'permission_error';
-            }
-            if (str_contains($upper, 'CONFLICT')) {
-                return 'domain_conflict';
-            }
-            if (str_contains($upper, 'VALIDATION') || str_contains($upper, 'MISSING_')) {
-                return 'validation_error';
-            }
-        }
-
-        return '';
-    }
 }

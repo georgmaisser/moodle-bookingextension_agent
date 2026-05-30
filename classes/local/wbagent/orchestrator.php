@@ -35,7 +35,11 @@ use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\adaptive_task_catalog_service;
+use bookingextension_agent\local\wbagent\services\assistant_state_guidance_service;
+use bookingextension_agent\local\wbagent\services\completed_command_history_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
+use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
+use bookingextension_agent\local\wbagent\services\orchestrator_routing_service;
 use bookingextension_agent\local\wbagent\services\provider_routing_util;
 
 /**
@@ -93,6 +97,18 @@ class orchestrator {
     /** @var conversation_store */
     private conversation_store $store;
 
+    /** @var completed_command_history_service */
+    private completed_command_history_service $completedhistorysvc;
+
+    /** @var assistant_state_guidance_service */
+    private assistant_state_guidance_service $assistantsummariesvc;
+
+    /** @var orchestrator_routing_service */
+    private orchestrator_routing_service $orchestratorroutingsvc;
+
+    /** @var orchestrator_prompt_profile_service */
+    private orchestrator_prompt_profile_service $promptprofilesvc;
+
     /**
      * Constructor.
      *
@@ -108,6 +124,24 @@ class orchestrator {
         $this->registry = $registry;
         $this->interpreter = $interpreter;
         $this->store = $store;
+        $this->completedhistorysvc = new completed_command_history_service($store);
+        $this->assistantsummariesvc = new assistant_state_guidance_service($registry);
+        $this->orchestratorroutingsvc = new orchestrator_routing_service(
+            self::STEP_TYPE_TOOL_CALL_PARSE,
+            self::STEP_TYPE_SIMPLE_RETRIEVAL,
+            self::STEP_TYPE_FINAL_REASONING,
+            self::STEP_TYPE_FINAL_SYNTHESIS,
+            self::WB_ACTION_PLANNER_DECIDE,
+            self::WB_ACTION_GENERATE_AGENT_REPLY
+        );
+        $this->promptprofilesvc = new orchestrator_prompt_profile_service(
+            self::STEP_TYPE_TOOL_CALL_PARSE,
+            self::STEP_TYPE_SIMPLE_RETRIEVAL,
+            self::STEP_TYPE_FINAL_REASONING,
+            self::STEP_TYPE_FINAL_SYNTHESIS,
+            self::WB_ACTION_PLANNER_DECIDE,
+            self::WB_ACTION_GENERATE_AGENT_REPLY
+        );
     }
 
     /**
@@ -197,8 +231,16 @@ class orchestrator {
                     || (bool)$moduleaifields->enableaitools;
             }
 
-            $toolrouting = $this->resolve_action_class_for_step($manager, $context, self::STEP_TYPE_TOOL_CALL_PARSE);
-            $finalrouting = $this->resolve_action_class_for_step($manager, $context, self::STEP_TYPE_FINAL_REASONING);
+            $toolrouting = $this->orchestratorroutingsvc->resolve_action_class_for_step(
+                $manager,
+                $context,
+                self::STEP_TYPE_TOOL_CALL_PARSE
+            );
+            $finalrouting = $this->orchestratorroutingsvc->resolve_action_class_for_step(
+                $manager,
+                $context,
+                self::STEP_TYPE_FINAL_REASONING
+            );
 
             $toolactionclass = (string)($toolrouting['actionclass'] ?? '');
             $finalactionclass = (string)($finalrouting['actionclass'] ?? '');
@@ -218,7 +260,11 @@ class orchestrator {
                     // Defensive fallback when only one side is tagged as wunderbyte.
                     $toolenabledincontext = $moduleaienabled;
                 } else {
-                    $toolenabledincontext = $this->is_action_available_in_context($manager, $context, $toolactionclass);
+                    $toolenabledincontext = $this->orchestratorroutingsvc->is_action_available_in_context(
+                        $manager,
+                        $context,
+                        $toolactionclass
+                    );
                 }
             }
 
@@ -232,7 +278,11 @@ class orchestrator {
                     // Defensive fallback when only one side is tagged as wunderbyte.
                     $finalenabledincontext = $moduleaienabled;
                 } else {
-                    $finalenabledincontext = $this->is_action_available_in_context($manager, $context, $finalactionclass);
+                    $finalenabledincontext = $this->orchestratorroutingsvc->is_action_available_in_context(
+                        $manager,
+                        $context,
+                        $finalactionclass
+                    );
                 }
             }
 
@@ -276,10 +326,14 @@ class orchestrator {
         $context = context_module::instance($cmid);
         $contextid = (int)$context->id;
         $manager = di::get(ai_manager::class);
-        $normalizedsteptype = $this->normalize_step_type($steptype);
+        $normalizedsteptype = $this->promptprofilesvc->normalize_step_type($steptype);
         $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
 
-        $routing = $this->resolve_action_class_for_step($manager, $context, $normalizedsteptype);
+        $routing = $this->orchestratorroutingsvc->resolve_action_class_for_step(
+            $manager,
+            $context,
+            $normalizedsteptype
+        );
         $actionclass = (string)$routing['actionclass'];
         // Always provide full thread history (excluding ephemeral step bubbles)
         // so follow-up turns keep complete conversation context.
@@ -301,7 +355,7 @@ class orchestrator {
 
         $hasanyobservations = !empty($observations);
         $haseffectiveobservations = $hasanyobservations
-            && !$this->observations_are_framework_retry_hints($observations);
+            && !$this->promptprofilesvc->observations_are_framework_retry_hints($observations);
         $plannertracehistory = $this->normalize_planner_trace_history(
             $this->store->get_thread_metadata_value($threadid, 'planner_trace_history')
         );
@@ -459,10 +513,10 @@ class orchestrator {
             $plannertracehistory,
             $autoconfirmmode
         );
-        $historycount = count(array_slice($messages, -$this->get_history_limit_for_step($normalizedsteptype)));
+        $historycount = count(array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype)));
         $observationcount = count($observations);
         $primaryprovider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
-        $debugsource = $this->build_orchestrator_debug_source(
+        $debugsource = $this->orchestratorroutingsvc->build_debug_source(
             $normalizedsteptype,
             $actionclass,
             (string)$routing['routepolicy'],
@@ -890,7 +944,7 @@ PROMPT;
 
             $examples = (array)($trigger['examples'] ?? []);
             if (!empty($examples)) {
-                  $row['examples'] = $this->normalize_nonempty_string_list($examples, 2, 160);
+                $row['examples'] = $this->assistantsummariesvc->normalize_nonempty_string_list($examples, 2, 160);
                 if (empty($row['examples'])) {
                     unset($row['examples']);
                 }
@@ -981,11 +1035,11 @@ PROMPT;
         array $plannertracehistory = [],
         bool $autoconfirmmode = false
     ): string {
-        $normalizedsteptype = $this->normalize_step_type($steptype);
-        $trimmedmessages = array_slice($messages, -$this->get_history_limit_for_step($normalizedsteptype));
+        $normalizedsteptype = $this->promptprofilesvc->normalize_step_type($steptype);
+        $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype));
 
         if ($normalizedsteptype === self::STEP_TYPE_FINAL_REASONING) {
-            $contextualguidance = $this->build_contextual_guidance($trimmedmessages);
+            $contextualguidance = $this->assistantsummariesvc->build_contextual_guidance($trimmedmessages);
             if ($contextualguidance !== '') {
                 $systemprompt .= "\n\nCONTEXT-SPECIFIC GUIDANCE:\n" . $contextualguidance;
             }
@@ -993,7 +1047,7 @@ PROMPT;
 
         $assistantstateblocks = [];
         if ($normalizedsteptype === self::STEP_TYPE_FINAL_REASONING) {
-            $assistantstateblocks = $this->build_assistant_state_blocks($trimmedmessages);
+            $assistantstateblocks = $this->assistantsummariesvc->build_assistant_state_blocks($trimmedmessages);
         }
         if (!empty($assistantstateblocks)) {
             // Append FOLLOW-UP STATE POLICY from centralized builder.
@@ -1037,7 +1091,7 @@ PROMPT;
      * @return string
      */
     private function build_local_output_contract_block(string $steptype, bool $autoconfirmmode = false): string {
-        $normalized = $this->normalize_step_type($steptype);
+        $normalized = $this->promptprofilesvc->normalize_step_type($steptype);
         if ($normalized === self::STEP_TYPE_FINAL_SYNTHESIS) {
             return '';
         }
@@ -1053,8 +1107,10 @@ PROMPT;
 
         if ($autoconfirmmode) {
             $lines[] = 'Auto-confirm mode is active.';
-            $lines[] = 'Do NOT ask permission or phrase messages as questions. Instead: write a short statement announcing what will be executed.';
-            $lines[] = 'Treat recent ASSISTANT/ASSISTANT_STATE execution evidence as authoritative. Never re-emit an already-executed action (same task+input signature).';
+            $lines[] = 'Do NOT ask permission or phrase messages as questions. '
+                . 'Instead: write a short statement announcing what will be executed.';
+            $lines[] = 'Treat recent ASSISTANT/ASSISTANT_STATE execution evidence as authoritative. '
+                . 'Never re-emit an already-executed action (same task+input signature).';
             $lines[] = 'If action already executed: report completion or skip to next unexecuted action.';
             $lines[] = 'Next unexecuted mutation → response_type="confirmation_request".';
         }
@@ -1172,7 +1228,7 @@ PROMPT;
         // Keep first-turn language enforcement in SYSTEM_RUNTIME so static SYSTEM
         // prompt prefixes remain cache-friendly across requests.
         if (
-            $this->normalize_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE
+            $this->promptprofilesvc->normalize_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE
             && $isfirstassistantturn
             && !$hasobservations
         ) {
@@ -1187,8 +1243,8 @@ PROMPT;
             $this->append_json_object_section($lines, 'UNAVAILABLE TASKS:', $unavailabletaskcatalog);
         }
 
-        $completedcommands = $this->extract_completed_commands_from_messages($messages);
-        $completedcommands = $this->merge_completed_commands_from_queue($threadid, $completedcommands);
+        $completedcommands = $this->completedhistorysvc->extract_from_messages($messages);
+        $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands);
         $this->append_json_list_section($lines, 'completed_commands:', $completedcommands);
 
         $observationledger = new execution_observation_ledger($this->store);
@@ -1364,856 +1420,5 @@ PROMPT;
         }
 
         return $index;
-    }
-
-    /**
-     * Extract recently completed commands (task + executed input) from assistant state.
-     *
-     * @param array $messages
-     * @return array<int,array<string,mixed>>
-     */
-    private function extract_completed_commands_from_messages(array $messages): array {
-        $completed = [];
-        $latestassistantpayload = null;
-        $fallbackassistantpayload = null;
-
-        for ($i = count($messages) - 1; $i >= 0; $i--) {
-            $msg = $messages[$i];
-            if ((string)($msg->role ?? '') !== 'assistant') {
-                continue;
-            }
-
-            $structured = json_decode((string)($msg->structuredjson ?? ''), true);
-            if (!is_array($structured) || empty($structured)) {
-                continue;
-            }
-
-            if (!is_array($fallbackassistantpayload)) {
-                $fallbackassistantpayload = $structured;
-            }
-
-            $loopresults = (array)($structured['loop_results'] ?? []);
-            $results = (array)($structured['results'] ?? []);
-            if (!empty($loopresults) || !empty($results)) {
-                $latestassistantpayload = $structured;
-                break;
-            }
-        }
-
-        if (!is_array($latestassistantpayload)) {
-            $latestassistantpayload = $fallbackassistantpayload;
-        }
-
-        if (!is_array($latestassistantpayload) || empty($latestassistantpayload)) {
-            return [];
-        }
-
-        $results = (array)($latestassistantpayload['loop_results'] ?? []);
-        if (empty($results)) {
-            $results = (array)($latestassistantpayload['results'] ?? []);
-        }
-
-        foreach ($results as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $status = trim((string)($entry['status'] ?? ''));
-            if ($status !== 'executed') {
-                continue;
-            }
-
-            $task = trim((string)($entry['task'] ?? ''));
-            if ($task === '') {
-                continue;
-            }
-
-            $input = (array)($entry['executed_input'] ?? $entry['input'] ?? []);
-            $compact = ['task' => $task];
-            $normalizedinput = $this->normalize_completed_command_input($input);
-            if (!empty($normalizedinput)) {
-                $compact['input'] = $normalizedinput;
-            }
-            $completed[] = $compact;
-        }
-
-        if (count($completed) > 12) {
-            $completed = array_slice($completed, -12);
-        }
-
-        return $completed;
-    }
-
-    /**
-     * Merge queue-sourced executed commands into completed command history.
-     *
-     * Uses succeeded queue items as authoritative cross-step execution memory.
-     *
-     * @param int $threadid
-     * @param array<int,array<string,mixed>> $existing
-     * @return array<int,array<string,mixed>>
-     */
-    private function merge_completed_commands_from_queue(int $threadid, array $existing): array {
-        if ($threadid <= 0) {
-            return $existing;
-        }
-
-        $manager = new queue_manager($this->store);
-        $queueitems = $manager->get_queue_items($threadid);
-        if (empty($queueitems)) {
-            return $existing;
-        }
-
-        $queuecompleted = [];
-        $seen = [];
-
-        foreach ($queueitems as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            if ((int)($item['thread_id'] ?? 0) !== $threadid) {
-                continue;
-            }
-
-            if (trim((string)($item['status'] ?? '')) !== 'succeeded') {
-                continue;
-            }
-
-            $task = trim((string)($item['task'] ?? ''));
-            if ($task === '') {
-                continue;
-            }
-
-            $input = [];
-            if (is_array($item['prepared_input'] ?? null)) {
-                $input = (array)$item['prepared_input'];
-            } else if (is_array($item['input'] ?? null)) {
-                $input = (array)$item['input'];
-            }
-
-            $compact = ['task' => $task];
-            $normalizedinput = $this->normalize_completed_command_input($input);
-            if (!empty($normalizedinput)) {
-                $compact['input'] = $normalizedinput;
-            }
-
-            $signature = $this->build_completed_command_signature($compact);
-            if ($signature === '' || isset($seen[$signature])) {
-                continue;
-            }
-
-            $seen[$signature] = true;
-            $queuecompleted[] = $compact;
-        }
-
-        // Queue is authoritative for completed mutation history in the current thread.
-        // Only if no succeeded queue items exist, fall back to message-derived evidence.
-        $merged = !empty($queuecompleted) ? $queuecompleted : $existing;
-
-        if (count($merged) > 12) {
-            $merged = array_slice($merged, -12);
-        }
-
-        return $merged;
-    }
-
-    /**
-     * Build a deterministic signature for completed command deduplication.
-     *
-     * @param array<string,mixed> $command
-     * @return string
-     */
-    private function build_completed_command_signature(array $command): string {
-        $task = trim((string)($command['task'] ?? ''));
-        if ($task === '') {
-            return '';
-        }
-
-        $input = [];
-        if (is_array($command['input'] ?? null)) {
-            $input = (array)$command['input'];
-        }
-
-        ksort($input);
-        $json = $this->json_encode_or_empty($input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if ($json === '') {
-            $json = '{}';
-        }
-
-        return hash('sha256', $task . '|' . $json);
-    }
-    /**
-     * Normalize executed input for SYSTEM_RUNTIME.completed_commands.
-     *
-     * Keeps stable planner-relevant parameters while trimming noisy payloads.
-     *
-     * @param array $input
-     * @return array<string,mixed>
-     */
-    private function normalize_completed_command_input(array $input): array {
-        $dropkeys = [
-            'confirmed',
-            'outputlang',
-            'lang',
-            'user_lang',
-            'sessiontoken',
-            'sesskey',
-        ];
-
-        $normalized = [];
-        foreach ($input as $key => $value) {
-            if (!is_string($key) || $key === '' || in_array($key, $dropkeys, true)) {
-                continue;
-            }
-
-            $cleanvalue = $this->normalize_completed_command_value($value);
-            if ($cleanvalue === null) {
-                continue;
-            }
-
-            $normalized[$key] = $cleanvalue;
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * Normalize one completed command value recursively.
-     *
-     * @param mixed $value
-     * @return mixed|null
-     */
-    private function normalize_completed_command_value($value) {
-        if (is_null($value) || is_bool($value) || is_int($value) || is_float($value)) {
-            return $value;
-        }
-
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            if ($trimmed === '') {
-                return null;
-            }
-            return core_text::substr($trimmed, 0, 160);
-        }
-
-        if (is_array($value)) {
-            $out = [];
-            $count = 0;
-            foreach ($value as $k => $v) {
-                if ($count >= 20) {
-                    break;
-                }
-
-                $normalized = $this->normalize_completed_command_value($v);
-                if ($normalized === null) {
-                    continue;
-                }
-
-                if (is_string($k)) {
-                    $out[$k] = $normalized;
-                } else {
-                    $out[] = $normalized;
-                }
-                $count++;
-            }
-
-            return empty($out) ? null : $out;
-        }
-
-        return null;
-    }
-
-    /**
-     * Detect whether observations only contain framework-authored retry hints.
-     *
-     * @param array $observations
-     * @return bool
-     */
-    private function observations_are_framework_retry_hints(array $observations): bool {
-        $seen = false;
-
-        foreach ($observations as $observation) {
-            $text = trim((string)$observation);
-            if ($text === '') {
-                continue;
-            }
-
-            $seen = true;
-            if (!str_starts_with($text, 'RETRY_HINT:')) {
-                return false;
-            }
-        }
-
-        return $seen;
-    }
-
-    /**
-     * Normalize orchestrator step type values to supported profiles.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    private function normalize_step_type(string $steptype): string {
-        $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === self::STEP_TYPE_FINAL_REASONING) {
-            return self::STEP_TYPE_FINAL_REASONING;
-        }
-        if ($normalized === self::STEP_TYPE_FINAL_SYNTHESIS) {
-            return self::STEP_TYPE_FINAL_SYNTHESIS;
-        }
-        if ($normalized === self::STEP_TYPE_SIMPLE_RETRIEVAL) {
-            return self::STEP_TYPE_SIMPLE_RETRIEVAL;
-        }
-        return self::STEP_TYPE_TOOL_CALL_PARSE;
-    }
-
-    /**
-     * Resolve admin setting key for initial prompt templates per step profile.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    private function get_initial_prompt_config_key(string $steptype): string {
-        if ($steptype === self::STEP_TYPE_FINAL_REASONING) {
-            return 'aiinitialprompt_final_reasoning';
-        }
-        if ($steptype === self::STEP_TYPE_FINAL_SYNTHESIS) {
-            return 'aiinitialprompt_final_synthesis';
-        }
-        if ($steptype === self::STEP_TYPE_SIMPLE_RETRIEVAL) {
-            return 'aiinitialprompt_simple_retrieval';
-        }
-        return 'aiinitialprompt_tool_call_parse';
-    }
-
-    /**
-     * Resolve the admin config key for action-specific initial prompts.
-     *
-     * @param string $actionclass
-     * @return string
-     */
-    private function get_action_initial_prompt_config_key(string $actionclass): string {
-        if (
-            $actionclass === summarise_text::class
-            || $actionclass === self::WB_ACTION_PLANNER_DECIDE
-        ) {
-            return 'aiinitialprompt_summarise_text';
-        }
-        if ($actionclass === explain_text::class) {
-            return 'aiinitialprompt_explain_text';
-        }
-        if (
-            $actionclass === generate_text::class
-            || $actionclass === self::WB_ACTION_GENERATE_AGENT_REPLY
-        ) {
-            return 'aiinitialprompt_generate_text';
-        }
-        return '';
-    }
-
-    /**
-     * Return history depth per prompt profile.
-     *
-     * Full thread context is required so follow-up turns do not lose prior
-     * user questions or assistant answers.
-     *
-     * @param string $steptype
-     * @return int
-     */
-    private function get_history_limit_for_step(string $steptype): int {
-        return PHP_INT_MAX;
-    }
-
-    /**
-     * Treat empty or legacy full-template values as unset config for prompt fallback.
-     *
-     * @param string $template
-     * @param string $legacydefault
-     * @return string
-     */
-    private function normalize_config_prompt_template(string $template, string $legacydefault): string {
-        $trimmed = trim($template);
-        if ($trimmed === '') {
-            return '';
-        }
-        if ($trimmed === $legacydefault) {
-            return '';
-        }
-        return $template;
-    }
-
-    /**
-     * Route to action classes by step profile for OpenAI providers, with fallback.
-     *
-     * @param ai_manager $manager
-     * @param context_module $context
-     * @param string $steptype
-     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
-     */
-    private function resolve_action_class_for_step(ai_manager $manager, context_module $context, string $steptype): array {
-        if ($this->is_wunderbyte_routing_available($manager)) {
-            if (
-                $steptype === self::STEP_TYPE_FINAL_REASONING
-                || $steptype === self::STEP_TYPE_FINAL_SYNTHESIS
-            ) {
-                return [
-                    'actionclass' => self::WB_ACTION_GENERATE_AGENT_REPLY,
-                    'routepolicy' => 'wunderbyte',
-                    'routingfallback' => false,
-                ];
-            }
-
-            return [
-                'actionclass' => self::WB_ACTION_PLANNER_DECIDE,
-                'routepolicy' => 'wunderbyte',
-                'routingfallback' => false,
-            ];
-        }
-
-        if (!$this->should_use_openai_step_routing($manager)) {
-            return [
-                'actionclass' => generate_text::class,
-                'routepolicy' => 'default',
-                'routingfallback' => false,
-            ];
-        }
-
-        if ($steptype === self::STEP_TYPE_FINAL_REASONING || $steptype === self::STEP_TYPE_FINAL_SYNTHESIS) {
-            if ($this->is_action_available_in_context($manager, $context, generate_text::class)) {
-                return [
-                    'actionclass' => generate_text::class,
-                    'routepolicy' => 'openai',
-                    'routingfallback' => false,
-                ];
-            }
-            if ($this->is_action_available_in_context($manager, $context, explain_text::class)) {
-                return [
-                    'actionclass' => explain_text::class,
-                    'routepolicy' => 'openai',
-                    'routingfallback' => true,
-                ];
-            }
-            return [
-                'actionclass' => generate_text::class,
-                'routepolicy' => 'openai',
-                'routingfallback' => true,
-            ];
-        }
-
-        if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
-            return [
-                'actionclass' => summarise_text::class,
-                'routepolicy' => 'openai',
-                'routingfallback' => false,
-            ];
-        }
-
-        return [
-            'actionclass' => generate_text::class,
-            'routepolicy' => 'openai',
-            'routingfallback' => true,
-        ];
-    }
-
-    /**
-     * Use step-based action routing only when OpenAI provider is active for text actions.
-     *
-     * @param ai_manager $manager
-     * @return bool
-     */
-    private function should_use_openai_step_routing(ai_manager $manager): bool {
-        try {
-            $providers = $manager->get_providers_for_actions([generate_text::class], true);
-            $forgenerate = (array)($providers[generate_text::class] ?? []);
-            if (empty($forgenerate)) {
-                return false;
-            }
-            $primary = reset($forgenerate);
-            return (string)($primary->provider ?? '') === 'aiprovider_openai';
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Determine whether wunderbyte-specific action routing is available.
-     *
-     * @param ai_manager $manager
-     * @return bool
-     */
-    private function is_wunderbyte_routing_available(ai_manager $manager): bool {
-        try {
-            // Check if Wunderbyte provider instances exist and are active.
-            $instances = $manager->get_provider_instances(['provider' => 'aiprovider_wunderbyte\\provider']);
-            if (empty($instances)) {
-                return false;
-            }
-
-            foreach ($instances as $instance) {
-                if (empty($instance->enabled)) {
-                    continue;
-                }
-
-                if (method_exists($instance, 'is_provider_configured') && !$instance->is_provider_configured()) {
-                    continue;
-                }
-
-                // Provider exists, is enabled, and is configured.
-                // Wunderbyte action classes will be available if the provider is installed.
-                return true;
-            }
-
-            return false;
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Build compact orchestrator telemetry in source field for local_wbagent_ai_llm_debug.
-     *
-     * @param string $steptype
-     * @param string $actionclass
-     * @param string $routepolicy
-     * @param bool $routingfallback
-     * @param string $primaryprovider
-     * @param int $historycount
-     * @param int $observationcount
-     * @param string $catalogselectionmode
-     * @param string $embeddingstatus
-     * @param int $catalogsize
-     * @param bool $embeddingrebuildqueued
-     * @param bool $exception
-     * @return string
-     */
-    private function build_orchestrator_debug_source(
-        string $steptype,
-        string $actionclass,
-        string $routepolicy,
-        bool $routingfallback,
-        string $primaryprovider,
-        int $historycount,
-        int $observationcount,
-        string $catalogselectionmode,
-        string $embeddingstatus,
-        int $catalogsize,
-        bool $embeddingrebuildqueued,
-        bool $exception
-    ): string {
-        $stepmap = [
-            self::STEP_TYPE_TOOL_CALL_PARSE => 'tcp',
-            self::STEP_TYPE_SIMPLE_RETRIEVAL => 'sr',
-            self::STEP_TYPE_FINAL_REASONING => 'fr',
-            self::STEP_TYPE_FINAL_SYNTHESIS => 'syn',
-        ];
-        $actionmap = [
-            generate_text::class => 'gen',
-            summarise_text::class => 'sum',
-            explain_text::class => 'exp',
-            self::WB_ACTION_PLANNER_DECIDE => 'wpl',
-            self::WB_ACTION_GENERATE_AGENT_REPLY => 'wgr',
-        ];
-
-        $step = $stepmap[$steptype] ?? 'unk';
-        $action = $actionmap[$actionclass] ?? 'oth';
-        $route = 'df';
-        if ($routepolicy === 'openai') {
-            $route = 'oa';
-        } else if ($routepolicy === 'wunderbyte') {
-            $route = 'wb';
-        }
-        $provider = provider_routing_util::short_provider_for_debug($primaryprovider);
-
-        $source = 'orc'
-            . '|st=' . $step
-            . '|ac=' . $action
-            . '|rt=' . $route
-            . '|fb=' . ($routingfallback ? '1' : '0')
-            . '|pv=' . $provider
-            . '|hm=' . max(0, $historycount)
-            . '|ob=' . max(0, $observationcount)
-            . '|cm=' . $this->short_debug_token($catalogselectionmode)
-            . '|em=' . $this->short_debug_token($embeddingstatus)
-            . '|tk=' . max(0, $catalogsize)
-            . '|rq=' . ($embeddingrebuildqueued ? '1' : '0')
-            . '|ex=' . ($exception ? '1' : '0');
-
-        if (core_text::strlen($source) > 100) {
-            return core_text::substr($source, 0, 100);
-        }
-
-        return $source;
-    }
-
-    /**
-     * Keep debug token values compact and stable.
-     *
-     * @param string $value
-     * @return string
-     */
-    private function short_debug_token(string $value): string {
-        $normalized = preg_replace('/[^a-z0-9_\-]+/i', '', core_text::strtolower(trim($value)));
-        if (!is_string($normalized) || $normalized === '') {
-            return 'na';
-        }
-
-        if (core_text::strlen($normalized) > 10) {
-            return core_text::substr($normalized, 0, 10);
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * Check action availability with context and global provider state.
-     *
-     * @param ai_manager $manager
-     * @param context_module $context
-     * @param string $actionclass
-     * @return bool
-     */
-    private function is_action_available_in_context(ai_manager $manager, context_module $context, string $actionclass): bool {
-        if (!$manager->is_action_available($actionclass)) {
-            return false;
-        }
-        if (!method_exists($manager, 'is_action_enabled_in_context')) {
-            return true;
-        }
-        return $manager->is_action_enabled_in_context($context, $actionclass);
-    }
-
-    /**
-     * Build compact structured state blocks from recent assistant messages.
-     *
-     * @param array $messages
-     * @return string[]
-     */
-    private function build_assistant_state_blocks(array $messages): array {
-        $states = [];
-
-        foreach ($messages as $msg) {
-            if ((string)($msg->role ?? '') !== 'assistant') {
-                continue;
-            }
-
-            $structured = json_decode((string)($msg->structuredjson ?? ''), true);
-            if (!is_array($structured) || empty($structured)) {
-                continue;
-            }
-
-            $summary = $this->summarize_structured_state($structured);
-            if ($summary !== '') {
-                $states[] = $summary;
-            }
-        }
-
-        if (count($states) > 6) {
-            $states = array_slice($states, -6);
-        }
-
-        return $states;
-    }
-
-    /**
-     * Summarize one structured assistant payload into a deterministic state line block.
-     *
-     * @param array $structured
-     * @return string
-     */
-    private function summarize_structured_state(array $structured): string {
-        $lines = [];
-
-        $responsetype = trim((string)($structured['response_type'] ?? ''));
-        if ($responsetype !== '') {
-            $lines[] = 'response_type=' . $responsetype;
-        }
-
-        $lang = trim((string)($structured['lang'] ?? ''));
-        if ($lang !== '') {
-            $lines[] = 'lang=' . $lang;
-        }
-
-          $issuecodes = $this->normalize_nonempty_string_list((array)($structured['issue_codes'] ?? []));
-        if (!empty($issuecodes)) {
-            $lines[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 8));
-        }
-
-          $attemptedtasks = $this->normalize_nonempty_string_list((array)($structured['attempted_tasks'] ?? []));
-        if (!empty($attemptedtasks)) {
-            $lines[] = 'attempted_tasks=' . implode(',', array_slice($attemptedtasks, 0, 8));
-        }
-
-        $results = (array)($structured['results'] ?? []);
-        if (empty($results)) {
-            $results = (array)($structured['loop_results'] ?? []);
-        }
-        foreach ($this->extract_result_facts($results) as $fact) {
-            $lines[] = $fact;
-        }
-
-        return implode("\n", array_slice($lines, 0, 12));
-    }
-
-    /**
-     * Extract compact factual lines from structured task results.
-     *
-     * @param array $results
-     * @return string[]
-     */
-    private function extract_result_facts(array $results): array {
-        $facts = [];
-        if (empty($results)) {
-            return $facts;
-        }
-
-        for ($i = count($results) - 1; $i >= 0; $i--) {
-            $entry = $results[$i] ?? null;
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $task = trim((string)($entry['task'] ?? ''));
-            $status = trim((string)($entry['status'] ?? ''));
-            if ($task !== '' || $status !== '') {
-                $facts[] = trim('result=' . $task . ' status=' . $status);
-            }
-
-            $diagnosis = $entry['diagnosis'] ?? null;
-            if (is_array($diagnosis)) {
-                $option = trim((string)($diagnosis['optionname'] ?? ''));
-                $userstatus = trim((string)($diagnosis['userstatus'] ?? ''));
-                $facts[] = trim('diagnosis option=' . $option . ' user_status=' . $userstatus);
-
-                  $reasons = $this->normalize_nonempty_string_list((array)($diagnosis['reasons'] ?? []));
-                if (!empty($reasons)) {
-                    $facts[] = 'diagnosis_reasons=' . implode(' | ', array_slice($reasons, 0, 3));
-                }
-            }
-
-            // Generic: summarize result content via the shared summarizer so any task type
-            // (options, users, courses, diagnosis, docs, …) is represented in the state.
-            $resultsummary = result_payload_summarizer::describe_result_for_state($entry);
-            if ($resultsummary !== '') {
-                $facts[] = 'found_results=' . $resultsummary;
-            }
-
-            $usermessage = trim((string)($entry['usermessage'] ?? $entry['detail'] ?? ''));
-            if ($usermessage !== '') {
-                $usermessage = trim(preg_replace('/\s+/', ' ', $usermessage) ?? $usermessage);
-                $facts[] = 'result_message=' . core_text::substr($usermessage, 0, 220);
-            }
-
-            if (count($facts) >= 12) {
-                break;
-            }
-        }
-
-        return array_slice(array_values(array_unique(array_filter($facts))), 0, 12);
-    }
-
-    /**
-     * Normalize an arbitrary list into non-empty trimmed strings.
-     *
-     * @param array<int,mixed> $values
-     * @param int $maxitems
-     * @param int $maxchars
-     * @return array<int,string>
-     */
-    private function normalize_nonempty_string_list(array $values, int $maxitems = 0, int $maxchars = 0): array {
-        if ($maxitems > 0) {
-            $values = array_slice($values, 0, $maxitems);
-        }
-
-        $normalized = [];
-        foreach ($values as $value) {
-            $text = trim((string)$value);
-            if ($text === '') {
-                continue;
-            }
-            if ($maxchars > 0) {
-                $text = (string)core_text::substr($text, 0, $maxchars);
-            }
-            $normalized[] = $text;
-        }
-
-        return array_values($normalized);
-    }
-
-    /**
-     * Build extra guidance only when specific topics appear in recent messages.
-     *
-     * @param array $messages
-     * @return string
-     */
-    private function build_contextual_guidance(array $messages): string {
-        $joined = '';
-        foreach ($messages as $msg) {
-            $joined .= "\n" . (string)($msg->content ?? '');
-        }
-        $joined = core_text::strtolower($joined);
-
-        $guidancelines = [];
-        $packs = $this->registry->get_contextual_prompt_packs();
-        foreach ($packs as $pack) {
-            if (!is_array($pack)) {
-                continue;
-            }
-            if (!$this->matches_contextual_pack($pack, $joined)) {
-                continue;
-            }
-
-            $lines = $pack['guidance'] ?? [];
-            if (!is_array($lines)) {
-                continue;
-            }
-            foreach ($lines as $line) {
-                $line = trim((string)$line);
-                if ($line !== '') {
-                    $guidancelines[] = $line;
-                }
-            }
-        }
-
-        if (empty($guidancelines)) {
-            return '';
-        }
-
-        return implode("\n", array_values(array_unique($guidancelines)));
-    }
-
-    /**
-     * Check whether a contextual prompt pack matches current message context.
-     *
-     * @param array $pack
-     * @param string $joined
-     * @return bool
-     */
-    private function matches_contextual_pack(array $pack, string $joined): bool {
-        $triggers = $pack['triggers'] ?? [];
-        if (!is_array($triggers) || empty($triggers)) {
-            return false;
-        }
-
-        foreach ($triggers as $trigger) {
-            $needle = core_text::strtolower(trim((string)$trigger));
-            if ($needle === '') {
-                continue;
-            }
-
-            if (preg_match('/[\s_\-]/', $needle)) {
-                if (strpos($joined, $needle) !== false) {
-                    return true;
-                }
-                continue;
-            }
-
-            $pattern = '/\b' . preg_quote($needle, '/') . '\b/u';
-            if ((bool)preg_match($pattern, $joined)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

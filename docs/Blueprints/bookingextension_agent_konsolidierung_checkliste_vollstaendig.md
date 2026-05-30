@@ -1,8 +1,8 @@
 # Konsolidierungs-Checkliste: bookingextension_agent
 
 - Datum: 2026-05-30
-- Bewertete Dateien: 169
-- Bewertete Methoden/Funktionen: 1129
+- Bewertete Dateien: 165
+- Bewertete Methoden/Funktionen: 1087
 - Bewertungsmodell: 1 = niedrig, 10 = hoch
 
 ## Checkliste (genau 4 Punkte)
@@ -18,24 +18,56 @@
 
 ## Umsetzungsreihenfolge (mit Checkboxen)
 
-- [ ] Schritt 01: Baseline einfrieren (aktuellen Stand taggen, Arbeitsbranch anlegen, Scope auf mod/booking/bookingextension/agent fixieren).
+- [x] Schritt 01: Baseline einfrieren (aktuellen Stand taggen, Arbeitsbranch anlegen, Scope auf mod/booking/bookingextension/agent fixieren).
 - [ ] Schritt 02: Sicherheitsnetz aktivieren (Contract-Tests, relevante PHPUnit-Suites und zentrale Agent-Flows gruen als Pflicht-Gate).
-- [ ] Schritt 03: Messpunkte festlegen (Datei-/Methodenanzahl, LOC, Komplexitaets-Hotspots und Laufzeitmetriken als Vorher-Werte speichern).
-- [ ] Schritt 04: Duplikat-Inventur finalisieren (amd/build, cli/public-Spiegelungen, doppelte Fixtures/Artefakte final markieren).
+  - [x] Zwischenschritt 02.1: `queue_consolidation_contract_test` laeuft wieder gruen im Moodle-PHPUnit-Kontext.
+  - [x] Zwischenschritt 02.2: Scope-Gate fuer den aktuellen Refactor gruen (Queue-Consolidation + Slim-Catalog-Contract).
+  - [ ] Zwischenschritt 02.3: Vollstaendige Contract-Dateiliste weiterhin mit Alt-Failures ausserhalb des Refactor-Scopes.
+- [x] Schritt 03: Messpunkte festlegen (Datei-/Methodenanzahl, LOC, Komplexitaets-Hotspots und Laufzeitmetriken als Vorher-Werte speichern).
+- [x] Schritt 04: Duplikat-Inventur finalisieren (amd/build, cli/public-Spiegelungen, doppelte Fixtures/Artefakte final markieren).
 - [ ] Schritt 05: Duplikate in Build-Artefakten bereinigen (nur reproduzierbare Build-Outputs behalten; abgeleitete Artefakte entfernen).
-- [ ] Schritt 06: Duplikate in CLI/Public-Spiegelungen aufloesen (eine autoritative Quelle je Skript definieren, Spiegel entfernen).
-- [ ] Schritt 07: Toten Code in Beispiel-/Demo-Bereichen entfernen (classes/local/wbagent/examples inkl. zugehoeriger Referenzen).
+- [x] Schritt 06: Duplikate in CLI/Public-Spiegelungen aufloesen (eine autoritative Quelle je Skript definieren, Spiegel entfernen).
+- [x] Schritt 07: Toten Code in Beispiel-/Demo-Bereichen entfernen (classes/local/wbagent/examples inkl. zugehoeriger Referenzen).
 - [ ] Schritt 08: Toten Code in Legacy-/Trial-Randbereichen entfernen (nur wenn ohne Produktivpfad-Abhaengigkeit nachgewiesen).
-- [ ] Schritt 09: Dokumentationsreste konsolidieren (ueberholte Blueprint-/Pix-Reste zusammenfuehren oder archivieren).
-- [ ] Schritt 10: Merge-Kandidaten in External API Layer umsetzen (ai_* Endpunkte auf gemeinsame Request/Response-Helfer verdichten).
-- [ ] Schritt 11: Merge-Kandidaten in Preflight-Services umsetzen (Validator/Runner/Gate klar trennen, doppelte Pfade entfernen).
-- [ ] Schritt 12: Split-Kandidaten in grossen Klassen umsetzen (agent_runtime, agent_decision_service, orchestrator entlang klarer Verantwortungen schneiden).
-- [ ] Schritt 13: Queue/Execution Uebergaenge entflechten (Status-Transitionen zentralisieren, Seiteneffekte minimieren).
+  - [x] Zwischenschritt 08.1: Trial-Randartefakt ohne Laufzeitreferenz entfernt (`classes/local/wbagent/wunderbyte_trial_endpoint.py`).
+  - [x] Zwischenschritt 08.2: Produktive Trial-Pfade verifiziert (UI/WS/DB-Services aktiv, daher nicht blind loeschbar).
+  - [ ] Zwischenschritt 08.3: PHP-Trial-Fluss isolieren und erst dann final entfernen.
+- [x] Schritt 09: Dokumentationsreste konsolidieren (ueberholte Blueprint-/Pix-Reste zusammenfuehren oder archivieren).
+  - [x] Zwischenschritt 09.1: Fehlablage ausserhalb Plugin-Doku bereinigt.
+  - [x] Zwischenschritt 09.2: Inventur auf aktuellen Bestand neu generiert.
+- [x] Schritt 10: Merge-Kandidaten in External API Layer umsetzen (ai_* Endpunkte auf gemeinsame Request/Response-Helfer verdichten).
+  - [x] Zwischenschritt 10.1: Gemeinsamen Formatter eingefuehrt (`classes/external/ws_message_formatter.php`).
+  - [x] Zwischenschritt 10.2: Redundante `format_ws_message()`-Duplikate aus `ai_send_message`, `ai_poll_thread`, `ai_confirm_run` entfernt.
+- [x] Schritt 11: Merge-Kandidaten in Preflight-Services umsetzen (Validator/Runner/Gate klar trennen, doppelte Pfade entfernen).
+  - [x] Zwischenschritt 11.1: Zentralen Fehlerklassifizierer eingefuehrt (`preflight_error_classifier`).
+  - [x] Zwischenschritt 11.2: `preflight_pipeline`, `preflight_execution_gate`, `confirm_run_service` auf zentrale Klassifikation umgestellt.
+- [x] Schritt 12: Split-Kandidaten in grossen Klassen umsetzen (agent_runtime, agent_decision_service, orchestrator entlang klarer Verantwortungen schneiden).
+  - [x] Zwischenschritt 12.1: Querschnittslogik aus grossen Services ausgelagert (Formatter/Classifier).
+  - [x] Zwischenschritt 12.2: Struktur-Split in `agent_decision_service` vorangetrieben (Pending-Queue-Command-Build in eigenen Service extrahiert).
+  - [x] Zwischenschritt 12.3: Runtime-Step-Analyse aus `agent_runtime` in `runtime_step_analysis_service` extrahiert.
+  - [x] Zwischenschritt 12.4: Completed-Command-Historie aus `orchestrator` in `completed_command_history_service` extrahiert.
+- [x] Schritt 13: Queue/Execution Uebergaenge entflechten (Status-Transitionen zentralisieren, Seiteneffekte minimieren).
+  - [x] Zwischenschritt 13.1: Zentrale Transition/Status-Policy-Nutzung geprueft und konsistent bestaetigt.
+  - [x] Zwischenschritt 13.2: Preflight-Queue-Entscheidungslogik in `queue_transition_service` zentralisiert.
 - [ ] Schritt 14: Prompt-/Contract-Pfad haerten (nur task_prompt_contract als Steuerung, keine versteckten Heuristik-Rueckfaelle).
-- [ ] Schritt 15: Zielstruktur Phase RUNTIME migrieren (Ordner, Namespaces, Abhaengigkeiten, Tests gruen).
-- [ ] Schritt 16: Zielstruktur Phase ORCH migrieren (Planner-Vertrag und Interpreter-Pipeline stabilisieren, Tests gruen).
+  - [x] Zwischenschritt 14.1: Preflight-Retry-Klassifikation zentralisiert (weniger implizite Heuristikpfade).
+  - [x] Zwischenschritt 14.2: Runtime-Follow-up und ungenutzte sprachmarkerbasierte Decision-Heuristik reduziert/entfernt.
+  - [ ] Zwischenschritt 14.3: Verbleibende Edge-Heuristiken ausserhalb des aktuellen Dreier-Blocks offen.
+- [x] Schritt 15: Zielstruktur Phase RUNTIME migrieren (Ordner, Namespaces, Abhaengigkeiten, Tests gruen).
+  - [x] Zwischenschritt 15.1: RUNTIME-nahe Hilfslogik ausgelagert (u. a. `runtime_step_analysis_service`, unterstuetzt spaeteren Split).
+  - [x] Zwischenschritt 15.2: Vollmigration der RUNTIME-Phase auf Service-Policies abgeschlossen (`runtime_synthesis_policy_service` zentral eingebunden).
+- [x] Schritt 16: Zielstruktur Phase ORCH migrieren (Planner-Vertrag und Interpreter-Pipeline stabilisieren, Tests gruen).
+  - [x] Zwischenschritt 16.1: ORCH-nahe External-Formatierungsduplikate entfernt (sauberere Schnittstellen).
+  - [x] Zwischenschritt 16.2: ORCH-Completed-Command-Historie in dedizierten Service ausgelagert.
+  - [x] Zwischenschritt 16.3: Assistant-State-/Contextual-Guidance-Cluster aus `orchestrator` in `assistant_state_guidance_service` ausgelagert.
+  - [x] Zwischenschritt 16.4: Routing-/Debug-Cluster aus `orchestrator` in `orchestrator_routing_service` ausgelagert.
+  - [x] Zwischenschritt 16.5: Vollmigration der ORCH-Phase mit Prompt-Profile-Service-Migration abgeschlossen (`orchestrator_prompt_profile_service`).
 - [ ] Schritt 17: Zielstruktur Phase DECISION migrieren (deterministische Routingregeln zentral und nachvollziehbar halten).
+  - [x] Zwischenschritt 17.1: Decision-/Confirm-Pfade auf zentrale Retry-Klassifikation vereinheitlicht.
+  - [ ] Zwischenschritt 17.2: Vollmigration der DECISION-Phase offen.
 - [ ] Schritt 18: Zielstruktur Phase PREFLIGHT migrieren (einheitlicher Preflight-Pfad fuer Validation + Execute sicherstellen).
+  - [x] Zwischenschritt 18.1: Einheitliche Error-Class-Quelle fuer Pipeline/Gate/Confirm hergestellt.
+  - [ ] Zwischenschritt 18.2: Vollstaendige PREFLIGHT-Phasenmigration (inkl. tiefer Laufzeitpfade) offen; Confirm-Preview-Option-Cluster in `confirm_preview_option_service` ausgelagert.
 - [ ] Schritt 19: Zielstruktur Phase QUEUE migrieren (DAG, Retry, Confirmation-Status als sauberes Zustandsmodell abschliessen).
 - [ ] Schritt 20: Zielstruktur Phase EXEC migrieren (Task-Guards, Idempotenz und Spawn-Regeln final konsolidieren).
 - [ ] Schritt 21: Regression-Hardening (sprachliche Vertragsregeln, Confirmation-Flows, Retry-Lifecycle, Privacy-Anonymisierung durchtesten).

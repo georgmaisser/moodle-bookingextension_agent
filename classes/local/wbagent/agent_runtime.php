@@ -38,6 +38,8 @@ use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
+use bookingextension_agent\local\wbagent\services\runtime_step_analysis_service;
+use bookingextension_agent\local\wbagent\services\runtime_synthesis_policy_service;
 use bookingextension_agent\local\wbagent\services\trigger_result_util;
 
 /**
@@ -154,6 +156,12 @@ class agent_runtime {
     /** @var queue_transition_service */
     private queue_transition_service $queuetransitionsvc;
 
+    /** @var runtime_step_analysis_service */
+    private runtime_step_analysis_service $stepanalysis;
+
+    /** @var runtime_synthesis_policy_service */
+    private runtime_synthesis_policy_service $synthesispolicy;
+
     /**
      * Constructor.
      *
@@ -182,6 +190,8 @@ class agent_runtime {
         $this->languagepolicy = new language_policy_service();
         $this->pendingintentsvc = new pending_intent_service($store);
         $this->queuetransitionsvc = new queue_transition_service();
+        $this->stepanalysis = new runtime_step_analysis_service();
+        $this->synthesispolicy = new runtime_synthesis_policy_service();
     }
 
     // -------------------------------------------------------------------------
@@ -543,7 +553,7 @@ class agent_runtime {
                     $result,
                     $state,
                     self::MAX_LOOP_STEPS,
-                    fn(array $commands, array $results): array => $this->extract_step_task_names($commands, $results),
+                    fn(array $commands, array $results): array => $this->stepanalysis->extract_step_task_names($commands, $results),
                     fn(string $id, string $component, ?object $a, string $lang): string =>
                         localized_string_service::get($id, $component, $a, $lang),
                     fn(array $results, string $currentmessage): string =>
@@ -571,8 +581,18 @@ class agent_runtime {
             }
 
             // Sufficiency exit: planner only signals readiness; synthesis composes user-facing output.
-            if ($this->is_sufficiency_exit_signal($result, $state)) {
-                if ($this->should_convert_sufficient_to_readonly_clarification($result, $state)) {
+            if ($this->synthesispolicy->is_sufficiency_exit_signal($result, count($state->get_observations()))) {
+                $plannertasks = (array)($result['attempted_tasks'] ?? []);
+                $recordedtasks = $this->stepanalysis->extract_recorded_step_task_names($state);
+                $alltasks = array_values(array_unique(array_merge($plannertasks, $recordedtasks)));
+                $shouldconvert = $this->synthesispolicy->should_convert_sufficient_to_readonly_clarification(
+                    $result,
+                    $state->step_count(),
+                    $state->has_observations(),
+                    $this->loop_state_contains_only_readonly_results($state),
+                    $alltasks
+                );
+                if ($shouldconvert) {
                     $result['response_type'] = 'clarification';
                     $result['message'] = '';
                     $result = $this->run_synthesis_step($threadid, $cmid, $userid, $state, $result);
@@ -680,7 +700,7 @@ class agent_runtime {
      * @return bool
      */
     private function is_readonly_signature_budget_reached(array &$counts, array $commands, array $results): bool {
-        $signatures = $this->extract_step_command_signatures($commands, $results);
+        $signatures = $this->stepanalysis->extract_step_command_signatures($commands, $results);
         if (empty($signatures)) {
             return false;
         }
@@ -837,7 +857,7 @@ class agent_runtime {
         $accumulatederrors = [];
         foreach ($state->get_steps() as $step) {
             foreach (
-                $this->extract_step_task_names(
+                $this->stepanalysis->extract_step_task_names(
                     (array)($step['tool_calls'] ?? []),
                     (array)($step['results'] ?? [])
                 ) as $taskname
@@ -906,7 +926,7 @@ class agent_runtime {
     private function loop_state_contains_only_readonly_results(agent_state $state): bool {
         $sawresult = false;
         foreach ($state->get_steps() as $step) {
-            $tasks = $this->extract_step_task_names(
+            $tasks = $this->stepanalysis->extract_step_task_names(
                 (array)($step['tool_calls'] ?? []),
                 (array)($step['results'] ?? [])
             );
@@ -1171,7 +1191,7 @@ class agent_runtime {
         }
 
         $commands = (array)($result['commands'] ?? []);
-        $tasks = $this->extract_step_task_names($commands, $results);
+        $tasks = $this->stepanalysis->extract_step_task_names($commands, $results);
         if ($state->step_count() < 2) {
             return false;
         }
@@ -1217,13 +1237,18 @@ class agent_runtime {
         }
 
         if ($message === '' || $this->is_low_information_message($message)) {
-            $message = localized_string_service::get('ai_run_executed', 'bookingextension_agent', null, (string)($result['lang'] ?? ''));
+            $message = localized_string_service::get(
+                'ai_run_executed',
+                'bookingextension_agent',
+                null,
+                (string)($result['lang'] ?? '')
+            );
             if ($message === 'ai_run_executed') {
                 $message = 'I found enough information to answer your question.';
             }
         }
 
-        $attemptedtasks = $this->extract_step_task_names((array)($result['commands'] ?? []), $results);
+        $attemptedtasks = $this->stepanalysis->extract_step_task_names((array)($result['commands'] ?? []), $results);
 
         return [
             'response_type'             => 'clarification',
@@ -1685,7 +1710,7 @@ class agent_runtime {
         }
 
         $descriptions = [];
-        foreach ($this->extract_step_task_names($commands, $results) as $taskname) {
+        foreach ($this->stepanalysis->extract_step_task_names($commands, $results) as $taskname) {
             if ($taskname === '') {
                 continue;
             }
@@ -1698,7 +1723,7 @@ class agent_runtime {
                 $description = rtrim($description, ". \t\n\r\0\x0B");
             }
             if ($description === '') {
-                $description = $this->humanize_task_name($taskname);
+                $description = $this->stepanalysis->humanize_task_name($taskname);
             }
             $descriptions[] = $description;
         }
@@ -1732,7 +1757,7 @@ class agent_runtime {
     ): void {
         $commands = (array)($result['commands'] ?? []);
         $results = (array)($result['results'] ?? []);
-        $steptask = implode(', ', $this->extract_step_task_names($commands, $results));
+        $steptask = implode(', ', $this->stepanalysis->extract_step_task_names($commands, $results));
         $steplabel = $this->build_step_label(
             $stepnum,
             $commands,
@@ -1766,67 +1791,6 @@ class agent_runtime {
     }
 
     /**
-     * Extract task names for a completed loop step.
-     *
-     * execution_result payloads often clear `commands`, so labels and cycle detection
-     * need to fall back to the task names embedded in `results`.
-     *
-     * @param array $commands
-     * @param array $results
-     * @return string[]
-     */
-    private function extract_step_task_names(array $commands, array $results): array {
-        $tasknames = [];
-        foreach ($commands as $command) {
-            if (!is_array($command)) {
-                continue;
-            }
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname !== '') {
-                $tasknames[] = $taskname;
-            }
-        }
-
-        if (!empty($tasknames)) {
-            return array_values(array_unique($tasknames));
-        }
-
-        foreach ($results as $result) {
-            if (!is_array($result)) {
-                continue;
-            }
-            $taskname = trim((string)($result['task'] ?? ''));
-            if ($taskname !== '') {
-                $tasknames[] = $taskname;
-            }
-        }
-
-        return array_values(array_unique($tasknames));
-    }
-
-    /**
-     * Convert a technical task name into a readable fallback label.
-     *
-     * @param string $taskname
-     * @return string
-     */
-    private function humanize_task_name(string $taskname): string {
-        $taskname = trim($taskname);
-        if ($taskname === '') {
-            return 'Processing';
-        }
-
-        $tail = $taskname;
-        if (str_contains($taskname, '.')) {
-            $parts = explode('.', $taskname);
-            $tail = (string)end($parts);
-        }
-
-        $tail = str_replace('_', ' ', $tail);
-        return ucfirst($tail);
-    }
-
-    /**
      * Detect whether the current readonly step repeats the same command signature as the previous step.
      *
      * For docs traversal, the same readonly task may legitimately repeat with a different
@@ -1843,17 +1807,17 @@ class agent_runtime {
         }
 
         $steps = $state->get_steps();
-        $currentsignatures = $this->extract_step_command_signatures(
+        $currentsignatures = $this->stepanalysis->extract_step_command_signatures(
             (array)($steps[count($steps) - 1]['tool_calls'] ?? []),
             (array)($steps[count($steps) - 1]['results'] ?? [])
         );
-        $previoussignatures = $this->extract_step_command_signatures(
+        $previoussignatures = $this->stepanalysis->extract_step_command_signatures(
             (array)($steps[count($steps) - 2]['tool_calls'] ?? []),
             (array)($steps[count($steps) - 2]['results'] ?? [])
         );
 
         // Keep a safety check against malformed current step payload.
-        if (empty($currentsignatures) || empty($this->extract_step_command_signatures($commands, $results))) {
+        if (empty($currentsignatures) || empty($this->stepanalysis->extract_step_command_signatures($commands, $results))) {
             return false;
         }
 
@@ -1861,68 +1825,6 @@ class agent_runtime {
         sort($previoussignatures);
 
         return $currentsignatures === $previoussignatures;
-    }
-
-    /**
-     * Extract comparable command signatures for a completed loop step.
-     *
-     * Prefer task + normalized input for tool calls. Fall back to task names embedded
-     * in results when the executed command payload is unavailable.
-     *
-     * @param array $commands
-     * @param array $results
-     * @return string[]
-     */
-    private function extract_step_command_signatures(array $commands, array $results): array {
-        $signatures = [];
-        foreach ($commands as $command) {
-            if (!is_array($command)) {
-                continue;
-            }
-
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '') {
-                continue;
-            }
-
-            $input = $command['input'] ?? [];
-            if (!is_array($input)) {
-                $input = [];
-            }
-
-            $normalizedinput = $this->normalize_command_input_for_signature($input);
-            $encodedinput = json_encode($normalizedinput, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $signatures[] = $taskname . '|' . (is_string($encodedinput) ? $encodedinput : '{}');
-        }
-
-        if (!empty($signatures)) {
-            return array_values(array_unique($signatures));
-        }
-
-        return $this->extract_step_task_names($commands, $results);
-    }
-
-    /**
-     * Recursively normalize command input for stable loop-signature comparison.
-     *
-     * @param mixed $value
-     * @return mixed
-     */
-    private function normalize_command_input_for_signature($value) {
-        if (!is_array($value)) {
-            return $value;
-        }
-
-        if (array_is_list($value)) {
-            return array_map(fn($item) => $this->normalize_command_input_for_signature($item), $value);
-        }
-
-        ksort($value);
-        foreach ($value as $key => $item) {
-            $value[$key] = $this->normalize_command_input_for_signature($item);
-        }
-
-        return $value;
     }
 
     // -------------------------------------------------------------------------
@@ -2149,7 +2051,7 @@ class agent_runtime {
         }
 
         // Extract current command signatures and observed signatures.
-        $currentsigs = $this->extract_step_command_signatures($commands, []);
+        $currentsigs = $this->stepanalysis->extract_step_command_signatures($commands, []);
         $observedsigs = $state->extract_observed_command_signatures();
 
         if (empty($currentsigs) || empty($observedsigs)) {
@@ -2517,7 +2419,7 @@ class agent_runtime {
         }
 
         $latestusertext = trim((string)($messages[$lastuserindex]->content ?? ''));
-        if (!$this->is_meta_clarification_follow_up($latestusertext)) {
+        if ($latestusertext === '') {
             return null;
         }
 
@@ -2547,7 +2449,12 @@ class agent_runtime {
         ]);
 
         $message = localized_string_service::get('ai_optiontype_help_message', 'bookingextension_agent', null, $lang);
-        $nextstepintent = localized_string_service::get('ai_optiontype_help_next_step_intent', 'bookingextension_agent', null, $lang);
+        $nextstepintent = localized_string_service::get(
+            'ai_optiontype_help_next_step_intent',
+            'bookingextension_agent',
+            null,
+            $lang
+        );
 
         return [
             'response_type' => 'clarification',
@@ -2566,24 +2473,6 @@ class agent_runtime {
             'user_lang' => $lang,
             'next_step_intent' => $nextstepintent,
         ];
-    }
-
-    /**
-     * Detect short user follow-ups asking for explanation.
-     *
-     * @param string $message
-     * @return bool
-     */
-    private function is_meta_clarification_follow_up(string $message): bool {
-        $text = trim(core_text::strtolower($message));
-        if ($text === '') {
-            return false;
-        }
-
-        // Language-neutral heuristic: short follow-up question with no command payload.
-        $isquestion = str_contains($text, '?');
-        $wordcount = count(array_values(array_filter(preg_split('/\s+/u', $text) ?: [])));
-        return $isquestion && $wordcount > 0 && $wordcount <= 8;
     }
 
     /**
@@ -2734,9 +2623,9 @@ class agent_runtime {
             // synthesized sufficiency for explain/diagnose flows.
             $plantype = (string)($planningresult['response_type'] ?? '');
             $plannertasks = (array)($planningresult['attempted_tasks'] ?? []);
-            $recordedtasks = $this->extract_recorded_step_task_names($state);
+            $recordedtasks = $this->stepanalysis->extract_recorded_step_task_names($state);
             $alltasks = array_values(array_unique(array_merge($plannertasks, $recordedtasks)));
-            $hasexplainordiagnose = $this->has_explain_or_diagnose_task($alltasks);
+            $hasexplainordiagnose = $this->synthesispolicy->has_explain_or_diagnose_task($alltasks);
             $issearchresultclarification = $plantype === 'clarification'
                 && !$hasexplainordiagnose;
             $synthesis['response_type'] = $issearchresultclarification ? 'clarification' : 'sufficient';
@@ -2749,122 +2638,6 @@ class agent_runtime {
         $planningresult['loop_step'] = $state->step_count();
         $planningresult['loop_max_steps'] = self::MAX_LOOP_STEPS;
         return $planningresult;
-    }
-
-    /**
-     * Collect unique task names recorded in loop state steps.
-     *
-     * @param agent_state $state
-     * @return array<int,string>
-     */
-    private function extract_recorded_step_task_names(agent_state $state): array {
-        $tasknames = [];
-        foreach ($state->get_steps() as $step) {
-            $names = $this->extract_step_task_names(
-                (array)($step['tool_calls'] ?? []),
-                (array)($step['results'] ?? [])
-            );
-            foreach ($names as $name) {
-                $trimmed = trim((string)$name);
-                if ($trimmed !== '') {
-                    $tasknames[] = $trimmed;
-                }
-            }
-        }
-
-        return array_values(array_unique($tasknames));
-    }
-
-    /**
-     * Determine whether any executed/planned task indicates explain/diagnose behavior.
-     *
-     * @param array<int,string> $tasknames
-     * @return bool
-     */
-    private function has_explain_or_diagnose_task(array $tasknames): bool {
-        foreach ($tasknames as $taskname) {
-            $normalized = trim(core_text::strtolower((string)$taskname));
-            if ($normalized === '') {
-                continue;
-            }
-
-            if (
-                str_contains($normalized, 'explain_')
-                || str_contains($normalized, 'diagnose_')
-                || str_contains($normalized, '.explain_')
-                || str_contains($normalized, '.diagnose_')
-            ) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Convert premature planner sufficiency into clarification for read-only loops.
-     *
-     * For search/resolve loops with observations, planner may emit response_type=sufficient
-     * although the expected UX is a follow-up clarification. Keep explain/diagnose flows
-     * exempt so they still conclude with sufficient.
-     *
-     * @param array $result
-     * @param agent_state $state
-     * @return bool
-     */
-    private function should_convert_sufficient_to_readonly_clarification(array $result, agent_state $state): bool {
-        if ((string)($result['response_type'] ?? '') !== 'sufficient') {
-            return false;
-        }
-
-        if (!empty((array)($result['commands'] ?? []))) {
-            return false;
-        }
-
-        if ($state->step_count() < 1 || !$state->has_observations()) {
-            return false;
-        }
-
-        if (!$this->loop_state_contains_only_readonly_results($state)) {
-            return false;
-        }
-
-        $plannertasks = (array)($result['attempted_tasks'] ?? []);
-        $recordedtasks = $this->extract_recorded_step_task_names($state);
-        $alltasks = array_values(array_unique(array_merge($plannertasks, $recordedtasks)));
-
-        return !$this->has_explain_or_diagnose_task($alltasks);
-    }
-
-    /**
-     * Determine whether planner output is a strict sufficiency-exit signal.
-     *
-     * @param array $result
-     * @param agent_state $state
-     * @return bool
-     */
-    private function is_sufficiency_exit_signal(array $result, agent_state $state): bool {
-        $rt = (string)($result['response_type'] ?? '');
-
-        // New explicit signal: SR/SYN returns response_type=sufficient.
-        if ($rt === 'sufficient') {
-            return empty((array)($result['commands'] ?? []));
-        }
-
-        // Legacy signal: clarification with magic sentinel message.
-        if ($rt !== 'clarification') {
-            return false;
-        }
-
-        if (!empty((array)($result['commands'] ?? []))) {
-            return false;
-        }
-
-        if (count($state->get_observations()) < 1) {
-            return false;
-        }
-
-        return trim((string)($result['message'] ?? '')) === 'observation_sufficient';
     }
 
     /**

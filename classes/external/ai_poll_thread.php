@@ -98,7 +98,7 @@ class ai_poll_thread extends external_api {
         foreach ($messages as $msg) {
             $content = (string)($msg->content ?? '');
             if ((string)($msg->role ?? '') === 'assistant') {
-                $content = self::format_ws_message($content, $context);
+                $content = ws_message_formatter::format_ws_message($content, $context);
             }
 
             $result[] = [
@@ -111,25 +111,6 @@ class ai_poll_thread extends external_api {
         }
 
         return ['threadid' => $tid, 'messages' => $result];
-    }
-
-    /**
-     * Format a markdown-like assistant message as HTML for WS output.
-     *
-     * @param string $message
-     * @param context_module $context
-     * @return string
-     */
-    private static function format_ws_message(string $message, context_module $context): string {
-        $message = trim($message);
-        if ($message === '') {
-            return '';
-        }
-
-        return format_text(\markdown_to_html($message), 1, [
-            'context' => $context,
-            'para' => false,
-        ]);
     }
 
     /**

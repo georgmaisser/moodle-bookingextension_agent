@@ -34,11 +34,10 @@ use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
-use bookingextension_agent\local\wbagent\services\queue_command_mapper;
-use bookingextension_agent\local\wbagent\services\queue_status_policy;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
 use bookingextension_agent\local\wbagent\services\trigger_result_util;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
+use bookingextension_agent\local\wbagent\services\pending_queue_command_service;
 
 /**
  * Routing and decision layer for the agent runtime.
@@ -127,6 +126,9 @@ class agent_decision_service {
     /** @var queue_transition_service */
     private queue_transition_service $queuetransitionsvc;
 
+    /** @var pending_queue_command_service */
+    private pending_queue_command_service $pendingqueuecommandsvc;
+
     /**
      * Constructor.
      *
@@ -151,6 +153,7 @@ class agent_decision_service {
         $this->languagepolicy = new language_policy_service();
         $this->pendingintentsvc = new pending_intent_service($store);
         $this->queuetransitionsvc = new queue_transition_service();
+        $this->pendingqueuecommandsvc = new pending_queue_command_service($this->queuesvc);
     }
 
     // -------------------------------------------------------------------------
@@ -398,7 +401,7 @@ class agent_decision_service {
         string $outputlang
     ): array {
         // Phase 2: queue is single source of truth; no fallback to stored commands.
-        $pendingcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
+        $pendingcommands = $this->pendingqueuecommandsvc->build_mutating_commands_from_pending_intent($pendingintent, $threadid);
         $summary = $this->build_pending_intent_summary($pendingcommands, $outputlang);
         $confirmationcode = trim((string)($pendingintent['confirmationcode'] ?? ''));
         $message = $this->localized(
@@ -448,37 +451,6 @@ class agent_decision_service {
             'commands' => $pendingcommands,
             'message' => '',
         ], $outputlang));
-    }
-
-    /**
-     * Build command payloads from pending queue item ids.
-     *
-     * @param array<string,mixed> $pendingintent
-     * @param int $threadid
-     * @return array<int,array<string,mixed>>
-     */
-    private function build_commands_from_pending_queue(array $pendingintent, int $threadid): array {
-        $queueitemids = $this->normalize_queue_item_ids($pendingintent['queue_item_ids'] ?? []);
-        if (empty($queueitemids)) {
-            return [];
-        }
-
-        $items = [];
-        foreach ($queueitemids as $queueitemid) {
-            $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
-            if (!is_array($item) || (string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-
-            $status = trim((string)($item['status'] ?? ''));
-            if (!queue_status_policy::is_actionable_mutating_status($status)) {
-                continue;
-            }
-
-            $items[] = $item;
-        }
-
-        return queue_command_mapper::from_queue_items($items);
     }
 
     /**
@@ -679,7 +651,10 @@ class agent_decision_service {
         }
 
         // Phase 2: queue is single source of truth; no fallback to stored commands.
-        $confirmcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
+        $confirmcommands = $this->pendingqueuecommandsvc->build_mutating_commands_from_pending_intent(
+            $pendingintent,
+            $threadid
+        );
         if (empty($confirmcommands)) {
             if ($modelmessage !== '' && !$isplaceholdermessage) {
                 $fallback = $this->clarification_result($modelmessage);
@@ -1242,7 +1217,8 @@ class agent_decision_service {
             $contextid,
             $threadid
         );
-        $this->apply_preflight_queue_decision(
+        $this->queuetransitionsvc->apply_preflight_decision(
+            $this->queuesvc,
             $threadid,
             $queueitemids,
             $status,
@@ -1373,130 +1349,6 @@ class agent_decision_service {
         }
 
         return $result;
-    }
-
-    /**
-     * Apply the canonical preflight decision to queued mutating items.
-     *
-     * @param int $threadid
-     * @param array<int,string> $queueitemids
-     * @param string $status
-     * @param array<int,string> $issuecodes
-     * @param array<int,string> $errors
-     * @param array<string,mixed> $v2result
-     * @param bool $autoconfirmmode
-     * @return void
-     */
-    private function apply_preflight_queue_decision(
-        int $threadid,
-        array $queueitemids,
-        string $status,
-        array $issuecodes,
-        array $errors,
-        array $v2result,
-        bool $autoconfirmmode
-    ): void {
-        $queueitemids = $this->normalize_queue_item_ids($queueitemids);
-        if (empty($queueitemids)) {
-            return;
-        }
-
-        $status = trim($status);
-        $targetstatus = 'failed';
-        $errorclass = '';
-        $extrafields = [];
-        $message = trim(implode(' ', array_values(array_unique(array_map('strval', $errors)))));
-
-        if ($status === 'pass') {
-            $targetstatus = $autoconfirmmode ? 'ready' : 'blocked_confirmation';
-        } else if ($status === 'soft_block') {
-            $targetstatus = 'blocked_confirmation';
-        } else if ($status === 'retry_hint') {
-            $targetstatus = 'retry_waiting';
-            $errorclass = 'preflight_retry';
-        } else {
-            $targetstatus = 'failed';
-            $errorclass = 'preflight_block';
-        }
-
-        foreach ($queueitemids as $queueitemid) {
-            $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
-            if (!is_array($item)) {
-                continue;
-            }
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-            if ((string)($item['status'] ?? '') === 'failed' && !empty((array)($item['issue_codes'] ?? []))) {
-                continue;
-            }
-
-            if ($targetstatus === 'retry_waiting') {
-                $currentretrycount = max(0, (int)($item['preflight_retry_count'] ?? $item['retry_count'] ?? 0));
-                $nextretrycount = $currentretrycount + 1;
-                $retryafterms = max(1, (int)($v2result['retry_after_ms'] ?? 0));
-                if ($retryafterms <= 1) {
-                    $retryafterms = min(4000, 500 * (2 ** max(0, min(8, $nextretrycount - 1))));
-                }
-                $extrafields = [
-                    'retry_count' => $nextretrycount,
-                    'preflight_retry_count' => $nextretrycount,
-                    'retry_after_ms' => $retryafterms,
-                    'backoff_ms' => $retryafterms,
-                    'next_retry_at' => time() + (int)ceil($retryafterms / 1000),
-                ];
-            }
-
-            if ($targetstatus === 'ready') {
-                $this->queuetransitionsvc->to_ready($this->queuesvc, $threadid, $queueitemid, $issuecodes);
-            } else if ($targetstatus === 'retry_waiting') {
-                $this->queuetransitionsvc->to_retry_waiting(
-                    $this->queuesvc,
-                    $threadid,
-                    $queueitemid,
-                    $issuecodes,
-                    $errorclass,
-                    $message,
-                    $extrafields
-                );
-            } else if ($targetstatus === 'failed') {
-                $this->queuetransitionsvc->to_failed(
-                    $this->queuesvc,
-                    $threadid,
-                    $queueitemid,
-                    $issuecodes,
-                    $errorclass,
-                    $message
-                );
-            } else if ($targetstatus === 'skipped') {
-                $this->queuetransitionsvc->to_skipped(
-                    $this->queuesvc,
-                    $threadid,
-                    $queueitemid,
-                    $issuecodes,
-                    $errorclass,
-                    $message
-                );
-            } else if ($targetstatus === 'succeeded') {
-                $this->queuetransitionsvc->to_succeeded(
-                    $this->queuesvc,
-                    $threadid,
-                    $queueitemid,
-                    $issuecodes
-                );
-            } else {
-                $this->queuetransitionsvc->to_status(
-                    $this->queuesvc,
-                    $threadid,
-                    $queueitemid,
-                    $targetstatus,
-                    $issuecodes,
-                    $errorclass,
-                    $message,
-                    $extrafields
-                );
-            }
-        }
     }
 
     /**
@@ -1884,7 +1736,12 @@ class agent_decision_service {
         ) {
             $teacherquery = $this->extract_teacher_query_from_validation_errors($errors);
             if ($teacherquery === '') {
-                $teacherquery = localized_string_service::get('ai_property_teacherquery', 'bookingextension_agent', null, $outputlang);
+                $teacherquery = localized_string_service::get(
+                    'ai_property_teacherquery',
+                    'bookingextension_agent',
+                    null,
+                    $outputlang
+                );
             }
             return localized_string_service::get(
                 'ai_confirm_missing_teacher_user_create_option',
@@ -2249,99 +2106,6 @@ class agent_decision_service {
             }
         }
         return '';
-    }
-
-    /**
-     * Determine whether a clarification contains enough answer substance to avoid recovery.
-     *
-     * @param string $message
-     * @param array $result
-     * @return bool
-     */
-    private function is_substantive_clarification_message(string $message, array $result): bool {
-        return !$this->is_non_substantive_clarification_message($message, $result);
-    }
-
-    /**
-     * Detect progress-only clarifications (intent narration without concrete answer content).
-     *
-     * @param string $message
-     * @param array $result
-     * @return bool
-     */
-    private function is_non_substantive_clarification_message(string $message, array $result): bool {
-        $message = trim($message);
-        if ($message === '') {
-            return true;
-        }
-
-        if (!empty((array)($result['results'] ?? [])) || !empty((array)($result['commands'] ?? []))) {
-            return false;
-        }
-
-        // Concrete evidence markers: links or structured multi-line explanations.
-        if (
-            str_contains($message, '](')
-            || str_contains(core_text::strtolower($message), 'http://')
-            || str_contains(core_text::strtolower($message), 'https://')
-        ) {
-            return false;
-        }
-        if (str_contains($message, "\n") && strlen($message) >= 120) {
-            return false;
-        }
-
-        $normalized = core_text::strtolower((string)preg_replace('/\s+/', ' ', $message));
-        $intentmarkers = [
-            'ich werde',
-            'ich suche',
-            'ich schaue',
-            'ich rufe',
-            'ich pruefe',
-            'ich prüfe',
-            'i will',
-            'i am going to',
-            'let me',
-            'i will now',
-            'i am checking',
-            'i am searching',
-        ];
-        $hasintentmarker = false;
-        foreach ($intentmarkers as $marker) {
-            if (str_contains($normalized, $marker)) {
-                $hasintentmarker = true;
-                break;
-            }
-        }
-
-        $lookupmarkers = [
-            'dokumentation',
-            'documentation',
-            'benachrichtigung',
-            'notification',
-            'suche',
-            'search',
-            'nachsehen',
-            'look up',
-        ];
-        $haslookupmarker = false;
-        foreach ($lookupmarkers as $marker) {
-            if (str_contains($normalized, $marker)) {
-                $haslookupmarker = true;
-                break;
-            }
-        }
-
-        if ($hasintentmarker && $haslookupmarker) {
-            return true;
-        }
-
-        // Very short single-line clarifications are usually progress text, not a final answer.
-        if (!str_contains($message, "\n") && strlen($message) < 90) {
-            return true;
-        }
-
-        return false;
     }
 
     /**

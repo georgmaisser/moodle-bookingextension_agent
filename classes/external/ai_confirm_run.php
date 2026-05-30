@@ -135,8 +135,8 @@ class ai_confirm_run extends external_api {
             'runid' => (int)($payload['runid'] ?? 0),
             'threadid' => (int)($payload['threadid'] ?? (int)$params['threadid']),
             'response_type' => (string)($payload['response_type'] ?? 'error'),
-            'message' => self::format_ws_message($message, $context),
-            'displaymessage' => self::format_ws_message($displaymessage, $context),
+            'message' => ws_message_formatter::format_ws_message($message, $context),
+            'displaymessage' => ws_message_formatter::format_ws_message($displaymessage, $context),
             'privacyapplied' => $privacyapplied,
             'autoconfirm' => (int)($payload['autoconfirm'] ?? 0),
             'commands' => json_encode((array)($payload['commands'] ?? [])),
@@ -183,22 +183,4 @@ class ai_confirm_run extends external_api {
         ]);
     }
 
-    /**
-     * Format a markdown-like assistant message as HTML for WS output.
-     *
-     * @param string $message
-     * @param context_module $context
-     * @return string
-     */
-    private static function format_ws_message(string $message, context_module $context): string {
-        $message = trim($message);
-        if ($message === '') {
-            return '';
-        }
-
-        return format_text(\markdown_to_html($message), 1, [
-            'context' => $context,
-            'para' => false,
-        ]);
-    }
 }

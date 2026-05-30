@@ -61,6 +61,9 @@ class confirm_run_service {
     /** @var queue_transition_service */
     private queue_transition_service $queuetransitionsvc;
 
+    /** @var confirm_preview_option_service */
+    private confirm_preview_option_service $confirmpreviewsvc;
+
     /**
      * Constructor.
      *
@@ -74,6 +77,7 @@ class confirm_run_service {
         $this->authz = $authz;
         $this->pendingintentsvc = new pending_intent_service($store);
         $this->queuetransitionsvc = new queue_transition_service();
+        $this->confirmpreviewsvc = new confirm_preview_option_service($registry, $store);
     }
 
     /**
@@ -266,10 +270,10 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => $activequeueitemid,
-                'previewoptionid' => $this->first_preview_option_id(
-                    $this->resolve_preview_option_ids_for_response($cmid, $userid, [])
+                'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
+                    $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, [])
                 ),
-                'previewoptionids' => $this->resolve_preview_option_ids_for_response($cmid, $userid, []),
+                'previewoptionids' => $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, []),
             ];
         }
 
@@ -318,11 +322,11 @@ class confirm_run_service {
             $failed = ($status === 'error' || $status === 'failed');
             $issuecodes = $this->normalize_string_list($primary['issue_codes'] ?? []);
             if ($failed) {
-                $errorclass = $this->infer_execution_error_class($issuecodes);
+                $errorclass = preflight_error_classifier::infer_from_issue_codes($issuecodes);
                 $retrymeta = [];
                 $retrydecision = ['issue_codes' => $issuecodes];
                 $executionstatus = 'failed';
-                if (in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+                if (preflight_error_classifier::is_retryable_error_class($errorclass)) {
                     $retrydecision = $this->build_retry_decision(
                         $queuesvc,
                         $threadid,
@@ -411,7 +415,13 @@ class confirm_run_service {
                 ]
             );
 
-            $aggregatedpreviewids = $this->remember_confirm_preview_option_ids($threadid, $cmid, $userid, $results);
+            $aggregatedpreviewids = $this->confirmpreviewsvc->remember_confirm_preview_option_ids(
+                $threadid,
+                $cmid,
+                $userid,
+                $results,
+                self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY
+            );
             $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults)
                 || is_array($this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid));
 
@@ -531,18 +541,19 @@ class confirm_run_service {
                 'errors' => $errors,
                 'pending_confirmation_code' => (string)($finalresult['pending_confirmation_code'] ?? ''),
                 'queueitemid' => $responsequeueitemid,
-                'previewoptionid' => $this->first_preview_option_id(
-                    $this->resolve_preview_option_ids_for_response(
+                'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
+                    $this->confirmpreviewsvc->resolve_preview_option_ids_for_response(
                         $cmid,
                         $userid,
                         (array)($finalresult['results'] ?? [])
                     )
                 ),
-                'previewoptionids' => $this->resolve_confirm_preview_option_ids_for_response(
+                'previewoptionids' => $this->confirmpreviewsvc->resolve_confirm_preview_option_ids_for_response(
                     $threadid,
                     $cmid,
                     $userid,
                     $results,
+                    self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY,
                     $aggregatedpreviewids
                 ),
             ];
@@ -558,11 +569,11 @@ class confirm_run_service {
                 $outputlang
             );
 
-            $errorclass = $this->infer_execution_error_class([]);
+            $errorclass = preflight_error_classifier::infer_from_issue_codes([]);
             $retrymeta = [];
             $executionstatus = 'failed';
             $executionissuecodes = [];
-            if (in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+            if (preflight_error_classifier::is_retryable_error_class($errorclass)) {
                 $retrydecision = $this->build_retry_decision(
                     $queuesvc,
                     $threadid,
@@ -625,10 +636,14 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => '',
-                'previewoptionid' => $this->first_preview_option_id(
-                    $this->resolve_preview_option_ids_for_response($cmid, $userid, $feedbackresults)
+                'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
+                    $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, $feedbackresults)
                 ),
-                'previewoptionids' => $this->resolve_preview_option_ids_for_response($cmid, $userid, $feedbackresults),
+                'previewoptionids' => $this->confirmpreviewsvc->resolve_preview_option_ids_for_response(
+                    $cmid,
+                    $userid,
+                    $feedbackresults
+                ),
             ];
         }
     }
@@ -668,128 +683,11 @@ class confirm_run_service {
             'errors' => $errors,
             'pending_confirmation_code' => '',
             'queueitemid' => $queueitemid,
-            'previewoptionid' => $this->first_preview_option_id(
-                $this->resolve_preview_option_ids_for_response($cmid, $userid, [])
+            'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
+                $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, [])
             ),
-            'previewoptionids' => $this->resolve_preview_option_ids_for_response($cmid, $userid, []),
+            'previewoptionids' => $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, []),
         ];
-    }
-
-    /**
-     * Resolve all preview option ids for responses.
-     *
-     * @param int $cmid
-     * @param int $userid
-     * @param array $results
-     * @return int[]
-     */
-    private function resolve_preview_option_ids_for_response(int $cmid, int $userid, array $results): array {
-        $ids = [];
-        foreach ($results as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $previewids = is_array($entry['previewoptionids'] ?? null) ? (array)$entry['previewoptionids'] : [];
-            foreach ($previewids as $id) {
-                $normalized = (int)$id;
-                if ($normalized > 0) {
-                    $ids[] = $normalized;
-                }
-            }
-            $resultid = (int)($entry['resultid'] ?? 0);
-            if ($resultid > 0 && !in_array($resultid, $ids, true)) {
-                $ids[] = $resultid;
-            }
-        }
-
-        if (empty($ids)) {
-            foreach ($this->registry->get_preview_option_memory_helpers() as $helper) {
-                $storedids = array_map(
-                    'intval',
-                    (array)$helper->resolve_last_preview_option_ids_for_execute($cmid, $userid)
-                );
-                foreach ($storedids as $storedid) {
-                    if ($storedid > 0) {
-                        $ids[] = $storedid;
-                    }
-                }
-            }
-        }
-
-        return array_values(array_unique($ids));
-    }
-
-    /**
-     * Return the first available preview option id.
-     *
-     * @param int[] $ids
-     * @return int
-     */
-    private function first_preview_option_id(array $ids): int {
-        foreach ($ids as $id) {
-            $normalized = (int)$id;
-            if ($normalized > 0) {
-                return $normalized;
-            }
-        }
-
-        return 0;
-    }
-
-    /**
-     * Aggregate preview option ids into thread metadata.
-     *
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @param array $results
-     * @return int[]
-     */
-    private function remember_confirm_preview_option_ids(int $threadid, int $cmid, int $userid, array $results): array {
-        $currentids = $this->resolve_preview_option_ids_for_response($cmid, $userid, $results);
-        $storedids = $this->store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY);
-        $aggregatedids = $this->merge_preview_option_ids(
-            is_array($storedids) ? $storedids : [],
-            $currentids
-        );
-
-        $this->store->set_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY, $aggregatedids);
-        return $aggregatedids;
-    }
-
-    /**
-     * Resolve preview ids for confirm responses.
-     *
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @param array $results
-     * @param int[]|null $aggregatedids
-     * @return int[]
-     */
-    private function resolve_confirm_preview_option_ids_for_response(
-        int $threadid,
-        int $cmid,
-        int $userid,
-        array $results,
-        ?array $aggregatedids = null
-    ): array {
-        $ids = is_array($aggregatedids)
-            ? $aggregatedids
-            : (is_array($this->store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY))
-                ? $this->store->get_thread_metadata_value($threadid, self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY)
-                : []);
-
-        $ids = $this->merge_preview_option_ids(
-            is_array($ids) ? $ids : [],
-            $this->resolve_preview_option_ids_for_response($cmid, $userid, $results)
-        );
-
-        if (empty($ids)) {
-            return $this->resolve_preview_option_ids_for_response($cmid, $userid, $results);
-        }
-
-        return $ids;
     }
 
     /**
@@ -833,53 +731,6 @@ class confirm_run_service {
         }
 
         return array_values($normalized);
-    }
-
-    /**
-     * Merge list-like sources into positive unique integer ids.
-     *
-     * @param mixed ...$sources
-     * @return int[]
-     */
-    private function merge_preview_option_ids(...$sources): array {
-        $ids = [];
-        foreach ($sources as $source) {
-            if (!is_array($source)) {
-                continue;
-            }
-
-            foreach ($source as $entry) {
-                $normalized = (int)$entry;
-                if ($normalized > 0) {
-                    $ids[] = $normalized;
-                }
-            }
-        }
-
-        return array_values(array_unique($ids));
-    }
-
-    /**
-     * Infer execution error class from structured issue codes.
-     *
-     * @param array<int,string> $issuecodes
-     * @return string
-     */
-    private function infer_execution_error_class(array $issuecodes): string {
-        foreach ($issuecodes as $code) {
-            $upper = strtoupper(trim((string)$code));
-            if ($upper === '') {
-                continue;
-            }
-            if (str_contains($upper, 'TIMEOUT')) {
-                return 'provider_timeout';
-            }
-            if (str_contains($upper, 'TRANSIENT_IO') || str_contains($upper, 'IO_TRANSIENT')) {
-                return 'transient_io';
-            }
-        }
-
-        return '';
     }
 
     /**

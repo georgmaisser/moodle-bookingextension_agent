@@ -3,8 +3,8 @@
 - Erfassungsdatum: 2026-05-30
 - Plugin-Root: /var/www/moodle/public/mod/booking/bookingextension/agent
 - Anzahl Ordner: 57
-- Anzahl Dateien: 168
-- Anzahl PHP-Methoden/Funktionen (benannte Deklarationen): 1049
+- Anzahl Dateien: 164
+- Anzahl PHP-Methoden/Funktionen (benannte Deklarationen): 1004
 
 ## Ordnerstruktur (vollstaendig)
 
@@ -89,6 +89,7 @@
 ./classes/external/booking_update_option.php
 ./classes/external/booking_validate_option.php
 ./classes/external/request_trial_key.php
+./classes/external/ws_message_formatter.php
 ./classes/local/wbagent/adaptive_task_catalog_service.php
 ./classes/local/wbagent/agent_decision_service.php
 ./classes/local/wbagent/agent_runtime.php
@@ -117,11 +118,6 @@
 ./classes/local/wbagent/embeddings_csv_repository.php
 ./classes/local/wbagent/embeddings_readiness_service.php
 ./classes/local/wbagent/embeddings_retrieval_service.php
-./classes/local/wbagent/examples/README.md
-./classes/local/wbagent/examples/tasks/multistep_example_task.php
-./classes/local/wbagent/examples/tasks/readonly_example_task.php
-./classes/local/wbagent/examples/tasks/spawn_child_example_task.php
-./classes/local/wbagent/examples/tasks/spawn_parent_example_task.php
 ./classes/local/wbagent/execution_feedback_service.php
 ./classes/local/wbagent/executor.php
 ./classes/local/wbagent/interfaces/agent_authorization_service.php
@@ -167,6 +163,7 @@
 ./classes/local/wbagent/services/preflight_audit_logger.php
 ./classes/local/wbagent/services/preflight_contract_validator.php
 ./classes/local/wbagent/services/preflight_domain_check_runner.php
+./classes/local/wbagent/services/preflight_error_classifier.php
 ./classes/local/wbagent/services/preflight_execution_gate.php
 ./classes/local/wbagent/services/preflight_pipeline.php
 ./classes/local/wbagent/services/preflight_result_v2.php
@@ -192,7 +189,6 @@
 ./classes/local/wbagent/task_provider.php
 ./classes/local/wbagent/task_registry_factory.php
 ./classes/local/wbagent/task_registry.php
-./classes/local/wbagent/wunderbyte_trial_endpoint.py
 ./classes/task/execute_ai_run_adhoc.php
 ./classes/task/rebuild_task_catalog_embeddings_adhoc.php
 ./cli/rebuild_embeddings_fixture.php
@@ -201,6 +197,9 @@
 ./db/install.xml
 ./db/services.php
 ./db/upgrade.php
+./docs/Blueprints/bookingextension_agent_inventur_vollstaendig.md
+./docs/Blueprints/bookingextension_agent_konsolidierung_checkliste_vollstaendig.md
+./docs/Blueprints/bookingextension_agent_konsolidierung_zwischenstand_2026-05-30.md
 ./docs/Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd
 ./.github/workflows/erpnext.yml
 ./.github/workflows/moodle-plugin-ci.yml
@@ -225,18 +224,15 @@
 ./tests/agent/contracts/reference_scenarios_contract_test.php
 ./tests/agent/contracts/spawn_contract_service_test.php
 ./tests/agent/contracts/task_contract_validator_contract_test.php
-./tests/agent/embedded_llm/fixtures/task_catalog_embeddings.csv
 ./tests/agent/fixtures/task_catalog_embeddings.csv
 ./tests/agent/llm_task_matrix_scenario_provider.php
 ./tests/agent/real_llm_multistep/all_tasks_real_llm_test.php
 ./tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php
-./tests/agent/real_llm_multistep/example_tasks_real_llm_test.php
 ./tests/agent/real_llm_multistep/get_current_user_real_llm_test.php
 ./tests/agent/real_llm_multistep/lecture_autoconfirm_real_llm_test.php
 ./tests/agent/real_llm_multistep/list_actions_real_llm_test.php
 ./tests/agent/real_llm_multistep/normal_option_datetime_real_llm_test.php
 ./tests/agent/real_llm_multistep/search_users_real_llm_test.php
-./tests/fixtures/task_catalog_embeddings.csv
 ./trial_challenge.php
 ./version.php
 ```
@@ -261,7 +257,6 @@ classes/external/activate_trial_context.php:123	bookingextension_agent\external\
 classes/external/ai_confirm_run.php:59	bookingextension_agent\external\ai_confirm_run	execute_parameters
 classes/external/ai_confirm_run.php:82	bookingextension_agent\external\ai_confirm_run	execute
 classes/external/ai_confirm_run.php:159	bookingextension_agent\external\ai_confirm_run	execute_returns
-classes/external/ai_confirm_run.php:193	bookingextension_agent\external\ai_confirm_run	format_ws_message
 classes/external/ai_get_doc_content.php:54	bookingextension_agent\external\ai_get_doc_content	execute_parameters
 classes/external/ai_get_doc_content.php:68	bookingextension_agent\external\ai_get_doc_content	execute
 classes/external/ai_get_doc_content.php:124	bookingextension_agent\external\ai_get_doc_content	execute_returns
@@ -279,8 +274,7 @@ classes/external/ai_list_candidate_options.php:68	bookingextension_agent\externa
 classes/external/ai_list_candidate_options.php:124	bookingextension_agent\external\ai_list_candidate_options	execute_returns
 classes/external/ai_poll_thread.php:52	bookingextension_agent\external\ai_poll_thread	execute_parameters
 classes/external/ai_poll_thread.php:66	bookingextension_agent\external\ai_poll_thread	execute
-classes/external/ai_poll_thread.php:123	bookingextension_agent\external\ai_poll_thread	format_ws_message
-classes/external/ai_poll_thread.php:140	bookingextension_agent\external\ai_poll_thread	execute_returns
+classes/external/ai_poll_thread.php:121	bookingextension_agent\external\ai_poll_thread	execute_returns
 classes/external/ai_privacy_precheck.php:48	bookingextension_agent\external\ai_privacy_precheck	execute_parameters
 classes/external/ai_privacy_precheck.php:69	bookingextension_agent\external\ai_privacy_precheck	execute
 classes/external/ai_privacy_precheck.php:153	bookingextension_agent\external\ai_privacy_precheck	execute_returns
@@ -290,13 +284,12 @@ classes/external/ai_render_command_preview.php:370	bookingextension_agent\extern
 classes/external/ai_render_command_preview.php:434	(global)	execute_returns
 classes/external/ai_send_message.php:66	bookingextension_agent\external\ai_send_message	execute_parameters
 classes/external/ai_send_message.php:87	bookingextension_agent\external\ai_send_message	execute
-classes/external/ai_send_message.php:270	bookingextension_agent\external\ai_send_message	format_ws_message
-classes/external/ai_send_message.php:288	bookingextension_agent\external\ai_send_message	normalize_string_list
-classes/external/ai_send_message.php:311	bookingextension_agent\external\ai_send_message	resolve_response_queue_item_id
-classes/external/ai_send_message.php:331	bookingextension_agent\external\ai_send_message	resolve_response_commands
-classes/external/ai_send_message.php:381	bookingextension_agent\external\ai_send_message	resolve_preview_option_ids_json_for_response
-classes/external/ai_send_message.php:429	bookingextension_agent\external\ai_send_message	resolve_preview_option_id_for_response
-classes/external/ai_send_message.php:472	bookingextension_agent\external\ai_send_message	execute_returns
+classes/external/ai_send_message.php:269	bookingextension_agent\external\ai_send_message	normalize_string_list
+classes/external/ai_send_message.php:292	bookingextension_agent\external\ai_send_message	resolve_response_queue_item_id
+classes/external/ai_send_message.php:312	bookingextension_agent\external\ai_send_message	resolve_response_commands
+classes/external/ai_send_message.php:362	bookingextension_agent\external\ai_send_message	resolve_preview_option_ids_json_for_response
+classes/external/ai_send_message.php:410	bookingextension_agent\external\ai_send_message	resolve_preview_option_id_for_response
+classes/external/ai_send_message.php:453	bookingextension_agent\external\ai_send_message	execute_returns
 classes/external/booking_bulk_update_options.php:54	bookingextension_agent\external\booking_bulk_update_options	execute_parameters
 classes/external/booking_bulk_update_options.php:78	bookingextension_agent\external\booking_bulk_update_options	execute
 classes/external/booking_bulk_update_options.php:147	bookingextension_agent\external\booking_bulk_update_options	execute_returns
@@ -312,6 +305,7 @@ classes/external/booking_validate_option.php:137	(global)	execute_returns
 classes/external/request_trial_key.php:48	bookingextension_agent\external\request_trial_key	execute_parameters
 classes/external/request_trial_key.php:60	bookingextension_agent\external\request_trial_key	execute
 classes/external/request_trial_key.php:105	bookingextension_agent\external\request_trial_key	execute_returns
+classes/external/ws_message_formatter.php:38	bookingextension_agent\external\ws_message_formatter	format_ws_message
 classes/local/wbagent/adaptive_task_catalog_service.php:70	bookingextension_agent\local\wbagent\adaptive_task_catalog_service	get_adaptive_catalog
 classes/local/wbagent/adaptive_task_catalog_service.php:110	bookingextension_agent\local\wbagent\adaptive_task_catalog_service	get_mandatory_tasks
 classes/local/wbagent/adaptive_task_catalog_service.php:136	bookingextension_agent\local\wbagent\adaptive_task_catalog_service	get_recency_filtered
@@ -610,38 +604,6 @@ classes/local/wbagent/embeddings_retrieval_service.php:134	bookingextension_agen
 classes/local/wbagent/embeddings_retrieval_service.php:190	bookingextension_agent\local\wbagent\embeddings_retrieval_service	compact_properties_for_planner
 classes/local/wbagent/embeddings_retrieval_service.php:227	bookingextension_agent\local\wbagent\embeddings_retrieval_service	cosine_similarity
 classes/local/wbagent/embeddings_retrieval_service.php:258	bookingextension_agent\local\wbagent\embeddings_retrieval_service	decode_json_array
-classes/local/wbagent/examples/tasks/multistep_example_task.php:42	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	__construct
-classes/local/wbagent/examples/tasks/multistep_example_task.php:53	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	get_name
-classes/local/wbagent/examples/tasks/multistep_example_task.php:63	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	get_schema
-classes/local/wbagent/examples/tasks/multistep_example_task.php:90	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	get_example_input
-classes/local/wbagent/examples/tasks/multistep_example_task.php:103	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	get_prompt_contract
-classes/local/wbagent/examples/tasks/multistep_example_task.php:124	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	check_structure
-classes/local/wbagent/examples/tasks/multistep_example_task.php:170	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	preflight
-classes/local/wbagent/examples/tasks/multistep_example_task.php:204	bookingextension_agent\local\wbagent\examples\tasks\multistep_example_task	execute
-classes/local/wbagent/examples/tasks/readonly_example_task.php:45	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	__construct
-classes/local/wbagent/examples/tasks/readonly_example_task.php:54	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	get_name
-classes/local/wbagent/examples/tasks/readonly_example_task.php:63	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	get_schema
-classes/local/wbagent/examples/tasks/readonly_example_task.php:89	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	get_example_input
-classes/local/wbagent/examples/tasks/readonly_example_task.php:101	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	get_prompt_contract
-classes/local/wbagent/examples/tasks/readonly_example_task.php:120	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	check_structure
-classes/local/wbagent/examples/tasks/readonly_example_task.php:155	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	preflight
-classes/local/wbagent/examples/tasks/readonly_example_task.php:182	bookingextension_agent\local\wbagent\examples\tasks\readonly_example_task	execute
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:42	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	__construct
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:49	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	get_name
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:56	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	get_schema
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:85	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	get_example_input
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:96	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	get_prompt_contract
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:113	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	check_structure
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:134	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	preflight
-classes/local/wbagent/examples/tasks/spawn_child_example_task.php:160	bookingextension_agent\local\wbagent\examples\tasks\spawn_child_example_task	execute
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:42	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	__construct
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:49	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	get_name
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:56	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	get_schema
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:80	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	get_example_input
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:90	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	get_prompt_contract
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:107	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	check_structure
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:134	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	preflight
-classes/local/wbagent/examples/tasks/spawn_parent_example_task.php:159	bookingextension_agent\local\wbagent\examples\tasks\spawn_parent_example_task	execute
 classes/local/wbagent/execution_feedback_service.php:57	bookingextension_agent\local\wbagent\execution_feedback_service	__construct
 classes/local/wbagent/execution_feedback_service.php:76	bookingextension_agent\local\wbagent\execution_feedback_service	build_completion_feedback
 classes/local/wbagent/execution_feedback_service.php:137	bookingextension_agent\local\wbagent\execution_feedback_service	should_apply_polish_step
@@ -924,17 +886,16 @@ classes/local/wbagent/services/confirm_run_service.php:770	bookingextension_agen
 classes/local/wbagent/services/confirm_run_service.php:801	bookingextension_agent\local\wbagent\services\confirm_run_service	has_successful_execution_results
 classes/local/wbagent/services/confirm_run_service.php:822	bookingextension_agent\local\wbagent\services\confirm_run_service	normalize_string_list
 classes/local/wbagent/services/confirm_run_service.php:844	bookingextension_agent\local\wbagent\services\confirm_run_service	merge_preview_option_ids
-classes/local/wbagent/services/confirm_run_service.php:868	bookingextension_agent\local\wbagent\services\confirm_run_service	infer_execution_error_class
-classes/local/wbagent/services/confirm_run_service.php:895	bookingextension_agent\local\wbagent\services\confirm_run_service	build_retry_decision
-classes/local/wbagent/services/confirm_run_service.php:940	bookingextension_agent\local\wbagent\services\confirm_run_service	build_queue_audit_context
-classes/local/wbagent/services/confirm_run_service.php:964	bookingextension_agent\local\wbagent\services\confirm_run_service	should_continue_with_runtime_loop
-classes/local/wbagent/services/confirm_run_service.php:987	bookingextension_agent\local\wbagent\services\confirm_run_service	find_next_mutating_queue_item
-classes/local/wbagent/services/confirm_run_service.php:1013	bookingextension_agent\local\wbagent\services\confirm_run_service	extract_attempted_tasks_from_commands
-classes/local/wbagent/services/confirm_run_service.php:1038	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_pending_queue_item_id
-classes/local/wbagent/services/confirm_run_service.php:1076	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_commands_for_run
-classes/local/wbagent/services/confirm_run_service.php:1097	bookingextension_agent\local\wbagent\services\confirm_run_service	mark_dependents_skipped
-classes/local/wbagent/services/confirm_run_service.php:1141	bookingextension_agent\local\wbagent\services\confirm_run_service	get_active_mutating_queue_item
-classes/local/wbagent/services/confirm_run_service.php:1165	bookingextension_agent\local\wbagent\services\confirm_run_service	is_actionable_mutating_queue_item
+classes/local/wbagent/services/confirm_run_service.php:872	bookingextension_agent\local\wbagent\services\confirm_run_service	build_retry_decision
+classes/local/wbagent/services/confirm_run_service.php:917	bookingextension_agent\local\wbagent\services\confirm_run_service	build_queue_audit_context
+classes/local/wbagent/services/confirm_run_service.php:941	bookingextension_agent\local\wbagent\services\confirm_run_service	should_continue_with_runtime_loop
+classes/local/wbagent/services/confirm_run_service.php:964	bookingextension_agent\local\wbagent\services\confirm_run_service	find_next_mutating_queue_item
+classes/local/wbagent/services/confirm_run_service.php:990	bookingextension_agent\local\wbagent\services\confirm_run_service	extract_attempted_tasks_from_commands
+classes/local/wbagent/services/confirm_run_service.php:1015	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_pending_queue_item_id
+classes/local/wbagent/services/confirm_run_service.php:1053	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_commands_for_run
+classes/local/wbagent/services/confirm_run_service.php:1074	bookingextension_agent\local\wbagent\services\confirm_run_service	mark_dependents_skipped
+classes/local/wbagent/services/confirm_run_service.php:1118	bookingextension_agent\local\wbagent\services\confirm_run_service	get_active_mutating_queue_item
+classes/local/wbagent/services/confirm_run_service.php:1142	bookingextension_agent\local\wbagent\services\confirm_run_service	is_actionable_mutating_queue_item
 classes/local/wbagent/services/execution_observation_ledger.php:50	bookingextension_agent\local\wbagent\services\execution_observation_ledger	__construct
 classes/local/wbagent/services/execution_observation_ledger.php:62	bookingextension_agent\local\wbagent\services\execution_observation_ledger	append_from_results
 classes/local/wbagent/services/execution_observation_ledger.php:158	bookingextension_agent\local\wbagent\services\execution_observation_ledger	get_recent_for_runtime
@@ -1000,15 +961,16 @@ classes/local/wbagent/services/preflight_audit_logger.php:54	bookingextension_ag
 classes/local/wbagent/services/preflight_contract_validator.php:57	bookingextension_agent\local\wbagent\services\preflight_contract_validator	__construct
 classes/local/wbagent/services/preflight_contract_validator.php:74	bookingextension_agent\local\wbagent\services\preflight_contract_validator	validate
 classes/local/wbagent/services/preflight_domain_check_runner.php:39	bookingextension_agent\local\wbagent\services\preflight_domain_check_runner	run
+classes/local/wbagent/services/preflight_error_classifier.php:40	bookingextension_agent\local\wbagent\services\preflight_error_classifier	infer_from_issue_codes
+classes/local/wbagent/services/preflight_error_classifier.php:72	bookingextension_agent\local\wbagent\services\preflight_error_classifier	is_retryable_error_class
 classes/local/wbagent/services/preflight_execution_gate.php:48	bookingextension_agent\local\wbagent\services\preflight_execution_gate	evaluate
 classes/local/wbagent/services/preflight_execution_gate.php:91	bookingextension_agent\local\wbagent\services\preflight_execution_gate	build_guard_token
 classes/local/wbagent/services/preflight_execution_gate.php:106	bookingextension_agent\local\wbagent\services\preflight_execution_gate	verify_guard_token
 classes/local/wbagent/services/preflight_execution_gate.php:126	bookingextension_agent\local\wbagent\services\preflight_execution_gate	normalize_for_guard
-classes/local/wbagent/services/preflight_pipeline.php:60	bookingextension_agent\local\wbagent\services\preflight_pipeline	__construct
-classes/local/wbagent/services/preflight_pipeline.php:78	bookingextension_agent\local\wbagent\services\preflight_pipeline	run
-classes/local/wbagent/services/preflight_pipeline.php:265	bookingextension_agent\local\wbagent\services\preflight_pipeline	build_output
-classes/local/wbagent/services/preflight_pipeline.php:295	bookingextension_agent\local\wbagent\services\preflight_pipeline	build_audit_command_context
-classes/local/wbagent/services/preflight_pipeline.php:313	bookingextension_agent\local\wbagent\services\preflight_pipeline	classify_error_class
+classes/local/wbagent/services/preflight_pipeline.php:59	bookingextension_agent\local\wbagent\services\preflight_pipeline	__construct
+classes/local/wbagent/services/preflight_pipeline.php:77	bookingextension_agent\local\wbagent\services\preflight_pipeline	run
+classes/local/wbagent/services/preflight_pipeline.php:264	bookingextension_agent\local\wbagent\services\preflight_pipeline	build_output
+classes/local/wbagent/services/preflight_pipeline.php:294	bookingextension_agent\local\wbagent\services\preflight_pipeline	build_audit_command_context
 classes/local/wbagent/services/preflight_result_v2.php:74	bookingextension_agent\local\wbagent\services\preflight_result_v2	__construct
 classes/local/wbagent/services/preflight_result_v2.php:106	bookingextension_agent\local\wbagent\services\preflight_result_v2	normalize_blocking_layer
 classes/local/wbagent/services/preflight_result_v2.php:140	bookingextension_agent\local\wbagent\services\preflight_result_v2	to_array
@@ -1260,17 +1222,6 @@ tests/agent/real_llm_multistep/all_tasks_real_llm_test.php:71	bookingextionsion_
 tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php:48	bookingextionsion_agent\confirmation_flow_real_llm_test	setUp
 tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php:56	bookingextionsion_agent\confirmation_flow_real_llm_test	test_multistep_create_assign_teacher_and_make_visible
 tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php:211	bookingextionsion_agent\confirmation_flow_real_llm_test	is_task_available
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:47	bookingextionsion_agent\example_tasks_real_llm_test	setUp
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:65	bookingextionsion_agent\example_tasks_real_llm_test	ensure_contextid_columns_for_legacy_phpunit_schema
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:108	bookingextionsion_agent\example_tasks_real_llm_test	test_scenario_a_readonly_example_executes_with_real_llm
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:128	bookingextionsion_agent\example_tasks_real_llm_test	test_scenario_b_multistep_example_executes_with_real_llm
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:148	bookingextionsion_agent\example_tasks_real_llm_test	test_scenario_c_spawn_example_executes_with_real_llm
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:174	bookingextionsion_agent\example_tasks_real_llm_test	run_scenario_until_done
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:269	bookingextionsion_agent\example_tasks_real_llm_test	get_booking_contextid
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:292	bookingextionsion_agent\example_tasks_real_llm_test	collect_tasks
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:321	bookingextionsion_agent\example_tasks_real_llm_test	has_task
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:333	bookingextionsion_agent\example_tasks_real_llm_test	trace_line
-tests/agent/real_llm_multistep/example_tasks_real_llm_test.php:350	bookingextionsion_agent\example_tasks_real_llm_test	payload_text
 tests/agent/real_llm_multistep/get_current_user_real_llm_test.php:40	bookingextionsion_agent\get_current_user_real_llm_test	setUp
 tests/agent/real_llm_multistep/get_current_user_real_llm_test.php:45	bookingextionsion_agent\get_current_user_real_llm_test	test_get_current_user_observation_contains_full_user_payload
 tests/agent/real_llm_multistep/get_current_user_real_llm_test.php:110	bookingextionsion_agent\get_current_user_real_llm_test	payload_text
@@ -1304,84 +1255,84 @@ Hinweis: Erfasst wurden nur Source-Dateien (z. B. amd/src), keine minifizierten 
 Format: `datei:zeile<TAB>typ<TAB>funktion`
 
 ```text
-./amd/src/aiinstructions.js:1015	arrow	extractFirstUrl
-./amd/src/aiinstructions.js:1031	arrow	loadUrlInSidePreview
-./amd/src/aiinstructions.js:1051	arrow	escapeCssIdentifier
-./amd/src/aiinstructions.js:1063	arrow	scrollPreviewToFragment
-./amd/src/aiinstructions.js:1074	arrow	decoded
-./amd/src/aiinstructions.js:1104	arrow	loadDocInPreview
-./amd/src/aiinstructions.js:113	arrow	renderMessageDebugMeta
-./amd/src/aiinstructions.js:1152	arrow	isGenericStatusMessage
-./amd/src/aiinstructions.js:1179	arrow	getFirstResultField
-./amd/src/aiinstructions.js:1205	arrow	buildFriendlyRunMessage
-./amd/src/aiinstructions.js:1249	arrow	buildDebugRunHtml
-./amd/src/aiinstructions.js:1286	arrow	appendFriendlyAssistantMessage
-./amd/src/aiinstructions.js:1308	arrow	buildAgentResponseMeta
-./amd/src/aiinstructions.js:1317	arrow	handleFinalAgentResponse
-./amd/src/aiinstructions.js:1342	arrow	handleAgentCommandResponse
-./amd/src/aiinstructions.js:1381	arrow	handleConfirmationResponse
-./amd/src/aiinstructions.js:1410	arrow	showConfirmPanel
-./amd/src/aiinstructions.js:1466	arrow	renderOptionPreviewsInline
-./amd/src/aiinstructions.js:1496	arrow	buildTaskPreviewHtml
-./amd/src/aiinstructions.js:1549	arrow	hideConfirmPanel
-./amd/src/aiinstructions.js:155	arrow	renderMessageDebugJson
-./amd/src/aiinstructions.js:1563	arrow	clearActivePlanBubble
-./amd/src/aiinstructions.js:1580	arrow	showRunStatus
-./amd/src/aiinstructions.js:1693	arrow	extractPreviewOptionIds
-./amd/src/aiinstructions.js:1725	arrow	collectPreviewOptionIds
-./amd/src/aiinstructions.js:1761	arrow	appendStepBubble
-./amd/src/aiinstructions.js:1781	arrow	clearStepBubbles
-./amd/src/aiinstructions.js:1802	arrow	startStepPolling
-./amd/src/aiinstructions.js:1833	arrow	refreshThreadDebugLogs
-./amd/src/aiinstructions.js:184	arrow	renderDebugLogs
-./amd/src/aiinstructions.js:1883	arrow	initDebugRefreshButton
-./amd/src/aiinstructions.js:1914	arrow	stopStepPolling
-./amd/src/aiinstructions.js:1924	arrow	resumeStepPolling
-./amd/src/aiinstructions.js:1935	arrow	sendMessage
-./amd/src/aiinstructions.js:2242	arrow	confirmRun
-./amd/src/aiinstructions.js:2302	arrow	getTrialUiContext
-./amd/src/aiinstructions.js:2333	arrow	requestTrialKey
-./amd/src/aiinstructions.js:2398	arrow	activateTrialContext
-./amd/src/aiinstructions.js:244	arrow	formatDebugLogsForClipboard
-./amd/src/aiinstructions.js:2460	arrow	bindTrialButton
-./amd/src/aiinstructions.js:2470	arrow	displayWelcomeMessage
-./amd/src/aiinstructions.js:2498	arrow	stopCurrentRun
-./amd/src/aiinstructions.js:2522	arrow	handleBodyClick
-./amd/src/aiinstructions.js:2674	arrow	handleBodyKeydown
-./amd/src/aiinstructions.js:2704	arrow	initCentralBodyHandlers
-./amd/src/aiinstructions.js:2719	arrow	init
-./amd/src/aiinstructions.js:286	arrow	parseJsonList
-./amd/src/aiinstructions.js:301	arrow	parseJsonObjectList
-./amd/src/aiinstructions.js:319	arrow	parseCommandPayload
-./amd/src/aiinstructions.js:339	arrow	enforceErrorBubbleStyleFallback
-./amd/src/aiinstructions.js:359	arrow	isTrialTokenInvalidError
-./amd/src/aiinstructions.js:408	arrow	maybeShowTrialTokenInvalidAlert
-./amd/src/aiinstructions.js:432	arrow	renderAmbiguityOptionsHtml
-./amd/src/aiinstructions.js:468	arrow	renderFollowUpSuggestionsHtml
-./amd/src/aiinstructions.js:513	arrow	appendMessage
-./amd/src/aiinstructions.js:536	arrow	appendPrivacyNote
-./amd/src/aiinstructions.js:554	arrow	appendAssistantPrivacyNote
-./amd/src/aiinstructions.js:577	arrow	appendMessageHtml
-./amd/src/aiinstructions.js:596	arrow	setSidePreviewHtml
-./amd/src/aiinstructions.js:607	arrow	initResizableLayout
-./amd/src/aiinstructions.js:617	arrow	applyColumns
-./amd/src/aiinstructions.js:624	arrow	restoreOrDefault
-./amd/src/aiinstructions.js:637	arrow	onPointerMove
-./amd/src/aiinstructions.js:650	arrow	onMouseMove
-./amd/src/aiinstructions.js:654	arrow	onTouchMove
-./amd/src/aiinstructions.js:662	arrow	stopDragging
-./amd/src/aiinstructions.js:671	arrow	startDragging
-./amd/src/aiinstructions.js:69	arrow	runCollectedJavascript
-./amd/src/aiinstructions.js:701	arrow	initMobilePreviewSwitch
-./amd/src/aiinstructions.js:711	arrow	setPreviewActive
-./amd/src/aiinstructions.js:766	arrow	escapeHtml
-./amd/src/aiinstructions.js:779	arrow	updateThinkingLabel
-./amd/src/aiinstructions.js:792	arrow	copyTextToClipboard
-./amd/src/aiinstructions.js:835	arrow	showButtonFeedback
-./amd/src/aiinstructions.js:861	arrow	getDocLinkMeta
-./amd/src/aiinstructions.js:898	arrow	renderSmartLink
-./amd/src/aiinstructions.js:920	arrow	renderTextWithLinks
-./amd/src/aiinstructions.js:966	arrow	renderAssistantMessageHtml
-./amd/src/aiinstructions.js:96	arrow	shouldAutoExecuteReadOnly
-./amd/src/aiinstructions.js:991	arrow	extractFirstDoc
+./amd/src/aiinstructions.js:1015	(global-js)	extractFirstUrl
+./amd/src/aiinstructions.js:1031	(global-js)	loadUrlInSidePreview
+./amd/src/aiinstructions.js:1051	(global-js)	escapeCssIdentifier
+./amd/src/aiinstructions.js:1063	(global-js)	scrollPreviewToFragment
+./amd/src/aiinstructions.js:1074	(global-js)	decoded
+./amd/src/aiinstructions.js:1104	(global-js)	loadDocInPreview
+./amd/src/aiinstructions.js:113	(global-js)	renderMessageDebugMeta
+./amd/src/aiinstructions.js:1152	(global-js)	isGenericStatusMessage
+./amd/src/aiinstructions.js:1179	(global-js)	getFirstResultField
+./amd/src/aiinstructions.js:1205	(global-js)	buildFriendlyRunMessage
+./amd/src/aiinstructions.js:1249	(global-js)	buildDebugRunHtml
+./amd/src/aiinstructions.js:1286	(global-js)	appendFriendlyAssistantMessage
+./amd/src/aiinstructions.js:1308	(global-js)	buildAgentResponseMeta
+./amd/src/aiinstructions.js:1317	(global-js)	handleFinalAgentResponse
+./amd/src/aiinstructions.js:1342	(global-js)	handleAgentCommandResponse
+./amd/src/aiinstructions.js:1381	(global-js)	handleConfirmationResponse
+./amd/src/aiinstructions.js:1410	(global-js)	showConfirmPanel
+./amd/src/aiinstructions.js:1466	(global-js)	renderOptionPreviewsInline
+./amd/src/aiinstructions.js:1496	(global-js)	buildTaskPreviewHtml
+./amd/src/aiinstructions.js:1549	(global-js)	hideConfirmPanel
+./amd/src/aiinstructions.js:155	(global-js)	renderMessageDebugJson
+./amd/src/aiinstructions.js:1563	(global-js)	clearActivePlanBubble
+./amd/src/aiinstructions.js:1580	(global-js)	showRunStatus
+./amd/src/aiinstructions.js:1693	(global-js)	extractPreviewOptionIds
+./amd/src/aiinstructions.js:1725	(global-js)	collectPreviewOptionIds
+./amd/src/aiinstructions.js:1761	(global-js)	appendStepBubble
+./amd/src/aiinstructions.js:1781	(global-js)	clearStepBubbles
+./amd/src/aiinstructions.js:1802	(global-js)	startStepPolling
+./amd/src/aiinstructions.js:1833	(global-js)	refreshThreadDebugLogs
+./amd/src/aiinstructions.js:184	(global-js)	renderDebugLogs
+./amd/src/aiinstructions.js:1883	(global-js)	initDebugRefreshButton
+./amd/src/aiinstructions.js:1914	(global-js)	stopStepPolling
+./amd/src/aiinstructions.js:1924	(global-js)	resumeStepPolling
+./amd/src/aiinstructions.js:1935	(global-js)	sendMessage
+./amd/src/aiinstructions.js:2242	(global-js)	confirmRun
+./amd/src/aiinstructions.js:2302	(global-js)	getTrialUiContext
+./amd/src/aiinstructions.js:2333	(global-js)	requestTrialKey
+./amd/src/aiinstructions.js:2398	(global-js)	activateTrialContext
+./amd/src/aiinstructions.js:244	(global-js)	formatDebugLogsForClipboard
+./amd/src/aiinstructions.js:2460	(global-js)	bindTrialButton
+./amd/src/aiinstructions.js:2470	(global-js)	displayWelcomeMessage
+./amd/src/aiinstructions.js:2498	(global-js)	stopCurrentRun
+./amd/src/aiinstructions.js:2522	(global-js)	handleBodyClick
+./amd/src/aiinstructions.js:2674	(global-js)	handleBodyKeydown
+./amd/src/aiinstructions.js:2704	(global-js)	initCentralBodyHandlers
+./amd/src/aiinstructions.js:2719	(global-js)	init
+./amd/src/aiinstructions.js:286	(global-js)	parseJsonList
+./amd/src/aiinstructions.js:301	(global-js)	parseJsonObjectList
+./amd/src/aiinstructions.js:319	(global-js)	parseCommandPayload
+./amd/src/aiinstructions.js:339	(global-js)	enforceErrorBubbleStyleFallback
+./amd/src/aiinstructions.js:359	(global-js)	isTrialTokenInvalidError
+./amd/src/aiinstructions.js:408	(global-js)	maybeShowTrialTokenInvalidAlert
+./amd/src/aiinstructions.js:432	(global-js)	renderAmbiguityOptionsHtml
+./amd/src/aiinstructions.js:468	(global-js)	renderFollowUpSuggestionsHtml
+./amd/src/aiinstructions.js:513	(global-js)	appendMessage
+./amd/src/aiinstructions.js:536	(global-js)	appendPrivacyNote
+./amd/src/aiinstructions.js:554	(global-js)	appendAssistantPrivacyNote
+./amd/src/aiinstructions.js:577	(global-js)	appendMessageHtml
+./amd/src/aiinstructions.js:596	(global-js)	setSidePreviewHtml
+./amd/src/aiinstructions.js:607	(global-js)	initResizableLayout
+./amd/src/aiinstructions.js:617	(global-js)	applyColumns
+./amd/src/aiinstructions.js:624	(global-js)	restoreOrDefault
+./amd/src/aiinstructions.js:637	(global-js)	onPointerMove
+./amd/src/aiinstructions.js:650	(global-js)	onMouseMove
+./amd/src/aiinstructions.js:654	(global-js)	onTouchMove
+./amd/src/aiinstructions.js:662	(global-js)	stopDragging
+./amd/src/aiinstructions.js:671	(global-js)	startDragging
+./amd/src/aiinstructions.js:69	(global-js)	runCollectedJavascript
+./amd/src/aiinstructions.js:701	(global-js)	initMobilePreviewSwitch
+./amd/src/aiinstructions.js:711	(global-js)	setPreviewActive
+./amd/src/aiinstructions.js:766	(global-js)	escapeHtml
+./amd/src/aiinstructions.js:779	(global-js)	updateThinkingLabel
+./amd/src/aiinstructions.js:792	(global-js)	copyTextToClipboard
+./amd/src/aiinstructions.js:835	(global-js)	showButtonFeedback
+./amd/src/aiinstructions.js:861	(global-js)	getDocLinkMeta
+./amd/src/aiinstructions.js:898	(global-js)	renderSmartLink
+./amd/src/aiinstructions.js:920	(global-js)	renderTextWithLinks
+./amd/src/aiinstructions.js:966	(global-js)	renderAssistantMessageHtml
+./amd/src/aiinstructions.js:96	(global-js)	shouldAutoExecuteReadOnly
+./amd/src/aiinstructions.js:991	(global-js)	extractFirstDoc
 ```

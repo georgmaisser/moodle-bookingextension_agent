@@ -48,7 +48,7 @@ Options:
   --force            With --embed: regenerate embeddings for all current tasks.
   --model=MODEL      Embedding model override.
   --dimensions=N     Embedding dimensions override.
-  --output=PATH      Output CSV path (default: tests/fixtures/task_catalog_embeddings.csv).
+    --output=PATH      Output CSV path (default: tests/agent/fixtures/task_catalog_embeddings.csv).
   --help             Show this help.
 
 Default behavior (without --embed):
@@ -84,7 +84,7 @@ if ($force && !$doembed) {
 
 $outputpath = trim((string)$options['output']);
 if ($outputpath === '') {
-    $outputpath = dirname(__DIR__) . '/tests/fixtures/task_catalog_embeddings.csv';
+    $outputpath = dirname(__DIR__) . '/tests/agent/fixtures/task_catalog_embeddings.csv';
 }
 
 $resolver = new embeddings_action_config_resolver();

@@ -50,7 +50,7 @@ class preflight_execution_gate {
         $retrycount = max(0, $retrycount);
         $issuecodes = array_values(array_unique(array_filter(array_map('strval', $issuecodes))));
 
-        if (!in_array($errorclass, ['provider_timeout', 'transient_io'], true)) {
+        if (!preflight_error_classifier::is_retryable_error_class($errorclass)) {
             return new preflight_result_v2('hard_block', $issuecodes, 'execution_gate', 0, $retrycount, 0);
         }
 
