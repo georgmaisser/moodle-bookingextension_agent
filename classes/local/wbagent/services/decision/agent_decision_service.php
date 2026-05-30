@@ -24,17 +24,26 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\decision;
 
 use core_text;
+use bookingextension_agent\local\wbagent\booking_issue_code_provider;
+use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
+use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
+use bookingextension_agent\local\wbagent\services\planning\planner_service;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\services\trigger_result_util;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
 use bookingextension_agent\local\wbagent\services\pending_queue_command_service;

@@ -30,6 +30,7 @@ use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\services\spawn_contract_service;
 
 /**
@@ -768,5 +769,4 @@ class executor implements agent_executor {
 
         return rtrim($truncated, " \t\n\r\0\x0B,.;:") . '...';
     }
-
 }

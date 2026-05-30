@@ -33,7 +33,7 @@ use core_external\external_function_parameters;
 use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\dto\update_option_input_dto;
 use bookingextension_agent\local\wbagent\services\mutation\option_mutation_service;
 

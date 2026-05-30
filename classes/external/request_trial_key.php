@@ -34,7 +34,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Request trial key nonce for back-channel challenge.

@@ -28,7 +28,7 @@ namespace bookingextionsion_agent;
 defined('MOODLE_INTERNAL') || die();
 
 use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;

@@ -34,13 +34,17 @@ use core_text;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
-use bookingextension_agent\local\wbagent\adaptive_task_catalog_service;
+use bookingextension_agent\local\wbagent\services\catalog\adaptive_task_catalog_service;
+use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
+use bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service;
 use bookingextension_agent\local\wbagent\services\assistant_state_guidance_service;
 use bookingextension_agent\local\wbagent\services\completed_command_history_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
+use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
 use bookingextension_agent\local\wbagent\services\orchestrator_routing_service;
 use bookingextension_agent\local\wbagent\services\provider_routing_util;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Orchestrates LLM interaction via core_ai.

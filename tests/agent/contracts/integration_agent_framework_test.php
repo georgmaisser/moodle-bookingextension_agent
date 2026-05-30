@@ -98,7 +98,7 @@ final class integration_agent_framework_test extends TestCase {
         $store = new \bookingextension_agent\local\wbagent\conversation_store();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
         $orchestrator = new \bookingextension_agent\local\wbagent\orchestrator($registry, $interpreter, $store);
-        $authz = new \bookingextension_agent\local\wbagent\authorization_service();
+        $authz = new \bookingextension_agent\local\wbagent\services\security\authorization_service();
 
         // Create agent_runtime with custom provider (test dependency injection).
         $runtime = new \bookingextension_agent\local\wbagent\agent_runtime($registry, $orchestrator, $store, $authz, $provider);
@@ -213,7 +213,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that embedding-selected planner subsets keep full task descriptions.
      */
     public function test_embedding_subset_keeps_full_descriptions(): void {
-        $retrieval = new \bookingextension_agent\local\wbagent\embeddings_retrieval_service();
+        $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
         $csvdescription = 'Persisted CSV description that should not win over live task schema metadata.';
         $livedescription = 'Live task description from get_schema that must win when embed task selection is mapped back to tasks.';
 
@@ -256,7 +256,7 @@ final class integration_agent_framework_test extends TestCase {
     public function test_embedding_subset_includes_property_descriptions(): void {
         task_registry_factory::reset();
 
-        $retrieval = new \bookingextension_agent\local\wbagent\embeddings_retrieval_service();
+        $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
         $subset = $retrieval->build_planner_catalog_subset([
             [
                 'task' => 'core.recreate_task_catalog',

@@ -28,9 +28,9 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use core\task\manager as task_manager;
 use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\execution_feedback_service;
+use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
 use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;

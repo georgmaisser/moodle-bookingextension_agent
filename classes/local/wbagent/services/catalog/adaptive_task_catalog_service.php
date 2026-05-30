@@ -29,7 +29,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\catalog;
 
 /**
  * Reduces full task catalog to tiered adaptive candidates with safety nets.

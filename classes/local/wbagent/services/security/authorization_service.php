@@ -22,7 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\security;
 
 use context;
 use context_module;

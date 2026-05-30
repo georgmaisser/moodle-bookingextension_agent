@@ -24,8 +24,10 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\planning;
 
+use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service;
 
 /**

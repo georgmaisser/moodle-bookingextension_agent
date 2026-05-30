@@ -17,7 +17,7 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use context_module;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\task_contract_validator;

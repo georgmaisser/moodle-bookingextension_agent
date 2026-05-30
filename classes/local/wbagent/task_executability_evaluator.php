@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent;
 
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use context;
 
 /**

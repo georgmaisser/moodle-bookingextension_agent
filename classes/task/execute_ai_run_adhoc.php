@@ -27,9 +27,9 @@ namespace bookingextension_agent\task;
 use context_module;
 use core\context;
 use core\task\adhoc_task;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\execution_feedback_service;
+use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
 use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\task_registry;
 

@@ -33,12 +33,15 @@ use bookingextension_agent\local\wbagent\agent_state;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
+use bookingextension_agent\local\wbagent\services\messaging\message_persistence_service;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
 use bookingextension_agent\local\wbagent\services\runtime_step_analysis_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\services\runtime_synthesis_policy_service;
 use bookingextension_agent\local\wbagent\services\trigger_result_util;
 

@@ -24,7 +24,9 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\messaging;
+
+use bookingextension_agent\local\wbagent\conversation_store;
 
 /**
  * Persists normalized assistant payloads to conversation storage.

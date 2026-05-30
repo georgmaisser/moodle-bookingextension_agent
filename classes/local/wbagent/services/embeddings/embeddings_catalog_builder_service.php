@@ -24,7 +24,9 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\embeddings;
+
+use bookingextension_agent\local\wbagent\task_registry;
 
 /**
  * Builds canonical embedding rows from the full prompt catalog.

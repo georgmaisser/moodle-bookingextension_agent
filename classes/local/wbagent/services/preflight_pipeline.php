@@ -302,5 +302,4 @@ class preflight_pipeline {
             'task_version' => max(1, (int)($command['version'] ?? 1)),
         ];
     }
-
 }

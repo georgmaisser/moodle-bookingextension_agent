@@ -24,7 +24,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\llm;
 
 use context_module;
 use core\di;
@@ -32,6 +32,8 @@ use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core_ai\manager as ai_manager;
+use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\llm_debug_logger;
 
 /**
  * Provides one entry point for all model calls in the booking agent.

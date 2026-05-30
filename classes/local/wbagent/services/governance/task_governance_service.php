@@ -24,7 +24,10 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\governance;
+
+use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\task_registry_factory;
 
 /**
  * Handles admin-settings-level governance for individual agent tasks.

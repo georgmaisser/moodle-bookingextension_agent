@@ -25,6 +25,7 @@
 namespace bookingextension_agent\local\wbagent;
 
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Mandatory trust boundary between raw LLM output and the executor.

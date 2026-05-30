@@ -30,7 +30,7 @@ use context_system;
 use core\di;
 use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
-use bookingextension_agent\local\wbagent\embeddings_catalog_builder_service;
+use bookingextension_agent\local\wbagent\services\embeddings\embeddings_catalog_builder_service;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\task_registry_factory;

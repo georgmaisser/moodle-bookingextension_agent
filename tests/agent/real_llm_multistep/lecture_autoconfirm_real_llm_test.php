@@ -116,13 +116,13 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
 
         $_POST['sesskey'] = sesskey();
         $counter = 1;
-        while (((string)($response['response_type'] ?? '') === 'confirmation_request') ) {
+        while (((string)($response['response_type'] ?? '') === 'confirmation_request')) {
             $counter++;
             $response = ai_confirm_run::execute(
-                    (int)$this->booking->cmid,
-                    $threadid,
-                    $response["queueitemid"] ?? '',
-                    true
+                (int)$this->booking->cmid,
+                $threadid,
+                $response["queueitemid"] ?? '',
+                true
             );
             $trace[] = $this->build_trace_line('send', 0, $response);
         }

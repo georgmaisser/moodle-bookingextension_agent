@@ -24,14 +24,19 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wbagent\services\execution;
 
 use core\di;
 use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core_ai\manager as ai_manager;
+use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
+use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\provider_routing_util;
 use bookingextension_agent\local\wbagent\services\shared_json_payload_extractor;

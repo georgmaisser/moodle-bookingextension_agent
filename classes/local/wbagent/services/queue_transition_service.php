@@ -86,8 +86,10 @@ class queue_transition_service {
             if ((string)($item['mutability'] ?? '') !== 'mutating') {
                 continue;
             }
-            if (queue_status_policy::is_failed_status((string)($item['status'] ?? ''))
-                && !empty((array)($item['issue_codes'] ?? []))) {
+            if (
+                queue_status_policy::is_failed_status((string)($item['status'] ?? ''))
+                && !empty((array)($item['issue_codes'] ?? []))
+            ) {
                 continue;
             }
 

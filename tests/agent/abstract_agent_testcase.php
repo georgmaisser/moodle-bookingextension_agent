@@ -31,7 +31,7 @@ use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
