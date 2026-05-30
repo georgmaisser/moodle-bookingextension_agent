@@ -81,7 +81,7 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching tasks to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 6;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 4;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild task. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 300;
@@ -1310,56 +1310,6 @@ PROMPT;
         }
 
         return $json;
-    }
-
-    /**
-     * Build compact runtime metadata for tasks that are known but currently unavailable.
-     *
-     * @param array<string,array<string,mixed>> $evaluations
-     * @param array<string,string> $descriptionindex
-     * @param array<int,string> $taskfilter
-     * @return array<int,array<string,string>>
-     */
-    private function build_unavailable_task_catalog_for_runtime(
-        array $evaluations,
-        array $descriptionindex = [],
-        array $taskfilter = []
-    ): array {
-        $catalog = [];
-        $taskfiltermap = [];
-
-        foreach ($taskfilter as $taskname) {
-            $name = trim((string)$taskname);
-            if ($name !== '') {
-                $taskfiltermap[$name] = true;
-            }
-        }
-
-        foreach ($evaluations as $taskname => $evaluation) {
-            if (!empty($taskfiltermap) && empty($taskfiltermap[(string)$taskname])) {
-                continue;
-            }
-
-            $state = trim((string)($evaluation['executable_state'] ?? ''));
-            if ($state !== 'deny') {
-                continue;
-            }
-
-            $reason = trim((string)($evaluation['deny_reason'] ?? ''));
-            $availability = $this->availability_from_deny_reason($reason);
-
-            $catalog[] = [
-                'task' => (string)$taskname,
-                'availability' => $availability,
-                'description' => (string)($descriptionindex[(string)$taskname] ?? ''),
-            ];
-        }
-
-        if (count($catalog) > 60) {
-            $catalog = array_slice($catalog, 0, 60);
-        }
-
-        return $catalog;
     }
 
     /**
