@@ -79,6 +79,9 @@ class agent_decision_service {
     /** Trigger id: user explicitly discards current pending confirmation intent. */
     private const TRIGGER_DISCARD_PENDING_CONFIRMATION = 'core.discard_pending_confirmation';
 
+    /** Trigger id: user allows creating missing user in confirmation flow. */
+    private const TRIGGER_ALLOW_MISSING_USER_AUTOCREATE = 'booking.create_user_allowed_if_missing';
+
     /** @deprecated Use issue_code_provider::get_duplicate_confirmation_issue_codes() instead. */
     public const DUPLICATE_TITLE_ISSUE_CODES = [
         'DUPLICATE_TITLE_CONFIRM_REQUIRED',
@@ -295,37 +298,24 @@ class agent_decision_service {
             )
         ) {
             $result = $this->handle_command_routing($result, $threadid, $cmid, $userid, $outputlang);
-            $candidatefallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-            if (!empty($candidatefallback)) {
-                $commandfallback = $candidatefallback;
-            }
+            $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
         }
 
         // 8. Run preflight on confirmation commands: resolve entities, detect conflicts,
         // update commands to carry prepared_input, route based on preflight result.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
             $result = $this->handle_preflight($result, $threadid, $cmid, $userid, $outputlang);
-            $candidatefallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-            if (!empty($candidatefallback)) {
-                $commandfallback = $candidatefallback;
-            }
+            $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
         }
 
-        // 9. Augment teacher autocreate when user allows it.
-        $usermessage = $this->get_last_user_message($threadid);
-        $result = $this->augment_missing_teacher_autocreate_confirmation($result, $usermessage, $outputlang);
-        $candidatefallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-        if (!empty($candidatefallback)) {
-            $commandfallback = $candidatefallback;
-        }
+        // 9. Augment teacher autocreate when structured trigger allows it.
+        $result = $this->augment_missing_teacher_autocreate_confirmation($result, $outputlang);
+        $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
 
         // 9c. Final boundary guard: a readonly-only task_call must never leave
         // this service as task_call; execute it here and return execution_result.
         $result = $this->enforce_task_boundary_invariants($result, $threadid, $cmid, $userid, $outputlang);
-        $candidatefallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-        if (!empty($candidatefallback)) {
-            $commandfallback = $candidatefallback;
-        }
+        $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
 
         // 9d. Contract hardening: normalize impossible response_type/commands combinations.
         $result = $this->enforce_response_contract_invariants($result, $commandfallback);
@@ -415,23 +405,18 @@ class agent_decision_service {
             $outputlang
         );
 
-        return [
-            'response_type'             => self::RESPONSE_TYPE_CLARIFICATION,
-            'message'                   => $message,
-            'commands'                  => [],
-            'ambiguities'               => array_values(array_unique((array)($result['ambiguities'] ?? []))),
-            'ambiguity_options'         => [],
-            'errors'                    => array_values(array_unique((array)($result['errors'] ?? []))),
-            'attempted_tasks'           => array_values(array_unique((array)($result['attempted_tasks'] ?? []))),
-            'issue_codes'               => array_values(array_unique(array_merge(
-                (array)($result['issue_codes'] ?? []),
-                ['PENDING_CONFIRMATION_EXISTS']
-            ))),
-            'pending_confirmation_code' => $confirmationcode,
-            'used_triggers'             => (array)($result['used_triggers'] ?? []),
-            'runid'                     => 0,
-            'results'                   => [],
-        ];
+        return $this->clarification_result_with_context(
+            $message,
+            $result,
+            [
+                'attempted_tasks' => array_values(array_unique((array)($result['attempted_tasks'] ?? []))),
+                'issue_codes' => array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    ['PENDING_CONFIRMATION_EXISTS']
+                ))),
+                'pending_confirmation_code' => $confirmationcode,
+            ]
+        );
     }
 
     /**
@@ -557,6 +542,18 @@ class agent_decision_service {
     }
 
     /**
+     * Refresh current command fallback with contract-recoverable commands from result.
+     *
+     * @param array $result
+     * @param array<int,array> $currentfallback
+     * @return array<int,array>
+     */
+    private function refresh_contract_command_fallback(array $result, array $currentfallback): array {
+        $candidate = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
+        return !empty($candidate) ? $candidate : $currentfallback;
+    }
+
+    /**
      * Build a deterministic fallback message per response type and language.
      *
      * Made public so that AgentRuntime can call it if needed after process().
@@ -637,16 +634,11 @@ class agent_decision_service {
         $pendingintent = $this->pendingintentsvc->get($threadid);
 
         if ($pendingintent === null) {
-            if ($modelmessage !== '' && !$isplaceholdermessage) {
-                $fallback = $this->clarification_result($modelmessage);
-                $fallback['used_triggers'] = (array)($result['used_triggers'] ?? []);
-                if (!empty($result['next_step_intent'])) {
-                    $fallback['next_step_intent'] = trim((string)$result['next_step_intent']);
-                }
-                return $fallback;
-            }
-            return $this->clarification_result(
-                localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
+            return $this->build_confirm_pending_no_intent_fallback(
+                $result,
+                $modelmessage,
+                $isplaceholdermessage,
+                $outputlang
             );
         }
 
@@ -656,16 +648,11 @@ class agent_decision_service {
             $threadid
         );
         if (empty($confirmcommands)) {
-            if ($modelmessage !== '' && !$isplaceholdermessage) {
-                $fallback = $this->clarification_result($modelmessage);
-                $fallback['used_triggers'] = (array)($result['used_triggers'] ?? []);
-                if (!empty($result['next_step_intent'])) {
-                    $fallback['next_step_intent'] = trim((string)$result['next_step_intent']);
-                }
-                return $fallback;
-            }
-            return $this->clarification_result(
-                localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
+            return $this->build_confirm_pending_no_intent_fallback(
+                $result,
+                $modelmessage,
+                $isplaceholdermessage,
+                $outputlang
             );
         }
 
@@ -678,21 +665,16 @@ class agent_decision_service {
         );
         if (trim((string)($preflightresult['status'] ?? '')) !== 'pass') {
             $invalidmessage = implode(' ', array_values(array_unique(array_filter((array)($preflightresult['errors'] ?? [])))));
-            return [
-                'response_type'             => 'clarification',
-                'message'                   => $invalidmessage !== '' ? $invalidmessage
+            return $this->clarification_result_with_context(
+                $invalidmessage !== '' ? $invalidmessage
                     : localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang),
-                'commands'                  => [],
-                'ambiguities'               => [],
-                'ambiguity_options'         => [],
-                'errors'                    => $preflightresult['errors'] ?? [],
-                'attempted_tasks'           => $preflightresult['attempted_tasks'] ?? [],
-                'issue_codes'               => $preflightresult['issue_codes'] ?? [],
-                'pending_confirmation_code' => '',
-                'used_triggers'             => $result['used_triggers'] ?? [],
-                'runid'                     => 0,
-                'results'                   => [],
-            ];
+                $result,
+                [
+                    'errors' => $preflightresult['errors'] ?? [],
+                    'attempted_tasks' => $preflightresult['attempted_tasks'] ?? [],
+                    'issue_codes' => $preflightresult['issue_codes'] ?? [],
+                ]
+            );
         }
 
         // Use the prepared commands (with resolved inputs) for the pending intent.
@@ -933,24 +915,6 @@ class agent_decision_service {
         }
 
         return $result;
-    }
-
-    /**
-     * Keep only the first mutating command for the current confirmation stage.
-     *
-     * Remaining steps are expected to be produced by a follow-up planner turn
-     * after the first command has been executed.
-     *
-     * @param array $mutatingcommands
-     * @return array
-     */
-    private function slice_first_mutation_confirmation_stage(array $mutatingcommands): array {
-        $mutatingcommands = array_values(array_filter($mutatingcommands, static fn($entry): bool => is_array($entry)));
-        if (empty($mutatingcommands)) {
-            return [];
-        }
-
-        return [$mutatingcommands[0]];
     }
 
     /**
@@ -1708,82 +1672,6 @@ class agent_decision_service {
 
     // Private: preflight helpers.
 
-    /**
-     * Build a user-facing clarification text from pre-confirmation validation result.
-     *
-     * @param  array  $validation
-     * @param  string $outputlang
-     * @return string
-     */
-    private function build_confirmation_validation_message(array $validation, string $outputlang): string {
-        $errors = (array)($validation['errors'] ?? []);
-        $ambiguities = (array)($validation['ambiguities'] ?? []);
-        $attemptedtasks = array_map(
-            static fn($task): string => trim((string)$task),
-            (array)($validation['attempted_tasks'] ?? [])
-        );
-        $issuecodes = array_map(
-            static fn($code): string => trim(core_text::strtoupper((string)$code)),
-            (array)($validation['issue_codes'] ?? [])
-        );
-        $createoptiontask = $this->resolve_task_name_by_suffix('create_option');
-
-        if (
-            in_array('TEACHER_USER_NOT_FOUND', $issuecodes, true)
-            && $createoptiontask !== ''
-            && in_array($createoptiontask, $attemptedtasks, true)
-            && $this->has_confirmable_prevalidation_issues($issuecodes)
-        ) {
-            $teacherquery = $this->extract_teacher_query_from_validation_errors($errors);
-            if ($teacherquery === '') {
-                $teacherquery = localized_string_service::get(
-                    'ai_property_teacherquery',
-                    'bookingextension_agent',
-                    null,
-                    $outputlang
-                );
-            }
-            return localized_string_service::get(
-                'ai_confirm_missing_teacher_user_create_option',
-                'bookingextension_agent',
-                (object)['userquery' => $teacherquery],
-                $outputlang
-            );
-        }
-
-        $parts = [];
-        if (!empty($errors)) {
-            $parts[] = trim(implode(' ', array_map(static fn($v): string => trim((string)$v), $errors)));
-        }
-        if (!empty($ambiguities)) {
-            $parts[] = trim(implode(' ', array_map(static fn($v): string => trim((string)$v), $ambiguities)));
-        }
-
-        $message = trim(implode(' ', array_filter($parts)));
-        if ($message !== '') {
-            return $message;
-        }
-
-        return localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang);
-    }
-
-    /**
-     * Extract teacher query value from validation error text.
-     *
-     * @param  array $errors
-     * @return string
-     */
-    private function extract_teacher_query_from_validation_errors(array $errors): string {
-        foreach ($errors as $error) {
-            $text = trim((string)$error);
-            if ($text === '' || preg_match('/"([^"]+)"/', $text, $matches) !== 1) {
-                continue;
-            }
-            return trim((string)($matches[1] ?? ''));
-        }
-        return '';
-    }
-
     // -------------------------------------------------------------------------
     // Private: command classification helpers.
 
@@ -1974,13 +1862,11 @@ class agent_decision_service {
      * Prepend a matching create-user task when user explicitly allows creating missing teacher accounts.
      *
      * @param  array  $result
-     * @param  string $usermessage
      * @param  string $outputlang
      * @return array
      */
     private function augment_missing_teacher_autocreate_confirmation(
         array $result,
-        string $usermessage,
         string $outputlang = ''
     ): array {
         $createusertask = $this->resolve_task_name_by_suffix('create_user');
@@ -1992,7 +1878,7 @@ class agent_decision_service {
         if ($createusertask === '' || $createoptiontask === '') {
             return $result;
         }
-        if (!$this->user_allows_missing_user_autocreate($usermessage)) {
+        if (!trigger_result_util::has_trigger($result, self::TRIGGER_ALLOW_MISSING_USER_AUTOCREATE)) {
             return $result;
         }
 
@@ -2068,27 +1954,6 @@ class agent_decision_service {
         return '';
     }
 
-    /**
-     * Detect user intent that permits creating missing users.
-     *
-     * @param  string $usermessage
-     * @return bool
-     */
-    private function user_allows_missing_user_autocreate(string $usermessage): bool {
-        $normalized = core_text::strtolower(trim(preg_replace('/\s+/', ' ', $usermessage) ?? $usermessage));
-        if ($normalized === '') {
-            return false;
-        }
-        return (bool)preg_match(
-            '/('
-            . 'auch\s+wenn\s+.*benutzer.*nicht\s+existiert|'
-            . 'if\s+.*user.*does\s+not\s+exist|'
-            . 'even\s+if\s+.*user.*does\s+not\s+exist'
-            . ')/u',
-            $normalized
-        );
-    }
-
     // -------------------------------------------------------------------------
     // Private: store / thread helpers.
 
@@ -2139,29 +2004,6 @@ class agent_decision_service {
     }
 
     /**
-     * Extract a useful option search query from user text.
-     *
-     * @param string $message
-     * @return string
-     */
-    private function extract_option_search_query(string $message): string {
-        $message = trim($message);
-        if ($message === '') {
-            return '';
-        }
-
-        $quoted = '';
-        if (preg_match('/["“”„\']([^"“”„\']{3,160})["“”„\']/', $message, $matches)) {
-            $quoted = trim((string)($matches[1] ?? ''));
-        }
-        if ($quoted !== '') {
-            return $quoted;
-        }
-
-        return '';
-    }
-
-    /**
      * Build a minimal clarification result.
      *
      * @param  string $message
@@ -2182,6 +2024,60 @@ class agent_decision_service {
             'runid'                     => 0,
             'results'                   => [],
         ];
+    }
+
+    /**
+     * Build clarification result with contextual carry-over fields.
+     *
+     * @param string $message
+     * @param array $contextresult
+     * @param array $overrides
+     * @return array
+     */
+    private function clarification_result_with_context(
+        string $message,
+        array $contextresult,
+        array $overrides = []
+    ): array {
+        $clarification = $this->clarification_result($message);
+        $clarification['ambiguities'] = array_values(array_unique((array)($contextresult['ambiguities'] ?? [])));
+        $clarification['errors'] = array_values(array_unique((array)($contextresult['errors'] ?? [])));
+        $clarification['used_triggers'] = (array)($contextresult['used_triggers'] ?? []);
+
+        foreach ($overrides as $key => $value) {
+            $clarification[$key] = $value;
+        }
+
+        return $clarification;
+    }
+
+    /**
+     * Build clarification fallback when confirm_pending has no usable pending intent.
+     *
+     * @param array $result
+     * @param string $modelmessage
+     * @param bool $isplaceholdermessage
+     * @param string $outputlang
+     * @return array
+     */
+    private function build_confirm_pending_no_intent_fallback(
+        array $result,
+        string $modelmessage,
+        bool $isplaceholdermessage,
+        string $outputlang
+    ): array {
+        if ($modelmessage !== '' && !$isplaceholdermessage) {
+            $fallback = $this->clarification_result($modelmessage);
+            $fallback['used_triggers'] = (array)($result['used_triggers'] ?? []);
+            if (!empty($result['next_step_intent'])) {
+                $fallback['next_step_intent'] = trim((string)$result['next_step_intent']);
+            }
+            return $fallback;
+        }
+
+        return $this->clarification_result(
+            localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
+        );
     }
 
     // -------------------------------------------------------------------------

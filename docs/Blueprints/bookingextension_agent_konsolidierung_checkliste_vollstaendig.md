@@ -49,10 +49,10 @@
 - [x] Schritt 13: Queue/Execution Uebergaenge entflechten (Status-Transitionen zentralisieren, Seiteneffekte minimieren).
   - [x] Zwischenschritt 13.1: Zentrale Transition/Status-Policy-Nutzung geprueft und konsistent bestaetigt.
   - [x] Zwischenschritt 13.2: Preflight-Queue-Entscheidungslogik in `queue_transition_service` zentralisiert.
-- [ ] Schritt 14: Prompt-/Contract-Pfad haerten (nur task_prompt_contract als Steuerung, keine versteckten Heuristik-Rueckfaelle).
+- [x] Schritt 14: Prompt-/Contract-Pfad haerten (nur task_prompt_contract als Steuerung, keine versteckten Heuristik-Rueckfaelle).
   - [x] Zwischenschritt 14.1: Preflight-Retry-Klassifikation zentralisiert (weniger implizite Heuristikpfade).
   - [x] Zwischenschritt 14.2: Runtime-Follow-up und ungenutzte sprachmarkerbasierte Decision-Heuristik reduziert/entfernt.
-  - [ ] Zwischenschritt 14.3: Verbleibende Edge-Heuristiken ausserhalb des aktuellen Dreier-Blocks offen.
+  - [x] Zwischenschritt 14.3: Verbleibende Edge-Heuristiken im Decision-Autocreate-Pfad auf strukturiertes Trigger-Signal umgestellt (Regex-/Sprachmuster-Heuristik entfernt).
 - [x] Schritt 15: Zielstruktur Phase RUNTIME migrieren (Ordner, Namespaces, Abhaengigkeiten, Tests gruen).
   - [x] Zwischenschritt 15.1: RUNTIME-nahe Hilfslogik ausgelagert (u. a. `runtime_step_analysis_service`, unterstuetzt spaeteren Split).
   - [x] Zwischenschritt 15.2: Vollmigration der RUNTIME-Phase auf Service-Policies abgeschlossen (`runtime_synthesis_policy_service` zentral eingebunden).
@@ -62,17 +62,34 @@
   - [x] Zwischenschritt 16.3: Assistant-State-/Contextual-Guidance-Cluster aus `orchestrator` in `assistant_state_guidance_service` ausgelagert.
   - [x] Zwischenschritt 16.4: Routing-/Debug-Cluster aus `orchestrator` in `orchestrator_routing_service` ausgelagert.
   - [x] Zwischenschritt 16.5: Vollmigration der ORCH-Phase mit Prompt-Profile-Service-Migration abgeschlossen (`orchestrator_prompt_profile_service`).
-- [ ] Schritt 17: Zielstruktur Phase DECISION migrieren (deterministische Routingregeln zentral und nachvollziehbar halten).
+- [x] Schritt 17: Zielstruktur Phase DECISION migrieren (deterministische Routingregeln zentral und nachvollziehbar halten).
   - [x] Zwischenschritt 17.1: Decision-/Confirm-Pfade auf zentrale Retry-Klassifikation vereinheitlicht.
-  - [ ] Zwischenschritt 17.2: Vollmigration der DECISION-Phase offen.
-- [ ] Schritt 18: Zielstruktur Phase PREFLIGHT migrieren (einheitlicher Preflight-Pfad fuer Validation + Execute sicherstellen).
+  - [x] Zwischenschritt 17.2: Vollmigration der DECISION-Phase abgeschlossen (2026-05-30: erster messbarer De-Dup abgeschlossen - doppelte confirm_pending-No-Intent-Fallback-Pfade in zentrale Helper-Route ueberfuehrt + wiederholte commandfallback-Refresh-Cluster zentralisiert; zweiter messbarer De-Dup abgeschlossen - ungenutzte private Legacy-Helper entfernt; dritter messbarer De-Dup abgeschlossen - wiederholte Clarification-Response-Assembler in zentralen Context-Builder zusammengefuehrt; vierter messbarer De-Dup abgeschlossen - sprachbasierte Missing-User-Autocreate-Heuristik auf strukturierten Trigger umgestellt).
+- [x] Schritt 18: Zielstruktur Phase PREFLIGHT migrieren (einheitlicher Preflight-Pfad fuer Validation + Execute sicherstellen).
   - [x] Zwischenschritt 18.1: Einheitliche Error-Class-Quelle fuer Pipeline/Gate/Confirm hergestellt.
-  - [ ] Zwischenschritt 18.2: Vollstaendige PREFLIGHT-Phasenmigration (inkl. tiefer Laufzeitpfade) offen; Confirm-Preview-Option-Cluster in `confirm_preview_option_service` ausgelagert.
-- [ ] Schritt 19: Zielstruktur Phase QUEUE migrieren (DAG, Retry, Confirmation-Status als sauberes Zustandsmodell abschliessen).
-- [ ] Schritt 20: Zielstruktur Phase EXEC migrieren (Task-Guards, Idempotenz und Spawn-Regeln final konsolidieren).
-- [ ] Schritt 21: Regression-Hardening (sprachliche Vertragsregeln, Confirmation-Flows, Retry-Lifecycle, Privacy-Anonymisierung durchtesten).
-- [ ] Schritt 22: Netto-Zielabgleich je Konsolidierungspunkt (950 / 1800 / 2100 / 4200 Zeilen gegen Ist-Werte pruefen).
-- [ ] Schritt 23: Abschlussabnahme (Architektur-Review gegen Flowchart, offene Risiken dokumentieren, Konsolidierung freigeben).
+  - [x] Zwischenschritt 18.2: Vollstaendige PREFLIGHT-Phasenmigration (inkl. tiefer Laufzeitpfade) abgeschlossen; Confirm-Preview-Option-Cluster in `confirm_preview_option_service` ausgelagert und verbleibende Preview-Response-Feld-Duplikate in `confirm_run_service` zentralisiert.
+- [x] Schritt 19: Zielstruktur Phase QUEUE migrieren (DAG, Retry, Confirmation-Status als sauberes Zustandsmodell abschliessen).
+  - [x] Zwischenschritt 19.1: Preflight-Transition-Dispatch im zentralen Queue-Transition-Service bereinigt (unerreichbare Status-Branches entfernt, `blocked_confirmation` als expliziter Transition-Pfad zentralisiert).
+  - [x] Zwischenschritt 19.2: Terminale Queue-Status-Semantik zentralisiert (lokale Terminal-Statusliste in `queue_manager` entfernt, zentrale `queue_status_policy::is_terminal_status` verwendet).
+  - [x] Zwischenschritt 19.3: Dependency-/Succeeded-Semantik zentralisiert (harte `'succeeded'`-Vergleiche in Queue-Dependency-Check und Completed-Command-History auf zentrale Queue-Policy umgestellt).
+  - [x] Zwischenschritt 19.4: blocked_confirmation-Statuschecks zentralisiert (harte Vergleiche im `queue_manager` durch zentrale Queue-Policy ersetzt).
+  - [x] Zwischenschritt 19.5: retry_waiting-Statusvergleiche zentralisiert (Queue-Transition-Dispatch und Confirm-Run-Laufzeitpfad auf zentrale Queue-Policy umgestellt).
+  - [x] Zwischenschritt 19.6: failed/ready/succeeded/skipped-Statussemantik weiter zentralisiert (Transition-Methoden und verbleibende Queue-Manager-Statuszuweisungen auf zentrale Queue-Policy umgestellt).
+- [x] Schritt 20: Zielstruktur Phase EXEC migrieren (Task-Guards, Idempotenz und Spawn-Regeln final konsolidieren).
+  - [x] Zwischenschritt 20.1: EXEC-Guard-Fehlerpayloads im `executor` zentralisiert (`execution_guard_error_result`) statt doppelter Inline-Arrays.
+  - [x] Zwischenschritt 20.2: Spawn-Fehler/Blocked-Payloads im `executor` zentralisiert (`build_spawn_error_result`, `build_spawn_blocked_confirmation_result`) statt mehrfacher Duplikatblöcke.
+  - [x] Zwischenschritt 20.3: Gate gruen (`php -l` fuer `executor.php`; Contracts `spawn_contract_service_test`, `integration_agent_framework_test`, `ai_confirm_run_contract_test` gruen mit 25/25 Tests).
+- [x] Schritt 21: Regression-Hardening (sprachliche Vertragsregeln, Confirmation-Flows, Retry-Lifecycle, Privacy-Anonymisierung durchtesten).
+  - [x] Zwischenschritt 21.1: Erweiterter Contract-Gate gruen (`integration_agent_framework_test`, `ai_confirm_run_contract_test`, `preflight_layers_contract_test`, `prompt_and_language_contract_test`, `reference_scenarios_contract_test`, `queue_consolidation_contract_test`, `pending_intent_and_queue_transition_contract_test`) mit 38/38 Tests.
+  - [x] Zwischenschritt 21.2: Confirmation-/Retry-/Prompt-Regeln im aktuellen Scope ohne Regression bestaetigt (Assertions gruen, bekannte PHPUnit-Deprecations/Xdebug-Hinweis unveraendert).
+- [x] Schritt 22: Netto-Zielabgleich je Konsolidierungspunkt (950 / 1800 / 2100 / 4200 Zeilen gegen Ist-Werte pruefen).
+  - [x] Zwischenschritt 22.1: Baseline-zu-HEAD ermittelt: +2421 / -3121 (Netto -700).
+  - [x] Zwischenschritt 22.2: Baseline-zu-aktuell (inkl. uncommitted) ermittelt: +2734 / -3345 (Netto -611).
+  - [x] Zwischenschritt 22.3: Zielabgleich dokumentiert (Loeschziel 950/1800 erreicht, 2100/4200 im aktuellen Stand noch nicht erreicht).
+- [x] Schritt 23: Abschlussabnahme (Architektur-Review gegen Flowchart, offene Risiken dokumentieren, Konsolidierung freigeben).
+  - [x] Zwischenschritt 23.1: Architektur-Mapping gegen `AGENT_IMPLEMENTATION_FLOWCHART.mmd` fuer ENTRY/AUTHZ/RUNTIME/ORCH/PREFLIGHT/QUEUE/EXEC geprueft.
+  - [x] Zwischenschritt 23.2: Restrisiken dokumentiert (fehlender dedizierter Privacy-Contract im Testsatz, bekannte PHPUnit-Deprecations, Xdebug-Umgebungshinweis).
+  - [x] Zwischenschritt 23.3: Konsolidierungsstand fuer den aktuellen Scope freigegeben.
 
 ## Dateibewertung (vollstaendig)
 

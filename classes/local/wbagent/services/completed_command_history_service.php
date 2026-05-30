@@ -20,6 +20,7 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\services\queue_status_policy;
 use core_text;
 
 /**
@@ -150,7 +151,7 @@ class completed_command_history_service {
                 continue;
             }
 
-            if (trim((string)($item['status'] ?? '')) !== 'succeeded') {
+            if (!queue_status_policy::is_succeeded_status((string)($item['status'] ?? ''))) {
                 continue;
             }
 

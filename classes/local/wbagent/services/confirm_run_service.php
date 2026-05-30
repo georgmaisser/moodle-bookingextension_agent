@@ -176,7 +176,7 @@ class confirm_run_service {
         }
 
         $activestatus = trim((string)($activeitem['status'] ?? ''));
-        if ($activestatus === 'retry_waiting' && !$queuesvc->can_pickup_now($activeitem)) {
+        if (queue_status_policy::is_retry_waiting_status($activestatus) && !$queuesvc->can_pickup_now($activeitem)) {
             $errors = ['Queue item is waiting for retry and cannot be picked up yet.'];
             $waitseconds = max(0, ((int)($activeitem['next_retry_at'] ?? 0)) - time());
             if ($waitseconds > 0) {
@@ -270,10 +270,7 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => $activequeueitemid,
-                'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
-                    $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, [])
-                ),
-                'previewoptionids' => $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, []),
+                ...$this->build_preview_response_fields($cmid, $userid, []),
             ];
         }
 
@@ -336,7 +333,7 @@ class confirm_run_service {
                     );
                     $retrymeta = (array)($retrydecision['meta'] ?? []);
                     $executionstatus = (string)($retrydecision['queue_status'] ?? 'failed');
-                    if ($executionstatus === 'retry_waiting') {
+                    if (queue_status_policy::is_retry_waiting_status($executionstatus)) {
                         $this->queuetransitionsvc->to_retry_waiting(
                             $queuesvc,
                             $threadid,
@@ -372,7 +369,7 @@ class confirm_run_service {
                     [
                         'layer' => 'execution',
                         'status' => $executionstatus,
-                        'issue_codes' => $executionstatus === 'retry_waiting'
+                        'issue_codes' => queue_status_policy::is_retry_waiting_status($executionstatus)
                             ? $issuecodes
                             : array_values(array_unique(array_merge(
                                 $issuecodes,
@@ -384,7 +381,7 @@ class confirm_run_service {
                     ]
                 ));
 
-                if ($executionstatus !== 'retry_waiting') {
+                if (!queue_status_policy::is_retry_waiting_status($executionstatus)) {
                     $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
                 }
             } else {
@@ -615,7 +612,7 @@ class confirm_run_service {
                     'error_class' => $errorclass !== '' ? $errorclass : 'provider_error',
                 ]
             ));
-            if ($executionstatus !== 'retry_waiting') {
+            if (!queue_status_policy::is_retry_waiting_status($executionstatus)) {
                 $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
             }
 
@@ -636,14 +633,7 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => '',
-                'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
-                    $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, $feedbackresults)
-                ),
-                'previewoptionids' => $this->confirmpreviewsvc->resolve_preview_option_ids_for_response(
-                    $cmid,
-                    $userid,
-                    $feedbackresults
-                ),
+                ...$this->build_preview_response_fields($cmid, $userid, $feedbackresults),
             ];
         }
     }
@@ -683,10 +673,23 @@ class confirm_run_service {
             'errors' => $errors,
             'pending_confirmation_code' => '',
             'queueitemid' => $queueitemid,
-            'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
-                $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, [])
-            ),
-            'previewoptionids' => $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, []),
+            ...$this->build_preview_response_fields($cmid, $userid, []),
+        ];
+    }
+
+    /**
+     * Build response preview fields from current result context.
+     *
+     * @param int $cmid
+     * @param int $userid
+     * @param array<int,mixed> $results
+     * @return array{previewoptionid:int,previewoptionids:array<int,int>}
+     */
+    private function build_preview_response_fields(int $cmid, int $userid, array $results): array {
+        $previewoptionids = $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, $results);
+        return [
+            'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id($previewoptionids),
+            'previewoptionids' => $previewoptionids,
         ];
     }
 

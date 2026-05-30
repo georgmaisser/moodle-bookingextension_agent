@@ -118,7 +118,7 @@ class queue_manager {
                 'input_signature_payload' => [],
                 'mutability' => $mutability,
                 'depends_on' => $dependson,
-                'status' => 'failed',
+                'status' => queue_status_policy::failed_status(),
                 'retry_count' => 0,
                 'preflight_retry_count' => 0,
                 'next_retry_at' => null,
@@ -148,11 +148,10 @@ class queue_manager {
 
         // Idempotency: if an equivalent item (same signature) is already in a
         // non-terminal state, return it instead of creating a duplicate.
-        $activeterminals = ['succeeded', 'failed', 'skipped'];
         foreach ($items as $existing) {
             if (
                 (string)($existing['input_signature'] ?? '') === $signature
-                && !in_array((string)($existing['status'] ?? ''), $activeterminals, true)
+                && !queue_status_policy::is_terminal_status((string)($existing['status'] ?? ''))
             ) {
                 return $existing;
             }
@@ -509,7 +508,7 @@ class queue_manager {
             if (!isset($byid[$dependencyid])) {
                 return false;
             }
-            if ((string)($byid[$dependencyid]['status'] ?? '') !== 'succeeded') {
+            if (!queue_status_policy::is_dependency_satisfied_status((string)($byid[$dependencyid]['status'] ?? ''))) {
                 return false;
             }
         }
@@ -567,14 +566,14 @@ class queue_manager {
             if (!is_array($item)) {
                 continue;
             }
-            if ((string)($item['status'] ?? '') !== 'blocked_confirmation') {
+            if (!queue_status_policy::is_blocked_confirmation_status((string)($item['status'] ?? ''))) {
                 continue;
             }
             $expiresat = (int)($item['blocked_expires_at'] ?? 0);
             if ($expiresat <= 0 || $expiresat > $now) {
                 continue;
             }
-            $item['status'] = 'failed';
+            $item['status'] = queue_status_policy::failed_status();
             $item['issue_codes'] = ['BLOCKED_CONFIRMATION_TIMEOUT'];
             $item['error_class'] = 'blocked_timeout';
             $item['last_error_message'] = 'blocked_confirmation TTL expired.';
@@ -700,7 +699,7 @@ class queue_manager {
      * @return int|null
      */
     private function resolve_blocked_expires_at(string $status, int $now): ?int {
-        if ($status !== 'blocked_confirmation') {
+        if (!queue_status_policy::is_blocked_confirmation_status($status)) {
             return null;
         }
         if (!(bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {

@@ -61,20 +61,20 @@ class queue_transition_service {
         }
 
         $status = trim($status);
-        $targetstatus = 'failed';
+        $targetstatus = queue_status_policy::failed_status();
         $errorclass = '';
         $extrafields = [];
         $message = trim(implode(' ', array_values(array_unique(array_map('strval', $errors)))));
 
         if ($status === 'pass') {
-            $targetstatus = $autoconfirmmode ? 'ready' : 'blocked_confirmation';
+            $targetstatus = $autoconfirmmode ? queue_status_policy::ready_status() : 'blocked_confirmation';
         } else if ($status === 'soft_block') {
             $targetstatus = 'blocked_confirmation';
         } else if ($status === 'retry_hint') {
             $targetstatus = 'retry_waiting';
             $errorclass = 'preflight_retry';
         } else {
-            $targetstatus = 'failed';
+            $targetstatus = queue_status_policy::failed_status();
             $errorclass = 'preflight_block';
         }
 
@@ -86,11 +86,12 @@ class queue_transition_service {
             if ((string)($item['mutability'] ?? '') !== 'mutating') {
                 continue;
             }
-            if ((string)($item['status'] ?? '') === 'failed' && !empty((array)($item['issue_codes'] ?? []))) {
+            if (queue_status_policy::is_failed_status((string)($item['status'] ?? ''))
+                && !empty((array)($item['issue_codes'] ?? []))) {
                 continue;
             }
 
-            if ($targetstatus === 'retry_waiting') {
+            if (queue_status_policy::is_retry_waiting_status($targetstatus)) {
                 $currentretrycount = max(0, (int)($item['preflight_retry_count'] ?? $item['retry_count'] ?? 0));
                 $nextretrycount = $currentretrycount + 1;
                 $retryafterms = max(1, (int)($v2result['retry_after_ms'] ?? 0));
@@ -106,9 +107,11 @@ class queue_transition_service {
                 ];
             }
 
-            if ($targetstatus === 'ready') {
+            if (queue_status_policy::is_ready_status($targetstatus)) {
                 $this->to_ready($queuesvc, $threadid, $queueitemid, $issuecodes);
-            } else if ($targetstatus === 'retry_waiting') {
+            } else if ($targetstatus === 'blocked_confirmation') {
+                $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, $issuecodes);
+            } else if (queue_status_policy::is_retry_waiting_status($targetstatus)) {
                 $this->to_retry_waiting(
                     $queuesvc,
                     $threadid,
@@ -118,23 +121,8 @@ class queue_transition_service {
                     $message,
                     $extrafields
                 );
-            } else if ($targetstatus === 'failed') {
-                $this->to_failed($queuesvc, $threadid, $queueitemid, $issuecodes, $errorclass, $message);
-            } else if ($targetstatus === 'skipped') {
-                $this->to_skipped($queuesvc, $threadid, $queueitemid, $issuecodes, $errorclass, $message);
-            } else if ($targetstatus === 'succeeded') {
-                $this->to_succeeded($queuesvc, $threadid, $queueitemid, $issuecodes);
             } else {
-                $this->to_status(
-                    $queuesvc,
-                    $threadid,
-                    $queueitemid,
-                    $targetstatus,
-                    $issuecodes,
-                    $errorclass,
-                    $message,
-                    $extrafields
-                );
+                $this->to_failed($queuesvc, $threadid, $queueitemid, $issuecodes, $errorclass, $message);
             }
         }
     }
@@ -175,7 +163,25 @@ class queue_transition_service {
      * @return void
      */
     public function to_ready(queue_manager $queuesvc, int $threadid, string $queueitemid, array $issuecodes = []): void {
-        $queuesvc->update_status($threadid, $queueitemid, 'ready', $issuecodes);
+        $queuesvc->update_status($threadid, $queueitemid, queue_status_policy::ready_status(), $issuecodes);
+    }
+
+    /**
+     * Transition queue item to blocked_confirmation.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param string $queueitemid
+     * @param array<int,string> $issuecodes
+     * @return void
+     */
+    public function to_blocked_confirmation(
+        queue_manager $queuesvc,
+        int $threadid,
+        string $queueitemid,
+        array $issuecodes = []
+    ): void {
+        $queuesvc->update_status($threadid, $queueitemid, 'blocked_confirmation', $issuecodes);
     }
 
     /**
@@ -221,7 +227,14 @@ class queue_transition_service {
         string $errorclass = '',
         string $message = ''
     ): void {
-        $queuesvc->update_status($threadid, $queueitemid, 'failed', $issuecodes, $errorclass, $message);
+        $queuesvc->update_status(
+            $threadid,
+            $queueitemid,
+            queue_status_policy::failed_status(),
+            $issuecodes,
+            $errorclass,
+            $message
+        );
     }
 
     /**
@@ -243,7 +256,14 @@ class queue_transition_service {
         string $errorclass = '',
         string $message = ''
     ): void {
-        $queuesvc->update_status($threadid, $queueitemid, 'skipped', $issuecodes, $errorclass, $message);
+        $queuesvc->update_status(
+            $threadid,
+            $queueitemid,
+            queue_status_policy::skipped_status(),
+            $issuecodes,
+            $errorclass,
+            $message
+        );
     }
 
     /**
@@ -256,7 +276,7 @@ class queue_transition_service {
      * @return void
      */
     public function to_succeeded(queue_manager $queuesvc, int $threadid, string $queueitemid, array $issuecodes = []): void {
-        $queuesvc->update_status($threadid, $queueitemid, 'succeeded', $issuecodes);
+        $queuesvc->update_status($threadid, $queueitemid, queue_status_policy::succeeded_status(), $issuecodes);
     }
 
     /**
