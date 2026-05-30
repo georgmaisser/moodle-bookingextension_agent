@@ -1332,23 +1332,18 @@ const handleFinalAgentResponse = (resp, source, responseType, messageText) => {
 
     appendMessage('assistant', renderAssistantMessageHtml(messageText), buildAgentResponseMeta(resp, source, {
         response_type: responseType,
-        attempted_tasks: parseJsonList(resp.attemptedtasksjson).join(', '),
         issue_codes: parseJsonList(resp.issuecodesjson).join(', '),
-        pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
         errors: parseJsonList(resp.errorsjson).join(' || '),
     }));
 };
 
 const handleAgentCommandResponse = (resp, source, responseType, cmds, messageText) => {
-    const attemptedTasks = parseJsonList(resp.attemptedtasksjson);
     const errors = parseJsonList(resp.errorsjson);
     const issueCodes = parseJsonList(resp.issuecodesjson);
     const planBubble = appendMessage('assistant', messageText, buildAgentResponseMeta(resp, source, {
         commands_count: Array.isArray(cmds) ? cmds.length : 0,
         llm_commands_json: String(resp.commands || ''),
-        attempted_tasks: attemptedTasks.join(', '),
         issue_codes: issueCodes.join(', '),
-        pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
         errors: errors.join(' || '),
     }));
 
@@ -2062,7 +2057,6 @@ const sendMessage = (message) => {
             stopStepPolling();
             clearStepBubbles();
             appendAssistantPrivacyNote(resp, 'ai_send_message');
-            const attemptedTasks = parseJsonList(resp.attemptedtasksjson);
             const errors = parseJsonList(resp.errorsjson);
             const issueCodes = parseJsonList(resp.issuecodesjson);
             let results = [];
@@ -2087,10 +2081,8 @@ const sendMessage = (message) => {
                         response_type: resp.response_type || '',
                         threadid: Number(resp.threadid || currentThreadId || 0),
                         runid: Number(resp.runid || 0),
-                        attempted_tasks: attemptedTasks.join(', '),
                         issue_codes: issueCodes.join(', '),
                         results_count: Array.isArray(results) ? results.length : 0,
-                        pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
                         errors: errors.join(' || '),
                         source: 'ai_send_message',
                         time: (new Date()).toISOString(),
@@ -2125,10 +2117,8 @@ const sendMessage = (message) => {
                 response_type: resp.response_type || '',
                 threadid: Number(resp.threadid || currentThreadId || 0),
                 runid: Number(resp.runid || 0),
-                attempted_tasks: attemptedTasks.join(', '),
                 issue_codes: issueCodes.join(', '),
                 results_count: Array.isArray(results) ? results.length : 0,
-                pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
                 errors: errors.join(' || '),
                 source: 'ai_send_message',
                 time: (new Date()).toISOString(),
