@@ -39,6 +39,7 @@ use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\services\pending_intent_service;
 use bookingextension_agent\local\wbagent\task_registry;
 
 /**
@@ -308,7 +309,8 @@ class ai_send_message extends external_api {
      * @return string
      */
     private static function resolve_response_queue_item_id(conversation_store $store, int $threadid): string {
-        $pendingintent = $store->get_pending_intent($threadid);
+        $pendingintentsvc = new pending_intent_service($store);
+        $pendingintent = $pendingintentsvc->get($threadid);
         if (!is_array($pendingintent)) {
             return '';
         }

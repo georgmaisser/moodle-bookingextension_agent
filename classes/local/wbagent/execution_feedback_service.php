@@ -32,6 +32,9 @@ use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
+use bookingextension_agent\local\wbagent\services\localized_string_service;
+use bookingextension_agent\local\wbagent\services\provider_routing_util;
+use bookingextension_agent\local\wbagent\services\shared_json_payload_extractor;
 use context_module;
 use core_text;
 
@@ -570,7 +573,7 @@ class execution_feedback_service {
             return '';
         }
 
-        foreach ($this->extract_json_candidates($rawcontent) as $candidate) {
+        foreach (shared_json_payload_extractor::extract_json_candidates($rawcontent) as $candidate) {
             $decoded = json_decode($candidate, true);
             if (!is_array($decoded)) {
                 continue;
@@ -585,101 +588,6 @@ class execution_feedback_service {
 
         // Backward-compatible fallback in case a provider returns plain text.
         return strip_tags($rawcontent);
-    }
-
-    /**
-     * Extract likely JSON object candidates from raw model text.
-     *
-     * Handles plain JSON, markdown-fenced JSON blocks and prefixed content such as "json {...}".
-     *
-     * @param string $text
-     * @return array<int,string>
-     */
-    private function extract_json_candidates(string $text): array {
-        $candidates = [];
-
-        $trimmed = trim($text);
-        if ($trimmed !== '') {
-            $candidates[] = $trimmed;
-        }
-
-        if (preg_match_all('/\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60/i', $text, $matches) > 0) {
-            foreach (($matches[1] ?? []) as $block) {
-                $block = trim((string)$block);
-                if ($block !== '') {
-                    $candidates[] = $block;
-                }
-            }
-        }
-
-        foreach ($this->extract_balanced_json_objects($text) as $json) {
-            $candidates[] = $json;
-        }
-
-        return array_values(array_unique(array_filter(array_map('trim', $candidates), static function (string $value): bool {
-            return $value !== '';
-        })));
-    }
-
-    /**
-     * Extract balanced top-level JSON object snippets from arbitrary text.
-     *
-     * @param string $text
-     * @return array<int,string>
-     */
-    private function extract_balanced_json_objects(string $text): array {
-        $objects = [];
-        $length = strlen($text);
-        $depth = 0;
-        $start = -1;
-        $instring = false;
-        $escaped = false;
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $text[$i];
-
-            if ($instring) {
-                if ($escaped) {
-                    $escaped = false;
-                    continue;
-                }
-
-                if ($char === '\\') {
-                    $escaped = true;
-                    continue;
-                }
-
-                if ($char === '"') {
-                    $instring = false;
-                }
-                continue;
-            }
-
-            if ($char === '"') {
-                $instring = true;
-                continue;
-            }
-
-            if ($char === '{') {
-                if ($depth === 0) {
-                    $start = $i;
-                }
-                $depth++;
-                continue;
-            }
-
-            if ($char === '}') {
-                if ($depth > 0) {
-                    $depth--;
-                    if ($depth === 0 && $start >= 0) {
-                        $objects[] = substr($text, $start, $i - $start + 1);
-                        $start = -1;
-                    }
-                }
-            }
-        }
-
-        return $objects;
     }
 
     /**
@@ -699,8 +607,8 @@ class execution_feedback_service {
         int $observationcount,
         string $actionclass
     ): string {
-        $provider = $this->resolve_primary_provider_for_action($manager, $actionclass);
-        $providershort = $this->short_provider_for_debug($provider);
+        $provider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
+        $providershort = provider_routing_util::short_provider_for_debug($provider);
         $route = ($providershort === 'oai') ? 'oa' : 'df';
         $actionmap = [
             generate_text::class => 'gen',
@@ -724,50 +632,6 @@ class execution_feedback_service {
         }
 
         return $source;
-    }
-
-    /**
-     * Resolve the primary enabled provider plugin for an action.
-     *
-     * @param ai_manager $manager
-     * @param string $actionclass
-     * @return string
-     */
-    private function resolve_primary_provider_for_action(ai_manager $manager, string $actionclass): string {
-        try {
-            $providers = $manager->get_providers_for_actions([$actionclass], true);
-            $list = (array)($providers[$actionclass] ?? []);
-            if (empty($list)) {
-                return '';
-            }
-            $primary = reset($list);
-            return (string)($primary->provider ?? '');
-        } catch (\Throwable $e) {
-            return '';
-        }
-    }
-
-    /**
-     * Convert provider plugin names to short debug tokens.
-     *
-     * @param string $provider
-     * @return string
-     */
-    private function short_provider_for_debug(string $provider): string {
-        $value = trim(core_text::strtolower($provider));
-        if ($value === '') {
-            return 'na';
-        }
-        if ($value === 'aiprovider_openai') {
-            return 'oai';
-        }
-        if (str_starts_with($value, 'aiprovider_')) {
-            $value = substr($value, 11);
-        }
-        if ($value === '') {
-            return 'na';
-        }
-        return core_text::substr($value, 0, 10);
     }
 
     /**
@@ -956,15 +820,15 @@ class execution_feedback_service {
                 return $usermessage;
             }
             $detail = trim((string)($result['detail'] ?? ''));
-            return $detail !== '' ? $detail : $this->localized_string('ai_result_detail_action_executed', null, $outputlang);
+            return $detail !== '' ? $detail : $this->localized('ai_result_detail_action_executed', null, $outputlang);
         }
 
         if ($category === 'diagnosis') {
             $optionname = trim((string)($result['diagnosis']['optionname'] ?? ''));
             if ($optionname !== '') {
-                return $this->localized_string('ai_result_detail_diagnosis_with_option', $optionname, $outputlang);
+                return $this->localized('ai_result_detail_diagnosis_with_option', $optionname, $outputlang);
             }
-            return $this->localized_string('ai_result_detail_diagnosis_generic', null, $outputlang);
+            return $this->localized('ai_result_detail_diagnosis_generic', null, $outputlang);
         }
 
         // Pass through task-authored user message when no output-language override is active.
@@ -974,27 +838,33 @@ class execution_feedback_service {
         }
 
         if ($category === 'users') {
-            $count = count($result['users']);
-            if ($count === 0) {
-                return $this->localized_string('ai_result_detail_users_none', null, $outputlang);
-            }
-            return $this->localized_string('ai_result_detail_users_found', $count, $outputlang);
+            return $this->localized_list_count_message(
+                $result,
+                'users',
+                'ai_result_detail_users_none',
+                'ai_result_detail_users_found',
+                $outputlang
+            );
         }
 
         if ($category === 'courses') {
-            $count = count($result['courses']);
-            if ($count === 0) {
-                return $this->localized_string('ai_result_detail_courses_none', null, $outputlang);
-            }
-            return $this->localized_string('ai_result_detail_courses_found', $count, $outputlang);
+            return $this->localized_list_count_message(
+                $result,
+                'courses',
+                'ai_result_detail_courses_none',
+                'ai_result_detail_courses_found',
+                $outputlang
+            );
         }
 
         if ($category === 'options') {
-            $count = count($result['options']);
-            if ($count === 0) {
-                return $this->localized_string('ai_result_detail_options_none', null, $outputlang);
-            }
-            return $this->localized_string('ai_result_detail_options_found', $count, $outputlang);
+            return $this->localized_list_count_message(
+                $result,
+                'options',
+                'ai_result_detail_options_none',
+                'ai_result_detail_options_found',
+                $outputlang
+            );
         }
 
         if ($category === 'option_details') {
@@ -1002,7 +872,7 @@ class execution_feedback_service {
         }
 
         if ($category === 'current_user') {
-            return $this->localized_string('ai_result_detail_current_user', null, $outputlang);
+            return $this->localized('ai_result_detail_current_user', null, $outputlang);
         }
 
         if ($category === 'capabilities' || $category === 'properties') {
@@ -1014,7 +884,7 @@ class execution_feedback_service {
 
         $detail = trim((string)($result['detail'] ?? ''));
         if ($detail === '') {
-            $detail = $this->localized_string('ai_result_detail_action_executed', null, $outputlang);
+            $detail = $this->localized('ai_result_detail_action_executed', null, $outputlang);
         }
 
         return $this->append_link_to_message($detail, $this->extract_primary_link_from_result($result), $outputlang);
@@ -1029,47 +899,53 @@ class execution_feedback_service {
      */
     private function fallback_message_for_results(array $results, string $outputlang): string {
         if (empty($results)) {
-            return $this->localized_string('ai_result_feedback_complete', null, $outputlang);
+            return $this->localized('ai_result_feedback_complete', null, $outputlang);
         }
 
         $first = $results[0] ?? [];
         if (!is_array($first)) {
-            return $this->localized_string('ai_result_feedback_complete', null, $outputlang);
+            return $this->localized('ai_result_feedback_complete', null, $outputlang);
         }
 
         $category = result_payload_summarizer::detect_result_category($first);
 
         if ($category === 'users') {
-            $count = count($first['users']);
-            if ($count === 0) {
-                return $this->localized_string('ai_result_feedback_users_none', null, $outputlang);
-            }
-            return $this->localized_string('ai_result_feedback_users_found', $count, $outputlang);
+            return $this->localized_list_count_message(
+                $first,
+                'users',
+                'ai_result_feedback_users_none',
+                'ai_result_feedback_users_found',
+                $outputlang
+            );
         }
 
         if ($category === 'courses') {
-            $count = count($first['courses']);
-            if ($count === 0) {
-                return $this->localized_string('ai_result_feedback_courses_none', null, $outputlang);
-            }
-            return $this->localized_string('ai_result_feedback_courses_found', $count, $outputlang);
+            return $this->localized_list_count_message(
+                $first,
+                'courses',
+                'ai_result_feedback_courses_none',
+                'ai_result_feedback_courses_found',
+                $outputlang
+            );
         }
 
         if ($category === 'options') {
-            $count = count($first['options']);
-            if ($count === 0) {
-                return $this->localized_string('ai_result_feedback_options_none', null, $outputlang);
-            }
-            return $this->localized_string('ai_result_feedback_options_found', $count, $outputlang);
+            return $this->localized_list_count_message(
+                $first,
+                'options',
+                'ai_result_feedback_options_none',
+                'ai_result_feedback_options_found',
+                $outputlang
+            );
         }
 
         if ($category === 'current_user') {
-            return $this->localized_string('ai_result_feedback_current_user', null, $outputlang);
+            return $this->localized('ai_result_feedback_current_user', null, $outputlang);
         }
 
         $detail = trim((string)($first['detail'] ?? ''));
         if ($detail === '') {
-            $detail = $this->localized_string('ai_result_feedback_complete', null, $outputlang);
+            $detail = $this->localized('ai_result_feedback_complete', null, $outputlang);
         }
 
         return $this->append_link_to_message($detail, $this->extract_primary_link_from_result($first), $outputlang);
@@ -1117,6 +993,43 @@ class execution_feedback_service {
     }
 
     /**
+     * Resolve a localized plugin string.
+     *
+     * @param string $identifier
+     * @param mixed $a
+     * @param string $outputlang
+     * @return string
+     */
+    private function localized(string $identifier, $a = null, string $outputlang = ''): string {
+        return localized_string_service::get($identifier, 'bookingextension_agent', $a, $outputlang);
+    }
+
+    /**
+     * Localize a none/found message pair based on list count.
+     *
+     * @param array $result
+     * @param string $listkey
+     * @param string $nonekey
+     * @param string $foundkey
+     * @param string $outputlang
+     * @return string
+     */
+    private function localized_list_count_message(
+        array $result,
+        string $listkey,
+        string $nonekey,
+        string $foundkey,
+        string $outputlang
+    ): string {
+        $items = $result[$listkey] ?? [];
+        if (!is_array($items) || count($items) === 0) {
+            return $this->localized($nonekey, null, $outputlang);
+        }
+
+        return $this->localized($foundkey, count($items), $outputlang);
+    }
+
+    /**
      * Append a link to a plain-text message once, localized and deterministic.
      *
      * @param string $message
@@ -1141,21 +1054,5 @@ class execution_feedback_service {
         }
 
         return $message . ' ' . $prefix . $link;
-    }
-
-    /**
-     * Return a localized string, optionally forcing a specific output language.
-     *
-     * @param string $identifier  Lang string key in bookingextension_agent.
-     * @param mixed  $a           Optional substitution parameter.
-     * @param string $lang        Target language code (empty = current session language).
-     * @return string
-     */
-    private function localized_string(string $identifier, $a = null, string $lang = ''): string {
-        $targetlang = trim($lang);
-        if ($targetlang === '') {
-            return get_string($identifier, 'bookingextension_agent', $a);
-        }
-        return get_string_manager()->get_string($identifier, 'bookingextension_agent', $a, $targetlang);
     }
 }

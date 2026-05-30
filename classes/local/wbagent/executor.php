@@ -28,6 +28,7 @@ use context_module;
 use core\context;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\services\spawn_contract_service;
 
@@ -496,7 +497,7 @@ class executor implements agent_executor {
 
         $result['suggestions'] = $suggestions;
         if (empty($result['followupmessage'])) {
-            $result['followupmessage'] = $this->localized_string('ai_followup_offer', null, $lang);
+            $result['followupmessage'] = localized_string_service::get('ai_followup_offer', 'bookingextension_agent', null, $lang);
         }
 
         return $result;
@@ -532,7 +533,7 @@ class executor implements agent_executor {
             }
 
             $label = $this->get_task_label($candidatetask, $lang);
-            $query = $this->localized_string('ai_followup_suggestion_query', $label, $lang);
+            $query = localized_string_service::get('ai_followup_suggestion_query', 'bookingextension_agent', $label, $lang);
             $this->append_suggestion($suggestions, $seen, $candidatetask, $label, $query);
 
             if (count($suggestions) >= $limit) {
@@ -595,7 +596,7 @@ class executor implements agent_executor {
             }
 
             $label = $this->get_task_label($candidatetask, $lang);
-            $query = $this->localized_string('ai_followup_suggestion_query', $label, $lang) . ' (' . $contexttoken . ')';
+            $query = localized_string_service::get('ai_followup_suggestion_query', 'bookingextension_agent', $label, $lang) . ' (' . $contexttoken . ')';
             $this->append_suggestion($suggestions, $seen, $candidatetask, $label, $query);
             break;
         }
@@ -768,20 +769,4 @@ class executor implements agent_executor {
         return rtrim($truncated, " \t\n\r\0\x0B,.;:") . '...';
     }
 
-    /**
-     * Read a localized string, optionally forcing a specific output language.
-     *
-     * @param string $identifier
-     * @param mixed $a
-     * @param string $lang
-     * @return string
-     */
-    private function localized_string(string $identifier, $a = null, string $lang = ''): string {
-        $targetlang = trim($lang);
-        if ($targetlang === '') {
-            return get_string($identifier, 'bookingextension_agent', $a);
-        }
-
-        return get_string_manager()->get_string($identifier, 'bookingextension_agent', $a, $targetlang);
-    }
 }

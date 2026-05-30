@@ -87,45 +87,7 @@ class llm_call_service {
             $context = context_module::instance($cmid);
             $manager = di::get(ai_manager::class);
 
-            if ($actionclass === summarise_text::class) {
-                $action = new summarise_text(
-                    contextid: $context->id,
-                    userid: $userid,
-                    prompttext: $prompt,
-                );
-            } else if ($actionclass === explain_text::class) {
-                $action = new explain_text(
-                    contextid: $context->id,
-                    userid: $userid,
-                    prompttext: $prompt,
-                );
-            } else if (
-                $actionclass === self::WB_ACTION_GENERATE_AGENT_REPLY
-                && class_exists(self::WB_ACTION_GENERATE_AGENT_REPLY)
-            ) {
-                $wbactionclass = self::WB_ACTION_GENERATE_AGENT_REPLY;
-                $action = new $wbactionclass(
-                    contextid: $context->id,
-                    userid: $userid,
-                    prompttext: $prompt,
-                );
-            } else if (
-                $actionclass === self::WB_ACTION_PLANNER_DECIDE
-                && class_exists(self::WB_ACTION_PLANNER_DECIDE)
-            ) {
-                $wbactionclass = self::WB_ACTION_PLANNER_DECIDE;
-                $action = new $wbactionclass(
-                    contextid: $context->id,
-                    userid: $userid,
-                    prompttext: $prompt,
-                );
-            } else {
-                $action = new generate_text(
-                    contextid: $context->id,
-                    userid: $userid,
-                    prompttext: $prompt,
-                );
-            }
+            $action = $this->build_prompt_action($actionclass, $context->id, $userid, $prompt);
 
             $response = $manager->process_action($action);
             $rawcontent = (string)($response->get_response_data()['generatedcontent'] ?? '');
@@ -242,5 +204,69 @@ class llm_call_service {
             'errorcode' => $errorcode,
             'errorname' => $errorname,
         ];
+    }
+
+    /**
+     * Build the prompt-based AI action object from the requested action class.
+     *
+     * @param string $actionclass
+     * @param int $contextid
+     * @param int $userid
+     * @param string $prompt
+     * @return object
+     */
+    private function build_prompt_action(string $actionclass, int $contextid, int $userid, string $prompt): object {
+        if ($actionclass === summarise_text::class) {
+            return new summarise_text(
+                contextid: $contextid,
+                userid: $userid,
+                prompttext: $prompt,
+            );
+        }
+
+        if ($actionclass === explain_text::class) {
+            return new explain_text(
+                contextid: $contextid,
+                userid: $userid,
+                prompttext: $prompt,
+            );
+        }
+
+        $wunderbyteactionclass = $this->resolve_wunderbyte_prompt_action_class($actionclass);
+        if ($wunderbyteactionclass !== '') {
+            return new $wunderbyteactionclass(
+                contextid: $contextid,
+                userid: $userid,
+                prompttext: $prompt,
+            );
+        }
+
+        return new generate_text(
+            contextid: $contextid,
+            userid: $userid,
+            prompttext: $prompt,
+        );
+    }
+
+    /**
+     * Resolve supported Wunderbyte prompt action classes when available.
+     *
+     * @param string $actionclass
+     * @return string
+     */
+    private function resolve_wunderbyte_prompt_action_class(string $actionclass): string {
+        $supported = [
+            self::WB_ACTION_GENERATE_AGENT_REPLY,
+            self::WB_ACTION_PLANNER_DECIDE,
+        ];
+        if (!in_array($actionclass, $supported, true)) {
+            return '';
+        }
+
+        if (!class_exists($actionclass)) {
+            return '';
+        }
+
+        return $actionclass;
     }
 }

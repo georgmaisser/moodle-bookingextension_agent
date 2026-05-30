@@ -46,9 +46,6 @@ class confirm_run_service {
     /** Thread metadata key for aggregated option previews across one confirm chain. */
     private const CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY = '_confirm_preview_option_ids';
 
-    /** Queue statuses that represent actionable mutating work. */
-    private const ACTIVE_MUTATING_STATUSES = ['queued', 'blocked_confirmation', 'ready', 'retry_waiting'];
-
     /** @var task_registry */
     private task_registry $registry;
 
@@ -57,6 +54,12 @@ class confirm_run_service {
 
     /** @var authorization_service */
     private authorization_service $authz;
+
+    /** @var pending_intent_service */
+    private pending_intent_service $pendingintentsvc;
+
+    /** @var queue_transition_service */
+    private queue_transition_service $queuetransitionsvc;
 
     /**
      * Constructor.
@@ -69,6 +72,8 @@ class confirm_run_service {
         $this->registry = $registry;
         $this->store = $store;
         $this->authz = $authz;
+        $this->pendingintentsvc = new pending_intent_service($store);
+        $this->queuetransitionsvc = new queue_transition_service();
     }
 
     /**
@@ -107,7 +112,7 @@ class confirm_run_service {
             $this->store->allow_confirmation_for_thread($userid, $contextid, $threadid);
         }
 
-        $pendingintent = $this->store->consume_pending_intent($threadid, $userid, $contextid);
+        $pendingintent = $this->pendingintentsvc->consume($threadid, $userid, $contextid);
         if ($pendingintent === null) {
             return $this->build_error_payload(
                 $threadid,
@@ -198,7 +203,7 @@ class confirm_run_service {
             );
         }
 
-        $queuesvc->update_status($threadid, $activequeueitemid, 'ready');
+        $this->queuetransitionsvc->to_ready($queuesvc, $threadid, $activequeueitemid);
         $auditlogger->append($threadid, 0, array_merge(
             $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
             [
@@ -286,7 +291,7 @@ class confirm_run_service {
                     ]
                 ));
             } else {
-                $queuesvc->update_status($threadid, $activequeueitemid, 'ready');
+                $this->queuetransitionsvc->to_ready($queuesvc, $threadid, $activequeueitemid);
             }
 
             $exec = new executor($this->registry, $this->store, $this->authz);
@@ -327,20 +332,31 @@ class confirm_run_service {
                     );
                     $retrymeta = (array)($retrydecision['meta'] ?? []);
                     $executionstatus = (string)($retrydecision['queue_status'] ?? 'failed');
-                    $queuesvc->update_status(
-                        $threadid,
-                        $activequeueitemid,
-                        $executionstatus,
-                        (array)($retrydecision['issue_codes'] ?? $issuecodes),
-                        $errorclass,
-                        trim((string)($primary['detail'] ?? '')),
-                        $retrymeta
-                    );
+                    if ($executionstatus === 'retry_waiting') {
+                        $this->queuetransitionsvc->to_retry_waiting(
+                            $queuesvc,
+                            $threadid,
+                            $activequeueitemid,
+                            (array)($retrydecision['issue_codes'] ?? $issuecodes),
+                            $errorclass,
+                            trim((string)($primary['detail'] ?? '')),
+                            $retrymeta
+                        );
+                    } else {
+                        $this->queuetransitionsvc->to_failed(
+                            $queuesvc,
+                            $threadid,
+                            $activequeueitemid,
+                            (array)($retrydecision['issue_codes'] ?? $issuecodes),
+                            $errorclass,
+                            trim((string)($primary['detail'] ?? ''))
+                        );
+                    }
                 } else {
-                    $queuesvc->update_status(
+                    $this->queuetransitionsvc->to_failed(
+                        $queuesvc,
                         $threadid,
                         $activequeueitemid,
-                        'failed',
                         $issuecodes,
                         'domain_error',
                         trim((string)($primary['detail'] ?? ''))
@@ -368,7 +384,7 @@ class confirm_run_service {
                     $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
                 }
             } else {
-                $queuesvc->update_status($threadid, $activequeueitemid, 'succeeded', $issuecodes);
+                $this->queuetransitionsvc->to_succeeded($queuesvc, $threadid, $activequeueitemid, $issuecodes);
                 $auditlogger->append($threadid, (int)$runid, array_merge(
                     $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
                     [
@@ -438,21 +454,16 @@ class confirm_run_service {
                 $finalresult = [];
             }
 
-            $pendingintent = $this->store->get_pending_intent($threadid);
+            $pendingintent = $this->pendingintentsvc->get($threadid);
             if (!is_array($pendingintent)) {
                 $nextqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid);
                 if (is_array($nextqueueitem)) {
                     $nextqueueitemid = (string)($nextqueueitem['queue_item_id'] ?? '');
-                    $nextcommand = $this->build_command_from_queue_item($nextqueueitem);
+                    $nextcommand = queue_command_mapper::from_queue_item($nextqueueitem, true);
                     if ($nextqueueitemid !== '' && is_array($nextcommand)) {
-                        $intentkey = hash(
-                            'sha256',
-                            (string)$userid . ':' . $threadid . '::' . json_encode([$nextcommand])
-                        );
-                        $this->store->set_pending_intent(
+                        $confirmationcode = $this->pendingintentsvc->set(
                             $threadid,
                             [],
-                            $intentkey,
                             $userid,
                             $contextid,
                             [
@@ -461,8 +472,8 @@ class confirm_run_service {
                             ]
                         );
 
-                        $pendingintent = $this->store->get_pending_intent($threadid);
-                        $finalresult['pending_confirmation_code'] = (string)($pendingintent['confirmationcode'] ?? '');
+                        $pendingintent = $this->pendingintentsvc->get($threadid);
+                        $finalresult['pending_confirmation_code'] = $confirmationcode;
                         if (empty((array)($finalresult['commands'] ?? []))) {
                             $finalresult['commands'] = [$nextcommand];
                         }
@@ -562,20 +573,20 @@ class confirm_run_service {
                 $retrymeta = (array)($retrydecision['meta'] ?? []);
                 $executionstatus = (string)($retrydecision['queue_status'] ?? 'failed');
                 $executionissuecodes = (array)($retrydecision['issue_codes'] ?? []);
-                $queuesvc->update_status(
+                $this->queuetransitionsvc->to_retry_waiting(
+                    $queuesvc,
                     $threadid,
                     $activequeueitemid,
-                    $executionstatus,
                     $executionissuecodes,
                     $errorclass,
                     $e->getMessage(),
                     $retrymeta
                 );
             } else {
-                $queuesvc->update_status(
+                $this->queuetransitionsvc->to_failed(
+                    $queuesvc,
                     $threadid,
                     $activequeueitemid,
-                    'failed',
                     [],
                     'provider_error',
                     $e->getMessage()
@@ -1072,47 +1083,7 @@ class confirm_run_service {
             return [];
         }
 
-        $command = $this->build_command_from_queue_item($item);
-        if (!is_array($command)) {
-            return [];
-        }
-
-        return [$command];
-    }
-
-    /**
-     * Build a normalized runtime command from a queue item.
-     *
-     * @param array<string,mixed> $item
-     * @return array<string,mixed>|null
-     */
-    private function build_command_from_queue_item(array $item): ?array {
-        $task = trim((string)($item['task'] ?? ''));
-        if ($task === '') {
-            return null;
-        }
-
-        $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
-            ? (array)$item['prepared_input']
-            : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
-
-        $command = [
-            'task' => $task,
-            'version' => max(1, (int)($item['version'] ?? 1)),
-            'input' => $input,
-        ];
-
-        $guardtoken = trim((string)($item['guard_token'] ?? ''));
-        if ($guardtoken !== '') {
-            $command['guard_token'] = $guardtoken;
-        }
-
-        $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
-        if (!empty($dependson)) {
-            $command['depends_on'] = $dependson;
-        }
-
-        return $command;
+        return queue_command_mapper::from_queue_items([$item], true);
     }
 
     /**
@@ -1144,14 +1115,14 @@ class confirm_run_service {
             }
 
             $status = (string)($item['status'] ?? '');
-            if (!in_array($status, self::ACTIVE_MUTATING_STATUSES, true)) {
+            if (!queue_status_policy::is_actionable_mutating_status($status)) {
                 continue;
             }
 
-            $queuesvc->update_status(
+            $this->queuetransitionsvc->to_skipped(
+                $queuesvc,
                 $threadid,
                 $queueitemid,
-                'skipped',
                 ['DEPENDENCY_FAILED'],
                 'domain_conflict',
                 'Skipped because a dependent queue item failed.'
@@ -1206,6 +1177,6 @@ class confirm_run_service {
         }
 
         $status = trim((string)($item['status'] ?? ''));
-        return in_array($status, self::ACTIVE_MUTATING_STATUSES, true);
+        return queue_status_policy::is_actionable_mutating_status($status);
     }
 }

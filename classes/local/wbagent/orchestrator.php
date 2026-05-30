@@ -36,6 +36,7 @@ use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\adaptive_task_catalog_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
+use bookingextension_agent\local\wbagent\services\provider_routing_util;
 
 /**
  * Orchestrates LLM interaction via core_ai.
@@ -391,17 +392,10 @@ class orchestrator {
                                         $matchedtasknames[] = $taskname;
                                         $state = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
                                         if ($state === 'deny') {
+                                            $denyreasons = (string)($evaluations[$taskname]['deny_reason'] ?? '');
                                             $unavailabletaskcatalog[] = [
                                                 'task' => $taskname,
-                                                'availability' => (string)(
-                                                    ($evaluations[$taskname]['deny_reason'] ?? '') === task_contract_validator::DENY_MISSING_CAPABILITY
-                                                        ? 'not_active_for_you'
-                                                        : (($evaluations[$taskname]['deny_reason'] ?? '') === task_contract_validator::DENY_CONTEXT_INVALID
-                                                            ? 'invalid_context'
-                                                            : (($evaluations[$taskname]['deny_reason'] ?? '') === task_contract_validator::DENY_RUNTIME_DISABLED
-                                                                ? 'runtime_disabled'
-                                                                : 'not_active_now'))
-                                                ),
+                                                'availability' => $this->availability_from_deny_reason($denyreasons),
                                                 'description' => (string)($descriptionindex[$taskname] ?? ''),
                                             ];
                                             continue;
@@ -413,9 +407,7 @@ class orchestrator {
                                     if (!empty($activesubset)) {
                                         // Embedding mode is strict top-k only: no fallback merge inflation.
                                         $runtimecatalog = array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K);
-                                        $unavailabletaskcatalog = array_values(array_filter($unavailabletaskcatalog, static function ($entry) {
-                                            return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
-                                        }));
+                                        $unavailabletaskcatalog = $this->sanitize_unavailable_task_catalog($unavailabletaskcatalog);
                                         $catalogselectionmode = 'embed_topk';
                                         $embeddingstatus = 'applied';
                                     } else {
@@ -469,7 +461,7 @@ class orchestrator {
         );
         $historycount = count(array_slice($messages, -$this->get_history_limit_for_step($normalizedsteptype)));
         $observationcount = count($observations);
-        $primaryprovider = $this->resolve_primary_provider_for_action($manager, $actionclass);
+        $primaryprovider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
         $debugsource = $this->build_orchestrator_debug_source(
             $normalizedsteptype,
             $actionclass,
@@ -898,16 +890,7 @@ PROMPT;
 
             $examples = (array)($trigger['examples'] ?? []);
             if (!empty($examples)) {
-                $row['examples'] = array_values(array_filter(array_map(
-                    static function ($example): string {
-                        $text = trim((string)$example);
-                        if ($text === '') {
-                            return '';
-                        }
-                        return (string)core_text::substr($text, 0, 160);
-                    },
-                    array_slice($examples, 0, 2)
-                )));
+                  $row['examples'] = $this->normalize_nonempty_string_list($examples, 2, 160);
                 if (empty($row['examples'])) {
                     unset($row['examples']);
                 }
@@ -1100,8 +1083,8 @@ PROMPT;
             }
 
             if (is_array($entry)) {
-                $json = json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                if (is_string($json) && $json !== '') {
+                $json = $this->json_encode_or_empty($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($json !== '') {
                     $history[] = $json;
                 }
             }
@@ -1198,51 +1181,80 @@ PROMPT;
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
         }
 
-        $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
-        if (is_string($taskcatalogjson) && $taskcatalogjson !== '') {
-            $lines[] = '';
-            $lines[] = 'TASK CATALOG:';
-            $lines[] = $taskcatalogjson;
-        }
+        $this->append_json_object_section($lines, 'TASK CATALOG:', $taskcatalog);
 
         if (!empty($unavailabletaskcatalog)) {
-            $unavailablejson = json_encode($unavailabletaskcatalog, JSON_UNESCAPED_UNICODE);
-            if (is_string($unavailablejson) && $unavailablejson !== '') {
-                $lines[] = '';
-                $lines[] = 'UNAVAILABLE TASKS:';
-                $lines[] = $unavailablejson;
-            }
+            $this->append_json_object_section($lines, 'UNAVAILABLE TASKS:', $unavailabletaskcatalog);
         }
 
         $completedcommands = $this->extract_completed_commands_from_messages($messages);
         $completedcommands = $this->merge_completed_commands_from_queue($threadid, $completedcommands);
-        if (!empty($completedcommands)) {
-            $lines[] = '';
-            $lines[] = 'completed_commands:';
-            foreach ($completedcommands as $command) {
-                $json = json_encode($command, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                if (!is_string($json) || $json === '') {
-                    continue;
-                }
-                $lines[] = '  - ' . $json;
-            }
-        }
+        $this->append_json_list_section($lines, 'completed_commands:', $completedcommands);
 
         $observationledger = new execution_observation_ledger($this->store);
         $completedobservations = $observationledger->get_recent_for_runtime($threadid, 12);
-        if (!empty($completedobservations)) {
-            $lines[] = '';
-            $lines[] = 'completed_observations:';
-            foreach ($completedobservations as $observation) {
-                $json = json_encode($observation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                if (!is_string($json) || $json === '') {
-                    continue;
-                }
-                $lines[] = '  - ' . $json;
-            }
-        }
+        $this->append_json_list_section($lines, 'completed_observations:', $completedobservations);
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Append a JSON-encoded object section to runtime context lines.
+     *
+     * @param array<int,string> $lines
+     * @param string $heading
+     * @param mixed $value
+     * @return void
+     */
+    private function append_json_object_section(array &$lines, string $heading, $value): void {
+        $json = $this->json_encode_or_empty($value, JSON_UNESCAPED_UNICODE);
+        if ($json === '') {
+            return;
+        }
+
+        $lines[] = '';
+        $lines[] = $heading;
+        $lines[] = $json;
+    }
+
+    /**
+     * Append a bullet-style JSON list section to runtime context lines.
+     *
+     * @param array<int,string> $lines
+     * @param string $heading
+     * @param array<int,mixed> $items
+     * @return void
+     */
+    private function append_json_list_section(array &$lines, string $heading, array $items): void {
+        if (empty($items)) {
+            return;
+        }
+
+        $lines[] = '';
+        $lines[] = $heading;
+        foreach ($items as $item) {
+            $json = $this->json_encode_or_empty($item, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($json === '') {
+                continue;
+            }
+            $lines[] = '  - ' . $json;
+        }
+    }
+
+    /**
+     * JSON encode helper that always returns a string.
+     *
+     * @param mixed $value
+     * @param int $flags
+     * @return string
+     */
+    private function json_encode_or_empty($value, int $flags): string {
+        $json = json_encode($value, $flags);
+        if (!is_string($json)) {
+            return '';
+        }
+
+        return $json;
     }
 
     /**
@@ -1279,14 +1291,7 @@ PROMPT;
             }
 
             $reason = trim((string)($evaluation['deny_reason'] ?? ''));
-            $availability = 'not_active_now';
-            if ($reason === task_contract_validator::DENY_MISSING_CAPABILITY) {
-                $availability = 'not_active_for_you';
-            } else if ($reason === task_contract_validator::DENY_CONTEXT_INVALID) {
-                $availability = 'invalid_context';
-            } else if ($reason === task_contract_validator::DENY_RUNTIME_DISABLED) {
-                $availability = 'runtime_disabled';
-            }
+            $availability = $this->availability_from_deny_reason($reason);
 
             $catalog[] = [
                 'task' => (string)$taskname,
@@ -1300,6 +1305,40 @@ PROMPT;
         }
 
         return $catalog;
+    }
+
+    /**
+     * Map a contract deny reason to a runtime availability flag.
+     *
+     * @param string $reason
+     * @return string
+     */
+    private function availability_from_deny_reason(string $reason): string {
+        if ($reason === task_contract_validator::DENY_MISSING_CAPABILITY) {
+            return 'not_active_for_you';
+        }
+
+        if ($reason === task_contract_validator::DENY_CONTEXT_INVALID) {
+            return 'invalid_context';
+        }
+
+        if ($reason === task_contract_validator::DENY_RUNTIME_DISABLED) {
+            return 'runtime_disabled';
+        }
+
+        return 'not_active_now';
+    }
+
+    /**
+     * Keep only valid unavailable-task catalog entries.
+     *
+     * @param array<int,mixed> $catalog
+     * @return array<int,array<string,string>>
+     */
+    private function sanitize_unavailable_task_catalog(array $catalog): array {
+        return array_values(array_filter($catalog, static function ($entry): bool {
+            return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
+        }));
     }
 
     /**
@@ -1497,8 +1536,8 @@ PROMPT;
         }
 
         ksort($input);
-        $json = json_encode($input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if (!is_string($json)) {
+        $json = $this->json_encode_or_empty($input, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === '') {
             $json = '{}';
         }
 
@@ -1832,27 +1871,6 @@ PROMPT;
     }
 
     /**
-     * Resolve the primary enabled provider plugin for an action.
-     *
-     * @param ai_manager $manager
-     * @param string $actionclass
-     * @return string
-     */
-    private function resolve_primary_provider_for_action(ai_manager $manager, string $actionclass): string {
-        try {
-            $providers = $manager->get_providers_for_actions([$actionclass], true);
-            $list = (array)($providers[$actionclass] ?? []);
-            if (empty($list)) {
-                return '';
-            }
-            $primary = reset($list);
-            return (string)($primary->provider ?? '');
-        } catch (\Throwable $e) {
-            return '';
-        }
-    }
-
-    /**
      * Build compact orchestrator telemetry in source field for local_wbagent_ai_llm_debug.
      *
      * @param string $steptype
@@ -1905,7 +1923,7 @@ PROMPT;
         } else if ($routepolicy === 'wunderbyte') {
             $route = 'wb';
         }
-        $provider = $this->short_provider_for_debug($primaryprovider);
+        $provider = provider_routing_util::short_provider_for_debug($primaryprovider);
 
         $source = 'orc'
             . '|st=' . $step
@@ -1945,29 +1963,6 @@ PROMPT;
         }
 
         return $normalized;
-    }
-
-    /**
-     * Convert provider plugin names to short debug tokens.
-     *
-     * @param string $provider
-     * @return string
-     */
-    private function short_provider_for_debug(string $provider): string {
-        $value = trim(core_text::strtolower($provider));
-        if ($value === '') {
-            return 'na';
-        }
-        if ($value === 'aiprovider_openai') {
-            return 'oai';
-        }
-        if (str_starts_with($value, 'aiprovider_')) {
-            $value = substr($value, 11);
-        }
-        if ($value === '') {
-            return 'na';
-        }
-        return core_text::substr($value, 0, 10);
     }
 
     /**
@@ -2039,18 +2034,12 @@ PROMPT;
             $lines[] = 'lang=' . $lang;
         }
 
-        $issuecodes = array_values(array_filter(array_map(
-            static fn($code): string => trim((string)$code),
-            (array)($structured['issue_codes'] ?? [])
-        )));
+          $issuecodes = $this->normalize_nonempty_string_list((array)($structured['issue_codes'] ?? []));
         if (!empty($issuecodes)) {
             $lines[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 8));
         }
 
-        $attemptedtasks = array_values(array_filter(array_map(
-            static fn($task): string => trim((string)$task),
-            (array)($structured['attempted_tasks'] ?? [])
-        )));
+          $attemptedtasks = $this->normalize_nonempty_string_list((array)($structured['attempted_tasks'] ?? []));
         if (!empty($attemptedtasks)) {
             $lines[] = 'attempted_tasks=' . implode(',', array_slice($attemptedtasks, 0, 8));
         }
@@ -2096,10 +2085,7 @@ PROMPT;
                 $userstatus = trim((string)($diagnosis['userstatus'] ?? ''));
                 $facts[] = trim('diagnosis option=' . $option . ' user_status=' . $userstatus);
 
-                $reasons = array_values(array_filter(array_map(
-                    static fn($reason): string => trim((string)$reason),
-                    (array)($diagnosis['reasons'] ?? [])
-                )));
+                  $reasons = $this->normalize_nonempty_string_list((array)($diagnosis['reasons'] ?? []));
                 if (!empty($reasons)) {
                     $facts[] = 'diagnosis_reasons=' . implode(' | ', array_slice($reasons, 0, 3));
                 }
@@ -2124,6 +2110,34 @@ PROMPT;
         }
 
         return array_slice(array_values(array_unique(array_filter($facts))), 0, 12);
+    }
+
+    /**
+     * Normalize an arbitrary list into non-empty trimmed strings.
+     *
+     * @param array<int,mixed> $values
+     * @param int $maxitems
+     * @param int $maxchars
+     * @return array<int,string>
+     */
+    private function normalize_nonempty_string_list(array $values, int $maxitems = 0, int $maxchars = 0): array {
+        if ($maxitems > 0) {
+            $values = array_slice($values, 0, $maxitems);
+        }
+
+        $normalized = [];
+        foreach ($values as $value) {
+            $text = trim((string)$value);
+            if ($text === '') {
+                continue;
+            }
+            if ($maxchars > 0) {
+                $text = (string)core_text::substr($text, 0, $maxchars);
+            }
+            $normalized[] = $text;
+        }
+
+        return array_values($normalized);
     }
 
     /**

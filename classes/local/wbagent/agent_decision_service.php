@@ -32,7 +32,13 @@ use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
+use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
+use bookingextension_agent\local\wbagent\services\queue_command_mapper;
+use bookingextension_agent\local\wbagent\services\queue_status_policy;
+use bookingextension_agent\local\wbagent\services\queue_transition_service;
+use bookingextension_agent\local\wbagent\services\trigger_result_util;
+use bookingextension_agent\local\wbagent\services\pending_intent_service;
 
 /**
  * Routing and decision layer for the agent runtime.
@@ -115,6 +121,12 @@ class agent_decision_service {
     /** @var language_policy_service */
     private language_policy_service $languagepolicy;
 
+    /** @var pending_intent_service */
+    private pending_intent_service $pendingintentsvc;
+
+    /** @var queue_transition_service */
+    private queue_transition_service $queuetransitionsvc;
+
     /**
      * Constructor.
      *
@@ -137,6 +149,8 @@ class agent_decision_service {
         $this->observationbuilder = new observation_builder();
         $this->preflightpipeline = new preflight_pipeline($registry, $store);
         $this->languagepolicy = new language_policy_service();
+        $this->pendingintentsvc = new pending_intent_service($store);
+        $this->queuetransitionsvc = new queue_transition_service();
     }
 
     // -------------------------------------------------------------------------
@@ -179,10 +193,10 @@ class agent_decision_service {
         $commandfallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
 
         // 1. Preview shortcut: if the user asked for a preview and one is available.
-        if ($previewoptionid > 0 && $this->result_has_trigger($result, 'core.is_preview_request')) {
+        if ($previewoptionid > 0 && trigger_result_util::has_trigger($result, 'core.is_preview_request')) {
             return [
                 'response_type'             => 'clarification',
-                'message'                   => $this->localized_string(
+                'message'                   => localized_string_service::get(
                     'ai_preview_latest_option',
                     'bookingextension_agent',
                     null,
@@ -201,10 +215,10 @@ class agent_decision_service {
 
         // 1b. Step-8 guard: when a confirmation intent is pending, block unrelated
         // new intents until the user either confirms or explicitly discards.
-        $pendingintent = $this->store->get_pending_intent($threadid);
+        $pendingintent = $this->pendingintentsvc->get($threadid);
         if ($pendingintent !== null) {
-            if ($this->result_has_trigger($result, self::TRIGGER_DISCARD_PENDING_CONFIRMATION)) {
-                $this->store->clear_pending_intent($threadid);
+            if (trigger_result_util::has_trigger($result, self::TRIGGER_DISCARD_PENDING_CONFIRMATION)) {
+                $this->pendingintentsvc->clear($threadid);
                 $result['used_triggers'] = array_values(array_filter(
                     (array)($result['used_triggers'] ?? []),
                     static fn(string $trigger): bool => $trigger !== self::TRIGGER_DISCARD_PENDING_CONFIRMATION
@@ -217,7 +231,7 @@ class agent_decision_service {
         // 2. Normalise task_call with confirmation trigger → confirm_pending.
         if (
             (string)($result['response_type'] ?? '') !== self::RESPONSE_TYPE_CONFIRM_PENDING
-            && $this->result_has_trigger($result, 'core.is_confirmation_message')
+            && trigger_result_util::has_trigger($result, 'core.is_confirmation_message')
         ) {
             $result['response_type'] = self::RESPONSE_TYPE_CONFIRM_PENDING;
         }
@@ -229,7 +243,7 @@ class agent_decision_service {
 
         // 4. Duplicate-title override: if the user explicitly asked to create anyway.
         if (
-            $this->result_has_trigger($result, 'core.force_new_duplicate_option')
+            trigger_result_util::has_trigger($result, 'core.force_new_duplicate_option')
             && $this->has_recent_duplicate_title_prompt($threadid)
         ) {
             $result = $this->apply_duplicate_title_override($result);
@@ -237,13 +251,13 @@ class agent_decision_service {
 
         // 5. Safety: block accidental mutation carry-over on lookup requests.
         if (
-            $this->result_has_trigger($result, 'core.is_lookup_request')
+            trigger_result_util::has_trigger($result, 'core.is_lookup_request')
             && (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST)
             && $this->has_mutating_commands($result)
         ) {
             return [
                 'response_type'   => self::RESPONSE_TYPE_CLARIFICATION,
-                'message'         => $this->localized_string(
+                'message'         => localized_string_service::get(
                     'ai_lookup_detected_blocked_mutation',
                     'bookingextension_agent',
                     null,
@@ -321,15 +335,10 @@ class agent_decision_service {
 
         // 11. Store / clear pending intent.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
-            $queueitemids = array_values(array_filter(array_map(
-                'strval',
-                (array)($result['queue_item_ids'] ?? [])
-            )));
-            $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($result['commands']));
-            $this->store->set_pending_intent(
+            $queueitemids = $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []);
+            $result['pending_confirmation_code'] = $this->pendingintentsvc->set(
                 $threadid,
                 !empty($queueitemids) ? [] : $result['commands'],
-                $intentkey,
                 $userid,
                 $contextid,
                 [
@@ -337,10 +346,8 @@ class agent_decision_service {
                     'queue_authoritative' => !empty($queueitemids),
                 ]
             );
-            $pendingintent = $this->store->get_pending_intent($threadid);
-            $result['pending_confirmation_code'] = (string)($pendingintent['confirmationcode'] ?? '');
         } else {
-            $this->store->clear_pending_intent($threadid);
+            $this->pendingintentsvc->clear($threadid);
             $result['pending_confirmation_code'] = '';
         }
 
@@ -355,7 +362,7 @@ class agent_decision_service {
      * @return bool
      */
     private function should_block_new_intent_while_pending(array $result): bool {
-        if ($this->result_has_trigger($result, 'core.is_confirmation_message')) {
+        if (trigger_result_util::has_trigger($result, 'core.is_confirmation_message')) {
             return false;
         }
 
@@ -394,13 +401,12 @@ class agent_decision_service {
         $pendingcommands = $this->build_commands_from_pending_queue($pendingintent, $threadid);
         $summary = $this->build_pending_intent_summary($pendingcommands, $outputlang);
         $confirmationcode = trim((string)($pendingintent['confirmationcode'] ?? ''));
-        $message = $this->localized_string(
+        $message = $this->localized(
             'ai_pending_intent_resolution_required',
-            'bookingextension_agent',
             (object)[
                 'action' => $summary !== ''
                     ? $summary
-                    : $this->localized_string('ai_status_confirm_default', 'bookingextension_agent', null, $outputlang),
+                    : $this->localized('ai_status_confirm_default', null, $outputlang),
                 'code' => $confirmationcode !== '' ? $confirmationcode : '-',
             ],
             $outputlang
@@ -452,12 +458,12 @@ class agent_decision_service {
      * @return array<int,array<string,mixed>>
      */
     private function build_commands_from_pending_queue(array $pendingintent, int $threadid): array {
-        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        $queueitemids = $this->normalize_queue_item_ids($pendingintent['queue_item_ids'] ?? []);
         if (empty($queueitemids)) {
             return [];
         }
 
-        $commands = [];
+        $items = [];
         foreach ($queueitemids as $queueitemid) {
             $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
             if (!is_array($item) || (string)($item['mutability'] ?? '') !== 'mutating') {
@@ -465,31 +471,14 @@ class agent_decision_service {
             }
 
             $status = trim((string)($item['status'] ?? ''));
-            if (!in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+            if (!queue_status_policy::is_actionable_mutating_status($status)) {
                 continue;
             }
 
-            $task = trim((string)($item['task'] ?? ''));
-            if ($task === '') {
-                continue;
-            }
-
-            $input = is_array($item['prepared_input'] ?? null) && !empty($item['prepared_input'])
-                ? (array)$item['prepared_input']
-                : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
-            $command = [
-                'task' => $task,
-                'version' => max(1, (int)($item['version'] ?? 1)),
-                'input' => $input,
-            ];
-            $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
-            if (!empty($dependson)) {
-                $command['depends_on'] = $dependson;
-            }
-            $commands[] = $command;
+            $items[] = $item;
         }
 
-        return $commands;
+        return queue_command_mapper::from_queue_items($items);
     }
 
     /**
@@ -624,11 +613,11 @@ class agent_decision_service {
                 if ($task !== null) {
                     $key = (string)($task->get_schema()['fallback_confirm_string_key'] ?? '');
                     if ($key !== '') {
-                        return $this->localized_string($key, 'bookingextension_agent', null, $outputlang);
+                        return localized_string_service::get($key, 'bookingextension_agent', null, $outputlang);
                     }
                 }
             }
-            return $this->localized_string('ai_status_confirm_default', 'bookingextension_agent', null, $outputlang);
+            return localized_string_service::get('ai_status_confirm_default', 'bookingextension_agent', null, $outputlang);
         }
 
         if ($responsetype === 'task_call') {
@@ -637,13 +626,13 @@ class agent_decision_service {
                 if ($task !== null) {
                     $key = (string)($task->get_schema()['fallback_taskcall_string_key'] ?? '');
                     if ($key !== '') {
-                        return $this->localized_string($key, 'bookingextension_agent', null, $outputlang);
+                        return localized_string_service::get($key, 'bookingextension_agent', null, $outputlang);
                     }
                 }
             }
             // Any task not registered in the booking registry (e.g. cross-plugin tasks)
             // falls back to the generic default string.
-            return $this->localized_string('ai_status_taskcall_default', 'bookingextension_agent', null, $outputlang);
+            return localized_string_service::get('ai_status_taskcall_default', 'bookingextension_agent', null, $outputlang);
         }
 
         return trim((string)($result['message'] ?? ''));
@@ -673,7 +662,7 @@ class agent_decision_service {
         $modelmessage = trim((string)($result['message'] ?? ''));
         $normalizedmessage = core_text::strtolower($modelmessage);
         $isplaceholdermessage = in_array($normalizedmessage, ['executing', 'executing.', 'running', 'running.'], true);
-        $pendingintent = $this->store->get_pending_intent($threadid);
+        $pendingintent = $this->pendingintentsvc->get($threadid);
 
         if ($pendingintent === null) {
             if ($modelmessage !== '' && !$isplaceholdermessage) {
@@ -685,7 +674,7 @@ class agent_decision_service {
                 return $fallback;
             }
             return $this->clarification_result(
-                $this->localized_string('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
+                localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
             );
         }
 
@@ -701,7 +690,7 @@ class agent_decision_service {
                 return $fallback;
             }
             return $this->clarification_result(
-                $this->localized_string('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
+                localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang)
             );
         }
 
@@ -717,7 +706,7 @@ class agent_decision_service {
             return [
                 'response_type'             => 'clarification',
                 'message'                   => $invalidmessage !== '' ? $invalidmessage
-                    : $this->localized_string('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang),
+                    : localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang),
                 'commands'                  => [],
                 'ambiguities'               => [],
                 'ambiguity_options'         => [],
@@ -733,7 +722,7 @@ class agent_decision_service {
 
         // Use the prepared commands (with resolved inputs) for the pending intent.
         $preparedcommands = $preflightresult['prepared_commands'];
-        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        $queueitemids = $this->normalize_queue_item_ids($pendingintent['queue_item_ids'] ?? []);
         foreach ($preparedcommands as $idx => $preparedcommand) {
             $queueitemid = (string)($queueitemids[$idx] ?? '');
             $preparedinput = is_array($preparedcommand['input'] ?? null) ? (array)$preparedcommand['input'] : [];
@@ -753,12 +742,10 @@ class agent_decision_service {
             $contextid
         );
 
-        $confirmmessage = $this->localized_string('ai_confirm_pending_intent', 'bookingextension_agent', null, $outputlang);
-        $intentkey = hash('sha256', (string)$userid . ':' . $threadid . '::' . json_encode($preparedcommands));
-        $this->store->set_pending_intent(
+        $confirmmessage = $this->localized('ai_confirm_pending_intent', null, $outputlang);
+        $confirmationcode = $this->pendingintentsvc->set(
             $threadid,
             !empty($queueitemids) ? [] : $preparedcommands,
-            $intentkey,
             $userid,
             $contextid,
             [
@@ -766,8 +753,6 @@ class agent_decision_service {
                 'queue_authoritative' => !empty($queueitemids),
             ]
         );
-        $updatedpending = $this->store->get_pending_intent($threadid);
-        $confirmationcode = (string)($updatedpending['confirmationcode'] ?? '');
 
         return [
             'response_type'             => 'confirmation_request',
@@ -818,7 +803,7 @@ class agent_decision_service {
         if ($missingoptionanchortask !== '') {
             return [
                 'response_type'   => 'clarification',
-                'message'         => $this->localized_string(
+                'message'         => localized_string_service::get(
                     'agent_booking_diagnose_ambiguity_option_title_or_id',
                     'bookingextension_agent',
                     null,
@@ -1251,7 +1236,7 @@ class agent_decision_service {
             'retry_count' => (int)($preflightresult['retry_count'] ?? 0),
             'duration_ms' => (int)($preflightresult['duration_ms'] ?? 0),
         ];
-        $queueitemids = array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? []))));
+        $queueitemids = $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []);
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread(
             $userid,
             $contextid,
@@ -1288,7 +1273,7 @@ class agent_decision_service {
         if ($status !== 'pass') {
             $validationmessage = trim(implode(' ', $blockingerrors));
             if ($status === 'retry_hint') {
-                $retrymessage = $this->localized_string(
+                $retrymessage = localized_string_service::get(
                     $this->languagepolicy->preflight_retry_hint_string_id(),
                     'bookingextension_agent',
                     null,
@@ -1330,7 +1315,7 @@ class agent_decision_service {
                     'response_type'   => 'confirmation_request',
                     'message'         => $validationmessage !== '' ? $validationmessage : $result['message'],
                     'commands'        => $confirmcommands,
-                    'queue_item_ids'  => array_values(array_filter(array_map('strval', (array)($result['queue_item_ids'] ?? [])))),
+                    'queue_item_ids'  => $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []),
                     'ambiguities'     => [],
                     'errors'          => $blockingerrors,
                     'attempted_tasks' => $attemptedtasks,
@@ -1341,7 +1326,7 @@ class agent_decision_service {
 
             return [
                 'response_type'   => 'clarification',
-                'message'         => $validationmessage !== '' ? $validationmessage : $this->localized_string(
+                'message'         => $validationmessage !== '' ? $validationmessage : localized_string_service::get(
                     'ai_no_pending_intent',
                     'bookingextension_agent',
                     null,
@@ -1411,7 +1396,7 @@ class agent_decision_service {
         array $v2result,
         bool $autoconfirmmode
     ): void {
-        $queueitemids = array_values(array_filter(array_map('strval', $queueitemids)));
+        $queueitemids = $this->normalize_queue_item_ids($queueitemids);
         if (empty($queueitemids)) {
             return;
         }
@@ -1462,15 +1447,55 @@ class agent_decision_service {
                 ];
             }
 
-            $this->queuesvc->update_status(
-                $threadid,
-                $queueitemid,
-                $targetstatus,
-                $issuecodes,
-                $errorclass,
-                $message,
-                $extrafields
-            );
+            if ($targetstatus === 'ready') {
+                $this->queuetransitionsvc->to_ready($this->queuesvc, $threadid, $queueitemid, $issuecodes);
+            } else if ($targetstatus === 'retry_waiting') {
+                $this->queuetransitionsvc->to_retry_waiting(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    $issuecodes,
+                    $errorclass,
+                    $message,
+                    $extrafields
+                );
+            } else if ($targetstatus === 'failed') {
+                $this->queuetransitionsvc->to_failed(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    $issuecodes,
+                    $errorclass,
+                    $message
+                );
+            } else if ($targetstatus === 'skipped') {
+                $this->queuetransitionsvc->to_skipped(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    $issuecodes,
+                    $errorclass,
+                    $message
+                );
+            } else if ($targetstatus === 'succeeded') {
+                $this->queuetransitionsvc->to_succeeded(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    $issuecodes
+                );
+            } else {
+                $this->queuetransitionsvc->to_status(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    $targetstatus,
+                    $issuecodes,
+                    $errorclass,
+                    $message,
+                    $extrafields
+                );
+            }
         }
     }
 
@@ -1662,16 +1687,16 @@ class agent_decision_service {
                     $issuecodes = array_values(array_map('strval', (array)($entry['issue_codes'] ?? [])));
 
                     if ($failed) {
-                        $this->queuesvc->update_status(
+                        $this->queuetransitionsvc->to_failed(
+                            $this->queuesvc,
                             $threadid,
                             $queueitemid,
-                            'failed',
                             $issuecodes,
                             'domain_error',
                             trim((string)($entry['detail'] ?? ''))
                         );
                     } else {
-                        $this->queuesvc->update_status($threadid, $queueitemid, 'succeeded', $issuecodes);
+                        $this->queuetransitionsvc->to_succeeded($this->queuesvc, $threadid, $queueitemid, $issuecodes);
                     }
                 }
 
@@ -1692,7 +1717,7 @@ class agent_decision_service {
             );
             $message = trim((string)($feedback['message'] ?? ''));
             if ($message === '') {
-                $message = $this->localized_string('ai_run_executed', 'bookingextension_agent', null, $outputlang);
+                $message = localized_string_service::get('ai_run_executed', 'bookingextension_agent', null, $outputlang);
             }
 
             $queueobservation = $this->observationbuilder->build_observation($this->queuesvc->get_queue_items($threadid));
@@ -1748,14 +1773,21 @@ class agent_decision_service {
                 if ($queueitemid === '') {
                     continue;
                 }
-                $this->queuesvc->update_status($threadid, $queueitemid, 'failed', [], 'provider_error', $e->getMessage());
+                $this->queuetransitionsvc->to_failed(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    [],
+                    'provider_error',
+                    $e->getMessage()
+                );
             }
 
             $this->store->update_run_status($runid, 'failed', $failureresults);
 
             return [
                 'response_type' => 'error',
-                'message'       => $this->localized_string('ai_provider_error', 'bookingextension_agent', null, $outputlang),
+                'message'       => localized_string_service::get('ai_provider_error', 'bookingextension_agent', null, $outputlang),
                 'commands'      => $preparedcommands,
                 'ambiguities'   => [],
                 'errors'        => [$e->getMessage()],
@@ -1852,9 +1884,9 @@ class agent_decision_service {
         ) {
             $teacherquery = $this->extract_teacher_query_from_validation_errors($errors);
             if ($teacherquery === '') {
-                $teacherquery = $this->localized_string('ai_property_teacherquery', 'bookingextension_agent', null, $outputlang);
+                $teacherquery = localized_string_service::get('ai_property_teacherquery', 'bookingextension_agent', null, $outputlang);
             }
-            return $this->localized_string(
+            return localized_string_service::get(
                 'ai_confirm_missing_teacher_user_create_option',
                 'bookingextension_agent',
                 (object)['userquery' => $teacherquery],
@@ -1875,7 +1907,7 @@ class agent_decision_service {
             return $message;
         }
 
-        return $this->localized_string('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang);
+        return localized_string_service::get('ai_no_pending_intent', 'bookingextension_agent', null, $outputlang);
     }
 
     /**
@@ -1992,26 +2024,6 @@ class agent_decision_service {
 
     // -------------------------------------------------------------------------
     // Private: trigger helpers.
-
-    /**
-     * Check whether a normalized interpreter result includes a specific trigger id.
-     *
-     * @param  array  $result
-     * @param  string $triggerid
-     * @return bool
-     */
-    private function result_has_trigger(array $result, string $triggerid): bool {
-        $usedtriggers = $result['used_triggers'] ?? [];
-        if (!is_array($usedtriggers) || trim($triggerid) === '') {
-            return false;
-        }
-        foreach ($usedtriggers as $candidate) {
-            if (trim((string)$candidate) === $triggerid) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     // -------------------------------------------------------------------------
     // Private: duplicate-title helpers.
@@ -2409,32 +2421,27 @@ class agent_decision_service {
     }
 
     // -------------------------------------------------------------------------
-    // Private: localisation helper.
+    // Private: localisation + normalization helpers.
 
     /**
-     * Resolve a localised string in the requested language.
+     * Resolve a localized plugin string.
      *
-     * @param  string $identifier
-     * @param  string $component
-     * @param  mixed  $a
-     * @param  string $lang
+     * @param string $identifier
+     * @param mixed $a
+     * @param string $lang
      * @return string
      */
-    private function localized_string(string $identifier, string $component, $a = null, string $lang = ''): string {
-        $currentlang = current_language();
-        $targetlang  = trim($lang);
-        $switched    = $targetlang !== '' && $targetlang !== $currentlang;
+    private function localized(string $identifier, $a = null, string $lang = ''): string {
+        return localized_string_service::get($identifier, 'bookingextension_agent', $a, $lang);
+    }
 
-        if ($switched) {
-            force_current_language($targetlang);
-        }
-
-        try {
-            return get_string($identifier, $component, $a);
-        } finally {
-            if ($switched) {
-                force_current_language($currentlang);
-            }
-        }
+    /**
+     * Normalize queue item identifiers to non-empty strings.
+     *
+     * @param mixed $value
+     * @return array<int,string>
+     */
+    private function normalize_queue_item_ids($value): array {
+        return array_values(array_filter(array_map('strval', (array)$value)));
     }
 }

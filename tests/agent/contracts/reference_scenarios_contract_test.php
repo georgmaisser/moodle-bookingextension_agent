@@ -17,9 +17,7 @@
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\services\preflight_schema_validator;
-use bookingextension_agent\local\wbagent\services\preflight_version_validator;
 use bookingextension_agent\local\wbagent\services\spawn_contract_service;
-use bookingextension_agent\local\wbagent\task_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -54,16 +52,7 @@ final class reference_scenarios_contract_test extends TestCase {
      * Scenario B: ideal multistep command validates depends_on plus base schema fields.
      */
     public function test_scenario_b_multistep_command_schema_contract(): void {
-        $registry = $this->createMock(task_registry::class);
-        $versionvalidator = $this->createMock(preflight_version_validator::class);
-        $versionvalidator->method('validate')->willReturn([
-            'valid' => true,
-            'error_class' => '',
-            'issue_codes' => [],
-            'errors' => [],
-        ]);
-
-        $validator = new preflight_schema_validator($registry, $versionvalidator);
+        $validator = new preflight_schema_validator();
         $validation = $validator->validate([
             'task' => 'booking.readonly_lookup',
             'version' => 1,

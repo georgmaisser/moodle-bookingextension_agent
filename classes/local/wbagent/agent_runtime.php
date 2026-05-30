@@ -35,6 +35,10 @@ use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
+use bookingextension_agent\local\wbagent\services\localized_string_service;
+use bookingextension_agent\local\wbagent\services\pending_intent_service;
+use bookingextension_agent\local\wbagent\services\queue_transition_service;
+use bookingextension_agent\local\wbagent\services\trigger_result_util;
 
 /**
  * Owns the complete agent execution loop: plan → execute → observe → decide.
@@ -144,6 +148,12 @@ class agent_runtime {
     /** @var language_policy_service */
     private language_policy_service $languagepolicy;
 
+    /** @var pending_intent_service */
+    private pending_intent_service $pendingintentsvc;
+
+    /** @var queue_transition_service */
+    private queue_transition_service $queuetransitionsvc;
+
     /**
      * Constructor.
      *
@@ -170,6 +180,8 @@ class agent_runtime {
         $this->loopfinalizer = new loop_finalizer();
         $this->queuesvc = new queue_manager($store);
         $this->languagepolicy = new language_policy_service();
+        $this->pendingintentsvc = new pending_intent_service($store);
+        $this->queuetransitionsvc = new queue_transition_service();
     }
 
     // -------------------------------------------------------------------------
@@ -243,7 +255,7 @@ class agent_runtime {
      */
     private function build_budget_exceeded_result(int $threadid, array $result, agent_state $state, int $limit): array {
         $lang = $this->resolve_output_language($threadid, $result);
-        $message = $this->localized_string('ai_agent_loop_continue_question', 'bookingextension_agent', (object)[
+        $message = localized_string_service::get('ai_agent_loop_continue_question', 'bookingextension_agent', (object)[
             'steps' => $limit,
         ], $lang);
         if ($message === '' || $message === 'ai_agent_loop_continue_question') {
@@ -283,13 +295,13 @@ class agent_runtime {
      * @return void
      */
     private function refresh_pending_queue_retry_state(int $threadid, int $contextid): void {
-        $pendingintent = $this->store->get_pending_intent($threadid);
+        $pendingintent = $this->pendingintentsvc->get($threadid);
         if ($pendingintent === null) {
             $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', null);
             return;
         }
 
-        $queueitemids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        $queueitemids = $this->normalize_trimmed_string_list($pendingintent['queue_item_ids'] ?? []);
         if (empty($queueitemids)) {
             $this->store->set_thread_metadata_value($threadid, 'pending_queue_retry_state', null);
             return;
@@ -315,14 +327,7 @@ class agent_runtime {
             }
 
             if ($this->queuesvc->can_pickup_now($item)) {
-                $this->queuesvc->update_status(
-                    $threadid,
-                    $queueitemid,
-                    'ready',
-                    (array)($item['issue_codes'] ?? []),
-                    (string)($item['error_class'] ?? ''),
-                    (string)($item['last_error_message'] ?? '')
-                );
+                $this->queuetransitionsvc->to_ready($this->queuesvc, $threadid, $queueitemid, (array)($item['issue_codes'] ?? []));
                 $snapshot['ready'][] = $queueitemid;
                 continue;
             }
@@ -540,7 +545,7 @@ class agent_runtime {
                     self::MAX_LOOP_STEPS,
                     fn(array $commands, array $results): array => $this->extract_step_task_names($commands, $results),
                     fn(string $id, string $component, ?object $a, string $lang): string =>
-                        $this->localized_string($id, $component, $a, $lang),
+                        localized_string_service::get($id, $component, $a, $lang),
                     fn(array $results, string $currentmessage): string =>
                         $this->build_loop_repeat_summary($results, $currentmessage)
                 );
@@ -742,7 +747,7 @@ class agent_runtime {
 
         $nextstepintent = trim((string)($result['next_step_intent'] ?? ''));
         if ($nextstepintent === '') {
-            $nextstepintent = $this->localized_string(
+            $nextstepintent = localized_string_service::get(
                 'ai_next_step_intent_default',
                 'bookingextension_agent',
                 null,
@@ -805,7 +810,7 @@ class agent_runtime {
         $lang = $this->languagepolicy->resolve_output_language($this->store, $threadid, []);
         $stringid = $this->languagepolicy->fallback_string_id_for_response_type($responsetype);
 
-        return $this->localized_string($stringid, 'bookingextension_agent', null, $lang);
+        return localized_string_service::get($stringid, 'bookingextension_agent', null, $lang);
     }
 
     /**
@@ -1212,7 +1217,7 @@ class agent_runtime {
         }
 
         if ($message === '' || $this->is_low_information_message($message)) {
-            $message = $this->localized_string('ai_run_executed', 'bookingextension_agent', null, (string)($result['lang'] ?? ''));
+            $message = localized_string_service::get('ai_run_executed', 'bookingextension_agent', null, (string)($result['lang'] ?? ''));
             if ($message === 'ai_run_executed') {
                 $message = 'I found enough information to answer your question.';
             }
@@ -1295,7 +1300,7 @@ class agent_runtime {
         $technicalneedle = 'response type requires at least one command but none were provided';
         if ($summary === '' || str_contains(core_text::strtolower($summary), $technicalneedle)) {
             $lang = trim((string)($result['lang'] ?? ''));
-            $summary = $this->localized_string(
+            $summary = localized_string_service::get(
                 'ai_agent_malformed_taskcall_clarification',
                 'bookingextension_agent',
                 null,
@@ -1355,8 +1360,8 @@ class agent_runtime {
         }
 
         $attemptedtasks = (array)($result['attempted_tasks'] ?? []);
-        $errors = array_values(array_filter(array_map('trim', (array)($result['errors'] ?? []))));
-        $issuecodes = array_values(array_filter(array_map('trim', (array)($result['issue_codes'] ?? []))));
+        $errors = $this->normalize_trimmed_string_list($result['errors'] ?? []);
+        $issuecodes = $this->normalize_trimmed_string_list($result['issue_codes'] ?? []);
 
         if (empty($attemptedtasks) || empty($errors)) {
             return false;
@@ -1429,7 +1434,7 @@ class agent_runtime {
             return false;
         }
 
-        return $this->store->get_pending_intent($threadid) === null;
+        return $this->pendingintentsvc->get($threadid) === null;
     }
 
     /**
@@ -1441,8 +1446,8 @@ class agent_runtime {
      */
     private function build_preflight_retry_observation(array $result, int $step): string {
         $parts = [];
-        $attemptedtasks = array_values(array_filter(array_map('trim', (array)($result['attempted_tasks'] ?? []))));
-        $errors = array_values(array_filter(array_map('trim', (array)($result['errors'] ?? []))));
+        $attemptedtasks = $this->normalize_trimmed_string_list($result['attempted_tasks'] ?? []);
+        $errors = $this->normalize_trimmed_string_list($result['errors'] ?? []);
 
         $parts[] = 'Preflight failed before any task execution. Repair the command input and retry the same task.';
         $parts[] = 'Return response_type="task_call" with a non-empty commands array.';
@@ -1474,7 +1479,7 @@ class agent_runtime {
             }
         }
 
-        $issuecodes = array_values(array_filter(array_map('trim', (array)($result['issue_codes'] ?? []))));
+        $issuecodes = $this->normalize_trimmed_string_list($result['issue_codes'] ?? []);
         if (!empty($issuecodes)) {
             $parts[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 12));
         }
@@ -2083,7 +2088,7 @@ class agent_runtime {
             (array)($result['issue_codes'] ?? [])
         );
         if (!empty(array_intersect(self::TOKEN_SUBSCRIPTION_ISSUE_CODES, $issuecodes))) {
-            $result['message'] = $this->localized_string(
+            $result['message'] = localized_string_service::get(
                 'ai_trial_token_invalid_subscription_message',
                 'bookingextension_agent',
                 (object)[
@@ -2167,7 +2172,7 @@ class agent_runtime {
 
         $currentmessage = trim((string)($result['message'] ?? ''));
         if ($this->is_low_information_message($currentmessage)) {
-            $result['message'] = $this->localized_string(
+            $result['message'] = localized_string_service::get(
                 'ai_redundant_readonly_blocked',
                 'bookingextension_agent',
                 null,
@@ -2214,7 +2219,7 @@ class agent_runtime {
 
         $currentmessage = trim((string)($result['message'] ?? ''));
         if ($this->is_low_information_message($currentmessage)) {
-            $result['message'] = $this->localized_string(
+            $result['message'] = localized_string_service::get(
                 'ai_diagnose_recall_blocked_use_existing',
                 'bookingextension_agent',
                 null,
@@ -2399,7 +2404,7 @@ class agent_runtime {
         // Fallback: return safe clarification with no commands.
         return [
             'response_type'             => 'clarification',
-            'message'                   => $this->localized_string(
+            'message'                   => localized_string_service::get(
                 'ai_agent_malformed_taskcall_clarification',
                 'bookingextension_agent',
                 null,
@@ -2450,7 +2455,7 @@ class agent_runtime {
             [message_trigger_registry::UNKNOWN_RESPONSE_TYPE]
         )));
         if (trim((string)($result['message'] ?? '')) === '') {
-            $result['message'] = $this->localized_string(
+            $result['message'] = localized_string_service::get(
                 'ai_agent_malformed_taskcall_clarification',
                 'bookingextension_agent',
                 null,
@@ -2541,8 +2546,8 @@ class agent_runtime {
             'user_lang' => (string)($structured['user_lang'] ?? ''),
         ]);
 
-        $message = $this->localized_string('ai_optiontype_help_message', 'bookingextension_agent', null, $lang);
-        $nextstepintent = $this->localized_string('ai_optiontype_help_next_step_intent', 'bookingextension_agent', null, $lang);
+        $message = localized_string_service::get('ai_optiontype_help_message', 'bookingextension_agent', null, $lang);
+        $nextstepintent = localized_string_service::get('ai_optiontype_help_next_step_intent', 'bookingextension_agent', null, $lang);
 
         return [
             'response_type' => 'clarification',
@@ -2646,7 +2651,7 @@ class agent_runtime {
      * @return array
      */
     private function loop_continue_result(string $lang, int $maxsteps): array {
-        $message = $this->localized_string(
+        $message = localized_string_service::get(
             'ai_agent_loop_continue_question',
             'bookingextension_agent',
             (object)['steps' => $maxsteps],
@@ -2863,28 +2868,6 @@ class agent_runtime {
     }
 
     /**
-     * Check whether normalized planner result contains a specific trigger id.
-     *
-     * @param array $result
-     * @param string $triggerid
-     * @return bool
-     */
-    private function result_has_trigger(array $result, string $triggerid): bool {
-        $needle = trim($triggerid);
-        if ($needle === '') {
-            return false;
-        }
-
-        foreach ((array)($result['used_triggers'] ?? []) as $id) {
-            if (trim((string)$id) === $needle) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Resolve language reminder source for synthesis.
      *
      * Enforce explicit source priority: Planner -> UI language -> Thread metadata.
@@ -3090,7 +3073,7 @@ class agent_runtime {
         }
 
         if ($message === '') {
-            $message = $this->localized_string(
+            $message = localized_string_service::get(
                 'ai_agent_loop_repeat_message',
                 'bookingextension_agent',
                 (object)['steps' => $state->step_count()],
@@ -3131,7 +3114,7 @@ class agent_runtime {
     private function loop_repeat_result(string $lang, int $stepcount, string $latestmessage = ''): array {
         $message = trim($latestmessage);
         if ($message === '') {
-            $message = $this->localized_string(
+            $message = localized_string_service::get(
                 'ai_agent_loop_repeat_message',
                 'bookingextension_agent',
                 (object)['steps' => $stepcount],
@@ -3197,32 +3180,18 @@ class agent_runtime {
     }
 
     // -------------------------------------------------------------------------
-    // Private: localisation helper.
+    // Private: localisation + normalization helpers.
 
     /**
-     * Resolve a localised string in the requested language.
+     * Normalize arbitrary values to non-empty trimmed strings.
      *
-     * @param  string $identifier
-     * @param  string $component
-     * @param  mixed  $a
-     * @param  string $lang
-     * @return string
+     * @param mixed $values
+     * @return array<int,string>
      */
-    private function localized_string(string $identifier, string $component, $a = null, string $lang = ''): string {
-        $currentlang = current_language();
-        $targetlang  = trim($lang);
-        $switched    = $targetlang !== '' && $targetlang !== $currentlang;
-
-        if ($switched) {
-            force_current_language($targetlang);
-        }
-
-        try {
-            return get_string($identifier, $component, $a);
-        } finally {
-            if ($switched) {
-                force_current_language($currentlang);
-            }
-        }
+    private function normalize_trimmed_string_list($values): array {
+        return array_values(array_filter(array_map(
+            static fn($value): string => trim((string)$value),
+            (array)$values
+        )));
     }
 }

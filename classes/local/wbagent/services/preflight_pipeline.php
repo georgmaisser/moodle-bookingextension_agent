@@ -39,8 +39,8 @@ class preflight_pipeline {
     /** @var conversation_store */
     private conversation_store $store;
 
-    /** @var preflight_schema_validator */
-    private preflight_schema_validator $schemavalidator;
+    /** @var preflight_contract_validator */
+    private preflight_contract_validator $contractvalidator;
 
     /** @var preflight_domain_check_runner */
     private preflight_domain_check_runner $domainrunner;
@@ -60,7 +60,7 @@ class preflight_pipeline {
     public function __construct(task_registry $registry, conversation_store $store) {
         $this->registry = $registry;
         $this->store = $store;
-        $this->schemavalidator = new preflight_schema_validator($registry);
+        $this->contractvalidator = new preflight_contract_validator($registry);
         $this->domainrunner = new preflight_domain_check_runner();
         $this->executiongate = new preflight_execution_gate();
         $this->auditlogger = new preflight_audit_logger($store);
@@ -110,7 +110,7 @@ class preflight_pipeline {
             }
             $attemptedtasks[] = $taskname;
 
-            $schemavalidation = $this->schemavalidator->validate($command);
+            $schemavalidation = $this->contractvalidator->validate($command);
             $layer1issuecodes = array_values(array_unique(array_merge(
                 $layer1issuecodes,
                 (array)($schemavalidation['issue_codes'] ?? [])
@@ -154,7 +154,7 @@ class preflight_pipeline {
             $task = $this->registry->get_task($taskname);
             if ($task === null) {
                 $errors[] = $label . ': task ' . $taskname . ' is not registered.';
-                $issuecodes[] = preflight_version_validator::ISSUE_TASK_NOT_REGISTERED;
+                $issuecodes[] = preflight_contract_validator::ISSUE_TASK_NOT_REGISTERED;
                 continue;
             }
 

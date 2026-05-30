@@ -29,6 +29,7 @@ namespace bookingextension_agent\local\wbagent\queue;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\queue_identity_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
+use bookingextension_agent\local\wbagent\services\queue_status_policy;
 use bookingextension_agent\local\wbagent\task_registry;
 
 /**
@@ -439,7 +440,7 @@ class queue_manager {
     public function can_pickup_now(array $item, ?int $now = null, ?array $items = null): bool {
         $now = $now ?? time();
         $status = trim((string)($item['status'] ?? ''));
-        if (!in_array($status, ['ready', 'retry_waiting'], true)) {
+        if (!queue_status_policy::is_pickup_ready_status($status)) {
             return false;
         }
 
