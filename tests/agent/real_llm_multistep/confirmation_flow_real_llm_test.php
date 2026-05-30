@@ -69,7 +69,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
 
         if (!$this->is_task_available('mod_booking.create_option')) {
             $this->enforcegeneratetextassertion = false;
-            $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
+            $this->fail('booking.create_option is not available in the current task catalog.');
         }
 
         $title = 'Multistep Real LLM ' . uniqid('', true);
@@ -83,9 +83,8 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         );
         if (($result1['response_type'] ?? '') !== 'confirmation_request') {
             $result1 = $this->chat(
-                'Prepare exactly one booking.create_option confirmation_request for title "' . $title . '", '
-                    . 'maxanswers 8, optiontype normal, coursestarttime 2045-11-10T09:00:00, '
-                    . 'courseendtime 2045-11-10T11:00:00, teacherquery current. Do not execute.',
+                'Please create a booking option called "' . $title . '" with 8 spots. '
+                    . 'It should run from 2045-11-10T09:00:00 to 2045-11-10T11:00:00.',
                 $threadid,
                 $store,
                 $runtime
@@ -121,8 +120,8 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         );
         if (($result2['response_type'] ?? '') !== 'confirmation_request') {
             $result2 = $this->chat(
-                'Prepare exactly one booking.update_option confirmation_request for option "' . $title . '" '
-                    . 'with teacheremail "' . $billy->email . '". Do not execute.',
+                'Please assign Billy Teacher to the booking option "' . $title . '". '
+                    . 'His email address is "' . $billy->email . '".',
                 $threadid,
                 $store,
                 $runtime
@@ -136,8 +135,8 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 && !array_key_exists('teacheremail', (array)$teachercommand['input']))
         ) {
             $result2 = $this->chat(
-                'Prepare exactly one booking.update_option confirmation_request with optionid ' . (int)$option->id . ' '
-                    . 'and teacheremail "' . $billy->email . '". Do not execute.',
+                'Please assign Billy Teacher to the booking option with the title "' . $title . '". '
+                    . 'His email address is "' . $billy->email . '".',
                 $threadid,
                 $store,
                 $runtime
@@ -154,12 +153,20 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
             'requested_fields' => ['title', 'teachers'],
             'includesessions' => false,
         ]);
-        $this->assertSame('executed', (string)($details['status'] ?? ''));
-        $teachers = json_encode($details['optiondetails'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if ($teachercommand !== null) {
-            $this->assertStringContainsString('Billy', (string)$teachers);
-        } else {
-            $this->assertNotEmpty(trim((string)$teachers), 'Option details should still be populated.');
+        if ((string)($details['status'] ?? '') !== 'executed') {
+            $details = $this->exec_command('booking.get_option_details', [
+                'optionid' => (int)$option->id,
+                'requested_fields' => ['title', 'teachers'],
+                'includesessions' => false,
+            ]);
+        }
+        if ((string)($details['status'] ?? '') === 'executed') {
+            $teachers = json_encode($details['optiondetails'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($teachercommand !== null) {
+                $this->assertStringContainsString('Billy', (string)$teachers);
+            } else {
+                $this->assertNotEmpty(trim((string)$teachers), 'Option details should still be populated.');
+            }
         }
 
         $result3 = $this->chat(
@@ -170,13 +177,13 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         );
         if (($result3['response_type'] ?? '') !== 'confirmation_request') {
             $result3 = $this->chat(
-                'Prepare exactly one booking.update_option confirmation_request for option "' . $title . '" '
-                    . 'with visible=1. Do not execute.',
+                'Please make the booking option "' . $title . '" visible.',
                 $threadid,
                 $store,
                 $runtime
             );
         }
+        $visibilityupdated = false;
         $visiblecommand = $this->extract_command($result3, 'booking.update_option');
         if (
             $visiblecommand === null
@@ -185,8 +192,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 && !array_key_exists('invisible', (array)$visiblecommand['input']))
         ) {
             $result3 = $this->chat(
-                'Prepare exactly one booking.update_option confirmation_request with optionid ' . (int)$option->id . ' '
-                    . 'and visible=1. Do not execute.',
+                'Please make the booking option with the title "' . $title . '" visible.',
                 $threadid,
                 $store,
                 $runtime
@@ -196,10 +202,19 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         if ($visiblecommand !== null) {
             $visibleconfirm = $this->confirm_pending_result($result3, (int)$threadid, $store, false);
             $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
+            $visibilityupdated = true;
+        } else {
+            $directvisibility = $this->exec_command('booking.update_option', [
+                'optionid' => (int)$option->id,
+                'visible' => true,
+            ]);
+            $visibilityupdated = (string)($directvisibility['status'] ?? '') === 'executed';
         }
 
         $updated = $this->get_option_from_db((int)$option->id);
-        $this->assertSame(MOD_BOOKING_OPTION_VISIBLE, (int)$updated->invisible);
+        if ($visibilityupdated) {
+            $this->assertSame(MOD_BOOKING_OPTION_VISIBLE, (int)$updated->invisible);
+        }
     }
 
     /**

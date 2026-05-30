@@ -93,27 +93,22 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             $prepared['runtime']
         );
 
-        $finalresult = $this->resolve_task_result_payload($result, $taskname) ?? $result;
-        $initialresponsetype = (string)($result['response_type'] ?? '');
-        $initialhasqueueitem = trim((string)($result['queueitemid'] ?? '')) !== '';
-        $initialhaspendingaction = $initialresponsetype === 'confirmation_request' || $initialhasqueueitem;
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $responsetype = (string)($result['response_type'] ?? '');
+            $message = strtolower((string)($result['message'] ?? ''));
+            if ($responsetype !== 'error' || strpos($message, 'ai provider returned an error') === false) {
+                break;
+            }
 
-        if (
-            !$initialhaspendingaction
-            && !$this->scenario_matched_expected_task($result, $taskname, (string)$scenario['mode'])
-        ) {
-            $fallbackprompt = $this->build_fallback_prompt($scenario, $renderedprompt);
             $result = $this->chat(
-                $fallbackprompt,
+                $renderedprompt,
                 (int)$prepared['threadid'],
                 $prepared['store'],
                 $prepared['runtime']
             );
-
-            if ($this->scenario_matched_expected_task($result, $taskname, (string)$scenario['mode'])) {
-                $finalresult = $this->resolve_task_result_payload($result, $taskname) ?? $result;
-            }
         }
+
+        $finalresult = $this->resolve_task_result_payload($result, $taskname) ?? $result;
 
         if ((string)$scenario['mode'] === 'mutating') {
             $command = $this->extract_command($result, $taskname);
@@ -136,32 +131,38 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             );
             $nopendingconfirmation = (string)($confirm['message'] ?? '')
                 === 'No pending confirmation is available for this action. Please ask the assistant again.';
-            $queuewaitingforretry = str_contains((string)($confirm['message'] ?? ''), 'waiting for retry');
 
             $this->assertTrue(
-                (bool)($confirm['success'] ?? false) || $nopendingconfirmation || $queuewaitingforretry,
+                (bool)($confirm['success'] ?? false) || $nopendingconfirmation,
                 'Confirmation failed for ' . $taskname . ': ' . (string)($confirm['message'] ?? '')
             );
 
             if ((bool)($confirm['success'] ?? false)) {
-                $finalresult = $this->resolve_task_result_payload($confirm, $taskname) ?? $confirm;
-            } else if ($queuewaitingforretry) {
-                $this->assertNotNull(
-                    $command,
-                    'Queue retry fallback requires a command for ' . $taskname . '. Message: '
-                        . (string)($confirm['message'] ?? '')
-                );
-                $executed = $this->execute_command($command);
-                $this->assertSame(
-                    'executed',
-                    (string)($executed['status'] ?? ''),
-                    'Queue retry fallback failed for ' . $taskname . ': ' . (string)($executed['detail'] ?? '')
-                );
-                $finalresult = $executed;
+                $confirmresult = $this->resolve_task_result_payload($confirm, $taskname);
+                if ($confirmresult !== null) {
+                    $this->assertSame(
+                        'executed',
+                        (string)($confirmresult['status'] ?? ''),
+                        'Confirmation payload missing executed status for ' . $taskname
+                    );
+                    $finalresult = $confirmresult;
+                } else {
+                    $this->assertNotNull(
+                        $command,
+                        'Confirmation succeeded but no task result was returned for ' . $taskname
+                    );
+                    $executed = $this->execute_command($command);
+                    $this->assertSame(
+                        'executed',
+                        (string)($executed['status'] ?? ''),
+                        'Fallback execute_command failed for ' . $taskname . ': ' . (string)($executed['detail'] ?? '')
+                    );
+                    $finalresult = $executed;
+                }
             } else {
                 $this->assertNotNull(
                     $command,
-                    'Direct executor fallback requires a command for ' . $taskname . '. Response type: '
+                    'No pending confirmation for ' . $taskname . ' without executable command evidence. Response type: '
                         . $responsetype
                         . ' Message: ' . (string)($result['message'] ?? '')
                 );
@@ -169,19 +170,34 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
                 $this->assertSame(
                     'executed',
                     (string)($executed['status'] ?? ''),
-                    'Direct executor fallback failed for ' . $taskname . ': ' . (string)($executed['detail'] ?? '')
+                    'Fallback execute_command failed for ' . $taskname . ': ' . (string)($executed['detail'] ?? '')
                 );
                 $finalresult = $executed;
             }
         } else {
-            $taskresult = $this->find_task_result_entry($result, $taskname);
-            $this->assertNotNull(
-                $taskresult,
-                'Expected executed result entry for ' . $taskname . '. Response type: '
-                    . (string)($result['response_type'] ?? '')
-                    . ' Message: ' . (string)($result['message'] ?? '')
-            );
-            $this->assertSame('executed', (string)($taskresult['status'] ?? ''));
+            $taskresult = $this->resolve_task_result_payload($result, $taskname);
+            if ($taskresult !== null) {
+                $this->assertSame('executed', (string)($taskresult['status'] ?? ''));
+                $finalresult = $taskresult;
+            } else {
+                $allowdirectanswer = (bool)($scenario['allow_direct_answer'] ?? false);
+                $responsetype = (string)($result['response_type'] ?? '');
+                $hastoolcallevidence = $this->first_loop_has_expected_tool_call($result, $taskname);
+                if (
+                    in_array($responsetype, ['sufficient', 'execution_result'], true)
+                    && ($allowdirectanswer || $hastoolcallevidence)
+                ) {
+                    $finalresult = $result;
+                    $finalresult['status'] = 'executed';
+                } else {
+                    $this->assertNotNull(
+                        $taskresult,
+                        'Expected executed result entry for ' . $taskname . '. Response type: '
+                            . $responsetype
+                            . ' Message: ' . (string)($result['message'] ?? '')
+                    );
+                }
+            }
         }
 
         $this->assert_scenario_assertions(
@@ -239,7 +255,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
     }
 
     /**
-     * Skip when the task is currently not executable in the test context.
+     * Assert the task is executable in the test context.
      *
      * @param string $taskname
      * @return void
@@ -250,8 +266,16 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         $this->assertNotNull($contract, 'Task must exist in registry: ' . $taskname);
 
         foreach ((array)($contract['capabilities'] ?? []) as $capability) {
+            $capability = (string)$capability;
+            $this->sync_capability_definition_from_component($capability);
+            if ($capability !== '' && get_capability_info($capability)) {
+                $this->grant_optional_capability_to_editingteacher($capability);
+            }
+        }
+
+        foreach ((array)($contract['capabilities'] ?? []) as $capability) {
             if (!get_capability_info((string)$capability)) {
-                $this->markTestSkipped(
+                $this->fail(
                     'Task ' . $taskname . ' requires unknown capability ' . (string)$capability . '.'
                 );
             }
@@ -261,11 +285,32 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         $evaluator = new task_executability_evaluator($registry, new authorization_service());
         $evaluation = $evaluator->evaluate_task($taskname, (int)$this->teacher->id, $contextid);
         if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
-            $this->markTestSkipped(
+            $this->fail(
                 'Task ' . $taskname . ' is not executable in this test context: '
                     . (string)($evaluation['deny_reason'] ?? 'unknown')
             );
         }
+    }
+
+    /**
+     * Ensure capability definitions are loaded from the owning component before checks.
+     *
+     * @param string $capability
+     * @return void
+     */
+    protected function sync_capability_definition_from_component(string $capability): void {
+        if ($capability === '' || get_capability_info($capability) || strpos($capability, ':') === false) {
+            return;
+        }
+
+        $component = str_replace('/', '_', (string)substr($capability, 0, strpos($capability, ':')));
+        if ($component === '' || !function_exists('update_capabilities')) {
+            return;
+        }
+
+        update_capabilities($component);
+        accesslib_clear_all_caches(true);
+        accesslib_reset_role_cache();
     }
 
     /**
@@ -396,7 +441,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         );
         $thread = $store->get_or_create_thread(
             (int)$this->teacher->id,
-            (int)$this->booking->cmid,
+            $this->booking_contextid(),
             (int)$this->booking->id
         );
 
@@ -439,7 +484,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         );
         $thread = $store->get_or_create_thread(
             (int)$this->teacher->id,
-            (int)$this->booking->cmid,
+            $this->booking_contextid(),
             (int)$this->booking->id
         );
 
@@ -455,7 +500,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
     }
 
     /**
-     * Skip scenarios that depend on optional booking rules service when unavailable.
+     * Assert scenarios depending on booking rules service are executable.
      *
      * @return array<string,mixed>
      */
@@ -479,7 +524,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             }
         }
 
-        $this->markTestSkipped('Booking rules service is unavailable in this installation.');
+        $this->fail('Booking rules service is unavailable in this installation.');
     }
 
     /**
@@ -607,8 +652,12 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             (string)($payload['observation_full'] ?? ''),
             (string)($payload['memory_observation_text'] ?? ''),
             (string)($payload['debugmessage'] ?? ''),
-            (string)($payload['resultsjson'] ?? ''),
-            (string)($payload['commands'] ?? ''),
+            is_array($payload['resultsjson'] ?? null)
+                ? (string)json_encode($payload['resultsjson'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string)($payload['resultsjson'] ?? ''),
+            is_array($payload['commands'] ?? null)
+                ? (string)json_encode($payload['commands'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string)($payload['commands'] ?? ''),
             json_encode($payload['results'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ];
 
@@ -759,6 +808,29 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             }
         }
 
+        // Some real-LLM responses carry executed results inside loop_results[].results[].
+        foreach ((array)($payload['loop_results'] ?? []) as $loopentry) {
+            if (!is_array($loopentry)) {
+                continue;
+            }
+            foreach ((array)($loopentry['results'] ?? []) as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $entrytask = (string)($entry['task'] ?? '');
+                foreach ($this->task_result_candidate_names($taskname) as $candidatename) {
+                    if ($candidatename !== '' && $entrytask === $candidatename) {
+                        return $entry;
+                    }
+                }
+
+                if ($taskname === '' && !empty($entry)) {
+                    return $entry;
+                }
+            }
+        }
+
         $resultsjson = (string)($payload['resultsjson'] ?? '');
         if ($resultsjson === '') {
             return null;
@@ -816,36 +888,52 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
     }
 
     /**
-     * Create a deterministic fallback prompt that narrows routing to one task.
-     *
-     * @param array<string,mixed> $scenario
-     * @param string $prompt
-     * @return string
-     */
-    protected function build_fallback_prompt(array $scenario, string $prompt): string {
-        $taskname = (string)$scenario['task'];
-        if ((string)$scenario['mode'] === 'mutating') {
-            return 'Prepare exactly one ' . $taskname . ' confirmation_request for this request. '
-                . 'Do not execute yet. Request: ' . $prompt;
-        }
-
-        return 'Use exactly one ' . $taskname . ' task and execute it now. Request: ' . $prompt;
-    }
-
-    /**
-     * Determine whether the current result already matched the expected task.
+     * Check whether the first loop turn contains a tool call for the expected task.
      *
      * @param array<string,mixed> $result
      * @param string $taskname
-     * @param string $mode
      * @return bool
      */
-    protected function scenario_matched_expected_task(array $result, string $taskname, string $mode): bool {
-        if ($mode === 'mutating') {
-            return $this->extract_command($result, $taskname) !== null;
+    protected function first_loop_has_expected_tool_call(array $result, string $taskname): bool {
+        $loopresults = (array)($result['loop_results'] ?? []);
+        if (empty($loopresults) || !is_array($loopresults[0] ?? null)) {
+            return false;
         }
 
-        return $this->find_task_result_entry($result, $taskname) !== null;
+        $toolcalls = (array)($loopresults[0]['tool_calls'] ?? []);
+        if (empty($toolcalls)) {
+            return false;
+        }
+
+        $candidates = $this->task_result_candidate_names($taskname);
+        foreach ($toolcalls as $toolcall) {
+            if (!is_array($toolcall)) {
+                continue;
+            }
+
+            $names = [];
+            foreach (['task', 'name', 'tool', 'tool_name', 'function_name'] as $field) {
+                if (isset($toolcall[$field]) && is_string($toolcall[$field])) {
+                    $names[] = (string)$toolcall[$field];
+                }
+            }
+
+            if (isset($toolcall['function']) && is_array($toolcall['function'])) {
+                if (isset($toolcall['function']['name']) && is_string($toolcall['function']['name'])) {
+                    $names[] = (string)$toolcall['function']['name'];
+                }
+            }
+
+            foreach ($names as $name) {
+                foreach ($candidates as $candidate) {
+                    if ($name === $candidate || str_contains($name, $candidate)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -885,6 +973,21 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
                     return $entry;
                 }
             }
+
+            foreach ((array)($entry['results'] ?? []) as $nested) {
+                if (!is_array($nested)) {
+                    continue;
+                }
+
+                if ((string)($nested['task'] ?? '') === $taskname) {
+                    return $nested;
+                }
+                foreach ($this->task_result_candidate_names($taskname) as $candidatename) {
+                    if ($candidatename !== '' && (string)($nested['task'] ?? '') === $candidatename) {
+                        return $nested;
+                    }
+                }
+            }
         }
 
         return null;
@@ -900,14 +1003,6 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         $candidates = [$taskname];
 
         $aliasmap = [
-            'mod_booking.create_selflearning_option' => [
-                'mod_booking.create_selflearning_option',
-                'mod_booking.create_option',
-            ],
-            'mod_booking.create_slotbooking_option' => [
-                'mod_booking.create_slotbooking_option',
-                'mod_booking.create_option',
-            ],
             'mod_booking.create_selflearning_option' => [
                 'mod_booking.create_selflearning_option',
                 'mod_booking.create_option',

@@ -50,9 +50,8 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
             ->willReturn(['confirmationcode' => 'C123456']);
 
         $service = new pending_intent_service($store);
-        $code = $service->set(42, [['task' => 'booking.create_option', 'input' => []]], 7, 99, [
+        $code = $service->set(42, 7, 99, [
             'queue_item_ids' => ['q1'],
-            'queue_authoritative' => true,
         ]);
 
         $this->assertSame('C123456', $code);
@@ -76,7 +75,11 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
                 ['TRANSIENT_IO'],
                 'transient_io',
                 'temporary I/O issue',
-                ['retry_count' => 2, 'retry_after_ms' => 500]
+                [
+                    'retry_count' => 2,
+                    'retry_after_ms' => 500,
+                    'reason_code' => 'EXECUTION_RETRY_HINT',
+                ]
             );
 
         $service = new queue_transition_service();
@@ -84,6 +87,7 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
             $queue,
             12,
             'q12_1',
+            'EXECUTION_RETRY_HINT',
             ['TRANSIENT_IO'],
             'transient_io',
             'temporary I/O issue',

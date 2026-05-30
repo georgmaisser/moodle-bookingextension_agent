@@ -609,10 +609,12 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $model = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
         $endpoint = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
 
-        if ($apikey === '' || $model === '' || $endpoint === '') {
-            $this->markTestSkipped(
-                'Real-LLM tests require BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL + BOOKING_TEST_AI_ENDPOINT.'
-            );
+        if ($apikey === '' || $model === '') {
+            $this->fail('Real-LLM tests require BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL.');
+        }
+
+        if ($endpoint === '') {
+            $this->fail('Real-LLM tests require BOOKING_TEST_AI_ENDPOINT when key/model are provided.');
         }
 
         if (!$this->hasliveprovider) {
@@ -747,7 +749,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $this->assertNotSame('', $queueitemid, 'Could not resolve queue item id for confirmation.');
 
         return ai_confirm_run::execute(
-            (int)$this->booking->cmid,
+            $this->booking_contextid(),
             (int)$threadid,
             $queueitemid,
             $allowsession

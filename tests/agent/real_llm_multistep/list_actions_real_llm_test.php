@@ -66,13 +66,14 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
         rebuild_course_cache((int)$this->course->id, true);
 
         [$store, $runtime, $threadid] = $this->build_runtime();
-        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
+        $store->allow_confirmation_for_thread((int)$this->teacher->id, $contextid, $threadid);
 
         $prompt = 'List the booking agent actions. Present them grouped by provider, then readonly/write, then capability. '
             . 'Show the actual task names and no repair flow.';
 
         $_POST['sesskey'] = sesskey();
-        $response = ai_send_message::execute((int)$this->booking->cmid, $prompt, (int)$threadid);
+        $response = ai_send_message::execute($contextid, $prompt, (int)$threadid);
 
         $this->assertGreaterThan(0, (int)($response['threadid'] ?? 0), 'Thread id must be present.');
 
@@ -83,7 +84,6 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
             'Unexpected initial response type: ' . $responsetype . "\n" . $this->payload_text($response)
         );
 
-        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $taskresult = $this->make_executor()->execute_commands(
             [['task' => 'core.list_actions', 'version' => 1, 'input' => []]],
             $contextid,

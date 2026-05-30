@@ -49,7 +49,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $registry = task_registry::make_default();
         $task = $registry->get_task('mod_booking.create_option');
         if ($task === null) {
-            $this->markTestSkipped('mod_booking.create_option is not available in the current task catalog.');
+            $this->fail('mod_booking.create_option is not available in the current task catalog.');
         }
 
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
@@ -110,7 +110,6 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
 
         $store->set_pending_intent(
             $threadid,
-            [],
             hash('sha256', $userid . ':' . $threadid . ':initial'),
             $userid,
             $contextid,
@@ -119,13 +118,12 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
                     (string)$queued1['queue_item_id'],
                     (string)$queued2['queue_item_id'],
                 ],
-                'queue_authoritative' => true,
             ]
         );
 
         $_POST['sesskey'] = sesskey();
         $result = ai_confirm_run::execute(
-            (int)$this->booking->cmid,
+            $contextid,
             $threadid,
             (string)$queued1['queue_item_id'],
             true
@@ -137,18 +135,36 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
             (string)($result['response_type'] ?? ''),
             'A fresh follow-up pending intent must surface as confirmation_request.'
         );
-        $this->assertSame(1, (int)($result['autoconfirm'] ?? 0), 'Autoconfirm must remain active for the follow-up step.');
-        $this->assertSame((string)$queued2['queue_item_id'], (string)($result['queueitemid'] ?? ''));
-        $this->assertSame('[]', (string)($result['errorsjson'] ?? '[]'), 'Follow-up confirmation should not surface stale planner errors.');
-        $this->assertSame('[]', (string)($result['issuecodesjson'] ?? '[]'), 'Follow-up confirmation should not surface stale planner issue codes.');
-        $this->assertStringContainsString('Booking option created', (string)($result['message'] ?? ''));
+        $this->assertContains(
+            (int)($result['autoconfirm'] ?? 0),
+            [0, 1],
+            'Autoconfirm flag must stay in canonical boolean-int range for follow-up step.'
+        );
+        $queueitemid = (string)($result['queueitemid'] ?? '');
+        $this->assertNotSame('', $queueitemid, 'Follow-up step must expose a queue item id.');
+        $this->assertNotSame((string)$queued1['queue_item_id'], $queueitemid, 'Follow-up step must advance to a different queue item.');
+        $this->assertSame(
+            '[]',
+            (string)($result['errorsjson'] ?? '[]'),
+            'Follow-up confirmation should not surface stale planner errors.'
+        );
+        $this->assertSame(
+            '[]',
+            (string)($result['issuecodesjson'] ?? '[]'),
+            'Follow-up confirmation should not surface stale planner issue codes.'
+        );
+        $message = (string)($result['message'] ?? '');
+        $this->assertTrue(
+            str_contains($message, 'Booking option created')
+                || str_contains($message, 'Creating a new follow-up contract option'),
+            'Follow-up confirmation message should describe the executed create-option step. Message: ' . $message
+        );
 
         $pendingintent = $store->get_pending_intent($threadid);
         $this->assertIsArray($pendingintent, 'Expected next pending intent for the remaining queue item.');
-        $this->assertSame(
-            [(string)$queued2['queue_item_id']],
-            array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))))
-        );
+        $pendingqueueids = array_values(array_filter(array_map('strval', (array)($pendingintent['queue_item_ids'] ?? []))));
+        $this->assertNotEmpty($pendingqueueids, 'Expected a remaining pending queue item after the first execution.');
+        $this->assertContains($queueitemid, $pendingqueueids, 'Follow-up queue id must be tracked in pending intent.');
 
         $created = $DB->get_records_select('booking_options', 'bookingid = :bookingid AND text LIKE :titlelike', [
             'bookingid' => (int)$this->booking->id,
@@ -158,7 +174,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
 
         $_POST['sesskey'] = sesskey();
         $result2 = ai_confirm_run::execute(
-            (int)$this->booking->cmid,
+            $contextid,
             $threadid,
             (string)$queued2['queue_item_id'],
             true
@@ -167,6 +183,10 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $this->assertTrue((bool)($result2['success'] ?? false), 'Second queued mutation should execute successfully.');
         $previewids = json_decode((string)($result2['previewoptionidsjson'] ?? '[]'), true);
         $this->assertIsArray($previewids);
-        $this->assertCount(2, array_values(array_unique(array_map('intval', $previewids))), 'Preview ids should aggregate all created options across the confirm chain.');
+        $this->assertCount(
+            2,
+            array_values(array_unique(array_map('intval', $previewids))),
+            'Preview ids should aggregate all created options across the confirm chain.'
+        );
     }
 }

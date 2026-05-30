@@ -64,7 +64,7 @@ final class task_contract_validator_contract_test extends TestCase {
                 'namespace' => 'entities',
                 'version' => 1,
                 'component' => 'local_entities',
-                'capabilities' => ['local_entities:task_entities_search'],
+                'capabilities' => ['local/entities:task_entities_search'],
                 'active' => true,
                 'alias_of' => '',
                 'deprecated_since' => '',
@@ -75,7 +75,7 @@ final class task_contract_validator_contract_test extends TestCase {
                 'namespace' => 'entities',
                 'version' => 2,
                 'component' => 'local_entities',
-                'capabilities' => ['local_entities:task_entities_lookup'],
+                'capabilities' => ['local/entities:task_entities_lookup'],
                 'active' => true,
                 'alias_of' => 'entities.search',
                 'deprecated_since' => '',
@@ -142,7 +142,7 @@ final class task_contract_validator_contract_test extends TestCase {
             'example_input' => ['query' => 'demo'],
             'namespace' => 'demo',
             'version' => 1,
-            'capabilities' => ['local_demo:task_demo_lookup'],
+            'capabilities' => ['local/demo:task_demo_lookup'],
             'context_scopes' => ['module'],
         ]));
 
@@ -162,7 +162,7 @@ final class task_contract_validator_contract_test extends TestCase {
         $this->assertSame('demo.lookup', (string)$contracts[0]['task']);
         $this->assertSame('demo', (string)$contracts[0]['namespace']);
         $this->assertSame(1, (int)$contracts[0]['version']);
-        $this->assertContains('local_demo:task_demo_lookup', (array)$contracts[0]['capabilities']);
+        $this->assertContains('local/demo:task_demo_lookup', (array)$contracts[0]['capabilities']);
     }
 
     /**

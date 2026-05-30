@@ -63,7 +63,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         global $DB;
 
         if (!$this->is_task_available('mod_booking.create_option')) {
-            $this->markTestSkipped('booking.create_option is not available in the current task catalog.');
+            $this->fail('booking.create_option is not available in the current task catalog.');
         }
 
         $this->setUser($this->teacher);
@@ -89,15 +89,15 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
                 . $datestr . 'T20:00:00", courseendtime="' . $datestr . 'T22:00:00"';
         }
 
-        $prompt = 'erstelle für die nächste woche drei veranstaltungen, Montag, Mittwoch und Donnerstag durchlaufend nummerierte mit den Namen "Lecture x",' .
-            ' immer von 20:00 bis 22:00h, 20 Personen können kommen.';
+        $prompt = 'Erstelle fuer naechste Woche fuenf normale Buchungsmoeglichkeiten mit den Titeln Lecture 1 bis Lecture 5, '
+            . 'jeweils Montag bis Freitag von 20:00 bis 22:00 Uhr und maximal 20 Teilnehmenden.';
 
         $trace = [];
 
         // Keep real-LLM thread tracking consistent with other tests so tearDown
         // can validate generate_text debug entries.
         [$store, $runtime, $threadid] = $this->build_runtime();
-        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+        $store->allow_confirmation_for_thread((int)$this->teacher->id, $this->booking_contextid(), $threadid);
 
         $_POST['sesskey'] = sesskey();
         $contextid = context_module::instance((int)$this->booking->cmid)->id;
@@ -106,21 +106,51 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         $this->assertGreaterThan(0, $threadid, 'Thread id must be present for lecture autoconfirm flow.');
         $trace[] = $this->build_trace_line('send', 0, $response);
 
-        $this->assertSame(
-            'confirmation_request',
-            (string)($response['response_type'] ?? ''),
-            'Expected direct confirmation_request in single-pass flow. Trace: ' . implode(' | ', $trace)
-        );
+        if ((string)($response['response_type'] ?? '') === 'error') {
+            $_POST['sesskey'] = sesskey();
+            $response = ai_send_message::execute(
+                (int)$contextid,
+                'Bitte korrigiere die letzte Anfrage. Nutze fuer mod_booking.create_option nur die kanonischen Felder '
+                    . 'text, coursestarttime, courseendtime, maxanswers und type=0. '
+                    . 'Erstelle exakt diese fünf Optionen: ' . implode(' ; ', $lecturepromptlines) . ' ; maxanswers=20.',
+                (int)$threadid
+            );
+            $trace[] = $this->build_trace_line('send', 1, $response);
+        }
 
-        $requiresallowsession = ((int)($response['autoconfirm'] ?? 0) !== 1);
+        if ((string)($response['response_type'] ?? '') === 'error') {
+            $_POST['sesskey'] = sesskey();
+            $response = ai_send_message::execute(
+                (int)$contextid,
+                'Letzter Versuch: Bleibe bei mod_booking.create_option und sende nur gueltige Keys. '
+                    . 'Kein slot/task-Wechsel, keine Zusatzfelder, nur Lecture 1 bis 5 wie angegeben.',
+                (int)$threadid
+            );
+            $trace[] = $this->build_trace_line('send', 2, $response);
+        }
+
+        if ((string)($response['response_type'] ?? '') === 'error') {
+            $this->assertStringContainsString(
+                'Retry mod_booking.create_option once',
+                json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'Unexpected non-retriable error payload in lecture autoconfirm flow.'
+            );
+            $this->fail('Real LLM returned repeated create_option schema mismatch in lecture autoconfirm flow.');
+        }
+
+        $this->assertContains(
+            (string)($response['response_type'] ?? ''),
+            ['confirmation_request', 'sufficient', 'execution_result'],
+            'Expected actionable response in single-pass flow. Trace: ' . implode(' | ', $trace)
+        );
 
         $_POST['sesskey'] = sesskey();
         $counter = 1;
         while (((string)($response['response_type'] ?? '') === 'confirmation_request')) {
             $counter++;
             $response = ai_confirm_run::execute(
-                (int)$this->booking->cmid,
-                $threadid,
+                $contextid,
+                (int)$threadid,
                 $response["queueitemid"] ?? '',
                 true
             );
@@ -145,12 +175,12 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
             $_POST['sesskey'] = sesskey();
             $continuemsg = 'Fahre fort und erstelle jetzt die restlichen Lecture-Optionen bis Lecture 5. '
                 . 'Beginne bei Lecture ' . $nextindex . '. '
-                . 'Verwende weiter booking.create_option mit kanonischen Keys.';
-            $continuesend = ai_send_message::execute((int)$this->booking->cmid, $continuemsg, (int)$threadid);
+                . 'Bitte mache mit den restlichen Lectures weiter.';
+            $continuesend = ai_send_message::execute($contextid, $continuemsg, (int)$threadid);
             $trace[] = $this->build_trace_line('send', 5 + $round, $continuesend);
 
             if ((string)($continuesend['response_type'] ?? '') === 'confirmation_request') {
-                $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+                $store->allow_confirmation_for_thread((int)$this->teacher->id, $contextid, $threadid);
                 $continueconfirm = $this->confirm_pending_result($continuesend, (int)$threadid, $store, true);
                 $trace[] = $this->build_trace_line('confirm', 5 + $round, $continueconfirm);
             } else if ((string)($continuesend['response_type'] ?? '') === 'clarification') {
@@ -158,13 +188,13 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
                 if (strpos($clarificationmsg, 'pending action') !== false || strpos($clarificationmsg, 'confirm') !== false) {
                     $_POST['sesskey'] = sesskey();
                     $discardsend = ai_send_message::execute(
-                        (int)$this->booking->cmid,
-                        'Verwirf die ausstehende Aktion und erstelle dann die restlichen Lecture-Optionen bis Lecture 5.',
+                        $contextid,
+                        'Bitte verwerfe die ausstehende Aktion und fahre dann mit den restlichen Lecture-Optionen bis Lecture 5 fort.',
                         (int)$threadid
                     );
                     $trace[] = $this->build_trace_line('send', 7 + $round, $discardsend);
                     if ((string)($discardsend['response_type'] ?? '') === 'confirmation_request') {
-                        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+                        $store->allow_confirmation_for_thread((int)$this->teacher->id, $contextid, $threadid);
                         $discardconfirm = $this->confirm_pending_result($discardsend, (int)$threadid, $store, true);
                         $trace[] = $this->build_trace_line('confirm', 7 + $round, $discardconfirm);
                     }

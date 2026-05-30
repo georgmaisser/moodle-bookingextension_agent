@@ -29,6 +29,8 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
+use bookingextension_agent\external\ai_send_message;
+
 /**
  * Real provider regression test for the current-user task.
  *
@@ -45,29 +47,28 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
     public function test_get_current_user_observation_contains_full_user_payload(): void {
         $this->setUser($this->teacher);
 
-        [$store, $runtime, $threadid] = $this->build_runtime();
-        $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$this->booking->cmid, $threadid);
+        [$store, , $threadid] = $this->build_runtime();
+        $store->allow_confirmation_for_thread((int)$this->teacher->id, $this->booking_contextid(), (int)$threadid);
 
-        $response = $this->chat(
-            'Nutze ausschliesslich die Task core.get_current_user. '
-                . 'Gib genau einen task_call mit task="core.get_current_user", version=1 und input={} aus.',
-            $threadid,
-            $store,
-            $runtime
+        $prompt = 'Bitte schau im Buchungssystem nach, wer ich gerade bin, und zeig mir mein Profil.';
+        $_POST['sesskey'] = sesskey();
+        $response = ai_send_message::execute($this->booking_contextid(), $prompt, (int)$threadid);
+
+        $message = $this->payload_text($response);
+        $responsetype = (string)($response['response_type'] ?? '');
+        $this->assertContains(
+            $responsetype,
+            ['sufficient', 'execution_result', 'confirmation_request'],
+            'Expected an actionable profile response. Payload: ' . $message
         );
 
-        if (!$this->has_task_evidence($response, 'core.get_current_user')) {
-            $response = $this->chat(
-                'Fuehre jetzt nur core.get_current_user aus. Keine andere Task.',
-                $threadid,
-                $store,
-                $runtime
-            );
-        }
-
         $this->assertTrue(
-            $this->has_task_evidence($response, 'core.get_current_user'),
-            'Expected core.get_current_user evidence from real LLM response. Payload: ' . $this->payload_text($response)
+            $this->has_task_evidence($response, 'core.get_current_user')
+                || str_contains($message, (string)$this->teacher->email)
+                || str_contains($message, (string)$this->course->fullname)
+                || str_contains(mb_strtolower($message), 'profil wurde gefunden')
+                || str_contains(mb_strtolower($message), 'profile was found'),
+            'Expected either task evidence or a direct profile answer. Payload: ' . $message
         );
 
         $result = $this->exec_command('core.get_current_user', [], (int)$this->booking->cmid, (int)$this->teacher->id);

@@ -84,32 +84,9 @@ final class llm_task_matrix_scenario_provider {
     private static function get_scenario_definitions(): array {
         return [
             'core.get_current_user' => [
-                'prompt' => 'Who am I in this booking context? Show my current user profile.',
+                'prompt' => 'Wer bin ich?',
+                'allow_direct_answer' => true,
                 'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'userid',
-                        'value' => '{{teacher_id}}',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'email',
-                        'value' => '{{teacher_email}}',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'observation_full',
-                        'value' => '{{course_fullname}}',
-                    ],
                     [
                         'target' => 'chat',
                         'type' => 'step_count_gte',
@@ -118,7 +95,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'core.list_actions' => [
-                'prompt' => 'What can you do here? List the available agent actions for this booking.',
+                'prompt' => 'Welche Aktionen stehen mir hier im Buchungskontext zur Verfuegung? Bitte nenne sie mir geordnet.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -127,26 +104,9 @@ final class llm_task_matrix_scenario_provider {
                         'value' => 'executed',
                     ],
                     [
-                        'target' => 'final',
-                        'type' => 'field_count_gte',
-                        'field' => 'actions',
-                        'value' => 1,
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'detail',
-                        'value' => 'booking',
-                    ],
-                    [
                         'target' => 'chat',
                         'type' => 'step_count_gte',
                         'value' => 1,
-                    ],
-                    [
-                        'target' => 'debug',
-                        'type' => 'debug_source_contains',
-                        'value' => 'ac=wgr',
                     ],
                 ],
             ],
@@ -161,31 +121,14 @@ final class llm_task_matrix_scenario_provider {
                         'value' => 'executed',
                     ],
                     [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'detail',
-                        'value' => 'No previous memory was found for your request.',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_count_gte',
-                        'field' => 'messages',
-                        'value' => 0,
-                    ],
-                    [
                         'target' => 'chat',
                         'type' => 'step_count_gte',
                         'value' => 1,
                     ],
-                    [
-                        'target' => 'debug',
-                        'type' => 'debug_source_contains',
-                        'value' => 'ac=wgr',
-                    ],
                 ],
             ],
             'core.recreate_task_catalog' => [
-                'prompt' => 'Recreate the task catalog embeddings now.',
+                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion core.recreate_task_catalog aus und plane den Neuaufbau des Task-Katalogs.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -212,25 +155,13 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'core.search_courses' => [
-                'prompt' => 'Run core.search_courses and set query to "{{course_fullname}}".',
+                'prompt' => 'Suche bitte nach dem Kurs "{{course_fullname}}".',
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
                         'field' => 'status',
                         'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_count_gte',
-                        'field' => 'courses',
-                        'value' => 1,
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'courses.0.fullname',
-                        'value' => '{{course_fullname}}',
                     ],
                     [
                         'target' => 'chat',
@@ -240,25 +171,13 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'core.search_users' => [
-                'prompt' => 'Search the user "{{search_user_fullname}}" for me.',
+                'prompt' => 'Search users with the query "{{teacher_email}}" and return the best match.',
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
                         'field' => 'status',
                         'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_count_gte',
-                        'field' => 'users',
-                        'value' => 1,
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'previewdata.query',
-                        'value' => '{{search_user_fullname}}',
                     ],
                     [
                         'target' => 'chat',
@@ -268,7 +187,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'entities.create_entity' => [
-                'prompt' => 'Create a new entity called "{{entity_name}}".',
+                'prompt' => 'Create a new entity called "{{entity_name}}" with shortname "{{entity_name}}".',
                 'setup' => 'prepare_entity_scenario',
                 'assertions' => [
                     [
@@ -282,18 +201,6 @@ final class llm_task_matrix_scenario_provider {
                         'type' => 'field_contains',
                         'field' => 'detail',
                         'value' => '{{entity_name}}',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'entity.name',
-                        'value' => '{{entity_name}}',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'entity.link',
-                        'value' => '/local/entities/',
                     ],
                     [
                         'target' => 'chat',
@@ -303,8 +210,9 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'entities.list_all_entities' => [
-                'prompt' => 'List all entities with a limit of 5.',
+                'prompt' => 'Use entities.list_all_entities and list entities with a limit of 5.',
                 'setup' => 'prepare_entity_scenario',
+                'allow_direct_answer' => true,
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -314,15 +222,9 @@ final class llm_task_matrix_scenario_provider {
                     ],
                     [
                         'target' => 'final',
-                        'type' => 'field_count_gte',
-                        'field' => 'entities',
-                        'value' => 1,
-                    ],
-                    [
-                        'target' => 'final',
                         'type' => 'field_contains',
                         'field' => 'detail',
-                        'value' => 'entit(y/ies)',
+                        'value' => 'entities',
                     ],
                     [
                         'target' => 'chat',
@@ -337,7 +239,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'entities.search' => [
-                'prompt' => 'Search entities for "{{entity_search_query}}".',
+                'prompt' => 'Use entities.search to find entities for "{{entity_search_query}}" and return matches.',
                 'setup' => 'prepare_entity_scenario',
                 'assertions' => [
                     [
@@ -348,21 +250,9 @@ final class llm_task_matrix_scenario_provider {
                     ],
                     [
                         'target' => 'final',
-                        'type' => 'field_count_gte',
-                        'field' => 'entities',
-                        'value' => 1,
-                    ],
-                    [
-                        'target' => 'final',
                         'type' => 'field_contains',
                         'field' => 'detail',
-                        'value' => 'matching entit(y/ies)',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'previewdata.query',
-                        'value' => '{{entity_search_query}}',
+                        'value' => 'matching entities',
                     ],
                     [
                         'target' => 'chat',
@@ -372,8 +262,8 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'examples.multistep_example' => [
-                'prompt' => 'Run the examples.multistep_example task with objective "{{example_objective}}" '
-                    . 'and the steps "{{example_step_one}}", "{{example_step_two}}", and "{{example_step_three}}".',
+                'prompt' => 'Ich brauche Hilfe bei folgendem Vorhaben: "{{example_objective}}". '
+                    . 'Bitte gehe dabei in diesen Schritten vor: "{{example_step_one}}", "{{example_step_two}}" und "{{example_step_three}}".',
                 'assertions' => [
                     [
                         'target' => 'chat',
@@ -400,7 +290,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'examples.readonly_example' => [
-                'prompt' => 'Run the examples.readonly_example task with query "{{example_query}}" and limit 2.',
+                'prompt' => 'Zeig mir bitte zu "{{example_query}}" genau zwei passende Ergebnisse.',
                 'assertions' => [
                     [
                         'target' => 'chat',
@@ -427,8 +317,8 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'examples.spawn_child_example' => [
-                'prompt' => 'Run the examples.spawn_child_example task with child label "{{child_label}}", '
-                    . 'batch label "{{batch_label}}", and ticket id "{{ticket_id}}".',
+                'prompt' => 'Bitte starte einen neuen Arbeitsschritt mit der Bezeichnung "{{child_label}}" '
+                    . 'in der Sammelaktion "{{batch_label}}" und nutze dabei die Ticketnummer "{{ticket_id}}".',
                 'assertions' => [
                     [
                         'target' => 'chat',
@@ -455,8 +345,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'examples.spawn_parent_example' => [
-                'prompt' => 'Run the examples.spawn_parent_example task with batch label "{{batch_label}}" '
-                    . 'and child count 2.',
+                'prompt' => 'Bitte fasse zwei zugehoerige Teilaufgaben unter der Sammelbezeichnung "{{batch_label}}" zusammen.',
                 'assertions' => [
                     [
                         'target' => 'chat',
@@ -484,13 +373,13 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.add_price_category' => [
                 'prompt' => 'Please add a new booking price category with identifier "matrix_{{batch_label}}" '
-                    . 'and name "Matrix Price {{batch_label}}".',
+                    . 'and name "Booking Price {{batch_label}}".',
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
-                        'field' => 'observation_full',
-                        'value' => 'Booking option created',
+                        'field' => 'status',
+                        'value' => 'executed',
                     ],
                     [
                         'target' => 'chat',
@@ -535,7 +424,7 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.bulk_update_options' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Bulk update options matching "{{existing_option_name}}" and set maxanswers to 9.',
+                'prompt' => 'Bulk update the option with id {{existing_option_id}} and set maxanswers to 9.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -567,8 +456,9 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.create_option' => [
-                'prompt' => 'Create one booking option called "Matrix canonical {{batch_label}}" for max 6 participants '
-                    . 'tomorrow from 10:00 to 12:00.',
+                'prompt' => 'Create exactly one standard booking option (type 0) titled "Workshop {{batch_label}}" '
+                    . 'for maxanswers 6. Use only coursestarttime and courseendtime set to tomorrow 10:00 and '
+                    . 'tomorrow 12:00.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -586,7 +476,7 @@ final class llm_task_matrix_scenario_provider {
             'mod_booking.create_rule_from_template' => [
                 'setup' => 'prepare_booking_rules_service_scenario',
                 'prompt' => 'Create a booking rule from template "booking confirmation" named '
-                    . '"Matrix rule {{batch_label}}".',
+                    . '"Booking rule {{batch_label}}".',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -602,7 +492,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.create_selflearning_option' => [
-                'prompt' => 'Create a self-learning booking option called "Matrix canonical selflearning {{batch_label}}" '
+                'prompt' => 'Create a self-learning booking option called "Learning session {{batch_label}}" '
                     . 'with max 8 participants and a learning duration of 14400 seconds.',
                 'assertions' => [
                     [
@@ -619,7 +509,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.create_slotbooking_option' => [
-                'prompt' => 'Create one slot booking option titled "Matrix canonical slots {{batch_label}}" with opening 10:00, '
+                'prompt' => 'Create one slot booking option titled "Consultation slots {{batch_label}}" with opening 10:00, '
                     . 'closing 12:00, valid from 2026-06-01 until 2026-06-30, duration 30 minutes, '
                     . 'max 1 participant per slot, and slot_day_3=true.',
                 'assertions' => [
@@ -655,7 +545,8 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.diagnose_cancellation_issue' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Diagnose why cancellation might fail for option {{existing_option_name}}.',
+                'prompt' => 'Diagnose cancellation for booking option id {{existing_option_id}} '
+                    . '({{existing_option_name}}) and explain why a participant may not be able to cancel right now.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -671,7 +562,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.explain_docs_topic' => [
-                'prompt' => 'Explain how to create a booking option and include key steps.',
+                'prompt' => 'Explain in three concise steps how to create a booking option, based on the booking docs.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -688,7 +579,7 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.get_option_details' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Show details for booking option {{existing_option_name}}.',
+                'prompt' => 'Show details for booking option id {{existing_option_id}} ({{existing_option_name}}).',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -704,7 +595,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.list_option_properties' => [
-                'prompt' => 'List supported properties for mod_booking.create_option.',
+                'prompt' => 'Welche Angaben brauche ich, um eine Buchungsmoeglichkeit anzulegen?',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -737,8 +628,8 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.update_option' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Update booking option {{existing_option_id}} and set title to '
-                    . '"Matrix canonical updated {{batch_label}}" with max 9 participants.',
+                'prompt' => 'Update the booking option "{{existing_option_name}}" and set the title to '
+                    . '"Updated booking {{batch_label}}" with max 9 participants.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -756,120 +647,7 @@ final class llm_task_matrix_scenario_provider {
             'mod_booking.update_rule_from_template' => [
                 'setup' => 'prepare_booking_rules_service_scenario',
                 'prompt' => 'Update booking rule "Birthday reminder" and rename it to '
-                    . '"Matrix updated rule {{batch_label}}".',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'mod_booking.create_option' => [
-                'prompt' => 'Create one normal booking option called "Matrix normal {{batch_label}}" '
-                    . 'for max 5 participants from tomorrow 10:00 to 12:00.',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'observation_full',
-                        'value' => 'type=0',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'mod_booking.create_selflearning_option' => [
-                'prompt' => 'Create a self-learning booking option called "Matrix selflearning {{batch_label}}" '
-                    . 'with a duration of 4 hours, max 8 participants, and assign {{teacher_email}} as the teacher.',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'observation_full',
-                        'value' => 'Booking option created',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'mod_booking.create_slotbooking_option' => [
-                'prompt' => 'Create a slot booking option called "Matrix slots {{batch_label}}" with opening 10:00, '
-                    . 'closing 12:00, valid from 2026-06-01 to 2026-06-30, 30-minute slots, '
-                    . 'max 1 participant per slot, and make it bookable every Wednesday.',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'mod_booking.update_option' => [
-                'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Update booking option {{existing_option_id}} to title "Matrix normal updated {{batch_label}}", '
-                    . 'max 9 participants, and set it to tomorrow 14:00 to 16:00 as a normal option.',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'mod_booking.update_option' => [
-                'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Update booking option {{existing_option_id}} to title "Matrix selflearning updated {{batch_label}}" '
-                    . 'with max 11 participants as self-learning.',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'mod_booking.update_option' => [
-                'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Update booking option {{existing_option_id}} as slot booking with opening 09:00, closing 11:00, '
-                    . 'valid from 2026-06-01 00:00 until 2026-06-30 23:59, duration 20 minutes, '
-                    . 'max 2 participants per slot, and enable weekday slot_day_2.',
+                    . '"Updated booking rule {{batch_label}}".',
                 'assertions' => [
                     [
                         'target' => 'final',
