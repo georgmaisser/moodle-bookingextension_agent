@@ -155,11 +155,6 @@ class orchestrator {
      * @param int $userid User id.
      * @return bool
      */
-    public function is_provider_available(int $cmid, int $userid): bool {
-        $status = $this->get_runtime_provider_status($cmid);
-        return (bool)($status['runtimeavailable'] ?? false);
-    }
-
     /**
      * Resolve centralized provider/runtime status for booking agent execution.
      *

@@ -33,7 +33,6 @@ use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\task_registry;
-use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
 use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
@@ -41,7 +40,6 @@ use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
-use bookingextension_agent\local\wbagent\services\planning\planner_service;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\services\trigger_result_util;
@@ -90,23 +88,6 @@ class agent_decision_service {
 
     /** Trigger id: user allows creating missing user in confirmation flow. */
     private const TRIGGER_ALLOW_MISSING_USER_AUTOCREATE = 'booking.create_user_allowed_if_missing';
-
-    /** @deprecated Use issue_code_provider::get_duplicate_confirmation_issue_codes() instead. */
-    public const DUPLICATE_TITLE_ISSUE_CODES = [
-        'DUPLICATE_TITLE_CONFIRM_REQUIRED',
-        'DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED',
-    ];
-
-    /** @deprecated Use issue_code_provider::get_prevalidation_confirmable_issue_codes() instead. */
-    public const PREVALIDATION_CONFIRMABLE_ISSUE_CODES = [
-        'DUPLICATE_TITLE_CONFIRM_REQUIRED',
-        'DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED',
-        'CONFIRMATION_REQUIRED',
-        'MISSING_LOCATION_CONFIRM_REQUIRED',
-        'LOCATION_NOT_FOUND_POSSIBLE',
-        'SLOTBOOKING_DURATION_EQUALS_WINDOW',
-        'TEACHER_USER_NOT_FOUND',
-    ];
 
     /** @var task_registry */
     private task_registry $registry;
@@ -204,9 +185,6 @@ class agent_decision_service {
                 )));
             }
         }
-        $evaluator = new task_executability_evaluator($this->registry, $this->authz);
-        $commandfallback = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-
         // 1. Preview shortcut: if the user asked for a preview and one is available.
         if ($previewoptionid > 0 && trigger_result_util::has_trigger($result, 'core.is_preview_request')) {
             return [
@@ -256,14 +234,6 @@ class agent_decision_service {
             return $this->handle_confirm_pending($result, $threadid, $cmid, $userid, $outputlang);
         }
 
-        // 4. Duplicate-title override: if the user explicitly asked to create anyway.
-        if (
-            trigger_result_util::has_trigger($result, 'core.force_new_duplicate_option')
-            && $this->has_recent_duplicate_title_prompt($threadid)
-        ) {
-            $result = $this->apply_duplicate_title_override($result);
-        }
-
         // 5. Safety: block accidental mutation carry-over on lookup requests.
         if (
             trigger_result_util::has_trigger($result, 'core.is_lookup_request')
@@ -307,35 +277,15 @@ class agent_decision_service {
             )
         ) {
             $result = $this->handle_command_routing($result, $threadid, $cmid, $userid, $outputlang);
-            $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
         }
 
         // 8. Run preflight on confirmation commands: resolve entities, detect conflicts,
         // update commands to carry prepared_input, route based on preflight result.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
             $result = $this->handle_preflight($result, $threadid, $cmid, $userid, $outputlang);
-            $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
         }
 
-        // 9. Augment teacher autocreate when structured trigger allows it.
-        $result = $this->augment_missing_teacher_autocreate_confirmation($result, $outputlang);
-        $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
-
-        // 9c. Final boundary guard: a readonly-only task_call must never leave
-        // this service as task_call; execute it here and return execution_result.
-        $result = $this->enforce_task_boundary_invariants($result, $threadid, $cmid, $userid, $outputlang);
-        $commandfallback = $this->refresh_contract_command_fallback($result, $commandfallback);
-
-        // 9d. Contract hardening: normalize impossible response_type/commands combinations.
-        $result = $this->enforce_response_contract_invariants($result, $commandfallback);
-
-        // 10. Ensure message is never empty before storing pending intent.
-        $message = trim((string)($result['message'] ?? ''));
-        if ($message === '') {
-            $result['message'] = $this->build_fallback_message($result, $outputlang);
-        }
-
-        // 11. Store / clear pending intent.
+        // 9. Store / clear pending intent.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
             $queueitemids = $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []);
             $result['pending_confirmation_code'] = $this->pendingintentsvc->set(
@@ -448,136 +398,13 @@ class agent_decision_service {
     }
 
     /**
-     * Enforce framework-level task routing invariants at process() exit.
-     *
-     * @param array $result
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @param string $outputlang
-     * @return array
-     */
-    private function enforce_task_boundary_invariants(
-        array $result,
-        int $threadid,
-        int $cmid,
-        int $userid,
-        string $outputlang
-    ): array {
-        if ((string)($result['response_type'] ?? '') !== self::RESPONSE_TYPE_TASK_CALL) {
-            return $result;
-        }
-
-        $commands = (array)($result['commands'] ?? []);
-        if (empty($commands) || $this->has_mutating_commands(['commands' => $commands])) {
-            return $result;
-        }
-
-        return $this->handle_command_routing($result, $threadid, $cmid, $userid, $outputlang);
-    }
-
-    /**
-     * Enforce generic response-contract invariants independent of task semantics.
-     *
-     * @param array $result
-     * @return array
-     */
-    private function enforce_response_contract_invariants(array $result, array $fallbackcommands = []): array {
-        $responsetype = (string)($result['response_type'] ?? '');
-        $commands = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-        $issuecodes = (array)($result['issue_codes'] ?? []);
-
-        $requirescommands = in_array(
-            $responsetype,
-            [self::RESPONSE_TYPE_TASK_CALL, self::RESPONSE_TYPE_CONFIRMATION_REQUEST],
-            true
-        );
-        if ($requirescommands && empty($commands)) {
-            if (!empty($fallbackcommands)) {
-                $result['commands'] = array_values($fallbackcommands);
-                $result['issue_codes'] = array_values(array_unique(array_merge($issuecodes, ['CONTRACT_COMMANDS_RECOVERED'])));
-                return $result;
-            }
-
-            $result['response_type'] = self::RESPONSE_TYPE_CLARIFICATION;
-            $result['commands'] = [];
-            $result['issue_codes'] = array_values(array_unique(array_merge($issuecodes, ['CONTRACT_COMMANDS_REQUIRED'])));
-            return $result;
-        }
-
-        $forbidscommands = in_array(
-            $responsetype,
-            [self::RESPONSE_TYPE_CLARIFICATION, self::RESPONSE_TYPE_CONFIRM_PENDING, self::RESPONSE_TYPE_ERROR],
-            true
-        );
-        if ($forbidscommands && !empty($commands)) {
-            $result['commands'] = [];
-            $result['issue_codes'] = array_values(array_unique(array_merge($issuecodes, ['CONTRACT_COMMANDS_FORBIDDEN'])));
-        }
-
-        return $result;
-    }
-
-    /**
-     * Normalize potentially mixed command payloads into a list of command arrays.
-     *
-     * @param mixed $commands
-     * @return array<int,array>
-     */
-    private function normalize_commands_for_contract_recovery($commands): array {
-        if ($commands instanceof \stdClass) {
-            $commands = (array)$commands;
-        }
-
-        if (!is_array($commands)) {
-            return [];
-        }
-
-        if (isset($commands['task']) && is_string($commands['task'])) {
-            return [$commands];
-        }
-
-        $normalized = [];
-        foreach ($commands as $command) {
-            if ($command instanceof \stdClass) {
-                $command = (array)$command;
-            }
-            if (is_array($command) && !empty($command)) {
-                $normalized[] = $command;
-            }
-        }
-
-        return array_values($normalized);
-    }
-
-    /**
-     * Refresh current command fallback with contract-recoverable commands from result.
-     *
-     * @param array $result
-     * @param array<int,array> $currentfallback
-     * @return array<int,array>
-     */
-    private function refresh_contract_command_fallback(array $result, array $currentfallback): array {
-        $candidate = $this->normalize_commands_for_contract_recovery($result['commands'] ?? []);
-        return !empty($candidate) ? $candidate : $currentfallback;
-    }
-
-    /**
      * Build a deterministic fallback message per response type and language.
-     *
-     * Made public so that AgentRuntime can call it if needed after process().
-     * Each booking task declares its own fallback string keys via get_schema():
-     *   - 'fallback_confirm_string_key'  for confirmation_request responses
-     *   - 'fallback_taskcall_string_key' for task_call responses
-     *
-     * Tasks that are not registered in the booking registry (e.g. cross-plugin
-     * tasks) receive the generic default fallback string.
      *
      * @param  array  $result
      * @param  string $outputlang
      * @return string
      */
-    public function build_fallback_message(array $result, string $outputlang = ''): string {
+    private function build_fallback_message(array $result, string $outputlang = ''): string {
         $responsetype = (string)($result['response_type'] ?? '');
         $commands = $result['commands'] ?? [];
         $firsttask = '';
@@ -758,32 +585,8 @@ class agent_decision_service {
     ): array {
         $commands = $this->inject_output_language_into_commands((array)($result['commands'] ?? []), $outputlang);
         $nextstepintent = trim((string)($result['next_step_intent'] ?? ''));
-        $commands = $this->enrich_option_anchor_inputs($commands);
         if (!is_array($commands) || empty($commands)) {
             return $result;
-        }
-
-        // Generic safety guard: do not execute readonly task calls that require an
-        // option anchor (optionquery/optionid schema) when none was provided.
-        $missingoptionanchortask = $this->find_missing_option_anchor_readonly_task($commands);
-        if ($missingoptionanchortask !== '') {
-            return [
-                'response_type'   => 'clarification',
-                'message'         => localized_string_service::get(
-                    'agent_booking_diagnose_ambiguity_option_title_or_id',
-                    'bookingextension_agent',
-                    null,
-                    $outputlang
-                ),
-                'commands'        => [],
-                'ambiguities'     => array_values(array_unique((array)($result['ambiguities'] ?? []))),
-                'errors'          => array_values(array_unique((array)($result['errors'] ?? []))),
-                'attempted_tasks' => [$missingoptionanchortask],
-                'issue_codes'     => array_values(array_unique(array_merge(
-                    (array)($result['issue_codes'] ?? []),
-                    ['MISSING_OPTION_REFERENCE_RECOVERY']
-                ))),
-            ];
         }
 
         $split = $this->split_commands_by_mutability($commands);
@@ -840,15 +643,6 @@ class agent_decision_service {
                 $dependson
             );
             $mutatingqueueids[] = (string)($queued['queue_item_id'] ?? '');
-        }
-
-        if (!empty($readonlycommands)) {
-            $readonlycommands = $this->enrich_readonly_commands_with_planner(
-                $readonlycommands,
-                $threadid,
-                $cmid,
-                $userid
-            );
         }
 
         if (!empty($readonlycommands)) {
@@ -927,172 +721,6 @@ class agent_decision_service {
     }
 
     /**
-     * Find the first readonly task command that requires option anchoring but has none.
-     *
-     * A task is considered option-anchored when its schema declares optionquery or optionid.
-     *
-     * @param array $commands
-     * @return string Task name, or empty string when all commands are sufficiently anchored.
-     */
-    private function find_missing_option_anchor_readonly_task(array $commands): string {
-        foreach ($commands as $command) {
-            if (!is_array($command)) {
-                continue;
-            }
-
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '' || !$this->registry->is_read_only_task($taskname)) {
-                continue;
-            }
-
-            $task = $this->registry->get_task($taskname);
-            if ($task === null) {
-                continue;
-            }
-
-            $schema = $task->get_schema();
-            $properties = (array)($schema['properties'] ?? []);
-            $requiresoptionanchor = isset($properties['optionquery']) || isset($properties['optionid']);
-            if (!$requiresoptionanchor) {
-                continue;
-            }
-
-            $input = (array)($command['input'] ?? []);
-            $hasoptionid = (int)($input['optionid'] ?? 0) > 0;
-            $hasoptionquery = trim((string)($input['optionquery'] ?? '')) !== '';
-            if (!$hasoptionid && !$hasoptionquery) {
-                return $taskname;
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Enrich readonly command inputs using planner_service when the task schema allows it.
-     *
-     * This keeps execution generic and capability-driven: planner_service itself decides
-     * whether enrichment is applicable based on schema capabilities/properties.
-     *
-     * @param array $commands
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @return array
-     */
-    private function enrich_readonly_commands_with_planner(
-        array $commands,
-        int $threadid,
-        int $cmid,
-        int $userid
-    ): array {
-        $usermessage = trim($this->get_last_user_message($threadid));
-        if ($usermessage === '' || $userid <= 0) {
-            return $commands;
-        }
-
-        $planner = new planner_service($this->store);
-        foreach ($commands as &$command) {
-            if (!is_array($command)) {
-                continue;
-            }
-
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '' || !$this->registry->is_read_only_task($taskname)) {
-                continue;
-            }
-
-            $task = $this->registry->get_task($taskname);
-            if ($task === null) {
-                continue;
-            }
-
-            $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-            $command['input'] = $planner->enrich_recovery_input(
-                $taskname,
-                $task->get_schema(),
-                $usermessage,
-                $input,
-                $threadid,
-                $cmid,
-                $userid
-            );
-        }
-        unset($command);
-
-        return $commands;
-    }
-
-    /**
-     * Enrich command inputs with derived option anchors when possible.
-     *
-     * This is task-agnostic and schema-driven: if a task exposes optionid/optionquery,
-     * we derive missing anchors from free-form input fields.
-     *
-     * @param array $commands
-     * @return array
-     */
-    private function enrich_option_anchor_inputs(array $commands): array {
-        foreach ($commands as &$command) {
-            if (!is_array($command)) {
-                continue;
-            }
-
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '') {
-                continue;
-            }
-
-            $task = $this->registry->get_task($taskname);
-            if ($task === null) {
-                continue;
-            }
-
-            $schema = $task->get_schema();
-            $properties = (array)($schema['properties'] ?? []);
-            if (empty($properties)) {
-                continue;
-            }
-
-            $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-
-            if (isset($properties['optionquery']) && is_array($properties['optionquery'])) {
-                $optionquery = trim((string)($input['optionquery'] ?? ''));
-                if ($optionquery !== '') {
-                        $trimchars = " \t\n\r\0\x0B\"'“”„" . chr(96) . ".,;:!?()[]{}";
-                        $input['optionquery'] = trim($optionquery, $trimchars);
-                }
-            }
-
-            if (isset($properties['optionid']) && is_array($properties['optionid'])) {
-                $optionid = (int)($input['optionid'] ?? 0);
-                if ($optionid <= 0) {
-                    $candidates = [
-                        trim((string)($input['question'] ?? '')),
-                        trim((string)($input['query'] ?? '')),
-                        trim((string)($input['optionquery'] ?? '')),
-                    ];
-                    foreach ($candidates as $candidate) {
-                        if ($candidate === '') {
-                            continue;
-                        }
-                        $derivedid = $this->extract_option_id_from_message($candidate);
-                        if ($derivedid > 0) {
-                            $input['optionid'] = $derivedid;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            $command['input'] = $input;
-        }
-        unset($command);
-
-        return $commands;
-    }
-
-    /**
      * Run preflight validation on confirmation commands.
      *
      * Calls task->preflight() for each command, which:
@@ -1123,37 +751,6 @@ class agent_decision_service {
     ): array {
         $contextid = (int)\context_module::instance($cmid)->id;
         $commands = (array)($result['commands'] ?? []);
-        $lastusermessage = trim($this->get_last_user_message($threadid));
-        $planner = new planner_service($this->store);
-        foreach ($commands as &$command) {
-            if (!is_array($command)) {
-                continue;
-            }
-
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '') {
-                continue;
-            }
-
-            $task = $this->registry->get_task($taskname);
-            if ($task === null) {
-                continue;
-            }
-
-            $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-            if ($lastusermessage !== '') {
-                $command['input'] = $planner->enrich_recovery_input(
-                    $taskname,
-                    $task->get_schema(),
-                    $lastusermessage,
-                    $input,
-                    $threadid,
-                    $cmid,
-                    $userid
-                );
-            }
-        }
-        unset($command);
 
         $preflightresult = $this->with_output_language(
             $outputlang,
@@ -1258,7 +855,6 @@ class agent_decision_service {
                 && !empty($result['commands'])
             ) {
                 $confirmcommands = !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'];
-                $confirmcommands = $this->apply_confirmable_overrides($confirmcommands, $allissues);
                 // Soft-confirmable: show confirmation_request with augmented message.
                 return [
                     'response_type'   => 'confirmation_request',
@@ -1316,60 +912,9 @@ class agent_decision_service {
                 $confirmationmessage = implode(' ', $parts);
             }
             $result['message'] = $confirmationmessage;
-
-            // Augment commands with issue-specific override tokens.
-            $result['commands'] = $this->apply_confirmable_overrides($result['commands'], $confirmableissues);
         }
 
         return $result;
-    }
-
-    /**
-     * Apply override tokens to commands based on confirmable issue codes.
-     *
-     * When a confirmable issue is known to require an override token in the
-     * command input (e.g. MISSING_LOCATION_CONFIRM_REQUIRED → override=location),
-     * this method mutates the commands array so that execute() sees the right
-     * override flags.
-     *
-     * @param  array $commands
-     * @param  array $confirmableissues
-     * @return array
-     */
-    private function apply_confirmable_overrides(array $commands, array $confirmableissues): array {
-        $codeset = [];
-        foreach ($confirmableissues as $issue) {
-            $code = trim((string)($issue['code'] ?? ''));
-            if ($code !== '') {
-                $codeset[$code] = true;
-            }
-        }
-
-        foreach ($commands as &$command) {
-            if (!is_array($command)) {
-                continue;
-            }
-            if (!is_array($command['input'] ?? null)) {
-                $command['input'] = [];
-            }
-            if (isset($codeset['MISSING_LOCATION_CONFIRM_REQUIRED']) || isset($codeset['LOCATION_NOT_FOUND_POSSIBLE'])) {
-                $overrides = is_array($command['input']['override'] ?? null)
-                    ? $command['input']['override']
-                    : [];
-                $overrides[] = 'location';
-                $overrides[] = 'address';
-                $command['input']['override'] = array_values(array_unique(array_map(
-                    static fn($t): string => strtolower(trim((string)$t)),
-                    $overrides
-                )));
-            }
-            if (isset($codeset['SOFT_BOOKING_OVERRIDE_CONFIRM_REQUIRED'])) {
-                $command['input']['confirmed'] = true;
-            }
-        }
-        unset($command);
-
-        return $commands;
     }
 
     /**
@@ -1778,239 +1323,6 @@ class agent_decision_service {
 
     // -------------------------------------------------------------------------
     // Private: trigger helpers.
-
-    // -------------------------------------------------------------------------
-    // Private: duplicate-title helpers.
-
-    /**
-     * Check whether the recent assistant response asked about duplicate titles.
-     *
-     * @param  int $threadid
-     * @return bool
-     */
-    private function has_recent_duplicate_title_prompt(int $threadid): bool {
-        $messages = $this->store->get_recent_messages($threadid, 8);
-        if (empty($messages)) {
-            return false;
-        }
-        foreach ($messages as $msg) {
-            if ((string)($msg->role ?? '') !== 'assistant') {
-                continue;
-            }
-            $structured = json_decode((string)($msg->structuredjson ?? ''), true);
-            if (!is_array($structured)) {
-                continue;
-            }
-            if ((string)($structured['response_type'] ?? '') !== 'confirmation_request') {
-                continue;
-            }
-            $issuecodes = $structured['issue_codes'] ?? [];
-            if (!is_array($issuecodes)) {
-                continue;
-            }
-            $normalizedcodes = array_values(array_filter(array_map(
-                static fn($code): string => strtoupper(trim((string)$code)),
-                $issuecodes
-            )));
-            $duplicatecodeprovider = $this->issuecodeprovider->get_duplicate_confirmation_issue_codes();
-            if (!empty(array_intersect($duplicatecodeprovider, $normalizedcodes))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Ensure create-option commands include duplicate_title override after explicit user confirmation.
-     *
-     * @param  array $result
-     * @return array
-     */
-    private function apply_duplicate_title_override(array $result): array {
-        if (!in_array((string)($result['response_type'] ?? ''), ['task_call', 'confirmation_request'], true)) {
-            return $result;
-        }
-        $createoptiontask = $this->resolve_task_name_by_suffix('create_option');
-        if ($createoptiontask === '') {
-            return $result;
-        }
-        $commands = $result['commands'] ?? [];
-        if (!is_array($commands) || empty($commands)) {
-            return $result;
-        }
-        $changed = false;
-        foreach ($commands as $idx => $command) {
-            if (!is_array($command) || (string)($command['task'] ?? '') !== $createoptiontask) {
-                continue;
-            }
-            $input = $command['input'] ?? [];
-            if (!is_array($input)) {
-                continue;
-            }
-            $overrides = $input['override'] ?? [];
-            if (!is_array($overrides)) {
-                $overrides = [];
-            }
-            if (!in_array('duplicate_title', $overrides, true)) {
-                $overrides[] = 'duplicate_title';
-                $input['override'] = array_values(array_unique($overrides));
-                $commands[$idx]['input'] = $input;
-                $changed = true;
-            }
-        }
-        if ($changed) {
-            $result['commands'] = array_values($commands);
-        }
-        return $result;
-    }
-
-    // -------------------------------------------------------------------------
-    // Private: teacher autocreate augmentation.
-
-    /**
-     * Prepend a matching create-user task when user explicitly allows creating missing teacher accounts.
-     *
-     * @param  array  $result
-     * @param  string $outputlang
-     * @return array
-     */
-    private function augment_missing_teacher_autocreate_confirmation(
-        array $result,
-        string $outputlang = ''
-    ): array {
-        $createusertask = $this->resolve_task_name_by_suffix('create_user');
-        $createoptiontask = $this->resolve_task_name_by_suffix('create_option');
-
-        if ((string)($result['response_type'] ?? '') !== 'confirmation_request') {
-            return $result;
-        }
-        if ($createusertask === '' || $createoptiontask === '') {
-            return $result;
-        }
-        if (!trigger_result_util::has_trigger($result, self::TRIGGER_ALLOW_MISSING_USER_AUTOCREATE)) {
-            return $result;
-        }
-
-        $issuecodes = array_map(
-            static fn($code): string => trim(core_text::strtoupper((string)$code)),
-            (array)($result['issue_codes'] ?? [])
-        );
-        if (!in_array('TEACHER_USER_NOT_FOUND', $issuecodes, true)) {
-            return $result;
-        }
-
-        $commands = is_array($result['commands'] ?? null) ? (array)$result['commands'] : [];
-        if (empty($commands)) {
-            return $result;
-        }
-        foreach ($commands as $command) {
-            if (!is_array($command)) {
-                continue;
-            }
-            if ((string)($command['task'] ?? '') === $createusertask) {
-                return $result;
-            }
-        }
-
-        $teacherquery = '';
-        foreach ($commands as $command) {
-            if (!is_array($command) || (string)($command['task'] ?? '') !== $createoptiontask) {
-                continue;
-            }
-            $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-            $candidate = trim((string)($input['teacherquery'] ?? ''));
-            if ($candidate !== '') {
-                $teacherquery = $candidate;
-                break;
-            }
-        }
-
-        if ($teacherquery === '') {
-            return $result;
-        }
-
-        array_unshift($commands, [
-            'task'    => $createusertask,
-            'version' => 1,
-            'input'   => ['userquery' => $teacherquery, 'outputlang' => $outputlang],
-        ]);
-        $result['commands'] = array_values($commands);
-        return $result;
-    }
-
-    /**
-     * Resolve a task name by exact suffix match (e.g. "create_option").
-     *
-     * @param string $suffix
-     * @return string
-     */
-    private function resolve_task_name_by_suffix(string $suffix): string {
-        $suffix = trim($suffix);
-        if ($suffix === '') {
-            return '';
-        }
-
-        $needle = '.' . $suffix;
-        foreach (array_keys($this->registry->get_tasks()) as $taskname) {
-            if (!is_string($taskname) || $taskname === '') {
-                continue;
-            }
-            if (str_ends_with($taskname, $needle)) {
-                return $taskname;
-            }
-        }
-
-        return '';
-    }
-
-    // -------------------------------------------------------------------------
-    // Private: store / thread helpers.
-
-    /**
-     * Retrieve the last user message from the thread.
-     *
-     * @param  int $threadid
-     * @return string
-     */
-    private function get_last_user_message(int $threadid): string {
-        $messages = $this->store->get_recent_messages($threadid, 8);
-        for ($i = count($messages) - 1; $i >= 0; $i--) {
-            if (($messages[$i]->role ?? '') === 'user') {
-                return (string)($messages[$i]->content ?? '');
-            }
-        }
-        return '';
-    }
-
-    /**
-     * Extract an explicit option id from a free-form user sentence.
-     *
-     * @param string $message
-     * @return int
-     */
-    private function extract_option_id_from_message(string $message): int {
-        $message = trim($message);
-        if ($message === '') {
-            return 0;
-        }
-
-        $patterns = [
-            '/\boption\s*id\s*[:#-]?\s*(\d{1,10})\b/iu',
-            '/\boptionid\s*[:#-]?\s*(\d{1,10})\b/iu',
-            '/\bbooking\s*option\s*id\s*[:#-]?\s*(\d{1,10})\b/iu',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $message, $matches)) {
-                $id = (int)($matches[1] ?? 0);
-                if ($id > 0) {
-                    return $id;
-                }
-            }
-        }
-
-        return 0;
-    }
 
     /**
      * Build a minimal clarification result.

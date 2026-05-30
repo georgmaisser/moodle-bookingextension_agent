@@ -1127,54 +1127,6 @@ class interpreter implements agent_interpreter {
      */
     private function user_facing_validation_message(array $errors, string $lang = ''): string {
         $clean = array_map(fn(string $line): string => $this->strip_command_prefix($line), $errors);
-
-        $joined = strtolower(implode(' ', $clean));
-        $isgerman = str_starts_with(strtolower($lang), 'de');
-
-        $missingslotduration = strpos($joined, 'slot_duration_minutes') !== false;
-        $missingslotcapacity = strpos($joined, 'slot_max_participants_per_slot') !== false;
-        $missingslotrange = strpos($joined, 'slot_valid_from') !== false || strpos($joined, 'slot_valid_until') !== false;
-        $missingslotdays = strpos($joined, 'slot_day_') !== false;
-        $hasslotbookingcontext = strpos($joined, 'slot booking type') !== false || strpos($joined, 'slot-buchungsart') !== false;
-
-        if ($hasslotbookingcontext && ($missingslotduration || $missingslotcapacity || $missingslotrange || $missingslotdays)) {
-            $parts = [];
-
-            if ($missingslotduration) {
-                $parts[] = $isgerman
-                    ? 'die Dauer pro Slot in Minuten'
-                    : 'the duration per slot in minutes';
-            }
-
-            if ($missingslotcapacity) {
-                $parts[] = $isgerman
-                    ? 'wie viele Personen pro Slot buchen duerfen'
-                    : 'how many people can book each slot';
-            }
-
-            if ($missingslotrange) {
-                $parts[] = $isgerman
-                    ? 'den Zeitraum, in dem Termine verfuegbar sein sollen (von/bis)'
-                    : 'the date range in which slots should be available (from/until)';
-            }
-
-            if ($missingslotdays) {
-                $parts[] = $isgerman
-                    ? 'an welchen Wochentagen Termine angeboten werden sollen'
-                    : 'on which weekdays slots should be offered';
-            }
-
-            if (!empty($parts)) {
-                if ($isgerman) {
-                    return 'Damit ich die Sprechstunde korrekt als Slot-Buchung anlegen kann, brauche ich noch: '
-                        . implode('; ', $parts) . '.';
-                }
-
-                return 'To create the office hours correctly as a slot booking, I still need: '
-                    . implode('; ', $parts) . '.';
-            }
-        }
-
         return implode(' ', $clean);
     }
 
