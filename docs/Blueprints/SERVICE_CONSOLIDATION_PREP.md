@@ -203,3 +203,27 @@ Ziel: catalog_selection_service (Fassade) mit klaren Subkomponenten:
 - Preflight L1/L2/L3 Contract-Tests.
 - Snapshot-Tests fuer JSON extraction edge-cases (plain, fenced, mixed text).
 - Regressionstests fuer language policy bei error/confirmation/sufficient.
+
+## Statusupdate (2026-05-30)
+- Phase 1 umgesetzt: shared_json_payload_extractor, provider_routing_util, localized_string_service, trigger_result_util eingefuehrt und in Runtime/Decision/Interpreter/Orchestrator/Executor/Feedback verdrahtet.
+- Phase 2 umgesetzt: queue_status_policy und queue_command_mapper eingefuehrt; Decision/Confirm/Queue-Manager auf zentrale Status- und Mapping-Regeln umgestellt.
+- Phase 3 weitgehend umgesetzt: pending_intent_service und queue_transition_service eingefuehrt; Decision/Runtime/Confirm/External-Pfade auf zentrale Pending-Intent- und Transition-Aufrufe umgestellt.
+- Phase-3-Restpunkt: nur noch queue_manager::update_status als technischer Endpunkt; Fachlogik-Transitionen laufen zentral ueber queue_transition_service.
+- Phase 4 gestartet: preflight_contract_validator als neuer L1-Einstieg eingefuehrt und preflight_pipeline auf den Validator umgehaengt.
+- Phase 4 Teilschritt umgesetzt: preflight_schema_validator auf reine Schema-Pruefung reduziert; Version/Deprecation-Pruefung laeuft zentral ueber preflight_contract_validator.
+- Phase 4 abgeschlossen: L1 ist auf den konsolidierten preflight_contract_validator zentralisiert; Pipeline ist von der alten preflight_version_validator-Kopplung geloest.
+- Phase 4 Testabdeckung erweitert: L1 Contract-Tests fuer schema/version-deprecation/unsupported version sowie L2/L3 Contract-Tests fuer domain runner und execution gate hinzugefuegt.
+- Phase-4-Absicherung gestartet: neuer Contract-Test preflight_contract_validator_contract_test hinzugefuegt; lokale PHPUnit-Ausfuehrung aktuell durch Class-not-found-Bootstrapproblem blockiert.
+- Testhinweis: in der aktuellen Tool-Ausfuehrung schlagen direkte phpunit-Aufrufe zeitweise mit Autoload-/Bootstrap-Problemen fehl (Class not found), daher fuer Regression-Checks Moodle-PHPUnit-Kontext strikt sicherstellen.
+- Shrink-Paket 5 umgesetzt: verbleibende einfache Delegations-Wrapper in Executor/Orchestrator entfernt (u.a. localized_string und resolve_primary_provider_for_action).
+- Shrink-Paket 5 Reduktionswert: +35 geloeschte Zeilen in dieser Phase (Baseline 654 -> 689).
+- Shrink-Paket 6 umgesetzt: wiederholte Lokaliserungs- und Listenzaehl-Logik in execution_feedback_service zentralisiert (localized + localized_list_count_message).
+- Shrink-Paket 6 Reduktionswert: +18 geloeschte Zeilen in dieser Phase (Baseline 689 -> 707).
+- Shrink-Paket 7 umgesetzt: wiederholte String-Listen-Normalisierung in orchestrator zentralisiert (normalize_nonempty_string_list) und an mehreren Callsites verdrahtet.
+- Shrink-Paket 7 Reduktionswert: +22 geloeschte Zeilen in dieser Phase (Baseline 707 -> 729).
+- Shrink-Paket 8 (1+2 gemeinsam) umgesetzt: Wunderbyte Prompt-Actions in llm_call_service ueber zentrale Aufloesung/Fabrik konsolidiert (build_prompt_action + resolve_wunderbyte_prompt_action_class).
+- Shrink-Paket 8 Reduktionswert: +39 geloeschte Zeilen in dieser Phase (Baseline 729 -> 768).
+- Shrink-Paket 9 (Kombi) umgesetzt: langer Availability-Ternary und unavailable-task-Filter in orchestrator ueber zentrale Helper konsolidiert (availability_from_deny_reason + sanitize_unavailable_task_catalog).
+- Shrink-Paket 9 Reduktionswert: +20 geloeschte Zeilen in dieser Phase (Baseline 768 -> 788).
+- Shrink-Paket 10 (Punkte 1+2+3 gemeinsam) umgesetzt: Orchestrator/Decision/Runtime mit weiteren gemeinsamen Helpers fuer JSON-Guards sowie String-/Queue-ID-Normalisierung konsolidiert.
+- Shrink-Paket 10 Reduktionswert: +11 geloeschte Zeilen in dieser Phase (Baseline 788 -> 799).
