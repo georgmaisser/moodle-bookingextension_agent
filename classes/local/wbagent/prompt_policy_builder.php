@@ -70,21 +70,21 @@ class prompt_policy_builder {
             $policies[] = self::build_step_intent_policy($normalizedsteptype);
         }
 
-        // 4. DOCS ANSWER POLICY (only for reasoning steps with observations, not final synthesis).
-        if ($normalizedsteptype === 'simple_retrieval' || $normalizedsteptype === 'final_reasoning') {
+        // 4. DOCS ANSWER POLICY (only for simple retrieval steps with observations).
+        if ($normalizedsteptype === 'simple_retrieval') {
             $policies[] = self::build_docs_answer_policy();
         }
 
         // 5. SUFFICIENCY POLICY (different for each step type).
         // - For tool_call_parse: only if hasobservations (planner should stop if already has results).
-        // - For simple_retrieval/final_reasoning: always (guidance on when observations suffice).
+        // - For simple_retrieval: always (guidance on when observations suffice).
         // - For final_synthesis: special synthesis-only policy (always write message).
         if ($normalizedsteptype === 'tool_call_parse') {
             if ($hasobservations) {
                 $policies[] = self::build_sufficiency_policy($normalizedsteptype, $hasobservations);
             }
         } else {
-            // Simple_retrieval, final_reasoning, final_synthesis all get sufficiency guidance.
+            // Simple_retrieval and final_synthesis both get sufficiency guidance.
             $policies[] = self::build_sufficiency_policy($normalizedsteptype, $hasobservations);
         }
 
@@ -318,7 +318,7 @@ class prompt_policy_builder {
     }
 
     /**
-     * Build NON-OPTIONAL FOLLOW-UP STATE POLICY (FINAL_REASONING only).
+     * Build NON-OPTIONAL FOLLOW-UP STATE POLICY for synthesis contexts.
      *
      * @return string
      */

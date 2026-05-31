@@ -55,7 +55,9 @@ flowchart TD
         ATTB["attempt_budget (global view)\ntracks: loop_step + preflight_retry\n+ queue_retry + execution_retry"]
         BUDG_CHECK{"budget_guard_allows\n_next_llm_call(step, limit)?"}
         BUDGX["build_budget_exceeded_result()\nissue_codes: BUDGET_EXCEEDED"]
-        LOOP_STOP["Loop stop:\nconfirmation_request / clarification\n/ sufficient / error / task_call"]
+        LOOP_STOP["Planner loop stop:\nterminal planner result available"]
+        FCLASS["finalization_classifier\ninputs: response_type + has_commands\n+ issue_codes + error_class\n+ structural_failure flag"]
+        DIRECT_FINAL["direct finalization\nstructured / risky / non-message paths\n(task_call / confirmation_request / schema_error / dependency_cycle)"]
         ENFORCE["enforce_final_response_contract(result, threadid)"]
         MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
     end
@@ -63,15 +65,30 @@ flowchart TD
     %% =========================================================
     %% ORCHESTRATOR
     %% =========================================================
-    subgraph ORCH["orchestrator — Explicit Planner Contract"]
-        ORC["process(threadid, contextid, userid, step_type, observations)\nstep_type: tool_call_parse | simple_retrieval"]
-        PPB["prompt_policy_builder::build()\ninitial_system_prompt.md"]
+    subgraph ORCH["planner orchestrator — Explicit Planner Contract"]
+        ORC["process(threadid, contextid, userid, step_type, observations)\nstep_type: tool_call_parse | simple_retrieval\nplanner-only decision loop"]
+        PPB["planner_prompt_policy_builder::build()\ninitial_system_prompt.md + planner profile"]
         ACAT["planner_catalog_service\n::get_catalog_from_agent_state()\n→ explicit task_prompt_contracts only\n→ no task-name or field-name heuristics\n→ no re-embed during loop"]
-        OR_LANG["language contract\nLLM + deterministic replies follow latest user message\n(no de/en token lists in routing)"]
-        ORCSVC["orchestrator_routing_service\n::resolve_action_class_for_step(manager, context, step_type)\ntool_call_parse | simple_retrieval → planner_decide (wpl, small model)\nfallback chain: wunderbyte → openai → default(generate_text)"]
-        LLMSVC["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: planner_decide (wpl) | generate_agent_reply (wpr)\n  generate_text | generate_embeddings"]
+        OR_LANG["planner language contract\nplanner JSON follows latest user message\n(no de/en token lists in routing)"]
+        ORCSVC["orchestrator_routing_service\n::resolve_action_class_for_step(manager, context, step_type)\ntool_call_parse | simple_retrieval → planner_decide (wpl, small model)\nfallback chain: wunderbyte → openai(summarise_text) → default(generate_text)"]
+        PLLM["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: planner_decide (wpl)\n  | summarise_text | generate_text\n  | generate_embeddings"]
         INTERP["interpreter::interpret(rawresponse, contextid, userid, lastmsg)\nStage 1: parse() — JSON extraction\nStage 2: classify response_type (allow-list)\nStage 3: check_structure() per task (may emit RECOVERABLE_INPUT_ERROR)\nStage 4: normalize (dates, IDs, __current_user__)\nNo task-specific heuristics"]
         RESP_TYPE{"parsed\nresponse_type"}
+    end
+
+    %% =========================================================
+    %% SYNCHRONIZER
+    %% =========================================================
+    subgraph SYNC["synchronizer — Final User-Facing Contract"]
+        SYNC_RUN["synchronize(threadid, contextid, userid,\nplanner_result, observations, state)\nLLM polish only for humanizable states\n(sufficient / clarification / safe domain error)"]
+        SYNC_TEMPLATE["synchronize_template_only(threadid, contextid, userid,\nterminal_result, state)\nno LLM call\nfor budget_exceeded / hard_block_with_user_message"]
+        SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n→ no task discovery / no command mutation"]
+        SYNC_PPB["synchronizer_prompt_builder::build()\nseparate synchronizer prompt/profile\n(aiinitialprompt_final_synthesis)"]
+        SYNC_LANG["synchronizer language contract\nfinal reply follows latest user message\nmessage quality > routing detail"]
+        SYNC_ROUTE["synchronizer_routing_service\nprefer generate_agent_reply (wpr, large model)\nfallback: generate_text"]
+        SLLM["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: generate_agent_reply (wpr)\n  | generate_text fallback"]
+        SINTERP["shared interpreter / final-response parser\nvalidate final JSON only\n→ message-bearing user-facing contract\n→ preserve response_type + command semantics\n→ reject structural drift"]
+        SCONTRACT["synchronizer_output_contract\nmay refine message / lang / presentation\nmust NOT invent commands, mutate inputs,\nor change execution semantics\nrollback to source result on contract drift"]
     end
 
     %% =========================================================
@@ -239,8 +256,8 @@ flowchart TD
     ACAT --> EMBS
     OR_LANG --> LANG
     ORC --> ORCSVC
-    ORCSVC --> LLMSVC
-    LLMSVC -->|raw LLM output| INTERP
+    ORCSVC --> PLLM
+    PLLM -->|raw LLM output| INTERP
     INTERP --> RESP_TYPE
 
     %% interpreter output → decision service
@@ -354,6 +371,21 @@ flowchart TD
     EXEC_GATE -->|yes: execution_result| OB_OUT
     EXEC_GATE -->|no| LOOP_STOP
 
+    %% Planner stop → Synchronizer
+    LOOP_STOP --> FCLASS
+    FCLASS -->|LLM polish: sufficient / clarification / safe domain error| SYNC_RUN
+    FCLASS -->|template only: budget_exceeded / safe hard-blocks / provider-facing technical errors| SYNC_TEMPLATE
+    FCLASS -->|direct final: has_commands / confirmation_request / confirm_pending / structural failures| DIRECT_FINAL
+    SYNC_RUN --> SYNC_CTX
+    SYNC_RUN --> SYNC_PPB
+    SYNC_CTX --> SLLM
+    SYNC_PPB --> SYNC_LANG
+    SYNC_LANG --> SYNC_ROUTE
+    SYNC_ROUTE --> SLLM
+    SLLM -->|raw final-reply output| SINTERP
+    SYNC_TEMPLATE --> SCONTRACT
+    SINTERP --> SCONTRACT
+
     %% Outcomes → Observation Builder
     OB_OUT --> REPLAN
     REPLAN -->|"observations → agent_state"| OBS_ACCUM
@@ -369,8 +401,10 @@ flowchart TD
     BUDG_CHECK -->|"exhausted"| BUDGX
 
     %% Final steps
-    LOOP_STOP --> FINAL_OUT
-    BUDGX --> FINAL_OUT
+    SCONTRACT --> FINAL_OUT
+    DIRECT_FINAL --> FINAL_OUT
+    BUDGX --> FCLASS
+    FAIL_OUT --> FCLASS
     FINAL_OUT --> ENFORCE
     ENFORCE --> MPS
     MPS -->|"add_message(assistant)"| CS2
@@ -392,7 +426,8 @@ flowchart TD
     MTRIG -.->|"core trigger signals"| PROC_IN
     OB_OUT --> ANON
     ANON --> OBS_ACCUM
-    AIER --> LLMSVC
+    AIER --> PLLM
+    AIER --> SLLM
     ISCP -.-> BIRS
     BIRS -.-> D_PREFLIGHT
 
@@ -408,7 +443,10 @@ flowchart TD
         LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]
         LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
         LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
-        LG_PLAN["Planner contract\nread-only as task_call, mutating as confirmation_request\nfollow-up via confirm_pending"]
+        LG_PLAN["Planner contract\nread-only as task_call, mutating as confirmation_request\nfollow-up via confirm_pending\nplanner decides, but does not polish the final reply"]
+        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / task_call / structural failures\nwithout changing command semantics"]
+        LG_CLASS["Deterministic finalization classifier\nno LLM routing by intuition\nclassification must be testable from normalized result metadata only"]
+        LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, task_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
         LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
         LG_ADHOC["Adhoc execution mode\nconfirmed run can be queued\nand executed async via worker task"]
         LG_CAP["Task release gates\nruntime + active + context + capability"]
@@ -433,8 +471,18 @@ flowchart TD
     style Q_FAIL_TTL fill:#9b2226,color:#fff
     style Q_BLOCKED fill:#e9c46a,color:#000
     style LOOP_STOP fill:#e9c46a,color:#000
+    style FCLASS fill:#264653,color:#fff
+    style DIRECT_FINAL fill:#e9c46a,color:#000
     style D_PREFLIGHT fill:#e9c46a,color:#000
     style D_CMD_ROUTE fill:#e9c46a,color:#000
+    style SYNC_RUN fill:#1d3557,color:#fff
+    style SYNC_TEMPLATE fill:#264653,color:#fff
+    style SYNC_PPB fill:#1d3557,color:#fff
+    style SYNC_LANG fill:#1d3557,color:#fff
+    style SYNC_ROUTE fill:#1d3557,color:#fff
+    style SLLM fill:#457b9d,color:#fff
+    style SINTERP fill:#264653,color:#fff
+    style SCONTRACT fill:#2d6a4f,color:#fff
     style Q_RETRY fill:#457b9d,color:#fff
     style EXC_TRANSIENT fill:#457b9d,color:#fff
     style Q_SPAWN fill:#457b9d,color:#fff
@@ -452,6 +500,9 @@ flowchart TD
     style LG_3P fill:#1d3557,color:#fff
     style LG_AGN fill:#1d3557,color:#fff
     style LG_PLAN fill:#1d3557,color:#fff
+    style LG_SYNC fill:#1d3557,color:#fff
+    style LG_CLASS fill:#264653,color:#fff
+    style LG_MATRIX fill:#264653,color:#fff
     style LG_SPAWN_RULE fill:#264653,color:#fff
     style LG_ADHOC fill:#457b9d,color:#fff
     style LG_CAP fill:#264653,color:#fff

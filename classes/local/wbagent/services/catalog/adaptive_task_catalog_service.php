@@ -46,27 +46,27 @@ namespace bookingextension_agent\local\wbagent\services\catalog;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class adaptive_task_catalog_service {
-    /** Top-K recency cutoff for Step 2+ (simple_retrieval, final_reasoning). */
+    /** Top-K recency cutoff for Step 2+ (simple_retrieval). */
     public const RECENCY_TOP_K_STEP2PLUS = 80;
 
     /** Mandatory tasks that should always be visible. */
     private const MANDATORY_TASK_KEYWORDS = ['help', 'search', 'list', 'get_tasks'];
 
-    /**
-     * Reduce full task catalog to tiered adaptive catalog.
-     *
-     * Step-type determines strategy:
-     *  - tool_call_parse: FULL catalog (initial routing, must not miss tasks)
-     *  - simple_retrieval: MANDATORY + RECENCY (Top-80)
-     *  - final_reasoning/final_synthesis: MANDATORY + RECENCY (Top-50)
-     *
-     * @param array $fullcatalog Full task contracts from registry.
-     * @param array $recenttaskhistory Recent tasks used in thread (in order).
-     * @param string $steptype Current step type (tool_call_parse, simple_retrieval, etc).
-     * @return array Structure: [
-     *   'active_tasks' => [...],              // Shown to LLM
-     * ]
-     */
+     /**
+      * Reduce full task catalog to tiered adaptive catalog.
+      *
+      * Step-type determines strategy:
+      *  - tool_call_parse: FULL catalog (initial routing, must not miss tasks)
+      *  - simple_retrieval: MANDATORY + RECENCY (Top-80)
+      *  - final_synthesis: MANDATORY + RECENCY (Top-40)
+      *
+      * @param array $fullcatalog Full task contracts from registry.
+      * @param array $recenttaskhistory Recent tasks used in thread (in order).
+      * @param string $steptype Current step type (tool_call_parse, simple_retrieval, etc).
+      * @return array Structure: [
+      *   'active_tasks' => [...],              // Shown to LLM
+      * ]
+      */
     public static function get_adaptive_catalog(
         array $fullcatalog,
         array $recenttaskhistory = [],
@@ -84,7 +84,7 @@ class adaptive_task_catalog_service {
         $mandatory = self::get_mandatory_tasks($fullcatalog);
 
         // Tier 2: Recency-based tasks (top recent, excluding mandatory).
-        $topkforthis = ($steptype === 'final_reasoning' || $steptype === 'final_synthesis')
+        $topkforthis = ($steptype === 'final_synthesis')
             ? 40  // Final steps: very compact.
             : self::RECENCY_TOP_K_STEP2PLUS;  // Iteration: more tasks.
 

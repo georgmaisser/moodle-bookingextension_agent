@@ -68,9 +68,6 @@ class orchestrator {
     /** Compact prompt profile for iterative retrieval turns with observations. */
     public const STEP_TYPE_SIMPLE_RETRIEVAL = 'simple_retrieval';
 
-    /** Richer prompt profile for final narration/reasoning turns. */
-    public const STEP_TYPE_FINAL_REASONING = 'final_reasoning';
-
     /** Final synthesis turn: generate_text composes the polished answer from accumulated observations. */
     public const STEP_TYPE_FINAL_SYNTHESIS = 'final_synthesis';
 
@@ -133,7 +130,6 @@ class orchestrator {
         $this->orchestratorroutingsvc = new orchestrator_routing_service(
             self::STEP_TYPE_TOOL_CALL_PARSE,
             self::STEP_TYPE_SIMPLE_RETRIEVAL,
-            self::STEP_TYPE_FINAL_REASONING,
             self::STEP_TYPE_FINAL_SYNTHESIS,
             self::WB_ACTION_PLANNER_DECIDE,
             self::WB_ACTION_GENERATE_AGENT_REPLY
@@ -141,7 +137,6 @@ class orchestrator {
         $this->promptprofilesvc = new orchestrator_prompt_profile_service(
             self::STEP_TYPE_TOOL_CALL_PARSE,
             self::STEP_TYPE_SIMPLE_RETRIEVAL,
-            self::STEP_TYPE_FINAL_REASONING,
             self::STEP_TYPE_FINAL_SYNTHESIS,
             self::WB_ACTION_PLANNER_DECIDE,
             self::WB_ACTION_GENERATE_AGENT_REPLY
@@ -238,7 +233,7 @@ class orchestrator {
             $finalrouting = $this->orchestratorroutingsvc->resolve_action_class_for_step(
                 $manager,
                 $context,
-                self::STEP_TYPE_FINAL_REASONING
+                self::STEP_TYPE_FINAL_SYNTHESIS
             );
 
             $toolactionclass = (string)($toolrouting['actionclass'] ?? '');
@@ -1037,7 +1032,7 @@ PROMPT;
         $normalizedsteptype = $this->promptprofilesvc->normalize_step_type($steptype);
         $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype));
 
-        if ($normalizedsteptype === self::STEP_TYPE_FINAL_REASONING) {
+        if ($normalizedsteptype === self::STEP_TYPE_FINAL_SYNTHESIS) {
             $contextualguidance = $this->assistantsummariesvc->build_contextual_guidance($trimmedmessages);
             if ($contextualguidance !== '') {
                 $systemprompt .= "\n\nCONTEXT-SPECIFIC GUIDANCE:\n" . $contextualguidance;
@@ -1045,7 +1040,7 @@ PROMPT;
         }
 
         $assistantstateblocks = [];
-        if ($normalizedsteptype === self::STEP_TYPE_FINAL_REASONING) {
+        if ($normalizedsteptype === self::STEP_TYPE_FINAL_SYNTHESIS) {
             $assistantstateblocks = $this->assistantsummariesvc->build_assistant_state_blocks($trimmedmessages);
         }
         if (!empty($assistantstateblocks)) {

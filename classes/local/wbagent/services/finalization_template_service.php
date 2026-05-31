@@ -1,0 +1,104 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+declare(strict_types=1);
+
+namespace bookingextension_agent\local\wbagent\services;
+
+/**
+ * Deterministic template resolver for template-only finalization.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class finalization_template_service {
+    /** @var array<string,string> */
+    private const ISSUE_CODE_MESSAGES = [
+        'BUDGET_EXCEEDED' =>
+            'Execution stopped because the loop budget is exhausted. Please simplify your request and try again.',
+        'BLOCKED_TIMEOUT' =>
+            'Confirmation timed out. Please run the request again and confirm the action once more.',
+        'RETRY_EXHAUSTED' =>
+            'Execution failed after multiple retries. Please try again in a moment.',
+        'PERMISSION_ERROR' =>
+            'This action cannot be executed with your current permissions.',
+        'VALIDATION_ERROR' =>
+            'Some required input is missing or invalid. Please provide the needed details and try again.',
+        'CONTEXT_INVALID' =>
+            'This request is not valid in the current context. Please open the target context and try again.',
+    ];
+
+    /** @var array<string,string> */
+    private const ERROR_CLASS_MESSAGES = [
+        'provider_timeout' =>
+            'The AI provider timed out while processing your request. Please try again.',
+        'transient_io' =>
+            'A temporary connection problem occurred. Please try again.',
+        'auth_failed' =>
+            'The AI provider authentication failed. Please contact an administrator.',
+        'quota_exceeded' =>
+            'The AI provider quota was exceeded. Please try again later.',
+        'runtime_disabled' =>
+            'AI runtime is currently disabled for this context.',
+    ];
+
+    /**
+     * Resolve a deterministic template-only message.
+     *
+     * Priority: issue_codes first, then error_class.
+     *
+     * @param array<string,mixed> $result
+     * @return string
+     */
+    public function resolve_message(array $result): string {
+        foreach ($this->normalize_issue_codes($result) as $issuecode) {
+            if (isset(self::ISSUE_CODE_MESSAGES[$issuecode])) {
+                return self::ISSUE_CODE_MESSAGES[$issuecode];
+            }
+        }
+
+        $errorclass = strtolower(trim((string)($result['error_class'] ?? '')));
+        if ($errorclass !== '' && isset(self::ERROR_CLASS_MESSAGES[$errorclass])) {
+            return self::ERROR_CLASS_MESSAGES[$errorclass];
+        }
+
+        return '';
+    }
+
+    /**
+     * Normalize issue codes to unique uppercase values.
+     *
+     * @param array<string,mixed> $result
+     * @return string[]
+     */
+    private function normalize_issue_codes(array $result): array {
+        $raw = $result['issue_codes'] ?? [];
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $codes = [];
+        foreach ($raw as $code) {
+            $value = strtoupper(trim((string)$code));
+            if ($value !== '') {
+                $codes[] = $value;
+            }
+        }
+
+        return array_values(array_unique($codes));
+    }
+}

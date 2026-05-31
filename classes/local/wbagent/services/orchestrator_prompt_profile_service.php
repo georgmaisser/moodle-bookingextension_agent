@@ -38,9 +38,6 @@ class orchestrator_prompt_profile_service {
     private string $simpleretrieval;
 
     /** @var string */
-    private string $finalreasoning;
-
-    /** @var string */
     private string $finalsynthesis;
 
     /** @var string */
@@ -54,7 +51,6 @@ class orchestrator_prompt_profile_service {
      *
      * @param string $toolcallparse
      * @param string $simpleretrieval
-     * @param string $finalreasoning
      * @param string $finalsynthesis
      * @param string $wbplanneraction
      * @param string $wbreplyaction
@@ -62,14 +58,12 @@ class orchestrator_prompt_profile_service {
     public function __construct(
         string $toolcallparse,
         string $simpleretrieval,
-        string $finalreasoning,
         string $finalsynthesis,
         string $wbplanneraction,
         string $wbreplyaction
     ) {
         $this->toolcallparse = $toolcallparse;
         $this->simpleretrieval = $simpleretrieval;
-        $this->finalreasoning = $finalreasoning;
         $this->finalsynthesis = $finalsynthesis;
         $this->wbplanneraction = $wbplanneraction;
         $this->wbreplyaction = $wbreplyaction;
@@ -107,9 +101,6 @@ class orchestrator_prompt_profile_service {
      */
     public function normalize_step_type(string $steptype): string {
         $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === $this->finalreasoning) {
-            return $this->finalreasoning;
-        }
         if ($normalized === $this->finalsynthesis) {
             return $this->finalsynthesis;
         }
@@ -126,9 +117,6 @@ class orchestrator_prompt_profile_service {
      * @return string
      */
     public function get_initial_prompt_config_key(string $steptype): string {
-        if ($steptype === $this->finalreasoning) {
-            return 'aiinitialprompt_final_reasoning';
-        }
         if ($steptype === $this->finalsynthesis) {
             return 'aiinitialprompt_final_synthesis';
         }

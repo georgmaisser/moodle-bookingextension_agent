@@ -30,6 +30,8 @@ use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
+use bookingextension_agent\local\wbagent\services\finalization_classifier;
+use bookingextension_agent\local\wbagent\services\finalization_template_service;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\messaging\message_persistence_service;
@@ -74,6 +76,12 @@ class agent_runtime {
     /** @var language_policy_service */
     private language_policy_service $languagepolicy;
 
+    /** @var finalization_classifier */
+    private finalization_classifier $finalizationclassifier;
+
+    /** @var finalization_template_service */
+    private finalization_template_service $finalizationtemplatesvc;
+
     /**
      * Constructor.
      *
@@ -95,6 +103,8 @@ class agent_runtime {
         $this->decisionsvc = new agent_decision_service($registry, $store, $authz);
         $this->messagepersistence = new message_persistence_service($store);
         $this->languagepolicy = new language_policy_service();
+        $this->finalizationclassifier = new finalization_classifier();
+        $this->finalizationtemplatesvc = new finalization_template_service();
     }
 
     /**
@@ -186,9 +196,147 @@ class agent_runtime {
         if ($state !== null) {
             $result = $this->attach_loop_results($result, $state);
         }
+        $result = $this->apply_finalization_strategy($threadid, $result, $state);
         $result = $this->enforce_final_response_contract($result, $threadid);
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
+    }
+
+    /**
+     * Apply deterministic finalization strategy routing.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @param agent_state|null $state
+     * @return array
+     */
+    private function apply_finalization_strategy(int $threadid, array $result, ?agent_state $state = null): array {
+        $strategy = $this->finalizationclassifier->classify($result);
+
+        if ($strategy === finalization_classifier::STRATEGY_TEMPLATE_ONLY) {
+            return $this->apply_template_only_finalization($threadid, $result);
+        }
+
+        if ($strategy === finalization_classifier::STRATEGY_LLM_POLISH) {
+            return $this->apply_synchronizer_message_polish($threadid, $result, $state);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Apply deterministic template-only finalization behavior.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @return array
+     */
+    private function apply_template_only_finalization(int $threadid, array $result): array {
+        $message = trim((string)($result['message'] ?? ''));
+        if ($message !== '') {
+            return $result;
+        }
+
+        $templatemessage = $this->finalizationtemplatesvc->resolve_message($result);
+        if ($templatemessage !== '') {
+            $result['message'] = $templatemessage;
+            return $result;
+        }
+
+        $result['message'] = $this->build_contract_fallback_message('error', $threadid);
+        return $result;
+    }
+
+    /**
+     * Run final synthesis step and merge only user-facing message refinements.
+     *
+     * Preserves response_type and command semantics from source result.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @param agent_state|null $state
+     * @return array
+     */
+    private function apply_synchronizer_message_polish(int $threadid, array $result, ?agent_state $state = null): array {
+        $thread = $this->store->get_thread($threadid);
+        if ($thread === null) {
+            return $result;
+        }
+
+        $contextid = (int)($thread->contextid ?? 0);
+        $userid = (int)($thread->userid ?? 0);
+        if ($contextid <= 0 || $userid <= 0) {
+            return $result;
+        }
+
+        $cmid = $this->resolve_cmid_from_contextid($contextid);
+        $observations = [];
+        if ($state !== null && $state->has_observations()) {
+            $observations = $state->get_observations();
+        } else {
+            $loopresults = (array)($result['loop_results'] ?? []);
+            foreach ($loopresults as $step) {
+                if (!is_array($step)) {
+                    continue;
+                }
+
+                $observation = trim((string)($step['observation'] ?? ''));
+                if ($observation !== '') {
+                    $observations[] = $observation;
+                }
+            }
+        }
+
+        try {
+            $syncresult = $this->call_orchestrator_step(
+                $threadid,
+                $cmid,
+                $userid,
+                $observations,
+                orchestrator::STEP_TYPE_FINAL_SYNTHESIS
+            );
+        } catch (\Throwable $e) {
+            return $result;
+        }
+
+        unset($syncresult['_planner_raw_response']);
+        return $this->merge_synchronized_message($result, $syncresult);
+    }
+
+    /**
+     * Merge synchronizer output without allowing structural contract drift.
+     *
+     * @param array $source
+     * @param array $sync
+     * @return array
+     */
+    private function merge_synchronized_message(array $source, array $sync): array {
+        $syncmessage = trim((string)($sync['message'] ?? ''));
+        if ($syncmessage === '') {
+            return $source;
+        }
+
+        $sourceresponsetype = trim((string)($source['response_type'] ?? ''));
+        $syncresponsetype = trim((string)($sync['response_type'] ?? ''));
+        if ($syncresponsetype !== '' && $sourceresponsetype !== '' && $syncresponsetype !== $sourceresponsetype) {
+            return $source;
+        }
+
+        // Any command payload from synthesis output indicates structural drift.
+        $synccommands = $sync['commands'] ?? [];
+        if (is_array($synccommands) && !empty($synccommands)) {
+            return $source;
+        }
+
+        $merged = $source;
+        $merged['message'] = $syncmessage;
+
+        $synclang = trim((string)($sync['lang'] ?? ''));
+        if ($synclang !== '') {
+            $merged['lang'] = $synclang;
+        }
+
+        return $merged;
     }
 
     /**
@@ -360,8 +508,16 @@ class agent_runtime {
             return '';
         }
 
-        if (preg_match('/^```[a-zA-Z0-9_-]*\s*(.*?)\s*```$/s', $trimmed, $matches) === 1) {
-            return trim((string)($matches[1] ?? ''));
+        $fence = chr(96) . chr(96) . chr(96);
+        $lines = preg_split('/\R/', $trimmed);
+        if (is_array($lines) && count($lines) >= 2) {
+            $firstline = trim((string)$lines[0]);
+            $lastline = trim((string)$lines[count($lines) - 1]);
+            if (str_starts_with($firstline, $fence) && $lastline === $fence) {
+                array_shift($lines);
+                array_pop($lines);
+                return trim(implode("\n", $lines));
+            }
         }
 
         return $trimmed;
@@ -385,7 +541,12 @@ class agent_runtime {
         }
 
         if ($responsetype === 'error') {
-            $message = localized_string_service::get('ai_agent_malformed_taskcall_clarification', 'bookingextension_agent', null, $lang);
+            $message = localized_string_service::get(
+                'ai_agent_malformed_taskcall_clarification',
+                'bookingextension_agent',
+                null,
+                $lang
+            );
             if ($message !== '' && $message !== 'ai_agent_malformed_taskcall_clarification') {
                 return $message;
             }

@@ -40,9 +40,6 @@ class orchestrator_routing_service {
     private string $simpleretrieval;
 
     /** @var string */
-    private string $finalreasoning;
-
-    /** @var string */
     private string $finalsynthesis;
 
     /** @var string */
@@ -56,7 +53,6 @@ class orchestrator_routing_service {
      *
      * @param string $toolcallparse
      * @param string $simpleretrieval
-     * @param string $finalreasoning
      * @param string $finalsynthesis
      * @param string $wbplanneraction
      * @param string $wbreplyaction
@@ -64,14 +60,12 @@ class orchestrator_routing_service {
     public function __construct(
         string $toolcallparse,
         string $simpleretrieval,
-        string $finalreasoning,
         string $finalsynthesis,
         string $wbplanneraction,
         string $wbreplyaction
     ) {
         $this->toolcallparse = $toolcallparse;
         $this->simpleretrieval = $simpleretrieval;
-        $this->finalreasoning = $finalreasoning;
         $this->finalsynthesis = $finalsynthesis;
         $this->wbplanneraction = $wbplanneraction;
         $this->wbreplyaction = $wbreplyaction;
@@ -87,7 +81,7 @@ class orchestrator_routing_service {
      */
     public function resolve_action_class_for_step(ai_manager $manager, context_module $context, string $steptype): array {
         if ($this->is_wunderbyte_routing_available($manager)) {
-            if ($steptype === $this->finalreasoning || $steptype === $this->finalsynthesis) {
+            if ($steptype === $this->finalsynthesis) {
                 return [
                     'actionclass' => $this->wbreplyaction,
                     'routepolicy' => 'wunderbyte',
@@ -110,7 +104,7 @@ class orchestrator_routing_service {
             ];
         }
 
-        if ($steptype === $this->finalreasoning || $steptype === $this->finalsynthesis) {
+        if ($steptype === $this->finalsynthesis) {
             if ($this->is_action_available_in_context($manager, $context, generate_text::class)) {
                 return [
                     'actionclass' => generate_text::class,
@@ -199,7 +193,6 @@ class orchestrator_routing_service {
         $stepmap = [
             $this->toolcallparse => 'tcp',
             $this->simpleretrieval => 'sr',
-            $this->finalreasoning => 'fr',
             $this->finalsynthesis => 'syn',
         ];
         $actionmap = [
