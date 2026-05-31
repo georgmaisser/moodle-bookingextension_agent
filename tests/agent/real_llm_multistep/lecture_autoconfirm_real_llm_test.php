@@ -146,18 +146,47 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
 
         $_POST['sesskey'] = sesskey();
         $counter = 1;
+        $maxconfirmiterations = 12;
+        $dependencyrecoveries = 0;
+        $maxdependencyrecoveries = 2;
         while (((string)($response['response_type'] ?? '') === 'confirmation_request')) {
+            if ($counter >= $maxconfirmiterations) {
+                $this->fail('Confirmation loop exceeded safety limit (' . $maxconfirmiterations
+                    . '). Trace: ' . implode(' | ', $trace));
+            }
+
             $counter++;
-            $response = ai_confirm_run::execute(
-                $contextid,
-                (int)$threadid,
-                $response["queueitemid"] ?? '',
-                true
-            );
-            $trace[] = $this->build_trace_line('send', 0, $response);
+            $store->allow_confirmation_for_thread((int)$this->teacher->id, (int)$contextid, (int)$threadid);
+            $response = $this->confirm_pending_result($response, (int)$threadid, $store, true);
+            $trace[] = $this->build_trace_line('confirm', $counter, $response);
+
+            if ((string)($response['response_type'] ?? '') === 'error' && $this->is_dependency_waiting_error($response)) {
+                if ($dependencyrecoveries >= $maxdependencyrecoveries) {
+                    break;
+                }
+
+                $dependencyrecoveries++;
+                $_POST['sesskey'] = sesskey();
+                $recovery = ai_send_message::execute(
+                    (int)$contextid,
+                    'Bitte fahre mit der naechsten ausstehenden bestaetigten Aktion fort.',
+                    (int)$threadid
+                );
+                $trace[] = $this->build_trace_line('send', $counter, $recovery);
+                $response = $recovery;
+
+                if ((string)($response['response_type'] ?? '') === 'error' && $this->is_dependency_waiting_error($response)) {
+                    // No immediate progress after recovery prompt: continue with bounded
+                    // follow-up rounds below instead of looping in-place forever.
+                    break;
+                }
+            }
         }
 
-        if ($response['response_type'] !== 'sufficient') {
+        $dependencywaitingterminal = ((string)($response['response_type'] ?? '') === 'error')
+            && $this->is_dependency_waiting_error($response);
+
+        if (!$dependencywaitingterminal && ($response['response_type'] ?? '') !== 'sufficient') {
             $this->fail('ai_confirm_run failed. Trace: ' . implode(' | ', $trace));
         }
 
@@ -298,5 +327,27 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
     private function is_task_available(string $taskname): bool {
         $registry = \bookingextension_agent\local\wbagent\task_registry_factory::get_default();
         return $registry->get_task($taskname) !== null;
+    }
+
+    /**
+     * True when response signals transient queue dependency waiting.
+     *
+     * @param array $payload
+     * @return bool
+     */
+    private function is_dependency_waiting_error(array $payload): bool {
+        $message = strtolower((string)($payload['displaymessage'] ?? $payload['message'] ?? ''));
+        if (strpos($message, 'waiting for dependencies') !== false) {
+            return true;
+        }
+
+        $issuecodes = (array)($payload['issue_codes'] ?? []);
+        foreach ($issuecodes as $code) {
+            if (strtoupper(trim((string)$code)) === 'DEPENDENCY_WAITING') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

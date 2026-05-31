@@ -2515,6 +2515,26 @@ const handleBodyClick = (event) => {
         return;
     }
 
+    // Handle confirm controls globally via event delegation first.
+    // Confirm panel markup may be re-rendered, so avoid wrapper-scoped binding assumptions.
+    const confirmBtn = target.closest('#booking-ai-btn-confirm');
+    if (confirmBtn instanceof HTMLElement) {
+        confirmRun();
+        return;
+    }
+
+    const confirmSessionBtn = target.closest('#booking-ai-btn-confirm-session');
+    if (confirmSessionBtn instanceof HTMLElement) {
+        confirmRun(true);
+        return;
+    }
+
+    const cancelBtn = target.closest('#booking-ai-btn-cancel');
+    if (cancelBtn instanceof HTMLElement) {
+        hideConfirmPanel();
+        return;
+    }
+
     const wrapper = target.closest('#booking-ai-wrapper');
     if (!(wrapper instanceof HTMLElement)) {
         return;
@@ -2564,24 +2584,6 @@ const handleBodyClick = (event) => {
             inputEl.value = '';
             sendMessage(msg);
         }
-        return;
-    }
-
-    const confirmBtn = target.closest('#booking-ai-btn-confirm');
-    if (confirmBtn instanceof HTMLElement) {
-        confirmRun();
-        return;
-    }
-
-    const confirmSessionBtn = target.closest('#booking-ai-btn-confirm-session');
-    if (confirmSessionBtn instanceof HTMLElement) {
-        confirmRun(true);
-        return;
-    }
-
-    const cancelBtn = target.closest('#booking-ai-btn-cancel');
-    if (cancelBtn instanceof HTMLElement) {
-        hideConfirmPanel();
         return;
     }
 

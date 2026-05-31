@@ -57,6 +57,8 @@ flowchart TD
         BUDGX["build_budget_exceeded_result()\nissue_codes: BUDGET_EXCEEDED"]
         LOOP_STOP["Planner loop stop:\nterminal planner result available"]
         FCLASS["finalization_classifier\ninputs: response_type + has_commands\n+ issue_codes + error_class\n+ structural_failure flag"]
+        CONF_TERM["confirm terminalization gate\n(successful confirmed execution\n+ no next mutating queue item)"]
+        CONF_FOLLOW["confirm follow-up gate\n(error/retry/next mutating item\n-> continue runtime loop)"]
         DIRECT_FINAL["direct finalization\nstructured / risky / non-message paths\n(task_call / confirmation_request / schema_error / dependency_cycle)"]
         ENFORCE["enforce_final_response_contract(result, threadid)"]
         MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
@@ -360,12 +362,16 @@ flowchart TD
     EXC_RUN --> EXC_SUCC
     EXC_RUN --> EXC_TRANSIENT
     EXC_RUN --> EXC_DOMAIN
+    EXC_SUCC -->|"ai_confirm_run: terminal success\n(no next mutating item)"| CONF_TERM
+    EXC_SUCC -->|"ai_confirm_run: follow-up required\n(error/retry/next mutating)"| CONF_FOLLOW
     EXC_SUCC -.->|"optional: spawn contract path"| EXC_SPAWN
     EXC_SPAWN -.->|"optional enqueue of child commands"| Q_SPAWN
     Q_SPAWN -.->|"optional: enqueue planned child"| Q_ENQUEUE
     EXC_TRANSIENT -->|"retry count < max_retries"| Q_RETRY
     EXC_TRANSIENT -->|"max retries exceeded"| FAIL_OUT
     EXC_DOMAIN --> FAIL_OUT
+    CONF_TERM --> FCLASS
+    CONF_FOLLOW --> RUNLOOP
 
     %% Runtime continuation / stop
     EXEC_GATE -->|yes: execution_result| OB_OUT
@@ -444,7 +450,7 @@ flowchart TD
         LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
         LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
         LG_PLAN["Planner contract\nread-only as task_call, mutating as confirmation_request\nfollow-up via confirm_pending\nplanner decides, but does not polish the final reply"]
-        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / task_call / structural failures\nwithout changing command semantics"]
+        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / task_call / structural failures\nconfirm terminal path uses the same classifier/finalization chain\nwithout changing command semantics"]
         LG_CLASS["Deterministic finalization classifier\nno LLM routing by intuition\nclassification must be testable from normalized result metadata only"]
         LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, task_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
         LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
@@ -472,6 +478,8 @@ flowchart TD
     style Q_BLOCKED fill:#e9c46a,color:#000
     style LOOP_STOP fill:#e9c46a,color:#000
     style FCLASS fill:#264653,color:#fff
+    style CONF_TERM fill:#264653,color:#fff
+    style CONF_FOLLOW fill:#264653,color:#fff
     style DIRECT_FINAL fill:#e9c46a,color:#000
     style D_PREFLIGHT fill:#e9c46a,color:#000
     style D_CMD_ROUTE fill:#e9c46a,color:#000

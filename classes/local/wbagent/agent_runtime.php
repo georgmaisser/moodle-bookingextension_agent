@@ -167,6 +167,17 @@ class agent_runtime {
     }
 
     /**
+     * Finalize and persist an externally prepared terminal result.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @return array
+     */
+    public function finalize_terminal_result(int $threadid, array $result): array {
+        return $this->finalize_and_persist_result($threadid, $result);
+    }
+
+    /**
      * Resolve cmid from a module context id with strict validation.
      *
      * @param int $contextid

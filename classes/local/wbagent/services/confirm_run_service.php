@@ -441,8 +441,13 @@ class confirm_run_service {
                 $results,
                 self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY
             );
+            $nextmutatingqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
             $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults)
-                || is_array($this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid));
+                || is_array($nextmutatingqueueitem);
+            $usedterminalfinalizer = false;
+
+            $orchestrator = new orchestrator($this->registry, new interpreter($this->registry), $this->store);
+            $runtime = new agent_runtime($this->registry, $orchestrator, $this->store, $this->authz);
 
             if ($shouldcontinue) {
                 $seedobservations = [];
@@ -462,8 +467,6 @@ class confirm_run_service {
                     );
                 }
 
-                $orchestrator = new orchestrator($this->registry, new interpreter($this->registry), $this->store);
-                $runtime = new agent_runtime($this->registry, $orchestrator, $this->store, $this->authz);
                 $finalresult = $runtime->run_loop($threadid, $contextid, $userid);
             } else {
                 $finalresult = [
@@ -476,7 +479,8 @@ class confirm_run_service {
                     'errors' => [],
                     'pending_confirmation_code' => '',
                 ];
-                $this->store->add_message($threadid, 'assistant', (string)$finalresult['message'], $finalresult);
+                $finalresult = $runtime->finalize_terminal_result($threadid, $finalresult);
+                $usedterminalfinalizer = true;
             }
 
             if (!is_array($finalresult)) {
@@ -516,7 +520,7 @@ class confirm_run_service {
 
             if ($this->has_successful_execution_results($results)) {
                 $finalresponsetype = (string)($finalresult['response_type'] ?? '');
-                if ($finalresponsetype === 'sufficient') {
+                if ($finalresponsetype === 'sufficient' && !$usedterminalfinalizer) {
                     $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
                 } else if ($finalresponsetype === 'error' && !is_array($pendingintent)) {
                     $finalresult['response_type'] = 'sufficient';
