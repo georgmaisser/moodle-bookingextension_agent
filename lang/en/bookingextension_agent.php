@@ -509,6 +509,7 @@ $string['ai_run_executed'] = 'Your request has been executed.';
 $string['ai_run_queued'] = 'Your request has been queued for processing.';
 $string['ai_status_confirm_booking_bulk_update_options'] = 'I will update multiple booking options at once. Should I proceed?';
 $string['ai_status_confirm_booking_create_option'] = 'I will create a new booking option.';
+$string['ai_status_confirm_configure_booking_instance'] = 'I will review and apply booking instance settings.';
 $string['ai_status_confirm_booking_recall_memory'] = 'I will retrieve your previous conversation memory.';
 $string['ai_status_confirm_booking_recreate_task_catalog'] = 'I will recreate the task catalog embeddings now.';
 $string['ai_status_confirm_booking_search_options'] = 'I will list the booking options.';

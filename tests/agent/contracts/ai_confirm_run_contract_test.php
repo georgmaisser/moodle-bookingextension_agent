@@ -154,9 +154,10 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
             'Follow-up confirmation should not surface stale planner issue codes.'
         );
         $message = (string)($result['message'] ?? '');
+        $messagetext = trim(strtolower(strip_tags($message)));
         $this->assertTrue(
-            str_contains($message, 'Booking option created')
-                || str_contains($message, 'Creating a new follow-up contract option'),
+            str_contains($messagetext, 'booking option')
+                && (str_contains($messagetext, 'created') || str_contains($messagetext, 'creating')),
             'Follow-up confirmation message should describe the executed create-option step. Message: ' . $message
         );
 

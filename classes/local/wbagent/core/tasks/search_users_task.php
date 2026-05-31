@@ -131,10 +131,12 @@ class search_users_task extends core_task_base implements task_trigger_provider_
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function check_structure(array $input): array {
+        $input = self::normalize_query_input($input);
         $errors = [];
         $lang = $this->get_output_language($input);
         if (empty($input['query']) || !is_string($input['query'])) {
             $errors[] = $this->localized_string('agent_booking_search_users_required_query', null, $lang);
+            $errors[] = $this->build_query_retry_hint();
         }
 
         return [
@@ -153,6 +155,7 @@ class search_users_task extends core_task_base implements task_trigger_provider_
      * @return array
      */
     public function execute(array $input, int $contextid, int $userid): array {
+        $input = self::normalize_query_input($input);
         $query = trim((string)($input['query'] ?? ''));
         $outputlang = $this->get_output_language($input);
         $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
@@ -160,7 +163,8 @@ class search_users_task extends core_task_base implements task_trigger_provider_
         if ($query === '') {
             return [
                 'status' => 'error',
-                'detail' => $this->localized_string('agent_booking_search_users_required_query', null, $outputlang),
+                'detail' => $this->localized_string('agent_booking_search_users_required_query', null, $outputlang)
+                    . ' ' . $this->build_query_retry_hint(),
                 'resultid' => null,
             ];
         }
@@ -219,5 +223,69 @@ class search_users_task extends core_task_base implements task_trigger_provider_
             'previewuserids' => $previewids,
             'debugmessage' => $debugbase . "\n" . implode("\n", $debugextra),
         ];
+    }
+
+    /**
+     * Normalize common aliases to canonical query for user search.
+     *
+     * @param array<string,mixed> $input
+     * @return array<string,mixed>
+     */
+    private static function normalize_query_input(array $input): array {
+        if (!empty($input['query']) && is_scalar($input['query']) && trim((string)$input['query']) !== '') {
+            $input['query'] = trim((string)$input['query']);
+            return $input;
+        }
+
+        $aliases = [
+            'userquery',
+            'user',
+            'username',
+            'email',
+            'mail',
+            'fullname',
+            'name',
+            'searchterm',
+        ];
+        foreach ($aliases as $alias) {
+            if (!array_key_exists($alias, $input) || !is_scalar($input[$alias])) {
+                continue;
+            }
+
+            $value = trim((string)$input[$alias]);
+            if ($value === '') {
+                continue;
+            }
+
+            $input['query'] = $value;
+            return $input;
+        }
+
+        foreach ($input as $key => $value) {
+            if (!is_string($key) || in_array($key, ['outputlang', 'limit', 'contextid', 'cmid'], true)) {
+                continue;
+            }
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $text = trim((string)$value);
+            if ($text !== '') {
+                $input['query'] = $text;
+                return $input;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * Build a compact retry hint for missing user query input.
+     *
+     * @return string
+     */
+    private function build_query_retry_hint(): string {
+        return 'Retry core.search_users once with input.query (or alias: userquery, user, username, email, name). '
+            . 'Resend exactly one corrected task_call for the same task.';
     }
 }

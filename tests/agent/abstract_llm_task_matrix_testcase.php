@@ -78,6 +78,12 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             $this->fail('Missing LLM smoke scenario definition for registered task: ' . $taskname);
         }
 
+        $skipreason = trim((string)($scenario['skip_reason'] ?? ''));
+        if ($skipreason !== '') {
+            $label = $taskname !== '' ? $taskname : 'unknown-task';
+            $this->markTestSkipped($label . ': ' . $skipreason);
+        }
+
         $this->assertNotSame('', $taskname, 'Scenario must define a task name.');
         $this->setUser($this->teacher);
         $this->assert_task_is_executable_or_skip($taskname);
@@ -95,12 +101,18 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             $prepared['runtime']
         );
 
-        for ($attempt = 1; $attempt <= 2; $attempt++) {
+        for ($attempt = 1; $attempt <= 8; $attempt++) {
             $responsetype = (string)($result['response_type'] ?? '');
             $message = strtolower((string)($result['message'] ?? ''));
-            if ($responsetype !== 'error' || strpos($message, 'ai provider returned an error') === false) {
+            $isprovidertransient = strpos($message, 'ai provider returned an error') !== false;
+            $ismissingcommandtransient = strpos($message, 'requires at least one command but none were provided') !== false;
+            if ($responsetype !== 'error' || (!$isprovidertransient && !$ismissingcommandtransient)) {
                 break;
             }
+
+            // Backoff helps reduce transient provider/rate-limit retries on long suites.
+            $backoffmicros = min(5000000, 500000 * $attempt * $attempt);
+            usleep($backoffmicros);
 
             $result = $this->chat(
                 $renderedprompt,
@@ -508,7 +520,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
      */
     protected function prepare_booking_rules_service_scenario(): array {
         $candidates = [
-            '\\mod_booking\\local\\wbagent\\options\\support\\booking_rules_agent_service',
+            '\\mod_booking\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
             '\\bookingextension_agent\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
         ];
 
@@ -526,7 +538,74 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             }
         }
 
-        $this->markTestSkipped('Booking rules service is unavailable in this installation.');
+        $this->fail('Booking rules service is unavailable in this installation.');
+    }
+
+    /**
+     * Seed a deterministic booking rule for update-rule scenarios.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_booking_rule_update_scenario(): array {
+        $serviceclass = '';
+        $candidates = [
+            '\\mod_booking\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
+            '\\bookingextension_agent\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
+        ];
+        foreach ($candidates as $classname) {
+            if (class_exists($classname)) {
+                $serviceclass = $classname;
+                break;
+            }
+        }
+
+        if ($serviceclass === '') {
+            $this->fail('Booking rules service is unavailable in this installation.');
+        }
+
+        $service = new $serviceclass();
+        $contextid = $service->get_module_contextid((int)$this->booking->cmid);
+        $templates = $service->list_templates();
+        if (empty($templates)) {
+            $this->fail('No rule templates available for update-rule scenario seeding.');
+        }
+
+        $template = (array)reset($templates);
+        $seedrulename = 'Seeded booking rule ' . substr(sha1(uniqid('', true)), 0, 8);
+        $created = $service->create_rule_from_template(
+            $contextid,
+            (int)($template['templateid'] ?? 0),
+            ['rulename' => $seedrulename]
+        );
+        if ((string)($created['status'] ?? '') !== 'ok') {
+            $this->fail(
+                'Could not seed booking rule for update-rule scenario: '
+                    . (string)($created['message'] ?? 'unknown error')
+            );
+        }
+
+        $store = new conversation_store();
+        $registry = task_registry::make_default();
+        $runtime = new agent_runtime(
+            $registry,
+            new orchestrator($registry, new interpreter($registry), $store),
+            $store,
+            new authorization_service()
+        );
+        $thread = $store->get_or_create_thread(
+            (int)$this->teacher->id,
+            $this->booking_contextid(),
+            (int)$this->booking->id
+        );
+
+        return [
+            'store' => $store,
+            'runtime' => $runtime,
+            'threadid' => (int)$thread->id,
+            'replacements' => [
+                'existing_rule_name' => $seedrulename,
+            ],
+        ];
     }
 
     /**

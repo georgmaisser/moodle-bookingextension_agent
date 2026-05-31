@@ -267,13 +267,48 @@ class search_courses_task extends core_task_base implements task_trigger_provide
      * @return string
      */
     private function resolve_query(array $input): string {
-        $keys = ['query', 'coursequery', 'coursename', 'course', 'searchterm'];
+        $keys = [
+            'query',
+            'coursequery',
+            'coursename',
+            'course',
+            'searchterm',
+            'course_name',
+            'fullname',
+            'shortname',
+            'name',
+            'courseid',
+        ];
         foreach ($keys as $key) {
-            if (!isset($input[$key]) || !is_string($input[$key])) {
+            if (!array_key_exists($key, $input)) {
                 continue;
             }
 
-            $value = trim((string)$input[$key]);
+            $rawvalue = $input[$key];
+            if (is_array($rawvalue) && array_key_exists('value', $rawvalue) && is_scalar($rawvalue['value'])) {
+                $rawvalue = $rawvalue['value'];
+            }
+
+            if (!is_scalar($rawvalue)) {
+                continue;
+            }
+
+            $value = trim((string)$rawvalue);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        // Last-resort fallback: accept a single meaningful free-text scalar field.
+        foreach ($input as $key => $rawvalue) {
+            if (!is_string($key) || in_array($key, ['outputlang', 'limit', 'contextid', 'cmid'], true)) {
+                continue;
+            }
+            if (!is_scalar($rawvalue)) {
+                continue;
+            }
+
+            $value = trim((string)$rawvalue);
             if ($value !== '') {
                 return $value;
             }

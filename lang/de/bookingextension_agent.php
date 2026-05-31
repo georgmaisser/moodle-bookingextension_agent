@@ -502,6 +502,7 @@ $string['ai_run_executed'] = 'Your request has been executed.';
 $string['ai_run_queued'] = 'Your request has been queued for processing.';
 $string['ai_status_confirm_booking_bulk_update_options'] = 'Ich werde mehrere Buchungsoptionen auf einmal aktualisieren. Soll ich fortfahren?';
 $string['ai_status_confirm_booking_create_option'] = 'Ich werde eine neue Buchungsoption erstellen.';
+$string['ai_status_confirm_configure_booking_instance'] = 'Ich werde Buchungsinstanz-Einstellungen pruefen und anwenden.';
 $string['ai_status_confirm_booking_recall_memory'] = 'Ich werde deine vorherige Gespraechserinnerung abrufen.';
 $string['ai_status_confirm_booking_recreate_task_catalog'] = 'Ich werde jetzt den Task-Katalog fuer Embeddings neu erstellen.';
 $string['ai_status_confirm_booking_search_options'] = 'Ich werde die Buchungsoptionen auflisten.';
