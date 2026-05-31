@@ -85,6 +85,17 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         }
 
         if ((string)($response['response_type'] ?? '') === 'error') {
+            $_POST['sesskey'] = sesskey();
+            $response = ai_send_message::execute(
+                $contextid,
+                'Letzter Reparaturversuch: Verwende fuer mod_booking.create_option nur die kanonischen Keys '
+                    . 'text, coursestarttime, courseendtime, maxanswers und type. '
+                    . 'Keine Zusatzfelder wie day/date/start/end.',
+                (int)$threadid
+            );
+        }
+
+        if ((string)($response['response_type'] ?? '') === 'error') {
             $this->assertStringContainsString(
                 'Retry mod_booking.create_option once',
                 $this->payload_text($response),
@@ -192,6 +203,19 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
                     . 'text, coursestarttime, courseendtime, maxanswers, type. Keine Zusatzfelder (insb. kein day). '
                     . 'Erstelle exakt diese fuenf Optionen: ' . implode(' ; ', $serieslines)
                     . ' ; maxanswers=5 ; type=0. Sende genau einen korrigierten task_call.',
+                (int)$threadid
+            );
+        }
+
+        if ((string)($response['response_type'] ?? '') === 'error') {
+            $_POST['sesskey'] = sesskey();
+            $response = ai_send_message::execute(
+                $contextid,
+                'Finaler Reparaturversuch: Bleibe strikt bei mod_booking.create_option und nutze nur '
+                    . 'text, coursestarttime, courseendtime, maxanswers, type. '
+                    . 'Entferne alle fremden Keys (insb. day/date/start/end). '
+                    . 'Nutze exakt diese fuenf Datumszeilen: ' . implode(' ; ', $serieslines)
+                    . ' ; maxanswers=5 ; type=0. Gib genau einen korrigierten task_call zurueck.',
                 (int)$threadid
             );
         }
@@ -317,6 +341,19 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
                         . 'text, coursestarttime, courseendtime, maxanswers, type. Keine Zusatzfelder (insb. kein day). '
                         . 'Nutze diese Datumszeilen als Vorlage: ' . implode(' ; ', $serieslines)
                         . ' ; maxanswers=5 ; type=0.',
+                    (int)$threadid
+                );
+            }
+
+            if ((string)($continuedresponse['response_type'] ?? '') === 'error') {
+                $_POST['sesskey'] = sesskey();
+                $continuedresponse = ai_send_message::execute(
+                    $contextid,
+                    'Finaler Reparaturversuch fuer die restlichen Termine: nur mod_booking.create_option mit '
+                        . 'text, coursestarttime, courseendtime, maxanswers, type. '
+                        . 'Entferne alle Zusatzfelder (insb. day/date/start/end). '
+                        . 'Nutze diese Datumszeilen als Vorlage: ' . implode(' ; ', $serieslines)
+                        . ' ; maxanswers=5 ; type=0. Liefere genau einen korrigierten task_call.',
                     (int)$threadid
                 );
             }

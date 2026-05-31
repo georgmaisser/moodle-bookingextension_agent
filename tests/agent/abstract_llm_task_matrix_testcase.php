@@ -50,6 +50,8 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
      */
     protected function setUp(): void {
         parent::setUp();
+        // Ensure each matrix test run rebuilds contracts from current provider code.
+        task_registry_factory::reset();
         $this->grant_local_entities_capabilities_to_editingteacher();
         $this->grant_optional_capability_to_editingteacher('moodle/site:config');
         $this->grant_optional_capability_to_editingteacher('mod/booking:updatebooking');
@@ -524,7 +526,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
             }
         }
 
-        $this->fail('Booking rules service is unavailable in this installation.');
+        $this->markTestSkipped('Booking rules service is unavailable in this installation.');
     }
 
     /**

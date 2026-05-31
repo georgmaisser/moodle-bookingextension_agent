@@ -15,6 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 $string['agent:task_booking_analyze_rules'] = 'Analyze booking rules';
+$string['ai_please_clarify'] = 'Please clarify your request so I can continue.';
 $string['agent_booking_add_pricecat_capability_required'] = 'Adding price categories requires moodle/site:config capability.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Please confirm how booking policy consent should be transmitted.';
 $string['agent_booking_blocker_followup_customform'] = 'Please provide the required custom form values that should be transmitted.';

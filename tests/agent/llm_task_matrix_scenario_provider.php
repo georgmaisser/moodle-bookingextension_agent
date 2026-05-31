@@ -210,9 +210,9 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'entities.list_all_entities' => [
-                'prompt' => 'Use entities.list_all_entities and list entities with a limit of 5.',
+                'prompt' => 'Zeige mir alle Räume',
                 'setup' => 'prepare_entity_scenario',
-                'allow_direct_answer' => true,
+                'allow_direct_answer' => false,
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -223,8 +223,8 @@ final class llm_task_matrix_scenario_provider {
                     [
                         'target' => 'final',
                         'type' => 'field_contains',
-                        'field' => 'detail',
-                        'value' => 'entities',
+                        'field' => 'options.0.name',
+                        'value' => '{{entity_name}}',
                     ],
                     [
                         'target' => 'chat',
@@ -234,7 +234,7 @@ final class llm_task_matrix_scenario_provider {
                     [
                         'target' => 'debug',
                         'type' => 'debug_source_contains',
-                        'value' => 'ac=wgr',
+                        'value' => 'rt=wb',
                     ],
                 ],
             ],
@@ -251,8 +251,8 @@ final class llm_task_matrix_scenario_provider {
                     [
                         'target' => 'final',
                         'type' => 'field_contains',
-                        'field' => 'detail',
-                        'value' => 'matching entities',
+                        'field' => 'options.0.name',
+                        'value' => '{{entity_name}}',
                     ],
                     [
                         'target' => 'chat',

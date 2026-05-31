@@ -15,6 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 $string['agent:task_booking_analyze_rules'] = 'Buchungsregeln analysieren';
+$string['ai_please_clarify'] = 'Bitte praezisieren Sie Ihre Anfrage, damit ich fortfahren kann.';
 $string['agent_booking_add_pricecat_capability_required'] = 'Zum Anlegen von Preiskategorien ist die Berechtigung moodle/site:config erforderlich.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Bitte bestaetigen Sie, wie die Zustimmung zur Buchungsrichtlinie uebermittelt werden soll.';
 $string['agent_booking_blocker_followup_customform'] = 'Bitte geben Sie die erforderlichen Werte fuer das benutzerdefinierte Formular an, die uebermittelt werden sollen.';
