@@ -195,7 +195,9 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
                 $finalresult = $taskresult;
             } else {
                 $allowdirectanswer = (bool)($scenario['allow_direct_answer'] ?? false);
+                $allowclarificationresponse = (bool)($scenario['allow_clarification_response'] ?? false);
                 $responsetype = (string)($result['response_type'] ?? '');
+                $issuecodes = (string)($result['issue_codes'] ?? '');
                 $hastoolcallevidence = $this->first_loop_has_expected_tool_call($result, $taskname);
                 if (
                     in_array($responsetype, ['sufficient', 'execution_result'], true)
@@ -203,6 +205,12 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
                 ) {
                     $finalresult = $result;
                     $finalresult['status'] = 'executed';
+                } else if (
+                    $allowclarificationresponse
+                    && $responsetype === 'clarification'
+                    && strpos($issuecodes, 'RECOVERABLE_INPUT_ERROR') !== false
+                ) {
+                    $finalresult = $result;
                 } else {
                     $this->assertNotNull(
                         $taskresult,

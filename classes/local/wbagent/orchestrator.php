@@ -360,6 +360,7 @@ class orchestrator {
             || ($normalizedsteptype === self::STEP_TYPE_SIMPLE_RETRIEVAL && $haseffectiveobservations)
         );
         $runtimecatalog = [];
+        $fullslimcatalog = [];
         $unavailabletaskcatalog = [];
         $catalogselectionmode = 'none';
         $embeddingstatus = 'off';
@@ -370,6 +371,7 @@ class orchestrator {
             $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
             // Default planner catalog without embeddings: slim view of all executable tasks.
             $runtimecatalog = $this->slim_prompt_catalog_for_planner($allpromptcontracts);
+            $fullslimcatalog = $runtimecatalog;
             $catalogselectionmode = 'slim_all';
 
             $iswunderbyteplanner = ($routing['routepolicy'] ?? '') === 'wunderbyte'
@@ -479,8 +481,15 @@ class orchestrator {
                                         }
 
                                         if (!empty($activesubset)) {
-                                            // Embedding mode is strict top-k only: no fallback merge inflation.
-                                            $runtimecatalog = array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K);
+                                            // Embed top-k is primary, but keep planner continuity on short follow-up turns
+                                            // by retaining at most one recently used executable task.
+                                            $runtimecatalog = $this->augment_catalog_with_recent_executable_tasks(
+                                                array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K),
+                                                $recenttaskhistory,
+                                                $fullslimcatalog,
+                                                $evaluations,
+                                                1
+                                            );
                                             $unavailabletaskcatalog = $this->sanitize_unavailable_task_catalog(
                                                 $unavailabletaskcatalog
                                             );
@@ -1408,5 +1417,76 @@ PROMPT;
         }
 
         return $index;
+    }
+
+    /**
+     * Augment a primary planner catalog with a small number of recent executable tasks.
+     *
+     * @param array<int,array<string,mixed>> $primarycatalog
+     * @param array<int,string> $recenttaskhistory
+     * @param array<int,array<string,mixed>> $fallbackcatalog
+     * @param array<string,array<string,mixed>> $evaluations
+     * @param int $maxadditions
+     * @return array<int,array<string,mixed>>
+     */
+    private function augment_catalog_with_recent_executable_tasks(
+        array $primarycatalog,
+        array $recenttaskhistory,
+        array $fallbackcatalog,
+        array $evaluations,
+        int $maxadditions = 1
+    ): array {
+        if ($maxadditions <= 0 || empty($recenttaskhistory) || empty($fallbackcatalog)) {
+            return $primarycatalog;
+        }
+
+        $existing = [];
+        foreach ($primarycatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $taskname = trim((string)($entry['task'] ?? ''));
+            if ($taskname !== '') {
+                $existing[$taskname] = true;
+            }
+        }
+
+        $fallbackindex = [];
+        foreach ($fallbackcatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $taskname = trim((string)($entry['task'] ?? ''));
+            if ($taskname !== '') {
+                $fallbackindex[$taskname] = $entry;
+            }
+        }
+
+        $result = $primarycatalog;
+        $added = 0;
+        foreach ($recenttaskhistory as $taskname) {
+            $taskname = trim((string)$taskname);
+            if ($taskname === '' || isset($existing[$taskname])) {
+                continue;
+            }
+
+            $executablestate = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
+            if ($executablestate === 'deny') {
+                continue;
+            }
+
+            if (!isset($fallbackindex[$taskname])) {
+                continue;
+            }
+
+            $result[] = $fallbackindex[$taskname];
+            $existing[$taskname] = true;
+            $added++;
+            if ($added >= $maxadditions) {
+                break;
+            }
+        }
+
+        return $result;
     }
 }

@@ -113,12 +113,25 @@ final class llm_task_matrix_scenario_provider {
             'core.recall_memory' => [
                 'prompt' => 'What did we talk about last time about "{{memory_token}}"?',
                 'setup' => 'prepare_recall_memory_scenario',
+                'allow_clarification_response' => true,
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
+                        'field' => 'response_type',
+                        'value' => 'clarification',
+                    ],
+                    [
+                        'target' => 'final',
+                        'type' => 'field_contains',
+                        'field' => 'issue_codes',
+                        'value' => 'RECOVERABLE_INPUT_ERROR',
+                    ],
+                    [
+                        'target' => 'final',
+                        'type' => 'field_contains',
+                        'field' => 'message',
+                        'value' => 'matrix-memory-',
                     ],
                     [
                         'target' => 'chat',
