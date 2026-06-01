@@ -462,14 +462,14 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     /**
      * Load embeddings CSV fixture into temp directory for tests.
      *
-     * Copies the pre-generated embeddings fixture from the tests/fixtures directory
+     * Copies the pre-generated embeddings fixture from the tests/agent/fixtures directory
      * into the runtime temp directory so that embeddings tests can use consistent,
      * deterministic data instead of generating embeddings on every test run.
      *
      * @return void
      */
     protected function maybe_load_embeddings_fixture(): void {
-        $fixturepath = dirname(__DIR__) . '/fixtures/task_catalog_embeddings.csv';
+        $fixturepath = __DIR__ . '/fixtures/task_catalog_embeddings.csv';
         if (!file_exists($fixturepath)) {
             return; // Fixture not available.
         }
