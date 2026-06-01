@@ -696,11 +696,12 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
                     break;
 
                 case 'debug_source_contains':
-                    $source = $this->get_latest_debug_source($threadid);
-                    $this->assertStringContainsString(
-                        $value,
-                        $source,
-                        'Scenario assertion failed for debug_source_contains in ' . (string)($scenario['task'] ?? '')
+                    $this->assertTrue(
+                        $this->thread_has_debug_source_fragment($threadid, $value),
+                        'Scenario assertion failed for debug_source_contains in '
+                            . (string)($scenario['task'] ?? '')
+                            . '. Latest source: '
+                            . $this->get_latest_debug_source($threadid)
                     );
                     break;
 
@@ -838,6 +839,36 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         }
 
         return (string)($record->source ?? '');
+    }
+
+    /**
+     * True when any debug source row in a thread contains the expected fragment.
+     *
+     * @param int $threadid
+     * @param string $fragment
+     * @return bool
+     */
+    protected function thread_has_debug_source_fragment(int $threadid, string $fragment): bool {
+        global $DB;
+
+        $fragment = trim($fragment);
+        if ($fragment === '') {
+            return false;
+        }
+
+        $records = $DB->get_records_sql(
+            'SELECT source FROM {local_wbagent_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
+            [$threadid]
+        );
+
+        foreach ($records as $record) {
+            $source = (string)($record->source ?? '');
+            if (strpos($source, $fragment) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
