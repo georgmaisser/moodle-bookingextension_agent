@@ -569,6 +569,50 @@ flowchart TD
     S --> T[persist_assistant_message()]
 ```
 
+### Mermaid-Detail: Context+Core Discovery mit A/B/C-Fallback
+
+Diese Detailansicht spiegelt den refaktorierten Planner-Discovery-Pfad aus dem Implementierungs-Flowchart wider und trennt Family-Discovery strikt von Task-Selection und Parameter-Konstruktion.
+
+```mermaid
+flowchart TD
+    A[context_prior_builder] --> B[family_registry_service]
+    C[core_family_set] --> D[discovery stage A: context + core]
+    B --> D
+    E{family embeddings available?} -->|yes| F[family_embeddings_retrieval_service]
+    E -->|no| G[family_signal_ranker]
+    F --> D
+    G --> D
+
+    D --> H{coverage/confidence sufficient?}
+    H -->|yes| I[family_ranker]
+    H -->|no| J[discovery stage B: adjacent domain families]
+
+    J --> K{coverage/confidence sufficient?}
+    K -->|yes| I
+    K -->|no| L[discovery stage C: global slim family fallback\nstrict hard budget]
+
+    L --> I
+    I --> M[lazy_task_loader]
+    M --> N[task_selector]
+    N --> O[parameter_constructor]
+    O --> P[parameter_contract_validator]
+```
+
+Kurzregeln fuer den Betrieb dieses Discovery-Pfads:
+
+1. Budget-Regel:
+    Stage A ist der Standard mit kleinem, hart begrenztem Family-Budget.
+    Stage B erweitert nur moderat auf angrenzende Familien.
+    Stage C bleibt ein strikt gedeckelter Global-Fallback und liefert niemals einen Full-Task-Dump.
+
+2. Confidence-Regel:
+    Der Uebergang von Stage A nach B und von B nach C erfolgt nur, wenn die kombinierte Abdeckung/Konfidenz unter dem definierten Schwellwert bleibt.
+    Sobald die Schwelle erreicht ist, stoppt die Expansion und der Flow geht in Ranking/Selection.
+
+3. Eskalations-Regel:
+    Eskaliert wird nur stufenweise A -> B -> C und nur mit explizitem Coverage/Confidence-Fail.
+    Nach Stage C erfolgt kein weiterer Katalog-Ausbau, sondern direkte Weitergabe an family_ranker und danach task_selector.
+
 ## Offene Fragen fuer externe Analyse
 
 - Reicht die Top-K-Groesse von 6 in realen Mehrfach-Klaerungen aus, oder ist der semantische Recall zu klein?
