@@ -38,35 +38,23 @@ class orchestrator_prompt_profile_service {
     private string $simpleretrieval;
 
     /** @var string */
-    private string $finalsynthesis;
-
-    /** @var string */
     private string $wbplanneraction;
-
-    /** @var string */
-    private string $wbreplyaction;
 
     /**
      * Constructor.
      *
      * @param string $toolcallparse
      * @param string $simpleretrieval
-     * @param string $finalsynthesis
      * @param string $wbplanneraction
-     * @param string $wbreplyaction
      */
     public function __construct(
         string $toolcallparse,
         string $simpleretrieval,
-        string $finalsynthesis,
-        string $wbplanneraction,
-        string $wbreplyaction
+        string $wbplanneraction
     ) {
         $this->toolcallparse = $toolcallparse;
         $this->simpleretrieval = $simpleretrieval;
-        $this->finalsynthesis = $finalsynthesis;
         $this->wbplanneraction = $wbplanneraction;
-        $this->wbreplyaction = $wbreplyaction;
     }
 
     /**
@@ -94,16 +82,29 @@ class orchestrator_prompt_profile_service {
     }
 
     /**
-     * Normalize orchestrator step type values to supported profiles.
+     * Normalize runtime step types, folding unknown/final values into the planner default.
      *
      * @param string $steptype
      * @return string
      */
-    public function normalize_step_type(string $steptype): string {
+    public function normalize_runtime_step_type(string $steptype): string {
         $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === $this->finalsynthesis) {
-            return $this->finalsynthesis;
+        if ($normalized === $this->simpleretrieval) {
+            return $this->simpleretrieval;
         }
+        return $this->toolcallparse;
+    }
+
+    /**
+     * Normalize planner step types only.
+     *
+     * Final synthesis is intentionally folded back into the planner default.
+     *
+     * @param string $steptype
+     * @return string
+     */
+    public function normalize_planner_step_type(string $steptype): string {
+        $normalized = trim(core_text::strtolower($steptype));
         if ($normalized === $this->simpleretrieval) {
             return $this->simpleretrieval;
         }
@@ -116,33 +117,11 @@ class orchestrator_prompt_profile_service {
      * @param string $steptype
      * @return string
      */
-    public function get_initial_prompt_config_key(string $steptype): string {
-        if ($steptype === $this->finalsynthesis) {
-            return 'aiinitialprompt_final_synthesis';
-        }
+    public function get_planner_initial_prompt_config_key(string $steptype): string {
         if ($steptype === $this->simpleretrieval) {
             return 'aiinitialprompt_simple_retrieval';
         }
         return 'aiinitialprompt_tool_call_parse';
-    }
-
-    /**
-     * Resolve the admin config key for action-specific initial prompts.
-     *
-     * @param string $actionclass
-     * @return string
-     */
-    public function get_action_initial_prompt_config_key(string $actionclass): string {
-        if ($actionclass === summarise_text::class || $actionclass === $this->wbplanneraction) {
-            return 'aiinitialprompt_summarise_text';
-        }
-        if ($actionclass === explain_text::class) {
-            return 'aiinitialprompt_explain_text';
-        }
-        if ($actionclass === generate_text::class || $actionclass === $this->wbreplyaction) {
-            return 'aiinitialprompt_generate_text';
-        }
-        return '';
     }
 
     /**

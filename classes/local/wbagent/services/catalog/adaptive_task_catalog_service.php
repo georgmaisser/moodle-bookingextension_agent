@@ -17,7 +17,7 @@
 /**
  * Adaptive task catalog reducer.
  *
- * Filters full task registry to Top-K candidates based on:
+ * Filters full task registry to planner-oriented Top-K candidates based on:
  *  - Intent (schema metadata)
  *  - Keyword relevance (user message + recent context)
  *  - Recent usage history
@@ -36,7 +36,7 @@ namespace bookingextension_agent\local\wbagent\services\catalog;
  *
  * Three-tier strategy:
  *  1. MANDATORY: Always visible (help, search, reset)
- *  2. RECENCY: Most recently used (Top-K per step-type)
+ *  2. RECENCY: Most recently used (Top-K for planner steps)
  *  3. INTENT-REGISTRY: Metadata for LLM to request by intent
  *
  * Language-agnostic: Uses only structural signals (intent, recency), no text parsing.
@@ -52,21 +52,21 @@ class adaptive_task_catalog_service {
     /** Mandatory tasks that should always be visible. */
     private const MANDATORY_TASK_KEYWORDS = ['help', 'search', 'list', 'get_tasks'];
 
-     /**
-      * Reduce full task catalog to tiered adaptive catalog.
-      *
-      * Step-type determines strategy:
-      *  - tool_call_parse: FULL catalog (initial routing, must not miss tasks)
-      *  - simple_retrieval: MANDATORY + RECENCY (Top-80)
-      *  - final_synthesis: MANDATORY + RECENCY (Top-40)
-      *
-      * @param array $fullcatalog Full task contracts from registry.
-      * @param array $recenttaskhistory Recent tasks used in thread (in order).
-      * @param string $steptype Current step type (tool_call_parse, simple_retrieval, etc).
-      * @return array Structure: [
-      *   'active_tasks' => [...],              // Shown to LLM
-      * ]
-      */
+        /**
+         * Reduce full task catalog to tiered adaptive catalog.
+         *
+         * Step-type determines strategy:
+         *  - tool_call_parse: FULL catalog (initial routing, must not miss tasks)
+         *  - simple_retrieval: MANDATORY + RECENCY (Top-80)
+         *  - final_synthesis: MANDATORY + RECENCY (same planner cutoff)
+         *
+         * @param array $fullcatalog Full task contracts from registry.
+         * @param array $recenttaskhistory Recent tasks used in thread (in order).
+         * @param string $steptype Current step type (tool_call_parse, simple_retrieval, etc).
+         * @return array Structure: [
+         *   'active_tasks' => [...],              // Shown to LLM
+         * ]
+         */
     public static function get_adaptive_catalog(
         array $fullcatalog,
         array $recenttaskhistory = [],
@@ -84,9 +84,7 @@ class adaptive_task_catalog_service {
         $mandatory = self::get_mandatory_tasks($fullcatalog);
 
         // Tier 2: Recency-based tasks (top recent, excluding mandatory).
-        $topkforthis = ($steptype === 'final_synthesis')
-            ? 40  // Final steps: very compact.
-            : self::RECENCY_TOP_K_STEP2PLUS;  // Iteration: more tasks.
+        $topkforthis = self::RECENCY_TOP_K_STEP2PLUS;
 
         $recency = self::get_recency_filtered($fullcatalog, $recenttaskhistory, $topkforthis, $mandatory);
 

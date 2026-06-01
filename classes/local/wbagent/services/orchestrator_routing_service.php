@@ -41,13 +41,7 @@ class orchestrator_routing_service {
     private string $simpleretrieval;
 
     /** @var string */
-    private string $finalsynthesis;
-
-    /** @var string */
     private string $wbplanneraction;
-
-    /** @var string */
-    private string $wbreplyaction;
 
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
@@ -63,26 +57,20 @@ class orchestrator_routing_service {
      *
      * @param string $toolcallparse
      * @param string $simpleretrieval
-     * @param string $finalsynthesis
      * @param string $wbplanneraction
-     * @param string $wbreplyaction
      */
     public function __construct(
         string $toolcallparse,
         string $simpleretrieval,
-        string $finalsynthesis,
-        string $wbplanneraction,
-        string $wbreplyaction
+        string $wbplanneraction
     ) {
         $this->toolcallparse = $toolcallparse;
         $this->simpleretrieval = $simpleretrieval;
-        $this->finalsynthesis = $finalsynthesis;
         $this->wbplanneraction = $wbplanneraction;
-        $this->wbreplyaction = $wbreplyaction;
     }
 
     /**
-     * Route to action classes by step profile for OpenAI providers, with fallback.
+     * Route to planner action classes by step profile for OpenAI providers, with fallback.
      *
      * @param ai_manager $manager
      * @param context_module $context
@@ -90,49 +78,27 @@ class orchestrator_routing_service {
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
     public function resolve_action_class_for_step(ai_manager $manager, context_module $context, string $steptype): array {
-        if ($this->is_wunderbyte_routing_available($manager)) {
-            if ($steptype === $this->finalsynthesis) {
-                return [
-                    'actionclass' => $this->wbreplyaction,
-                    'routepolicy' => 'wunderbyte',
-                    'routingfallback' => false,
-                ];
-            }
+        return $this->resolve_planner_action_class_for_step($manager, $context, $steptype);
+    }
 
-            return [
-                'actionclass' => $this->wbplanneraction,
-                'routepolicy' => 'wunderbyte',
-                'routingfallback' => false,
-            ];
-        }
-
+    /**
+     * Route planner steps only.
+     *
+     * @param ai_manager $manager
+     * @param context_module $context
+     * @param string $steptype
+     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
+     */
+    private function resolve_planner_action_class_for_step(
+        ai_manager $manager,
+        context_module $context,
+        string $steptype
+    ): array {
         if (!$this->should_use_openai_step_routing($manager)) {
             return [
                 'actionclass' => generate_text::class,
                 'routepolicy' => 'default',
                 'routingfallback' => false,
-            ];
-        }
-
-        if ($steptype === $this->finalsynthesis) {
-            if ($this->is_action_available_in_context($manager, $context, generate_text::class)) {
-                return [
-                    'actionclass' => generate_text::class,
-                    'routepolicy' => 'openai',
-                    'routingfallback' => false,
-                ];
-            }
-            if ($this->is_action_available_in_context($manager, $context, explain_text::class)) {
-                return [
-                    'actionclass' => explain_text::class,
-                    'routepolicy' => 'openai',
-                    'routingfallback' => true,
-                ];
-            }
-            return [
-                'actionclass' => generate_text::class,
-                'routepolicy' => 'openai',
-                'routingfallback' => true,
             ];
         }
 
@@ -203,14 +169,12 @@ class orchestrator_routing_service {
         $stepmap = [
             $this->toolcallparse => 'tcp',
             $this->simpleretrieval => 'sr',
-            $this->finalsynthesis => 'syn',
         ];
         $actionmap = [
             generate_text::class => 'gen',
             summarise_text::class => 'sum',
             explain_text::class => 'exp',
             $this->wbplanneraction => 'wpl',
-            $this->wbreplyaction => 'wgr',
         ];
 
         $step = $stepmap[$steptype] ?? 'unk';
@@ -259,37 +223,6 @@ class orchestrator_routing_service {
             }
             $primary = reset($forgenerate);
             return (string)($primary->provider ?? '') === 'aiprovider_openai';
-        } catch (\Throwable $e) {
-            return false;
-        }
-    }
-
-    /**
-     * Determine whether wunderbyte-specific action routing is available.
-     *
-     * @param ai_manager $manager
-     * @return bool
-     */
-    private function is_wunderbyte_routing_available(ai_manager $manager): bool {
-        try {
-            $instances = $manager->get_provider_instances(['provider' => 'aiprovider_wunderbyte\\provider']);
-            if (empty($instances)) {
-                return false;
-            }
-
-            foreach ($instances as $instance) {
-                if (empty($instance->enabled)) {
-                    continue;
-                }
-
-                if (method_exists($instance, 'is_provider_configured') && !$instance->is_provider_configured()) {
-                    continue;
-                }
-
-                return true;
-            }
-
-            return false;
         } catch (\Throwable $e) {
             return false;
         }

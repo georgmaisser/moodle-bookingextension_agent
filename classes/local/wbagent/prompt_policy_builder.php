@@ -42,13 +42,13 @@ namespace bookingextension_agent\local\wbagent;
  */
 class prompt_policy_builder {
     /**
-     * Build all NON-OPTIONAL policies as a single text block.
+     * Build all NON-OPTIONAL planner policies as a single text block.
      *
      * @param string $steptype       Orchestrator step type (from orchestrator.php constants).
      * @param bool $isfirstassistantturn True when no assistant output exists yet in this thread.
      * @return string
      */
-    public static function build_all_policies(
+    public static function build_planner_policies(
         string $steptype = 'tool_call_parse',
         bool $hasobservations = false,
         bool $isfirstassistantturn = false
@@ -65,26 +65,23 @@ class prompt_policy_builder {
             $policies[] = self::build_routing_determinism_policy();
         }
 
-        // 3. STEP INTENT POLICY (skip for final synthesis — synthesis does not step).
-        if ($normalizedsteptype !== 'final_synthesis') {
-            $policies[] = self::build_step_intent_policy($normalizedsteptype);
-        }
+        // 3. STEP INTENT POLICY (planner-facing guidance only).
+        $policies[] = self::build_step_intent_policy($normalizedsteptype);
 
         // 4. DOCS ANSWER POLICY (only for simple retrieval steps with observations).
         if ($normalizedsteptype === 'simple_retrieval') {
             $policies[] = self::build_docs_answer_policy();
         }
 
-        // 5. SUFFICIENCY POLICY (different for each step type).
+        // 5. SUFFICIENCY POLICY (planner-facing guidance only).
         // - For tool_call_parse: only if hasobservations (planner should stop if already has results).
         // - For simple_retrieval: always (guidance on when observations suffice).
-        // - For final_synthesis: special synthesis-only policy (always write message).
         if ($normalizedsteptype === 'tool_call_parse') {
             if ($hasobservations) {
                 $policies[] = self::build_sufficiency_policy($normalizedsteptype, $hasobservations);
             }
         } else {
-            // Simple_retrieval and final_synthesis both get sufficiency guidance.
+            // Simple_retrieval gets sufficiency guidance.
             $policies[] = self::build_sufficiency_policy($normalizedsteptype, $hasobservations);
         }
 
@@ -195,26 +192,9 @@ class prompt_policy_builder {
      * @return string
      */
     private static function build_step_intent_policy(string $steptype): string {
-        if (self::is_planner_step_type($steptype)) {
-            return "NON-OPTIONAL STEP INTENT POLICY:\n"
-                . "- If present, keep it short and aligned with the user language.";
-        }
-
         return "NON-OPTIONAL STEP INTENT POLICY:\n"
-            . "- Every response MUST include an additional top-level JSON field \"next_step_intent\" "
-            . "with one short sentence describing your immediate next action.\n"
-            . "- This sentence must be model-authored (no template text) and in the same language as the user.\n"
-            . "- next_step_intent must describe intention (present/future), not completed work.\n"
-            . "- Avoid past-tense completion phrasing such as \"I have ...\" or \"Ich habe ...\".\n"
-            . "  Good: \"I will now check the relevant settings.\"\n"
-            . "  Bad: \"I already finished the explanation.\"\n"
-            . "- CRITICAL language rule: next_step_intent MUST be written in the SAME language as the user message."
-            . " If lang=de, next_step_intent MUST be in German."
-            . " If lang=fr, next_step_intent MUST be in French."
-            . " Writing next_step_intent in English when lang != en is a contract violation.\n"
-            . "  Bad (lang=de): \"I will retrieve the details of the booking options.\"\n"
-            . "  Good (lang=de): \"Ich rufe jetzt die Buchungsoptionen ab.\"\n"
-            . "- If you answer directly without tool calls, next_step_intent should still describe that direct action.";
+            . "- If present, keep it short and aligned with the user language.\n"
+            . "- Keep next_step_intent model-authored and grounded in the immediate next action.";
     }
 
     /**
@@ -223,12 +203,6 @@ class prompt_policy_builder {
      * @param string $steptype
      * @return bool
      */
-    private static function is_planner_step_type(string $steptype): bool {
-        return trim(
-            \core_text::strtolower($steptype)
-        ) === 'tool_call_parse';
-    }
-
     /**
      * Build NON-OPTIONAL DOCS ANSWER POLICY.
      *
@@ -257,15 +231,6 @@ class prompt_policy_builder {
     private static function build_sufficiency_policy(string $steptype = '', bool $hasobservations = false): string {
         $normalizedsteptype = trim(\core_text::strtolower($steptype));
 
-        // For final synthesis, do NOT apply rule priority — synthesis must always write message.
-        if ($normalizedsteptype === 'final_synthesis') {
-            return "SYNTHESIS RESPONSE POLICY:\n"
-                . "- You have complete information from prior observations.\n"
-                . "- You MUST write a polished, final user-facing answer in the 'message' field.\n"
-                . "- Never return sufficient with empty or omitted message field.\n"
-                . "- Always include: response_type=sufficient, message (non-empty), commands=[], user_lang.\n";
-        }
-
         $policy = "NON-OPTIONAL SUFFICIENCY POLICY:\n"
             . "- Use first-match priority: completed outcome evidence -> sufficient,"
             . " explicit pending confirmation -> confirm_pending,"
@@ -285,20 +250,5 @@ class prompt_policy_builder {
         }
 
         return $policy;
-    }
-
-    /**
-     * Build NON-OPTIONAL FOLLOW-UP STATE POLICY for synthesis contexts.
-     *
-     * @return string
-     */
-    public static function build_follow_up_state_policy(): string {
-        return "FOLLOW-UP STATE POLICY:\n"
-            . "- Use ASSISTANT_STATE blocks as factual memory for follow-up questions.\n"
-            . "- Prefer structured state facts over generic restatements.\n"
-            . "- If ASSISTANT_STATE already contains diagnosis/results, "
-            . "answer directly from it before proposing new tool calls.\n"
-            . "- If ASSISTANT_STATE contains a 'found_results' line, those items were already found "
-            . "in a previous turn — include their names/details in your response.";
     }
 }

@@ -146,16 +146,12 @@ class orchestrator {
         $this->orchestratorroutingsvc = new orchestrator_routing_service(
             self::STEP_TYPE_TOOL_CALL_PARSE,
             self::STEP_TYPE_SIMPLE_RETRIEVAL,
-            self::STEP_TYPE_FINAL_SYNTHESIS,
-            self::WB_ACTION_PLANNER_DECIDE,
-            self::WB_ACTION_GENERATE_AGENT_REPLY
+            self::WB_ACTION_PLANNER_DECIDE
         );
         $this->promptprofilesvc = new orchestrator_prompt_profile_service(
             self::STEP_TYPE_TOOL_CALL_PARSE,
             self::STEP_TYPE_SIMPLE_RETRIEVAL,
-            self::STEP_TYPE_FINAL_SYNTHESIS,
-            self::WB_ACTION_PLANNER_DECIDE,
-            self::WB_ACTION_GENERATE_AGENT_REPLY
+            self::WB_ACTION_PLANNER_DECIDE
         );
     }
 
@@ -246,17 +242,11 @@ class orchestrator {
                 $context,
                 self::STEP_TYPE_TOOL_CALL_PARSE
             );
-            $finalrouting = $this->orchestratorroutingsvc->resolve_action_class_for_step(
-                $manager,
-                $context,
-                self::STEP_TYPE_FINAL_SYNTHESIS
-            );
-
             $toolactionclass = (string)($toolrouting['actionclass'] ?? '');
-            $finalactionclass = (string)($finalrouting['actionclass'] ?? '');
+            $finalactionclass = self::WB_ACTION_GENERATE_AGENT_REPLY;
 
             $toolroutepolicy = (string)($toolrouting['routepolicy'] ?? 'default');
-            $finalroutepolicy = (string)($finalrouting['routepolicy'] ?? 'default');
+            $finalroutepolicy = 'wunderbyte';
 
             $wunderbyteroutingselected = $toolroutepolicy === 'wunderbyte' && $finalroutepolicy === 'wunderbyte';
 
@@ -338,7 +328,7 @@ class orchestrator {
         $context = context_module::instance($cmid);
         $contextid = (int)$context->id;
         $manager = di::get(ai_manager::class);
-        $normalizedsteptype = $this->promptprofilesvc->normalize_step_type($steptype);
+        $normalizedsteptype = trim(core_text::strtolower($steptype));
         $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
 
         $routing = $this->orchestratorroutingsvc->resolve_action_class_for_step(
@@ -346,7 +336,7 @@ class orchestrator {
             $context,
             $normalizedsteptype
         );
-        $actionclass = (string)$routing['actionclass'];
+        $actionclass = (string)($routing['actionclass'] ?? '');
         // Always provide full thread history (excluding ephemeral step bubbles)
         // so follow-up turns keep complete conversation context.
         $messages = array_values(array_filter(
@@ -429,9 +419,6 @@ class orchestrator {
                     }
                 }
 
-                // Keep embed-selected planner catalogs intentionally narrow.
-                $embeddingtopk = self::EMBEDDINGS_DEFAULT_TOP_K;
-
                 if (!$usedembeddingcache) {
                     $readiness = new embeddings_readiness_service();
                     if ($readiness->is_wunderbyte_embeddings_available()) {
@@ -460,7 +447,7 @@ class orchestrator {
                                     $toprows = $retrieval->search_top_k(
                                         (array)$embeddingcall['embedding'],
                                         $status['rows'],
-                                        $embeddingtopk
+                                        self::EMBEDDINGS_DEFAULT_TOP_K
                                     );
 
                                     if (runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED)) {
@@ -507,61 +494,7 @@ class orchestrator {
                                         }
                                     }
 
-                                    $subset = $retrieval->build_planner_catalog_subset(
-                                        $toprows,
-                                        $allpromptcontracts
-                                    );
-                                    if (!empty($subset)) {
-                                        $evaluations = $evaluator->evaluate_all_tasks($userid, $contextid);
-                                        $descriptionindex = $this->build_task_description_index($allpromptcontracts);
-                                        $matchedtasknames = [];
-                                        $activesubset = [];
-                                        foreach ($subset as $entry) {
-                                            if (!is_array($entry)) {
-                                                continue;
-                                            }
-
-                                            $taskname = trim((string)($entry['task'] ?? ''));
-                                            if ($taskname === '') {
-                                                continue;
-                                            }
-
-                                            $matchedtasknames[] = $taskname;
-                                            $executablestate = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
-                                            if ($executablestate === 'deny') {
-                                                $denyreasons = (string)($evaluations[$taskname]['deny_reason'] ?? '');
-                                                $unavailabletaskcatalog[] = [
-                                                    'task' => $taskname,
-                                                    'availability' => $this->availability_from_deny_reason($denyreasons),
-                                                    'description' => (string)($descriptionindex[$taskname] ?? ''),
-                                                ];
-                                                continue;
-                                            }
-
-                                            $activesubset[] = $entry;
-                                        }
-
-                                        if (!empty($activesubset)) {
-                                            // Embed top-k is primary, but keep planner continuity on short follow-up turns
-                                            // by retaining at most one recently used executable task.
-                                            $runtimecatalog = $this->augment_catalog_with_recent_executable_tasks(
-                                                array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K),
-                                                $recenttaskhistory,
-                                                $fullslimcatalog,
-                                                $evaluations,
-                                                1
-                                            );
-                                            $unavailabletaskcatalog = $this->sanitize_unavailable_task_catalog(
-                                                $unavailabletaskcatalog
-                                            );
-                                            $catalogselectionmode = 'embed_topk';
-                                            $embeddingstatus = 'applied';
-                                        } else {
-                                            $embeddingstatus = 'nomatch';
-                                        }
-                                    } else {
-                                        $embeddingstatus = 'nomatch';
-                                    }
+                                    $embeddingstatus = !empty($toprows) ? 'shadow_only' : 'nomatch';
                                 } else {
                                     $embeddingstatus = 'callfail';
                                 }
@@ -949,10 +882,10 @@ PROMPT;
             '{{fullschemajson}}' => (string)$fullschemajson,
         ]);
 
-        // Append all NON-OPTIONAL policies from centralized policy builder.
-        // This is the single source of truth for dynamic policy appends.
+        $normalizedsteptype = $this->promptprofilesvc->normalize_runtime_step_type($steptype);
+
         $policybuilder = new prompt_policy_builder();
-        $prompt .= $policybuilder->build_all_policies(
+        $prompt .= $policybuilder->build_planner_policies(
             $steptype,
             $hasobservations,
             $isfirstassistantturn
@@ -1168,25 +1101,8 @@ PROMPT;
         array $plannertracehistory = [],
         bool $autoconfirmmode = false
     ): string {
-        $normalizedsteptype = $this->promptprofilesvc->normalize_step_type($steptype);
+        $normalizedsteptype = $this->promptprofilesvc->normalize_runtime_step_type($steptype);
         $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype));
-
-        if ($normalizedsteptype === self::STEP_TYPE_FINAL_SYNTHESIS) {
-            $contextualguidance = $this->assistantsummariesvc->build_contextual_guidance($trimmedmessages);
-            if ($contextualguidance !== '') {
-                $systemprompt .= "\n\nCONTEXT-SPECIFIC GUIDANCE:\n" . $contextualguidance;
-            }
-        }
-
-        $assistantstateblocks = [];
-        if ($normalizedsteptype === self::STEP_TYPE_FINAL_SYNTHESIS) {
-            $assistantstateblocks = $this->assistantsummariesvc->build_assistant_state_blocks($trimmedmessages);
-        }
-        if (!empty($assistantstateblocks)) {
-            // Append FOLLOW-UP STATE POLICY from centralized builder.
-            $policybuilder = new prompt_policy_builder();
-            $systemprompt .= "\n\n" . $policybuilder->build_follow_up_state_policy();
-        }
 
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -1198,11 +1114,6 @@ PROMPT;
             $role    = strtoupper($msg->role ?? 'user');
             $content = $msg->content ?? '';
             $parts[] = "[{$role}]\n{$content}";
-        }
-
-        foreach ($assistantstateblocks as $idx => $block) {
-            $num = $idx + 1;
-            $parts[] = "[ASSISTANT_STATE {$num}]\n{$block}";
         }
 
         $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
@@ -1224,11 +1135,6 @@ PROMPT;
      * @return string
      */
     private function build_local_output_contract_block(string $steptype, bool $autoconfirmmode = false): string {
-        $normalized = $this->promptprofilesvc->normalize_step_type($steptype);
-        if ($normalized === self::STEP_TYPE_FINAL_SYNTHESIS) {
-            return '';
-        }
-
         $lines = [
             'Return exactly one valid JSON object and nothing else.',
             'Do not output markdown, code fences, prose, or bullet lists outside JSON.',
@@ -1362,7 +1268,7 @@ PROMPT;
         // Keep first-turn language enforcement in SYSTEM_RUNTIME so static SYSTEM
         // prompt prefixes remain cache-friendly across requests.
         if (
-            $this->promptprofilesvc->normalize_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE
+            $this->promptprofilesvc->normalize_planner_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE
             && $isfirstassistantturn
             && !$hasobservations
         ) {

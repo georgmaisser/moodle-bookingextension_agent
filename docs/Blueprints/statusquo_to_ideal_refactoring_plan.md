@@ -241,13 +241,48 @@ Ergebnisstand (2026-06-01):
 
 ## Phase 5: Planner-Orchestrator entschlacken
 
-- [ ] orchestrator.php auf reine Planner-Phasen reduzieren
-- [ ] orchestrator_routing_service auf 3 Planner-Phasen begrenzen
-- [ ] orchestrator_prompt_profile_service von Legacy-Finalzweigen bereinigen
-- [ ] prompt_policy_builder von Legacy-Finalzweigen bereinigen
-- [ ] Alte direkte Task-Top-K-Hauptpfade deaktivieren
-- [ ] DoD fuer Phase 5:
+- [x] final_synthesis_policy aus prompt_policy_builder auslagern
+- [x] final_synthesis_policy als separaten Contract-Test absichern
+- [x] planner/final routing in orchestrator_routing_service trennen
+- [x] planner/runtime prompt profile helpers trennen
+- [x] planner/runtime policies im prompt_policy_builder trennen
+- [x] runtime policy block ohne doppelte Follow-up-Policy korrigieren
+- [x] orchestrator nutzt wieder einen einzigen Routing-Einstieg
+- [x] ungenutzte Final-Config- und Runtime-Wrapper entfernt
+- [x] Routing-Helfer auf internen Scope reduziert
+- [x] ungenutzte Action-Config-Hilfe entfernt
+- [x] orchestrator.php auf reine Planner-Phasen reduzieren
+- [x] orchestrator_routing_service auf 3 Planner-Phasen begrenzen
+- [x] orchestrator_prompt_profile_service von Legacy-Finalzweigen bereinigen
+- [x] prompt_policy_builder von Legacy-Finalzweigen bereinigen
+- [x] Alte direkte Task-Top-K-Hauptpfade deaktivieren
+- [x] DoD fuer Phase 5:
   Planner ist fachlich klar getrennt und ohne Legacy-Finallogik
+
+Ergebnisstand (2026-06-01):
+
+- `prompt_policy_builder.php`: Final-Synthesis-Policy aus dem allgemeinen Policy-Build ausgelagert
+- `orchestrator.php`: Final-Synthesis-Policy wird im Final-Prompt-Pfad separat angehaengt
+- `prompt_policy_builder_test.php`: Trennung von Planner-Policies und Final-Synthesis-Policy abgesichert
+- `orchestrator_routing_service.php`: Planner- und Final-Routing als getrennte Pfade eingefuehrt
+- `orchestrator_prompt_profile_service_test.php`: Runtime- und Planner-Profilhilfe getrennt abgesichert
+- `prompt_policy_builder.php`: Planner- und Runtime-Policy-Pfade voneinander getrennt
+- `prompt_policy_builder_test.php`: Runtime-Policy ohne doppelte Follow-up-Policy abgesichert
+- `orchestrator.php`: einzelner Routing-Einstieg fuer Planner- und Final-Faelle genutzt
+- `orchestrator_prompt_profile_service.php`: ungenutzte Final-Config-Hilfe entfernt
+- `adaptive_task_catalog_service.php`: final-synthesis-spezifischer Top-K-Cutoff entfernt
+- `adaptive_task_catalog_service.php`: Nicht-Planer-Steps nutzen jetzt denselben Recency-Cutoff
+- `prompt_policy_builder.php`: Final-Policy- und Follow-up-Policy-Text aus dem Shared Builder entfernt
+- `orchestrator.php`: Final-Policy-Text lokal im Orchestrator gekapselt
+- `orchestrator_routing_service.php`: nur noch Planner-Phasen im Routing-Service
+- `orchestrator.php`: Final-Provider-Status ohne finalen Routing-Zweig verdrahtet
+- `orchestrator_prompt_profile_service.php`: nur noch Planner-Normalisierung und Planner-Config-Keys
+- `orchestrator.php`: direkte Task-Top-K-Auswahl nur noch als Shadow-Telemetrie ohne Routingwirkung
+- `orchestrator.php`: Final-Synthese-Branches aus Prompt- und Output-Contract entfernt
+- `orchestrator.php`: Planner-only Zustand im Promptaufbau und Output-Contract erzwungen
+- `prompt_policy_builder.php`: Runtime-Policy-Wrapper entfernt
+- `orchestrator_routing_service.php`: split routing methods auf internen Scope reduziert
+- `orchestrator_prompt_profile_service.php`: ungenutzte action config helper entfernt
 
 ## Phase 6: Synchronizer finalisieren
 
