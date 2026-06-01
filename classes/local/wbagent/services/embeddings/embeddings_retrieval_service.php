@@ -64,7 +64,11 @@ class embeddings_retrieval_service {
         });
 
         $top = array_slice($scored, 0, $k);
-        return array_values(array_map(static fn(array $entry): array => $entry['row'], $top));
+        return array_values(array_map(static function (array $entry): array {
+            $row = (array)$entry['row'];
+            $row['score'] = (string)($entry['score'] ?? 0.0);
+            return $row;
+        }, $top));
     }
 
     /**

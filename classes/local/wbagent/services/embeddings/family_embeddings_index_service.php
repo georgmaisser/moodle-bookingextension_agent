@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Adhoc task to rebuild task-catalog embeddings CSV.
+ * Index service for family-level task catalog embeddings.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -24,70 +24,68 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\task;
+namespace bookingextension_agent\local\wbagent\services\embeddings;
 
-use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_index_service;
-use context_system;
-use core\di;
-use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
-use bookingextension_agent\local\wbagent\services\embeddings\embeddings_catalog_builder_service;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
 use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\task_registry;
+use core\di;
+use core_ai\manager as ai_manager;
+use context_system;
 
 /**
- * Rebuilds embeddings for the full task catalog.
+ * Rebuilds and persists the task-catalog embeddings index.
  */
-class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
+class family_embeddings_index_service {
     /**
-     * Execute task.
+     * Rebuild the embeddings CSV from the current registry.
      *
-     * @return void
+     * @param task_registry $registry
+     * @param string|null $model
+     * @param int|null $dimensions
+     * @param bool $forcefullregen
+     * @return array<string,mixed>
      */
-    public function execute(): void {
+    public function rebuild_catalog(
+        task_registry $registry,
+        ?string $model = null,
+        ?int $dimensions = null,
+        bool $forcefullregen = false
+    ): array {
         if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
-            return;
+            return [
+                'status' => 'skipped',
+                'reason' => 'embeddings_provider_unavailable',
+                'written' => 0,
+                'embedded' => 0,
+                'reused' => 0,
+                'deleted' => 0,
+            ];
         }
-
-        $customdata = (array)$this->get_custom_data();
-        $registry = task_registry_factory::get_default();
-        $service = new family_embeddings_index_service();
-        $summary = $service->rebuild_catalog(
-            $registry,
-            isset($customdata['model']) ? (string)$customdata['model'] : null,
-            isset($customdata['dimensions']) ? (int)$customdata['dimensions'] : null,
-            !empty($customdata['force'])
-        );
-
-        mtrace('bookingextension_agent embeddings rebuild status: ' . (string)($summary['status'] ?? 'unknown'));
-        mtrace('bookingextension_agent embeddings rebuild: generated=' . (int)($summary['embedded'] ?? 0)
-            . ', reused=' . (int)($summary['reused'] ?? 0)
-            . ', deleted=' . (int)($summary['deleted'] ?? 0)
-            . ', written=' . (int)($summary['written'] ?? 0));
-        return;
 
         $resolvedsettings = (new embeddings_action_config_resolver())->resolve();
-
-        $model = trim((string)($customdata['model'] ?? ($resolvedsettings['model'] ?? orchestrator::EMBEDDINGS_DEFAULT_MODEL)));
-        if ($model === '') {
-            $model = orchestrator::EMBEDDINGS_DEFAULT_MODEL;
+        $resolvedmodel = trim((string)($model ?? ($resolvedsettings['model'] ?? orchestrator::EMBEDDINGS_DEFAULT_MODEL)));
+        if ($resolvedmodel === '') {
+            $resolvedmodel = orchestrator::EMBEDDINGS_DEFAULT_MODEL;
         }
 
-        $dimensions = (int)($customdata['dimensions']
-            ?? ($resolvedsettings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS));
-        if ($dimensions < 1) {
-            $dimensions = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
+        $resolveddimensions = (int)($dimensions ?? ($resolvedsettings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS));
+        if ($resolveddimensions < 1) {
+            $resolveddimensions = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
         }
-        $forcefullregen = !empty($customdata['force']);
 
-        $registry = task_registry_factory::get_default();
         $builder = new embeddings_catalog_builder_service();
         $repo = new embeddings_csv_repository();
-
-        $rows = $builder->build_full_catalog_rows($registry, $model, $dimensions);
+        $rows = $builder->build_full_catalog_rows($registry, $resolvedmodel, $resolveddimensions);
         if (empty($rows)) {
-            return;
+            return [
+                'status' => 'empty',
+                'written' => 0,
+                'embedded' => 0,
+                'reused' => 0,
+                'deleted' => 0,
+            ];
         }
 
         $existingrows = $repo->read_rows();
@@ -103,25 +101,27 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
 
         $currenttasknames = [];
         $taskstates = [];
-        foreach ($rows as $row) {
+        foreach ($rows as $idx => $row) {
             $taskname = trim((string)($row['task'] ?? ''));
-            if ($taskname !== '') {
-                $currenttasknames[] = $taskname;
-                if (!isset($existingbytask[$taskname])) {
-                    $taskstates[$taskname] = 'created';
-                } else if ($forcefullregen) {
-                    // Forced rebuild regenerates all existing entries.
-                    $taskstates[$taskname] = 'updated';
-                } else if (
-                    trim((string)($existingbytask[$taskname]['content_hash'] ?? ''))
-                    === trim((string)($row['content_hash'] ?? ''))
-                ) {
-                    $taskstates[$taskname] = 'untouched';
-                } else {
-                    $taskstates[$taskname] = 'updated';
-                }
+            if ($taskname === '') {
+                continue;
+            }
+
+            $currenttasknames[] = $taskname;
+            if (!isset($existingbytask[$taskname])) {
+                $taskstates[$taskname] = 'created';
+            } else if ($forcefullregen) {
+                $taskstates[$taskname] = 'updated';
+            } else if (
+                trim((string)($existingbytask[$taskname]['content_hash'] ?? ''))
+                === trim((string)($row['content_hash'] ?? ''))
+            ) {
+                $taskstates[$taskname] = 'untouched';
+            } else {
+                $taskstates[$taskname] = 'updated';
             }
         }
+
         $currenttasknames = array_values(array_unique($currenttasknames));
         sort($currenttasknames);
         $removedtasks = array_values(array_diff(array_keys($existingbytask), $currenttasknames));
@@ -135,18 +135,16 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
         $userid = !empty($admin->id) ? (int)$admin->id : 2;
         $embeddedtasks = [];
         $reusedtasks = [];
-
         $manager = di::get(ai_manager::class);
+
         foreach ($rows as $idx => $row) {
             $taskname = trim((string)($row['task'] ?? ''));
             $contenthash = trim((string)($row['content_hash'] ?? ''));
             $existingrow = ($taskname !== '' && isset($existingbytask[$taskname])) ? $existingbytask[$taskname] : null;
 
-            // Reuse unchanged embeddings from current CSV to avoid unnecessary API calls.
             if (
                 !$forcefullregen
-                &&
-                is_array($existingrow)
+                && is_array($existingrow)
                 && trim((string)($existingrow['content_hash'] ?? '')) === $contenthash
                 && trim((string)($existingrow['embedding_json'] ?? '')) !== ''
             ) {
@@ -168,7 +166,7 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
                 contextid: (int)$context->id,
                 userid: $userid,
                 inputtext: $inputtext,
-                dimensions: $dimensions,
+                dimensions: $resolveddimensions,
             );
 
             $response = $manager->process_action($action);
@@ -200,35 +198,15 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
         $reusedtasks = array_values(array_unique($reusedtasks));
         sort($reusedtasks);
 
-        mtrace('bookingextension_agent embeddings rebuild: generated embeddings for '
-            . count($embeddedtasks) . ' tasks.');
-        mtrace('bookingextension_agent embeddings rebuild: reused embeddings for '
-            . count($reusedtasks) . ' tasks.');
-        mtrace('bookingextension_agent embeddings rebuild: removed stale tasks from CSV: '
-            . count($removedtasks) . '.');
-
-        $statecounts = [
-            'created' => 0,
-            'updated' => 0,
-            'deleted' => 0,
-            'untouched' => 0,
+        return [
+            'status' => 'written',
+            'model' => $resolvedmodel,
+            'dimensions' => $resolveddimensions,
+            'written' => count($rows),
+            'embedded' => count($embeddedtasks),
+            'reused' => count($reusedtasks),
+            'deleted' => count($removedtasks),
+            'taskstates' => $taskstates,
         ];
-        foreach ($taskstates as $state) {
-            if (isset($statecounts[$state])) {
-                $statecounts[$state]++;
-            }
-        }
-        mtrace('bookingextension_agent embeddings rebuild states summary: '
-            . 'created=' . $statecounts['created']
-            . ', updated=' . $statecounts['updated']
-            . ', deleted=' . $statecounts['deleted']
-            . ', untouched=' . $statecounts['untouched']);
-        if (!empty($taskstates)) {
-            ksort($taskstates);
-            mtrace('bookingextension_agent embeddings rebuild task states:');
-            foreach ($taskstates as $taskname => $state) {
-                mtrace(' - ' . $state . ' ' . $taskname);
-            }
-        }
     }
 }

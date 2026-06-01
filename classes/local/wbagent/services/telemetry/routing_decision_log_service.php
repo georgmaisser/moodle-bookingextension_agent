@@ -64,16 +64,19 @@ class routing_decision_log_service {
     ): void {
         $normalized = self::normalize_telemetry($telemetry);
         $shadow = self::build_shadow_result($normalized, $flags, $discoverycontext);
+        $comparison = self::build_embeddings_comparison($normalized, $shadow, $flags);
 
         $entry = [
             'time' => time(),
             'live_result' => $normalized,
             'shadow_result' => $shadow,
+            'embeddings_comparison' => $comparison,
             'flags' => $flags,
         ];
 
         $store->set_thread_metadata_value($threadid, self::META_ROUTING_TELEMETRY, $normalized);
         $store->set_thread_metadata_value($threadid, self::META_SHADOW_TELEMETRY, $shadow);
+        $store->set_thread_metadata_value($threadid, 'routing_embeddings_comparison', $comparison);
 
         $existing = $store->get_thread_metadata_value($threadid, self::META_TELEMETRY_LOG);
         if (!is_array($existing)) {
@@ -166,5 +169,49 @@ class routing_decision_log_service {
             'escalation_reason' => $escalationreason,
             'live_routing_affected' => false,
         ];
+    }
+
+    /**
+     * Build a compact comparison snapshot for live-vs-shadow embedding routing.
+     *
+     * @param array<string,mixed> $normalized
+     * @param array<string,mixed> $shadow
+     * @param array<string,bool> $flags
+     * @return array<string,mixed>
+     */
+    public static function build_embeddings_comparison(array $normalized, array $shadow, array $flags): array {
+        $familyembeddingsenabled = !empty($flags[runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED]);
+
+        $livecatalogmode = (string)($normalized['catalogselectionmode'] ?? 'none');
+        $shadowcatalogmode = (string)($shadow['catalogselectionmode'] ?? 'none');
+        $livestage = (string)($normalized['discovery_stage'] ?? 'unknown');
+        $shadowstage = (string)($shadow['discovery_stage'] ?? 'unknown');
+
+        $liveconfidence = isset($normalized['confidence_score']) && $normalized['confidence_score'] !== ''
+            ? (float)$normalized['confidence_score']
+            : null;
+        $shadowconfidence = isset($shadow['confidence_score']) && $shadow['confidence_score'] !== ''
+            ? (float)$shadow['confidence_score']
+            : null;
+
+        $comparison = [
+            'family_embeddings_enabled' => $familyembeddingsenabled,
+            'comparison_type' => 'with_vs_without_embeddings',
+            'live_catalogselectionmode' => $livecatalogmode,
+            'shadow_catalogselectionmode' => $shadowcatalogmode,
+            'catalogselectionmode_changed' => $livecatalogmode !== $shadowcatalogmode,
+            'live_discovery_stage' => $livestage,
+            'shadow_discovery_stage' => $shadowstage,
+            'discovery_stage_changed' => $livestage !== $shadowstage,
+            'live_confidence_score' => $liveconfidence,
+            'shadow_confidence_score' => $shadowconfidence,
+            'confidence_delta' => null,
+        ];
+
+        if ($liveconfidence !== null && $shadowconfidence !== null) {
+            $comparison['confidence_delta'] = $liveconfidence - $shadowconfidence;
+        }
+
+        return $comparison;
     }
 }

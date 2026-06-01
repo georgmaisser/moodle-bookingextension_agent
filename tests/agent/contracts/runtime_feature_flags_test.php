@@ -40,6 +40,7 @@ final class runtime_feature_flags_test extends TestCase {
      */
     public function test_default_values_are_safe(): void {
         $this->assertFalse(runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_DISCOVERY_ENABLED));
+        $this->assertFalse(runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED));
         $this->assertFalse(runtime_feature_flags::is_enabled(runtime_feature_flags::STAGED_DISCOVERY_ENABLED));
         $this->assertFalse(runtime_feature_flags::is_enabled(runtime_feature_flags::SYNCHRONIZER_STRICT_CONTRACT));
     }
@@ -51,9 +52,11 @@ final class runtime_feature_flags_test extends TestCase {
         $snapshot = runtime_feature_flags::snapshot();
 
         $this->assertArrayHasKey(runtime_feature_flags::FAMILY_DISCOVERY_ENABLED, $snapshot);
+        $this->assertArrayHasKey(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED, $snapshot);
         $this->assertArrayHasKey(runtime_feature_flags::STAGED_DISCOVERY_ENABLED, $snapshot);
         $this->assertArrayHasKey(runtime_feature_flags::SYNCHRONIZER_STRICT_CONTRACT, $snapshot);
         $this->assertIsBool($snapshot[runtime_feature_flags::FAMILY_DISCOVERY_ENABLED]);
+        $this->assertIsBool($snapshot[runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED]);
         $this->assertIsBool($snapshot[runtime_feature_flags::STAGED_DISCOVERY_ENABLED]);
         $this->assertIsBool($snapshot[runtime_feature_flags::SYNCHRONIZER_STRICT_CONTRACT]);
     }

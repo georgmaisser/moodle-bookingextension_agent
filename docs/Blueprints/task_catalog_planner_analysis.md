@@ -512,6 +512,10 @@ Hauptschwaeche:
 - `get_catalog_status()`
 - `ensure_rebuild_scheduled_if_needed()`
 
+### family_embeddings_index_service
+
+- `rebuild_catalog()`
+
 ### finalization_classifier
 
 - `classify()`

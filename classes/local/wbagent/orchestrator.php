@@ -36,8 +36,12 @@ use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\services\catalog\adaptive_task_catalog_service;
+use bookingextension_agent\local\wbagent\services\discovery\family_ranker;
+use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
+use bookingextension_agent\local\wbagent\services\discovery\family_signal_ranker;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service;
+use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service;
 use bookingextension_agent\local\wbagent\services\assistant_state_guidance_service;
 use bookingextension_agent\local\wbagent\services\completed_command_history_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
@@ -458,6 +462,51 @@ class orchestrator {
                                         $status['rows'],
                                         $embeddingtopk
                                     );
+
+                                    if (runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED)) {
+                                        $familycontextprior = (new context_prior_builder())->build($contextid, [
+                                            'userid' => $userid,
+                                            'namespace_hint' =>
+                                                $this->resolve_namespace_hint_from_prompt_contracts($allpromptcontracts),
+                                        ]);
+                                        $familydiscovery = (new family_registry_service())->discover(
+                                            $allpromptcontracts,
+                                            $familycontextprior
+                                        )->to_array();
+                                        $families = (array)($familydiscovery['families'] ?? []);
+                                        if (!empty($families)) {
+                                            $signalscores = (new family_signal_ranker())->score_families(
+                                                $families,
+                                                $familycontextprior,
+                                                $recenttaskhistory
+                                            );
+                                            $semanticscores = (new family_embeddings_retrieval_service())->score_families(
+                                                $families,
+                                                (array)$embeddingcall['embedding'],
+                                                (array)$status['rows']
+                                            );
+                                            $rankedfamilies = (new family_ranker())->rank(
+                                                $families,
+                                                $signalscores,
+                                                $semanticscores
+                                            );
+                                            $familyscores = [];
+                                            foreach ($rankedfamilies as $row) {
+                                                $family = trim((string)($row['family'] ?? ''));
+                                                if ($family === '') {
+                                                    continue;
+                                                }
+                                                $familyscores[$family] = (float)($row['score'] ?? 0.0);
+                                            }
+
+                                            if (!empty($familyscores)) {
+                                                $toprows = (new family_embeddings_retrieval_service())
+                                                    ->boost_task_rows($toprows, $familyscores);
+                                                $embeddingstatus = 'family_boosted';
+                                            }
+                                        }
+                                    }
+
                                     $subset = $retrieval->build_planner_catalog_subset(
                                         $toprows,
                                         $allpromptcontracts

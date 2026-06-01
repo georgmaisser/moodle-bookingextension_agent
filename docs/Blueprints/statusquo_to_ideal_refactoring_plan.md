@@ -209,25 +209,35 @@ Ergebnisstand (2026-06-01):
 
 ## Phase 4 Vorbereitung: Family-Level Embeddings sauber andocken
 
-- [ ] embeddings_readiness_service als Family-Level-Gate dokumentieren
-- [ ] family_embeddings_retrieval_service Contract festziehen
-- [ ] family_embeddings_index_service Contract und Rebuild-Semantik festziehen
-- [ ] Shadow-Metriken fuer mit vs ohne Embeddings festlegen
-- [ ] Fallback-Kette family_ranker -> signal_ranker ohne Verhaltensbruch dokumentieren
-- [ ] DoD fuer Phase 4-Vorbereitung:
+- [x] embeddings_readiness_service als Family-Level-Gate dokumentieren
+- [x] family_embeddings_retrieval_service Contract festziehen
+- [x] family_embeddings_index_service Contract und Rebuild-Semantik festziehen
+- [x] Shadow-Metriken fuer mit vs ohne Embeddings festlegen
+- [x] Fallback-Kette family_ranker -> signal_ranker ohne Verhaltensbruch dokumentieren
+- [x] DoD fuer Phase 4-Vorbereitung:
   Family-Level-Embeddings sind nur Zusatzsignal, Live-Routing bleibt unveraendert
 
 ## Phase 4: Embeddings optional andocken (Family-Level)
 
-- [ ] family_embeddings_retrieval_service implementieren
-- [ ] family_embeddings_index_service implementieren
-- [ ] embeddings_readiness_service auf Family-Level verdrahten
-- [ ] readiness fuer Family-Embeddings verdrahten
-- [ ] Embeddings nur als Zusatzsignal in family_ranker einspeisen
-- [ ] Fallback bei Nichtverfuegbarkeit: unveraendert auf signal_ranker
-- [ ] Metriken vergleichen: mit vs ohne Embeddings
-- [ ] DoD fuer Phase 4:
+- [x] family_embeddings_retrieval_service implementieren
+- [x] family_embeddings_index_service implementieren
+- [x] embeddings_readiness_service auf Family-Level verdrahten
+- [x] readiness fuer Family-Embeddings verdrahten
+- [x] Embeddings nur als Zusatzsignal in family_ranker einspeisen
+- [x] Fallback bei Nichtverfuegbarkeit: unveraendert auf signal_ranker
+- [x] Metriken vergleichen: mit vs ohne Embeddings
+- [x] DoD fuer Phase 4:
   Embeddings verbessern Ranking, sind aber nie Single Point of Failure
+
+Ergebnisstand (2026-06-01):
+
+- `runtime_feature_flags.php`: `family_embeddings_enabled` hinzugefuegt
+- `family_embeddings_retrieval_service.php`: Family-Scores und Task-Boost implementiert
+- `orchestrator.php`: Family-Embeddings-Boost hinter Flag verdrahtet
+- `runtime_feature_flags_test.php`: Flag-Contract erweitert
+- `family_embeddings_retrieval_service_test.php`: Helper-Contract abgesichert
+- `routing_decision_log_service.php`: Live-vs-Shadow-Embeddingsvergleich wird als Telemetrie gespeichert
+- `routing_decision_log_service_test.php`: Vergleichsmetrik contract-getestet
 
 ## Phase 5: Planner-Orchestrator entschlacken
 

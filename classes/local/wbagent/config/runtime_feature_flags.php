@@ -37,12 +37,16 @@ class runtime_feature_flags {
     /** @var string Enables staged discovery routing (A/B/C). */
     public const STAGED_DISCOVERY_ENABLED = 'staged_discovery_enabled';
 
+    /** @var string Enables family-level embeddings boost in planner ranking. */
+    public const FAMILY_EMBEDDINGS_ENABLED = 'family_embeddings_enabled';
+
     /** @var string Enables stricter synchronizer output contract behavior. */
     public const SYNCHRONIZER_STRICT_CONTRACT = 'synchronizer_strict_contract';
 
     /** @var string[] Known and supported runtime feature flags. */
     private const KNOWN_FLAGS = [
         self::FAMILY_DISCOVERY_ENABLED,
+        self::FAMILY_EMBEDDINGS_ENABLED,
         self::STAGED_DISCOVERY_ENABLED,
         self::SYNCHRONIZER_STRICT_CONTRACT,
     ];
