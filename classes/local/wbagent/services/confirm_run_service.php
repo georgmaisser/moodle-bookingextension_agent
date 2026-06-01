@@ -521,10 +521,13 @@ class confirm_run_service {
             if ($this->has_successful_execution_results($results)) {
                 $finalresponsetype = (string)($finalresult['response_type'] ?? '');
                 if ($finalresponsetype === 'sufficient' && !$usedterminalfinalizer) {
-                    $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
+                    // Synchronizer output (already in $finalresult['message']) takes priority.
+                    // Task execution feedback is fallback only when the Synchronizer produced no message.
+                    $finalresult['message'] = $finalresult['message'] ?: (string)($feedback['message'] ?? '');
                 } else if ($finalresponsetype === 'error' && !is_array($pendingintent)) {
                     $finalresult['response_type'] = 'sufficient';
-                    $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
+                    // Synchronizer output takes priority; task feedback is fallback only.
+                    $finalresult['message'] = $finalresult['message'] ?: (string)($feedback['message'] ?? '');
                     $finalresult['issue_codes'] = [];
                     $finalresult['errors'] = [];
                 }

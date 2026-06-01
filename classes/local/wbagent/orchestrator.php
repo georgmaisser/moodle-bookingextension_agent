@@ -78,7 +78,7 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching tasks to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 4;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 6;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild task. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 300;
@@ -308,6 +308,7 @@ class orchestrator {
      * @param  string[] $observations Optional structured observation strings from prior internal loop steps.
      *                                Injected into the prompt so the LLM can reason about tool results
      *                                before producing its next response.  Never persisted to the DB.
+     * @param  agent_state|null $agentstate Optional per-run loop state for cache reuse across steps.
      * @return array  Interpreter result.
      */
     public function process(
@@ -315,7 +316,8 @@ class orchestrator {
         int $cmid,
         int $userid,
         array $observations = [],
-        string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE
+        string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
+        ?agent_state $agentstate = null
     ): array {
         $context = context_module::instance($cmid);
         $contextid = (int)$context->id;
@@ -362,6 +364,7 @@ class orchestrator {
         $catalogselectionmode = 'none';
         $embeddingstatus = 'off';
         $embeddingrebuildqueued = false;
+        $usedembeddingcache = false;
         $llm = new llm_call_service($this->store);
         if ($shouldincludetaskcatalog) {
             $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
@@ -377,100 +380,137 @@ class orchestrator {
                 $embeddingsettings = (new embeddings_action_config_resolver())->resolve();
                 $embeddingmodel = (string)($embeddingsettings['model'] ?? self::EMBEDDINGS_DEFAULT_MODEL);
                 $embeddingdimensions = (int)($embeddingsettings['dimensions'] ?? self::EMBEDDINGS_DEFAULT_DIMENSIONS);
+                $querytext = '';
+                foreach (array_reverse($messages) as $msg) {
+                    if (($msg->role ?? '') === 'user') {
+                        $querytext = trim((string)($msg->content ?? ''));
+                        break;
+                    }
+                }
+
+                $cachekey = '';
+                if ($querytext !== '') {
+                    $cachekey = sha1(
+                        $querytext
+                        . '|m=' . $embeddingmodel
+                        . '|d=' . $embeddingdimensions
+                        . '|u=' . $userid
+                        . '|c=' . $contextid
+                    );
+                }
+
+                if ($cachekey !== '' && $agentstate !== null) {
+                    $cachedcatalog = $agentstate->get_planner_catalog_cache($cachekey);
+                    if ($cachedcatalog !== null) {
+                        $runtimecatalog = (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog);
+                        $unavailabletaskcatalog = (array)($cachedcatalog['unavailabletaskcatalog'] ?? $unavailabletaskcatalog);
+                        $catalogselectionmode = (string)($cachedcatalog['catalogselectionmode'] ?? 'embed_topk_cache');
+                        $embeddingstatus = 'cached_' . trim((string)($cachedcatalog['embeddingstatus'] ?? 'applied'));
+                        $embeddingrebuildqueued = !empty($cachedcatalog['embeddingrebuildqueued']);
+                        $usedembeddingcache = true;
+                    }
+                }
 
                 // Keep embed-selected planner catalogs intentionally narrow.
                 $embeddingtopk = self::EMBEDDINGS_DEFAULT_TOP_K;
 
-                $readiness = new embeddings_readiness_service();
-                if ($readiness->is_wunderbyte_embeddings_available()) {
-                    $status = $readiness->get_catalog_status($this->registry, $embeddingmodel, $embeddingdimensions);
-                    $embeddingstatus = (string)($status['status'] ?? 'unknown');
-                    $embeddingrebuildqueued = $readiness->ensure_rebuild_scheduled_if_needed(
-                        $status,
-                        $embeddingmodel,
-                        $embeddingdimensions,
-                        self::EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS
-                    );
+                if (!$usedembeddingcache) {
+                    $readiness = new embeddings_readiness_service();
+                    if ($readiness->is_wunderbyte_embeddings_available()) {
+                        $status = $readiness->get_catalog_status($this->registry, $embeddingmodel, $embeddingdimensions);
+                        $embeddingstatus = (string)($status['status'] ?? 'unknown');
+                        $embeddingrebuildqueued = $readiness->ensure_rebuild_scheduled_if_needed(
+                            $status,
+                            $embeddingmodel,
+                            $embeddingdimensions,
+                            self::EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS
+                        );
 
-                    if (!empty($status['ready']) && !empty($status['rows']) && is_array($status['rows'])) {
-                        $querytext = '';
-                        foreach (array_reverse($messages) as $msg) {
-                            if (($msg->role ?? '') === 'user') {
-                                $querytext = trim((string)($msg->content ?? ''));
-                                break;
-                            }
-                        }
-
-                        if ($querytext !== '') {
-                            $embeddingcall = $llm->invoke_embeddings(
-                                $threadid,
-                                $cmid,
-                                $userid,
-                                'orc|st=tcp|ac=emb|rt=wb',
-                                $querytext,
-                                $embeddingdimensions
-                            );
-
-                            if (!empty($embeddingcall['success']) && !empty($embeddingcall['embedding'])) {
-                                $retrieval = new embeddings_retrieval_service();
-                                $toprows = $retrieval->search_top_k(
-                                    (array)$embeddingcall['embedding'],
-                                    $status['rows'],
-                                    $embeddingtopk
+                        if (!empty($status['ready']) && !empty($status['rows']) && is_array($status['rows'])) {
+                            if ($querytext !== '') {
+                                $embeddingcall = $llm->invoke_embeddings(
+                                    $threadid,
+                                    $cmid,
+                                    $userid,
+                                    'orc|st=tcp|ac=emb|rt=wb',
+                                    $querytext,
+                                    $embeddingdimensions
                                 );
-                                $subset = $retrieval->build_planner_catalog_subset(
-                                    $toprows,
-                                    $allpromptcontracts
-                                );
-                                if (!empty($subset)) {
-                                    $evaluations = $evaluator->evaluate_all_tasks($userid, $contextid);
-                                    $descriptionindex = $this->build_task_description_index($allpromptcontracts);
-                                    $matchedtasknames = [];
-                                    $activesubset = [];
-                                    foreach ($subset as $entry) {
-                                        if (!is_array($entry)) {
-                                            continue;
+
+                                if (!empty($embeddingcall['success']) && !empty($embeddingcall['embedding'])) {
+                                    $retrieval = new embeddings_retrieval_service();
+                                    $toprows = $retrieval->search_top_k(
+                                        (array)$embeddingcall['embedding'],
+                                        $status['rows'],
+                                        $embeddingtopk
+                                    );
+                                    $subset = $retrieval->build_planner_catalog_subset(
+                                        $toprows,
+                                        $allpromptcontracts
+                                    );
+                                    if (!empty($subset)) {
+                                        $evaluations = $evaluator->evaluate_all_tasks($userid, $contextid);
+                                        $descriptionindex = $this->build_task_description_index($allpromptcontracts);
+                                        $matchedtasknames = [];
+                                        $activesubset = [];
+                                        foreach ($subset as $entry) {
+                                            if (!is_array($entry)) {
+                                                continue;
+                                            }
+
+                                            $taskname = trim((string)($entry['task'] ?? ''));
+                                            if ($taskname === '') {
+                                                continue;
+                                            }
+
+                                            $matchedtasknames[] = $taskname;
+                                            $executablestate = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
+                                            if ($executablestate === 'deny') {
+                                                $denyreasons = (string)($evaluations[$taskname]['deny_reason'] ?? '');
+                                                $unavailabletaskcatalog[] = [
+                                                    'task' => $taskname,
+                                                    'availability' => $this->availability_from_deny_reason($denyreasons),
+                                                    'description' => (string)($descriptionindex[$taskname] ?? ''),
+                                                ];
+                                                continue;
+                                            }
+
+                                            $activesubset[] = $entry;
                                         }
 
-                                        $taskname = trim((string)($entry['task'] ?? ''));
-                                        if ($taskname === '') {
-                                            continue;
+                                        if (!empty($activesubset)) {
+                                            // Embedding mode is strict top-k only: no fallback merge inflation.
+                                            $runtimecatalog = array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K);
+                                            $unavailabletaskcatalog = $this->sanitize_unavailable_task_catalog(
+                                                $unavailabletaskcatalog
+                                            );
+                                            $catalogselectionmode = 'embed_topk';
+                                            $embeddingstatus = 'applied';
+                                        } else {
+                                            $embeddingstatus = 'nomatch';
                                         }
-
-                                        $matchedtasknames[] = $taskname;
-                                        $state = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
-                                        if ($state === 'deny') {
-                                            $denyreasons = (string)($evaluations[$taskname]['deny_reason'] ?? '');
-                                            $unavailabletaskcatalog[] = [
-                                                'task' => $taskname,
-                                                'availability' => $this->availability_from_deny_reason($denyreasons),
-                                                'description' => (string)($descriptionindex[$taskname] ?? ''),
-                                            ];
-                                            continue;
-                                        }
-
-                                        $activesubset[] = $entry;
-                                    }
-
-                                    if (!empty($activesubset)) {
-                                        // Embedding mode is strict top-k only: no fallback merge inflation.
-                                        $runtimecatalog = array_slice($activesubset, 0, self::EMBEDDINGS_DEFAULT_TOP_K);
-                                        $unavailabletaskcatalog = $this->sanitize_unavailable_task_catalog($unavailabletaskcatalog);
-                                        $catalogselectionmode = 'embed_topk';
-                                        $embeddingstatus = 'applied';
                                     } else {
                                         $embeddingstatus = 'nomatch';
                                     }
                                 } else {
-                                    $embeddingstatus = 'nomatch';
+                                    $embeddingstatus = 'callfail';
                                 }
-                            } else {
-                                $embeddingstatus = 'callfail';
                             }
                         }
+                    } else {
+                        $embeddingstatus = 'unavailable';
                     }
-                } else {
-                    $embeddingstatus = 'unavailable';
+
+                    if ($cachekey !== '' && $agentstate !== null) {
+                        $agentstate->set_planner_catalog_cache(
+                            $cachekey,
+                            $runtimecatalog,
+                            $unavailabletaskcatalog,
+                            $catalogselectionmode,
+                            $embeddingstatus,
+                            $embeddingrebuildqueued
+                        );
+                    }
                 }
             }
         }
@@ -1237,12 +1277,16 @@ PROMPT;
             $this->append_json_object_section($lines, 'UNAVAILABLE TASKS:', $unavailabletaskcatalog);
         }
 
+        $privacy = new privacy_anonymizer($this->store);
+
         $completedcommands = $this->completedhistorysvc->extract_from_messages($messages);
         $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands);
+        $completedcommands = (array)$privacy->anonymize_value_for_llm($threadid, $completedcommands);
         $this->append_json_list_section($lines, 'completed_commands:', $completedcommands);
 
         $observationledger = new execution_observation_ledger($this->store);
         $completedobservations = $observationledger->get_recent_for_runtime($threadid, 12);
+        $completedobservations = (array)$privacy->anonymize_value_for_llm($threadid, $completedobservations);
         $this->append_json_list_section($lines, 'completed_observations:', $completedobservations);
 
         return implode("\n", $lines);

@@ -1324,7 +1324,12 @@ const handleFinalAgentResponse = (resp, source, responseType, messageText) => {
         // Keep empty results on parse errors.
     }
 
-    if (responseType === 'execution_result' || (source === 'ai_confirm_run' && Array.isArray(results) && results.length > 0)) {
+    const hasResults = Array.isArray(results) && results.length > 0;
+    const shouldPreferRunStatus = source === 'ai_confirm_run'
+        && hasResults
+        && isGenericStatusMessage(messageText);
+
+    if (responseType === 'execution_result' || shouldPreferRunStatus) {
         const runStatus = responseType === 'error' ? 'failed' : 'completed';
         showRunStatus(runStatus, messageText || responseType, results);
         return;

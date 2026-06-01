@@ -298,6 +298,11 @@ class agent_runtime {
             }
         }
 
+        $sourceobservation = $this->build_final_synthesis_source_observation($result);
+        if ($sourceobservation !== '') {
+            $observations[] = $sourceobservation;
+        }
+
         try {
             $syncresult = $this->call_orchestrator_step(
                 $threadid,
@@ -327,9 +332,7 @@ class agent_runtime {
             return $source;
         }
 
-        $sourceresponsetype = trim((string)($source['response_type'] ?? ''));
-        $syncresponsetype = trim((string)($sync['response_type'] ?? ''));
-        if ($syncresponsetype !== '' && $sourceresponsetype !== '' && $syncresponsetype !== $sourceresponsetype) {
+        if ($this->should_reject_synchronized_message($sync, $syncmessage)) {
             return $source;
         }
 
@@ -348,6 +351,109 @@ class agent_runtime {
         }
 
         return $merged;
+    }
+
+    /**
+     * Build a compact source result observation for final synthesis.
+     *
+     * Ensures synthesis can reuse the exact preflight/runtime message content
+     * from the current turn, even before it is persisted.
+     *
+     * @param array $result
+     * @return string
+     */
+    private function build_final_synthesis_source_observation(array $result): string {
+        $message = trim((string)($result['message'] ?? ''));
+        if ($message === '') {
+            return '';
+        }
+
+        $responsetype = trim((string)($result['response_type'] ?? ''));
+        $issuecodes = $this->normalize_issue_codes((array)($result['issue_codes'] ?? []));
+        $attemptedtasks = $this->normalize_nonempty_string_list((array)($result['attempted_tasks'] ?? []));
+
+        $lines = ['FINAL_SOURCE_RESULT'];
+        if ($responsetype !== '') {
+            $lines[] = 'response_type=' . $responsetype;
+        }
+        if (!empty($issuecodes)) {
+            $lines[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 8));
+        }
+        if (!empty($attemptedtasks)) {
+            $lines[] = 'attempted_tasks=' . implode(',', array_slice($attemptedtasks, 0, 8));
+        }
+
+        $normalizedmessage = trim(preg_replace('/\s+/', ' ', $message) ?? $message);
+        $lines[] = 'message=' . substr($normalizedmessage, 0, 600);
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Reject synthesis outputs that indicate parse/contract failures.
+     *
+     * @param array $sync
+     * @param string $syncmessage
+     * @return bool
+     */
+    private function should_reject_synchronized_message(array $sync, string $syncmessage): bool {
+        $responsetype = trim((string)($sync['response_type'] ?? ''));
+        if ($responsetype === 'error') {
+            return true;
+        }
+
+        $issuecodes = $this->normalize_issue_codes((array)($sync['issue_codes'] ?? []));
+        foreach ($issuecodes as $code) {
+            if (str_starts_with($code, 'CONTRACT_')) {
+                return true;
+            }
+        }
+
+        if (str_starts_with($syncmessage, 'Failed to parse LLM response as JSON.')) {
+            return true;
+        }
+
+        if (strpos($syncmessage, 'Raw excerpt:') !== false) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize issue codes to unique uppercase entries.
+     *
+     * @param array $codes
+     * @return array
+     */
+    private function normalize_issue_codes(array $codes): array {
+        $normalized = [];
+        foreach ($codes as $code) {
+            $value = strtoupper(trim((string)$code));
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * Normalize a list to non-empty strings.
+     *
+     * @param array $values
+     * @return array
+     */
+    private function normalize_nonempty_string_list(array $values): array {
+        $normalized = [];
+        foreach ($values as $value) {
+            $text = trim((string)$value);
+            if ($text !== '') {
+                $normalized[] = $text;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     /**
@@ -618,7 +724,8 @@ class agent_runtime {
             $cmid,
             $userid,
             $observations,
-            $plannersteptype
+            $plannersteptype,
+            $state
         );
 
         unset($result['_planner_raw_response']);
@@ -651,6 +758,7 @@ class agent_runtime {
      * @param int $userid
      * @param array $observations
      * @param string $steptype
+     * @param agent_state|null $state
      * @return array
      */
     private function call_orchestrator_step(
@@ -658,9 +766,10 @@ class agent_runtime {
         int $cmid,
         int $userid,
         array $observations,
-        string $steptype
+        string $steptype,
+        ?agent_state $state = null
     ): array {
-        return $this->orchestrator->process($threadid, $cmid, $userid, $observations, $steptype);
+        return $this->orchestrator->process($threadid, $cmid, $userid, $observations, $steptype, $state);
     }
 
     /**

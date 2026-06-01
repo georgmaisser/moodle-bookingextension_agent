@@ -235,3 +235,283 @@ Diese Schritte werden erst nach Review und Abnahme des aktualisierten Flowcharts
 4. **R3 hat keinen Execution-Retry** — nach erstem transient error direkt FAIL_OUT.
 5. **Synchronizer darf keine Command-Semantik ändern** — bei Abweichung wird Planner-Output verwendet.
 6. **Risikoklasse ist deklarativ, nicht heuristisch** — kein Framework-Code leitet die Klasse aus Task-Namen, Feldern oder anderen Heuristiken ab.
+
+---
+
+## Soll-Ist-Abgleich (Stand 2026-06-01)
+
+Geprüft gegen die aktuelle Codebasis des bookingextension_agent-Frameworks. Zeigt, was bereits existiert und wo die Lücken für die Implementierung liegen.
+
+### Bereits vorhanden
+
+| Komponente | Datei | Status |
+|---|---|---|
+| `task_interface` | `interfaces/task_interface.php` | vorhanden, **kein** `get_risk_class()` |
+| `task_prompt_contract` DTO | `services/task_prompt_contract.php` | vorhanden, **kein** `risk_class`-Feld |
+| `base_task` | `base_task.php` | vorhanden, kennt nur `$readonly` |
+| `task_contract_validator` | `task_contract_validator.php` | vorhanden, prüft readonly/alias, **keine** risk_class-Invarianten |
+| `task_registry` / `build_prompt_contract` | `task_registry.php` | vorhanden, transportiert readonly ins Prompt-Contract, **kein** risk_class |
+| `preflight_pipeline` L1→L2→L3 | `services/preflight_pipeline.php` | vorhanden, Layer-Aktivierung **nicht** risikoabhängig |
+| `preflight_contract_validator` (L1) | `services/preflight_contract_validator.php` | vorhanden |
+| `preflight_domain_check_runner` (L2) | `services/preflight_domain_check_runner.php` | vorhanden |
+| `preflight_execution_gate` (L3) | `services/preflight_execution_gate.php` | vorhanden, Backoff generisch |
+| `agent_decision_service` routing | `services/decision/agent_decision_service.php` | vorhanden, Gating nur via `is_read_only()` + session-allow |
+| `queue_manager` | `queue/queue_manager.php` | vorhanden, TTL global (`queue_blocked_ttl_seconds`), kein risk_class-Split |
+| `queue_transition_service` | `services/queue_transition_service.php` | vorhanden, Statusmapping ohne Risikoklasse |
+| `confirm_run_service` + `build_retry_decision` | `services/confirm_run_service.php` | vorhanden, Retry generisch via `preflight_execution_gate` |
+| Finalisierung/Synchronizer | `agent_runtime.php` + `services/finalization_classifier.php` | vorhanden als Final Synthesis (kein separates Synchronizer-Objekt) |
+| `booking_task_base` (mod_booking) | `mod/booking/classes/local/wbagent/options/tasks/booking_task_base.php` | vorhanden |
+| `base_entities_task` (local_entities) | `local/entities/classes/local/wbagent/tasks/base_entities_task.php` | vorhanden |
+| `core_task_base` (bookingextension_agent) | `core/tasks/core_task_base.php` | vorhanden |
+
+### Noch nicht vorhanden (Implementierungslücken)
+
+- Kein `task_risk_class` Enum/DTO
+- Kein `get_risk_class()` in `task_interface` oder `base_task`
+- Kein `risk_class`-Feld in `task_prompt_contract::to_array()`
+- Kein `verify_risk_class_declaration()` in `task_contract_validator`
+- Keine risikoabhängige Layer-Aktivierung in `preflight_pipeline`
+- Kein `PF_L3_EXT`-Interface oder -Implementierung für R3
+- Kein risk_class-Feld in Queue-Items (`queue_manager::enqueue_command`)
+- Keine risk_class-abhängige TTL-Steuerung in `queue_manager::resolve_blocked_expires_at`
+- Kein risk_class-Gate in `queue_transition_service::apply_preflight_decision`
+- Keine R3-Sonderpfade in `confirm_run_service::build_retry_decision`
+- Kein `irreversibility_notice`/`affected_scope_summary` in Synchronizer-Contract
+- Keine `risk_class`-Deklaration in keinem der bestehenden Task-Objekte
+
+---
+
+## Implementierungsplan (mit Checkboxen)
+
+Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt entspricht einer Phase; innerhalb einer Phase können Punkte parallel bearbeitet werden, sofern keine Abhängigkeit angegeben ist.
+
+### Phase 1 — Vertragsgrundlage (DTO + Interface)
+
+**Neue Datei:** `classes/local/wbagent/dto/task_risk_class.php`
+- [ ] Klasse `task_risk_class` anlegen mit Klassenkonstanten: `R0 = 'read_only'`, `R1 = 'scoped_write'`, `R2 = 'broad_write'`, `R3 = 'irreversible_or_external'`
+- [ ] `is_valid(string $class): bool` als statische Hilfsmethode bereitstellen
+
+**Datei:** `classes/local/wbagent/interfaces/task_interface.php`
+- [ ] Methode `get_risk_class(): string` in `task_interface` deklarieren (Return-Wert: eine der `task_risk_class`-Konstanten)
+
+**Datei:** `classes/local/wbagent/base_task.php`
+- [ ] `protected string $riskclass` Property einführen (kein Default; fehlendes Setzen im Konstruktor führt zu Validator-Fehler)
+- [ ] `__construct(bool $readonly, string $riskclass)` Signatur anpassen
+- [ ] `get_risk_class(): string` implementieren
+
+**Datei:** `classes/local/wbagent/services/task_prompt_contract.php`
+- [ ] `risk_class` in `to_array()` ergänzen
+- [ ] Validierung: leerer risk_class-Wert → normalisiert auf `''` (der Validator prüft Vollständigkeit, nicht hier)
+
+### Phase 2 — Governance-Validator
+
+**Datei:** `classes/local/wbagent/task_contract_validator.php`
+- [ ] `build_task_metadata()` um `risk_class` aus `$task->get_risk_class()` erweitern
+- [ ] `validate_task_metadata()` um Pflichtfeld-Prüfung für `risk_class` erweitern (leer → Fehler)
+- [ ] `verify_risk_class_consistency()` implementieren:
+  - [ ] R0 + `is_read_only() = false` → Fehler
+  - [ ] R1/R2/R3 + `is_read_only() = true` → Fehler
+  - [ ] R2/R3 ohne `context_scopes`-Deklaration im Prompt-Contract → Warnung (kein hard deny, aber Diagnostic)
+  - [ ] Unbekannter Wert (nicht R0–R3) → Fehler
+
+**Datei:** `classes/local/wbagent/task_registry.php`
+- [ ] `build_prompt_contract()` um `risk_class` aus `task->get_risk_class()` ergänzen
+- [ ] `get_task_contracts()` transportiert `risk_class` in Metadaten
+
+### Phase 3 — Decision Service Gating
+
+**Datei:** `classes/local/wbagent/services/decision/agent_decision_service.php`
+
+- [ ] `split_commands_by_mutability()` zu `split_commands_by_risk_class()` erweitern; Rückgabe enthält vier Gruppen (`r0`, `r1`, `r2`, `r3`)
+- [ ] `has_mutating_commands()` bleibt erhalten, liest künftig aus risk_class (nicht aus is_read_only)
+- [ ] `D_PROMOTE`-Logik (task_call → confirmation_request) um risk_class-Gate erweitern:
+  - [ ] R0: niemals promoten
+  - [ ] R1: session-allow wird geprüft; bei aktivem allow → direkte Ausführung, TTL 900s
+  - [ ] R2: session-allow wird **ignoriert**; immer Confirmation erzwingen
+  - [ ] R3: session-allow wird **ignoriert**; immer Confirmation, kein auto-confirm
+- [ ] `handle_command_routing()` Queue-Ingestion um risk_class-Feld im Enqueue-Call erweitern
+- [ ] `pending_intent` payload um `risk_class` je Queue-Item ergänzen (für downstream TTL-Entscheidung)
+
+### Phase 4 — Preflight Pipeline
+
+**Datei:** `classes/local/wbagent/services/preflight_pipeline.php`
+
+- [ ] Pro Command risk_class aus Registry lesen (`$task->get_risk_class()`)
+- [ ] Layer-Aktivierungslogik implementieren:
+  - [ ] R0: kein Preflight (kein Queue-Eintrag, direkte readonly execute)
+  - [ ] R1: L1 + L2
+  - [ ] R2: L1 + L2 + L3
+  - [ ] R3: L1 + L2 + L3 + `PF_L3_EXT`
+- [ ] `PF_L3_EXT` Interface definieren:
+  - [ ] **Neue Datei:** `classes/local/wbagent/interfaces/external_dependency_checker_interface.php`
+  - [ ] Methode: `check(array $command, int $contextid, int $userid): preflight_result_v2`
+- [ ] Default-Stub-Implementierung:
+  - [ ] **Neue Datei:** `classes/local/wbagent/services/noop_external_dependency_checker.php`
+  - [ ] Gibt immer `preflight_result_v2::ok($input)` zurück
+
+### Phase 5 — Queue Manager
+
+**Datei:** `classes/local/wbagent/queue/queue_manager.php`
+
+- [ ] `enqueue_command()`: `risk_class`-Feld in das Queue-Item schreiben (aus `$command['risk_class']` lesen, geliefert vom Decision Service)
+- [ ] `resolve_blocked_expires_at(string $status, int $now)` zu `resolve_blocked_expires_at(string $status, int $now, string $riskclass = '')` erweitern:
+  - [ ] R1: TTL = 900s (oder konfigurierbarer Default)
+  - [ ] R2: TTL = 300s
+  - [ ] R3: TTL = 900s (aber kein auto-consume durch session-allow)
+  - [ ] Fallback: bisher konfigurierter `queue_blocked_ttl_seconds`-Wert
+- [ ] `DEFAULT_BLOCKED_TTL_SECONDS`-Konstante bleibt für Nicht-risk-class-Pfade
+
+### Phase 6 — Queue Transition Service
+
+**Datei:** `classes/local/wbagent/services/queue_transition_service.php`
+
+- [ ] `apply_preflight_decision()`: risk_class aus Queue-Item lesen (`$item['risk_class']`)
+- [ ] Bei R3 + `$autoconfirmmode = true`: autoconfirm ignorieren, trotzdem `blocked_confirmation`
+- [ ] `to_blocked_confirmation()`: TTL-Override über risk_class in `queue_manager` delegieren (kein direkter TTL-Wert hardcoden)
+
+### Phase 7 — Confirm Run Service / Execution Retry
+
+**Datei:** `classes/local/wbagent/services/confirm_run_service.php`
+
+- [ ] `build_retry_decision()`: risk_class aus Queue-Item lesen
+- [ ] R3 + retryable error class → direkt `queue_status = 'failed'` (kein `retry_hint` für R3)
+- [ ] Annotation im Code: "R3 tasks are idempotency-critical; retry after execution is forbidden"
+
+### Phase 8 — Finalisierung / Synchronizer-Contract
+
+**Datei:** `classes/local/wbagent/services/finalization_classifier.php`
+
+- [ ] `classify()` um risk_class-Routing erweitern:
+  - [ ] R3 + sufficient: `STRATEGY_LLM_POLISH` mit `irreversibility_notice`-Flag
+  - [ ] R2 + sufficient: `STRATEGY_LLM_POLISH` mit `affected_scope_summary`-Flag
+  - [ ] Strukturfehler (alle Klassen): immer `STRATEGY_DIRECT_FINAL`
+
+**Datei:** `classes/local/wbagent/agent_runtime.php`
+
+- [ ] `merge_synchronized_message()` um Rollback-Guard erweitern:
+  - [ ] Wenn Sync-Output Commands enthält → rollback (bereits vorhanden, erweitern)
+  - [ ] Wenn `response_type` abweicht → rollback (bereits vorhanden, erweitern)
+  - [ ] Neu: R3 → wenn `irreversibility_notice` im Sync-Output fehlt → rollback auf source result
+  - [ ] Neu: R2 → wenn `affected_scope_summary` im Sync-Output fehlt → Warnung, kein Rollback
+
+### Phase 9 — Task-Migration (alle existierenden Tasks)
+
+> **Arbeitsregel:** Jede Task-Klasse setzt `risk_class` explizit im Konstruktor. Kein Framework-Code leitet die Klasse her.
+>
+> Migration über `base_task`-Konstruktor (`parent::__construct(bool $readonly, string $riskclass)`). Tasks in `booking_task_base` und `base_entities_task` bekommen analoge Konstruktor-Erweiterungen.
+
+#### bookingextension_agent Core Tasks
+
+| Task | Klasse | Datei | risk_class | is_read_only | Checkbox |
+|---|---|---|---|---|---|
+| `core.list_actions` | `list_actions_task` | `core/tasks/list_actions_task.php` | R0 | true | - [ ] |
+| `core.get_current_user` | `get_current_user_task` | `core/tasks/get_current_user_task.php` | R0 | true | - [ ] |
+| `core.search_users` | `search_users_task` | `core/tasks/search_users_task.php` | R0 | true | - [ ] |
+| `core.search_courses` | `search_courses_task` | `core/tasks/search_courses_task.php` | R0 | true | - [ ] |
+| `core.recall_memory` | `recall_memory_task` | `core/tasks/recall_memory_task.php` | R0 | true | - [ ] |
+| `core.recreate_task_catalog` | `recreate_task_catalog_task` | `core/tasks/recreate_task_catalog_task.php` | R2 | false | - [ ] |
+
+#### mod_booking Tasks
+
+| Task | risk_class | is_read_only | Checkbox |
+|---|---|---|---|
+| `mod_booking.analyze_rules` | R0 | true | - [ ] |
+| `mod_booking.search_options` | R0 | true | - [ ] |
+| `mod_booking.list_option_properties` | R0 | true | - [ ] |
+| `mod_booking.get_option_details` | R0 | true | - [ ] |
+| `mod_booking.diagnose_booking_issue` | R0 | true | - [ ] |
+| `mod_booking.diagnose_cancellation_issue` | R0 | true | - [ ] |
+| `mod_booking.explain_docs_topic` | R0 | true | - [ ] |
+| `mod_booking.create_option` | R2 | false | - [ ] |
+| `mod_booking.create_slotbooking_option` | R2 | false | - [ ] |
+| `mod_booking.create_selflearning_option` | R2 | false | - [ ] |
+| `mod_booking.update_option` | R2 | false | - [ ] |
+| `mod_booking.bulk_update_options` | R2 | false | - [ ] |
+| `mod_booking.configure_booking_instance` | R2 | false | - [ ] |
+| `mod_booking.create_rule_from_template` | R2 | false | - [ ] |
+| `mod_booking.update_rule_from_template` | R2 | false | - [ ] |
+| `mod_booking.book_users` | R2 | false | - [ ] |
+| `mod_booking.add_price_category` | R2 | false | - [ ] |
+
+> **Hinweis:** `booking_task_base.__construct` übernimmt `risk_class` und reicht an `base_task` weiter. Konkrete Klassen setzen den Wert explizit im eigenen Konstruktor.
+
+#### local_entities Tasks
+
+| Task | risk_class | is_read_only | Checkbox |
+|---|---|---|---|
+| `entities.search` | R0 | true | - [ ] |
+| `entities.list_all_entities` | R0 | true | - [ ] |
+| `entities.create_entity` | R2 | false | - [ ] |
+
+> **Hinweis:** `base_entities_task.__construct` analog erweitern.
+
+#### local_shopping_cart
+
+- [ ] Kein `task_provider` in diesem Workspace gefunden (Stand 2026-06-01). Bei zukünftiger Integration: Task-Migration hier ergänzen.
+
+### Phase 10 — Tests
+
+> Alle neuen Testdateien liegen unter `public/mod/booking/bookingextension/agent/tests/`.
+
+**Unit-Tests**
+
+- [ ] `task_contract_validator_test.php` erweitern um:
+  - [ ] R0 + `is_read_only = false` → Validator-Fehler
+  - [ ] R3 + session-allow-Invariante geprüft
+  - [ ] fehlende risk_class → not_activatable
+  - [ ] unbekannter risk_class-Wert → Fehler
+  - [ ] alias_of kombiniert mit risk_class-Mismatch (Warnung)
+
+- [ ] Neue Datei `tests/agent/preflight_pipeline_risk_class_test.php`:
+  - [ ] R0-Task → kein Preflight-Eintrag in Pipeline
+  - [ ] R1-Task → L1 + L2 aktiv, L3 übersprungen
+  - [ ] R2-Task → L1 + L2 + L3 aktiv
+  - [ ] R3-Task → L1 + L2 + L3 + PF_L3_EXT aktiv
+  - [ ] L1 hard_block → L2/L3 übersprungen (bereits in Repo-Memory als fehlend vermerkt)
+
+- [ ] Neue Datei `tests/agent/queue_risk_class_test.php`:
+  - [ ] R1-Item: `blocked_expires_at = now + 900s`
+  - [ ] R2-Item: `blocked_expires_at = now + 300s`
+  - [ ] R3-Item: `blocked_expires_at = now + 900s`
+  - [ ] R3-Item + `autoconfirmmode = true` → bleibt `blocked_confirmation` (kein ready)
+  - [ ] R3-Item + transient error → direkt `failed` (kein `retry_waiting`)
+
+**Integration-Tests**
+
+- [ ] Neue Datei `tests/agent/decision_service_risk_gating_test.php`:
+  - [ ] R0-Command → kein Confirmation-Pfad
+  - [ ] R1-Command + session-allow aktiv → direkte Ausführung
+  - [ ] R2-Command + session-allow aktiv → Confirmation trotzdem erzwungen
+  - [ ] R3-Command + session-allow aktiv → Confirmation + kein auto-confirm
+
+- [ ] Neue Datei `tests/agent/synchronizer_risk_contract_test.php`:
+  - [ ] R3 + Sync-Output ohne `irreversibility_notice` → rollback auf source result
+  - [ ] R2 + Sync-Output ohne `affected_scope_summary` → kein rollback, aber Diagnostic
+  - [ ] Sync-Output mit Commands → rollback (bereits teilweise vorhanden, Erweiterung)
+
+**E2E-Tests**
+
+- [ ] Neue Datei `tests/agent/r3_task_e2e_test.php` (ggf. als Real-LLM-Test geskippt):
+  - [ ] R3-Task durch kompletten Pfad: Preflight L1+L2+L3+EXT → Queue blocked → manuelles Confirm → Execution → no retry bei Fehler → irreversibility_notice im Sync-Output
+
+---
+
+## Offene Fragen / Entscheidungsbedarfe (vor Implementierungsstart klären)
+
+1. **R1 im aktuellen Framework**: Gibt es bereits Kandidaten, die R1 wären (write, aber nur eigener User)? Wenn nicht, kann R1 vorerst als Reserved deklariert werden und alle Mutations starten als R2.
+
+-- Antwort: book user, wenn es den eigenen user betrifft wäre R1.
+
+2. **`booking_task_base`-Konstruktor-Signaturänderung**: Breaking Change für alle 17 mod_booking-Tasks. Soll der Default-Parameter `string $riskclass = ''` verwendet werden (verzögerte Pflicht per Validator) oder harter Pflicht-Parameter (sofortige Pflicht)?
+
+-- Antwort: Sofortige Pflicht, wir haben keinen Produktivbetrieb und somit auch keine Notwendigkeit einer Migration oder Rücksicht auf früheren Code stand.
+3. **R3-Kandidaten**: Aktuell keine R3-Tasks im Workspace. `mod_booking.book_users` könnte R3 sein (E-Mail-Trigger). Benötigt Review vor Task-Migration.
+
+-- Antwort: Aktuell mod_booking.book_users wenn es andere user betrifft -> R3.
+4. **`PF_L3_EXT`-Stub**: Soll der Noop-Stub als separates Setting abschaltbar sein (z. B. `queue_r3_ext_check_enabled`), oder ist er immer aktiv?
+5. **Synchronizer als eigenständiges Objekt**: Das Dokument beschreibt einen `Synchronizer`; in der Realität ist dies `agent_runtime::apply_synchronizer_message_polish`. Bei der Implementierung kein separates Synchronizer-Objekt einführen, sondern an der bestehenden Methode bleiben.
+
+-- Antwort: Absolut an der bestehenden Methode bleiben! Nichts neu einführen.
+6. **Backward-Compatibility bei task_contract_validator**: Tasks ohne risk_class müssen nach Migration sofort fehlschlagen (hart), oder soll es eine Grace-Period mit Diagnostic-Warnings geben?
+
+-- Antwort: Hart fehlschlagen. Es soll keine Backwards Compatibility geben!

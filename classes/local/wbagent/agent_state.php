@@ -70,6 +70,22 @@ final class agent_state {
     private array $observations = [];
 
     /**
+     * Per-run planner catalog cache keyed by input fingerprint.
+     *
+     * Cache payload shape:
+     *  [
+     *    'runtimecatalog' => array,
+     *    'unavailabletaskcatalog' => array,
+     *    'catalogselectionmode' => string,
+     *    'embeddingstatus' => string,
+     *    'embeddingrebuildqueued' => bool,
+     *  ]
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $plannercatalogcache = [];
+
+    /**
      * Private constructor — use agent_state::make().
      *
      * @param int $maxsteps
@@ -172,6 +188,55 @@ final class agent_state {
      */
     public function has_observations(): bool {
         return !empty($this->observations);
+    }
+
+    /**
+     * Return cached planner catalog payload for the given key.
+     *
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    public function get_planner_catalog_cache(string $cachekey): ?array {
+        $key = trim($cachekey);
+        if ($key === '' || !isset($this->plannercatalogcache[$key])) {
+            return null;
+        }
+
+        $cached = $this->plannercatalogcache[$key];
+        return is_array($cached) ? $cached : null;
+    }
+
+    /**
+     * Store planner catalog payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array $runtimecatalog
+     * @param array $unavailabletaskcatalog
+     * @param string $catalogselectionmode
+     * @param string $embeddingstatus
+     * @param bool $embeddingrebuildqueued
+     * @return void
+     */
+    public function set_planner_catalog_cache(
+        string $cachekey,
+        array $runtimecatalog,
+        array $unavailabletaskcatalog,
+        string $catalogselectionmode,
+        string $embeddingstatus,
+        bool $embeddingrebuildqueued
+    ): void {
+        $key = trim($cachekey);
+        if ($key === '') {
+            return;
+        }
+
+        $this->plannercatalogcache[$key] = [
+            'runtimecatalog' => $runtimecatalog,
+            'unavailabletaskcatalog' => $unavailabletaskcatalog,
+            'catalogselectionmode' => $catalogselectionmode,
+            'embeddingstatus' => $embeddingstatus,
+            'embeddingrebuildqueued' => $embeddingrebuildqueued,
+        ];
     }
 
     /**

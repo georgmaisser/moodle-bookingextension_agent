@@ -607,7 +607,7 @@ final class llm_task_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.list_option_properties' => [
-                'prompt' => 'Welche Angaben brauche ich, um eine Buchungsmoeglichkeit anzulegen?',
+                'prompt' => 'Welche properties haben Buchungsoptionen? Ich möchte keine Buchung erstellen, nur Auskunft.',
                 'assertions' => [
                     [
                         'target' => 'final',

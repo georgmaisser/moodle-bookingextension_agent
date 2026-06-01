@@ -85,7 +85,7 @@ flowchart TD
     subgraph SYNC["synchronizer — Final User-Facing Contract"]
         SYNC_RUN["synchronize(threadid, contextid, userid,\nplanner_result, observations, state)\nLLM polish only for humanizable states\n(sufficient / clarification / safe domain error)"]
         SYNC_TEMPLATE["synchronize_template_only(threadid, contextid, userid,\nterminal_result, state)\nno LLM call\nfor budget_exceeded / hard_block_with_user_message"]
-        SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n→ no task discovery / no command mutation"]
+        SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n+ confirm path: execution feedback as observation context\n→ no task discovery / no command mutation"]
         SYNC_PPB["synchronizer_prompt_builder::build()\nseparate synchronizer prompt/profile\n(aiinitialprompt_final_synthesis)"]
         SYNC_LANG["synchronizer language contract\nfinal reply follows latest user message\nmessage quality > routing detail"]
         SYNC_ROUTE["synchronizer_routing_service\nprefer generate_agent_reply (wpr, large model)\nfallback: generate_text"]
@@ -367,7 +367,9 @@ flowchart TD
     EXC_RUN --> EXC_SUCC
     EXC_RUN --> EXC_TRANSIENT
     EXC_RUN --> EXC_DOMAIN
-    EXC_SUCC -->|"ai_confirm_run: terminal success\n(no next mutating item)"| CONF_TERM
+    EXC_SUCC -->|"ai_confirm_run: terminal success\n(no next mutating item)"| EXECFEEDB
+    EXECFEEDB -->|"observation input"| CONF_TERM
+    EXECFEEDB -.->|"feeds as observation context"| SYNC_CTX
     EXC_SUCC -->|"ai_confirm_run: follow-up required\n(error/retry/next mutating)"| CONF_FOLLOW
     EXC_SUCC -.->|"optional: spawn contract path"| EXC_SPAWN
     EXC_SPAWN -.->|"optional enqueue of child commands"| Q_SPAWN
@@ -455,7 +457,7 @@ flowchart TD
         LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
         LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
         LG_PLAN["Planner contract\nread-only as task_call, mutating as confirmation_request\nfollow-up via confirm_pending\nplanner decides, but does not polish the final reply"]
-        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / task_call / structural failures\nconfirm terminal path uses the same classifier/finalization chain\nwithout changing command semantics"]
+        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / task_call / structural failures\nconfirm terminal path: same classifier/finalization chain (CONF_TERM → FCLASS → SYNC_RUN)\nSynchronizer LLM output = authoritative final user message\ntask execution feedback (build_completion_feedback) = observation context input only\ntask feedback must NOT overwrite Synchronizer output as final message"]
         LG_CLASS["Deterministic finalization classifier\nno LLM routing by intuition\nclassification must be testable from normalized result metadata only"]
         LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, task_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
         LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
