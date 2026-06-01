@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\contracts\task_family_contract;
+
 /**
  * Value object for explicit planner prompt contracts.
  *
@@ -42,12 +44,19 @@ class task_prompt_contract {
      * @return array<string,mixed>
      */
     public function to_array(): array {
+        $namespace = trim((string)($this->payload['namespace'] ?? ''));
+        $family = trim((string)($this->payload['family'] ?? ''));
+        if ($family === '' && $namespace !== '') {
+            $family = $namespace . '.general';
+        }
+
         return [
             'intent' => trim((string)($this->payload['intent'] ?? '')),
             'anchors' => self::normalize_string_list((array)($this->payload['anchors'] ?? [])),
             'minimal_input' => self::normalize_string_list((array)($this->payload['minimal_input'] ?? [])),
             'example_input' => is_array($this->payload['example_input'] ?? null) ? (array)$this->payload['example_input'] : [],
-            'namespace' => trim((string)($this->payload['namespace'] ?? '')),
+            'namespace' => $namespace,
+            'family' => task_family_contract::normalize_family($family),
             'version' => max(1, (int)($this->payload['version'] ?? 1)),
             'capabilities' => self::normalize_string_list((array)($this->payload['capabilities'] ?? [])),
             'context_scopes' => self::normalize_string_list((array)($this->payload['context_scopes'] ?? [])),

@@ -172,15 +172,22 @@ Hinweis zur Einordnung:
 
 ## Phase 2: Stage-A/B/C Steuerung ohne Embeddings
 
-- [ ] discovery_stage_controller implementieren
-- [ ] discovery_budget_policy implementieren
-- [ ] discovery_confidence_policy implementieren
-- [ ] family_signal_ranker implementieren (sprachagnostisch)
-- [ ] family_ranker implementieren
-- [ ] Stage A -> B -> C Eskalationslogik aktivieren
-- [ ] Tests fuer Eskalation, Budgetgrenzen und Stop-Regeln
+- [x] discovery_stage_controller implementieren
+- [x] discovery_budget_policy implementieren
+- [x] discovery_confidence_policy implementieren
+- [x] family_signal_ranker implementieren (sprachagnostisch)
+- [x] family_ranker implementieren
+- [x] Stage A -> B -> C Eskalationslogik aktivieren
+- [x] Tests fuer Eskalation, Budgetgrenzen und Stop-Regeln
 - [ ] DoD fuer Phase 2:
   Vollstaendiger Discovery-Pfad funktioniert robust ohne Embeddings
+
+Ergebnisstand (2026-06-01):
+
+- `phase2_discovery_staging_contract_test.php`: 5/5 Tests gruen
+- `routing_decision_log_service_contract_test.php`: 3/3 Tests gruen
+- `integration_agent_framework_test.php` (Smoke): 20/20 Tests gruen
+- Shadow-Discovery nutzt jetzt echte A/B/C-Policies, beeinflusst aber weiterhin nicht den Live-Pfad
 
 ## Phase 3: Selection und Parameter Construction trennen
 
@@ -323,9 +330,9 @@ Ziel dieses Arbeitsboards:
 - Pflichtfelder:
   catalogselectionmode, discovery_stage, confidence_score, escalation_reason
 - Abnahme:
-  - [ ] Felder erscheinen stabil in Thread-Metadaten.
-  - [ ] Fehlende Werte sind als null/unknown klar normalisiert.
-  - [ ] Integrations-Test fuer Persistenz pro Turn vorhanden.
+  - [x] Felder erscheinen stabil in Thread-Metadaten.
+  - [x] Fehlende Werte sind als null/unknown klar normalisiert.
+  - [x] Integrations-Test fuer Persistenz pro Turn vorhanden.
 - Risiko:
   zu viel unstrukturierter Freitext statt fester Felder.
 - Gegenmassnahme:
@@ -340,9 +347,9 @@ Ziel dieses Arbeitsboards:
   classes/local/wbagent/agent_runtime.php
   classes/local/wbagent/services/orchestrator_routing_service.php
 - Abnahme:
-  - [ ] Shadow-Pfad produziert Telemetrie, aber keine Verhaltensaenderung.
-  - [ ] Rollback ist ein Flag-Flip ohne Code-Revert.
-  - [ ] Smoke-Test fuer alte Hauptfaelle gruen.
+  - [x] Shadow-Pfad produziert Telemetrie, aber keine Verhaltensaenderung.
+  - [x] Rollback ist ein Flag-Flip ohne Code-Revert.
+  - [x] Smoke-Test fuer alte Hauptfaelle gruen.
 - Risiko:
   versehentliche Kopplung von Shadow-Output an produktiven Pfad.
 - Gegenmassnahme:
@@ -361,9 +368,9 @@ Ziel dieses Arbeitsboards:
 - Neue Artefakte:
   classes/local/wbagent/contracts/task_family_contract.php
 - Abnahme:
-  - [ ] Jeder Kern-Task liefert gueltige Family-Metadaten.
-  - [ ] Validation scheitert klar bei fehlender Family.
-  - [ ] Unit-Tests fuer positive/negative Contract-Faelle.
+  - [x] Jeder Kern-Task liefert gueltige Family-Metadaten.
+  - [x] Validation scheitert klar bei fehlender Family.
+  - [x] Unit-Tests fuer positive/negative Contract-Faelle.
 - Risiko:
   Bestands-Tasks ohne Family brechen Registrierung.
 - Gegenmassnahme:
@@ -377,9 +384,9 @@ Ziel dieses Arbeitsboards:
   classes/local/wbagent/services/discovery/family_registry_service.php
   classes/local/wbagent/dto/discovery_result.php
 - Abnahme:
-  - [ ] Kontexte liefern reproduzierbare Family-Sets.
-  - [ ] Keine Sprachheuristik fuer Routing verwendet.
-  - [ ] Unit-Tests fuer Mapping je Kontexttyp.
+  - [x] Kontexte liefern reproduzierbare Family-Sets.
+  - [x] Keine Sprachheuristik fuer Routing verwendet.
+  - [x] Unit-Tests fuer Mapping je Kontexttyp.
 - Risiko:
   zu grobe Kontextabbildung erzeugt Over-Inclusion.
 - Gegenmassnahme:
@@ -392,9 +399,9 @@ Ziel dieses Arbeitsboards:
 - Neue Artefakte:
   classes/local/wbagent/services/discovery/core_family_set.php
 - Abnahme:
-  - [ ] Core-Familien werden immer in Stage A aufgenommen.
-  - [ ] Konfigurierbare, kleine Obergrenze fuer Core-Liste.
-  - [ ] Tests gegen unbeabsichtigtes Anwachsen.
+  - [x] Core-Familien werden immer in Stage A aufgenommen.
+  - [x] Konfigurierbare, kleine Obergrenze fuer Core-Liste.
+  - [x] Tests gegen unbeabsichtigtes Anwachsen.
 - Risiko:
   Core-Set wird zu gross und verwaessert Ranking.
 - Gegenmassnahme:
@@ -407,9 +414,9 @@ Ziel dieses Arbeitsboards:
 - Neue Artefakte:
   classes/local/wbagent/services/discovery/context_prior_builder.php
 - Abnahme:
-  - [ ] Prior wird im Discovery-Result explizit ausgegeben.
-  - [ ] Kein Kandidat wird nur wegen Prior ausgeschlossen.
-  - [ ] Unit-Tests fuer Prior-Berechnung.
+  - [x] Prior wird im Discovery-Result explizit ausgegeben.
+  - [x] Kein Kandidat wird nur wegen Prior ausgeschlossen.
+  - [x] Unit-Tests fuer Prior-Berechnung.
 - Risiko:
   Prior wird versehentlich als Filter missbraucht.
 - Gegenmassnahme:
@@ -429,21 +436,21 @@ Ziel dieses Arbeitsboards:
 
 Gate A (nach P0-S2):
 
-- [ ] Flags stabil
-- [ ] Telemetrie stabil
-- [ ] keine Verhaltensaenderung im Live-Pfad
+- [x] Flags stabil
+- [x] Telemetrie stabil
+- [x] keine Verhaltensaenderung im Live-Pfad
 
 Gate B (nach P1-S2):
 
-- [ ] Family-Contracts valide
-- [ ] Family-Registry deterministisch
-- [ ] Shadow-Discovery liefert plausible Kandidaten
+- [x] Family-Contracts valide
+- [x] Family-Registry deterministisch
+- [x] Shadow-Discovery liefert plausible Kandidaten
 
 Gate C (nach P1-S4):
 
-- [ ] Context-Prior wirkt nur als Ranking-Prior
-- [ ] Core-Set und Family-Registry liefern robuste Stage-A-Basis
-- [ ] Freigabe fuer Phase 2 (Stage A/B/C Controller) erteilt
+- [x] Context-Prior wirkt nur als Ranking-Prior
+- [x] Core-Set und Family-Registry liefern robuste Stage-A-Basis
+- [x] Freigabe fuer Phase 2 (Stage A/B/C Controller) erteilt
 
 ## Sprintplan: Phase 0 und 1 in einem Sprint
 
@@ -461,16 +468,16 @@ Zeitbox:
 
 ### Sprint-Backlog (verbindlich)
 
-- [ ] P0-S1 abgeschlossen
-- [ ] P0-S2 abgeschlossen
-- [ ] P0-S3 abgeschlossen
-- [ ] Gate A bestanden
-- [ ] P1-S1 abgeschlossen
-- [ ] P1-S2 abgeschlossen
-- [ ] Gate B bestanden
-- [ ] P1-S3 abgeschlossen
-- [ ] P1-S4 abgeschlossen
-- [ ] Gate C bestanden
+- [x] P0-S1 abgeschlossen
+- [x] P0-S2 abgeschlossen
+- [x] P0-S3 abgeschlossen
+- [x] Gate A bestanden
+- [x] P1-S1 abgeschlossen
+- [x] P1-S2 abgeschlossen
+- [x] Gate B bestanden
+- [x] P1-S3 abgeschlossen
+- [x] P1-S4 abgeschlossen
+- [x] Gate C bestanden
 
 ### Tagesplan (empfohlener Ablauf)
 
@@ -531,6 +538,124 @@ Jede PR fuer einen Slice enthaelt mindestens:
 3. Testliste (unit/integration/smoke)
 4. Telemetrie-Auszug (vorher/nachher)
 5. Rollback-Anweisung (reiner Flag-Flip oder revert)
+
+### Konkreter PR-Scope: P0-S1 (Feature-Flag-Grundgeruest)
+
+Ziel von P0-S1:
+
+- zentrale Runtime-Feature-Flags einfuehren
+- bestehendes Verhalten unveraendert lassen (safe default)
+- technische Basis fuer P0-S2/P0-S3 schaffen
+
+Branch-Empfehlung:
+
+- `feature/wbagent-p0-s1-runtime-flags`
+
+#### A. Dateien (konkret)
+
+Neu:
+
+- `classes/local/wbagent/config/runtime_feature_flags.php`
+
+Anpassen (minimal):
+
+- `classes/local/wbagent/agent_runtime.php`
+- `classes/local/wbagent/orchestrator.php`
+- `classes/local/wbagent/conversation_store.php`
+- `classes/local/wbagent/services/orchestrator_routing_service.php`
+
+Tests (neu):
+
+- `tests/agent/contracts/runtime_feature_flags_test.php`
+
+#### B. Minimal-Diff-Strategie je Datei
+
+1. `classes/local/wbagent/config/runtime_feature_flags.php`
+
+- neue zentrale Resolver-Klasse fuer Flags, z. B. `runtime_feature_flags`
+- nur statische, rein lesende API
+- Flags fuer P0/P1 bereits enthalten, alle standardmaessig `false`
+  - `family_discovery_enabled`
+  - `staged_discovery_enabled`
+  - `synchronizer_strict_contract`
+
+2. `classes/local/wbagent/agent_runtime.php`
+
+- nur Einbindung des zentralen Resolvers
+- keine Verhaltensaenderung, nur vorbereitende Lesepunkte
+- optionale Debug-Metadaten: aktive Flag-Snapshot-Werte (read-only)
+
+3. `classes/local/wbagent/orchestrator.php`
+
+- nur Einbindung des zentralen Resolvers
+- aktuelle Legacy-Entscheidungslogik bleibt unveraendert
+- keine neuen Routingzweige in P0-S1 aktivieren
+
+4. `classes/local/wbagent/conversation_store.php`
+
+- optionaler persistenter Slot fuer Flag-Snapshot je Run/Thread-Meta
+- kein Einfluss auf Entscheidungslogik
+
+5. `classes/local/wbagent/services/orchestrator_routing_service.php`
+
+- nur zentralen Resolver konsumieren (keine eigene Flag-Quelle)
+- Verhalten bleibt identisch, solange Flags default `false` sind
+
+6. `tests/agent/contracts/runtime_feature_flags_test.php`
+
+- Testfall `default_values_are_safe`
+- Testfall `known_flags_can_be_resolved`
+- Testfall `unknown_flag_returns_false`
+- Testfall `consumer_classes_read_same_flag_source`
+
+#### C. Verbindliche Nicht-Ziele (P0-S1)
+
+- keine Umstellung auf Family-Discovery
+- keine neue Stage-A/B/C-Routinglogik
+- keine Embeddings-Aenderung
+- keine Finalization-Aenderung
+
+#### D. Merge-Checkliste fuer P0-S1
+
+- [x] neue Flag-Klasse vorhanden und zentral genutzt
+- [x] alle Flags per Default auf `false`
+- [x] keine Verhaltensaenderung in bestehenden Regression-Tests
+- [x] neue Unit-Tests fuer Flag-Resolver gruen
+- [ ] Code-Review bestaetigt: nur vorbereitende Infrastruktur
+
+#### E. Testausfuehrung (Mindestset)
+
+1. Gezielter Test fuer neue Flag-Klasse
+2. Bestehende Agent-Contract-Tests (Smoke)
+3. Ein repraesentativer Multi-Step-Test aus `tests/agent/real_llm_multistep/` (falls in CI vorhanden)
+
+Beispiel-Kommandos (an eure CI/Repo-Runner anpassen):
+
+```bash
+vendor/bin/phpunit public/mod/booking/bookingextension/agent/tests/agent/contracts/runtime_feature_flags_test.php
+vendor/bin/phpunit public/mod/booking/bookingextension/agent/tests/agent/contracts
+```
+
+Ergebnisstand (2026-06-01):
+
+- `runtime_feature_flags_test.php`: 4/4 Tests gruen
+- `routing_decision_log_service_contract_test.php`: 3/3 Tests gruen
+- `integration_agent_framework_test.php` (Smoke): 20/20 Tests gruen
+- PHPUnit meldet in den Laeufen bestehende Deprecations (nicht durch P0 verursacht)
+
+#### F. Rollback-Plan
+
+- Sofort-Rollback ohne Revert: alle neuen Flags auf `false` belassen
+- Falls technische Stoerung in Flag-Resolver: PR revertiert nur P0-S1-Dateien
+- Keine Datenmigration notwendig
+
+#### G. Exit-Kriterium fuer Start von P0-S2
+
+P0-S2 darf erst starten, wenn:
+
+- [x] P0-S1 gemerged ist
+- [x] Flag-Resolver in allen Zielklassen konsistent referenziert wird
+- [x] kein Verhalten im Legacy-Pfad geaendert wurde
 
 ### Harte Sprint-Abnahmekriterien
 

@@ -28,6 +28,7 @@ namespace bookingextension_agent\local\wbagent;
 
 use core\context;
 use context_module;
+use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\finalization_classifier;
@@ -54,6 +55,15 @@ class agent_runtime {
         'error',
         'execution_result',
     ];
+
+    /**
+     * Read-only runtime feature-flag snapshot used by orchestration consumers.
+     *
+     * @return array<string,bool>
+     */
+    public static function get_runtime_feature_flags_snapshot(): array {
+        return runtime_feature_flags::snapshot();
+    }
 
     /** @var task_registry */
     private task_registry $registry;

@@ -62,6 +62,7 @@ final class task_contract_validator_contract_test extends TestCase {
             'entities.search' => [
                 'taskname' => 'entities.search',
                 'namespace' => 'entities',
+                'family' => 'entities.general',
                 'version' => 1,
                 'component' => 'local_entities',
                 'capabilities' => ['local/entities:task_entities_search'],
@@ -73,6 +74,7 @@ final class task_contract_validator_contract_test extends TestCase {
             'entities.lookup' => [
                 'taskname' => 'entities.lookup',
                 'namespace' => 'entities',
+                'family' => 'entities.general',
                 'version' => 2,
                 'component' => 'local_entities',
                 'capabilities' => ['local/entities:task_entities_lookup'],
@@ -161,6 +163,7 @@ final class task_contract_validator_contract_test extends TestCase {
         $this->assertCount(1, $contracts);
         $this->assertSame('demo.lookup', (string)$contracts[0]['task']);
         $this->assertSame('demo', (string)$contracts[0]['namespace']);
+        $this->assertSame('demo.general', (string)$contracts[0]['family']);
         $this->assertSame(1, (int)$contracts[0]['version']);
         $this->assertContains('local/demo:task_demo_lookup', (array)$contracts[0]['capabilities']);
     }

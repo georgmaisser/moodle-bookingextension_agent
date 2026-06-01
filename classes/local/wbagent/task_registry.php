@@ -26,6 +26,7 @@ namespace bookingextension_agent\local\wbagent;
 
 use core_component;
 use core_text;
+use bookingextension_agent\local\wbagent\contracts\task_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_interface;
@@ -568,6 +569,10 @@ class task_registry {
         $contractversion = max(1, (int)($promptcontract['version'] ?? 1));
         $metaversion = max(1, (int)($taskmeta['version'] ?? 1));
         $version = max($contractversion, $metaversion);
+        $family = task_family_contract::resolve_from_prompt_contract($promptcontract, $taskname);
+        if ($family === task_family_contract::DEFAULT_FAMILY && !empty($taskmeta['family'])) {
+            $family = task_family_contract::normalize_family((string)$taskmeta['family']);
+        }
 
         $capabilities = array_values(array_unique(array_filter(array_map(
             'strval',
@@ -601,6 +606,7 @@ class task_registry {
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
             'namespace' => $namespace,
+            'family' => $family,
             'version' => $version,
             'capabilities' => $capabilities,
             'context_scopes' => $contextscopes,

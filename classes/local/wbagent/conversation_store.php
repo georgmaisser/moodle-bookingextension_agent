@@ -24,6 +24,7 @@
 
 namespace bookingextension_agent\local\wbagent;
 
+use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\interfaces\agent_conversation_store;
 use stdClass;
 
@@ -43,6 +44,15 @@ class conversation_store implements agent_conversation_store {
 
     /** Default lifetime for a confirmation allowlist entry in seconds (12h). */
     private const CONFIRMATION_SESSION_ALLOWLIST_TTL = 43200;
+
+    /**
+     * Read-only runtime feature-flag snapshot used by orchestration consumers.
+     *
+     * @return array<string,bool>
+     */
+    public static function get_runtime_feature_flags_snapshot(): array {
+        return runtime_feature_flags::snapshot();
+    }
 
     /**
      * Get the active thread for a user and contextid.

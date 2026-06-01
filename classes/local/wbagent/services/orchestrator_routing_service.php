@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use context_module;
 use core_ai\manager as ai_manager;
 use core_ai\aiactions\explain_text;
@@ -47,6 +48,15 @@ class orchestrator_routing_service {
 
     /** @var string */
     private string $wbreplyaction;
+
+    /**
+     * Read-only runtime feature-flag snapshot used by orchestration consumers.
+     *
+     * @return array<string,bool>
+     */
+    public static function get_runtime_feature_flags_snapshot(): array {
+        return runtime_feature_flags::snapshot();
+    }
 
     /**
      * Constructor.

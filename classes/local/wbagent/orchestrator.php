@@ -31,6 +31,7 @@ use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core\di;
 use core_text;
+use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
@@ -41,10 +42,12 @@ use bookingextension_agent\local\wbagent\services\assistant_state_guidance_servi
 use bookingextension_agent\local\wbagent\services\completed_command_history_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
 use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
+use bookingextension_agent\local\wbagent\services\discovery\context_prior_builder;
 use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
 use bookingextension_agent\local\wbagent\services\orchestrator_routing_service;
 use bookingextension_agent\local\wbagent\services\provider_routing_util;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wbagent\services\telemetry\routing_decision_log_service;
 
 /**
  * Orchestrates LLM interaction via core_ai.
@@ -88,6 +91,15 @@ class orchestrator {
 
     /** Wunderbyte final reply action class name. */
     private const WB_ACTION_GENERATE_AGENT_REPLY = '\\aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+
+    /**
+     * Read-only runtime feature-flag snapshot used by orchestration consumers.
+     *
+     * @return array<string,bool>
+     */
+    public static function get_runtime_feature_flags_snapshot(): array {
+        return runtime_feature_flags::snapshot();
+    }
 
     /** @var task_registry */
     private task_registry $registry;
@@ -573,6 +585,36 @@ class orchestrator {
             $embeddingrebuildqueued,
             false
         );
+
+        // Persist normalized routing telemetry and a shadow-only discovery trace.
+        // This must never alter the active routing decision path.
+        try {
+            $flagssnapshot = runtime_feature_flags::snapshot();
+            $contextprior = (new context_prior_builder())->build($contextid, [
+                'userid' => $userid,
+                'namespace_hint' => $this->resolve_namespace_hint_from_prompt_contracts($promptcontracts),
+            ]);
+            $routingtelemetry = [
+                'catalogselectionmode' => $catalogselectionmode,
+                'discovery_stage' => $shouldincludetaskcatalog ? 'A' : 'none',
+                'confidence_score' => null,
+                'escalation_reason' => 'none',
+            ];
+            (new routing_decision_log_service())->persist_thread_routing_decision(
+                $this->store,
+                $threadid,
+                $routingtelemetry,
+                $flagssnapshot,
+                [
+                    'promptcontracts' => $promptcontracts,
+                    'contextprior' => $contextprior,
+                    'recent_task_names' => $recenttaskhistory,
+                ]
+            );
+        } catch (\Throwable $e) {
+            // Telemetry is best-effort and must not impact runtime behavior.
+            $ignored = $e;
+        }
 
         $call = $llm->invoke($threadid, $cmid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
@@ -1417,6 +1459,35 @@ PROMPT;
         }
 
         return $index;
+    }
+
+    /**
+     * Resolve a deterministic namespace hint from prompt contracts.
+     *
+     * @param array<int,array<string,mixed>> $promptcontracts
+     * @return string
+     */
+    private function resolve_namespace_hint_from_prompt_contracts(array $promptcontracts): string {
+        $counts = [];
+        foreach ($promptcontracts as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+
+            $namespace = trim((string)($contract['namespace'] ?? ''));
+            if ($namespace === '') {
+                continue;
+            }
+
+            $counts[$namespace] = (int)($counts[$namespace] ?? 0) + 1;
+        }
+
+        if (empty($counts)) {
+            return '';
+        }
+
+        arsort($counts, SORT_NUMERIC);
+        return (string)array_key_first($counts);
     }
 
     /**

@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 use core_text;
+use bookingextension_agent\local\wbagent\contracts\task_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 
 /**
@@ -80,6 +81,7 @@ class task_contract_validator {
         return [
             'taskname' => $taskname,
             'namespace' => self::extract_task_namespace($taskname),
+            'family' => task_family_contract::from_task_name($taskname),
             'version' => (int)($schema['version'] ?? 1),
             'component' => trim($component),
             'capabilities' => $capabilities,
@@ -136,6 +138,13 @@ class task_contract_validator {
             $errors[] = 'Missing required field: namespace.';
         } else if ($taskname !== '' && self::extract_task_namespace($taskname) !== $namespace) {
             $errors[] = 'Invalid namespace: must match the taskname prefix.';
+        }
+
+        $family = trim((string)($taskmeta['family'] ?? ''));
+        if ($family === '') {
+            $errors[] = 'Missing required field: family.';
+        } else if (!task_family_contract::is_valid_family($family)) {
+            $errors[] = 'Invalid required field: family must be namespaced as <namespace>.<family>.';
         }
 
         $version = $taskmeta['version'] ?? null;
