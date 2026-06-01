@@ -120,7 +120,12 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $hassynchronizercall = false;
         foreach ($entries as $entry) {
             $source = (string)($entry->source ?? '');
-            if (strpos($source, 'st=final_synthesis') !== false || strpos($source, 'ac=wpr') !== false) {
+            if (
+                strpos($source, 'st=final_synthesis') !== false
+                || strpos($source, 'ac=wpr') !== false
+                || strpos($source, 'st=syn') !== false
+                || strpos($source, 'ac=wgr') !== false
+            ) {
                 $hassynchronizercall = true;
                 break;
             }

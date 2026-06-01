@@ -631,6 +631,7 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - If a matching task appears in UNAVAILABLE TASKS, mention that it exists but is currently not executable.
 - Do not emit unavailable tasks in commands.
 - Never re-emit an already completed action signature (same task + normalized input intent).
+- Never use response_type=task_call for mutating intents.
 
 TASK CONTRACT FIRST (highest priority):
 - Follow task-level routing hints from the TASK CATALOG (intent, minimal_input, anchors, example_input, message_triggers).
@@ -1095,6 +1096,7 @@ PROMPT;
             'For task_call/confirmation_request: commands must be a non-empty array.',
             'For clarification/confirm_pending/sufficient/error: commands must be [].',
             'Apply routing semantics from [SYSTEM] decision order; do not override them here.',
+            'For mutating intents, do not use task_call; use confirmation_request unless already completed -> sufficient.',
         ];
 
         if ($autoconfirmmode) {
