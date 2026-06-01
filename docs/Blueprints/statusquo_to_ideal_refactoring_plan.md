@@ -191,20 +191,37 @@ Ergebnisstand (2026-06-01):
 
 ## Phase 3: Selection und Parameter Construction trennen
 
-- [ ] lazy_task_loader implementieren
-- [ ] task_selector implementieren
-- [ ] task_selection_overlap_policy implementieren
-- [ ] parameter_constructor implementieren
-- [ ] parameter_contract_validator implementieren
-- [ ] interpreter auf Phasenmodell umstellen
-- [ ] End-to-End Tests fuer discovery -> selection -> construction
-- [ ] DoD fuer Phase 3:
+- [x] lazy_task_loader implementieren
+- [x] task_selector implementieren
+- [x] task_selection_overlap_policy implementieren
+- [x] parameter_constructor implementieren
+- [x] parameter_contract_validator implementieren
+- [x] interpreter auf Phasenmodell umstellen
+- [x] End-to-End Tests fuer discovery -> selection -> construction
+- [x] DoD fuer Phase 3:
   Keine kombinierte Task+Parameter-Entscheidung mehr in einem Schritt
+
+Ergebnisstand (2026-06-01):
+
+- `phase3_selection_construction_contract_test.php`: 3/3 Tests gruen
+- `integration_agent_framework_test.php` (Smoke): 20/20 Tests gruen
+- Interpreter nutzt jetzt task_selector -> lazy_task_loader -> parameter_constructor -> parameter_contract_validator
+
+## Phase 4 Vorbereitung: Family-Level Embeddings sauber andocken
+
+- [ ] embeddings_readiness_service als Family-Level-Gate dokumentieren
+- [ ] family_embeddings_retrieval_service Contract festziehen
+- [ ] family_embeddings_index_service Contract und Rebuild-Semantik festziehen
+- [ ] Shadow-Metriken fuer mit vs ohne Embeddings festlegen
+- [ ] Fallback-Kette family_ranker -> signal_ranker ohne Verhaltensbruch dokumentieren
+- [ ] DoD fuer Phase 4-Vorbereitung:
+  Family-Level-Embeddings sind nur Zusatzsignal, Live-Routing bleibt unveraendert
 
 ## Phase 4: Embeddings optional andocken (Family-Level)
 
 - [ ] family_embeddings_retrieval_service implementieren
 - [ ] family_embeddings_index_service implementieren
+- [ ] embeddings_readiness_service auf Family-Level verdrahten
 - [ ] readiness fuer Family-Embeddings verdrahten
 - [ ] Embeddings nur als Zusatzsignal in family_ranker einspeisen
 - [ ] Fallback bei Nichtverfuegbarkeit: unveraendert auf signal_ranker

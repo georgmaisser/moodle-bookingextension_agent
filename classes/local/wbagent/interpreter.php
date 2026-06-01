@@ -24,6 +24,10 @@
 
 namespace bookingextension_agent\local\wbagent;
 
+use bookingextension_agent\local\wbagent\services\construction\parameter_constructor;
+use bookingextension_agent\local\wbagent\services\construction\parameter_contract_validator;
+use bookingextension_agent\local\wbagent\services\selection\lazy_task_loader;
+use bookingextension_agent\local\wbagent\services\selection\task_selector;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
@@ -601,6 +605,118 @@ class interpreter implements agent_interpreter {
     }
 
     /**
+     * Safely coerce an arbitrary value to a trimmed string.
+     *
+     * @param mixed $value
+     * @return string
+     */
+    private function safe_string($value): string {
+        if (is_string($value)) {
+            return trim($value);
+        }
+
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return trim((string)$value);
+        }
+
+        if (is_scalar($value) && $value !== null) {
+            return trim((string)$value);
+        }
+
+        return '';
+    }
+
+    /**
+     * Build a generic error response payload.
+     *
+     * @param string $message
+     * @return array
+     */
+    private function error_result(string $message): array {
+        return $this->error_result_with_issue_code($message, 'CONTRACT_VALIDATION_ERROR');
+    }
+
+    /**
+     * Build an error response payload with a canonical issue code.
+     *
+     * @param string $message
+     * @param string $issuecode
+     * @return array
+     */
+    private function error_result_with_issue_code(string $message, string $issuecode): array {
+        $cleanmessage = $this->safe_string($message);
+        return [
+            'response_type' => 'error',
+            'lang' => '',
+            'message' => $cleanmessage,
+            'used_triggers' => [],
+            'commands' => [],
+            'ambiguities' => [],
+            'ambiguity_options' => [],
+            'errors' => $cleanmessage !== '' ? [$cleanmessage] : [],
+            'issue_codes' => [$this->safe_string($issuecode)],
+        ];
+    }
+
+    /**
+     * Build a fallback clarification message from ambiguity data.
+     *
+     * @param array $parsed
+     * @param array $ambiguities
+     * @return string
+     */
+    private function clarification_message(array $parsed, array $ambiguities): string {
+        $message = $this->strip_command_prefix($this->safe_string($parsed['message'] ?? ''));
+        if ($message !== '') {
+            return $message;
+        }
+
+        $summary = [];
+        foreach ($ambiguities as $ambiguity) {
+            if (!is_array($ambiguity)) {
+                continue;
+            }
+
+            $label = $this->safe_string($ambiguity['label'] ?? '');
+            if ($label !== '') {
+                $summary[] = $label;
+            }
+        }
+
+        if (!empty($summary)) {
+            return implode(' ', array_unique($summary));
+        }
+
+        return 'Bitte präzisieren Sie die Anfrage.';
+    }
+
+    /**
+     * Build a fallback confirmation message from backend ambiguities.
+     *
+     * @param array $ambiguities
+     * @return string
+     */
+    private function confirmation_message_from_ambiguities(array $ambiguities): string {
+        $labels = [];
+        foreach ($ambiguities as $ambiguity) {
+            if (!is_array($ambiguity)) {
+                continue;
+            }
+
+            $label = $this->safe_string($ambiguity['label'] ?? '');
+            if ($label !== '') {
+                $labels[] = $label;
+            }
+        }
+
+        if (!empty($labels)) {
+            return implode(' ', array_unique($labels));
+        }
+
+        return 'Bitte bestätigen Sie die vorgeschlagene Aktion.';
+    }
+
+    /**
      * If a task expects a 'question' field and it is missing/empty, fill it from lastusermessage.
      *
      * @param string $taskname
@@ -755,6 +871,9 @@ class interpreter implements agent_interpreter {
 
         $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
         $allowedtasks = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
+        $selector = new task_selector(new lazy_task_loader($this->registry));
+        $constructor = new parameter_constructor($this->registry);
+        $validator = new parameter_contract_validator();
         $seencommandsigs = [];
 
         foreach ($commands as $cmd) {
@@ -770,79 +889,53 @@ class interpreter implements agent_interpreter {
             }
             $seencommandsigs[$cmdsig] = true;
 
-            // Schema validation: required top-level keys.
-            if (!isset($cmd['task'])) {
-                $errors[] = "$label: missing 'task' key.";
+            $selection = $selector->select((array)$cmd, $allowedtasks, $label);
+            if ($selection->taskname !== '') {
+                $attemptedtasks[] = $selection->taskname;
+            }
+            if (!$selection->valid || $selection->task === null) {
+                if ($selection->taskname !== '') {
+                    $evaluation = $evaluator->evaluate_task($selection->taskname, $userid, $contextid);
+                    $denyreason = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
+                    $errors[] = "$label: task '" . $selection->taskname . "' denied by governance gate (" . $denyreason . ").";
+                    $issuecodes[] = 'TASK_DENIED';
+                } else {
+                    foreach ($selection->errors as $error) {
+                        $errors[] = $error;
+                    }
+                    $issuecodes[] = 'TASK_DENIED';
+                }
                 continue;
             }
 
-            $taskname = $cmd['task'];
-            $attemptedtasks[] = (string)$taskname;
-            if (!in_array($taskname, $allowedtasks, true)) {
-                $evaluation = $evaluator->evaluate_task((string)$taskname, $userid, $contextid);
-                $denyreason = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
-                $errors[] = "$label: task '$taskname' denied by governance gate ($denyreason).";
-                $issuecodes[] = 'TASK_DENIED';
-                continue;
-            }
-
-            $task = $this->registry->get_task($taskname);
-            if (!$task) {
-                $errors[] = "$label: task '$taskname' is not registered.";
-                continue;
-            }
-
-            $input = $rawinput;
-            if (!is_array($input)) {
+            if (!is_array($rawinput)) {
                 $errors[] = "$label: 'input' must be an object/array.";
                 continue;
             }
 
-            $input = $this->normalize_self_user_references($input);
-            $input = $this->canonicalize_command_input((string)$taskname, $input);
-
-            // Stage 3: Pure structural validation only — no DB access here.
-            // Deep validation (option resolution, duplicate-title checks, etc.) is
-            // handled by agent_decision_service::preflight() during routing.
-            $structural = $task->check_structure($input);
-            if (!($structural['valid'] ?? true)) {
-                foreach ((array)($structural['errors'] ?? []) as $e) {
-                    $errors[] = "$label: $e";
+            $constructed = $constructor->build($selection->taskname, $rawinput, '');
+            $structural = $validator->validate($selection->task, $constructed->input, $label);
+            if (!$structural->valid) {
+                foreach ($structural->errors as $error) {
+                    $errors[] = $error;
                 }
-                foreach ((array)($structural['issue_codes'] ?? []) as $issuecode) {
-                    $code = trim((string)$issuecode);
-                    if ($code !== '') {
-                        $issuecodes[] = $code;
-                    }
+                foreach ($structural->issuecodes as $issuecode) {
+                    $issuecodes[] = $issuecode;
                 }
                 continue;
             }
 
-            // Stage 6: Normalise dates.
-            if (array_key_exists('coursestarttime', $input)) {
-                $ts = $this->normalize_timestamp_value($input['coursestarttime']);
-                if ($ts !== null) {
-                    $input['coursestarttime'] = $ts;
-                }
-            }
-            if (array_key_exists('courseendtime', $input)) {
-                $ts = $this->normalize_timestamp_value($input['courseendtime']);
-                if ($ts !== null) {
-                    $input['courseendtime'] = $ts;
-                }
-            }
-
             // Stage 7: Deduplicate identical commands (same task + input) and emit.
-            $commandsig = $taskname . '|' . json_encode($input, JSON_UNESCAPED_UNICODE);
+            $commandsig = $selection->taskname . '|' . json_encode($structural->input, JSON_UNESCAPED_UNICODE);
             if (isset($seencommandsigs[$commandsig])) {
                 continue;
             }
             $seencommandsigs[$commandsig] = true;
 
             $validated[] = [
-                'task'    => $taskname,
-                'version' => $cmd['version'] ?? 1,
-                'input'   => $input,
+                'task'    => $selection->taskname,
+                'version' => $selection->version,
+                'input'   => $structural->input,
             ];
         }
 
@@ -895,227 +988,6 @@ class interpreter implements agent_interpreter {
         }
 
         return $normalized;
-    }
-
-    /**
-     * Canonicalize user self-references in known user-query fields.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function normalize_self_user_references(array $input): array {
-        $fields = ['teacherquery', 'selectusersquery', 'bookusersquery'];
-        foreach ($fields as $field) {
-            if (!isset($input[$field]) || !is_string($input[$field])) {
-                continue;
-            }
-
-            $raw = trim($input[$field]);
-            if ($raw === '') {
-                continue;
-            }
-
-            $parts = array_map('trim', explode(',', $raw));
-            $normalizedparts = [];
-            foreach ($parts as $part) {
-                if ($part === '') {
-                    continue;
-                }
-                // Self-reference marker is explicit: only the canonical token is recognized.
-                // Fuzzy phrases (e.g., 'vous', 'me') must NOT be auto-detected; Planner must use the token.
-                $normalizedparts[] = $part;
-            }
-
-            if (!empty($normalizedparts)) {
-                $input[$field] = implode(', ', $normalizedparts);
-            }
-        }
-
-        return $input;
-    }
-
-    /**
-     * Canonicalize task input before validation/confirmation is returned to UI.
-     *
-     * Delegates domain-specific normalization to provider-owned hooks registered
-     * in task_registry so the interpreter remains free of domain coupling.
-     *
-     * @param string $taskname
-     * @param array $input
-     * @return array
-     */
-    private function canonicalize_command_input(string $taskname, array $input): array {
-        $input = $this->registry->normalize_task_input($taskname, $input);
-
-        // Self-reference for diagnose_booking_issue must be explicit:
-        // Planner MUST send either empty userquery (self) or the canonical token.
-        // NO fuzzy phrase detection (e.g., 'vous', 'me', 'ich') — these are ambiguous.
-        // If userquery is present as a fuzzy phrase, it indicates LLM misconfiguration.
-        // (No auto-normalization here; validation layer will catch it.)
-
-        // Normalize search_queries: LLMs sometimes serialize arrays as comma-separated strings.
-        if (isset($input['search_queries']) && is_string($input['search_queries'])) {
-            $parts = array_values(array_filter(array_map('trim', explode(',', $input['search_queries']))));
-            $input['search_queries'] = $parts;
-        }
-
-        // Remove empty arrays that LLMs send as placeholders (e.g. doc_path_candidates: []).
-        foreach ($input as $key => $value) {
-            if (is_array($value) && count($value) === 0) {
-                unset($input[$key]);
-            }
-        }
-
-        return $input;
-    }
-
-    /**
-     * Normalize common timestamp inputs to unix timestamps.
-     *
-     * Accepts integers, numeric strings, date strings and common wrapped array forms.
-     * Returns null when no valid timestamp can be derived.
-     *
-     * @param mixed $value
-     * @return int|null
-     */
-    private function normalize_timestamp_value($value): ?int {
-        if (is_int($value)) {
-            return $value;
-        }
-
-        if (is_float($value)) {
-            return (int)$value;
-        }
-
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            if ($trimmed === '') {
-                return null;
-            }
-
-            if (ctype_digit($trimmed)) {
-                return (int)$trimmed;
-            }
-
-            $ts = strtotime($trimmed);
-            return ($ts === false) ? null : $ts;
-        }
-
-        if (!is_array($value) || empty($value)) {
-            return null;
-        }
-
-        foreach (['timestamp', 'value', 'datetime', 'date', 'time', 'iso'] as $key) {
-            if (!array_key_exists($key, $value)) {
-                continue;
-            }
-
-            $nested = $this->normalize_timestamp_value($value[$key]);
-            if ($nested !== null) {
-                return $nested;
-            }
-        }
-
-        if (array_key_exists(0, $value)) {
-            return $this->normalize_timestamp_value($value[0]);
-        }
-
-        return null;
-    }
-
-
-
-    /**
-     * Build a standard error result.
-     *
-     * @param string $message
-     * @return array
-     */
-    private function error_result(string $message): array {
-        return $this->error_result_with_issue_code($message, '');
-    }
-
-    /**
-     * Error result with contract gate issue code marker.
-     *
-     * Use this when a hard parse/contract failure occurs that must trigger
-     * early-exit and one-time retry before reaching decision_service.
-     *
-     * @param string $message
-     * @param string $issuecode Optional issue code for hard gates (CONTRACT_*)
-     * @return array
-     */
-    private function error_result_with_issue_code(string $message, string $issuecode = ''): array {
-        $result = [
-            'response_type' => 'error',
-            'message'       => $message,
-            'commands'      => [],
-            'ambiguities'   => [],
-            'ambiguity_options' => [],
-            'errors'        => [$message],
-        ];
-        if ($issuecode !== '') {
-            $result['issue_codes'] = [$issuecode];
-        }
-        return $result;
-    }
-
-    /**
-     * Safely extract a string value, stripping tags.
-     *
-     * @param  mixed $value
-     * @return string
-     */
-    private function safe_string($value): string {
-        return strip_tags((string)($value ?? ''));
-    }
-
-    /**
-     * Build a user-facing clarification message from ambiguities.
-     *
-     * Avoid placeholder LLM texts like "Executing." when validation asked for clarification.
-     *
-     * @param array $parsed
-     * @param array $ambiguities
-     * @return string
-     */
-    private function clarification_message(array $parsed, array $ambiguities): string {
-        $message = $this->safe_string($parsed['message'] ?? '');
-        $normalized = strtolower(trim($message));
-        $cleanambiguities = array_map(fn(string $line): string => $this->strip_command_prefix($line), $ambiguities);
-
-        // Prefer the LLM-authored clarification text so wording and language follow
-        // the detected lang field from structured JSON.
-        if ($normalized !== '' && !in_array($normalized, ['executing', 'executing.', 'running', 'running.'], true)) {
-            return $this->strip_command_prefix($message);
-        }
-
-        // Fallback only when the LLM message is empty or placeholder-like.
-        if (!empty($cleanambiguities)) {
-            return $this->safe_string(implode(' ', $cleanambiguities));
-        }
-
-        return $this->strip_command_prefix($message);
-    }
-
-    /**
-     * Build a confirmation message from validator-provided ambiguity lines.
-     *
-     * This is used for confirmable backend issues to avoid generic LLM text
-     * like "Moechten Sie ... buchen?" hiding the actual reason.
-     *
-     * @param array $ambiguities
-     * @return string
-     */
-    private function confirmation_message_from_ambiguities(array $ambiguities): string {
-        $cleanambiguities = array_map(fn(string $line): string => $this->strip_command_prefix($line), $ambiguities);
-        $cleanambiguities = array_values(array_filter($cleanambiguities, static fn(string $line): bool => trim($line) !== ''));
-
-        if (!empty($cleanambiguities)) {
-            return $this->safe_string(implode(' ', $cleanambiguities));
-        }
-
-        return '';
     }
 
     /**
