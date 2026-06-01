@@ -58,7 +58,7 @@ class adaptive_task_catalog_service {
          * Step-type determines strategy:
          *  - tool_call_parse: FULL catalog (initial routing, must not miss tasks)
          *  - simple_retrieval: MANDATORY + RECENCY (Top-80)
-         *  - final_synthesis: MANDATORY + RECENCY (same planner cutoff)
+         *  - legacy finalization: MANDATORY + RECENCY (same planner cutoff)
          *
          * @param array $fullcatalog Full task contracts from registry.
          * @param array $recenttaskhistory Recent tasks used in thread (in order).

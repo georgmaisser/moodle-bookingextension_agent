@@ -1,5 +1,10 @@
 # Synchronizer Migration Path
 
+Status (2026-06-01):
+- Der Planner ist inzwischen weitgehend von Final-Reasoning-Texten bereinigt.
+- Die aktive Finalisierung in diesem Snapshot laeuft ueber `finalization_classifier` und `finalization_template_service`.
+- Ein separater `synchronizer_service` ist in diesem Repository-Stand noch nicht als eigenes Zielmodul materialisiert.
+
 ## Ziel
 
 Vom aktuellen Ist-Zustand mit halb vorhandenen Final-Reasoning-/Final-Synthesis-Relikten zu einer expliziten Architektur mit:
@@ -29,7 +34,7 @@ Wir bauen keinen zweiten grossen Orchestrator neben den bestehenden Code. Stattd
 
 3. Teile von `orchestrator.php`
 - Die Prompt-Erzeugung fuer `generate_agent_reply` ist fachlich verwertbar.
-- Die Verarbeitung von `planner_trace_history` und `append_planner_traces_and_observations()` ist als Synchronizer-Kontext brauchbar.
+- Die Verarbeitung von `planner_trace_history` und `append_planner_traces_and_observations()` ist als Kontext-Baustein brauchbar.
 
 4. Test-Provider-Setup in `tests/agent/abstract_agent_testcase.php`
 - Registrierung von `aiprovider_wunderbyte\\aiactions\\generate_agent_reply` bleibt nuetzlich.
@@ -41,8 +46,8 @@ Wir bauen keinen zweiten grossen Orchestrator neben den bestehenden Code. Stattd
 - Historischer Altpfad aus der fruehen Migrationsphase.
 
 2. Legacy-Finalisierungs-Step-Typen in `orchestrator.php`
-- In der Runtime-Schleife derzeit nicht aktiv genutzt.
-- Leben hauptsaechlich als Altstruktur im Orchestrator weiter.
+- In der Runtime-Schleife derzeit nicht mehr fuer die Prompt-Logik genutzt.
+- Leben im Snapshot noch als Konstante / Finalization-Glue weiter.
 
 3. Final-Reasoning-/Final-Synthesis-Verzweigungen in `orchestrator_routing_service.php`
 - Heute Teil des Planner-Orchestrators, aber konzeptionell kuenftig Synchronizer-Zustaendigkeit.

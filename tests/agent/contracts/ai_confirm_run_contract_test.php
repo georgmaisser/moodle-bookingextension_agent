@@ -100,10 +100,16 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         );
 
         $this->assertTrue((bool)($result['success'] ?? false), 'Terminal queued mutation should execute successfully.');
-        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''),
-            'Terminal confirm path without follow-up queue item must end in sufficient.');
-        $this->assertSame('', (string)($result['queueitemid'] ?? ''),
-            'Terminal confirm path must not expose a follow-up queue item.');
+        $this->assertSame(
+            'sufficient',
+            (string)($result['response_type'] ?? ''),
+            'Terminal confirm path without follow-up queue item must end in sufficient.'
+        );
+        $this->assertSame(
+            '',
+            (string)($result['queueitemid'] ?? ''),
+            'Terminal confirm path must not expose a follow-up queue item.'
+        );
 
         $pendingintent = $store->get_pending_intent($threadid);
         $this->assertNull($pendingintent, 'No pending intent should remain in terminal confirm path.');
@@ -121,10 +127,10 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         foreach ($entries as $entry) {
             $source = (string)($entry->source ?? '');
             if (
-                strpos($source, 'st=final_synthesis') !== false
+                strpos($source, 'st=sr') !== false
                 || strpos($source, 'ac=wpr') !== false
-                || strpos($source, 'st=syn') !== false
-                || strpos($source, 'ac=wgr') !== false
+                || strpos($source, 'ac=sum') !== false
+                || strpos($source, 'ac=gen') !== false
             ) {
                 $hassynchronizercall = true;
                 break;
@@ -133,7 +139,8 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
 
         $this->assertTrue(
             $hassynchronizercall,
-            'Terminal confirm path without follow-up queue item must call final synthesis/finalizer (st=final_synthesis or ac=wpr).'
+            'Terminal confirm path without follow-up queue item must call finalization on the '
+            . 'retrieval/synthesis path (st=sr or ac=gen/sum).'
         );
     }
 
@@ -242,7 +249,11 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         );
         $queueitemid = (string)($result['queueitemid'] ?? '');
         $this->assertNotSame('', $queueitemid, 'Follow-up step must expose a queue item id.');
-        $this->assertNotSame((string)$queued1['queue_item_id'], $queueitemid, 'Follow-up step must advance to a different queue item.');
+        $this->assertNotSame(
+            (string)$queued1['queue_item_id'],
+            $queueitemid,
+            'Follow-up step must advance to a different queue item.'
+        );
         $this->assertSame(
             '[]',
             (string)($result['errorsjson'] ?? '[]'),

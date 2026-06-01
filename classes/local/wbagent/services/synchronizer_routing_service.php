@@ -16,28 +16,41 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\tests\agent\contracts;
+namespace bookingextension_agent\local\wbagent\services;
 
-use bookingextension_agent\local\wbagent\prompt_policy_builder;
-use advanced_testcase;
+use bookingextension_agent\local\wbagent\orchestrator;
 
 /**
- * Tests for planner policy extraction and final synthesis separation.
+ * Routes synchronizer finalization through the existing orchestrator entrypoint.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-final class prompt_policy_builder_test extends advanced_testcase {
+class synchronizer_routing_service {
     /**
-     * Verifies that planner policies stay free of final-synthesis text.
+     * Call the synchronizer route using the planner-safe retrieval step.
      *
-     * @covers \bookingextension_agent\local\wbagent\prompt_policy_builder::build_planner_policies
+     * @param orchestrator $orchestrator
+     * @param int $threadid
+     * @param int $cmid
+     * @param int $userid
+     * @param array $observations
+     * @return array
      */
-    public function test_planner_policies_do_not_contain_legacy_finalization_policy(): void {
-        $plannerpolicies = prompt_policy_builder::build_planner_policies('legacy_finalization', false, false);
-
-        $this->assertStringNotContainsString('SYNTHESIS RESPONSE POLICY', $plannerpolicies);
-        $this->assertStringContainsString('NON-OPTIONAL SUFFICIENCY POLICY', $plannerpolicies);
+    public function call_synchronizer_step(
+        orchestrator $orchestrator,
+        int $threadid,
+        int $cmid,
+        int $userid,
+        array $observations
+    ): array {
+        return $orchestrator->process(
+            $threadid,
+            $cmid,
+            $userid,
+            $observations,
+            orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
+        );
     }
 }

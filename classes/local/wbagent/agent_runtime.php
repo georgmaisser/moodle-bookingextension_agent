@@ -36,6 +36,9 @@ use bookingextension_agent\local\wbagent\services\finalization_template_service;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 use bookingextension_agent\local\wbagent\services\messaging\message_persistence_service;
+use bookingextension_agent\local\wbagent\services\synchronizer_input_builder;
+use bookingextension_agent\local\wbagent\services\synchronizer_output_contract;
+use bookingextension_agent\local\wbagent\services\synchronizer_routing_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
@@ -92,6 +95,15 @@ class agent_runtime {
     /** @var finalization_template_service */
     private finalization_template_service $finalizationtemplatesvc;
 
+    /** @var synchronizer_input_builder */
+    private synchronizer_input_builder $synchronizerinputbuilder;
+
+    /** @var synchronizer_routing_service */
+    private synchronizer_routing_service $synchronizerroutingsvc;
+
+    /** @var synchronizer_output_contract */
+    private synchronizer_output_contract $synchronizeroutputcontract;
+
     /**
      * Constructor.
      *
@@ -115,6 +127,9 @@ class agent_runtime {
         $this->languagepolicy = new language_policy_service();
         $this->finalizationclassifier = new finalization_classifier();
         $this->finalizationtemplatesvc = new finalization_template_service();
+        $this->synchronizerinputbuilder = new synchronizer_input_builder();
+        $this->synchronizerroutingsvc = new synchronizer_routing_service();
+        $this->synchronizeroutputcontract = new synchronizer_output_contract();
     }
 
     /**
@@ -291,42 +306,22 @@ class agent_runtime {
         }
 
         $cmid = $this->resolve_cmid_from_contextid($contextid);
-        $observations = [];
-        if ($state !== null && $state->has_observations()) {
-            $observations = $state->get_observations();
-        } else {
-            $loopresults = (array)($result['loop_results'] ?? []);
-            foreach ($loopresults as $step) {
-                if (!is_array($step)) {
-                    continue;
-                }
-
-                $observation = trim((string)($step['observation'] ?? ''));
-                if ($observation !== '') {
-                    $observations[] = $observation;
-                }
-            }
-        }
-
-        $sourceobservation = $this->build_final_synthesis_source_observation($result);
-        if ($sourceobservation !== '') {
-            $observations[] = $sourceobservation;
-        }
+        $observations = $this->synchronizerinputbuilder->build_observations($result, $state);
 
         try {
-            $syncresult = $this->call_orchestrator_step(
+            $syncresult = $this->synchronizerroutingsvc->call_synchronizer_step(
+                $this->orchestrator,
                 $threadid,
                 $cmid,
                 $userid,
-                $observations,
-                orchestrator::STEP_TYPE_FINAL_SYNTHESIS
+                $observations
             );
         } catch (\Throwable $e) {
             return $result;
         }
 
         unset($syncresult['_planner_raw_response']);
-        return $this->merge_synchronized_message($result, $syncresult);
+        return $this->synchronizeroutputcontract->merge($result, $syncresult);
     }
 
     /**
@@ -364,15 +359,15 @@ class agent_runtime {
     }
 
     /**
-     * Build a compact source result observation for final synthesis.
+     * Build a compact source result observation for finalization.
      *
-     * Ensures synthesis can reuse the exact preflight/runtime message content
+     * Ensures finalization can reuse the exact preflight/runtime message content
      * from the current turn, even before it is persisted.
      *
      * @param array $result
      * @return string
      */
-    private function build_final_synthesis_source_observation(array $result): string {
+    private function build_finalization_source_observation(array $result): string {
         $message = trim((string)($result['message'] ?? ''));
         if ($message === '') {
             return '';

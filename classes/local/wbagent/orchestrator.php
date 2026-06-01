@@ -75,9 +75,6 @@ class orchestrator {
     /** Compact prompt profile for iterative retrieval turns with observations. */
     public const STEP_TYPE_SIMPLE_RETRIEVAL = 'simple_retrieval';
 
-    /** Final synthesis turn: generate_text composes the polished answer from accumulated observations. */
-    public const STEP_TYPE_FINAL_SYNTHESIS = 'final_synthesis';
-
     /** Default model for task-catalog embeddings. */
     public const EMBEDDINGS_DEFAULT_MODEL = 'text-embedding-3-small';
 
@@ -717,7 +714,7 @@ PROMPT;
             return <<<'PROMPT'
 You are an AI reasoning assistant for the "{{bookingname}}" context.
 
-ACTION-SPECIFIC GUIDANCE FOR FINAL REASONING:
+ACTION-SPECIFIC GUIDANCE:
 - Base your answer on the latest user message, observations, and assistant state.
 - Be concise, precise, and helpful.
 - Do not propose extra tool calls if the available context already answers the request.
@@ -726,13 +723,9 @@ ACTION-SPECIFIC GUIDANCE FOR FINAL REASONING:
 - If observations already contain sufficient information, MUST return
     response_type="sufficient" with commands=[] and NO message field.
 - If information is still missing for a mutating action, ask one focused clarification question.
-- In final reasoning mode, prefer response_type=sufficient (no message) when observations answer the request.
 - For documented read-only questions, if observations are still insufficient,
     you MAY return one documentation task_call from the task catalog to retrieve more relevant information.
 - If you need another documentation task_call, prefer grounded candidate paths or topic hints over guessed root doc_path values.
-- In final reasoning mode, do NOT use response_type=confirm_pending.
-- In final reasoning mode, do NOT use response_type=error when observations already contain usable findings.
-- In final reasoning mode, do NOT promise further searching/tool calls; summarize the available findings now.
 - If observations already include concrete domain-specific configuration fields or labels,
     answer directly and do NOT ask the user to reconfirm intent.
 

@@ -152,23 +152,39 @@ Hinweis zur Einordnung:
 
 - [ ] Baseline-Branch und Rollback-Strategie festlegen
 - [ ] Bestehende Testsuite gruene Basis herstellen
-- [ ] Architektur-Merkmale als Runtime-Flags definieren
+- [x] Architektur-Merkmale als Runtime-Flags definieren
   Beispiel: family_discovery_enabled, staged_discovery_enabled, synchronizer_strict_contract
-- [ ] Telemetrie-Grundfelder definieren
+- [x] Telemetrie-Grundfelder definieren
   Beispiel: catalogselectionmode, discovery_stage, confidence_score, escalation_reason
 - [ ] DoD fuer Phase 0:
   Baseline reproduzierbar, Flags vorhanden, Messung vorbereitet
 
+Ergebnisstand (2026-06-01):
+
+- `runtime_feature_flags.php`: zentrale Flag-Quelle mit family/staged/synchronizer Flags
+- `routing_decision_log_service.php`: Telemetrie-Schema mit catalogselectionmode, discovery_stage, confidence_score, escalation_reason
+- `runtime_feature_flags_test.php`: zentrale Flag-Quelle und Fail-closed-Verhalten contract-getestet
+- `routing_decision_log_service_contract_test.php`: Telemetrie-Normalisierung und Shadow-Result abgesichert
+
 ## Phase 1: Family-Discovery Fundament
 
-- [ ] context_prior_builder implementieren
-- [ ] family_registry_service implementieren
-- [ ] core_family_set implementieren
-- [ ] task_family_contract einfuehren und fuer Kern-Tasks mappen
-- [ ] discovery_result DTO einfuehren
-- [ ] Unit-Tests fuer Mapping Domain/Context -> Family
-- [ ] DoD fuer Phase 1:
+- [x] context_prior_builder implementieren
+- [x] family_registry_service implementieren
+- [x] core_family_set implementieren
+- [x] task_family_contract einfuehren und fuer Kern-Tasks mappen
+- [x] discovery_result DTO einfuehren
+- [x] Unit-Tests fuer Mapping Domain/Context -> Family
+- [x] DoD fuer Phase 1:
   Family-Kandidaten werden deterministisch ohne Embeddings geliefert
+
+Ergebnisstand (2026-06-01):
+
+- `context_prior_builder.php`: Kontextprior für Ranking-only Signale
+- `family_registry_service.php`: deterministische Family-Kandidaten aus Prompt-Contracts
+- `core_family_set.php`: stabile Kernfamilien fuer robuste Mindestabdeckung
+- `task_family_contract.php`: Family-Metadaten werden aus Tasknamen/Contracts normalisiert
+- `discovery_result.php`: Family-/Context-/Core-Ergebnis als DTO
+- `phase1_discovery_foundation_contract_test.php`: Family-Discovery-Fundament contract-getestet
 
 ## Phase 2: Stage-A/B/C Steuerung ohne Embeddings
 
@@ -286,23 +302,42 @@ Ergebnisstand (2026-06-01):
 
 ## Phase 6: Synchronizer finalisieren
 
-- [ ] finalization_classifier-Regeln final absichern
-- [ ] synchronizer_input_builder finalisieren
-- [ ] synchronizer_routing_service finalisieren
-- [ ] synchronizer_output_contract finalisieren
-- [ ] template_only und llm_polish Pfad komplett absichern
-- [ ] Tests fuer Drift-Reject und Rollback auf Source-Result
-- [ ] DoD fuer Phase 6:
+- [x] finalization_classifier-Regeln final absichern
+- [x] synchronizer_input_builder finalisieren
+- [x] synchronizer_routing_service finalisieren
+- [x] synchronizer_output_contract finalisieren
+- [x] template_only und llm_polish Pfad komplett absichern
+- [x] Tests fuer Drift-Reject und Rollback auf Source-Result
+- [x] DoD fuer Phase 6:
   Einziger user-facing Finalpfad ist classifier -> synchronizer
+
+Ergebnisstand (2026-06-01):
+
+- `synchronizer_input_builder.php`: observations + source-result context materialisiert
+- `synchronizer_routing_service.php`: runtime finalization route aus dem orchestrator ausgelagert
+- `synchronizer_output_contract.php`: sync merge und drift rejection in eigener Service-Schicht
+- `agent_runtime.php`: classifier -> synchronizer flow ueber Services verdrahtet
 
 ## Phase 7: Altpfade entfernen und aufraeumen
 
-- [ ] Legacy-Final-Synthesis/FInal-Reasoning-Konstanten entfernen
-- [ ] Tote Branches in Orchestrator und Prompt-Policies entfernen
-- [ ] Nicht mehr genutzte Task-Top-K-Hauptpfade entfernen
-- [ ] Veraltete Tests/Fixtures bereinigen
-- [ ] Dokumentation und Flowcharts auf finalen Stand bringen
-- [ ] DoD fuer Phase 7:
+Ergebnisstand (2026-06-01):
+
+- `finalization_classifier.php`: deterministic finalization rules contract-tested
+- `finalization_template_service.php`: template-only fallback messages contract-tested
+- `runtime_finalization_contract_test.php`: rollback on response-type drift covered
+- `orchestrator.php`: legacy final reasoning guidance removed from explain_text prompt block
+- `agent_runtime.php`: legacy final_synthesis step routed to simple_retrieval finalization flow
+- `obsolete/synchronizer_migration_path.md`: status updated to current planner-only/finalization-classifier snapshot
+- `tests/agent/contracts/ai_confirm_run_contract_test.php`: legacy finalization fixture moved to current retrieval finalizer source markers
+- `tests/agent/contracts/orchestrator_prompt_profile_service_test.php`: legacy finalization fixture renamed to neutral input
+- `tests/agent/contracts/prompt_policy_builder_test.php`: legacy finalization fixture renamed to neutral input
+
+- [x] Legacy-Final-Synthesis/FInal-Reasoning-Konstanten entfernen
+- [x] Tote Branches in Orchestrator und Prompt-Policies entfernen
+- [x] Nicht mehr genutzte Task-Top-K-Hauptpfade entfernen
+- [x] Veraltete Tests/Fixtures bereinigen
+- [x] Dokumentation und Flowcharts auf finalen Stand bringen
+- [x] DoD fuer Phase 7:
   Neue Architektur ist exklusiv aktiv, Altlogik entfernt
 
 ## Teststrategie pro Phase

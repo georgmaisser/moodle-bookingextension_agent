@@ -43,8 +43,11 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
             'wbplanner'
         );
 
-        $this->assertSame('tool_call_parse', $service->normalize_runtime_step_type('final_synthesis'));
-        $this->assertSame('tool_call_parse', $service->normalize_planner_step_type('final_synthesis'));
-        $this->assertSame('aiinitialprompt_tool_call_parse', $service->get_planner_initial_prompt_config_key('final_synthesis'));
+        $this->assertSame('tool_call_parse', $service->normalize_runtime_step_type('legacy_finalization'));
+        $this->assertSame('tool_call_parse', $service->normalize_planner_step_type('legacy_finalization'));
+        $this->assertSame(
+            'aiinitialprompt_tool_call_parse',
+            $service->get_planner_initial_prompt_config_key('legacy_finalization')
+        );
     }
 }
