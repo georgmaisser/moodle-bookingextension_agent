@@ -174,12 +174,9 @@ class prompt_policy_builder {
     private static function build_routing_determinism_policy(): string {
         return "NON-OPTIONAL ROUTING DETERMINISM POLICY:\n"
             . "- Route from task catalog evidence (readonly, minimal_input, anchors, message_triggers), not phrase lists.\n"
-            . "- For grounded read-only retrieval, return response_type=task_call.\n"
-            . "- For grounded mutating actions, return response_type=confirmation_request.\n"
-            . "- For explicit confirmation of a pending action, return response_type=confirm_pending.\n"
-            . "- If required fields are missing or ambiguous, return response_type=clarification.\n"
-            . "- Do NOT use confirmation_request for read-only retrieval intents.\n"
-            . "- Do NOT use confirm_pending unless confirmation intent is explicit.\n"
+            . "- Follow one decision order: completed outcome -> sufficient, explicit pending confirmation"
+            . " -> confirm_pending, missing required fields -> clarification, mutating -> confirmation_request,"
+            . " read-only -> task_call.\n"
             . "\nMUTATION CLARIFICATION MINIMIZATION:\n"
             . "- Do not ask clarification for fields already explicitly provided by the user.\n"
             . "- Reuse task-catalog examples and descriptions to map explicit user phrasing to task input fields.\n"
@@ -269,49 +266,22 @@ class prompt_policy_builder {
                 . "- Always include: response_type=sufficient, message (non-empty), commands=[], user_lang.\n";
         }
 
-        $policy = "OBSERVATION TERMINATION RULE (ABSOLUTE):\n"
-            . "- If an OBSERVATION contains information relevant to the current user request: "
-            . "return response_type=sufficient and commands=[].\n"
-            . "- Stop reasoning immediately after that decision; do not continue task selection or mutation checks.\n"
-            . "- Re-calling tools after a relevant observation exists is a protocol violation.\n"
-            . "\n"
-            . "RULE PRIORITY (evaluate top-down — first matching rule wins):\n"
-            . "1. SUFFICIENCY RULE: observation present AND relevant → response_type=sufficient, "
-            . "commands=[], message optional (omit if SR only evaluates, no synthesis).\n"
-            . "2. READ-ONLY RULE:      no observation present → response_type=task_call, commands non-empty.\n"
-            . "3. MUTATIONS RULE:      mutating intent → response_type=confirmation_request, commands non-empty.\n"
-            . "CRITICAL: Returning task_call when a relevant observation already exists is a CONTRACT VIOLATION.\n"
-            . "\n"
-            . "NON-OPTIONAL SUFFICIENCY POLICY:\n"
-            . "- After executing tool calls and receiving results, evaluate whether you have SUFFICIENT information to answer.\n"
-            . "- Answer directly if:\n"
-            . "  * You found the requested information (booking options, documentation, user details, etc.).\n"
-            . "  * You received explicit documentation or capability listing.\n"
-            . "  * Multiple searches return no new results.\n"
-            . "- Do NOT continue searching if you already have actionable information.\n"
-            . "- Prefer stopping and answering over making redundant tool calls.\n"
-            . "- When in doubt: Answer with what you found rather than searching again.";
+        $policy = "NON-OPTIONAL SUFFICIENCY POLICY:\n"
+            . "- Use first-match priority: completed outcome evidence -> sufficient,"
+            . " explicit pending confirmation -> confirm_pending,"
+            . " missing required fields -> clarification, mutating -> confirmation_request, read-only -> task_call.\n"
+            . "- Treat completed_commands and completed_observations as authoritative execution evidence.\n"
+            . "- Do not re-emit a command when the same outcome is already completed.\n"
+            . "- Prefer finishing with sufficient instead of repeating equivalent tool calls.";
 
         // CRITICAL: Apply re-call prevention ONLY to the planner (simple_retrieval), not to final synthesis.
         // This preserves the mini-model (early steps) / large-model (final synthesis) architecture.
         if ($normalizedsteptype === 'simple_retrieval' && $hasobservations) {
-            $policy .= "\n- CRITICAL (reasoning step with observations): OBSERVATION blocks contain results from prior steps."
-                . " When observations are available:\n"
-                . "  1. FIRST check if observations contain diagnostic, search, or factual results "
-                . "relevant to the user's request.\n"
-                . "  2. IF YES and the user's primary intent is read-only: return response_type=sufficient "
-                . "with commands=[] and optional message field. "
-                . "Do NOT summarize or interpret observations. "
-                . "Synthesis (next step) will compose the final user-facing answer.\n"
-                . "  3. IF the user's primary intent is a mutation, a read-only or documentation observation "
-                . "does not complete that mutation by itself. Use the TASK CATALOG to either return "
-                . "confirmation_request for a grounded mutation command, or clarification for missing "
-                . "required mutation fields.\n"
-                . "  4. IF NO: return response_type=clarification with explanation of what is missing.\n"
-                . "  5. NEVER re-call the same command signature "
-                . "(task + normalized input) if it already exists in OBSERVATION blocks.\n"
-                . "  6. Re-calling the same task with DIFFERENT grounded input may be valid.\n"
-                . "  7. Re-calling a command signature whose result already exists is a PROTOCOL VIOLATION.";
+            $policy .= "\n- For simple_retrieval with observations:"
+                . " if observations already answer the current request, return sufficient with commands=[].\n"
+                . "- For mutation intents, only return confirmation_request when required mutation data is grounded"
+                . " and no completed outcome already exists.\n"
+                . "- Avoid repeating the same command signature when its result already exists in observations.";
         }
 
         return $policy;

@@ -616,27 +616,25 @@ You are an AI agent planner for the "{{bookingname}}" context.
 
 ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - Keep instructions compact and action-oriented. Do not over-explain.
-- Route the latest user message to exactly ONE task_call OR ask for missing data.
+- Use this strict decision order (first matching rule wins):
+  1) already completed outcome in completed_commands/completed_observations
+      -> response_type=sufficient, commands=[].
+  2) explicit confirmation of an already pending action
+      -> response_type=confirm_pending, commands=[].
+  3) missing required input for the selected task
+      -> response_type=clarification, commands=[].
+  4) grounded mutating intent
+      -> response_type=confirmation_request, commands non-empty.
+  5) grounded read-only intent
+      -> response_type=task_call, commands non-empty.
 - Use only exact task names from the TASK CATALOG. Never invent aliases.
 - If a matching task appears in UNAVAILABLE TASKS, mention that it exists but is currently not executable.
 - Do not emit unavailable tasks in commands.
+- Never re-emit an already completed action signature (same task + normalized input intent).
 
 TASK CONTRACT FIRST (highest priority):
 - Follow task-level routing hints from the TASK CATALOG (intent, minimal_input, anchors, example_input, message_triggers).
 - Keep global routing generic; do not hardcode special behavior for individual task names.
-
-READ-ONLY RULE (mandatory):
-- For read-only intents (list, search, get, diagnose), return response_type=task_call.
-- task_call MUST include commands with the task and ALL collected input fields.
-- Never return task_call with commands=[].
-- If required data is missing, ask exactly ONE clarifying question as response_type=clarification with commands=[].
-
-MUTATIONS RULE (mandatory):
-- For mutating intents (create, update, delete), return response_type=confirmation_request.
-- confirmation_request MUST include commands with the task and ALL collected input fields.
-- Never return confirmation_request with commands=[].
-- If required data is missing, ask exactly ONE clarifying question as response_type=clarification with commands=[].
-- Do not guess or invent missing data.
 
 PROMPT;
         }
@@ -1096,7 +1094,7 @@ PROMPT;
             'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.',
             'For task_call/confirmation_request: commands must be a non-empty array.',
             'For clarification/confirm_pending/sufficient/error: commands must be [].',
-            '- response_type for ALL mutating actions: always "confirmation_request" (never "task_call"). This does NOT change.',
+            'Apply routing semantics from [SYSTEM] decision order; do not override them here.',
         ];
 
         if ($autoconfirmmode) {

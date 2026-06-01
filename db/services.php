@@ -50,6 +50,14 @@ $functions = [
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
+    'bookingextension_agent_ai_discard_pending' => [
+        'classname'   => '\\bookingextension_agent\\external\\ai_discard_pending',
+        'methodname'  => 'execute',
+        'description' => 'Discard the current pending confirmation and skip its queue items.',
+        'type'        => 'write',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
+        'ajax'        => 1,
+    ],
     'bookingextension_agent_ai_poll_thread' => [
         'classname'   => '\\bookingextension_agent\\external\\ai_poll_thread',
         'methodname'  => 'execute',
@@ -114,6 +122,7 @@ $services = [
             'bookingextension_agent_ai_send_message',
             'bookingextension_agent_ai_privacy_precheck',
             'bookingextension_agent_ai_confirm_run',
+            'bookingextension_agent_ai_discard_pending',
             'bookingextension_agent_ai_poll_thread',
             'bookingextension_agent_ai_get_thread_debug_logs',
             'bookingextension_agent_ai_list_candidate_options',

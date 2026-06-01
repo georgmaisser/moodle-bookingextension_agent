@@ -76,5 +76,10 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026052300, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026053100) {
+        // No DB schema changes. Savepoint exists to roll out updated WS registrations.
+        upgrade_plugin_savepoint(true, 2026053100, 'bookingextension', 'agent');
+    }
+
     return true;
 }

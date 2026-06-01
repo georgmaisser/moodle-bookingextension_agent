@@ -2257,6 +2257,9 @@ const confirmRun = (allowSession = false) => {
             allow_session: effectiveAllowSession,
         },
     }])[0].then((resp) => {
+        // Consume current pending confirmation. A follow-up confirmation_request
+        // may set a fresh pendingCommands inside handleConfirmationResponse().
+        pendingCommands = null;
         if (resp.success) {
             const responseType = String(resp.response_type || '');
             // Steps are ephemeral loading indicators. Clear them and stop polling when response arrives.
@@ -2277,9 +2280,43 @@ const confirmRun = (allowSession = false) => {
             clearActivePlanBubble();
             showRunStatus('failed', resp.message);
         }
-        pendingCommands = null;
         return resp;
     }).catch((err) => {
+        Notification.exception(err);
+    });
+};
+
+/**
+ * Discard currently pending confirmation and skip queued mutating item(s).
+ */
+const discardPendingConfirmation = () => {
+    if (currentThreadId <= 0 || pendingQueueItemId === '') {
+        hideConfirmPanel();
+        return;
+    }
+
+    Ajax.call([{
+        methodname: 'bookingextension_agent_ai_discard_pending',
+        args: {
+            contextid: currentContextId,
+            threadid: currentThreadId,
+        },
+    }])[0].then((resp) => {
+        const ok = Boolean(resp && resp.success);
+        hideConfirmPanel(true);
+        if (!ok) {
+            const message = String((resp && resp.message) || 'Unable to discard pending confirmation.');
+            showRunStatus('failed', message);
+            return resp;
+        }
+
+        const message = String((resp && resp.message) || 'Pending confirmation was discarded.');
+        appendFriendlyAssistantMessage(message);
+        return resp;
+    }).catch((err) => {
+        const fallbackMessage = 'Discard failed. Pending confirmation is still active. '
+            + 'If this happened after an update, run the Moodle plugin upgrade and reload the page.';
+        appendFriendlyAssistantMessage(fallbackMessage);
         Notification.exception(err);
     });
 };
@@ -2531,7 +2568,7 @@ const handleBodyClick = (event) => {
 
     const cancelBtn = target.closest('#booking-ai-btn-cancel');
     if (cancelBtn instanceof HTMLElement) {
-        hideConfirmPanel();
+        discardPendingConfirmation();
         return;
     }
 

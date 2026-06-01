@@ -7,6 +7,7 @@ flowchart TD
     subgraph ENTRY["External API Layer (classes/external/)"]
         ASM["ai_send_message::execute()\ncontextid · message · threadid"]
         ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session"]
+        ACD["ai_discard_pending::execute()\ncontextid · threadid"]
         APO["ai_poll_thread::execute()"]
         APREVIEW["ai_render_command_preview::execute()"]
     end
@@ -152,6 +153,7 @@ flowchart TD
         Q_DEPCHECK{"dependencies\n_succeeded()?"}
         Q_BIND["bind dependency artifacts\nproducer outputs → child input\nthen late preflight"]
         Q_SKIP["status: skipped\nlogical dependency skip"]
+        Q_SKIP_USER["status: skipped\nuser-discarded active thread queue"]
         Q_RUNNING["try_mark_running(threadid, queueitemid)\n[Atomic: SELECT FOR UPDATE + check + set\nmax 1 running per thread]"]
         Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
         Q_READY["status: ready"]
@@ -230,12 +232,15 @@ flowchart TD
     ASM -->|"4. run_loop()"| RUNLOOP
     ASM -->|"response autoconfirm?"| CS12
     ACR --> AZ3
+    ACD --> AZ3
     APO --> AZ3
     APREVIEW --> AZ3
     ACR -->|"allow_session=true"| CS11
     ACR -->|"executionmode=adhoc\nqueue_adhoc_task"| ADHOC
     ACR -->|"consume pending intent"| CS13
+    ACD -->|"consume pending intent (discard)"| CS13
     CS13 -->|"queue item resolved"| Q_READY
+    CS13 -->|"discard all actionable mutating queue items (thread)"| Q_SKIP_USER
     ADHOC -->|"process queued run"| EXC
 
     AZ1 --> CS1
