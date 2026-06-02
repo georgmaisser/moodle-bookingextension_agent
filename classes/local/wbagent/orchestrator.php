@@ -1135,10 +1135,6 @@ class orchestrator {
         $selectedtask = trim((string)($selectionstate['selected_task'] ?? ''));
 
         if ($selectedtask === '') {
-            $selectionresponsetype = trim((string)($selectionstate['response_type'] ?? ''));
-            if ($selectionresponsetype !== '' && $selectionresponsetype !== 'task_call') {
-                return $this->build_construction_passthrough_from_selection($selectionstate);
-            }
             return $this->build_selector_handoff_error_result();
         }
 
@@ -1359,25 +1355,6 @@ class orchestrator {
             'ambiguities' => [],
             'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_task for construction.'],
             'issue_codes' => ['CONTRACT_SELECTION_TASK_MISSING'],
-        ];
-    }
-
-    /**
-     * Pass through non-task selection outcomes instead of masking them.
-     *
-     * @param array<string,mixed> $selectionstate
-     * @return array<string,mixed>
-     */
-    private function build_construction_passthrough_from_selection(array $selectionstate): array {
-        return [
-            'response_type' => (string)($selectionstate['response_type'] ?? 'error'),
-            'message' => (string)($selectionstate['message'] ?? get_string('ai_provider_error', 'bookingextension_agent')),
-            'commands' => (array)($selectionstate['commands'] ?? []),
-            'ambiguities' => (array)($selectionstate['ambiguities'] ?? []),
-            'ambiguity_options' => (array)($selectionstate['ambiguity_options'] ?? []),
-            'errors' => (array)($selectionstate['errors'] ?? []),
-            'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
-            'selected_task' => (string)($selectionstate['selected_task'] ?? ''),
         ];
     }
 
@@ -2212,4 +2189,48 @@ PROMPT;
             if (!is_array($entry)) {
                 continue;
             }
-   
+            $taskname = trim((string)($entry['task'] ?? ''));
+            if ($taskname !== '') {
+                $existing[$taskname] = true;
+            }
+        }
+
+        $fallbackindex = [];
+        foreach ($fallbackcatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $taskname = trim((string)($entry['task'] ?? ''));
+            if ($taskname !== '') {
+                $fallbackindex[$taskname] = $entry;
+            }
+        }
+
+        $result = $primarycatalog;
+        $added = 0;
+        foreach ($recenttaskhistory as $taskname) {
+            $taskname = trim((string)$taskname);
+            if ($taskname === '' || isset($existing[$taskname])) {
+                continue;
+            }
+
+            $executablestate = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
+            if ($executablestate === 'deny') {
+                continue;
+            }
+
+            if (!isset($fallbackindex[$taskname])) {
+                continue;
+            }
+
+            $result[] = $fallbackindex[$taskname];
+            $existing[$taskname] = true;
+            $added++;
+            if ($added >= $maxadditions) {
+                break;
+            }
+        }
+
+        return $result;
+    }
+}

@@ -390,33 +390,6 @@ class interpreter implements agent_interpreter {
             $lang = strtolower(substr($lang, 0, 2));
         }
 
-        // Selection must be a selector call. If the model drifts into a
-        // confirmation_request without selecting a task, downgrade to
-        // clarification so runtime can respond safely without construction.
-        if ($responsetype === 'confirmation_request') {
-            $message = $this->safe_string($parsed['message'] ?? '');
-            if ($message === '') {
-                return $this->error_result_with_issue_code(
-                    'Selection phase returned confirmation_request with empty message.',
-                    'CONTRACT_EMPTY_SELECTION_MESSAGE'
-                );
-            }
-
-            return [
-                'response_type' => 'clarification',
-                'lang' => $lang,
-                'user_lang' => $userlang,
-                'message' => $this->strip_command_prefix($message),
-                'used_triggers' => $this->extract_used_triggers($parsed),
-                'commands' => [],
-                'selected_task' => '',
-                'ambiguities' => [],
-                'ambiguity_options' => [],
-                'errors' => [],
-                'issue_codes' => ['CONTRACT_SELECTION_CONFIRMATION_NOT_ALLOWED'],
-            ];
-        }
-
         if (in_array($responsetype, ['clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
             $message = $this->safe_string($parsed['message'] ?? '');
             if ($responsetype !== 'sufficient' && $message === '') {
@@ -1226,4 +1199,42 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Build a user-facing 
+     * Build a user-facing error text from validation errors.
+     *
+     * @param array $errors
+     * @param string $lang
+     * @return string
+     */
+    private function user_facing_validation_message(array $errors, string $lang = ''): string {
+        $clean = array_map(fn(string $line): string => $this->strip_command_prefix($line), $errors);
+        return implode(' ', $clean);
+    }
+
+    /**
+     * Remove technical prefixes like "Command #1:" from user-facing texts.
+     *
+     * @param string $text
+     * @return string
+     */
+    private function strip_command_prefix(string $text): string {
+        $clean = preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', $text);
+        return $this->safe_string($clean ?? $text);
+    }
+
+    /**
+     * Normalize a phase label for downstream planner composition.
+     *
+     * @param string $phase
+     * @return string
+     */
+    private function normalize_phase_name(string $phase): string {
+        $normalized = strtolower(trim($phase));
+        if ($normalized === 'selection') {
+            return 'selection';
+        }
+        if ($normalized === 'parameter_construction') {
+            return 'parameter_construction';
+        }
+        return 'discovery';
+    }
+}

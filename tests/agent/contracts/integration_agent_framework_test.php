@@ -670,31 +670,6 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Selection must downgrade confirmation_request drift to clarification when no task is selected.
-     */
-    public function test_selection_confirmation_request_without_task_is_downgraded_to_clarification(): void {
-        $registry = task_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
-
-        $result = $interpreter->interpret_phase_output(
-            '{"response_type":"confirmation_request","message":"Soll ich das anlegen?","used_triggers":[],"lang":"de","user_lang":"de"}',
-            'selection',
-            [
-                'contextid' => 12,
-                'userid' => 34,
-                'lastusermessage' => 'Bitte anlegen',
-            ]
-        );
-
-        $this->assertSame('clarification', $result['response_type']);
-        $this->assertSame('selection', $result['phase']);
-        $this->assertSame('Soll ich das anlegen?', $result['message']);
-        $this->assertSame('', $result['selected_task']);
-        $this->assertSame([], $result['commands']);
-        $this->assertContains('CONTRACT_SELECTION_CONFIRMATION_NOT_ALLOWED', $result['issue_codes']);
-    }
-
-    /**
      * Test that selection handoff strips parameter payload and keeps only one selected task command.
      */
     public function test_orchestrator_selection_handoff_normalization_strips_payload(): void {
@@ -870,33 +845,6 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Construction must pass through non-task selection outcomes instead of masking them.
-     */
-    public function test_construction_passthrough_keeps_selection_outcome(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
-        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
-
-        $method = $orchestratorreflection->getMethod('build_construction_passthrough_from_selection');
-        $method->setAccessible(true);
-
-        $result = $method->invoke($orchestrator, [
-            'response_type' => 'clarification',
-            'message' => 'Bitte zuerst bestaetigen.',
-            'commands' => [],
-            'ambiguities' => [],
-            'ambiguity_options' => [],
-            'errors' => [],
-            'issue_codes' => ['CONTRACT_SELECTION_CONFIRMATION_NOT_ALLOWED'],
-            'selected_task' => '',
-        ]);
-
-        $this->assertSame('clarification', $result['response_type']);
-        $this->assertSame('Bitte zuerst bestaetigen.', $result['message']);
-        $this->assertContains('CONTRACT_SELECTION_CONFIRMATION_NOT_ALLOWED', $result['issue_codes']);
-        $this->assertSame([], $result['commands']);
-    }
-
-    /**
      * Test that command payload normalization keeps raw task names for selector-only canonicalization.
      */
     public function test_interpreter_normalize_commands_payload_keeps_raw_task_name(): void {
@@ -979,4 +927,58 @@ final class integration_agent_framework_test extends TestCase {
             'response_type' => 'confirmation_request',
             'message' => 'Original',
             'commands' => [
-                ['task' => 'core.recreate
+                ['task' => 'core.recreate_task_catalog', 'version' => 1, 'input' => ['force' => true]],
+            ],
+            'lang' => 'de',
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Polished output.',
+            'commands' => [
+                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+            ],
+            'lang' => 'de',
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame($source['commands'], $merged['commands']);
+        $this->assertSame('Original', $merged['message']);
+    }
+
+    /**
+     * Test that dedicated synchronizer prompt builder is wired in orchestrator.
+     */
+    public function test_orchestrator_uses_dedicated_synchronizer_prompt_builder(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('new synchronizer_prompt_builder()', $source);
+        $this->assertStringContainsString('synchronizerpromptbuilder->build_prompt(', $source);
+    }
+
+    /**
+     * Test that discovery stage controller is wired into the live orchestrator flow.
+     */
+    public function test_orchestrator_discovery_uses_live_stage_controller(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('new discovery_stage_controller()', $source);
+        $this->assertStringContainsString('filter_catalog_by_selected_families(', $source);
+        $this->assertStringContainsString("'discovery_stage' => \$discoverystage", $source);
+    }
+
+    /**
+     * Test that family filter helper no longer falls back to full catalog.
+     */
+    public function test_orchestrator_family_filter_is_strict_without_full_catalog_fallback(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('if (empty($allow)) {', $source);
+        $this->assertStringContainsString('return [];', $source);
+    }
+}
