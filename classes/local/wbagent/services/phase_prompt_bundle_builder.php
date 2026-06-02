@@ -1,0 +1,276 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Prompt bundle builder for orchestrator phases.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace bookingextension_agent\local\wbagent\services;
+
+use core_ai\aiactions\generate_text;
+use bookingextension_agent\local\wbagent\prompt_policy_builder;
+use bookingextension_agent\local\wbagent\task_executability_evaluator;
+use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
+
+/**
+ * Build phase-specific prompt bundles without mixing orchestration concerns.
+ */
+class phase_prompt_bundle_builder {
+    /** Wunderbyte final reply action class name. */
+    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+
+    /** @var task_registry */
+    private task_registry $registry;
+
+    /** @var orchestrator_prompt_profile_service */
+    private orchestrator_prompt_profile_service $promptprofilesvc;
+
+    /**
+     * Constructor.
+     *
+     * @param task_registry $registry
+     * @param orchestrator_prompt_profile_service $promptprofilesvc
+     */
+    public function __construct(task_registry $registry, orchestrator_prompt_profile_service $promptprofilesvc) {
+        $this->registry = $registry;
+        $this->promptprofilesvc = $promptprofilesvc;
+    }
+
+    /**
+     * Build the state-based system prompt with compact task metadata embedded.
+     *
+     * @param  int    $cmid
+     * @param  int    $userid
+     * @param  int    $contextid
+     * @param  string $steptype
+     * @param  string $actionclass
+     * @param  bool   $hasobservations
+     * @param  array  $adaptivecatalog Optional adaptive task catalog (reduced by recency/tier). If null, uses full catalog.
+     * @param  array  $systemtaskcatalog Optional exact task catalog to embed into SYSTEM placeholders.
+     * @param  bool   $isfirstassistantturn True when no assistant message exists yet in this thread.
+     * @param  bool   $includetaskcatalog If true, embed task catalog placeholder in SYSTEM block.
+     * @return string System prompt text.
+     */
+    public function build_system_prompt(
+        int $cmid,
+        int $userid,
+        int $contextid,
+        string $steptype = orchestrator::STEP_TYPE_TOOL_CALL_PARSE,
+        string $actionclass = generate_text::class,
+        bool $hasobservations = false,
+        ?array $adaptivecatalog = null,
+        array $systemtaskcatalog = [],
+        bool $isfirstassistantturn = false,
+        bool $includetaskcatalog = false
+    ): string {
+        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
+        $schemas = $this->registry->get_all_schemas_for_context($evaluator, $userid, $contextid);
+        $taskcatalog = $adaptivecatalog ?? $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
+        if (!empty($systemtaskcatalog)) {
+            $taskcatalog = $systemtaskcatalog;
+        }
+        $tasklist = implode(', ', array_keys($schemas));
+        $fullschemajson = json_encode($schemas, JSON_UNESCAPED_UNICODE);
+        $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
+        $systemtaskcatalogjson = $includetaskcatalog ? (string)$taskcatalogjson : '[]';
+        $phase = $this->promptprofilesvc->resolve_phase_for_step_type($steptype);
+        $phaseconfigkey = $this->promptprofilesvc->get_planner_initial_prompt_config_key_for_phase($phase);
+        $configuredtemplate = $this->promptprofilesvc->normalize_config_prompt_template(
+            (string)(get_config('bookingextension_agent', $phaseconfigkey) ?? ''),
+            orchestrator::get_default_initial_prompt_template_for_action($actionclass)
+        );
+
+        // Keep core operational prompts fixed to avoid admin misconfiguration risks.
+        // Only a single optional synthesis prefix is allowed via aiinitialprompt_summarise_text.
+        $template = $configuredtemplate !== ''
+            ? $configuredtemplate
+            : orchestrator::get_default_initial_prompt_template_for_action($actionclass);
+
+        if (
+            $actionclass === generate_text::class
+            || $actionclass === self::WB_ACTION_GENERATE_AGENT_REPLY
+        ) {
+            // Only prepend a custom admin-configured prefix; the default template already
+            // contains the "You are an expert..." opening, so skip when no override is set.
+            $summaryprefix = trim((string)(get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') ?? ''));
+            if ($summaryprefix !== '') {
+                $trimmedtemplate = ltrim($template);
+                $isexpertopening = static function (string $text): bool {
+                    return preg_match(
+                        '/^You are an expert that composes polished, helpful answers for the /',
+                        trim($text)
+                    ) === 1;
+                };
+
+                // Avoid duplicate synthesis intros when both prefix and template start
+                // with the same expert-opening sentence.
+                if ($isexpertopening($summaryprefix) && $isexpertopening($trimmedtemplate)) {
+                    $newlinepos = strpos($trimmedtemplate, "\n");
+                    if ($newlinepos === false) {
+                        $template = $summaryprefix;
+                    } else {
+                        $template = $summaryprefix . "\n"
+                            . ltrim(substr($trimmedtemplate, $newlinepos + 1), "\n");
+                    }
+                } else {
+                    $template = $summaryprefix . "\n\n" . $trimmedtemplate;
+                }
+            }
+        }
+
+        $prompt = strtr($template, [
+            // Keep placeholders stable across requests for better prompt-prefix caching.
+            '{{bookingname}}' => '[SYSTEM_RUNTIME.booking_name]',
+            '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
+            '{{nowiso}}' => '[SYSTEM_RUNTIME.now_iso]',
+            '{{tasklist}}' => $tasklist,
+            '{{schemajson}}' => $systemtaskcatalogjson,
+            '{{taskcatalogjson}}' => $systemtaskcatalogjson,
+            '{{fullschemajson}}' => (string)$fullschemajson,
+        ]);
+
+        $normalizedsteptype = $this->promptprofilesvc->normalize_runtime_step_type($steptype);
+
+        $policybuilder = new prompt_policy_builder();
+        $prompt .= $policybuilder->build_planner_policies(
+            $steptype,
+            $hasobservations,
+            $isfirstassistantturn
+        );
+
+        return $prompt;
+    }
+
+    /**
+     * Build the full prompt string from system prompt + message history + observations.
+     *
+     * Observations (from prior internal loop tool executions) are injected after the
+     * conversation history and before the [ASSISTANT] marker so the LLM can incorporate
+     * tool results into its next decision without those results ever being stored as
+     * conversation messages.
+     *
+     * @param  string      $systemprompt
+     * @param  \stdClass[] $messages
+     * @param  string[]    $observations  Structured observation strings (may be empty).
+     * @param  string      $runtimecontext Dynamic per-request context appended after static system prompt.
+     * @param  string[]    $plannertracehistory Full planner trace history from thread metadata.
+     * @param  bool        $autoconfirmmode Whether confirmation is already allowed for this thread.
+     * @return string
+     */
+    public function build_prompt(
+        string $systemprompt,
+        array $messages,
+        array $observations = [],
+        string $steptype = orchestrator::STEP_TYPE_TOOL_CALL_PARSE,
+        string $runtimecontext = '',
+        array $plannertracehistory = [],
+        bool $autoconfirmmode = false
+    ): string {
+        $normalizedsteptype = $this->promptprofilesvc->normalize_runtime_step_type($steptype);
+        $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype));
+
+        $parts = ["[SYSTEM]\n{$systemprompt}"];
+
+        if ($runtimecontext !== '') {
+            $parts[] = "[SYSTEM_RUNTIME]\n{$runtimecontext}";
+        }
+
+        foreach ($trimmedmessages as $msg) {
+            $role    = strtoupper($msg->role ?? 'user');
+            $content = $msg->content ?? '';
+            $parts[] = "[{$role}]\n{$content}";
+        }
+
+        $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
+
+        $localoutputcontract = $this->build_local_output_contract_block($normalizedsteptype, $autoconfirmmode);
+        if ($localoutputcontract !== '') {
+            $parts[] = "[OUTPUT_CONTRACT]\n{$localoutputcontract}";
+        }
+
+        $parts[] = '[ASSISTANT]';
+        return implode("\n\n", $parts);
+    }
+
+    /**
+     * Build a local output contract reminder close to the assistant output slot.
+     *
+     * @param string $steptype
+     * @param bool $autoconfirmmode
+     * @return string
+     */
+    private function build_local_output_contract_block(string $steptype, bool $autoconfirmmode = false): string {
+        $lines = [
+            'Return exactly one valid JSON object and nothing else.',
+            'Do not output markdown, code fences, prose, or bullet lists outside JSON.',
+            'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.',
+            'For task_call/confirmation_request: commands must be a non-empty array.',
+            'For clarification/confirm_pending/sufficient/error: commands must be [].',
+            'Apply routing semantics from [SYSTEM] decision order; do not override them here.',
+            'For mutating intents, do not use task_call; use confirmation_request unless already completed -> sufficient.',
+        ];
+
+        if ($autoconfirmmode) {
+            $lines[] = 'Auto-confirm mode is active.';
+            $lines[] = 'Do NOT ask permission or phrase messages as questions. '
+                . 'Instead: write a short statement announcing what will be executed.';
+            $lines[] = 'Treat recent ASSISTANT/ASSISTANT_STATE execution evidence as authoritative. '
+                . 'Never re-emit an already-executed action (same task+input signature).';
+            $lines[] = 'If action already executed: report completion or skip to next unexecuted action.';
+            $lines[] = 'Next unexecuted mutation → response_type="confirmation_request".';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Append planner traces and observations in interleaved order.
+     *
+     * Desired shape: USER, PLANNER_TRACE 1, OBSERVATION 1, PLANNER_TRACE 2, OBSERVATION 2, ...
+     *
+     * @param array<int,string> $parts
+     * @param array<int,string> $plannertracehistory
+     * @param array<int,string> $observations
+     * @return array<int,string>
+     */
+    private function append_planner_traces_and_observations(
+        array $parts,
+        array $plannertracehistory,
+        array $observations
+    ): array {
+        $max = max(count($plannertracehistory), count($observations));
+        for ($i = 0; $i < $max; $i++) {
+            $num = $i + 1;
+
+            if (isset($plannertracehistory[$i])) {
+                $parts[] = "[PLANNER_TRACE {$num}]\n" . $plannertracehistory[$i];
+            }
+
+            if (isset($observations[$i])) {
+                $parts[] = "[OBSERVATION {$num}]\n" . (string)$observations[$i];
+            }
+        }
+
+        return $parts;
+    }
+}

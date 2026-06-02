@@ -31,6 +31,15 @@ use core_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class orchestrator_prompt_profile_service {
+    /** Discovery planner phase. */
+    public const PHASE_DISCOVERY = 'discovery';
+
+    /** Selection planner phase. */
+    public const PHASE_SELECTION = 'selection';
+
+    /** Parameter construction planner phase. */
+    public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
+
     /** @var string */
     private string $toolcallparse;
 
@@ -82,33 +91,41 @@ class orchestrator_prompt_profile_service {
     }
 
     /**
-     * Normalize runtime step types, folding unknown/final values into the planner default.
+     * Normalize runtime step types without collapsing phase-specific values.
      *
      * @param string $steptype
      * @return string
      */
     public function normalize_runtime_step_type(string $steptype): string {
-        $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === $this->simpleretrieval) {
-            return $this->simpleretrieval;
-        }
-        return $this->toolcallparse;
+        return trim(core_text::strtolower($steptype));
     }
 
     /**
-     * Normalize planner step types only.
-     *
-     * Final synthesis is intentionally folded back into the planner default.
+     * Normalize planner step types without collapsing phase-specific values.
      *
      * @param string $steptype
      * @return string
      */
     public function normalize_planner_step_type(string $steptype): string {
+        return trim(core_text::strtolower($steptype));
+    }
+
+    /**
+     * Resolve the explicit planner phase for a normalized step type.
+     *
+     * @param string $steptype
+     * @return string
+     */
+    public function resolve_phase_for_step_type(string $steptype): string {
         $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === $this->simpleretrieval) {
-            return $this->simpleretrieval;
+        if ($normalized === $this->toolcallparse) {
+            return self::PHASE_DISCOVERY;
         }
-        return $this->toolcallparse;
+        if ($normalized === $this->simpleretrieval) {
+            return self::PHASE_SELECTION;
+        }
+
+        return self::PHASE_PARAMETER_CONSTRUCTION;
     }
 
     /**
@@ -125,6 +142,24 @@ class orchestrator_prompt_profile_service {
     }
 
     /**
+     * Resolve admin setting key per explicit planner phase.
+     *
+     * @param string $phase
+     * @return string
+     */
+    public function get_planner_initial_prompt_config_key_for_phase(string $phase): string {
+        $normalizedphase = $this->normalize_phase($phase);
+        if ($normalizedphase === self::PHASE_DISCOVERY) {
+            return 'aiinitialprompt_tool_call_parse';
+        }
+        if ($normalizedphase === self::PHASE_SELECTION) {
+            return 'aiinitialprompt_simple_retrieval';
+        }
+
+        return 'aiinitialprompt_summarise_text';
+    }
+
+    /**
      * Return history depth per prompt profile.
      *
      * @param string $steptype
@@ -132,6 +167,21 @@ class orchestrator_prompt_profile_service {
      */
     public function get_history_limit_for_step(string $steptype): int {
         return PHP_INT_MAX;
+    }
+
+    /**
+     * Return history depth per explicit planner phase.
+     *
+     * @param string $phase
+     * @return int
+     */
+    public function get_history_limit_for_phase(string $phase): int {
+        $normalizedphase = $this->normalize_phase($phase);
+        $steptype = $normalizedphase === self::PHASE_DISCOVERY
+            ? $this->toolcallparse
+            : $this->simpleretrieval;
+
+        return $this->get_history_limit_for_step($steptype);
     }
 
     /**
@@ -150,5 +200,22 @@ class orchestrator_prompt_profile_service {
             return '';
         }
         return $template;
+    }
+
+    /**
+     * Normalize external phase labels to supported planner phases.
+     *
+     * @param string $phase
+     * @return string
+     */
+    private function normalize_phase(string $phase): string {
+        $normalized = trim(core_text::strtolower($phase));
+        if ($normalized === self::PHASE_SELECTION) {
+            return self::PHASE_SELECTION;
+        }
+        if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION || $normalized === 'construction') {
+            return self::PHASE_PARAMETER_CONSTRUCTION;
+        }
+        return self::PHASE_DISCOVERY;
     }
 }

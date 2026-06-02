@@ -45,12 +45,11 @@ class synchronizer_routing_service {
         int $userid,
         array $observations
     ): array {
-        return $orchestrator->process(
+        return $orchestrator->process_synchronizer(
             $threadid,
             $cmid,
             $userid,
-            $observations,
-            orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
+            $observations
         );
     }
 }

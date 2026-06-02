@@ -30,8 +30,8 @@ use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\task_registry;
-use core\di;
-use core_ai\manager as ai_manager;
+use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use context_system;
 
 /**
@@ -70,7 +70,8 @@ class family_embeddings_index_service {
             $resolvedmodel = orchestrator::EMBEDDINGS_DEFAULT_MODEL;
         }
 
-        $resolveddimensions = (int)($dimensions ?? ($resolvedsettings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS));
+        $resolveddimensions = (int)($dimensions
+            ?? ($resolvedsettings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS));
         if ($resolveddimensions < 1) {
             $resolveddimensions = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
         }
@@ -135,7 +136,7 @@ class family_embeddings_index_service {
         $userid = !empty($admin->id) ? (int)$admin->id : 2;
         $embeddedtasks = [];
         $reusedtasks = [];
-        $manager = di::get(ai_manager::class);
+        $llm = new llm_call_service(new conversation_store());
 
         foreach ($rows as $idx => $row) {
             $taskname = trim((string)($row['task'] ?? ''));
@@ -161,21 +162,20 @@ class family_embeddings_index_service {
                 continue;
             }
 
-            $actionclass = '\\aiprovider_wunderbyte\\aiactions\\generate_embeddings';
-            $action = new $actionclass(
-                contextid: (int)$context->id,
-                userid: $userid,
-                inputtext: $inputtext,
-                dimensions: $resolveddimensions,
+            $embeddingcall = $llm->invoke_embeddings_for_context(
+                0,
+                (int)$context->id,
+                $userid,
+                'idx|p=disc|st=emb|ac=emb|rt=wb',
+                $inputtext,
+                $resolveddimensions
             );
 
-            $response = $manager->process_action($action);
-            if (!$response->get_success()) {
+            if (empty($embeddingcall['success'])) {
                 continue;
             }
 
-            $responsedata = $response->get_response_data();
-            $embedding = (array)($responsedata['embedding'] ?? []);
+            $embedding = (array)($embeddingcall['embedding'] ?? []);
             if (empty($embedding)) {
                 continue;
             }

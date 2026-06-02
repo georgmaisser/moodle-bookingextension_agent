@@ -39,6 +39,7 @@ final class routing_decision_log_service_contract_test extends TestCase {
         $normalized = routing_decision_log_service::normalize_telemetry([]);
 
         $this->assertSame('none', $normalized['catalogselectionmode']);
+        $this->assertSame('no_embeddings', $normalized['embedding_path']);
         $this->assertSame('unknown', $normalized['discovery_stage']);
         $this->assertNull($normalized['confidence_score']);
         $this->assertSame('none', $normalized['escalation_reason']);
@@ -71,6 +72,7 @@ final class routing_decision_log_service_contract_test extends TestCase {
         $this->assertSame('A', $shadow['discovery_stage']);
         $this->assertSame('none', $shadow['escalation_reason']);
         $this->assertSame('slim_all', $shadow['catalogselectionmode']);
+        $this->assertSame('no_embeddings', $shadow['embedding_path']);
     }
 
     /**

@@ -34,6 +34,15 @@ use core_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class orchestrator_routing_service {
+    /** Discovery planner phase. */
+    public const PHASE_DISCOVERY = 'discovery';
+
+    /** Selection planner phase. */
+    public const PHASE_SELECTION = 'selection';
+
+    /** Parameter construction planner phase. */
+    public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
+
     /** @var string */
     private string $toolcallparse;
 
@@ -78,27 +87,51 @@ class orchestrator_routing_service {
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
     public function resolve_action_class_for_step(ai_manager $manager, context_module $context, string $steptype): array {
-        return $this->resolve_planner_action_class_for_step($manager, $context, $steptype);
+        $phase = $this->resolve_phase_for_step_type($steptype);
+        return $this->resolve_action_class_for_phase($manager, $context, $phase);
     }
 
     /**
-     * Route planner steps only.
+     * Route to planner action classes by explicit pipeline phase.
+     *
+     * This is a compatibility layer while the runtime still uses step profiles
+     * internally. Discovery maps to tool_call_parse, later phases map to
+     * simple_retrieval.
      *
      * @param ai_manager $manager
      * @param context_module $context
-     * @param string $steptype
+     * @param string $phase
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
-    private function resolve_planner_action_class_for_step(
+    public function resolve_action_class_for_phase(ai_manager $manager, context_module $context, string $phase): array {
+        $normalizedphase = $this->normalize_phase($phase);
+        if ($normalizedphase === self::PHASE_SELECTION) {
+            return $this->resolve_selection_action_class($manager, $context);
+        }
+
+        if ($normalizedphase === self::PHASE_PARAMETER_CONSTRUCTION) {
+            return $this->resolve_construction_action_class($manager, $context);
+        }
+
+        return $this->resolve_discovery_action_class($manager, $context);
+    }
+
+    /**
+     * Route the discovery phase action class.
+     *
+     * @param ai_manager $manager
+     * @param context_module $context
+     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
+     */
+    private function resolve_discovery_action_class(
         ai_manager $manager,
-        context_module $context,
-        string $steptype
+        context_module $context
     ): array {
         try {
             if ($manager->is_action_available($this->wbplanneraction)) {
                 return [
                     'actionclass' => $this->wbplanneraction,
-                    'routepolicy' => 'wunderbyte',
+                    'routepolicy' => $this->build_phase_route_policy(self::PHASE_DISCOVERY, 'wunderbyte'),
                     'routingfallback' => false,
                 ];
             }
@@ -107,25 +140,75 @@ class orchestrator_routing_service {
             $ignored = $e;
         }
 
-        if (!$this->should_use_openai_step_routing($manager)) {
-            return [
-                'actionclass' => generate_text::class,
-                'routepolicy' => 'default',
-                'routingfallback' => false,
-            ];
-        }
-
         if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
             return [
                 'actionclass' => summarise_text::class,
-                'routepolicy' => 'openai',
+                'routepolicy' => $this->build_phase_route_policy(self::PHASE_DISCOVERY, 'openai'),
                 'routingfallback' => false,
             ];
         }
 
         return [
             'actionclass' => generate_text::class,
-            'routepolicy' => 'openai',
+            'routepolicy' => $this->build_phase_route_policy(self::PHASE_DISCOVERY, 'default'),
+            'routingfallback' => true,
+        ];
+    }
+
+    /**
+     * Route the selection phase action class.
+     *
+     * @param ai_manager $manager
+     * @param context_module $context
+     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
+     */
+    private function resolve_selection_action_class(ai_manager $manager, context_module $context): array {
+        if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
+            return [
+                'actionclass' => summarise_text::class,
+                'routepolicy' => $this->build_phase_route_policy(self::PHASE_SELECTION, 'openai'),
+                'routingfallback' => false,
+            ];
+        }
+
+        return [
+            'actionclass' => generate_text::class,
+            'routepolicy' => $this->build_phase_route_policy(self::PHASE_SELECTION, 'default'),
+            'routingfallback' => true,
+        ];
+    }
+
+    /**
+     * Route the construction phase action class.
+     *
+     * @param ai_manager $manager
+     * @param context_module $context
+     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
+     */
+    private function resolve_construction_action_class(ai_manager $manager, context_module $context): array {
+        try {
+            if ($manager->is_action_available($this->wbplanneraction)) {
+                return [
+                    'actionclass' => $this->wbplanneraction,
+                    'routepolicy' => $this->build_phase_route_policy(self::PHASE_PARAMETER_CONSTRUCTION, 'wunderbyte'),
+                    'routingfallback' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $ignored = $e;
+        }
+
+        if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
+            return [
+                'actionclass' => summarise_text::class,
+                'routepolicy' => $this->build_phase_route_policy(self::PHASE_PARAMETER_CONSTRUCTION, 'openai'),
+                'routingfallback' => false,
+            ];
+        }
+
+        return [
+            'actionclass' => generate_text::class,
+            'routepolicy' => $this->build_phase_route_policy(self::PHASE_PARAMETER_CONSTRUCTION, 'default'),
             'routingfallback' => true,
         ];
     }
@@ -155,6 +238,7 @@ class orchestrator_routing_service {
      * @param string $actionclass
      * @param string $routepolicy
      * @param bool $routingfallback
+     * @param string $phase
      * @param string $primaryprovider
      * @param int $historycount
      * @param int $observationcount
@@ -170,6 +254,7 @@ class orchestrator_routing_service {
         string $actionclass,
         string $routepolicy,
         bool $routingfallback,
+        string $phase,
         string $primaryprovider,
         int $historycount,
         int $observationcount,
@@ -183,6 +268,11 @@ class orchestrator_routing_service {
             $this->toolcallparse => 'tcp',
             $this->simpleretrieval => 'sr',
         ];
+        $phasemap = [
+            self::PHASE_DISCOVERY => 'disc',
+            self::PHASE_SELECTION => 'sel',
+            self::PHASE_PARAMETER_CONSTRUCTION => 'cons',
+        ];
         $actionmap = [
             generate_text::class => 'gen',
             summarise_text::class => 'sum',
@@ -193,14 +283,17 @@ class orchestrator_routing_service {
         $step = $stepmap[$steptype] ?? 'unk';
         $action = $actionmap[$actionclass] ?? 'oth';
         $route = 'df';
-        if ($routepolicy === 'openai') {
+        $routefamily = $this->route_policy_family($routepolicy);
+        if ($routefamily === 'openai') {
             $route = 'oa';
-        } else if ($routepolicy === 'wunderbyte') {
+        } else if ($routefamily === 'wunderbyte') {
             $route = 'wb';
         }
         $provider = provider_routing_util::short_provider_for_debug($primaryprovider);
+        $phasekey = $phasemap[$this->normalize_phase($phase)] ?? 'disc';
 
         $source = 'orc'
+            . '|p=' . $phasekey
             . '|st=' . $step
             . '|ac=' . $action
             . '|rt=' . $route
@@ -222,23 +315,57 @@ class orchestrator_routing_service {
     }
 
     /**
-     * Use step-based action routing only when OpenAI provider is active for text actions.
+     * Upsert phase telemetry in an existing debug source string.
      *
-     * @param ai_manager $manager
+     * @param string $source
+     * @param string $phase
+     * @return string
+     */
+    public function with_phase_in_debug_source(string $source, string $phase): string {
+        $normalizedphase = $this->normalize_phase($phase);
+        $phasekey = 'disc';
+        if ($normalizedphase === self::PHASE_SELECTION) {
+            $phasekey = 'sel';
+        } else if ($normalizedphase === self::PHASE_PARAMETER_CONSTRUCTION) {
+            $phasekey = 'cons';
+        }
+
+        $cleaned = preg_replace('/\|p=[^|]*/', '', $source) ?? $source;
+        $withphase = $cleaned . '|p=' . $phasekey;
+
+        if (core_text::strlen($withphase) > 100) {
+            return core_text::substr($withphase, 0, 100);
+        }
+
+        return $withphase;
+    }
+
+    /**
+     * Return normalized route-policy family.
+     *
+     * @param string $routepolicy
+     * @return string
+     */
+    public function route_policy_family(string $routepolicy): string {
+        $normalized = core_text::strtolower(trim($routepolicy));
+        if (strpos($normalized, 'wunderbyte') !== false) {
+            return 'wunderbyte';
+        }
+        if (strpos($normalized, 'openai') !== false) {
+            return 'openai';
+        }
+
+        return 'default';
+    }
+
+    /**
+     * Check whether route policy belongs to Wunderbyte family.
+     *
+     * @param string $routepolicy
      * @return bool
      */
-    private function should_use_openai_step_routing(ai_manager $manager): bool {
-        try {
-            $providers = $manager->get_providers_for_actions([generate_text::class], true);
-            $forgenerate = (array)($providers[generate_text::class] ?? []);
-            if (empty($forgenerate)) {
-                return false;
-            }
-            $primary = reset($forgenerate);
-            return (string)($primary->provider ?? '') === 'aiprovider_openai';
-        } catch (\Throwable $e) {
-            return false;
-        }
+    public function is_wunderbyte_routepolicy(string $routepolicy): bool {
+        return $this->route_policy_family($routepolicy) === 'wunderbyte';
     }
 
     /**
@@ -258,5 +385,59 @@ class orchestrator_routing_service {
         }
 
         return $normalized;
+    }
+
+    /**
+     * Normalize external phase labels to supported pipeline phases.
+     *
+     * @param string $phase
+     * @return string
+     */
+    private function normalize_phase(string $phase): string {
+        $normalized = trim(core_text::strtolower($phase));
+        if ($normalized === self::PHASE_SELECTION) {
+            return self::PHASE_SELECTION;
+        }
+        if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION || $normalized === 'construction') {
+            return self::PHASE_PARAMETER_CONSTRUCTION;
+        }
+        return self::PHASE_DISCOVERY;
+    }
+
+    /**
+     * Normalize step type into an explicit planner phase.
+     *
+     * @param string $steptype
+     * @return string
+     */
+    private function resolve_phase_for_step_type(string $steptype): string {
+        $normalized = trim(core_text::strtolower($steptype));
+        if ($normalized === $this->toolcallparse) {
+            return self::PHASE_DISCOVERY;
+        }
+        if ($normalized === $this->simpleretrieval) {
+            return self::PHASE_SELECTION;
+        }
+
+        return self::PHASE_PARAMETER_CONSTRUCTION;
+    }
+
+    /**
+     * Build compact route-policy token with phase context.
+     *
+     * @param string $phase
+     * @param string $family
+     * @return string
+     */
+    private function build_phase_route_policy(string $phase, string $family): string {
+        $normalizedphase = $this->normalize_phase($phase);
+        $phasekey = 'disc';
+        if ($normalizedphase === self::PHASE_SELECTION) {
+            $phasekey = 'sel';
+        } else if ($normalizedphase === self::PHASE_PARAMETER_CONSTRUCTION) {
+            $phasekey = 'cons';
+        }
+
+        return $phasekey . '_' . core_text::strtolower(trim($family));
     }
 }

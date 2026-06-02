@@ -613,6 +613,36 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
+     * Store the latest planner trace history on the thread.
+     *
+     * @param int $threadid
+     * @param array<int,string> $plannertracehistory
+     * @return void
+     */
+    public function set_planner_trace_history(int $threadid, array $plannertracehistory): void {
+        $history = [];
+        foreach ($plannertracehistory as $entry) {
+            $trimmed = trim((string)$entry);
+            if ($trimmed !== '') {
+                $history[] = $trimmed;
+            }
+        }
+
+        $this->set_thread_metadata_value($threadid, 'planner_trace_history', $history);
+    }
+
+    /**
+     * Store the latest phase trace on the thread.
+     *
+     * @param int $threadid
+     * @param array<string,mixed> $phasetrace
+     * @return void
+     */
+    public function set_phase_trace(int $threadid, array $phasetrace): void {
+        $this->set_thread_metadata_value($threadid, 'phase_trace', $phasetrace);
+    }
+
+    /**
      * Store pending confirmation intent for a thread.
      *
      * @param int $threadid

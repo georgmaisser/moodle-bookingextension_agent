@@ -31,6 +31,7 @@ use PHPUnit\Framework\TestCase;
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @coversNothing
  */
 final class integration_agent_framework_test extends TestCase {
     /**
@@ -101,7 +102,12 @@ final class integration_agent_framework_test extends TestCase {
         $authz = new \bookingextension_agent\local\wbagent\services\security\authorization_service();
 
         // Create agent_runtime with custom provider (test dependency injection).
-        $runtime = new \bookingextension_agent\local\wbagent\agent_runtime($registry, $orchestrator, $store, $authz, $provider);
+        $runtime = new \bookingextension_agent\local\wbagent\agent_runtime(
+            $registry,
+            $orchestrator,
+            $store,
+            $authz
+        );
 
         // Verify that runtime accepts the provider (no exception thrown).
         $this->assertInstanceOf(\bookingextension_agent\local\wbagent\agent_runtime::class, $runtime);
@@ -185,9 +191,10 @@ final class integration_agent_framework_test extends TestCase {
         $registry = task_registry_factory::get_default();
         $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
-            $assistantsummaryprop = $orchestratorreflection->getProperty('assistantsummariesvc');
-            $assistantsummaryprop->setAccessible(true);
-            $assistantsummaryprop->setValue($orchestrator, new \bookingextension_agent\local\wbagent\services\assistant_state_guidance_service($registry));
+        $assistantsummaryprop = $orchestratorreflection->getProperty('assistantsummariesvc');
+        $assistantsummaryprop->setAccessible(true);
+        $assistantsummarysvc = new \bookingextension_agent\local\wbagent\services\assistant_state_guidance_service($registry);
+        $assistantsummaryprop->setValue($orchestrator, $assistantsummarysvc);
         $method = $orchestratorreflection->getMethod('slim_prompt_catalog_for_planner');
         $method->setAccessible(true);
 
@@ -481,5 +488,235 @@ final class integration_agent_framework_test extends TestCase {
 
         // The old constants should still be accessible for backward compat.
         $this->assertTrue(true, 'Backward compatibility checks passed');
+    }
+
+    /**
+     * Test that the planner result composer preserves the construction payload.
+     */
+    public function test_planner_result_composer_preserves_construction_payload(): void {
+        $composer = new \bookingextension_agent\local\wbagent\services\planner_result_composer();
+
+        $result = $composer->compose(
+            [
+                'plannertracehistory' => ['discovery-trace'],
+                'catalogselectionmode' => 'embed_topk',
+                'embeddingstatus' => 'applied',
+            ],
+            [
+                'response_type' => 'task_call',
+                'message' => 'selection message',
+                'catalogselectionmode' => 'embed_topk',
+                'embeddingstatus' => 'applied',
+            ],
+            [
+                'response_type' => 'clarification',
+                'message' => 'construction message',
+                'commands' => [],
+                'issue_codes' => ['CONTRACT_EMPTY_MESSAGE'],
+            ]
+        );
+
+        $this->assertSame('clarification', $result['response_type']);
+        $this->assertSame('construction message', $result['message']);
+        $this->assertArrayHasKey('planner_result', $result);
+        $this->assertArrayHasKey('phase_trace', $result);
+        $this->assertSame(['discovery-trace'], $result['planner_result']['planner_trace_history']);
+        $this->assertSame('embed_topk', $result['phase_trace']['selection']['catalogselectionmode']);
+        $this->assertSame('applied', $result['phase_trace']['parameter_construction']['embeddingstatus']);
+    }
+
+    /**
+     * Test that the phase-aware interpreter wrapper tags the normalized phase.
+     */
+    public function test_interpret_phase_output_tags_phase(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $result = $interpreter->interpret_phase_output(
+            '{"response_type":"clarification","message":"Need more info","used_triggers":[]}',
+            'construction',
+            [
+                'contextid' => 12,
+                'userid' => 34,
+                'lastusermessage' => 'Please continue',
+            ]
+        );
+
+        $this->assertSame('clarification', $result['response_type']);
+        $this->assertSame('Need more info', $result['message']);
+        $this->assertSame('parameter_construction', $result['phase']);
+    }
+
+    /**
+     * Test that non-construction phases reject command-bearing response types.
+     */
+    public function test_interpreter_phase_contract_rejects_command_types_in_selection(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $reflection = new \ReflectionClass($interpreter);
+        $method = $reflection->getMethod('enforce_phase_contract');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($interpreter, [
+            'response_type' => 'task_call',
+            'commands' => [[
+                'task' => 'core.get_current_user',
+                'version' => 1,
+                'input' => [],
+            ]],
+            'message' => 'Executing.',
+        ], 'selection');
+
+        $this->assertSame('error', $result['response_type']);
+        $this->assertContains('CONTRACT_PHASE_RESPONSE_TYPE', $result['issue_codes']);
+    }
+
+    /**
+     * Test that interpreter keeps strict JSON parsing at the trust boundary.
+     */
+    public function test_interpreter_rejects_non_json_payload(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $result = $interpreter->interpret('this is not json', 0, 0, '');
+
+        $this->assertSame('error', $result['response_type']);
+        $this->assertContains('CONTRACT_PARSE_ERROR', $result['issue_codes']);
+    }
+
+    /**
+     * Test that unknown response_type values are rejected by allow-list contract.
+     */
+    public function test_interpreter_rejects_unknown_response_type(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $result = $interpreter->interpret(
+            '{"response_type":"unexpected_type","message":"x","commands":[]}',
+            0,
+            0,
+            ''
+        );
+
+        $this->assertSame('error', $result['response_type']);
+        $this->assertContains('CONTRACT_UNKNOWN_RESPONSE_TYPE', $result['issue_codes']);
+    }
+
+    /**
+     * Test that orchestrator executes three distinct planner invoke calls.
+     */
+    public function test_orchestrator_process_uses_three_phase_invokes(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertSame(3, substr_count($source, '->invoke('));
+        $this->assertStringContainsString('orchestrator_routing_service::PHASE_DISCOVERY', $source);
+        $this->assertStringContainsString('orchestrator_routing_service::PHASE_SELECTION', $source);
+        $this->assertStringContainsString('orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION', $source);
+    }
+
+    /**
+     * Test that construction phase enforces exactly one selected command.
+     */
+    public function test_interpreter_construction_phase_requires_single_command(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $reflection = new \ReflectionClass($interpreter);
+        $method = $reflection->getMethod('enforce_phase_contract');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($interpreter, [
+            'response_type' => 'task_call',
+            'commands' => [
+                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+                ['task' => 'core.recreate_task_catalog', 'version' => 1, 'input' => []],
+            ],
+            'message' => 'Executing.',
+        ], 'parameter_construction');
+
+        $this->assertSame('error', $result['response_type']);
+        $this->assertContains('CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED', $result['issue_codes']);
+    }
+
+    /**
+     * Test that synchronizer input includes phase trace and execution feedback blocks.
+     */
+    public function test_synchronizer_input_builder_includes_phase_trace_and_execution_feedback(): void {
+        $builder = new \bookingextension_agent\local\wbagent\services\synchronizer_input_builder();
+
+        $observations = $builder->build_observations([
+            'response_type' => 'execution_result',
+            'message' => 'Done',
+            'phase_trace' => [
+                'discovery' => ['response_type' => 'clarification'],
+                'selection' => ['response_type' => 'clarification'],
+                'parameter_construction' => ['response_type' => 'task_call'],
+            ],
+            'results' => [
+                ['task' => 'core.get_current_user', 'status' => 'ok'],
+                ['task' => 'core.recreate_task_catalog', 'status' => 'error'],
+            ],
+        ]);
+
+        $joined = implode("\n\n", $observations);
+        $this->assertStringContainsString('PHASE_TRACE', $joined);
+        $this->assertStringContainsString('EXECUTION_FEEDBACK', $joined);
+    }
+
+    /**
+     * Test that synchronizer routing no longer reuses planner process() entry.
+     */
+    public function test_synchronizer_routing_uses_dedicated_orchestrator_path(): void {
+        $reflection = new \ReflectionClass(
+            \bookingextension_agent\local\wbagent\services\synchronizer_routing_service::class
+        );
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('process_synchronizer(', $source);
+        $this->assertStringNotContainsString('->process(', $source);
+    }
+
+    /**
+     * Test that synchronizer output contract never mutates command payloads.
+     */
+    public function test_synchronizer_output_contract_preserves_source_commands(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'confirmation_request',
+            'message' => 'Original',
+            'commands' => [
+                ['task' => 'core.recreate_task_catalog', 'version' => 1, 'input' => ['force' => true]],
+            ],
+            'lang' => 'de',
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Polished output.',
+            'commands' => [
+                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+            ],
+            'lang' => 'de',
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame($source['commands'], $merged['commands']);
+        $this->assertSame('Original', $merged['message']);
+    }
+
+    /**
+     * Test that dedicated synchronizer prompt builder is wired in orchestrator.
+     */
+    public function test_orchestrator_uses_dedicated_synchronizer_prompt_builder(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('new synchronizer_prompt_builder()', $source);
+        $this->assertStringContainsString('synchronizerpromptbuilder->build_prompt(', $source);
     }
 }

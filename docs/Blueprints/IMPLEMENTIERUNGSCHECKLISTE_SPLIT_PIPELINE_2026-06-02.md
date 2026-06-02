@@ -22,8 +22,8 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] Contract-Tests fuer Family-Bausteine vorhanden
 
 ### Noch offen (aus Ist-Befund)
-- [ ] Family-Ranking aus Shadow/Teilpfad in vollstaendigen Live-Phasenpfad ueberfuehren
-- [ ] embeddingstatus=shadow_only als Endzustand entfernen
+- [x] Family-Ranking aus Shadow/Teilpfad in vollstaendigen Live-Phasenpfad ueberfuehren
+- [x] embeddingstatus=shadow_only als Endzustand entfernen
 - [ ] Discovery A/B/C als echte Live-Entscheidungskette erzwingen
 
 ## 1. Verbindliche Zielarchitektur (Pflicht)
@@ -57,40 +57,40 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [ ] Alten monolithischen planner_catalog_cache payload entfernen
 
 ### classes/local/wbagent/conversation_store.php
-- [ ] planner_trace_history pro Turn konsistent persistieren
-- [ ] phase_trace (discovery/selection/construction) als auswertbare Metadaten persistieren
+- [x] planner_trace_history pro Turn konsistent persistieren
+- [x] phase_trace (discovery/selection/construction) als auswertbare Metadaten persistieren
 - [ ] Legacy-Metadatenformate ohne Phasenbezug entfernen
 
 ## 2.2 Orchestrator und Routing
 
 ### classes/local/wbagent/orchestrator.php
-- [ ] process() in run_discovery_phase()/run_selection_phase()/run_construction_phase() aufteilen
-- [ ] Pro Phase eigenen Prompt-Build und eigenen invoke()-Call erzwingen
-- [ ] Discovery mit Family-Ranking als Pflichtschritt vor Selection ausfuehren
-- [ ] Unified planner_result aus drei Phasen zusammensetzen
-- [ ] Monolithischen Einmal-Call-Pfad entfernen
-- [ ] Legacy-Mischlogik Taskwahl+Parametrisierung in einem Output entfernen
+- [x] process() in run_discovery_phase()/run_selection_phase()/run_construction_phase() aufteilen
+- [x] Pro Phase eigenen Prompt-Build und eigenen invoke()-Call erzwingen
+- [x] Discovery mit Family-Ranking als Pflichtschritt vor Selection ausfuehren
+- [x] Unified planner_result aus drei Phasen zusammensetzen
+- [x] Monolithischen Einmal-Call-Pfad entfernen
+- [x] Legacy-Mischlogik Taskwahl+Parametrisierung in einem Output entfernen
 
 ### classes/local/wbagent/services/orchestrator_routing_service.php
-- [ ] API auf resolve_action_class_for_phase(phase) umstellen
-- [ ] Fallback-Ketten je Phase trennen
-- [ ] routepolicy auf phase-spezifische Tokens umstellen
-- [ ] step_type-only Routing als Hauptsteuerung entfernen
-- [ ] Implizite OpenAI-Step-Heuristik fuer Planner entfernen
+- [x] API auf resolve_action_class_for_phase(phase) umstellen
+- [x] Fallback-Ketten je Phase trennen
+- [x] routepolicy auf phase-spezifische Tokens umstellen
+- [x] step_type-only Routing als Hauptsteuerung entfernen
+- [x] Implizite OpenAI-Step-Heuristik fuer Planner entfernen
 
 ### classes/local/wbagent/services/orchestrator_prompt_profile_service.php
-- [ ] Phase-Profile (discovery/selection/parameter_construction) einfuehren
-- [ ] Getrennte Config-Keys und Defaults pro Phase einfuehren
-- [ ] step-type Foldback auf tool_call_parse entfernen
+- [x] Phase-Profile (discovery/selection/parameter_construction) einfuehren
+- [x] Getrennte Config-Keys und Defaults pro Phase einfuehren
+- [x] step-type Foldback auf tool_call_parse entfernen
 
 ### classes/local/wbagent/services/phase_prompt_bundle_builder.php (neu oder bestehende Logik extrahieren)
-- [ ] Prompt-Build strikt phasengetrennt (discovery/selection/construction) kapseln
-- [ ] Keine gemischten Legacy-Prompts in einem Builder-Pfad zulassen
+- [x] Prompt-Build strikt phasengetrennt (discovery/selection/construction) kapseln
+- [x] Keine gemischten Legacy-Prompts in einem Builder-Pfad zulassen
 
 ### classes/local/wbagent/services/llm/llm_call_service.php
-- [ ] Als einzige LLM-Call-Schicht beibehalten
-- [ ] source-Konvention fuer Phasen vereinheitlichen (z.B. p=disc/sel/cons)
-- [ ] Provider-spezifische Instanziierung ausserhalb der Klasse entfernen
+- [x] Als einzige LLM-Call-Schicht beibehalten
+- [x] source-Konvention fuer Phasen vereinheitlichen (z.B. p=disc/sel/cons)
+- [x] Provider-spezifische Instanziierung ausserhalb der Klasse entfernen
 
 ## 2.3 Discovery und Family Ranking
 
@@ -110,19 +110,19 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [ ] Ad-hoc Scoring ausserhalb des Dienstes entfernen
 
 ### classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
-- [ ] In Discovery-Phase verbindlich einhaengen (wenn Embeddings verfuegbar)
-- [ ] Nur aktivieren, wenn aiprovider_wunderbyte + Embeddings-Readiness beide true sind
-- [ ] ranking output live wirksam machen (kein reines shadow_only)
-- [ ] Embedding-TopK als isolierte Nebenrechnung ohne Phasenwirkung entfernen
+- [x] In Discovery-Phase verbindlich einhaengen (wenn Embeddings verfuegbar)
+- [x] Nur aktivieren, wenn aiprovider_wunderbyte + Embeddings-Readiness beide true sind
+- [x] ranking output live wirksam machen (kein reines shadow_only)
+- [x] Embedding-TopK als isolierte Nebenrechnung ohne Phasenwirkung entfernen
 
 ### classes/local/wbagent/services/discovery/context_prior_builder.php
 - [ ] Als verpflichtenden Ranking-Prior verwenden
 - [ ] Harte Context-Filter (Ausschluss statt Ranking) entfernen
 
 ### classes/local/wbagent/services/embeddings/embeddings_readiness_service.php
-- [ ] Gate fuer Wunderbyte+Embeddings-Verfuegbarkeit explizit im Discovery-Pfad nutzen
-- [ ] Bei false deterministisch auf slim non-semantische Family-Discovery fallen
-- [ ] Telemetrie fuer Pfadwahl (with_embeddings vs no_embeddings) konsistent schreiben
+- [x] Gate fuer Wunderbyte+Embeddings-Verfuegbarkeit explizit im Discovery-Pfad nutzen
+- [x] Bei false deterministisch auf slim non-semantische Family-Discovery fallen
+- [x] Telemetrie fuer Pfadwahl (with_embeddings vs no_embeddings) konsistent schreiben
 
 ## 2.4 Selection und Construction
 
@@ -149,15 +149,15 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 ## 2.5 Interpreter
 
 ### classes/local/wbagent/interpreter.php
-- [ ] Auf interpret_phase_output(raw, phase, context) umbauen
-- [ ] Phase-Contracts (Discovery/Selection/Construction) explizit normalisieren
-- [ ] Unified planner result erst nach Phasen-Interpretation komponieren
-- [ ] Sicherheitsgrenzen (strict JSON, allowed response_type) beibehalten
-- [ ] Monolithische Annahme "Taskwahl + Input-Finalisierung in einer Antwort" entfernen
+- [x] Auf interpret_phase_output(raw, phase, context) umbauen
+- [x] Phase-Contracts (Discovery/Selection/Construction) explizit normalisieren
+- [x] Unified planner result erst nach Phasen-Interpretation komponieren
+- [x] Sicherheitsgrenzen (strict JSON, allowed response_type) beibehalten
+- [x] Monolithische Annahme "Taskwahl + Input-Finalisierung in einer Antwort" entfernen
 
 ### classes/local/wbagent/services/planner_result_composer.php (neu oder bestehende Logik extrahieren)
-- [ ] Drei Phasenoutputs deterministisch zu einem planner_result komponieren
-- [ ] planner_trace_history + phase_trace zentral schreiben
+- [x] Drei Phasenoutputs deterministisch zu einem planner_result komponieren
+- [x] planner_trace_history + phase_trace zentral schreiben
 - [ ] Keine nachgelagerte implizite Re-Komposition in Runtime/Decision zulassen
 
 ## 2.6 Decision, Preflight, Queue, Executor
@@ -188,21 +188,21 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [ ] Heuristische LLM-Finalisierungsentscheidung entfernen
 
 ### classes/local/wbagent/services/synchronizer_routing_service.php
-- [ ] Vom Planner-Step-Konzept entkoppeln
-- [ ] Dedizierten synchronizer invoke-Pfad nutzen (eigener prompt/profile/action)
-- [ ] Reuse von simple_retrieval als Synchronizer-Ersatz entfernen
+- [x] Vom Planner-Step-Konzept entkoppeln
+- [x] Dedizierten synchronizer invoke-Pfad nutzen (eigener prompt/profile/action)
+- [x] Reuse von simple_retrieval als Synchronizer-Ersatz entfernen
 
 ### classes/local/wbagent/services/synchronizer_prompt_builder.php (neu oder bestehende Logik extrahieren)
-- [ ] Eigenes Synchronizer-Profil kapseln (kein Planner-Prompt-Reuse)
-- [ ] Sprach-/Präsentationsregeln nur im Synchronizer-Build pflegen
+- [x] Eigenes Synchronizer-Profil kapseln (kein Planner-Prompt-Reuse)
+- [x] Sprach-/Präsentationsregeln nur im Synchronizer-Build pflegen
 
 ### classes/local/wbagent/services/synchronizer_input_builder.php
-- [ ] phase_trace (A/B/C) und execution_feedback standardisiert einbauen
+- [x] phase_trace (A/B/C) und execution_feedback standardisiert einbauen
 - [ ] Task-Discovery-Daten aus Sync-Input fernhalten
 
 ### classes/local/wbagent/services/synchronizer_output_contract.php
-- [ ] Als Pflicht-Contract unveraendert erzwingen
-- [ ] Bypass-Pfade fuer Sync-Output entfernen
+- [x] Als Pflicht-Contract unveraendert erzwingen
+- [x] Bypass-Pfade fuer Sync-Output entfernen
 
 ## 3. Harte Altcode-Entfernung (ohne Migration)
 
@@ -217,29 +217,29 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 - [ ] Phase-Enums und Prompt-Profile einfuehren
 	- Gate: routing und prompt-profile laufen auf discovery/selection/construction statt tool_call_parse/simple_retrieval
-- [ ] Orchestrator process() in drei Phasenmethoden aufteilen
-	- Gate: drei getrennte invoke()-Calls mit eigenem source-Tag
+- [x] Orchestrator process() in drei Phasenmethoden aufteilen
+	- Gate: [x] drei getrennte invoke()-Calls mit eigenem source-Tag
 - [ ] Discovery auf Family Registry + Family Ranking live umstellen
 	- Gate: Selection erhaelt nur family-begrenzte Task-Menge
 - [ ] Selection + Construction strikt trennen
-	- Gate: Construction sieht genau eine selektierte Task
+	- Gate: [x] Construction sieht genau eine selektierte Task
 - [ ] Interpreter auf phase contracts umbauen
 	- Gate: interpret_phase_output() liefert je Phase valides DTO
 - [ ] Synchronizer vom Planner-Step entkoppeln
-	- Gate: eigener Synchronizer-Routepfad mit generate_agent_reply und generate_text fallback
+	- Gate: [x] eigener Synchronizer-Routepfad mit generate_agent_reply und generate_text fallback
 - [ ] Legacy-Code entfernen
 	- Gate: kein monolithischer Planner-Pfad mehr erreichbar
 
 ## 5. Abnahme-Checkliste (technisch)
 
 - [ ] LLM-Debug-Log zeigt drei getrennte Planner-Calls (discovery, selection, construction)
-- [ ] Family-Ranking-Output ist in Discovery-Telemetrie sichtbar und beeinflusst Folgephase
-- [ ] Zwei Discovery-Modi sind testbar aktiv:
+- [x] Family-Ranking-Output ist in Discovery-Telemetrie sichtbar und beeinflusst Folgephase
+- [x] Zwei Discovery-Modi sind testbar aktiv:
 	- mit Wunderbyte+Embeddings -> semantische Family-Suche
 	- ohne Embeddings/Provider -> slim non-semantischer Family-Pfad
-- [ ] Kein Codepfad erzeugt Task-Wahl und finale Parameter im selben Phase-Output
+- [x] Kein Codepfad erzeugt Task-Wahl und finale Parameter im selben Phase-Output
 - [ ] Decision/Preflight/Queue/Executor bleiben deterministisch unveraendert
-- [ ] Synchronizer erzeugt nur Message-Polish und nie Commands
+- [x] Synchronizer erzeugt nur Message-Polish und nie Commands
 - [ ] planner_trace_history und phase_trace sind pro Turn persistent und konsistent
 - [ ] bookingextension_agent_testsuite laeuft ohne Regression
 
@@ -259,10 +259,12 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] planner_trace_history im Ist-Code nachgewiesen
 
 ### 7.2 Noch nicht im Zielzuschnitt nachgewiesen (vor Start einplanen)
-- [ ] Explizite Orchestrator-Methoden run_discovery_phase()/run_selection_phase()/run_construction_phase()
-- [ ] Explizite Interpreter-Schnittstelle interpret_phase_output(raw, phase, context)
-- [ ] Explizite Bausteine phase_prompt_bundle_builder, planner_result_composer, synchronizer_prompt_builder
-- [ ] Durchgaengige phase_trace-Persistenz (gleiches Schema in Runtime/Store/Sync)
+- [x] Explizite Orchestrator-Methoden run_discovery_phase()/run_selection_phase()/run_construction_phase()
+- [x] Explizite Interpreter-Schnittstelle interpret_phase_output(raw, phase, context)
+- [x] Explizite Bausteine planner_result_composer
+	- [x] Explizite Bausteine phase_prompt_bundle_builder
+	- [x] Explizite Bausteine synchronizer_prompt_builder
+- [x] Durchgaengige phase_trace-Persistenz (gleiches Schema in Runtime/Store/Sync)
 
 ### 7.3 Startentscheidung
 - [x] GO fuer Umsetzung ist gegeben: Analyse ist tief genug, um mit dem Refactor kontrolliert zu starten
@@ -279,29 +281,29 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 ### 8.1 Paketplan fuer schnelle Umsetzung
 
 #### Paket 1: Orchestrator-Phasensplit ohne Legacy-Loeschung
-- [ ] orchestrator.php: run_discovery_phase(), run_selection_phase(), run_construction_phase() einfuehren
-- [ ] orchestrator_routing_service.php: phase-basierte API parallel zu alter API bereitstellen
-- [ ] orchestrator_prompt_profile_service.php: phase-Profile discovery/selection/parameter_construction einziehen
+- [x] orchestrator.php: run_discovery_phase(), run_selection_phase(), run_construction_phase() einfuehren
+- [x] orchestrator_routing_service.php: phase-basierte API parallel zu alter API bereitstellen
+- [x] orchestrator_prompt_profile_service.php: phase-Profile discovery/selection/parameter_construction einziehen
 - [ ] Gate fuer Paket 1:
-	- process() ruft drei getrennte invoke()-Calls auf
+	- [x] process() ruft drei getrennte invoke()-Calls auf
 	- Doppelpfad bleibt erhalten (wunderbyte+embeddings vs slim no-embeddings)
 	- Kein Legacy-Code geloescht
 
 #### Paket 2: Interpreter-Phasenkontrakte + Composer
-- [ ] interpreter.php: interpret_phase_output(raw, phase, context) einfuehren
-- [ ] services/planner_result_composer.php neu anlegen oder Logik extrahieren
-- [ ] conversation_store.php: planner_trace_history und phase_trace schema-konsistent schreiben
+- [x] interpreter.php: interpret_phase_output(raw, phase, context) einfuehren
+- [x] services/planner_result_composer.php neu anlegen oder Logik extrahieren
+- [x] conversation_store.php: planner_trace_history und phase_trace schema-konsistent schreiben
 - [ ] Gate fuer Paket 2:
-	- Unified planner_result wird nur noch aus 3 Phasen komponiert
-	- Kein Pfad erzeugt Task-Wahl und finale Parameter in einer Antwort
+	- [x] Unified planner_result wird nur noch aus 3 Phasen komponiert
+	- [x] Kein Pfad erzeugt Task-Wahl und finale Parameter in einer Antwort
 
 #### Paket 3: Synchronizer entkoppeln
-- [ ] services/synchronizer_prompt_builder.php neu anlegen oder Logik extrahieren
-- [ ] synchronizer_routing_service.php auf dedizierten Sync-Invoke-Pfad finalisieren
-- [ ] synchronizer_input_builder.php auf phase_trace + execution_feedback standardisieren
+- [x] services/synchronizer_prompt_builder.php neu anlegen oder Logik extrahieren
+- [x] synchronizer_routing_service.php auf dedizierten Sync-Invoke-Pfad finalisieren
+- [x] synchronizer_input_builder.php auf phase_trace + execution_feedback standardisieren
 - [ ] Gate fuer Paket 3:
-	- Synchronizer nutzt kein Planner-Step-Reuse
-	- Synchronizer mutiert niemals Commands
+	- [x] Synchronizer nutzt kein Planner-Step-Reuse
+	- [x] Synchronizer mutiert niemals Commands
 
 #### Paket 4: Legacy-Entfernung und Cleanup
 - [ ] Monolithische Planner-Pfade entfernen

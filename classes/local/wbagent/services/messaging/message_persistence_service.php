@@ -52,7 +52,7 @@ class message_persistence_service {
      * @return void
      */
     public function persist_assistant_message(int $threadid, array $result): void {
-        $this->store->add_message($threadid, 'assistant', $result['message'] ?? '', [
+        $structured = [
             'response_type'            => $result['response_type'],
             'runid'                    => $result['runid'] ?? 0,
             'used_triggers'            => $result['used_triggers'] ?? [],
@@ -68,6 +68,24 @@ class message_persistence_service {
             'loop_step'                => $result['loop_step'] ?? 0,
             'loop_max_steps'           => $result['loop_max_steps'] ?? 0,
             'lang'                     => $result['lang'] ?? '',
-        ]);
+        ];
+
+        if (isset($result['phase_trace']) && is_array($result['phase_trace'])) {
+            $structured['phase_trace'] = $result['phase_trace'];
+        }
+        if (isset($result['planner_result']) && is_array($result['planner_result'])) {
+            $structured['planner_result'] = $result['planner_result'];
+            $plannertracehistory = (array)($result['planner_result']['planner_trace_history'] ?? []);
+            $normalizedhistory = array_map(
+                static fn($entry): string => (string)$entry,
+                $plannertracehistory
+            );
+            $this->store->set_planner_trace_history($threadid, $normalizedhistory);
+        }
+        if (isset($result['phase_trace']) && is_array($result['phase_trace'])) {
+            $this->store->set_phase_trace($threadid, $result['phase_trace']);
+        }
+
+        $this->store->add_message($threadid, 'assistant', $result['message'] ?? '', $structured);
     }
 }

@@ -14,11 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Admin settings for the bookingextension_agent plugin.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 defined('MOODLE_INTERNAL') || die();
 
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\task_registry;
 use bookingextension_agent\local\wbagent\task_registry_factory;
+use core_ai\aiactions\summarise_text;
 
 global $CFG;
 
@@ -26,8 +35,18 @@ require_once($CFG->dirroot . '/mod/booking/bookingextension/agent/lib.php');
 
 if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
     $defaultsummarypromptprefix = orchestrator::get_default_summary_prompt_prefix();
+    $defaultplannerprompttemplate = orchestrator::get_default_initial_prompt_template_for_action(summarise_text::class);
 } else {
     $defaultsummarypromptprefix = '';
+    $defaultplannerprompttemplate = '';
+}
+
+if (get_config('bookingextension_agent', 'aiinitialprompt_tool_call_parse') === false) {
+    set_config('aiinitialprompt_tool_call_parse', $defaultplannerprompttemplate, 'bookingextension_agent');
+}
+
+if (get_config('bookingextension_agent', 'aiinitialprompt_simple_retrieval') === false) {
+    set_config('aiinitialprompt_simple_retrieval', $defaultplannerprompttemplate, 'bookingextension_agent');
 }
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') === false) {
@@ -111,6 +130,30 @@ $aisettingspage->add(
         get_string('aifollowupsuggestionscount_desc', 'bookingextension_agent'),
         '0',
         PARAM_INT
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configtextarea(
+        'bookingextension_agent/aiinitialprompt_tool_call_parse',
+        get_string('aiinitialprompt_tool_call_parse', 'bookingextension_agent'),
+        get_string('aiinitialprompt_tool_call_parse_desc', 'bookingextension_agent'),
+        $defaultplannerprompttemplate,
+        PARAM_RAW,
+        120,
+        8
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configtextarea(
+        'bookingextension_agent/aiinitialprompt_simple_retrieval',
+        get_string('aiinitialprompt_simple_retrieval', 'bookingextension_agent'),
+        get_string('aiinitialprompt_simple_retrieval_desc', 'bookingextension_agent'),
+        $defaultplannerprompttemplate,
+        PARAM_RAW,
+        120,
+        8
     )
 );
 
@@ -212,7 +255,7 @@ try {
     );
 }
 
-// "Enable all" is added LAST so Moodle processes individual task toggles first.
+// Enable all is added last so Moodle processes individual task toggles first.
 // When this checkbox fires its callback, all per-task configs are already written
 // to the DB and the sync can safely overwrite them with 1.
 $enableallsetting = new admin_setting_configcheckbox(

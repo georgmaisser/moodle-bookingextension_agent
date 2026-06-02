@@ -63,6 +63,9 @@ class interpreter implements agent_interpreter {
     /** Canonical token representing the current executor user. */
     private const CURRENT_USER_TOKEN = '__current_user__';
 
+    /** Planner phases that must not emit command-bearing outputs. */
+    private const NON_COMMAND_PHASES = ['discovery', 'selection'];
+
     /** @var task_registry */
     private task_registry $registry;
 
@@ -302,6 +305,78 @@ class interpreter implements agent_interpreter {
             'attempted_tasks' => $attemptedtasks,
             'issue_codes'   => $issuecodes,
         ], $nextstepintent);
+    }
+
+    /**
+     * Interpret phase output with explicit phase context.
+     *
+     * @param string $rawresponse
+     * @param string $phase
+     * @param array<string,mixed> $context
+     * @return array
+     */
+    public function interpret_phase_output(string $rawresponse, string $phase, array $context = []): array {
+        $contextid = (int)($context['contextid'] ?? 0);
+        $userid = (int)($context['userid'] ?? 0);
+        $lastusermessage = (string)($context['lastusermessage'] ?? '');
+        $normalizedphase = $this->normalize_phase_name($phase);
+
+        $result = $this->interpret($rawresponse, $contextid, $userid, $lastusermessage);
+        $result = $this->enforce_phase_contract($result, $normalizedphase);
+        $result['phase'] = $normalizedphase;
+        return $result;
+    }
+
+    /**
+     * Enforce explicit response contracts per planner phase.
+     *
+     * Discovery and selection must not return command-bearing outputs. This
+     * keeps task selection and parameter construction out of earlier phases.
+     *
+     * @param array $result
+     * @param string $phase
+     * @return array
+     */
+    private function enforce_phase_contract(array $result, string $phase): array {
+        $responsetype = $this->safe_string($result['response_type'] ?? '');
+        if ($responsetype === '' || $responsetype === 'error') {
+            return $result;
+        }
+
+        if (in_array($phase, self::NON_COMMAND_PHASES, true)) {
+            if (in_array($responsetype, ['task_call', 'confirmation_request'], true)) {
+                return $this->error_result_with_issue_code(
+                    'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit command-bearing response_type.',
+                    'CONTRACT_PHASE_RESPONSE_TYPE'
+                );
+            }
+
+            $commands = $result['commands'] ?? [];
+            if (is_array($commands) && !empty($commands)) {
+                return $this->error_result_with_issue_code(
+                    'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit commands.',
+                    'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED'
+                );
+            }
+        }
+
+        if ($phase === 'parameter_construction') {
+            if (in_array($responsetype, ['task_call', 'confirmation_request'], true)) {
+                $commands = $result['commands'] ?? [];
+                if (!is_array($commands)) {
+                    $commands = [];
+                }
+
+                if (count($commands) !== 1) {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must emit exactly one command.',
+                        'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED'
+                    );
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -1011,5 +1086,22 @@ class interpreter implements agent_interpreter {
     private function strip_command_prefix(string $text): string {
         $clean = preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', $text);
         return $this->safe_string($clean ?? $text);
+    }
+
+    /**
+     * Normalize a phase label for downstream planner composition.
+     *
+     * @param string $phase
+     * @return string
+     */
+    private function normalize_phase_name(string $phase): string {
+        $normalized = strtolower(trim($phase));
+        if ($normalized === 'selection') {
+            return 'selection';
+        }
+        if ($normalized === 'construction' || $normalized === 'parameter_construction') {
+            return 'parameter_construction';
+        }
+        return 'discovery';
     }
 }

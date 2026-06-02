@@ -119,8 +119,11 @@ class routing_decision_log_service {
             $escalationreason = 'none';
         }
 
+        $embeddingpath = self::derive_embedding_path($catalogselectionmode);
+
         return [
             'catalogselectionmode' => $catalogselectionmode,
+            'embedding_path' => $embeddingpath,
             'discovery_stage' => $discoverystage,
             'confidence_score' => $confidencescore,
             'escalation_reason' => $escalationreason,
@@ -164,6 +167,7 @@ class routing_decision_log_service {
 
         return [
             'catalogselectionmode' => (string)($normalized['catalogselectionmode'] ?? 'none'),
+            'embedding_path' => self::derive_embedding_path((string)($normalized['catalogselectionmode'] ?? 'none')),
             'discovery_stage' => $stage,
             'confidence_score' => $confidencescore,
             'escalation_reason' => $escalationreason,
@@ -184,6 +188,8 @@ class routing_decision_log_service {
 
         $livecatalogmode = (string)($normalized['catalogselectionmode'] ?? 'none');
         $shadowcatalogmode = (string)($shadow['catalogselectionmode'] ?? 'none');
+        $liveembeddingpath = (string)($normalized['embedding_path'] ?? self::derive_embedding_path($livecatalogmode));
+        $shadowembeddingpath = (string)($shadow['embedding_path'] ?? self::derive_embedding_path($shadowcatalogmode));
         $livestage = (string)($normalized['discovery_stage'] ?? 'unknown');
         $shadowstage = (string)($shadow['discovery_stage'] ?? 'unknown');
 
@@ -200,6 +206,9 @@ class routing_decision_log_service {
             'live_catalogselectionmode' => $livecatalogmode,
             'shadow_catalogselectionmode' => $shadowcatalogmode,
             'catalogselectionmode_changed' => $livecatalogmode !== $shadowcatalogmode,
+            'live_embedding_path' => $liveembeddingpath,
+            'shadow_embedding_path' => $shadowembeddingpath,
+            'embedding_path_changed' => $liveembeddingpath !== $shadowembeddingpath,
             'live_discovery_stage' => $livestage,
             'shadow_discovery_stage' => $shadowstage,
             'discovery_stage_changed' => $livestage !== $shadowstage,
@@ -213,5 +222,27 @@ class routing_decision_log_service {
         }
 
         return $comparison;
+    }
+
+    /**
+     * Derive a coarse embedding path label from catalog selection mode.
+     *
+     * @param string $catalogselectionmode
+     * @return string
+     */
+    private static function derive_embedding_path(string $catalogselectionmode): string {
+        if (str_starts_with($catalogselectionmode, 'embed_')) {
+            return 'with_embeddings';
+        }
+
+        if ($catalogselectionmode === 'slim_all' || $catalogselectionmode === 'none') {
+            return 'no_embeddings';
+        }
+
+        if ($catalogselectionmode === 'embed_topk_cache') {
+            return 'with_embeddings';
+        }
+
+        return 'unknown';
     }
 }

@@ -59,7 +59,92 @@ class synchronizer_input_builder {
             $observations[] = $sourceobservation;
         }
 
+        $phasetraceobservation = $this->build_phase_trace_observation($result);
+        if ($phasetraceobservation !== '') {
+            $observations[] = $phasetraceobservation;
+        }
+
+        $executionfeedbackobservation = $this->build_execution_feedback_observation($result);
+        if ($executionfeedbackobservation !== '') {
+            $observations[] = $executionfeedbackobservation;
+        }
+
         return $observations;
+    }
+
+    /**
+     * Build a normalized phase trace observation for synchronization context.
+     *
+     * @param array $result
+     * @return string
+     */
+    private function build_phase_trace_observation(array $result): string {
+        $phasetrace = (array)($result['phase_trace'] ?? []);
+        if (empty($phasetrace)) {
+            return '';
+        }
+
+        $payload = [
+            'discovery' => (array)($phasetrace['discovery'] ?? []),
+            'selection' => (array)($phasetrace['selection'] ?? []),
+            'parameter_construction' => (array)($phasetrace['parameter_construction'] ?? []),
+        ];
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json) || trim($json) === '') {
+            return '';
+        }
+
+        return 'PHASE_TRACE' . "\n" . $json;
+    }
+
+    /**
+     * Build compact execution feedback observation for synchronizer prompts.
+     *
+     * @param array $result
+     * @return string
+     */
+    private function build_execution_feedback_observation(array $result): string {
+        $results = (array)($result['results'] ?? []);
+        if (empty($results)) {
+            return '';
+        }
+
+        $statuscounts = [];
+        $tasks = [];
+        foreach ($results as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $status = trim((string)($row['status'] ?? 'unknown'));
+            if ($status === '') {
+                $status = 'unknown';
+            }
+            $statuscounts[$status] = (int)($statuscounts[$status] ?? 0) + 1;
+
+            $task = trim((string)($row['task'] ?? ''));
+            if ($task !== '') {
+                $tasks[] = $task;
+            }
+        }
+
+        if (empty($statuscounts) && empty($tasks)) {
+            return '';
+        }
+
+        $payload = [
+            'result_count' => count($results),
+            'status_counts' => $statuscounts,
+            'tasks' => array_values(array_unique($tasks)),
+        ];
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($json) || trim($json) === '') {
+            return '';
+        }
+
+        return 'EXECUTION_FEEDBACK' . "\n" . $json;
     }
 
     /**
