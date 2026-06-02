@@ -34,9 +34,9 @@ use bookingextension_agent\local\wbagent\task_registry;
  */
 final class phase_prompt_bundle_builder_contract_test extends advanced_testcase {
     /**
-     * Selection output contract must disallow command-bearing response types.
+     * Selection output contract must require a single selector command.
      */
-    public function test_selection_output_contract_disallows_command_bearing_types(): void {
+    public function test_selection_output_contract_requires_single_selector_command(): void {
         $builder = $this->build_builder();
 
         $contract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
@@ -44,9 +44,19 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
             false,
         ]);
 
-        $this->assertStringContainsString('Allowed response_type: clarification, confirm_pending, sufficient, error.', $contract);
-        $this->assertStringContainsString('commands must be [] in this phase.', $contract);
-        $this->assertStringContainsString('Never emit task_call or confirmation_request in this phase.', $contract);
+        $this->assertStringContainsString('Allowed response_type: task_call, clarification, confirm_pending, sufficient, error.', $contract);
+        $this->assertStringContainsString(
+            'For task_call: commands must contain exactly one command object that selects exactly one task',
+            $contract
+        );
+        $this->assertStringContainsString(
+            'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.',
+            $contract
+        );
+        $this->assertStringContainsString(
+            'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.',
+            $contract
+        );
     }
 
     /**

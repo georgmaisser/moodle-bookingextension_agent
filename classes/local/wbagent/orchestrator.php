@@ -510,7 +510,7 @@ class orchestrator {
         $routing = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
             $manager,
             $context,
-            orchestrator_routing_service::PHASE_DISCOVERY
+            orchestrator_routing_service::PHASE_SELECTION
         );
         $actionclass = (string)($routing['actionclass'] ?? '');
 
@@ -818,26 +818,23 @@ class orchestrator {
             false
         );
 
-        $phaseoutput = [];
-        $call = $llm->invoke($threadid, $cmid, $userid, $debugsource, $prompt, $actionclass);
-        $rawtext = (string)($call['rawcontent'] ?? '');
-        if (empty($call['success'])) {
-            $phaseoutput = $this->build_provider_error_result($call);
-        } else if ($rawtext === '') {
-            $phaseoutput = $this->build_empty_provider_result();
-        } else {
-            $phaseoutput = $this->interpreter->interpret_phase_output(
-                $rawtext,
-                self::PHASE_DISCOVERY,
-                [
-                    'contextid' => $contextid,
-                    'userid' => $userid,
-                ]
-            );
-            if (is_array($phaseoutput)) {
-                $phaseoutput['_planner_raw_response'] = $rawtext;
-            }
-        }
+        $phaseoutput = [
+            'response_type' => 'sufficient',
+            'message' => '',
+            'commands' => [],
+            'ambiguities' => [],
+            'errors' => [],
+            'issue_codes' => [],
+            'used_triggers' => [],
+            'next_step_intent' => '',
+            'phase' => self::PHASE_DISCOVERY,
+            'catalogselectionmode' => $catalogselectionmode,
+            'embeddingstatus' => $embeddingstatus,
+            'discovery_stage' => $discoverystage,
+            'discovery_confidence_score' => $discoveryconfidencescore,
+            'discovery_escalation_reason' => $discoveryescalationreason,
+            'selected_families' => $selectedfamilies,
+        ];
 
         return [
             'contextid' => $contextid,
@@ -894,9 +891,13 @@ class orchestrator {
         ai_manager $manager
     ): array {
         $contextid = (int)($discoverystate['contextid'] ?? 0);
-        $actionclass = (string)($discoverystate['actionclass'] ?? generate_text::class);
+        $routing = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
+            $manager,
+            $context,
+            orchestrator_routing_service::PHASE_SELECTION
+        );
+        $actionclass = (string)($routing['actionclass'] ?? generate_text::class);
         $messages = (array)($discoverystate['messages'] ?? []);
-        $routing = (array)($discoverystate['routing'] ?? []);
         $promptcontracts = (array)($discoverystate['promptcontracts'] ?? []);
         $runtimecatalog = (array)($discoverystate['runtimecatalog'] ?? []);
         $unavailabletaskcatalog = (array)($discoverystate['unavailabletaskcatalog'] ?? []);
@@ -985,6 +986,7 @@ class orchestrator {
                 ]
             );
             if (is_array($phaseoutput)) {
+                $phaseoutput = $this->normalize_selection_phase_output_for_handoff($phaseoutput);
                 $phaseoutput['_planner_raw_response'] = $rawtext;
             }
         }
@@ -1026,10 +1028,13 @@ class orchestrator {
             }
         }
 
+        $selectedtask = $this->extract_selected_task_from_selection_phase_output($phaseoutput);
+
         return [
             'prompt' => $prompt,
             'debugsource' => $debugsource,
             'lastusermessage' => $lastusermessage,
+            'selected_task' => $selectedtask,
             'phase' => self::PHASE_SELECTION,
             'phase_output' => $phaseoutput,
             'response_type' => (string)($phaseoutput['response_type'] ?? ''),
@@ -1037,6 +1042,55 @@ class orchestrator {
             'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
             'errors' => (array)($phaseoutput['errors'] ?? []),
         ];
+    }
+
+    /**
+     * Normalize selection output to an explicit single-task selector handoff.
+     *
+     * This strips accidental parameter payloads from selection commands and keeps
+     * only the selected task identity for constructor handoff.
+     *
+     * @param array<string,mixed> $phaseoutput
+     * @return array<string,mixed>
+     */
+    private function normalize_selection_phase_output_for_handoff(array $phaseoutput): array {
+        $responsetype = trim((string)($phaseoutput['response_type'] ?? ''));
+        if ($responsetype !== 'task_call') {
+            if (!isset($phaseoutput['selected_task'])) {
+                $phaseoutput['selected_task'] = '';
+            }
+            return $phaseoutput;
+        }
+
+        $commands = (array)($phaseoutput['commands'] ?? []);
+        if (count($commands) !== 1) {
+            return $this->build_selection_contract_error_result(
+                'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED',
+                'CONTRACT_VIOLATION: selection phase must emit exactly one selector command.'
+            );
+        }
+
+        $command = is_array($commands[0]) ? $commands[0] : [];
+        $selectedtask = trim((string)($phaseoutput['selected_task'] ?? ''));
+        if ($selectedtask === '') {
+            $selectedtask = trim((string)($command['task'] ?? ''));
+        }
+        if ($selectedtask === '') {
+            return $this->build_selection_contract_error_result(
+                'CONTRACT_SELECTION_TASK_MISSING',
+                'CONTRACT_VIOLATION: selection phase task_call did not provide a selected task.'
+            );
+        }
+
+        $version = max(1, (int)($command['version'] ?? 1));
+        $phaseoutput['selected_task'] = $selectedtask;
+        $phaseoutput['commands'] = [[
+            'task' => $selectedtask,
+            'version' => $version,
+            'input' => [],
+        ]];
+
+        return $phaseoutput;
     }
 
     /**
@@ -1058,13 +1112,19 @@ class orchestrator {
         array $selectionstate
     ): array {
         $llm = new llm_call_service($this->store);
-        $actionclass = (string)($discoverystate['actionclass'] ?? generate_text::class);
+        $context = context_module::instance($cmid);
+        $manager = di::get(ai_manager::class);
+        $routing = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
+            $manager,
+            $context,
+            orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION
+        );
+        $actionclass = (string)($routing['actionclass'] ?? generate_text::class);
         $contextid = (int)($discoverystate['contextid'] ?? 0);
         $messages = (array)($discoverystate['messages'] ?? []);
         $adaptivecatalog = (array)($discoverystate['adaptivecatalog'] ?? []);
         $runtimecatalog = (array)($discoverystate['runtimecatalog'] ?? []);
         $plannertracehistory = (array)($discoverystate['plannertracehistory'] ?? []);
-        $routing = (array)($discoverystate['routing'] ?? []);
         $isfirstassistantturn = !empty($discoverystate['isfirstassistantturn']);
         $haseffectiveobservations = !empty($discoverystate['haseffectiveobservations']);
         $shouldincludetaskcatalog = !empty($discoverystate['shouldincludetaskcatalog']);
@@ -1072,6 +1132,21 @@ class orchestrator {
         $embeddingstatus = (string)($discoverystate['embeddingstatus'] ?? 'off');
         $embeddingrebuildqueued = !empty($discoverystate['embeddingrebuildqueued']);
         $unavailabletaskcatalog = (array)($discoverystate['unavailabletaskcatalog'] ?? []);
+        $selectedtask = trim((string)($selectionstate['selected_task'] ?? ''));
+
+        if ($selectedtask === '') {
+            $selectionresponsetype = trim((string)($selectionstate['response_type'] ?? ''));
+            if ($selectionresponsetype !== '' && $selectionresponsetype !== 'task_call') {
+                return $this->build_construction_passthrough_from_selection($selectionstate);
+            }
+            return $this->build_selector_handoff_error_result();
+        }
+
+        $constructionruntimecatalog = $this->build_construction_runtime_catalog_for_selected_task(
+            $selectedtask,
+            $runtimecatalog,
+            $adaptivecatalog
+        );
 
         $constructionobservations = array_values($observations);
         $constructionobservations = array_merge(
@@ -1087,7 +1162,7 @@ class orchestrator {
             $actionclass,
             $haseffectiveobservations || !empty($constructionobservations),
             $adaptivecatalog,
-            $runtimecatalog,
+            $constructionruntimecatalog,
             $isfirstassistantturn,
             $shouldincludetaskcatalog
         );
@@ -1097,7 +1172,7 @@ class orchestrator {
             self::PHASE_PARAMETER_CONSTRUCTION,
             $isfirstassistantturn,
             !empty($constructionobservations),
-            $runtimecatalog,
+            $constructionruntimecatalog,
             $unavailabletaskcatalog,
             $messages
         );
@@ -1128,7 +1203,7 @@ class orchestrator {
             $observationcount,
             $catalogselectionmode,
             $embeddingstatus,
-            count($runtimecatalog),
+            count($constructionruntimecatalog),
             $embeddingrebuildqueued,
             false
         );
@@ -1145,7 +1220,7 @@ class orchestrator {
         }
 
         $lastusermessage = (string)($selectionstate['lastusermessage'] ?? '');
-        $constructionallowedtasks = $this->build_construction_allowed_tasks($runtimecatalog, $adaptivecatalog);
+        $constructionallowedtasks = [$selectedtask];
         $interpreted = $this->interpreter->interpret_phase_output(
             $rawtext,
             self::PHASE_PARAMETER_CONSTRUCTION,
@@ -1161,6 +1236,48 @@ class orchestrator {
         }
 
         return $interpreted;
+    }
+
+    /**
+     * Restrict construction runtime catalog to the selector-chosen task only.
+     *
+     * @param string $selectedtask
+     * @param array<int,array<string,mixed>> $runtimecatalog
+     * @param array<int,array<string,mixed>> $adaptivecatalog
+     * @return array<int,array<string,mixed>>
+     */
+    private function build_construction_runtime_catalog_for_selected_task(
+        string $selectedtask,
+        array $runtimecatalog,
+        array $adaptivecatalog
+    ): array {
+        $filtered = [];
+
+        foreach ($runtimecatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (trim((string)($entry['task'] ?? '')) !== $selectedtask) {
+                continue;
+            }
+            $filtered[] = $entry;
+        }
+
+        if (!empty($filtered)) {
+            return array_values($filtered);
+        }
+
+        foreach ($adaptivecatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (trim((string)($entry['task'] ?? '')) !== $selectedtask) {
+                continue;
+            }
+            $filtered[] = $entry;
+        }
+
+        return array_values($filtered);
     }
 
     /**
@@ -1198,6 +1315,70 @@ class orchestrator {
         }
 
         return array_values(array_unique($tasks));
+    }
+
+    /**
+     * Extract an explicitly selected task from selection-phase output.
+     *
+     * @param array<string,mixed> $phaseoutput
+     * @return string
+     */
+    private function extract_selected_task_from_selection_phase_output(array $phaseoutput): string {
+        return trim((string)($phaseoutput['selected_task'] ?? ''));
+    }
+
+    /**
+     * Build a standardized selection-phase contract error payload.
+     *
+     * @param string $issuecode
+     * @param string $error
+     * @return array<string,mixed>
+     */
+    private function build_selection_contract_error_result(string $issuecode, string $error): array {
+        return [
+            'response_type' => 'error',
+            'message' => get_string('ai_provider_error', 'bookingextension_agent'),
+            'commands' => [],
+            'selected_task' => '',
+            'ambiguities' => [],
+            'errors' => [$error],
+            'issue_codes' => [$issuecode],
+        ];
+    }
+
+    /**
+     * Build a standardized selector-handoff error when construction lacks selected_task.
+     *
+     * @return array<string,mixed>
+     */
+    private function build_selector_handoff_error_result(): array {
+        return [
+            'response_type' => 'error',
+            'message' => get_string('ai_provider_error', 'bookingextension_agent'),
+            'commands' => [],
+            'ambiguities' => [],
+            'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_task for construction.'],
+            'issue_codes' => ['CONTRACT_SELECTION_TASK_MISSING'],
+        ];
+    }
+
+    /**
+     * Pass through non-task selection outcomes instead of masking them.
+     *
+     * @param array<string,mixed> $selectionstate
+     * @return array<string,mixed>
+     */
+    private function build_construction_passthrough_from_selection(array $selectionstate): array {
+        return [
+            'response_type' => (string)($selectionstate['response_type'] ?? 'error'),
+            'message' => (string)($selectionstate['message'] ?? get_string('ai_provider_error', 'bookingextension_agent')),
+            'commands' => (array)($selectionstate['commands'] ?? []),
+            'ambiguities' => (array)($selectionstate['ambiguities'] ?? []),
+            'ambiguity_options' => (array)($selectionstate['ambiguity_options'] ?? []),
+            'errors' => (array)($selectionstate['errors'] ?? []),
+            'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
+            'selected_task' => (string)($selectionstate['selected_task'] ?? ''),
+        ];
     }
 
     /**
@@ -1257,6 +1438,7 @@ class orchestrator {
             'phase' => self::PHASE_SELECTION,
             'response_type' => (string)($selectionstate['response_type'] ?? ''),
             'message' => (string)($selectionstate['message'] ?? ''),
+            'selected_task' => (string)($selectionstate['selected_task'] ?? ''),
             'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
             'errors' => (array)($selectionstate['errors'] ?? []),
         ];
@@ -2030,48 +2212,4 @@ PROMPT;
             if (!is_array($entry)) {
                 continue;
             }
-            $taskname = trim((string)($entry['task'] ?? ''));
-            if ($taskname !== '') {
-                $existing[$taskname] = true;
-            }
-        }
-
-        $fallbackindex = [];
-        foreach ($fallbackcatalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $taskname = trim((string)($entry['task'] ?? ''));
-            if ($taskname !== '') {
-                $fallbackindex[$taskname] = $entry;
-            }
-        }
-
-        $result = $primarycatalog;
-        $added = 0;
-        foreach ($recenttaskhistory as $taskname) {
-            $taskname = trim((string)$taskname);
-            if ($taskname === '' || isset($existing[$taskname])) {
-                continue;
-            }
-
-            $executablestate = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
-            if ($executablestate === 'deny') {
-                continue;
-            }
-
-            if (!isset($fallbackindex[$taskname])) {
-                continue;
-            }
-
-            $result[] = $fallbackindex[$taskname];
-            $existing[$taskname] = true;
-            $added++;
-            if ($added >= $maxadditions) {
-                break;
-            }
-        }
-
-        return $result;
-    }
-}
+   

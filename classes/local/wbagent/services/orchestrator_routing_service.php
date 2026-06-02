@@ -91,6 +91,18 @@ class orchestrator_routing_service {
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
     private function resolve_selection_action_class(ai_manager $manager, context_module $context): array {
+        try {
+            if ($manager->is_action_available($this->wbplanneraction)) {
+                return [
+                    'actionclass' => $this->wbplanneraction,
+                    'routepolicy' => $this->build_phase_route_policy(self::PHASE_SELECTION, 'wunderbyte'),
+                    'routingfallback' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $ignored = $e;
+        }
+
         if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
             return [
                 'actionclass' => summarise_text::class,

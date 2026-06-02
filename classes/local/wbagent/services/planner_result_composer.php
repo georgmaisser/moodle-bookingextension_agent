@@ -17,7 +17,7 @@
 namespace bookingextension_agent\local\wbagent\services;
 
 /**
- * Compose the planner result from discovery, selection, and construction phases.
+ * Compose the planner result from selection and construction phase outputs.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -25,7 +25,10 @@ namespace bookingextension_agent\local\wbagent\services;
  */
 class planner_result_composer {
     /**
-     * Compose a unified planner result while preserving the construction payload.
+    * Compose a unified planner result while preserving the construction payload.
+    *
+    * Phase trace is restricted to selection + parameter_construction.
+    * Discovery context remains available via planner_trace_history only.
      *
      * @param array<string,mixed> $discoverystate
      * @param array<string,mixed> $selectionstate
@@ -62,6 +65,7 @@ class planner_result_composer {
             'response_type' => (string)($state['response_type'] ?? ''),
             'message' => (string)($state['message'] ?? ''),
             'phase' => (string)($state['phase'] ?? ''),
+            'selected_task' => (string)($state['selected_task'] ?? ''),
             'catalogselectionmode' => (string)($state['catalogselectionmode'] ?? ''),
             'embeddingstatus' => (string)($state['embeddingstatus'] ?? ''),
             'issue_codes' => (array)($state['issue_codes'] ?? []),

@@ -247,9 +247,12 @@ class phase_prompt_bundle_builder {
             $lines[] = 'For mutating intents, do not use task_call; '
                 . 'use confirmation_request unless already completed -> sufficient.';
         } else {
-            $lines[] = 'Allowed response_type: clarification, confirm_pending, sufficient, error.';
-            $lines[] = 'commands must be [] in this phase.';
-            $lines[] = 'Never emit task_call or confirmation_request in this phase.';
+            $lines[] = 'Allowed response_type: task_call, clarification, confirm_pending, sufficient, error.';
+            $lines[] = 'For task_call: commands must contain exactly one command object that selects exactly one task; '
+                . 'do not include full parameter payloads.';
+            $lines[] = 'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.';
+            $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
+            $lines[] = 'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.';
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {

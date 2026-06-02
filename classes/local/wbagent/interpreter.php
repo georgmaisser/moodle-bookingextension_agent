@@ -64,7 +64,7 @@ class interpreter implements agent_interpreter {
     private const CURRENT_USER_TOKEN = '__current_user__';
 
     /** Planner phases that must not emit command-bearing outputs. */
-    private const NON_COMMAND_PHASES = ['discovery', 'selection'];
+    private const NON_COMMAND_PHASES = ['discovery'];
 
     /** @var task_registry */
     private task_registry $registry;
@@ -321,6 +321,13 @@ class interpreter implements agent_interpreter {
         $lastusermessage = (string)($context['lastusermessage'] ?? '');
         $normalizedphase = $this->normalize_phase_name($phase);
 
+        if ($normalizedphase === 'selection') {
+            $result = $this->interpret_selection_phase_output($rawresponse, $contextid, $userid, $lastusermessage);
+            $result = $this->enforce_phase_contract($result, $normalizedphase, $context);
+            $result['phase'] = $normalizedphase;
+            return $result;
+        }
+
         $result = $this->interpret($rawresponse, $contextid, $userid, $lastusermessage);
         $result = $this->enforce_phase_contract($result, $normalizedphase, $context);
         $result['phase'] = $normalizedphase;
@@ -328,10 +335,148 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Enforce explicit response contracts per planner phase.
+     * Interpret the selection phase as a command-bearing selector call without executing the task.
      *
-     * Discovery and selection must not return command-bearing outputs. This
-     * keeps task selection and parameter construction out of earlier phases.
+     * @param string $rawresponse
+     * @param int $contextid
+     * @param int $userid
+     * @param string $lastusermessage
+     * @return array<string,mixed>
+     */
+    private function interpret_selection_phase_output(
+        string $rawresponse,
+        int $contextid,
+        int $userid,
+        string $lastusermessage = ''
+    ): array {
+        $this->lastparseissuecode = '';
+        $this->lastparseinputexcerpt = '';
+
+        $parsed = $this->parse($rawresponse);
+        if ($parsed === null) {
+            $excerpt = $this->lastparseinputexcerpt;
+            $message = 'Failed to parse LLM response as JSON.';
+            if ($excerpt !== '') {
+                $message .= ' Raw excerpt: ' . $excerpt;
+            }
+            return $this->error_result_with_issue_code(
+                $message,
+                $this->lastparseissuecode !== '' ? $this->lastparseissuecode : 'CONTRACT_PARSE_ERROR'
+            );
+        }
+
+        $responsetype = $this->safe_string($parsed['response_type'] ?? '');
+        if (!in_array($responsetype, ['task_call', 'clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
+            $normalized = $this->normalize_task_like_response($parsed, $lastusermessage);
+            if ($normalized !== null) {
+                $parsed = $normalized;
+                $responsetype = $this->safe_string($parsed['response_type'] ?? '');
+            }
+        }
+
+        if ($responsetype === '') {
+            return $this->error_result_with_issue_code(
+                'LLM returned an unknown or missing response_type: (none)',
+                'CONTRACT_UNKNOWN_RESPONSE_TYPE'
+            );
+        }
+
+        $lang = $this->safe_string($parsed['lang'] ?? '');
+        $userlang = $this->safe_string($parsed['user_lang'] ?? $parsed['userlang'] ?? '');
+        if ($lang === '' && $userlang !== '') {
+            $lang = $userlang;
+        }
+        if ($lang !== '') {
+            $lang = strtolower(substr($lang, 0, 2));
+        }
+
+        // Selection must be a selector call. If the model drifts into a
+        // confirmation_request without selecting a task, downgrade to
+        // clarification so runtime can respond safely without construction.
+        if ($responsetype === 'confirmation_request') {
+            $message = $this->safe_string($parsed['message'] ?? '');
+            if ($message === '') {
+                return $this->error_result_with_issue_code(
+                    'Selection phase returned confirmation_request with empty message.',
+                    'CONTRACT_EMPTY_SELECTION_MESSAGE'
+                );
+            }
+
+            return [
+                'response_type' => 'clarification',
+                'lang' => $lang,
+                'user_lang' => $userlang,
+                'message' => $this->strip_command_prefix($message),
+                'used_triggers' => $this->extract_used_triggers($parsed),
+                'commands' => [],
+                'selected_task' => '',
+                'ambiguities' => [],
+                'ambiguity_options' => [],
+                'errors' => [],
+                'issue_codes' => ['CONTRACT_SELECTION_CONFIRMATION_NOT_ALLOWED'],
+            ];
+        }
+
+        if (in_array($responsetype, ['clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
+            $message = $this->safe_string($parsed['message'] ?? '');
+            if ($responsetype !== 'sufficient' && $message === '') {
+                return $this->error_result_with_issue_code(
+                    'Selection phase returned an empty message for non-sufficient response_type.',
+                    'CONTRACT_EMPTY_SELECTION_MESSAGE'
+                );
+            }
+
+            return [
+                'response_type' => $responsetype,
+                'lang' => $lang,
+                'user_lang' => $userlang,
+                'message' => $this->strip_command_prefix($message),
+                'used_triggers' => $this->extract_used_triggers($parsed),
+                'commands' => [],
+                'selected_task' => '',
+                'ambiguities' => [],
+                'ambiguity_options' => [],
+                'errors' => $responsetype === 'error' && $message !== '' ? [$message] : [],
+                'issue_codes' => [],
+            ];
+        }
+
+        $commands = $this->normalize_commands_payload($parsed, $lastusermessage);
+        if (count($commands) !== 1) {
+            return $this->error_result_with_issue_code(
+                'Selection phase must emit exactly one task command.',
+                'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'
+            );
+        }
+
+        $selectedtask = $this->safe_string($commands[0]['task'] ?? '');
+        if ($selectedtask === '') {
+            return $this->error_result_with_issue_code(
+                'Selection phase command is missing a task name.',
+                'CONTRACT_SELECTION_TASK_MISSING'
+            );
+        }
+
+        return [
+            'response_type' => 'task_call',
+            'lang' => $lang,
+            'user_lang' => $userlang,
+            'message' => $this->strip_command_prefix($this->safe_string($parsed['message'] ?? '')),
+            'used_triggers' => $this->extract_used_triggers($parsed),
+            'commands' => $commands,
+            'selected_task' => $selectedtask,
+            'ambiguities' => [],
+            'ambiguity_options' => [],
+            'errors' => [],
+            'issue_codes' => [],
+        ];
+    }
+
+    /**
+    * Enforce explicit response contracts per planner phase.
+    *
+    * Discovery must not return command-bearing outputs. Selection is a
+    * command-bearing selector call that must stay single-task.
      *
      * @param array $result
      * @param string $phase
@@ -389,6 +534,39 @@ class interpreter implements agent_interpreter {
                             'CONTRACT_PHASE_TASK_NOT_ALLOWED'
                         );
                     }
+                }
+            }
+        }
+
+        if ($phase === 'selection') {
+            if ($responsetype === 'task_call') {
+                $commands = $result['commands'] ?? [];
+                if (!is_array($commands)) {
+                    $commands = [];
+                }
+
+                if (count($commands) !== 1) {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must emit exactly one selector command.',
+                        'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'
+                    );
+                }
+
+                $selectedtask = trim((string)($result['selected_task'] ?? ''));
+                if ($selectedtask === '') {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must provide selected_task for handoff.',
+                        'CONTRACT_SELECTION_TASK_MISSING'
+                    );
+                }
+
+                $commandtask = trim((string)($commands[0]['task'] ?? ''));
+                if ($commandtask === '' || $commandtask !== $selectedtask) {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase
+                            . '" selector command task must match selected_task.',
+                        'CONTRACT_SELECTION_TASK_MISMATCH'
+                    );
                 }
             }
         }
@@ -1048,42 +1226,4 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Build a user-facing error text from validation errors.
-     *
-     * @param array $errors
-     * @param string $lang
-     * @return string
-     */
-    private function user_facing_validation_message(array $errors, string $lang = ''): string {
-        $clean = array_map(fn(string $line): string => $this->strip_command_prefix($line), $errors);
-        return implode(' ', $clean);
-    }
-
-    /**
-     * Remove technical prefixes like "Command #1:" from user-facing texts.
-     *
-     * @param string $text
-     * @return string
-     */
-    private function strip_command_prefix(string $text): string {
-        $clean = preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', $text);
-        return $this->safe_string($clean ?? $text);
-    }
-
-    /**
-     * Normalize a phase label for downstream planner composition.
-     *
-     * @param string $phase
-     * @return string
-     */
-    private function normalize_phase_name(string $phase): string {
-        $normalized = strtolower(trim($phase));
-        if ($normalized === 'selection') {
-            return 'selection';
-        }
-        if ($normalized === 'parameter_construction') {
-            return 'parameter_construction';
-        }
-        return 'discovery';
-    }
-}
+     * Build a user-facing 

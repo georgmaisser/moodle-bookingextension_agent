@@ -88,9 +88,10 @@ flowchart TD
         TSEL["task_selector\nselect concrete task inside selected family\nhandles semantic overlaps (booking vs calendar etc)"]
         PCON["parameter_constructor\nbuild parameters only after concrete task selection\nsingle-task schema focus (50+ properties supported)"]
         PVAL["parameter_contract_validator\ncheck structure + schema + ambiguity rules\nemit clarification / recoverable_input_error when needed"]
-        ORCSVC["orchestrator_routing_service\nresolve model/action per phase\nselection(selector) -> construction(executor)\nphase fallback chain applies independently"]
+        ORCSVC["orchestrator_routing_service\nresolve model/action per phase\nselection(selector) -> construction(constructor-only)\nphase fallback chain applies independently"]
         SPLLM["llm_call_service::invoke(..., source=planner_selection, action_class=selector_pick_task)\nPhase 1 call"]
         SINT["interpreter::interpret_phase_output(raw, selection, context)\nparse + contract + normalization"]
+        SELTASK["selected_task handoff\nexactly one task\nfrom selector to constructor"]
         CPLLM["llm_call_service::invoke(..., source=planner_construction, action_class=constructor_build_params)\nPhase 2 call"]
         CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization"]
         PCOMP["planner_result_composer\ncompose unified planner result\npersist planner_trace_history + phase_trace"]
@@ -302,7 +303,8 @@ flowchart TD
     ORCSVC --> SPLLM
     TSEL --> SPLLM
     SPLLM -->|raw selection output| SINT
-    SINT --> PCON
+    SINT --> SELTASK
+    SELTASK --> PCON
     PPB --> CPLLM
     ORCSVC --> CPLLM
     PCON --> CPLLM
