@@ -62,7 +62,7 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
     /**
      * Construction output contract must enforce exactly one command for command-bearing responses.
      */
-    public function test_construction_output_contract_requires_exactly_one_command(): void {
+    public function test_construction_output_contract_requires_one_or_more_commands(): void {
         $builder = $this->build_builder();
 
         $contract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
@@ -71,7 +71,7 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
         ]);
 
         $expected = 'For task_call/confirmation_request: '
-            . 'commands must contain exactly one command object.';
+            . 'commands must contain one or more command objects.';
         $this->assertStringContainsString($expected, $contract);
     }
 

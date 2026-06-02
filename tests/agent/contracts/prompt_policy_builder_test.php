@@ -80,11 +80,11 @@ final class prompt_policy_builder_test extends advanced_testcase {
     /**
      * Parameter construction must keep exactly one command for command-bearing types.
      */
-    public function test_parameter_construction_policy_requires_single_command_object(): void {
+    public function test_parameter_construction_policy_requires_one_or_more_commands(): void {
         $plannerpolicies = prompt_policy_builder::build_planner_policies('parameter_construction', false, false);
 
         $expected = 'For task_call or confirmation_request, '
-            . 'commands MUST contain exactly one command object.';
+            . 'commands MUST contain one or more command objects.';
         $this->assertStringContainsString($expected, $plannerpolicies);
         $this->assertStringContainsString(
             'This phase is constructor-only: build parameters for the selected task only.',

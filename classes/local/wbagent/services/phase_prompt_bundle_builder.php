@@ -242,7 +242,7 @@ class phase_prompt_bundle_builder {
 
         if ($normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
             $lines[] = 'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.';
-            $lines[] = 'For task_call/confirmation_request: commands must contain exactly one command object.';
+            $lines[] = 'For task_call/confirmation_request: commands must contain one or more command objects.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
             $lines[] = 'For mutating intents, do not use task_call; '
                 . 'use confirmation_request unless already completed -> sufficient.';

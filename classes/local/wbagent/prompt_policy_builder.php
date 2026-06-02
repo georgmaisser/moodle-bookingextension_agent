@@ -100,7 +100,7 @@ class prompt_policy_builder {
                 . "EXCEPT for response_type=sufficient (omit message or leave empty).\n"
                 . "- Allowed response_type values: task_call, confirmation_request, "
                 . "confirm_pending, clarification, sufficient, error.\n"
-                . "- For task_call or confirmation_request, commands MUST contain exactly one command object.\n"
+                . "- For task_call or confirmation_request, commands MUST contain one or more command objects.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
                 . "- This phase is constructor-only: build parameters for the selected task only.\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";

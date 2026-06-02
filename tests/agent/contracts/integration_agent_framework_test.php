@@ -772,9 +772,9 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that construction phase enforces exactly one selected command.
+     * Test that construction phase allows multiple commands when all tasks are in allow-list.
      */
-    public function test_interpreter_construction_phase_requires_single_command(): void {
+    public function test_interpreter_construction_phase_accepts_multi_command_batch_in_allow_list(): void {
         $registry = task_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
@@ -786,13 +786,15 @@ final class integration_agent_framework_test extends TestCase {
             'response_type' => 'task_call',
             'commands' => [
                 ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
-                ['task' => 'core.recreate_task_catalog', 'version' => 1, 'input' => []],
+                ['task' => 'core.get_current_user', 'version' => 1, 'input' => ['foo' => 'bar']],
             ],
             'message' => 'Executing.',
-        ], 'parameter_construction');
+        ], 'parameter_construction', [
+            'allowed_tasks' => ['core.get_current_user'],
+        ]);
 
-        $this->assertSame('error', $result['response_type']);
-        $this->assertContains('CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED', $result['issue_codes']);
+        $this->assertSame('task_call', $result['response_type']);
+        $this->assertCount(2, (array)($result['commands'] ?? []));
     }
 
     /**

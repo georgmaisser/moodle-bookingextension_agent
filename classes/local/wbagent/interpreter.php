@@ -486,10 +486,10 @@ class interpreter implements agent_interpreter {
                     $commands = [];
                 }
 
-                if (count($commands) !== 1) {
+                if (empty($commands)) {
                     return $this->error_result_with_issue_code(
-                        'CONTRACT_VIOLATION: phase "' . $phase . '" must emit exactly one command.',
-                        'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED'
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must emit at least one command.',
+                        'CONTRACT_COMMANDS_REQUIRED'
                     );
                 }
 
@@ -499,13 +499,22 @@ class interpreter implements agent_interpreter {
                 )));
 
                 if (!empty($allowedtasks)) {
-                    $task = trim((string)($commands[0]['task'] ?? ''));
-                    if ($task === '' || !in_array($task, $allowedtasks, true)) {
-                        return $this->error_result_with_issue_code(
-                            'CONTRACT_VIOLATION: phase "' . $phase
-                                . '" command task is outside discovery-ranked allow-list.',
-                            'CONTRACT_PHASE_TASK_NOT_ALLOWED'
-                        );
+                    foreach ($commands as $command) {
+                        if (!is_array($command)) {
+                            return $this->error_result_with_issue_code(
+                                'CONTRACT_VIOLATION: phase "' . $phase . '" command payload is invalid.',
+                                'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                            );
+                        }
+
+                        $task = trim((string)($command['task'] ?? ''));
+                        if ($task === '' || !in_array($task, $allowedtasks, true)) {
+                            return $this->error_result_with_issue_code(
+                                'CONTRACT_VIOLATION: phase "' . $phase
+                                    . '" command task is outside discovery-ranked allow-list.',
+                                'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                            );
+                        }
                     }
                 }
             }
