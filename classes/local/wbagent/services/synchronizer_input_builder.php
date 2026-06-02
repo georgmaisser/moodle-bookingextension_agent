@@ -85,9 +85,11 @@ class synchronizer_input_builder {
         }
 
         $payload = [
-            'discovery' => (array)($phasetrace['discovery'] ?? []),
-            'selection' => (array)($phasetrace['selection'] ?? []),
-            'parameter_construction' => (array)($phasetrace['parameter_construction'] ?? []),
+            'discovery' => $this->sanitize_phase_trace_snapshot((array)($phasetrace['discovery'] ?? [])),
+            'selection' => $this->sanitize_phase_trace_snapshot((array)($phasetrace['selection'] ?? [])),
+            'parameter_construction' => $this->sanitize_phase_trace_snapshot(
+                (array)($phasetrace['parameter_construction'] ?? [])
+            ),
         ];
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -96,6 +98,21 @@ class synchronizer_input_builder {
         }
 
         return 'PHASE_TRACE' . "\n" . $json;
+    }
+
+    /**
+     * Keep only minimal phase telemetry and exclude task-discovery payloads.
+     *
+     * @param array $snapshot
+     * @return array
+     */
+    private function sanitize_phase_trace_snapshot(array $snapshot): array {
+        return [
+            'phase' => trim((string)($snapshot['phase'] ?? '')),
+            'response_type' => trim((string)($snapshot['response_type'] ?? '')),
+            'issue_codes' => $this->normalize_issue_codes((array)($snapshot['issue_codes'] ?? [])),
+            'errors' => $this->normalize_nonempty_string_list((array)($snapshot['errors'] ?? [])),
+        ];
     }
 
     /**

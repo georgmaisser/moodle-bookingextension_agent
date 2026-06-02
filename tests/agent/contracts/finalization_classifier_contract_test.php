@@ -176,4 +176,19 @@ final class finalization_classifier_contract_test extends TestCase {
 
         $this->assertSame(finalization_classifier::STRATEGY_DIRECT_FINAL, $strategy);
     }
+
+    /**
+     * Phase contract errors must not flow into LLM polish.
+     */
+    public function test_classifies_phase_contract_issue_as_direct_final(): void {
+        $classifier = new finalization_classifier();
+
+        $strategy = $classifier->classify([
+            'response_type' => 'error',
+            'commands' => [],
+            'issue_codes' => ['CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED'],
+        ]);
+
+        $this->assertSame(finalization_classifier::STRATEGY_DIRECT_FINAL, $strategy);
+    }
 }

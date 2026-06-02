@@ -44,12 +44,6 @@ class orchestrator_routing_service {
     public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
 
     /** @var string */
-    private string $toolcallparse;
-
-    /** @var string */
-    private string $simpleretrieval;
-
-    /** @var string */
     private string $wbplanneraction;
 
     /**
@@ -64,39 +58,16 @@ class orchestrator_routing_service {
     /**
      * Constructor.
      *
-     * @param string $toolcallparse
-     * @param string $simpleretrieval
      * @param string $wbplanneraction
      */
     public function __construct(
-        string $toolcallparse,
-        string $simpleretrieval,
         string $wbplanneraction
     ) {
-        $this->toolcallparse = $toolcallparse;
-        $this->simpleretrieval = $simpleretrieval;
         $this->wbplanneraction = $wbplanneraction;
     }
 
     /**
-     * Route to planner action classes by step profile, with provider-aware fallbacks.
-     *
-     * @param ai_manager $manager
-     * @param context_module $context
-     * @param string $steptype
-     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
-     */
-    public function resolve_action_class_for_step(ai_manager $manager, context_module $context, string $steptype): array {
-        $phase = $this->resolve_phase_for_step_type($steptype);
-        return $this->resolve_action_class_for_phase($manager, $context, $phase);
-    }
-
-    /**
      * Route to planner action classes by explicit pipeline phase.
-     *
-     * This is a compatibility layer while the runtime still uses step profiles
-     * internally. Discovery maps to tool_call_parse, later phases map to
-     * simple_retrieval.
      *
      * @param ai_manager $manager
      * @param context_module $context
@@ -234,7 +205,6 @@ class orchestrator_routing_service {
     /**
      * Build compact orchestrator telemetry in source field.
      *
-     * @param string $steptype
      * @param string $actionclass
      * @param string $routepolicy
      * @param bool $routingfallback
@@ -250,7 +220,6 @@ class orchestrator_routing_service {
      * @return string
      */
     public function build_debug_source(
-        string $steptype,
         string $actionclass,
         string $routepolicy,
         bool $routingfallback,
@@ -264,10 +233,6 @@ class orchestrator_routing_service {
         bool $embeddingrebuildqueued,
         bool $exception
     ): string {
-        $stepmap = [
-            $this->toolcallparse => 'tcp',
-            $this->simpleretrieval => 'sr',
-        ];
         $phasemap = [
             self::PHASE_DISCOVERY => 'disc',
             self::PHASE_SELECTION => 'sel',
@@ -280,7 +245,8 @@ class orchestrator_routing_service {
             $this->wbplanneraction => 'wpl',
         ];
 
-        $step = $stepmap[$steptype] ?? 'unk';
+        $normalizedphase = $this->normalize_phase($phase);
+        $step = $normalizedphase === self::PHASE_DISCOVERY ? 'tcp' : 'sr';
         $action = $actionmap[$actionclass] ?? 'oth';
         $route = 'df';
         $routefamily = $this->route_policy_family($routepolicy);
@@ -290,7 +256,7 @@ class orchestrator_routing_service {
             $route = 'wb';
         }
         $provider = provider_routing_util::short_provider_for_debug($primaryprovider);
-        $phasekey = $phasemap[$this->normalize_phase($phase)] ?? 'disc';
+        $phasekey = $phasemap[$normalizedphase] ?? 'disc';
 
         $source = 'orc'
             . '|p=' . $phasekey
@@ -398,28 +364,10 @@ class orchestrator_routing_service {
         if ($normalized === self::PHASE_SELECTION) {
             return self::PHASE_SELECTION;
         }
-        if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION || $normalized === 'construction') {
+        if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION) {
             return self::PHASE_PARAMETER_CONSTRUCTION;
         }
         return self::PHASE_DISCOVERY;
-    }
-
-    /**
-     * Normalize step type into an explicit planner phase.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    private function resolve_phase_for_step_type(string $steptype): string {
-        $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === $this->toolcallparse) {
-            return self::PHASE_DISCOVERY;
-        }
-        if ($normalized === $this->simpleretrieval) {
-            return self::PHASE_SELECTION;
-        }
-
-        return self::PHASE_PARAMETER_CONSTRUCTION;
     }
 
     /**

@@ -22,7 +22,9 @@ use bookingextension_agent\local\wbagent\prompt_policy_builder;
 use advanced_testcase;
 
 /**
- * Tests for planner policy extraction and final synthesis separation.
+ * Tests for planner policy extraction and phase-specific response contracts.
+ *
+ * @covers \bookingextension_agent\local\wbagent\prompt_policy_builder
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -31,13 +33,35 @@ use advanced_testcase;
 final class prompt_policy_builder_test extends advanced_testcase {
     /**
      * Verifies that planner policies stay free of final-synthesis text.
-     *
-     * @covers \bookingextension_agent\local\wbagent\prompt_policy_builder::build_planner_policies
      */
     public function test_planner_policies_do_not_contain_legacy_finalization_policy(): void {
-        $plannerpolicies = prompt_policy_builder::build_planner_policies('legacy_finalization', false, false);
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
 
         $this->assertStringNotContainsString('SYNTHESIS RESPONSE POLICY', $plannerpolicies);
         $this->assertStringContainsString('NON-OPTIONAL SUFFICIENCY POLICY', $plannerpolicies);
+    }
+
+    /**
+     * Discovery phase must never encourage command-bearing output.
+     */
+    public function test_discovery_policy_forbids_command_bearing_response_types(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('discovery', false, false);
+
+        $expectedtypes = 'Allowed response_type values: clarification, '
+            . 'confirm_pending, sufficient, error.';
+        $this->assertStringContainsString($expectedtypes, $plannerpolicies);
+        $this->assertStringContainsString('commands MUST always be [] in this phase.', $plannerpolicies);
+        $this->assertStringContainsString('Never emit task_call or confirmation_request in this phase.', $plannerpolicies);
+    }
+
+    /**
+     * Parameter construction must keep exactly one command for command-bearing types.
+     */
+    public function test_parameter_construction_policy_requires_single_command_object(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('parameter_construction', false, false);
+
+        $expected = 'For task_call or confirmation_request, '
+            . 'commands MUST contain exactly one command object.';
+        $this->assertStringContainsString($expected, $plannerpolicies);
     }
 }

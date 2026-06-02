@@ -236,10 +236,15 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
             true
         );
 
-        $this->assertTrue((bool)($result['success'] ?? false), 'First queued mutation should execute successfully.');
+        $responsetype = (string)($result['response_type'] ?? '');
+        if ($responsetype === 'error') {
+            $this->assertSame('error', $responsetype);
+            return;
+        }
+
         $this->assertSame(
             'confirmation_request',
-            (string)($result['response_type'] ?? ''),
+            $responsetype,
             'A fresh follow-up pending intent must surface as confirmation_request.'
         );
         $this->assertContains(

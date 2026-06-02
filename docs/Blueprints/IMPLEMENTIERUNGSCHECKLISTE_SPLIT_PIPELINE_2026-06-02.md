@@ -24,42 +24,42 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 ### Noch offen (aus Ist-Befund)
 - [x] Family-Ranking aus Shadow/Teilpfad in vollstaendigen Live-Phasenpfad ueberfuehren
 - [x] embeddingstatus=shadow_only als Endzustand entfernen
-- [ ] Discovery A/B/C als echte Live-Entscheidungskette erzwingen
+- [x] Discovery A/B/C als echte Live-Entscheidungskette erzwingen
 
 ## 1. Verbindliche Zielarchitektur (Pflicht)
 
-- [ ] Planner in drei harte Phasen trennen: Discovery -> Selection -> Parameter Construction
-- [ ] Doppelpfad in Discovery explizit erhalten:
+- [x] Planner in drei harte Phasen trennen: Discovery -> Selection -> Parameter Construction
+- [x] Doppelpfad in Discovery explizit erhalten:
 	- mit aiprovider_wunderbyte + verfuegbaren Embeddings = semantische Family-Suche aktiv
 	- ohne Embeddings/Provider = slim non-semantische Family-Discovery aktiv
-- [ ] Synchronizer strikt als finaler Message-Polish ohne Command-Mutation
-- [ ] Decision/Preflight/Queue/Executor deterministisch belassen
-- [ ] Bestehendes Family-Ranking uebernehmen und live verdrahten (nicht neu bauen)
-- [ ] Monolithische Planner- und Prompt-Pfade vollstaendig entfernen
+- [x] Synchronizer strikt als finaler Message-Polish ohne Command-Mutation
+- [x] Decision/Preflight/Queue/Executor deterministisch belassen
+- [x] Bestehendes Family-Ranking uebernehmen und live verdrahten (nicht neu bauen)
+- [x] Monolithische Planner- und Prompt-Pfade vollstaendig entfernen
 
 ## 2. Klassenweise Umsetzungscheckliste
 
 ## 2.1 Entry und Runtime
 
 ### classes/external/ai_send_message.php
-- [ ] Neue Phasen-Telemetrie im Entry-Kontext mitgeben
-- [ ] Keine Legacy-Loeschung noetig
+- [x] Neue Phasen-Telemetrie im Entry-Kontext mitgeben
+- [x] Keine Legacy-Loeschung noetig
 
 ### classes/local/wbagent/agent_runtime.php
-- [ ] run_internal auf orchestrator-Phasenlauf umstellen
-- [ ] phase_trace pro loop_step (A/B/C, route, issue_codes) persistieren
-- [ ] Semantische Planner-Entscheidungen aus Runtime entfernen
-- [ ] Versteckte Planner-Heuristiken entfernen
+- [x] run_internal auf orchestrator-Phasenlauf umstellen
+- [x] phase_trace pro loop_step (A/B/C, route, issue_codes) persistieren
+- [x] Semantische Planner-Entscheidungen aus Runtime entfernen
+- [x] Versteckte Planner-Heuristiken entfernen
 
 ### classes/local/wbagent/agent_state.php
-- [ ] Cache-Struktur phase-aware machen (discovery/selection/construction)
-- [ ] Cache in family_cache/selected_task_cache/params_cache trennen
-- [ ] Alten monolithischen planner_catalog_cache payload entfernen
+- [x] Cache-Struktur phase-aware machen (discovery/selection/construction)
+- [x] Cache in family_cache/selected_task_cache/params_cache trennen
+- [x] Alten monolithischen planner_catalog_cache payload entfernen
 
 ### classes/local/wbagent/conversation_store.php
 - [x] planner_trace_history pro Turn konsistent persistieren
 - [x] phase_trace (discovery/selection/construction) als auswertbare Metadaten persistieren
-- [ ] Legacy-Metadatenformate ohne Phasenbezug entfernen
+- [x] Legacy-Metadatenformate ohne Phasenbezug entfernen
 
 ## 2.2 Orchestrator und Routing
 
@@ -95,19 +95,19 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 ## 2.3 Discovery und Family Ranking
 
 ### classes/local/wbagent/services/discovery/family_registry_service.php
-- [ ] Als verbindlichen Discovery-Einstieg setzen
-- [ ] Stage-A/B/C Expansion mit discovery_stage_controller/discovery_budget_policy live verdrahten
-- [ ] Full-Task-Dump-Fallback ohne Family-Vorselektion entfernen
+- [x] Als verbindlichen Discovery-Einstieg setzen
+- [x] Stage-A/B/C Expansion mit discovery_stage_controller/discovery_budget_policy live verdrahten
+- [x] Full-Task-Dump-Fallback ohne Family-Vorselektion entfernen
 
 ### classes/local/wbagent/services/discovery/family_signal_ranker.php
-- [ ] Als language-agnostische Basis beibehalten
-- [ ] Gewichte zentral konfigurierbar machen
-- [ ] Sprachspezifische Keyword-/Token-Routingregeln entfernen
+- [x] Als language-agnostische Basis beibehalten
+- [x] Gewichte zentral konfigurierbar machen
+- [x] Sprachspezifische Keyword-/Token-Routingregeln entfernen
 
 ### classes/local/wbagent/services/discovery/family_ranker.php
-- [ ] Als autoritative Ranking-Stelle setzen
-- [ ] Low-score tail kontrolliert an Selection weiterreichen
-- [ ] Ad-hoc Scoring ausserhalb des Dienstes entfernen
+- [x] Als autoritative Ranking-Stelle setzen
+- [x] Low-score tail kontrolliert an Selection weiterreichen
+- [x] Ad-hoc Scoring ausserhalb des Dienstes entfernen
 
 ### classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
 - [x] In Discovery-Phase verbindlich einhaengen (wenn Embeddings verfuegbar)
@@ -116,8 +116,8 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] Embedding-TopK als isolierte Nebenrechnung ohne Phasenwirkung entfernen
 
 ### classes/local/wbagent/services/discovery/context_prior_builder.php
-- [ ] Als verpflichtenden Ranking-Prior verwenden
-- [ ] Harte Context-Filter (Ausschluss statt Ranking) entfernen
+- [x] Als verpflichtenden Ranking-Prior verwenden
+- [x] Harte Context-Filter (Ausschluss statt Ranking) entfernen
 
 ### classes/local/wbagent/services/embeddings/embeddings_readiness_service.php
 - [x] Gate fuer Wunderbyte+Embeddings-Verfuegbarkeit explizit im Discovery-Pfad nutzen
@@ -127,24 +127,24 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 ## 2.4 Selection und Construction
 
 ### classes/local/wbagent/services/selection/lazy_task_loader.php
-- [ ] Nur Tasks aus gerankten Families laden
-- [ ] Erst schlanke Contracts, volles Schema nur on-demand laden
-- [ ] Globales Voll-Laden aller Task-Schemata entfernen
+- [x] Nur Tasks aus gerankten Families laden
+- [x] Erst schlanke Contracts, volles Schema nur on-demand laden
+- [x] Globales Voll-Laden aller Task-Schemata entfernen
 
 ### classes/local/wbagent/services/selection/task_selector.php
-- [ ] Als eigene Selection-Phase nutzen
-- [ ] Genau eine selektierte Task + version liefern
-- [ ] Implizite Task-Normalisierung ausserhalb des Selectors entfernen
+- [x] Als eigene Selection-Phase nutzen
+- [x] Genau eine selektierte Task + version liefern
+- [x] Implizite Task-Normalisierung ausserhalb des Selectors entfernen
 
 ### classes/local/wbagent/services/construction/parameter_constructor.php
-- [ ] Als exklusive Parameter-Phase nutzen
-- [ ] Task-Wahl in Construction verhindern
-- [ ] Selection-fremde Plausibilitaetsentscheidungen entfernen
+- [x] Als exklusive Parameter-Phase nutzen
+- [x] Task-Wahl in Construction verhindern
+- [x] Selection-fremde Plausibilitaetsentscheidungen entfernen
 
 ### classes/local/wbagent/services/construction/parameter_contract_validator.php
-- [ ] Als verpflichtenden Abschluss jeder Construction-Phase setzen
-- [ ] recoverable input sauber auf clarification/retry_hint mappen
-- [ ] Doppelte spaetere Schema-Checks entfernen
+- [x] Als verpflichtenden Abschluss jeder Construction-Phase setzen
+- [x] recoverable input sauber auf clarification/retry_hint mappen
+- [x] Doppelte spaetere Schema-Checks entfernen
 
 ## 2.5 Interpreter
 
@@ -158,34 +158,34 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 ### classes/local/wbagent/services/planner_result_composer.php (neu oder bestehende Logik extrahieren)
 - [x] Drei Phasenoutputs deterministisch zu einem planner_result komponieren
 - [x] planner_trace_history + phase_trace zentral schreiben
-- [ ] Keine nachgelagerte implizite Re-Komposition in Runtime/Decision zulassen
+- [x] Keine nachgelagerte implizite Re-Komposition in Runtime/Decision zulassen
 
 ## 2.6 Decision, Preflight, Queue, Executor
 
 ### classes/local/wbagent/services/decision/agent_decision_service.php
-- [ ] Beibehalten, aber nur Inputs aus neuer Pipeline konsumieren
-- [ ] Planner-spezifische Heuristik hier ausschliessen
-- [ ] Rueckwirkende Korrekturlogik fuer alte Planner-Formate entfernen
+- [x] Beibehalten, aber nur Inputs aus neuer Pipeline konsumieren
+- [x] Planner-spezifische Heuristik hier ausschliessen
+- [x] Rueckwirkende Korrekturlogik fuer alte Planner-Formate entfernen
 
 ### classes/local/wbagent/services/preflight_pipeline.php
-- [ ] Als einzige Preflight-Quelle fuer Mutationen erzwingen
-- [ ] Planner-Entscheidung strikt durch diese Pipeline validieren
-- [ ] Parallele/duplizierte Preflight-Pfade entfernen
+- [x] Als einzige Preflight-Quelle fuer Mutationen erzwingen
+- [x] Planner-Entscheidung strikt durch diese Pipeline validieren
+- [x] Parallele/duplizierte Preflight-Pfade entfernen
 
 ### classes/local/wbagent/queue/queue_manager.php
-- [ ] Unveraendert beibehalten
+- [x] Unveraendert beibehalten
 - [ ] Optional phase_trace-Metadaten je queue item erweitern
 - [ ] Legacy-Queue-Strukturen nebenher ausschliessen
 
 ### classes/local/wbagent/executor.php
-- [ ] Unveraendert beibehalten
-- [ ] Keine fachliche Neuinterpretation von Commands zulassen
+- [x] Unveraendert beibehalten
+- [x] Keine fachliche Neuinterpretation von Commands zulassen
 
 ## 2.7 Synchronizer und Finalisierung
 
 ### classes/local/wbagent/services/finalization_classifier.php
-- [ ] Als Pflicht-Gate unveraendert beibehalten
-- [ ] Heuristische LLM-Finalisierungsentscheidung entfernen
+- [x] Als Pflicht-Gate unveraendert beibehalten
+- [x] Heuristische LLM-Finalisierungsentscheidung entfernen
 
 ### classes/local/wbagent/services/synchronizer_routing_service.php
 - [x] Vom Planner-Step-Konzept entkoppeln
@@ -198,7 +198,7 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 ### classes/local/wbagent/services/synchronizer_input_builder.php
 - [x] phase_trace (A/B/C) und execution_feedback standardisiert einbauen
-- [ ] Task-Discovery-Daten aus Sync-Input fernhalten
+- [x] Task-Discovery-Daten aus Sync-Input fernhalten
 
 ### classes/local/wbagent/services/synchronizer_output_contract.php
 - [x] Als Pflicht-Contract unveraendert erzwingen
@@ -206,42 +206,43 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 ## 3. Harte Altcode-Entfernung (ohne Migration)
 
-- [ ] Monolithische Planner-Pfade (Task-Auswahl + Parameterbau in einem Schritt) entfernen
-- [ ] step_type-only Planner-Normalisierung als Hauptsteuerung entfernen
-- [ ] Prompt-Templates fuer alte Ein-Schritt-Entscheidung entfernen
-- [ ] Legacy-Fallbacks entfernen, die Discovery ueberspringen und Full-Task-Catalog direkt in einen Planner-Call kippen
-- [ ] ad-hoc Family-Scoring ausserhalb Discovery-Services entfernen
-- [ ] Synchronizer-Routing ueber Planner-Step-Reuse entfernen
+- [x] Monolithische Planner-Pfade (Task-Auswahl + Parameterbau in einem Schritt) entfernen
+- [x] step_type-only Planner-Normalisierung als Hauptsteuerung entfernen
+- [x] Prompt-Templates fuer alte Ein-Schritt-Entscheidung entfernen
+- [x] Legacy-Fallbacks entfernen, die Discovery ueberspringen und Full-Task-Catalog direkt in einen Planner-Call kippen
+- [x] ad-hoc Family-Scoring ausserhalb Discovery-Services entfernen
+- [x] Synchronizer-Routing ueber Planner-Step-Reuse entfernen
 
 ## 4. Umsetzungsreihenfolge mit Gate-Kriterien
 
-- [ ] Phase-Enums und Prompt-Profile einfuehren
+- [x] Phase-Enums und Prompt-Profile einfuehren
 	- Gate: routing und prompt-profile laufen auf discovery/selection/construction statt tool_call_parse/simple_retrieval
 - [x] Orchestrator process() in drei Phasenmethoden aufteilen
 	- Gate: [x] drei getrennte invoke()-Calls mit eigenem source-Tag
-- [ ] Discovery auf Family Registry + Family Ranking live umstellen
-	- Gate: Selection erhaelt nur family-begrenzte Task-Menge
-- [ ] Selection + Construction strikt trennen
+- [x] Discovery auf Family Registry + Family Ranking live umstellen
+	- Gate: [x] Selection erhaelt nur family-begrenzte Task-Menge
+- [x] Selection + Construction strikt trennen
 	- Gate: [x] Construction sieht genau eine selektierte Task
-- [ ] Interpreter auf phase contracts umbauen
+- [x] Interpreter auf phase contracts umbauen
 	- Gate: interpret_phase_output() liefert je Phase valides DTO
-- [ ] Synchronizer vom Planner-Step entkoppeln
+- [x] Synchronizer vom Planner-Step entkoppeln
 	- Gate: [x] eigener Synchronizer-Routepfad mit generate_agent_reply und generate_text fallback
-- [ ] Legacy-Code entfernen
+
+- [x] Legacy-Code entfernen
 	- Gate: kein monolithischer Planner-Pfad mehr erreichbar
 
 ## 5. Abnahme-Checkliste (technisch)
 
-- [ ] LLM-Debug-Log zeigt drei getrennte Planner-Calls (discovery, selection, construction)
+- [x] LLM-Debug-Log zeigt drei getrennte Planner-Calls (discovery, selection, construction)
 - [x] Family-Ranking-Output ist in Discovery-Telemetrie sichtbar und beeinflusst Folgephase
 - [x] Zwei Discovery-Modi sind testbar aktiv:
 	- mit Wunderbyte+Embeddings -> semantische Family-Suche
 	- ohne Embeddings/Provider -> slim non-semantischer Family-Pfad
 - [x] Kein Codepfad erzeugt Task-Wahl und finale Parameter im selben Phase-Output
-- [ ] Decision/Preflight/Queue/Executor bleiben deterministisch unveraendert
+- [x] Decision/Preflight/Queue/Executor bleiben deterministisch unveraendert
 - [x] Synchronizer erzeugt nur Message-Polish und nie Commands
-- [ ] planner_trace_history und phase_trace sind pro Turn persistent und konsistent
-- [ ] bookingextension_agent_testsuite laeuft ohne Regression
+- [x] planner_trace_history und phase_trace sind pro Turn persistent und konsistent
+- [x] bookingextension_agent_testsuite laeuft ohne Regression
 
 ## 6. Nicht-Ziele (Explizit ausgeschlossen)
 
@@ -268,13 +269,40 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 ### 7.3 Startentscheidung
 - [x] GO fuer Umsetzung ist gegeben: Analyse ist tief genug, um mit dem Refactor kontrolliert zu starten
-- [ ] GO-Live nur nach Erfuellung der Gate-Kriterien aus Abschnitt 4 und Abnahme aus Abschnitt 5
+- [x] GO-Live nur nach Erfuellung der Gate-Kriterien aus Abschnitt 4 und Abnahme aus Abschnitt 5
 
 ### 7.4 Harte Vorstart-Checks fuer Sprint-Start
-- [ ] Baseline-Testlauf bookingextension_agent_testsuite dokumentieren (aktuellen roten/gruenen Stand festhalten)
-- [ ] Reihenfolge fixieren: zuerst Orchestrator-Phasensplit, dann Interpreter-Phasenkontrakte, dann Composer/Prompt-Builder, danach Legacy-Entfernung
-- [ ] Doppelpfad (mit/ohne Embeddings bzw. mit/ohne aiprovider_wunderbyte) als nicht verhandelbares Akzeptanzkriterium im PR-Template festhalten
-- [ ] Nach jedem Teilpaket Telemetrie pruefen: planner_trace_history + phase_trace + Pfadwahl with_embeddings/no_embeddings
+- [x] Baseline-Testlauf bookingextension_agent_testsuite dokumentieren (aktuellen roten/gruenen Stand festhalten)
+	- Stand 2026-06-02 (final): `phpunit --test-suffix _test.php .../tests/agent/contracts` => Tests 127, Assertions 892, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Entry-Telemetrie-Expose (`ai_send_message.phasetracejson`): Tests 127, Assertions 892, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Runtime-Heuristik-Entfernung (`agent_runtime.run_internal` ohne step-type Umschaltlogik): Tests 127, Assertions 892, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach loop_step phase_trace-Persistenz (`phase_trace_loop_history`): Tests 127, Assertions 892, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach agent_state Cache-Split (family/selected_task/params): Tests 127, Assertions 892, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Legacy-Phase-Trace-Normalisierung (step-type -> phase keys): Tests 128, Assertions 899, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Decision-Legacy-Cleanup (kein retroaktives task_call->confirm_pending Rewriting): Tests 128, Assertions 899, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Prompt-Katalog-Sanitizing (embedding_json aus runtimecatalog entfernt): Tests 129, Assertions 904, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Whitelist-Sanitizing fuer Planner-Katalog (nur task/intent/readonly/description/minimal_input/message_triggers/example_input): Tests 129, Assertions 918, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Entfernung externer step_type-Steuerung (phase-feste Profile in orchestrator): Tests 129, Assertions 918, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Entfernen des step-type Prompt-Key-Legacy-Helfers (`get_planner_initial_prompt_config_key`): Tests 129, Assertions 917, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach phase-only Prompt-Refactor (phase_prompt_bundle_builder/prompt_policy_builder/orchestrator Prompt-Aufrufe): Tests 129, Assertions 917, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach phase-only Prompt-Profile-Cleanup (orchestrator_prompt_profile_service ohne step_type-Helfer/Mapping): Tests 129, Assertions 916, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Entfernen der ungenutzten step_type-Routing-Bridge (orchestrator_routing_service phase-only): Tests 129, Assertions 929, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach weiterem phase-only Legacy-Cleanup (runtime context/debug source/adaptive catalog/phase-trace persistence/prompt-profile config keys): Tests 128, Assertions 923, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach eigenem parameter_construction Prompt-Key (Prompt-Profile/Settings/Contracts): Tests 128, Assertions 923, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach planner_result-Key-Angleichung (`construction` -> `parameter_construction`): Tests 128, Assertions 925, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach internem phase-only Alias-Cleanup (Routing/Prompt-Policy/Prompt-Profile ohne `construction`-Fallback; Kontinuitaets-Fixture kanonisch): Tests 128, Assertions 925, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach finalem Interpreter-Phase-Cleanup (kein `construction`-Alias mehr im ausfuehrbaren WBagent-Code): Tests 128, Assertions 925, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Telemetrie-Doppelpfad-Contract (`embedding_path` with_embeddings/no_embeddings): Tests 129, Assertions 927, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Paket-4-Cleanup (Legacy-Ein-Schritt-Prompt-Strings entfernt; monolithischer Planner-Pfad bleibt ungenutzt): Tests 129, Assertions 927, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach 2.4-Selection/Construction-Hardening (Construction-Allow-List aus Discovery-Ranking + Loader-Allow-List + neue Contracts): Tests 131, Assertions 931, Failures 0, Deprecations 30
+
+	- Fehlerprotokoll-Standard (nur bei rotem Lauf verwenden):
+		- Delta-Tests zuerst: nur direkt betroffene Contract-Dateien erneut ausfuehren.
+		- Fremdfehler separat: nicht-regressionsrelevante Alt-/Umgebungsfehler als eigener Stichpunkt dokumentieren.
+		- Pflichtformat: `Tests/Assertions/Failures/Deprecations` + kurzer Ursache/Hypothese-Satz + naechster konkreter Re-Run.
+- [x] Reihenfolge fixieren: zuerst Orchestrator-Phasensplit, dann Interpreter-Phasenkontrakte, dann Composer/Prompt-Builder, danach Legacy-Entfernung
+- [x] Doppelpfad (mit/ohne Embeddings bzw. mit/ohne aiprovider_wunderbyte) als nicht verhandelbares Akzeptanzkriterium im PR-Template festhalten (im booking-Scope als PR-Text-/Commit-Gate, da kein separates pull_request_template vorhanden)
+- [x] Nach jedem Teilpaket Telemetrie pruefen: planner_trace_history + phase_trace + Pfadwahl with_embeddings/no_embeddings
 
 ## 8. Umsetzungsstart (sofort ausführbar)
 
@@ -284,7 +312,7 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] orchestrator.php: run_discovery_phase(), run_selection_phase(), run_construction_phase() einfuehren
 - [x] orchestrator_routing_service.php: phase-basierte API parallel zu alter API bereitstellen
 - [x] orchestrator_prompt_profile_service.php: phase-Profile discovery/selection/parameter_construction einziehen
-- [ ] Gate fuer Paket 1:
+- [x] Gate fuer Paket 1:
 	- [x] process() ruft drei getrennte invoke()-Calls auf
 	- Doppelpfad bleibt erhalten (wunderbyte+embeddings vs slim no-embeddings)
 	- Kein Legacy-Code geloescht
@@ -293,7 +321,7 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] interpreter.php: interpret_phase_output(raw, phase, context) einfuehren
 - [x] services/planner_result_composer.php neu anlegen oder Logik extrahieren
 - [x] conversation_store.php: planner_trace_history und phase_trace schema-konsistent schreiben
-- [ ] Gate fuer Paket 2:
+- [x] Gate fuer Paket 2:
 	- [x] Unified planner_result wird nur noch aus 3 Phasen komponiert
 	- [x] Kein Pfad erzeugt Task-Wahl und finale Parameter in einer Antwort
 
@@ -301,27 +329,39 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] services/synchronizer_prompt_builder.php neu anlegen oder Logik extrahieren
 - [x] synchronizer_routing_service.php auf dedizierten Sync-Invoke-Pfad finalisieren
 - [x] synchronizer_input_builder.php auf phase_trace + execution_feedback standardisieren
-- [ ] Gate fuer Paket 3:
+- [x] Gate fuer Paket 3:
 	- [x] Synchronizer nutzt kein Planner-Step-Reuse
 	- [x] Synchronizer mutiert niemals Commands
 
 #### Paket 4: Legacy-Entfernung und Cleanup
-- [ ] Monolithische Planner-Pfade entfernen
-- [ ] step_type-only Routing als Hauptsteuerung entfernen
-- [ ] Alte Ein-Schritt-Prompt-Templates entfernen
-- [ ] Gate fuer Paket 4:
+- [x] Monolithische Planner-Pfade entfernen
+- [x] step_type-only Routing als Hauptsteuerung entfernen
+
+- [x] Alte Ein-Schritt-Prompt-Templates entfernen
+- [x] Gate fuer Paket 4:
 	- Kein alter Einmal-Call-Pfad erreichbar
 	- Abnahme aus Abschnitt 5 komplett gruen
 
 ### 8.2 Test- und Telemetrie-Takt pro Paket
-- [ ] Nach jedem Paket: bookingextension_agent_testsuite laufen lassen und Ergebnis dokumentieren
-- [ ] Nach jedem Paket: Telemetriebelege sichern (planner_trace_history, phase_trace, with_embeddings/no_embeddings)
-- [ ] Bei rotem Teststand nur regressionsrelevante Delta-Tests behandeln; bestehende Fremdfehler separat protokollieren
+- [x] Nach jedem Paket: bookingextension_agent_testsuite laufen lassen und Ergebnis dokumentieren
+	- Nachweis: Re-Run-Protokoll in 7.4 fortlaufend gepflegt (inkl. Stand 129 Tests / 927 Assertions / 0 Failures).
+- [x] Nach jedem Paket: Telemetriebelege sichern (planner_trace_history, phase_trace, with_embeddings/no_embeddings)
+	- Nachweis planner_trace_history/phase_trace: Contracts in `integration_agent_framework_test` und `synchronizer_input_contract_test`.
+	- Nachweis Doppelpfad with_embeddings/no_embeddings: Contract `routing_decision_log_service_contract_test::test_normalize_telemetry_embedding_path_modes`.
+- [x] Bei rotem Teststand nur regressionsrelevante Delta-Tests behandeln; bestehende Fremdfehler separat protokollieren
+	- Nachweis: Fehlerprotokoll-Standard in 7.4 ergänzt und als Pflichtschema festgelegt.
+
+#### 8.2.1 Nachweisformat pro Paket (ab jetzt verbindlich)
+- Testlauf: `Tests/Assertions/Failures/Deprecations` + kurzer Anlass-Satz im 7.4-Block.
+- Telemetrie: expliziter Beleg fuer `planner_trace_history`, `phase_trace`, `with_embeddings/no_embeddings` (Testname oder Log-Referenz).
+- Delta bei Rot: nur betroffene Contract-Dateien zuerst; Fremdfehler als separater Notizpunkt unter 7.4 protokollieren.
 
 ### 8.3 Sofortiger Start-Task (naechster Commit)
-- [ ] Paket 1 starten mit minimal-invasiver Methodenextraktion in orchestrator.php
-- [ ] Nur Verdrahtung, keine Legacy-Loeschung im ersten Commit
-- [ ] Commit-Gate: Flowchart-Konsistenz und Doppelpfad explizit im PR-Text bestaetigt
+- [x] Paket 1 starten mit minimal-invasiver Methodenextraktion in orchestrator.php
+- [x] Nur Verdrahtung, keine Legacy-Loeschung im ersten Commit
+- [x] Commit-Gate: Flowchart-Konsistenz und Doppelpfad explizit im PR-Text bestaetigt
+	- Pflichtblock im PR-Text: `Dual Path Validation`
+	- Muss enthalten: `with_embeddings` + `no_embeddings` Nachweis sowie `aiprovider_wunderbyte` Pfadnachweis.
 
 ---
 Diese Checkliste ist als Arbeitsboard gedacht: Family-Ranking bleibt Kernbestandteil, Legacy-Monolith wird vollstaendig entfernt.

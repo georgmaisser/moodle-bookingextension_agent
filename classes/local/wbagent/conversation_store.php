@@ -639,7 +639,44 @@ class conversation_store implements agent_conversation_store {
      * @return void
      */
     public function set_phase_trace(int $threadid, array $phasetrace): void {
-        $this->set_thread_metadata_value($threadid, 'phase_trace', $phasetrace);
+        $this->set_thread_metadata_value($threadid, 'phase_trace', $this->normalize_phase_trace($phasetrace));
+    }
+
+    /**
+     * Normalize phase-trace metadata to strict phase keys.
+     *
+     * @param array<string,mixed> $phasetrace
+     * @return array<string,array<string,mixed>>
+     */
+    private function normalize_phase_trace(array $phasetrace): array {
+        $normalized = [
+            'discovery' => [],
+            'selection' => [],
+            'parameter_construction' => [],
+        ];
+
+        if (isset($phasetrace['discovery']) && is_array($phasetrace['discovery'])) {
+            $normalized['discovery'] = $phasetrace['discovery'];
+        }
+        if (isset($phasetrace['selection']) && is_array($phasetrace['selection'])) {
+            $normalized['selection'] = $phasetrace['selection'];
+        }
+        if (isset($phasetrace['parameter_construction']) && is_array($phasetrace['parameter_construction'])) {
+            $normalized['parameter_construction'] = $phasetrace['parameter_construction'];
+        }
+
+        foreach ($phasetrace as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $phase = trim((string)($entry['phase'] ?? ''));
+            if ($phase !== '' && isset($normalized[$phase]) && empty($normalized[$phase])) {
+                $normalized[$phase] = $entry;
+            }
+        }
+
+        return $normalized;
     }
 
     /**

@@ -117,6 +117,7 @@ class ai_send_message extends external_api {
                 'ambiguityoptionsjson'  => '[]',
                 'errorsjson'            => '[]',
                 'issuecodesjson'        => '[]',
+                'phasetracejson'        => '[]',
                 'queueitemid'           => '',
                 'threadid'              => 0,
                 'runid'                 => 0,
@@ -151,6 +152,7 @@ class ai_send_message extends external_api {
                 'ambiguityoptionsjson'  => '[]',
                 'errorsjson'            => '[]',
                 'issuecodesjson'        => '[]',
+                'phasetracejson'        => '[]',
                 'queueitemid'           => '',
                 'threadid'              => 0,
                 'runid'                 => 0,
@@ -224,6 +226,7 @@ class ai_send_message extends external_api {
         );
         $responsequeueitemid = self::resolve_response_queue_item_id($store, $threadid);
         $responsecommands = self::resolve_response_commands($store, $threadid, $responsequeueitemid, $result);
+        $phasetracejson = self::encode_phase_trace_for_response($result);
 
         return [
             'response_type'         => $result['response_type'] ?? 'error',
@@ -240,6 +243,7 @@ class ai_send_message extends external_api {
             'ambiguityoptionsjson'  => json_encode($result['ambiguity_options'] ?? []),
             'errorsjson'            => json_encode($errors),
             'issuecodesjson'        => json_encode($issuecodes),
+            'phasetracejson'        => $phasetracejson,
             'queueitemid'           => $responsequeueitemid,
             'threadid'              => $threadid,
             'runid'                 => (int)($result['runid'] ?? 0),
@@ -439,6 +443,29 @@ class ai_send_message extends external_api {
     }
 
     /**
+     * Encode split-pipeline phase trace for external API consumers.
+     *
+     * @param array<string,mixed> $result
+     * @return string
+     */
+    private static function encode_phase_trace_for_response(array $result): string {
+        $phasetrace = [];
+        if (isset($result['phase_trace']) && is_array($result['phase_trace'])) {
+            $phasetrace = $result['phase_trace'];
+        } else if (
+            isset($result['planner_result'])
+            && is_array($result['planner_result'])
+            && isset($result['planner_result']['phase_trace'])
+            && is_array($result['planner_result']['phase_trace'])
+        ) {
+            $phasetrace = (array)$result['planner_result']['phase_trace'];
+        }
+
+        $encoded = json_encode($phasetrace);
+        return is_string($encoded) ? $encoded : '[]';
+    }
+
+    /**
      * Returns external function result schema.
      *
      * @return external_single_structure
@@ -458,6 +485,12 @@ class ai_send_message extends external_api {
             ),
             'errorsjson'    => new external_value(PARAM_RAW, 'JSON-encoded technical validation errors.'),
             'issuecodesjson' => new external_value(PARAM_RAW, 'JSON-encoded issue codes from task validation.'),
+            'phasetracejson' => new external_value(
+                PARAM_RAW,
+                'JSON-encoded split-pipeline phase trace (discovery/selection/parameter_construction).',
+                VALUE_DEFAULT,
+                '[]'
+            ),
             'queueitemid' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id for confirmation.'),
             'threadid'      => new external_value(PARAM_INT, 'Thread id.'),
             'runid'         => new external_value(PARAM_INT, 'Run id (0 if not yet created).'),

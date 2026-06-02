@@ -31,6 +31,7 @@ use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core\di;
 use core_text;
+use bookingextension_agent\local\wbagent\contracts\task_family_contract;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
@@ -39,6 +40,7 @@ use bookingextension_agent\local\wbagent\services\catalog\adaptive_task_catalog_
 use bookingextension_agent\local\wbagent\services\discovery\family_ranker;
 use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
 use bookingextension_agent\local\wbagent\services\discovery\family_signal_ranker;
+use bookingextension_agent\local\wbagent\services\discovery\discovery_stage_controller;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service;
 use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service;
@@ -80,12 +82,6 @@ class orchestrator {
 
     /** Parameter construction planner phase identifier. */
     public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
-
-    /** Compact prompt profile for initial tool-call parsing. */
-    public const STEP_TYPE_TOOL_CALL_PARSE = 'tool_call_parse';
-
-    /** Compact prompt profile for iterative retrieval turns with observations. */
-    public const STEP_TYPE_SIMPLE_RETRIEVAL = 'simple_retrieval';
 
     /** Default model for task-catalog embeddings. */
     public const EMBEDDINGS_DEFAULT_MODEL = 'text-embedding-3-small';
@@ -159,15 +155,9 @@ class orchestrator {
         $this->completedhistorysvc = new completed_command_history_service($store);
         $this->assistantsummariesvc = new assistant_state_guidance_service($registry);
         $this->orchestratorroutingsvc = new orchestrator_routing_service(
-            self::STEP_TYPE_TOOL_CALL_PARSE,
-            self::STEP_TYPE_SIMPLE_RETRIEVAL,
             self::WB_ACTION_PLANNER_DECIDE
         );
-        $this->promptprofilesvc = new orchestrator_prompt_profile_service(
-            self::STEP_TYPE_TOOL_CALL_PARSE,
-            self::STEP_TYPE_SIMPLE_RETRIEVAL,
-            self::WB_ACTION_PLANNER_DECIDE
-        );
+        $this->promptprofilesvc = new orchestrator_prompt_profile_service();
         $this->promptbundlebuilder = new phase_prompt_bundle_builder($this->registry, $this->promptprofilesvc);
         $this->synchronizerpromptbuilder = new synchronizer_prompt_builder();
     }
@@ -341,7 +331,6 @@ class orchestrator {
         int $cmid,
         int $userid,
         array $observations = [],
-        string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
         ?agent_state $agentstate = null
     ): array {
         $context = context_module::instance($cmid);
@@ -352,7 +341,6 @@ class orchestrator {
             $cmid,
             $userid,
             $observations,
-            $steptype,
             $agentstate,
             $context,
             $manager,
@@ -421,7 +409,7 @@ class orchestrator {
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
             $cmid,
-            self::STEP_TYPE_SIMPLE_RETRIEVAL,
+            self::PHASE_SELECTION,
             $isfirstassistantturn,
             !empty($observations),
             [],
@@ -501,7 +489,6 @@ class orchestrator {
      * @param int $cmid
      * @param int $userid
      * @param array $observations
-     * @param string $steptype
      * @param agent_state|null $agentstate
      * @param context_module $context
      * @param ai_manager $manager
@@ -513,14 +500,12 @@ class orchestrator {
         int $cmid,
         int $userid,
         array $observations,
-        string $steptype,
         ?agent_state $agentstate,
         context_module $context,
         ai_manager $manager,
         task_executability_evaluator $evaluator
     ): array {
         $contextid = (int)$context->id;
-        $normalizedsteptype = trim(core_text::strtolower($steptype));
 
         $routing = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
             $manager,
@@ -540,7 +525,7 @@ class orchestrator {
         $adaptivecatalogresult = adaptive_task_catalog_service::get_adaptive_catalog(
             $promptcontracts,
             $recenttaskhistory,
-            $normalizedsteptype
+            orchestrator_routing_service::PHASE_DISCOVERY
         );
         $adaptivecatalog = $adaptivecatalogresult['active_tasks'];
 
@@ -550,10 +535,7 @@ class orchestrator {
         $plannertracehistory = $this->normalize_planner_trace_history(
             $this->store->get_thread_metadata_value($threadid, 'planner_trace_history')
         );
-        $shouldincludetaskcatalog = (
-            ($normalizedsteptype === self::STEP_TYPE_TOOL_CALL_PARSE && !$hasanyobservations)
-            || ($normalizedsteptype === self::STEP_TYPE_SIMPLE_RETRIEVAL && $haseffectiveobservations)
-        );
+        $shouldincludetaskcatalog = !$hasanyobservations;
 
         $runtimecatalog = [];
         $unavailabletaskcatalog = [];
@@ -561,6 +543,12 @@ class orchestrator {
         $embeddingstatus = 'off';
         $embeddingrebuildqueued = false;
         $usedembeddingcache = false;
+        $discoverystage = 'none';
+        $discoveryconfidencescore = null;
+        $discoveryescalationreason = 'none';
+        $selectedfamilies = [];
+        $embeddingcall = [];
+        $status = [];
         $llm = new llm_call_service($this->store);
 
         if ($shouldincludetaskcatalog) {
@@ -597,9 +585,11 @@ class orchestrator {
                 }
 
                 if ($cachekey !== '' && $agentstate !== null) {
-                    $cachedcatalog = $agentstate->get_planner_catalog_cache($cachekey);
+                    $cachedcatalog = $agentstate->get_discovery_family_cache($cachekey);
                     if ($cachedcatalog !== null) {
-                        $runtimecatalog = (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog);
+                        $runtimecatalog = $this->sanitize_runtime_catalog_for_prompt(
+                            (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog)
+                        );
                         $unavailabletaskcatalog = (array)($cachedcatalog['unavailabletaskcatalog'] ?? $unavailabletaskcatalog);
                         $catalogselectionmode = (string)($cachedcatalog['catalogselectionmode'] ?? 'embed_topk_cache');
                         $embeddingstatus = 'cached_' . trim((string)($cachedcatalog['embeddingstatus'] ?? 'applied'));
@@ -683,7 +673,7 @@ class orchestrator {
                                 }
 
                                 if (!empty($toprows)) {
-                                    $runtimecatalog = array_values($toprows);
+                                    $runtimecatalog = $this->sanitize_runtime_catalog_for_prompt(array_values($toprows));
                                     $catalogselectionmode = $embeddingstatus === 'family_boosted'
                                         ? 'embed_topk_family_boost'
                                         : 'embed_topk';
@@ -700,14 +690,75 @@ class orchestrator {
                     }
 
                     if ($cachekey !== '' && $agentstate !== null) {
-                        $agentstate->set_planner_catalog_cache(
-                            $cachekey,
-                            $runtimecatalog,
-                            $unavailabletaskcatalog,
-                            $catalogselectionmode,
-                            $embeddingstatus,
-                            $embeddingrebuildqueued
+                        $agentstate->set_discovery_family_cache($cachekey, [
+                            'runtimecatalog' => $runtimecatalog,
+                            'unavailabletaskcatalog' => $unavailabletaskcatalog,
+                            'catalogselectionmode' => $catalogselectionmode,
+                            'embeddingstatus' => $embeddingstatus,
+                            'embeddingrebuildqueued' => $embeddingrebuildqueued,
+                        ]);
+                    }
+                }
+            }
+
+            if (runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_DISCOVERY_ENABLED)) {
+                $namespacehint = $this->resolve_namespace_hint_from_prompt_contracts($allpromptcontracts);
+                $familycontextprior = (new context_prior_builder())->build($contextid, [
+                    'userid' => $userid,
+                    'namespace_hint' => $namespacehint,
+                ]);
+                $familydiscovery = (new family_registry_service())->discover(
+                    $allpromptcontracts,
+                    $familycontextprior
+                )->to_array();
+                $families = (array)($familydiscovery['families'] ?? []);
+                if (!empty($families)) {
+                    $signalscores = (new family_signal_ranker())->score_families(
+                        $families,
+                        $familycontextprior,
+                        $recenttaskhistory
+                    );
+
+                    $semanticscores = [];
+                    if (
+                        !empty($embeddingcall['success'])
+                        && !empty($embeddingcall['embedding'])
+                        && !empty($status['rows'])
+                        && is_array($status['rows'])
+                    ) {
+                        $semanticscores = (new family_embeddings_retrieval_service())->score_families(
+                            $families,
+                            (array)$embeddingcall['embedding'],
+                            (array)$status['rows']
                         );
+                    }
+
+                    $rankedfamilies = (new family_ranker())->rank(
+                        $families,
+                        $signalscores,
+                        $semanticscores
+                    );
+                    $stageresult = (new discovery_stage_controller())->resolve(
+                        $rankedfamilies,
+                        (array)($familydiscovery['context_families'] ?? []),
+                        (array)($familydiscovery['core_families'] ?? [])
+                    );
+
+                    $discoverystage = (string)($stageresult['discovery_stage'] ?? 'none');
+                    $discoveryconfidencescore = $stageresult['confidence_score'] ?? null;
+                    $discoveryescalationreason = (string)($stageresult['escalation_reason'] ?? 'none');
+                    $selectedfamilies = array_values(array_filter(array_map(
+                        static fn($family): string => task_family_contract::normalize_family((string)$family),
+                        (array)($stageresult['selected_families'] ?? [])
+                    )));
+
+                    if (!empty($selectedfamilies)) {
+                        $runtimecatalog = $this->filter_catalog_by_selected_families($runtimecatalog, $selectedfamilies);
+                        if ($catalogselectionmode === 'slim_all') {
+                            $catalogselectionmode = 'slim_family_stage_' . strtolower($discoverystage);
+                        } else if (str_starts_with($catalogselectionmode, 'embed_topk')) {
+                            $catalogselectionmode .= '_stage_' . strtolower($discoverystage);
+                        }
                     }
                 }
             }
@@ -717,7 +768,7 @@ class orchestrator {
             $cmid,
             $userid,
             $contextid,
-            $normalizedsteptype,
+            self::PHASE_DISCOVERY,
             $actionclass,
             $haseffectiveobservations,
             $adaptivecatalog,
@@ -728,7 +779,7 @@ class orchestrator {
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
             $cmid,
-            $normalizedsteptype,
+            self::PHASE_DISCOVERY,
             $isfirstassistantturn,
             $hasanyobservations,
             $runtimecatalog,
@@ -740,17 +791,19 @@ class orchestrator {
             $systemprompt,
             $messages,
             $observations,
-            $normalizedsteptype,
+            self::PHASE_DISCOVERY,
             $runtimecontext,
             $plannertracehistory,
             $autoconfirmmode
         );
 
-        $historycount = count(array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype)));
+        $historycount = count(array_slice(
+            $messages,
+            -$this->promptprofilesvc->get_history_limit_for_phase(self::PHASE_DISCOVERY)
+        ));
         $observationcount = count($observations);
-        $primaryprovider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
+        $primaryprovider = (string)($routing['primaryprovider'] ?? '');
         $debugsource = $this->orchestratorroutingsvc->build_debug_source(
-            $normalizedsteptype,
             $actionclass,
             (string)($routing['routepolicy'] ?? 'default'),
             !empty($routing['routingfallback']),
@@ -788,7 +841,6 @@ class orchestrator {
 
         return [
             'contextid' => $contextid,
-            'normalizedsteptype' => $normalizedsteptype,
             'routing' => $routing,
             'actionclass' => $actionclass,
             'messages' => $messages,
@@ -805,6 +857,10 @@ class orchestrator {
             'catalogselectionmode' => $catalogselectionmode,
             'embeddingstatus' => $embeddingstatus,
             'embeddingrebuildqueued' => $embeddingrebuildqueued,
+            'discovery_stage' => $discoverystage,
+            'discovery_confidence_score' => $discoveryconfidencescore,
+            'discovery_escalation_reason' => $discoveryescalationreason,
+            'selected_families' => $selectedfamilies,
             'prompt' => $prompt,
             'debugsource' => $debugsource,
             'phase' => self::PHASE_DISCOVERY,
@@ -838,7 +894,6 @@ class orchestrator {
         ai_manager $manager
     ): array {
         $contextid = (int)($discoverystate['contextid'] ?? 0);
-        $normalizedsteptype = (string)($discoverystate['normalizedsteptype'] ?? self::STEP_TYPE_TOOL_CALL_PARSE);
         $actionclass = (string)($discoverystate['actionclass'] ?? generate_text::class);
         $messages = (array)($discoverystate['messages'] ?? []);
         $routing = (array)($discoverystate['routing'] ?? []);
@@ -854,12 +909,15 @@ class orchestrator {
         $isfirstassistantturn = !empty($discoverystate['isfirstassistantturn']);
         $shouldincludetaskcatalog = !empty($discoverystate['shouldincludetaskcatalog']);
         $adaptivecatalog = (array)($discoverystate['adaptivecatalog'] ?? []);
+        $discoverystage = (string)($discoverystate['discovery_stage'] ?? 'none');
+        $discoveryconfidencescore = $discoverystate['discovery_confidence_score'] ?? null;
+        $discoveryescalationreason = (string)($discoverystate['discovery_escalation_reason'] ?? 'none');
 
         $systemprompt = $this->build_system_prompt(
             $cmid,
             $userid,
             $contextid,
-            $normalizedsteptype,
+            self::PHASE_SELECTION,
             $actionclass,
             $haseffectiveobservations,
             $adaptivecatalog,
@@ -870,7 +928,7 @@ class orchestrator {
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
             $cmid,
-            $normalizedsteptype,
+            self::PHASE_SELECTION,
             $isfirstassistantturn,
             $hasanyobservations,
             $runtimecatalog,
@@ -882,17 +940,19 @@ class orchestrator {
             $systemprompt,
             $messages,
             $observations,
-            $normalizedsteptype,
+            self::PHASE_SELECTION,
             $runtimecontext,
             $plannertracehistory,
             $autoconfirmmode
         );
 
-        $historycount = count(array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype)));
+        $historycount = count(array_slice(
+            $messages,
+            -$this->promptprofilesvc->get_history_limit_for_phase(self::PHASE_SELECTION)
+        ));
         $observationcount = count($observations);
         $primaryprovider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
         $debugsource = $this->orchestratorroutingsvc->build_debug_source(
-            $normalizedsteptype,
             $actionclass,
             (string)($routing['routepolicy'] ?? 'default'),
             !empty($routing['routingfallback']),
@@ -939,9 +999,9 @@ class orchestrator {
             ]);
             $routingtelemetry = [
                 'catalogselectionmode' => $catalogselectionmode,
-                'discovery_stage' => $shouldincludetaskcatalog ? 'A' : 'none',
-                'confidence_score' => null,
-                'escalation_reason' => 'none',
+                'discovery_stage' => $discoverystage,
+                'confidence_score' => $discoveryconfidencescore,
+                'escalation_reason' => $discoveryescalationreason,
             ];
             (new routing_decision_log_service())->persist_thread_routing_decision(
                 $this->store,
@@ -1000,7 +1060,6 @@ class orchestrator {
         $llm = new llm_call_service($this->store);
         $actionclass = (string)($discoverystate['actionclass'] ?? generate_text::class);
         $contextid = (int)($discoverystate['contextid'] ?? 0);
-        $normalizedsteptype = (string)($discoverystate['normalizedsteptype'] ?? self::STEP_TYPE_SIMPLE_RETRIEVAL);
         $messages = (array)($discoverystate['messages'] ?? []);
         $adaptivecatalog = (array)($discoverystate['adaptivecatalog'] ?? []);
         $runtimecatalog = (array)($discoverystate['runtimecatalog'] ?? []);
@@ -1024,7 +1083,7 @@ class orchestrator {
             $cmid,
             $userid,
             $contextid,
-            self::STEP_TYPE_SIMPLE_RETRIEVAL,
+            self::PHASE_PARAMETER_CONSTRUCTION,
             $actionclass,
             $haseffectiveobservations || !empty($constructionobservations),
             $adaptivecatalog,
@@ -1035,7 +1094,7 @@ class orchestrator {
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
             $cmid,
-            $normalizedsteptype,
+            self::PHASE_PARAMETER_CONSTRUCTION,
             $isfirstassistantturn,
             !empty($constructionobservations),
             $runtimecatalog,
@@ -1047,21 +1106,24 @@ class orchestrator {
             $systemprompt,
             $messages,
             $constructionobservations,
-            self::STEP_TYPE_SIMPLE_RETRIEVAL,
+            self::PHASE_PARAMETER_CONSTRUCTION,
             $runtimecontext,
             $plannertracehistory,
             $autoconfirmmode
         );
 
-        $historycount = count(array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype)));
+        $historycount = count(array_slice(
+            $messages,
+            -$this->promptprofilesvc->get_history_limit_for_phase(self::PHASE_PARAMETER_CONSTRUCTION)
+        ));
         $observationcount = count($constructionobservations);
+        $primaryprovider = (string)($routing['primaryprovider'] ?? '');
         $debugsource = $this->orchestratorroutingsvc->build_debug_source(
-            $normalizedsteptype,
             $actionclass,
             (string)($routing['routepolicy'] ?? 'default'),
             !empty($routing['routingfallback']),
             orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION,
-            null,
+            $primaryprovider,
             $historycount,
             $observationcount,
             $catalogselectionmode,
@@ -1083,6 +1145,7 @@ class orchestrator {
         }
 
         $lastusermessage = (string)($selectionstate['lastusermessage'] ?? '');
+        $constructionallowedtasks = $this->build_construction_allowed_tasks($runtimecatalog, $adaptivecatalog);
         $interpreted = $this->interpreter->interpret_phase_output(
             $rawtext,
             self::PHASE_PARAMETER_CONSTRUCTION,
@@ -1090,6 +1153,7 @@ class orchestrator {
                 'contextid' => $contextid,
                 'userid' => $userid,
                 'lastusermessage' => $lastusermessage,
+                'allowed_tasks' => $constructionallowedtasks,
             ]
         );
         if (is_array($interpreted)) {
@@ -1097,6 +1161,43 @@ class orchestrator {
         }
 
         return $interpreted;
+    }
+
+    /**
+     * Build construction-phase task allow-list from discovery-ranked catalogs.
+     *
+     * @param array<int,array<string,mixed>> $runtimecatalog
+     * @param array<int,array<string,mixed>> $adaptivecatalog
+     * @return array<int,string>
+     */
+    private function build_construction_allowed_tasks(array $runtimecatalog, array $adaptivecatalog): array {
+        $tasks = [];
+
+        foreach ($runtimecatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $task = trim((string)($entry['task'] ?? ''));
+            if ($task !== '') {
+                $tasks[] = $task;
+            }
+        }
+
+        if (!empty($tasks)) {
+            return array_values(array_unique($tasks));
+        }
+
+        foreach ($adaptivecatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $task = trim((string)($entry['task'] ?? ''));
+            if ($task !== '') {
+                $tasks[] = $task;
+            }
+        }
+
+        return array_values(array_unique($tasks));
     }
 
     /**
@@ -1171,34 +1272,6 @@ class orchestrator {
         }
 
         return $observations;
-    }
-
-    /**
-     * Return the default initial system prompt template.
-     *
-     * Supported placeholders:
-     * - {{bookingname}}
-     * - {{timezonename}}
-     * - {{nowiso}}
-     * - {{tasklist}}
-     * - {{schemajson}}
-     * - {{taskcatalogjson}}
-     * - {{fullschemajson}}
-     *
-     * @return string
-     */
-    public static function get_default_initial_prompt_template(): string {
-        $path = self::get_default_initial_prompt_template_path();
-        if (!is_readable($path)) {
-            return 'You are an AI assistant for Moodle booking. Respond only with valid JSON.';
-        }
-
-        $content = file_get_contents($path);
-        if ($content === false || trim($content) === '') {
-            return 'You are an AI assistant for Moodle booking. Respond only with valid JSON.';
-        }
-
-        return (string)$content;
     }
 
     /**
@@ -1315,19 +1388,9 @@ PROMPT;
     }
 
     /**
-     * Return absolute path to the default initial prompt markdown file.
-     *
-     * @return string
-     */
-    public static function get_default_initial_prompt_template_path(): string {
-        return __DIR__ . '/prompts/initial_system_prompt.md';
-    }
-
-    /**
      * Build the state-based system prompt with compact task metadata embedded.
      *
      * @param  int    $cmid
-     * @param  string $steptype
      * @param  string $actionclass
      * @param  bool   $hasobservations
      * @param  array  $adaptivecatalog Optional adaptive task catalog (reduced by recency/tier). If null, uses full catalog.
@@ -1340,7 +1403,7 @@ PROMPT;
         int $cmid,
         int $userid,
         int $contextid,
-        string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
+        string $phase = self::PHASE_DISCOVERY,
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
         ?array $adaptivecatalog = null,
@@ -1352,7 +1415,7 @@ PROMPT;
             $cmid,
             $userid,
             $contextid,
-            $steptype,
+            $phase,
             $actionclass,
             $hasobservations,
             $adaptivecatalog,
@@ -1399,6 +1462,68 @@ PROMPT;
         }
 
         return $slimcatalog;
+    }
+
+    /**
+     * Keep only planner-relevant fields before runtime catalog prompt injection.
+     *
+     * @param array<int,array<string,mixed>> $catalog
+     * @return array<int,array<string,mixed>>
+     */
+    private function sanitize_runtime_catalog_for_prompt(array $catalog): array {
+        $sanitized = [];
+
+        foreach ($catalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $task = trim((string)($entry['task'] ?? ''));
+            if ($task === '') {
+                continue;
+            }
+
+            $minimalinput = is_array($entry['minimal_input'] ?? null)
+                ? (array)$entry['minimal_input']
+                : $this->decode_catalog_json_array((string)($entry['minimal_input_json'] ?? '[]'));
+
+            $exampleinputraw = is_array($entry['example_input'] ?? null)
+                ? (array)$entry['example_input']
+                : $this->decode_catalog_json_array((string)($entry['example_input_json'] ?? '[]'));
+
+            $triggerraw = is_array($entry['message_triggers'] ?? null)
+                ? (array)$entry['message_triggers']
+                : $this->decode_catalog_json_array((string)($entry['message_triggers_json'] ?? '[]'));
+
+            $row = [
+                'task' => $task,
+                'readonly' => !empty($entry['readonly']) && (string)$entry['readonly'] !== '0',
+                'intent' => trim((string)($entry['intent'] ?? '')),
+                'minimal_input' => $minimalinput,
+                'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
+                'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
+            ];
+
+            $exampleinput = $this->compact_catalog_example_input($exampleinputraw);
+            if (!empty($exampleinput) && $exampleinput !== $minimalinput) {
+                $row['example_input'] = $exampleinput;
+            }
+
+            $sanitized[] = $row;
+        }
+
+        return $sanitized;
+    }
+
+    /**
+     * Decode JSON array/object payload safely.
+     *
+     * @param string $json
+     * @return array<int|string,mixed>
+     */
+    private function decode_catalog_json_array(string $json): array {
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**
@@ -1555,6 +1680,7 @@ PROMPT;
      * @param  string      $systemprompt
      * @param  \stdClass[] $messages
      * @param  string[]    $observations  Structured observation strings (may be empty).
+     * @param  string      $phase Explicit planner phase (discovery/selection/parameter_construction).
      * @param  string      $runtimecontext Dynamic per-request context appended after static system prompt.
      * @param  string[]    $plannertracehistory Full planner trace history from thread metadata.
      * @param  bool        $autoconfirmmode Whether confirmation is already allowed for this thread.
@@ -1564,7 +1690,7 @@ PROMPT;
         string $systemprompt,
         array $messages,
         array $observations = [],
-        string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
+        string $phase = self::PHASE_DISCOVERY,
         string $runtimecontext = '',
         array $plannertracehistory = [],
         bool $autoconfirmmode = false
@@ -1573,42 +1699,11 @@ PROMPT;
             $systemprompt,
             $messages,
             $observations,
-            $steptype,
+            $phase,
             $runtimecontext,
             $plannertracehistory,
             $autoconfirmmode
         );
-    }
-
-    /**
-     * Build a local output contract reminder close to the assistant output slot.
-     *
-     * @param string $steptype
-     * @param bool $autoconfirmmode
-     * @return string
-     */
-    private function build_local_output_contract_block(string $steptype, bool $autoconfirmmode = false): string {
-        $lines = [
-            'Return exactly one valid JSON object and nothing else.',
-            'Do not output markdown, code fences, prose, or bullet lists outside JSON.',
-            'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.',
-            'For task_call/confirmation_request: commands must be a non-empty array.',
-            'For clarification/confirm_pending/sufficient/error: commands must be [].',
-            'Apply routing semantics from [SYSTEM] decision order; do not override them here.',
-            'For mutating intents, do not use task_call; use confirmation_request unless already completed -> sufficient.',
-        ];
-
-        if ($autoconfirmmode) {
-            $lines[] = 'Auto-confirm mode is active.';
-            $lines[] = 'Do NOT ask permission or phrase messages as questions. '
-                . 'Instead: write a short statement announcing what will be executed.';
-            $lines[] = 'Treat recent ASSISTANT/ASSISTANT_STATE execution evidence as authoritative. '
-                . 'Never re-emit an already-executed action (same task+input signature).';
-            $lines[] = 'If action already executed: report completion or skip to next unexecuted action.';
-            $lines[] = 'Next unexecuted mutation → response_type="confirmation_request".';
-        }
-
-        return implode("\n", $lines);
     }
 
     /**
@@ -1649,7 +1744,7 @@ PROMPT;
      * prompt-prefix stability for upstream prompt caching.
      *
      * @param int $cmid
-     * @param string $steptype
+     * @param string $phase
      * @param bool $isfirstassistantturn
      * @param bool $hasobservations
      * @param array $taskcatalog
@@ -1658,7 +1753,7 @@ PROMPT;
     private function build_runtime_context_block(
         int $threadid,
         int $cmid,
-        string $steptype = self::STEP_TYPE_TOOL_CALL_PARSE,
+        string $phase = self::PHASE_DISCOVERY,
         bool $isfirstassistantturn = false,
         bool $hasobservations = false,
         array $taskcatalog = [],
@@ -1689,11 +1784,7 @@ PROMPT;
 
         // Keep first-turn language enforcement in SYSTEM_RUNTIME so static SYSTEM
         // prompt prefixes remain cache-friendly across requests.
-        if (
-            $this->promptprofilesvc->normalize_planner_step_type($steptype) === self::STEP_TYPE_TOOL_CALL_PARSE
-            && $isfirstassistantturn
-            && !$hasobservations
-        ) {
+        if ($phase === self::PHASE_DISCOVERY && $isfirstassistantturn && !$hasobservations) {
             $lines[] = '';
             $lines[] = 'NON-OPTIONAL LANGUAGE POLICY:';
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
@@ -1777,6 +1868,52 @@ PROMPT;
         }
 
         return $json;
+    }
+
+    /**
+     * Keep only catalog entries whose task family is in selected discovery families.
+     *
+     * @param array<int,array<string,mixed>> $catalog
+     * @param array<int,string> $selectedfamilies
+     * @return array<int,array<string,mixed>>
+     */
+    private function filter_catalog_by_selected_families(array $catalog, array $selectedfamilies): array {
+        if (empty($catalog) || empty($selectedfamilies)) {
+            return $catalog;
+        }
+
+        $allow = [];
+        foreach ($selectedfamilies as $family) {
+            $normalized = task_family_contract::normalize_family((string)$family);
+            if ($normalized !== task_family_contract::DEFAULT_FAMILY) {
+                $allow[$normalized] = true;
+            }
+        }
+
+        if (empty($allow)) {
+            return [];
+        }
+
+        $filtered = [];
+        foreach ($catalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $taskname = trim((string)($entry['task'] ?? ''));
+            if ($taskname === '') {
+                continue;
+            }
+
+            $family = task_family_contract::from_task_name($taskname);
+            if (!isset($allow[$family])) {
+                continue;
+            }
+
+            $filtered[] = $entry;
+        }
+
+        return array_values($filtered);
     }
 
     /**

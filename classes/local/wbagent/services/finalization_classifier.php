@@ -49,6 +49,10 @@ class finalization_classifier {
         'DEPENDENCY_CYCLE',
         'CONTRACT_INVALID_RESPONSE_TYPE',
         'CONTRACT_COMMANDS_REQUIRED',
+        'CONTRACT_PHASE_RESPONSE_TYPE',
+        'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED',
+        'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED',
+        'CONTRACT_PHASE_TASK_NOT_ALLOWED',
     ];
 
     /** @var string[] */

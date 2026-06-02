@@ -42,7 +42,7 @@ class planner_result_composer {
         $plannerresult = [
             'discovery' => $discoverystate,
             'selection' => $selectionstate,
-            'construction' => $constructionstate,
+            'parameter_construction' => $constructionstate,
             'phase_trace' => $phasetrace,
             'planner_trace_history' => (array)($discoverystate['plannertracehistory'] ?? []),
         ];

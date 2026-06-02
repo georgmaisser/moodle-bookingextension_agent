@@ -222,7 +222,7 @@ class interpreter implements agent_interpreter {
         }
 
         [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedtasks, $issuecodes, $confirmablecommands] =
-            $this->validate_commands($commands, $contextid, $userid);
+            $this->validate_commands($commands, $contextid, $userid, $lastusermessage);
 
         // Stage 5: Any ambiguity from backend validation stops execution and forces clarification.
         // The confirm button must NEVER appear when unresolved questions remain.
@@ -322,7 +322,7 @@ class interpreter implements agent_interpreter {
         $normalizedphase = $this->normalize_phase_name($phase);
 
         $result = $this->interpret($rawresponse, $contextid, $userid, $lastusermessage);
-        $result = $this->enforce_phase_contract($result, $normalizedphase);
+        $result = $this->enforce_phase_contract($result, $normalizedphase, $context);
         $result['phase'] = $normalizedphase;
         return $result;
     }
@@ -335,9 +335,10 @@ class interpreter implements agent_interpreter {
      *
      * @param array $result
      * @param string $phase
+     * @param array<string,mixed> $context
      * @return array
      */
-    private function enforce_phase_contract(array $result, string $phase): array {
+    private function enforce_phase_contract(array $result, string $phase, array $context = []): array {
         $responsetype = $this->safe_string($result['response_type'] ?? '');
         if ($responsetype === '' || $responsetype === 'error') {
             return $result;
@@ -373,6 +374,22 @@ class interpreter implements agent_interpreter {
                         'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED'
                     );
                 }
+
+                $allowedtasks = array_values(array_filter(array_map(
+                    fn($task): string => trim((string)$task),
+                    (array)($context['allowed_tasks'] ?? [])
+                )));
+
+                if (!empty($allowedtasks)) {
+                    $task = trim((string)($commands[0]['task'] ?? ''));
+                    if ($task === '' || !in_array($task, $allowedtasks, true)) {
+                        return $this->error_result_with_issue_code(
+                            'CONTRACT_VIOLATION: phase "' . $phase
+                                . '" command task is outside discovery-ranked allow-list.',
+                            'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                        );
+                    }
+                }
             }
         }
 
@@ -392,7 +409,6 @@ class interpreter implements agent_interpreter {
      * @return array
      */
     private function normalize_commands_payload(array $parsed, string $lastusermessage = ''): array {
-        $allowedtasks = $this->registry->get_task_names();
         $commands = $parsed['commands'] ?? null;
 
         if (is_array($commands) && isset($commands['task']) && !array_is_list($commands)) {
@@ -406,8 +422,8 @@ class interpreter implements agent_interpreter {
                     continue;
                 }
 
-                $taskname = $this->resolve_task_name_alias((string)($command['task'] ?? ''), $allowedtasks);
-                if ($taskname === null) {
+                $taskname = $this->safe_string($command['task'] ?? '');
+                if ($taskname === '') {
                     continue;
                 }
 
@@ -421,7 +437,6 @@ class interpreter implements agent_interpreter {
                 if (!empty($flatinput)) {
                     $input = array_merge($flatinput, $input);
                 }
-                $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
                 $input = $this->prune_empty_input_values($input);
 
                 $normalized[] = [
@@ -435,10 +450,9 @@ class interpreter implements agent_interpreter {
         }
 
         // Fallback: top-level task/version/input fields.
-        $taskname = $this->resolve_task_name_alias((string)($parsed['task'] ?? ''), $allowedtasks);
-        if ($taskname !== null) {
+        $taskname = $this->safe_string($parsed['task'] ?? '');
+        if ($taskname !== '') {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
-            $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
             $input = $this->prune_empty_input_values($input);
             return [[
                 'task' => $taskname,
@@ -556,10 +570,9 @@ class interpreter implements agent_interpreter {
         $modeluserlang = $this->safe_string($parsed['user_lang'] ?? $parsed['userlang'] ?? '');
 
         $responsetype = (string)($parsed['response_type'] ?? '');
-        $responsereferencedtask = $this->resolve_task_name_alias($responsetype, $allowedtasks);
-        if ($responsereferencedtask !== null) {
+        $responsereferencedtask = $this->safe_string($responsetype);
+        if ($responsereferencedtask !== '' && in_array($responsereferencedtask, $allowedtasks, true)) {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
-            $input = $this->hydrate_question_field($responsereferencedtask, $input, $lastusermessage);
             return [
                 'response_type' => 'task_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
@@ -575,10 +588,9 @@ class interpreter implements agent_interpreter {
         }
 
         $task = (string)($parsed['task'] ?? '');
-        $resolvedtask = $this->resolve_task_name_alias($task, $allowedtasks);
-        if ($resolvedtask !== null) {
+        $resolvedtask = $this->safe_string($task);
+        if ($resolvedtask !== '') {
             $input = $this->extract_command_input($parsed);
-            $input = $this->hydrate_question_field($resolvedtask, $input, $lastusermessage);
             return [
                 'response_type' => 'task_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
@@ -600,12 +612,11 @@ class interpreter implements agent_interpreter {
                 if (!is_array($command)) {
                     continue;
                 }
-                $commandtask = $this->resolve_task_name_alias((string)($command['task'] ?? ''), $allowedtasks);
-                if ($commandtask === null) {
+                $commandtask = $this->safe_string($command['task'] ?? '');
+                if ($commandtask === '') {
                     continue;
                 }
                 $commandinput = $this->extract_command_input($command);
-                $commandinput = $this->hydrate_question_field($commandtask, $commandinput, $lastusermessage);
                 $normalizedcommands[] = [
                     'task' => $commandtask,
                     'version' => (int)($command['version'] ?? 1),
@@ -648,34 +659,6 @@ class interpreter implements agent_interpreter {
             ];
         }
 
-        return null;
-    }
-
-    /**
-     * Resolve common task-name aliases to canonical task names.
-     *
-     * Accepts full names (booking.some_task) and unique short suffixes (some_task).
-     *
-     * @param string $candidate
-     * @param array $allowedtasks
-     * @return string|null
-     */
-    private function resolve_task_name_alias(string $candidate, array $allowedtasks): ?string {
-        $name = trim($candidate);
-        if ($name === '') {
-            return null;
-        }
-        if (in_array($name, $allowedtasks, true)) {
-            return $name;
-        }
-        if (strpos($name, '.') === false) {
-            $matches = array_values(array_filter($allowedtasks, static function (string $taskname) use ($name): bool {
-                return substr($taskname, strrpos($taskname, '.') + 1) === $name;
-            }));
-            if (count($matches) === 1) {
-                return $matches[0];
-            }
-        }
         return null;
     }
 
@@ -929,11 +912,9 @@ class interpreter implements agent_interpreter {
      * Deep validation (DB lookups, entity resolution, conflict detection) is
      * delegated to agent_decision_service via task->preflight().
      *
-     * @param array $commands
-     * @param int $userid
      * Returns [validated, errors, ambiguities, ambiguityoptions, attemptedtasks, issuecodes, confirmablecommands].
      */
-    private function validate_commands(array $commands, int $contextid, int $userid): array {
+    private function validate_commands(array $commands, int $contextid, int $userid, string $lastusermessage = ''): array {
         $validated = [];
         $seencommandsigs = [];
         $errors = [];
@@ -988,7 +969,7 @@ class interpreter implements agent_interpreter {
                 continue;
             }
 
-            $constructed = $constructor->build($selection->taskname, $rawinput, '');
+            $constructed = $constructor->build($selection->taskname, $rawinput, $lastusermessage);
             $structural = $validator->validate($selection->task, $constructed->input, $label);
             if (!$structural->valid) {
                 foreach ($structural->errors as $error) {
@@ -1011,6 +992,7 @@ class interpreter implements agent_interpreter {
                 'task'    => $selection->taskname,
                 'version' => $selection->version,
                 'input'   => $structural->input,
+                '_structural_validated' => true,
             ];
         }
 
@@ -1099,7 +1081,7 @@ class interpreter implements agent_interpreter {
         if ($normalized === 'selection') {
             return 'selection';
         }
-        if ($normalized === 'construction' || $normalized === 'parameter_construction') {
+        if ($normalized === 'parameter_construction') {
             return 'parameter_construction';
         }
         return 'discovery';

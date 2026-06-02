@@ -70,7 +70,7 @@ class task_selector {
             );
         }
 
-        $task = $this->loader->load_task($resolvedtask);
+        $task = $this->loader->load_task($resolvedtask, $allowedtasks);
         if ($task === null) {
             return new task_selection_result(
                 $resolvedtask,

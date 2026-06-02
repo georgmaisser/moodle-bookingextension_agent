@@ -19,6 +19,7 @@ namespace bookingextension_agent\local\wbagent\tests;
 use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wbagent\services\synchronizer_output_contract;
 use bookingextension_agent\local\wbagent\task_registry;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use PHPUnit\Framework\TestCase;
@@ -57,7 +58,7 @@ final class runtime_finalization_contract_test extends TestCase {
      * Synchronizer message merge must rollback on response_type drift.
      */
     public function test_merge_rolls_back_when_response_type_drifts(): void {
-        $runtime = $this->build_runtime();
+        $contract = new synchronizer_output_contract();
 
         $source = [
             'response_type' => 'clarification',
@@ -72,7 +73,7 @@ final class runtime_finalization_contract_test extends TestCase {
             'lang' => 'en',
         ];
 
-        $merged = $this->invoke_private_method($runtime, 'merge_synchronized_message', [$source, $sync]);
+        $merged = $contract->merge($source, $sync);
 
         $this->assertSame($source, $merged);
     }
@@ -81,7 +82,7 @@ final class runtime_finalization_contract_test extends TestCase {
      * Synchronizer message merge may update message/lang when contract shape remains stable.
      */
     public function test_merge_accepts_stable_response_type_without_commands(): void {
-        $runtime = $this->build_runtime();
+        $contract = new synchronizer_output_contract();
 
         $source = [
             'response_type' => 'clarification',
@@ -96,11 +97,31 @@ final class runtime_finalization_contract_test extends TestCase {
             'lang' => 'en',
         ];
 
-        $merged = $this->invoke_private_method($runtime, 'merge_synchronized_message', [$source, $sync]);
+        $merged = $contract->merge($source, $sync);
 
         $this->assertSame('sync message', (string)($merged['message'] ?? ''));
         $this->assertSame('en', (string)($merged['lang'] ?? ''));
         $this->assertSame('clarification', (string)($merged['response_type'] ?? ''));
+    }
+
+    /**
+     * Final response contract must remove commands from sufficient outputs.
+     */
+    public function test_enforce_final_response_contract_clears_commands_for_sufficient(): void {
+        $runtime = $this->build_runtime();
+
+        $result = $this->invoke_private_method($runtime, 'enforce_final_response_contract', [
+            [
+                'response_type' => 'sufficient',
+                'message' => 'done',
+                'commands' => [['task' => 'booking.list_options', 'input' => []]],
+                'issue_codes' => [],
+            ],
+            123,
+        ]);
+
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''));
+        $this->assertSame([], (array)($result['commands'] ?? []));
     }
 
     /**

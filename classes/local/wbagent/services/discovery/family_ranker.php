@@ -26,6 +26,18 @@ namespace bookingextension_agent\local\wbagent\services\discovery;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class family_ranker {
+    /** @var float Default weight for symbolic/context signals. */
+    private const SIGNAL_WEIGHT = 0.7;
+
+    /** @var float Default weight for embedding semantic scores. */
+    private const SEMANTIC_WEIGHT = 0.3;
+
+    /** @var int Maximum number of low-score tail families forwarded to selection. */
+    private const LOW_SCORE_TAIL_MAX = 2;
+
+    /** @var float Minimum score required for low-score tail forwarding. */
+    private const LOW_SCORE_TAIL_MIN_SCORE = 0.15;
+
     /**
      * Rank families by combined signal and semantic scores.
      *
@@ -42,7 +54,7 @@ class family_ranker {
             if (empty($semanticscores)) {
                 $score = $signal;
             } else {
-                $score = (0.7 * $signal) + (0.3 * $semantic);
+                $score = (self::SIGNAL_WEIGHT * $signal) + (self::SEMANTIC_WEIGHT * $semantic);
             }
 
             $rows[] = [
@@ -63,5 +75,66 @@ class family_ranker {
         });
 
         return $rows;
+    }
+
+    /**
+     * Select a small deterministic low-score tail outside already selected families.
+     *
+     * @param array<int,array<string,mixed>> $rankedfamilies
+     * @param array<int,string> $selectedfamilies
+     * @param int|null $maxitems
+     * @param float|null $minscore
+     * @return array<int,string>
+     */
+    public function select_low_score_tail(
+        array $rankedfamilies,
+        array $selectedfamilies,
+        ?int $maxitems = null,
+        ?float $minscore = null
+    ): array {
+        $limit = max(0, (int)($maxitems ?? self::LOW_SCORE_TAIL_MAX));
+        if ($limit === 0) {
+            return [];
+        }
+
+        $threshold = min(1.0, max(0.0, (float)($minscore ?? self::LOW_SCORE_TAIL_MIN_SCORE)));
+        $selectedset = array_fill_keys($selectedfamilies, true);
+
+        $selectedfloorscore = 1.0;
+        $hasscoredselected = false;
+        foreach ($rankedfamilies as $row) {
+            $family = trim((string)($row['family'] ?? ''));
+            if ($family === '' || !isset($selectedset[$family])) {
+                continue;
+            }
+
+            $hasscoredselected = true;
+            $selectedfloorscore = min($selectedfloorscore, (float)($row['score'] ?? 0.0));
+        }
+
+        if (!$hasscoredselected) {
+            $selectedfloorscore = 1.0;
+        }
+
+        $tail = [];
+        foreach ($rankedfamilies as $row) {
+            if (count($tail) >= $limit) {
+                break;
+            }
+
+            $family = trim((string)($row['family'] ?? ''));
+            if ($family === '' || isset($selectedset[$family])) {
+                continue;
+            }
+
+            $score = (float)($row['score'] ?? 0.0);
+            if ($score < $threshold || $score > $selectedfloorscore) {
+                continue;
+            }
+
+            $tail[] = $family;
+        }
+
+        return $tail;
     }
 }

@@ -22,7 +22,7 @@ use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_se
 use advanced_testcase;
 
 /**
- * Tests for planner and runtime prompt-profile helpers.
+ * Tests for phase-based planner prompt-profile helpers.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -30,40 +30,28 @@ use advanced_testcase;
  */
 final class orchestrator_prompt_profile_service_test extends advanced_testcase {
     /**
-     * Verifies that runtime and planner normalization are intentionally separated.
+     * Verifies that phase-based prompt-profile keys remain stable.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::normalize_runtime_step_type
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::normalize_planner_step_type
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::resolve_phase_for_step_type
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::get_planner_initial_prompt_config_key
      * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::get_planner_initial_prompt_config_key_for_phase
+     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::get_history_limit_for_phase
      */
-    public function test_runtime_and_planner_profiles_are_separated(): void {
-        $service = new orchestrator_prompt_profile_service(
-            'tool_call_parse',
-            'simple_retrieval',
-            'wbplanner'
-        );
+    public function test_phase_profiles_use_expected_config_keys(): void {
+        $service = new orchestrator_prompt_profile_service();
 
-        $this->assertSame('legacy_finalization', $service->normalize_runtime_step_type('legacy_finalization'));
-        $this->assertSame('legacy_finalization', $service->normalize_planner_step_type('legacy_finalization'));
-        $this->assertSame('discovery', $service->resolve_phase_for_step_type('tool_call_parse'));
-        $this->assertSame('selection', $service->resolve_phase_for_step_type('simple_retrieval'));
         $this->assertSame(
-            'aiinitialprompt_tool_call_parse',
-            $service->get_planner_initial_prompt_config_key('legacy_finalization')
-        );
-        $this->assertSame(
-            'aiinitialprompt_tool_call_parse',
+            'aiinitialprompt_discovery',
             $service->get_planner_initial_prompt_config_key_for_phase('discovery')
         );
         $this->assertSame(
-            'aiinitialprompt_simple_retrieval',
+            'aiinitialprompt_selection',
             $service->get_planner_initial_prompt_config_key_for_phase('selection')
         );
         $this->assertSame(
-            'aiinitialprompt_summarise_text',
+            'aiinitialprompt_parameter_construction',
             $service->get_planner_initial_prompt_config_key_for_phase('parameter_construction')
         );
+        $this->assertSame(PHP_INT_MAX, $service->get_history_limit_for_phase('discovery'));
+        $this->assertSame(PHP_INT_MAX, $service->get_history_limit_for_phase('selection'));
+        $this->assertSame(PHP_INT_MAX, $service->get_history_limit_for_phase('parameter_construction'));
     }
 }

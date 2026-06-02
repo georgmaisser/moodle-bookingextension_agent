@@ -24,7 +24,7 @@ use core_ai\aiactions\summarise_text;
 use core_text;
 
 /**
- * Prompt profile helper for orchestrator step-type and config-key handling.
+ * Prompt profile helper for explicit planner phases and config-key handling.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -39,32 +39,6 @@ class orchestrator_prompt_profile_service {
 
     /** Parameter construction planner phase. */
     public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
-
-    /** @var string */
-    private string $toolcallparse;
-
-    /** @var string */
-    private string $simpleretrieval;
-
-    /** @var string */
-    private string $wbplanneraction;
-
-    /**
-     * Constructor.
-     *
-     * @param string $toolcallparse
-     * @param string $simpleretrieval
-     * @param string $wbplanneraction
-     */
-    public function __construct(
-        string $toolcallparse,
-        string $simpleretrieval,
-        string $wbplanneraction
-    ) {
-        $this->toolcallparse = $toolcallparse;
-        $this->simpleretrieval = $simpleretrieval;
-        $this->wbplanneraction = $wbplanneraction;
-    }
 
     /**
      * Detect whether observations only contain framework-authored retry hints.
@@ -91,57 +65,6 @@ class orchestrator_prompt_profile_service {
     }
 
     /**
-     * Normalize runtime step types without collapsing phase-specific values.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    public function normalize_runtime_step_type(string $steptype): string {
-        return trim(core_text::strtolower($steptype));
-    }
-
-    /**
-     * Normalize planner step types without collapsing phase-specific values.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    public function normalize_planner_step_type(string $steptype): string {
-        return trim(core_text::strtolower($steptype));
-    }
-
-    /**
-     * Resolve the explicit planner phase for a normalized step type.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    public function resolve_phase_for_step_type(string $steptype): string {
-        $normalized = trim(core_text::strtolower($steptype));
-        if ($normalized === $this->toolcallparse) {
-            return self::PHASE_DISCOVERY;
-        }
-        if ($normalized === $this->simpleretrieval) {
-            return self::PHASE_SELECTION;
-        }
-
-        return self::PHASE_PARAMETER_CONSTRUCTION;
-    }
-
-    /**
-     * Resolve admin setting key for initial prompt templates per step profile.
-     *
-     * @param string $steptype
-     * @return string
-     */
-    public function get_planner_initial_prompt_config_key(string $steptype): string {
-        if ($steptype === $this->simpleretrieval) {
-            return 'aiinitialprompt_simple_retrieval';
-        }
-        return 'aiinitialprompt_tool_call_parse';
-    }
-
-    /**
      * Resolve admin setting key per explicit planner phase.
      *
      * @param string $phase
@@ -150,23 +73,13 @@ class orchestrator_prompt_profile_service {
     public function get_planner_initial_prompt_config_key_for_phase(string $phase): string {
         $normalizedphase = $this->normalize_phase($phase);
         if ($normalizedphase === self::PHASE_DISCOVERY) {
-            return 'aiinitialprompt_tool_call_parse';
+            return 'aiinitialprompt_discovery';
         }
         if ($normalizedphase === self::PHASE_SELECTION) {
-            return 'aiinitialprompt_simple_retrieval';
+            return 'aiinitialprompt_selection';
         }
 
-        return 'aiinitialprompt_summarise_text';
-    }
-
-    /**
-     * Return history depth per prompt profile.
-     *
-     * @param string $steptype
-     * @return int
-     */
-    public function get_history_limit_for_step(string $steptype): int {
-        return PHP_INT_MAX;
+        return 'aiinitialprompt_parameter_construction';
     }
 
     /**
@@ -177,11 +90,9 @@ class orchestrator_prompt_profile_service {
      */
     public function get_history_limit_for_phase(string $phase): int {
         $normalizedphase = $this->normalize_phase($phase);
-        $steptype = $normalizedphase === self::PHASE_DISCOVERY
-            ? $this->toolcallparse
-            : $this->simpleretrieval;
+        $ignored = $normalizedphase;
 
-        return $this->get_history_limit_for_step($steptype);
+        return PHP_INT_MAX;
     }
 
     /**
@@ -213,7 +124,7 @@ class orchestrator_prompt_profile_service {
         if ($normalized === self::PHASE_SELECTION) {
             return self::PHASE_SELECTION;
         }
-        if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION || $normalized === 'construction') {
+        if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION) {
             return self::PHASE_PARAMETER_CONSTRUCTION;
         }
         return self::PHASE_DISCOVERY;

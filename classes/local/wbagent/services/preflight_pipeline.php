@@ -109,46 +109,49 @@ class preflight_pipeline {
             }
             $attemptedtasks[] = $taskname;
 
-            $schemavalidation = $this->contractvalidator->validate($command);
-            $layer1issuecodes = array_values(array_unique(array_merge(
-                $layer1issuecodes,
-                (array)($schemavalidation['issue_codes'] ?? [])
-            )));
-            if (($schemavalidation['valid'] ?? false) !== true) {
-                $result = new preflight_result_v2(
-                    'hard_block',
-                    !empty($schemavalidation['issue_codes'])
-                        ? (array)$schemavalidation['issue_codes']
-                        : ['SCHEMA_ERROR'],
-                    preflight_result_v2::BLOCKING_LAYER_SCHEMA,
-                    0,
-                    0,
-                    (int)max(0, (microtime(true) - $startedat) * 1000)
-                );
+            $skipcontractschema = !empty($command['_structural_validated']);
+            if (!$skipcontractschema) {
+                $schemavalidation = $this->contractvalidator->validate($command);
+                $layer1issuecodes = array_values(array_unique(array_merge(
+                    $layer1issuecodes,
+                    (array)($schemavalidation['issue_codes'] ?? [])
+                )));
+                if (($schemavalidation['valid'] ?? false) !== true) {
+                    $result = new preflight_result_v2(
+                        'hard_block',
+                        !empty($schemavalidation['issue_codes'])
+                            ? (array)$schemavalidation['issue_codes']
+                            : ['SCHEMA_ERROR'],
+                        preflight_result_v2::BLOCKING_LAYER_SCHEMA,
+                        0,
+                        0,
+                        (int)max(0, (microtime(true) - $startedat) * 1000)
+                    );
 
-                $this->auditlogger->append($threadid, 0, [
-                    'contextid' => $contextid,
-                    'taskname' => $taskname,
-                    'task_version' => max(1, (int)($command['version'] ?? 1)),
-                    'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
-                    'status' => $result->status,
-                    'reason_code' => 'PREFLIGHT_SCHEMA_INVALID',
-                    'issue_codes' => $result->issuecodes,
-                    'retry_count' => 0,
-                    'retry_after_ms' => 0,
-                    'duration_ms' => $result->durationms,
-                    'error_class' => (string)($schemavalidation['error_class'] ?? 'schema_error'),
-                ]);
+                    $this->auditlogger->append($threadid, 0, [
+                        'contextid' => $contextid,
+                        'taskname' => $taskname,
+                        'task_version' => max(1, (int)($command['version'] ?? 1)),
+                        'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
+                        'status' => $result->status,
+                        'reason_code' => 'PREFLIGHT_SCHEMA_INVALID',
+                        'issue_codes' => $result->issuecodes,
+                        'retry_count' => 0,
+                        'retry_after_ms' => 0,
+                        'duration_ms' => $result->durationms,
+                        'error_class' => (string)($schemavalidation['error_class'] ?? 'schema_error'),
+                    ]);
 
-                return $this->build_output(
-                    false,
-                    $preparedcommands,
-                    array_values(array_unique(array_merge($errors, (array)($schemavalidation['errors'] ?? [])))),
-                    $attemptedtasks,
-                    array_values(array_unique(array_merge($issuecodes, (array)($result->issuecodes ?? [])))),
-                    $issues,
-                    $result
-                );
+                    return $this->build_output(
+                        false,
+                        $preparedcommands,
+                        array_values(array_unique(array_merge($errors, (array)($schemavalidation['errors'] ?? [])))),
+                        $attemptedtasks,
+                        array_values(array_unique(array_merge($issuecodes, (array)($result->issuecodes ?? [])))),
+                        $issues,
+                        $result
+                    );
+                }
             }
 
             $task = $this->registry->get_task($taskname);

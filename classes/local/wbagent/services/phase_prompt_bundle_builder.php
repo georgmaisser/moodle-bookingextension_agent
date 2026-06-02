@@ -62,7 +62,6 @@ class phase_prompt_bundle_builder {
      * @param  int    $cmid
      * @param  int    $userid
      * @param  int    $contextid
-     * @param  string $steptype
      * @param  string $actionclass
      * @param  bool   $hasobservations
      * @param  array  $adaptivecatalog Optional adaptive task catalog (reduced by recency/tier). If null, uses full catalog.
@@ -75,7 +74,7 @@ class phase_prompt_bundle_builder {
         int $cmid,
         int $userid,
         int $contextid,
-        string $steptype = orchestrator::STEP_TYPE_TOOL_CALL_PARSE,
+        string $phase = orchestrator_prompt_profile_service::PHASE_DISCOVERY,
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
         ?array $adaptivecatalog = null,
@@ -93,7 +92,6 @@ class phase_prompt_bundle_builder {
         $fullschemajson = json_encode($schemas, JSON_UNESCAPED_UNICODE);
         $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
         $systemtaskcatalogjson = $includetaskcatalog ? (string)$taskcatalogjson : '[]';
-        $phase = $this->promptprofilesvc->resolve_phase_for_step_type($steptype);
         $phaseconfigkey = $this->promptprofilesvc->get_planner_initial_prompt_config_key_for_phase($phase);
         $configuredtemplate = $this->promptprofilesvc->normalize_config_prompt_template(
             (string)(get_config('bookingextension_agent', $phaseconfigkey) ?? ''),
@@ -149,11 +147,9 @@ class phase_prompt_bundle_builder {
             '{{fullschemajson}}' => (string)$fullschemajson,
         ]);
 
-        $normalizedsteptype = $this->promptprofilesvc->normalize_runtime_step_type($steptype);
-
         $policybuilder = new prompt_policy_builder();
         $prompt .= $policybuilder->build_planner_policies(
-            $steptype,
+            $phase,
             $hasobservations,
             $isfirstassistantturn
         );
@@ -181,13 +177,12 @@ class phase_prompt_bundle_builder {
         string $systemprompt,
         array $messages,
         array $observations = [],
-        string $steptype = orchestrator::STEP_TYPE_TOOL_CALL_PARSE,
+        string $phase = orchestrator_prompt_profile_service::PHASE_DISCOVERY,
         string $runtimecontext = '',
         array $plannertracehistory = [],
         bool $autoconfirmmode = false
     ): string {
-        $normalizedsteptype = $this->promptprofilesvc->normalize_runtime_step_type($steptype);
-        $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_step($normalizedsteptype));
+        $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_phase($phase));
 
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -203,7 +198,7 @@ class phase_prompt_bundle_builder {
 
         $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
 
-        $localoutputcontract = $this->build_local_output_contract_block($normalizedsteptype, $autoconfirmmode);
+        $localoutputcontract = $this->build_local_output_contract_block($phase, $autoconfirmmode);
         if ($localoutputcontract !== '') {
             $parts[] = "[OUTPUT_CONTRACT]\n{$localoutputcontract}";
         }
@@ -215,22 +210,31 @@ class phase_prompt_bundle_builder {
     /**
      * Build a local output contract reminder close to the assistant output slot.
      *
-     * @param string $steptype
+     * @param string $phase
      * @param bool $autoconfirmmode
      * @return string
      */
-    private function build_local_output_contract_block(string $steptype, bool $autoconfirmmode = false): string {
+    private function build_local_output_contract_block(string $phase, bool $autoconfirmmode = false): string {
+        $normalizedphase = trim(strtolower($phase));
         $lines = [
             'Return exactly one valid JSON object and nothing else.',
             'Do not output markdown, code fences, prose, or bullet lists outside JSON.',
-            'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.',
-            'For task_call/confirmation_request: commands must be a non-empty array.',
-            'For clarification/confirm_pending/sufficient/error: commands must be [].',
             'Apply routing semantics from [SYSTEM] decision order; do not override them here.',
-            'For mutating intents, do not use task_call; use confirmation_request unless already completed -> sufficient.',
         ];
 
-        if ($autoconfirmmode) {
+        if ($normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
+            $lines[] = 'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.';
+            $lines[] = 'For task_call/confirmation_request: commands must contain exactly one command object.';
+            $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
+            $lines[] = 'For mutating intents, do not use task_call; '
+                . 'use confirmation_request unless already completed -> sufficient.';
+        } else {
+            $lines[] = 'Allowed response_type: clarification, confirm_pending, sufficient, error.';
+            $lines[] = 'commands must be [] in this phase.';
+            $lines[] = 'Never emit task_call or confirmation_request in this phase.';
+        }
+
+        if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
             $lines[] = 'Auto-confirm mode is active.';
             $lines[] = 'Do NOT ask permission or phrase messages as questions. '
                 . 'Instead: write a short statement announcing what will be executed.';

@@ -26,6 +26,30 @@ namespace bookingextension_agent\local\wbagent\services\discovery;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class family_signal_ranker {
+    /** @var float Base score for each candidate family. */
+    private float $baseweight;
+
+    /** @var float Bonus for core.* families. */
+    private float $coreweight;
+
+    /** @var float Bonus when namespace_hint matches family namespace. */
+    private float $namespacehintweight;
+
+    /** @var float Bonus when recent task namespaces match. */
+    private float $recencynamespaceweight;
+
+    /**
+     * Constructor.
+     *
+     * @param array<string,float|int> $weights
+     */
+    public function __construct(array $weights = []) {
+        $this->baseweight = $this->normalize_weight($weights['base'] ?? 0.20);
+        $this->coreweight = $this->normalize_weight($weights['core'] ?? 0.10);
+        $this->namespacehintweight = $this->normalize_weight($weights['namespace_hint'] ?? 0.35);
+        $this->recencynamespaceweight = $this->normalize_weight($weights['recent_namespace'] ?? 0.20);
+    }
+
     /**
      * Score families from context priors and recency signals.
      *
@@ -48,19 +72,19 @@ class family_signal_ranker {
         }
 
         foreach ($families as $family) {
-            $score = 0.20;
+            $score = $this->baseweight;
 
             if (strpos($family, 'core.') === 0) {
-                $score += 0.10;
+                $score += $this->coreweight;
             }
 
             if ($namespacehint !== '' && strpos($family, $namespacehint . '.') === 0) {
-                $score += 0.35;
+                $score += $this->namespacehintweight;
             }
 
             foreach ($recentnamespaces as $namespace) {
                 if (strpos($family, $namespace . '.') === 0) {
-                    $score += 0.20;
+                    $score += $this->recencynamespaceweight;
                     break;
                 }
             }
@@ -69,5 +93,20 @@ class family_signal_ranker {
         }
 
         return $scores;
+    }
+
+    /**
+     * Clamp ranking weights into a safe range.
+     *
+     * @param mixed $weight
+     * @return float
+     */
+    private function normalize_weight($weight): float {
+        $value = (float)$weight;
+        if ($value < 0.0) {
+            return 0.0;
+        }
+
+        return min(1.0, $value);
     }
 }

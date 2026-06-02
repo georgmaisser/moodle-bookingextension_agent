@@ -44,45 +44,43 @@ class prompt_policy_builder {
     /**
      * Build all NON-OPTIONAL planner policies as a single text block.
      *
-     * @param string $steptype       Orchestrator step type (from orchestrator.php constants).
      * @param bool $isfirstassistantturn True when no assistant output exists yet in this thread.
      * @return string
      */
     public static function build_planner_policies(
-        string $steptype = 'tool_call_parse',
+        string $phase = 'discovery',
         bool $hasobservations = false,
         bool $isfirstassistantturn = false
     ): string {
         $policies = [];
-        $normalizedsteptype = trim(\core_text::strtolower($steptype));
+        $normalizedphase = self::normalize_phase($phase);
 
         // 1. RESPONSE CONTRACT POLICY (universal, always appended).
-        $policies[] = self::build_response_contract_policy($normalizedsteptype);
+        $policies[] = self::build_response_contract_policy($normalizedphase);
 
         // 2. TRIGGER POLICY (compact only; task catalog now carries task-specific examples and hints).
         $policies[] = self::build_trigger_policy_compact();
-        if ($normalizedsteptype === 'tool_call_parse') {
+        if ($normalizedphase === 'discovery') {
             $policies[] = self::build_routing_determinism_policy();
         }
 
         // 3. STEP INTENT POLICY (planner-facing guidance only).
-        $policies[] = self::build_step_intent_policy($normalizedsteptype);
+        $policies[] = self::build_step_intent_policy();
 
-        // 4. DOCS ANSWER POLICY (only for simple retrieval steps with observations).
-        if ($normalizedsteptype === 'simple_retrieval') {
+        // 4. DOCS ANSWER POLICY (selection + construction phases).
+        if ($normalizedphase !== 'discovery') {
             $policies[] = self::build_docs_answer_policy();
         }
 
         // 5. SUFFICIENCY POLICY (planner-facing guidance only).
-        // - For tool_call_parse: only if hasobservations (planner should stop if already has results).
-        // - For simple_retrieval: always (guidance on when observations suffice).
-        if ($normalizedsteptype === 'tool_call_parse') {
+        // - For discovery: only if hasobservations (planner should stop if already has results).
+        // - For later phases: always (guidance on when observations suffice).
+        if ($normalizedphase === 'discovery') {
             if ($hasobservations) {
-                $policies[] = self::build_sufficiency_policy($normalizedsteptype, $hasobservations);
+                $policies[] = self::build_sufficiency_policy($normalizedphase, $hasobservations);
             }
         } else {
-            // Simple_retrieval gets sufficiency guidance.
-            $policies[] = self::build_sufficiency_policy($normalizedsteptype, $hasobservations);
+            $policies[] = self::build_sufficiency_policy($normalizedphase, $hasobservations);
         }
 
         return "\n\n" . implode("\n\n", $policies);
@@ -93,8 +91,8 @@ class prompt_policy_builder {
      *
      * @return string
      */
-    private static function build_response_contract_policy(string $steptype): string {
-        if ($steptype !== 'tool_call_parse') {
+    private static function build_response_contract_policy(string $phase): string {
+        if ($phase === 'parameter_construction') {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
                 . "- Return valid JSON only (no markdown).\n"
                 . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
@@ -102,8 +100,21 @@ class prompt_policy_builder {
                 . "EXCEPT for response_type=sufficient (omit message or leave empty).\n"
                 . "- Allowed response_type values: task_call, confirmation_request, "
                 . "confirm_pending, clarification, sufficient, error.\n"
-                . "- For task_call or confirmation_request, commands MUST be a non-empty array.\n"
+                . "- For task_call or confirmation_request, commands MUST contain exactly one command object.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
+                . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
+        }
+
+        if ($phase === 'selection' || $phase === 'discovery') {
+            return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
+                . "- Return valid JSON only (no markdown).\n"
+                . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
+                . "- Allowed response_type values: clarification, confirm_pending, sufficient, error.\n"
+                . "- For response_type=clarification, confirm_pending, or error, message MUST be a non-empty string.\n"
+                . "- For response_type=sufficient, message may be omitted or empty.\n"
+                . "- commands MUST always be [] in this phase.\n"
+                . "- Never emit task_call or confirmation_request in this phase.\n"
+                . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
 
@@ -161,7 +172,7 @@ class prompt_policy_builder {
     }
 
     /**
-     * Build NON-OPTIONAL ROUTING DETERMINISM POLICY (tool_call_parse only).
+     * Build NON-OPTIONAL ROUTING DETERMINISM POLICY.
      *
      * Uses structured positive/negative criteria for stable routing decisions
      * without language-specific token lists.
@@ -188,21 +199,14 @@ class prompt_policy_builder {
     /**
      * Build NON-OPTIONAL STEP INTENT POLICY.
      *
-     * @param string $steptype
      * @return string
      */
-    private static function build_step_intent_policy(string $steptype): string {
+    private static function build_step_intent_policy(): string {
         return "NON-OPTIONAL STEP INTENT POLICY:\n"
             . "- If present, keep it short and aligned with the user language.\n"
             . "- Keep next_step_intent model-authored and grounded in the immediate next action.";
     }
 
-    /**
-     * Detect the planner step type used for routing prompts.
-     *
-     * @param string $steptype
-     * @return bool
-     */
     /**
      * Build NON-OPTIONAL DOCS ANSWER POLICY.
      *
@@ -228,8 +232,8 @@ class prompt_policy_builder {
      *
      * @return string
      */
-    private static function build_sufficiency_policy(string $steptype = '', bool $hasobservations = false): string {
-        $normalizedsteptype = trim(\core_text::strtolower($steptype));
+    private static function build_sufficiency_policy(string $phase = 'discovery', bool $hasobservations = false): string {
+        $normalizedphase = self::normalize_phase($phase);
 
         $policy = "NON-OPTIONAL SUFFICIENCY POLICY:\n"
             . "- Use first-match priority: completed outcome evidence -> sufficient,"
@@ -239,10 +243,10 @@ class prompt_policy_builder {
             . "- Do not re-emit a command when the same outcome is already completed.\n"
             . "- Prefer finishing with sufficient instead of repeating equivalent tool calls.";
 
-        // CRITICAL: Apply re-call prevention ONLY to the planner (simple_retrieval), not to final synthesis.
+        // CRITICAL: Apply re-call prevention ONLY to later planner phases, not to final synthesis.
         // This preserves the mini-model (early steps) / large-model (final synthesis) architecture.
-        if ($normalizedsteptype === 'simple_retrieval' && $hasobservations) {
-            $policy .= "\n- For simple_retrieval with observations:"
+        if ($normalizedphase !== 'discovery' && $hasobservations) {
+            $policy .= "\n- For non-discovery phases with observations:"
                 . " if observations already answer the current request, return sufficient with commands=[].\n"
                 . "- For mutation intents, only return confirmation_request when required mutation data is grounded"
                 . " and no completed outcome already exists.\n"
@@ -250,5 +254,23 @@ class prompt_policy_builder {
         }
 
         return $policy;
+    }
+
+    /**
+     * Normalize phase labels for policy selection.
+     *
+     * @param string $phase
+     * @return string
+     */
+    private static function normalize_phase(string $phase): string {
+        $normalized = trim(\core_text::strtolower($phase));
+        if ($normalized === 'selection') {
+            return 'selection';
+        }
+        if ($normalized === 'parameter_construction') {
+            return 'parameter_construction';
+        }
+
+        return 'discovery';
     }
 }

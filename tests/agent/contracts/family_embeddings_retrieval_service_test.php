@@ -38,19 +38,20 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
         $service = new family_embeddings_retrieval_service();
 
         $rows = $service->boost_task_rows([
-            ['task' => 'booking_create', 'score' => '0.20'],
-            ['task' => 'booking_list', 'score' => '0.10'],
-            ['task' => 'calendar_view', 'score' => '0.50'],
+            ['task' => 'mod_booking.create_option', 'score' => '0.20'],
+            ['task' => 'mod_booking.list_options', 'score' => '0.10'],
+            ['task' => 'core.get_current_user', 'score' => '0.50'],
         ], [
-            'booking' => 0.90,
-            'calendar' => 0.10,
+            'mod_booking.general' => 0.90,
+            'core.general' => 0.10,
         ]);
 
-        $this->assertSame('booking_create', $rows[0]['task']);
-        $this->assertSame('booking', $rows[0]['family']);
+        $this->assertSame('mod_booking.create_option', $rows[0]['task']);
+        $this->assertSame('mod_booking.general', $rows[0]['family']);
         $this->assertSame(0.41, round((float)$rows[0]['score'], 2));
-        $this->assertSame('calendar_view', $rows[2]['task']);
-        $this->assertSame('calendar', $rows[2]['family']);
+        $families = array_values(array_unique(array_map(static fn(array $row): string => (string)$row['family'], $rows)));
+        $this->assertContains('mod_booking.general', $families);
+        $this->assertContains('core.general', $families);
     }
 
     /**
@@ -62,16 +63,16 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
         $service = new family_embeddings_retrieval_service();
 
         $scores = $service->score_families([
-            'booking',
-            'calendar',
+            'mod_booking.general',
+            'local_entities.general',
         ], [1.0, 0.0], [
-            ['task' => 'booking_create', 'embedding_json' => json_encode([1.0, 0.0])],
+            ['task' => 'mod_booking.create_option', 'embedding_json' => json_encode([1.0, 0.0])],
             ['task' => 'forum_reply', 'embedding_json' => json_encode([0.0, 1.0])],
         ]);
 
-        $this->assertArrayHasKey('booking', $scores);
-        $this->assertArrayHasKey('calendar', $scores);
-        $this->assertSame(1.0, round($scores['booking'], 2));
-        $this->assertSame(0.0, round($scores['calendar'], 2));
+        $this->assertArrayHasKey('mod_booking.general', $scores);
+        $this->assertArrayHasKey('local_entities.general', $scores);
+        $this->assertSame(1.0, round($scores['mod_booking.general'], 2));
+        $this->assertSame(0.0, round($scores['local_entities.general'], 2));
     }
 }

@@ -70,22 +70,64 @@ class message_persistence_service {
             'lang'                     => $result['lang'] ?? '',
         ];
 
+        $normalizedphasetrace = [];
         if (isset($result['phase_trace']) && is_array($result['phase_trace'])) {
-            $structured['phase_trace'] = $result['phase_trace'];
+            $normalizedphasetrace = $this->normalize_phase_trace((array)$result['phase_trace']);
+            $structured['phase_trace'] = $normalizedphasetrace;
         }
         if (isset($result['planner_result']) && is_array($result['planner_result'])) {
             $structured['planner_result'] = $result['planner_result'];
             $plannertracehistory = (array)($result['planner_result']['planner_trace_history'] ?? []);
-            $normalizedhistory = array_map(
-                static fn($entry): string => (string)$entry,
-                $plannertracehistory
-            );
+            $normalizedhistory = [];
+            foreach ($plannertracehistory as $entry) {
+                $value = trim((string)$entry);
+                if ($value !== '') {
+                    $normalizedhistory[] = $value;
+                }
+            }
             $this->store->set_planner_trace_history($threadid, $normalizedhistory);
         }
-        if (isset($result['phase_trace']) && is_array($result['phase_trace'])) {
-            $this->store->set_phase_trace($threadid, $result['phase_trace']);
+        if (!empty($normalizedphasetrace)) {
+            $this->store->set_phase_trace($threadid, $normalizedphasetrace);
         }
 
         $this->store->add_message($threadid, 'assistant', $result['message'] ?? '', $structured);
+    }
+
+    /**
+     * Normalize phase-trace payload to canonical phase keys.
+     *
+     * @param array<string,mixed> $phasetrace
+     * @return array<string,array<string,mixed>>
+     */
+    private function normalize_phase_trace(array $phasetrace): array {
+        $normalized = [
+            'discovery' => [],
+            'selection' => [],
+            'parameter_construction' => [],
+        ];
+
+        if (isset($phasetrace['discovery']) && is_array($phasetrace['discovery'])) {
+            $normalized['discovery'] = $phasetrace['discovery'];
+        }
+        if (isset($phasetrace['selection']) && is_array($phasetrace['selection'])) {
+            $normalized['selection'] = $phasetrace['selection'];
+        }
+        if (isset($phasetrace['parameter_construction']) && is_array($phasetrace['parameter_construction'])) {
+            $normalized['parameter_construction'] = $phasetrace['parameter_construction'];
+        }
+
+        foreach ($phasetrace as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $phase = trim((string)($entry['phase'] ?? ''));
+            if ($phase !== '' && isset($normalized[$phase]) && empty($normalized[$phase])) {
+                $normalized[$phase] = $entry;
+            }
+        }
+
+        return $normalized;
     }
 }

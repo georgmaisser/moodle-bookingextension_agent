@@ -172,8 +172,7 @@ class agent_decision_service {
         int $cmid,
         int $userid,
         string $outputlang,
-        int $previewoptionid,
-        bool $hasobservationscontext = false
+        int $previewoptionid
     ): array {
         $contextid = (int)\context_module::instance($cmid)->id;
         if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
@@ -221,20 +220,12 @@ class agent_decision_service {
             }
         }
 
-        // 2. Normalise task_call with confirmation trigger → confirm_pending.
-        if (
-            (string)($result['response_type'] ?? '') !== self::RESPONSE_TYPE_CONFIRM_PENDING
-            && trigger_result_util::has_trigger($result, 'core.is_confirmation_message')
-        ) {
-            $result['response_type'] = self::RESPONSE_TYPE_CONFIRM_PENDING;
-        }
-
-        // 3. Handle explicit user confirmation of pending intent.
+        // 2. Handle explicit user confirmation of pending intent.
         if ((string)($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRM_PENDING) {
             return $this->handle_confirm_pending($result, $threadid, $cmid, $userid, $outputlang);
         }
 
-        // 5. Safety: block accidental mutation carry-over on lookup requests.
+        // 3. Safety: block accidental mutation carry-over on lookup requests.
         if (
             trigger_result_util::has_trigger($result, 'core.is_lookup_request')
             && (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST)
@@ -256,7 +247,7 @@ class agent_decision_service {
             ];
         }
 
-        // 6. Harden: if the LLM incorrectly used task_call for a mutating command, promote.
+        // 4. Harden: if the LLM incorrectly used task_call for a mutating command, promote.
         if ($this->has_mutating_commands($result) && ($result['response_type'] ?? '') === self::RESPONSE_TYPE_TASK_CALL) {
             $result['response_type'] = self::RESPONSE_TYPE_CONFIRMATION_REQUEST;
             $normalizedmsg = core_text::strtolower(trim((string)($result['message'] ?? '')));
@@ -265,7 +256,7 @@ class agent_decision_service {
             }
         }
 
-        // 7. Execute read-only commands immediately; confirmation-gate mutating ones.
+        // 5. Execute read-only commands immediately; confirmation-gate mutating ones.
         if (
             in_array(
                 (string)($result['response_type'] ?? ''),
@@ -279,13 +270,13 @@ class agent_decision_service {
             $result = $this->handle_command_routing($result, $threadid, $cmid, $userid, $outputlang);
         }
 
-        // 8. Run preflight on confirmation commands: resolve entities, detect conflicts,
+        // 6. Run preflight on confirmation commands: resolve entities, detect conflicts,
         // update commands to carry prepared_input, route based on preflight result.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
             $result = $this->handle_preflight($result, $threadid, $cmid, $userid, $outputlang);
         }
 
-        // 9. Store / clear pending intent.
+        // 7. Store / clear pending intent.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
             $result['pending_confirmation_code'] = $this->persist_pending_intent_pointer(
                 $threadid,

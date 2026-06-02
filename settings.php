@@ -41,12 +41,16 @@ if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
     $defaultplannerprompttemplate = '';
 }
 
-if (get_config('bookingextension_agent', 'aiinitialprompt_tool_call_parse') === false) {
-    set_config('aiinitialprompt_tool_call_parse', $defaultplannerprompttemplate, 'bookingextension_agent');
+if (get_config('bookingextension_agent', 'aiinitialprompt_discovery') === false) {
+    set_config('aiinitialprompt_discovery', $defaultplannerprompttemplate, 'bookingextension_agent');
 }
 
-if (get_config('bookingextension_agent', 'aiinitialprompt_simple_retrieval') === false) {
-    set_config('aiinitialprompt_simple_retrieval', $defaultplannerprompttemplate, 'bookingextension_agent');
+if (get_config('bookingextension_agent', 'aiinitialprompt_selection') === false) {
+    set_config('aiinitialprompt_selection', $defaultplannerprompttemplate, 'bookingextension_agent');
+}
+
+if (get_config('bookingextension_agent', 'aiinitialprompt_parameter_construction') === false) {
+    set_config('aiinitialprompt_parameter_construction', $defaultplannerprompttemplate, 'bookingextension_agent');
 }
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') === false) {
@@ -135,9 +139,9 @@ $aisettingspage->add(
 
 $aisettingspage->add(
     new admin_setting_configtextarea(
-        'bookingextension_agent/aiinitialprompt_tool_call_parse',
-        get_string('aiinitialprompt_tool_call_parse', 'bookingextension_agent'),
-        get_string('aiinitialprompt_tool_call_parse_desc', 'bookingextension_agent'),
+        'bookingextension_agent/aiinitialprompt_discovery',
+        get_string('aiinitialprompt_discovery', 'bookingextension_agent'),
+        get_string('aiinitialprompt_discovery_desc', 'bookingextension_agent'),
         $defaultplannerprompttemplate,
         PARAM_RAW,
         120,
@@ -147,9 +151,21 @@ $aisettingspage->add(
 
 $aisettingspage->add(
     new admin_setting_configtextarea(
-        'bookingextension_agent/aiinitialprompt_simple_retrieval',
-        get_string('aiinitialprompt_simple_retrieval', 'bookingextension_agent'),
-        get_string('aiinitialprompt_simple_retrieval_desc', 'bookingextension_agent'),
+        'bookingextension_agent/aiinitialprompt_selection',
+        get_string('aiinitialprompt_selection', 'bookingextension_agent'),
+        get_string('aiinitialprompt_selection_desc', 'bookingextension_agent'),
+        $defaultplannerprompttemplate,
+        PARAM_RAW,
+        120,
+        8
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configtextarea(
+        'bookingextension_agent/aiinitialprompt_parameter_construction',
+        get_string('aiinitialprompt_parameter_construction', 'bookingextension_agent'),
+        get_string('aiinitialprompt_parameter_construction_desc', 'bookingextension_agent'),
         $defaultplannerprompttemplate,
         PARAM_RAW,
         120,

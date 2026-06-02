@@ -40,6 +40,23 @@ use PHPUnit\Framework\TestCase;
  */
 final class phase3_selection_construction_contract_test extends TestCase {
     /**
+     * Lazy loader must reject tasks outside the phase allow-list.
+     */
+    public function test_lazy_task_loader_respects_allowed_tasks(): void {
+        $registry = $this->getMockBuilder(task_registry::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_task'])
+            ->getMock();
+
+        $registry->expects($this->never())->method('get_task');
+
+        $loader = new lazy_task_loader($registry);
+        $loaded = $loader->load_task('mod_booking.create_booking', ['mod_booking.update_booking']);
+
+        $this->assertNull($loaded);
+    }
+
+    /**
      * Unique suffix selection should resolve to the canonical task name.
      */
     public function test_task_selector_resolves_unique_suffix(): void {

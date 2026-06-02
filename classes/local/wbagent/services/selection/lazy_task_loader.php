@@ -45,9 +45,14 @@ class lazy_task_loader {
      * Load one concrete task lazily by canonical task name.
      *
      * @param string $taskname
+     * @param array<int,string> $allowedtasks Optional allow-list for phase-scoped loading.
      * @return task_interface|null
      */
-    public function load_task(string $taskname): ?task_interface {
+    public function load_task(string $taskname, array $allowedtasks = []): ?task_interface {
+        if (!empty($allowedtasks) && !in_array($taskname, $allowedtasks, true)) {
+            return null;
+        }
+
         return $this->registry->get_task($taskname);
     }
 }

@@ -37,13 +37,10 @@ final class orchestrator_routing_service_test extends advanced_testcase {
      */
     public function test_debug_source_contains_phase_and_phase_can_be_upserted(): void {
         $service = new orchestrator_routing_service(
-            'tool_call_parse',
-            'simple_retrieval',
             'aiprovider_wunderbyte\\aiactions\\planner_decide'
         );
 
         $source = $service->build_debug_source(
-            'tool_call_parse',
             'aiprovider_wunderbyte\\aiactions\\planner_decide',
             'wunderbyte',
             false,

@@ -70,20 +70,25 @@ final class agent_state {
     private array $observations = [];
 
     /**
-     * Per-run planner catalog cache keyed by input fingerprint.
-     *
-     * Cache payload shape:
-     *  [
-     *    'runtimecatalog' => array,
-     *    'unavailabletaskcatalog' => array,
-     *    'catalogselectionmode' => string,
-     *    'embeddingstatus' => string,
-     *    'embeddingrebuildqueued' => bool,
-     *  ]
+     * Per-run discovery family/cache payloads keyed by fingerprint.
      *
      * @var array<string,array<string,mixed>>
      */
-    private array $plannercatalogcache = [];
+    private array $familycache = [];
+
+    /**
+     * Per-run selection cache keyed by fingerprint.
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $selectedtaskcache = [];
+
+    /**
+     * Per-run parameter-construction cache keyed by fingerprint.
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $paramscache = [];
 
     /**
      * Private constructor — use agent_state::make().
@@ -191,52 +196,100 @@ final class agent_state {
     }
 
     /**
-     * Return cached planner catalog payload for the given key.
+     * Return cached discovery family payload for the given key.
      *
      * @param string $cachekey
      * @return array<string,mixed>|null
      */
-    public function get_planner_catalog_cache(string $cachekey): ?array {
+    public function get_discovery_family_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->familycache, $cachekey);
+    }
+
+    /**
+     * Store discovery family payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    public function set_discovery_family_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->familycache, $cachekey, $payload);
+    }
+
+    /**
+     * Return cached selection payload for the given key.
+     *
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    public function get_selection_task_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->selectedtaskcache, $cachekey);
+    }
+
+    /**
+     * Store selection payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    public function set_selection_task_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->selectedtaskcache, $cachekey, $payload);
+    }
+
+    /**
+     * Return cached construction parameter payload for the given key.
+     *
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    public function get_construction_params_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->paramscache, $cachekey);
+    }
+
+    /**
+     * Store construction parameter payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    public function set_construction_params_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->paramscache, $cachekey, $payload);
+    }
+
+    /**
+     * Read one cache entry from a phase-local cache.
+     *
+     * @param array<string,array<string,mixed>> $cache
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    private function get_cache_entry(array $cache, string $cachekey): ?array {
         $key = trim($cachekey);
-        if ($key === '' || !isset($this->plannercatalogcache[$key])) {
+        if ($key === '' || !isset($cache[$key])) {
             return null;
         }
 
-        $cached = $this->plannercatalogcache[$key];
+        $cached = $cache[$key];
         return is_array($cached) ? $cached : null;
     }
 
     /**
-     * Store planner catalog payload for later loop steps.
+     * Write one cache entry into a phase-local cache.
      *
+     * @param array<string,array<string,mixed>> $cache
      * @param string $cachekey
-     * @param array $runtimecatalog
-     * @param array $unavailabletaskcatalog
-     * @param string $catalogselectionmode
-     * @param string $embeddingstatus
-     * @param bool $embeddingrebuildqueued
+     * @param array<string,mixed> $payload
      * @return void
      */
-    public function set_planner_catalog_cache(
-        string $cachekey,
-        array $runtimecatalog,
-        array $unavailabletaskcatalog,
-        string $catalogselectionmode,
-        string $embeddingstatus,
-        bool $embeddingrebuildqueued
-    ): void {
+    private function set_cache_entry(array &$cache, string $cachekey, array $payload): void {
         $key = trim($cachekey);
         if ($key === '') {
             return;
         }
 
-        $this->plannercatalogcache[$key] = [
-            'runtimecatalog' => $runtimecatalog,
-            'unavailabletaskcatalog' => $unavailabletaskcatalog,
-            'catalogselectionmode' => $catalogselectionmode,
-            'embeddingstatus' => $embeddingstatus,
-            'embeddingrebuildqueued' => $embeddingrebuildqueued,
-        ];
+        $cache[$key] = $payload;
     }
 
     /**

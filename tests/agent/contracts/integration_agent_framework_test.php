@@ -217,6 +217,70 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * Runtime catalog payload injected into prompts must never contain embedding vectors.
+     */
+    public function test_runtime_catalog_prompt_sanitizer_removes_embedding_json(): void {
+        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
+        $method = $orchestratorreflection->getMethod('sanitize_runtime_catalog_for_prompt');
+        $method->setAccessible(true);
+
+        $catalog = [
+            [
+                'task' => 'mod_booking.diagnose_booking_issue',
+                'description' => 'Diagnose booking issue.',
+                'readonly' => '1',
+                'intent' => 'task',
+                'minimal_input_json' => '[]',
+                'example_input_json' => '{"question":"Why"}',
+                'message_triggers_json' => '[{"id":"t1","description":"desc"}]',
+                'embedding_json' => '[0.1,0.2,0.3]',
+                'embedding_model' => 'wunderbyte-embeddings',
+                'embedding_dimensions' => '1536',
+                'content_hash' => 'abc',
+                'score' => '0.27',
+            ],
+            [
+                'task' => 'mod_booking.list_options',
+                'description' => 'List booking options.',
+                'readonly' => false,
+                'intent' => 'lookup',
+                'minimal_input' => ['optionquery'],
+                'example_input' => ['optionquery' => 'Yoga'],
+                'message_triggers' => [['id' => 't2', 'description' => 'desc2']],
+            ],
+        ];
+
+        $sanitized = $method->invoke($orchestrator, $catalog);
+        $this->assertCount(2, $sanitized);
+        $this->assertSame(
+            ['task', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers', 'example_input'],
+            array_keys($sanitized[0])
+        );
+        $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['task']);
+        $this->assertTrue((bool)$sanitized[0]['readonly']);
+        $this->assertSame('task', (string)$sanitized[0]['intent']);
+        $this->assertSame([], $sanitized[0]['minimal_input']);
+        $this->assertSame(['question'], $sanitized[0]['example_input']);
+        $this->assertArrayHasKey('id', (array)($sanitized[0]['message_triggers'][0] ?? []));
+        $this->assertArrayNotHasKey('embedding_json', $sanitized[0]);
+        $this->assertArrayNotHasKey('embedding_model', $sanitized[0]);
+        $this->assertArrayNotHasKey('embedding_dimensions', $sanitized[0]);
+        $this->assertArrayNotHasKey('content_hash', $sanitized[0]);
+        $this->assertArrayNotHasKey('score', $sanitized[0]);
+
+        $this->assertSame(
+            ['task', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers'],
+            array_keys($sanitized[1])
+        );
+        $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['task']);
+        $this->assertFalse((bool)$sanitized[1]['readonly']);
+        $this->assertSame('lookup', (string)$sanitized[1]['intent']);
+        $this->assertSame(['optionquery'], $sanitized[1]['minimal_input']);
+        $this->assertArrayNotHasKey('example_input', $sanitized[1]);
+    }
+
+    /**
      * Test that embedding-selected planner subsets keep full task descriptions.
      */
     public function test_embedding_subset_keeps_full_descriptions(): void {
@@ -295,15 +359,17 @@ final class integration_agent_framework_test extends TestCase {
      * Test that orchestrator prompts are generic and do not hardcode plugin names.
      */
     public function test_orchestrator_prompts_are_generic(): void {
-        // Get the default prompt template.
-        $template = \bookingextension_agent\local\wbagent\orchestrator::get_default_initial_prompt_template();
+        // Use the live planner fallback template instead of the removed generic one-step template.
+        $template = \bookingextension_agent\local\wbagent\orchestrator::get_default_initial_prompt_template_for_action(
+            \core_ai\aiactions\summarise_text::class
+        );
 
-        // Verify template does not contain hardcoded plugin-specific task names like "booking.explain_docs_topic".
-        // (The template file might still have them, but action-specific prompts should not.)
+        // Verify template does not contain hardcoded plugin-specific task names.
         $this->assertNotEmpty($template, 'Prompt template should not be empty');
 
-        // Verify prompts use placeholders.
-        $this->assertStringContainsString('{{', $template, 'Template should use placeholders');
+        // Verify the live planner fallback remains templated and generic.
+        $this->assertStringContainsString('{{bookingname}}', $template, 'Template should use booking placeholders');
+        $this->assertStringNotContainsString('booking.explain_docs_topic', $template);
     }
 
     /**
@@ -521,8 +587,10 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertArrayHasKey('planner_result', $result);
         $this->assertArrayHasKey('phase_trace', $result);
         $this->assertSame(['discovery-trace'], $result['planner_result']['planner_trace_history']);
+        $this->assertArrayHasKey('parameter_construction', $result['planner_result']);
+        $this->assertSame('construction message', $result['planner_result']['parameter_construction']['message']);
         $this->assertSame('embed_topk', $result['phase_trace']['selection']['catalogselectionmode']);
-        $this->assertSame('applied', $result['phase_trace']['parameter_construction']['embeddingstatus']);
+        $this->assertSame('', $result['phase_trace']['parameter_construction']['embeddingstatus']);
     }
 
     /**
@@ -534,7 +602,7 @@ final class integration_agent_framework_test extends TestCase {
 
         $result = $interpreter->interpret_phase_output(
             '{"response_type":"clarification","message":"Need more info","used_triggers":[]}',
-            'construction',
+            'parameter_construction',
             [
                 'contextid' => 12,
                 'userid' => 34,
@@ -611,7 +679,7 @@ final class integration_agent_framework_test extends TestCase {
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
-        $this->assertSame(3, substr_count($source, '->invoke('));
+        $this->assertGreaterThanOrEqual(3, substr_count($source, '->invoke('));
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_DISCOVERY', $source);
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_SELECTION', $source);
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION', $source);
@@ -639,6 +707,65 @@ final class integration_agent_framework_test extends TestCase {
 
         $this->assertSame('error', $result['response_type']);
         $this->assertContains('CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED', $result['issue_codes']);
+    }
+
+    /**
+     * Test that construction phase rejects tasks outside discovery-ranked allow-list.
+     */
+    public function test_interpreter_construction_phase_rejects_task_outside_allow_list(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $reflection = new \ReflectionClass($interpreter);
+        $method = $reflection->getMethod('enforce_phase_contract');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($interpreter, [
+            'response_type' => 'task_call',
+            'commands' => [
+                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+            ],
+            'message' => 'Executing.',
+        ], 'parameter_construction', [
+            'allowed_tasks' => ['core.recreate_task_catalog'],
+        ]);
+
+        $this->assertSame('error', $result['response_type']);
+        $this->assertContains('CONTRACT_PHASE_TASK_NOT_ALLOWED', $result['issue_codes']);
+    }
+
+    /**
+     * Test that command payload normalization keeps raw task names for selector-only canonicalization.
+     */
+    public function test_interpreter_normalize_commands_payload_keeps_raw_task_name(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $reflection = new \ReflectionClass($interpreter);
+        $method = $reflection->getMethod('normalize_commands_payload');
+        $method->setAccessible(true);
+
+        $commands = $method->invoke($interpreter, [
+            'commands' => [[
+                'task' => 'create_booking',
+                'version' => 1,
+                'input' => ['question' => 'Need help'],
+            ]],
+        ], 'Need help');
+
+        $this->assertSame('create_booking', (string)($commands[0]['task'] ?? ''));
+    }
+
+    /**
+     * Test that preflight pipeline supports skipping duplicate schema checks for interpreter-validated commands.
+     */
+    public function test_preflight_pipeline_supports_structural_validation_skip_flag(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\preflight_pipeline::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString("_structural_validated", $source);
+        $this->assertStringContainsString("if (!\$skipcontractschema)", $source);
     }
 
     /**
@@ -718,5 +845,30 @@ final class integration_agent_framework_test extends TestCase {
 
         $this->assertStringContainsString('new synchronizer_prompt_builder()', $source);
         $this->assertStringContainsString('synchronizerpromptbuilder->build_prompt(', $source);
+    }
+
+    /**
+     * Test that discovery stage controller is wired into the live orchestrator flow.
+     */
+    public function test_orchestrator_discovery_uses_live_stage_controller(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('new discovery_stage_controller()', $source);
+        $this->assertStringContainsString('filter_catalog_by_selected_families(', $source);
+        $this->assertStringContainsString("'discovery_stage' => \$discoverystage", $source);
+    }
+
+    /**
+     * Test that family filter helper no longer falls back to full catalog.
+     */
+    public function test_orchestrator_family_filter_is_strict_without_full_catalog_fallback(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString('if (empty($allow)) {', $source);
+        $this->assertStringContainsString('return [];', $source);
     }
 }

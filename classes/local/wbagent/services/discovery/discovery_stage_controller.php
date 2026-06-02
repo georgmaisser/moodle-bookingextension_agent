@@ -32,18 +32,24 @@ class discovery_stage_controller {
     /** @var discovery_confidence_policy */
     private discovery_confidence_policy $confidencepolicy;
 
+    /** @var family_ranker */
+    private family_ranker $familyranker;
+
     /**
      * Constructor.
      *
      * @param discovery_budget_policy|null $budgetpolicy
      * @param discovery_confidence_policy|null $confidencepolicy
+     * @param family_ranker|null $familyranker
      */
     public function __construct(
         ?discovery_budget_policy $budgetpolicy = null,
-        ?discovery_confidence_policy $confidencepolicy = null
+        ?discovery_confidence_policy $confidencepolicy = null,
+        ?family_ranker $familyranker = null
     ) {
         $this->budgetpolicy = $budgetpolicy ?? new discovery_budget_policy();
         $this->confidencepolicy = $confidencepolicy ?? new discovery_confidence_policy();
+        $this->familyranker = $familyranker ?? new family_ranker();
     }
 
     /**
@@ -83,6 +89,7 @@ class discovery_stage_controller {
                 static fn(array $row): string => (string)$row['family'],
                 $stagearows
             ));
+            $selectedfamilies = $this->append_low_score_tail($selectedfamilies, $rankedfamilies);
             return [
                 'discovery_stage' => 'A',
                 'confidence_score' => $this->confidencepolicy->normalize_score($stageascore),
@@ -98,6 +105,7 @@ class discovery_stage_controller {
                 static fn(array $row): string => (string)$row['family'],
                 $stagebrows
             ));
+            $selectedfamilies = $this->append_low_score_tail($selectedfamilies, $rankedfamilies);
             return [
                 'discovery_stage' => 'B',
                 'confidence_score' => $this->confidencepolicy->normalize_score($stagebscore),
@@ -109,12 +117,31 @@ class discovery_stage_controller {
         $stagecrows = $this->budgetpolicy->apply_budget($rankedfamilies, 'C');
         $stagecscore = $this->top_score($stagecrows);
 
+        $selectedfamilies = array_values(array_map(static fn(array $row): string => (string)$row['family'], $stagecrows));
+        $selectedfamilies = $this->append_low_score_tail($selectedfamilies, $rankedfamilies);
+
         return [
             'discovery_stage' => 'C',
             'confidence_score' => $this->confidencepolicy->normalize_score($stagecscore),
             'escalation_reason' => 'stage_b_low_confidence',
-            'selected_families' => array_values(array_map(static fn(array $row): string => (string)$row['family'], $stagecrows)),
+            'selected_families' => $selectedfamilies,
         ];
+    }
+
+    /**
+     * Append a controlled low-score tail from the authoritative family ranker.
+     *
+     * @param array<int,string> $selectedfamilies
+     * @param array<int,array<string,mixed>> $rankedfamilies
+     * @return array<int,string>
+     */
+    private function append_low_score_tail(array $selectedfamilies, array $rankedfamilies): array {
+        $tail = $this->familyranker->select_low_score_tail($rankedfamilies, $selectedfamilies);
+        if (empty($tail)) {
+            return $selectedfamilies;
+        }
+
+        return array_values(array_unique(array_merge($selectedfamilies, $tail)));
     }
 
     /**

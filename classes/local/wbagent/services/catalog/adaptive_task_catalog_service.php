@@ -31,6 +31,8 @@
 
 namespace bookingextension_agent\local\wbagent\services\catalog;
 
+use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
+
 /**
  * Reduces full task catalog to tiered adaptive candidates with safety nets.
  *
@@ -46,7 +48,7 @@ namespace bookingextension_agent\local\wbagent\services\catalog;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class adaptive_task_catalog_service {
-    /** Top-K recency cutoff for Step 2+ (simple_retrieval). */
+    /** Top-K recency cutoff for post-discovery planner phases. */
     public const RECENCY_TOP_K_STEP2PLUS = 80;
 
     /** Mandatory tasks that should always be visible. */
@@ -55,14 +57,13 @@ class adaptive_task_catalog_service {
         /**
          * Reduce full task catalog to tiered adaptive catalog.
          *
-         * Step-type determines strategy:
-         *  - tool_call_parse: FULL catalog (initial routing, must not miss tasks)
-         *  - simple_retrieval: MANDATORY + RECENCY (Top-80)
-         *  - legacy finalization: MANDATORY + RECENCY (same planner cutoff)
+         * Phase determines strategy:
+         *  - discovery: FULL catalog (initial routing, must not miss tasks)
+         *  - selection / parameter_construction: MANDATORY + RECENCY (Top-80)
          *
          * @param array $fullcatalog Full task contracts from registry.
          * @param array $recenttaskhistory Recent tasks used in thread (in order).
-         * @param string $steptype Current step type (tool_call_parse, simple_retrieval, etc).
+         * @param string $phase Current planner phase.
          * @return array Structure: [
          *   'active_tasks' => [...],              // Shown to LLM
          * ]
@@ -70,11 +71,10 @@ class adaptive_task_catalog_service {
     public static function get_adaptive_catalog(
         array $fullcatalog,
         array $recenttaskhistory = [],
-        string $steptype = 'tool_call_parse'
+        string $phase = orchestrator_prompt_profile_service::PHASE_DISCOVERY
     ): array {
-        // Strategy: Step 1 = Full, Step 2+ = Tiered.
-        if ($steptype === 'tool_call_parse') {
-            // Initial routing: FULL catalog, no filtering.
+        // Discovery keeps the full catalog; later phases are tiered.
+        if ($phase === orchestrator_prompt_profile_service::PHASE_DISCOVERY) {
             return [
                 'active_tasks' => $fullcatalog,
             ];
@@ -96,15 +96,15 @@ class adaptive_task_catalog_service {
         ];
     }
 
-    /**
-     * Extract mandatory tasks (help, search, list, get_tasks variants).
-     *
-     * These are always shown to LLM regardless of recency or step type.
-     * Allows LLM to "reset" or request alternative catalog views.
-     *
-     * @param array $fullcatalog
-     * @return array Mandatory task contracts.
-     */
+     /**
+      * Extract mandatory tasks (help, search, list, get_tasks variants).
+      *
+      * These are always shown to LLM regardless of recency or phase.
+      * Allows LLM to "reset" or request alternative catalog views.
+      *
+      * @param array $fullcatalog
+      * @return array Mandatory task contracts.
+      */
     private static function get_mandatory_tasks(array $fullcatalog): array {
         $mandatory = [];
         foreach ($fullcatalog as $task) {

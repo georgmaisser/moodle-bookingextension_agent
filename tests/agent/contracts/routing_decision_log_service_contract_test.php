@@ -46,6 +46,21 @@ final class routing_decision_log_service_contract_test extends TestCase {
     }
 
     /**
+     * Embedding path labels must remain stable for both embedding and non-embedding modes.
+     */
+    public function test_normalize_telemetry_embedding_path_modes(): void {
+        $with = routing_decision_log_service::normalize_telemetry([
+            'catalogselectionmode' => 'embed_topk',
+        ]);
+        $without = routing_decision_log_service::normalize_telemetry([
+            'catalogselectionmode' => 'none',
+        ]);
+
+        $this->assertSame('with_embeddings', $with['embedding_path']);
+        $this->assertSame('no_embeddings', $without['embedding_path']);
+    }
+
+    /**
      * Shadow mode must never affect live routing path.
      */
     public function test_shadow_result_never_affects_live_routing(): void {

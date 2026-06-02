@@ -167,6 +167,7 @@ class agent_runtime {
             $result['attempt_budget'] = attempt_budget_dto::from_loop($step + 1, $limit)->to_array();
             $result['attempt_budget']['loop_step'] = $step + 1;
             $result['attempt_budget']['loop_max_steps'] = $limit;
+            $this->persist_phase_trace_for_loop_step($threadid, $result);
 
             if ((string)($result['response_type'] ?? '') === 'execution_result') {
                 $observation = result_payload_summarizer::for_observation(
@@ -436,7 +437,7 @@ class agent_runtime {
                 ['CONTRACT_COMMANDS_REQUIRED']
             )));
             $responsetype = 'clarification';
-        } else if (in_array($responsetype, ['clarification', 'confirm_pending', 'error'], true)) {
+        } else if (in_array($responsetype, ['clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
             $result['commands'] = [];
         } else {
             $result['commands'] = array_values($commands);
@@ -565,6 +566,46 @@ class agent_runtime {
     }
 
     /**
+     * Persist phase trace snapshots per loop step for runtime telemetry.
+     *
+     * @param int $threadid
+     * @param array<string,mixed> $result
+     * @return void
+     */
+    private function persist_phase_trace_for_loop_step(int $threadid, array $result): void {
+        $phasetrace = $result['phase_trace'] ?? null;
+        if (!is_array($phasetrace) || empty($phasetrace)) {
+            return;
+        }
+
+        $loopstep = (int)($result['loop_step'] ?? 0);
+        if ($loopstep <= 0) {
+            return;
+        }
+
+        $history = $this->store->get_thread_metadata_value($threadid, 'phase_trace_loop_history');
+        if (!is_array($history)) {
+            $history = [];
+        }
+
+        $history[] = [
+            'loop_step' => $loopstep,
+            'response_type' => trim((string)($result['response_type'] ?? '')),
+            'issue_codes' => array_values(array_unique(array_filter(array_map(
+                'strval',
+                (array)($result['issue_codes'] ?? [])
+            )))),
+            'phase_trace' => $phasetrace,
+        ];
+
+        if (count($history) > self::MAX_LOOP_STEPS) {
+            $history = array_slice($history, -self::MAX_LOOP_STEPS);
+        }
+
+        $this->store->set_thread_metadata_value($threadid, 'phase_trace_loop_history', $history);
+    }
+
+    /**
      * Execute one internal agent step: plan + decide, with NO persistence.
      *
      * @param int $threadid
@@ -583,16 +624,11 @@ class agent_runtime {
     ): array {
         $triggerregistry = new message_trigger_registry($this->registry);
 
-        $plannersteptype = !empty($observations)
-            ? orchestrator::STEP_TYPE_SIMPLE_RETRIEVAL
-            : orchestrator::STEP_TYPE_TOOL_CALL_PARSE;
-
         $result = $this->call_orchestrator_step(
             $threadid,
             $cmid,
             $userid,
             $observations,
-            $plannersteptype,
             $state
         );
         $plannercontext = $this->extract_planner_context($result);
@@ -611,8 +647,7 @@ class agent_runtime {
             $cmid,
             $userid,
             $outputlang,
-            0,
-            !empty($observations)
+            0
         );
         $result = $this->merge_planner_context($result, $plannercontext);
         $result['lang'] = $outputlang;
@@ -681,7 +716,6 @@ class agent_runtime {
      * @param int $cmid
      * @param int $userid
      * @param array $observations
-     * @param string $steptype
      * @param agent_state|null $state
      * @return array
      */
@@ -690,10 +724,15 @@ class agent_runtime {
         int $cmid,
         int $userid,
         array $observations,
-        string $steptype,
         ?agent_state $state = null
     ): array {
-        return $this->orchestrator->process($threadid, $cmid, $userid, $observations, $steptype, $state);
+        return $this->orchestrator->process(
+            $threadid,
+            $cmid,
+            $userid,
+            $observations,
+            $state
+        );
     }
 
     /**
