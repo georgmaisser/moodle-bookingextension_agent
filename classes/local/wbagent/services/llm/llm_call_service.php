@@ -144,39 +144,6 @@ class llm_call_service {
         string $inputtext,
         ?int $dimensions = null
     ): array {
-        $contextid = (int)context_module::instance($cmid)->id;
-        return $this->invoke_embeddings_for_context(
-            $threadid,
-            $contextid,
-            $userid,
-            $source,
-            $inputtext,
-            $dimensions,
-            $cmid
-        );
-    }
-
-    /**
-     * Invoke wunderbyte embeddings action for an explicit context id.
-     *
-     * @param int $threadid
-     * @param int $contextid
-     * @param int $userid
-     * @param string $source
-     * @param string $inputtext
-     * @param int|null $dimensions
-     * @param int $cmid
-     * @return array{success:bool,embedding:array<int,float|int>,model:string,dimensions:int,errormessage:string,errorcode:int,errorname:string}
-     */
-    public function invoke_embeddings_for_context(
-        int $threadid,
-        int $contextid,
-        int $userid,
-        string $source,
-        string $inputtext,
-        ?int $dimensions = null,
-        int $cmid = 0
-    ): array {
         $embedding = [];
         $model = '';
         $useddimensions = 0;
@@ -190,11 +157,12 @@ class llm_call_service {
                 throw new \moodle_exception('wunderbyte embeddings action class is missing.');
             }
 
+            $context = context_module::instance($cmid);
             $manager = di::get(ai_manager::class);
 
             $actionclass = self::WB_ACTION_GENERATE_EMBEDDINGS;
             $action = new $actionclass(
-                contextid: $contextid,
+                contextid: $context->id,
                 userid: $userid,
                 inputtext: $inputtext,
                 dimensions: $dimensions,

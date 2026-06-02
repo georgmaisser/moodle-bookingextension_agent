@@ -31,9 +31,6 @@ use core_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class orchestrator_prompt_profile_service {
-    /** Discovery planner phase. */
-    public const PHASE_DISCOVERY = 'discovery';
-
     /** Selection planner phase. */
     public const PHASE_SELECTION = 'selection';
 
@@ -72,9 +69,6 @@ class orchestrator_prompt_profile_service {
      */
     public function get_planner_initial_prompt_config_key_for_phase(string $phase): string {
         $normalizedphase = $this->normalize_phase($phase);
-        if ($normalizedphase === self::PHASE_DISCOVERY) {
-            return 'aiinitialprompt_discovery';
-        }
         if ($normalizedphase === self::PHASE_SELECTION) {
             return 'aiinitialprompt_selection';
         }
@@ -127,6 +121,6 @@ class orchestrator_prompt_profile_service {
         if ($normalized === self::PHASE_PARAMETER_CONSTRUCTION) {
             return self::PHASE_PARAMETER_CONSTRUCTION;
         }
-        return self::PHASE_DISCOVERY;
+        return self::PHASE_SELECTION;
     }
 }

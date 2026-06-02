@@ -74,7 +74,7 @@ class phase_prompt_bundle_builder {
         int $cmid,
         int $userid,
         int $contextid,
-        string $phase = orchestrator_prompt_profile_service::PHASE_DISCOVERY,
+        string $phase = orchestrator_prompt_profile_service::PHASE_SELECTION,
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
         ?array $adaptivecatalog = null,
@@ -89,7 +89,7 @@ class phase_prompt_bundle_builder {
             $taskcatalog = $systemtaskcatalog;
         }
         $tasklist = implode(', ', array_keys($schemas));
-        $fullschemajson = json_encode($schemas, JSON_UNESCAPED_UNICODE);
+        $fullschemajson = $this->build_full_schema_json_for_phase($phase, $schemas);
         $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
         $systemtaskcatalogjson = $includetaskcatalog ? (string)$taskcatalogjson : '[]';
         $phaseconfigkey = $this->promptprofilesvc->get_planner_initial_prompt_config_key_for_phase($phase);
@@ -158,6 +158,24 @@ class phase_prompt_bundle_builder {
     }
 
     /**
+     * Build phase-aware full schema payload.
+     *
+     * Full schemas are only exposed during parameter construction. Earlier
+     * phases must stay on slim task contracts.
+     *
+     * @param string $phase
+     * @param array<string,mixed> $schemas
+     * @return string
+     */
+    private function build_full_schema_json_for_phase(string $phase, array $schemas): string {
+        if ($phase !== orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
+            return '{}';
+        }
+
+        return (string)json_encode($schemas, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
      * Build the full prompt string from system prompt + message history + observations.
      *
      * Observations (from prior internal loop tool executions) are injected after the
@@ -177,7 +195,7 @@ class phase_prompt_bundle_builder {
         string $systemprompt,
         array $messages,
         array $observations = [],
-        string $phase = orchestrator_prompt_profile_service::PHASE_DISCOVERY,
+        string $phase = orchestrator_prompt_profile_service::PHASE_SELECTION,
         string $runtimecontext = '',
         array $plannertracehistory = [],
         bool $autoconfirmmode = false

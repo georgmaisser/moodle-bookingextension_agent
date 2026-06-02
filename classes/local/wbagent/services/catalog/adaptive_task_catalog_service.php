@@ -71,10 +71,10 @@ class adaptive_task_catalog_service {
     public static function get_adaptive_catalog(
         array $fullcatalog,
         array $recenttaskhistory = [],
-        string $phase = orchestrator_prompt_profile_service::PHASE_DISCOVERY
+        string $phase = 'discovery'
     ): array {
         // Discovery keeps the full catalog; later phases are tiered.
-        if ($phase === orchestrator_prompt_profile_service::PHASE_DISCOVERY) {
+        if ($phase === 'discovery') {
             return [
                 'active_tasks' => $fullcatalog,
             ];

@@ -672,15 +672,14 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that orchestrator executes three distinct planner invoke calls.
+     * Test that orchestrator executes two planner invoke calls (selection + construction).
      */
-    public function test_orchestrator_process_uses_three_phase_invokes(): void {
+    public function test_orchestrator_process_uses_two_phase_invokes(): void {
         $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
-        $this->assertGreaterThanOrEqual(3, substr_count($source, '->invoke('));
-        $this->assertStringContainsString('orchestrator_routing_service::PHASE_DISCOVERY', $source);
+        $this->assertGreaterThanOrEqual(2, substr_count($source, '->invoke('));
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_SELECTION', $source);
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION', $source);
     }

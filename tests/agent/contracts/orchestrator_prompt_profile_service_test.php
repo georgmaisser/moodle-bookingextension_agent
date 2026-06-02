@@ -39,7 +39,7 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
         $service = new orchestrator_prompt_profile_service();
 
         $this->assertSame(
-            'aiinitialprompt_discovery',
+            'aiinitialprompt_selection',
             $service->get_planner_initial_prompt_config_key_for_phase('discovery')
         );
         $this->assertSame(

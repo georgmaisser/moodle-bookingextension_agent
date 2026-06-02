@@ -55,6 +55,19 @@ final class prompt_policy_builder_test extends advanced_testcase {
     }
 
     /**
+     * Selection phase must never encourage command-bearing output.
+     */
+    public function test_selection_policy_forbids_command_bearing_response_types(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
+
+        $expectedtypes = 'Allowed response_type values: clarification, '
+            . 'confirm_pending, sufficient, error.';
+        $this->assertStringContainsString($expectedtypes, $plannerpolicies);
+        $this->assertStringContainsString('commands MUST always be [] in this phase.', $plannerpolicies);
+        $this->assertStringContainsString('Never emit task_call or confirmation_request in this phase.', $plannerpolicies);
+    }
+
+    /**
      * Parameter construction must keep exactly one command for command-bearing types.
      */
     public function test_parameter_construction_policy_requires_single_command_object(): void {

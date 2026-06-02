@@ -76,54 +76,11 @@ class orchestrator_routing_service {
      */
     public function resolve_action_class_for_phase(ai_manager $manager, context_module $context, string $phase): array {
         $normalizedphase = $this->normalize_phase($phase);
-        if ($normalizedphase === self::PHASE_SELECTION) {
-            return $this->resolve_selection_action_class($manager, $context);
-        }
-
         if ($normalizedphase === self::PHASE_PARAMETER_CONSTRUCTION) {
             return $this->resolve_construction_action_class($manager, $context);
         }
 
-        return $this->resolve_discovery_action_class($manager, $context);
-    }
-
-    /**
-     * Route the discovery phase action class.
-     *
-     * @param ai_manager $manager
-     * @param context_module $context
-     * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
-     */
-    private function resolve_discovery_action_class(
-        ai_manager $manager,
-        context_module $context
-    ): array {
-        try {
-            if ($manager->is_action_available($this->wbplanneraction)) {
-                return [
-                    'actionclass' => $this->wbplanneraction,
-                    'routepolicy' => $this->build_phase_route_policy(self::PHASE_DISCOVERY, 'wunderbyte'),
-                    'routingfallback' => false,
-                ];
-            }
-        } catch (\Throwable $e) {
-            // Continue with non-wunderbyte fallback routes.
-            $ignored = $e;
-        }
-
-        if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
-            return [
-                'actionclass' => summarise_text::class,
-                'routepolicy' => $this->build_phase_route_policy(self::PHASE_DISCOVERY, 'openai'),
-                'routingfallback' => false,
-            ];
-        }
-
-        return [
-            'actionclass' => generate_text::class,
-            'routepolicy' => $this->build_phase_route_policy(self::PHASE_DISCOVERY, 'default'),
-            'routingfallback' => true,
-        ];
+        return $this->resolve_selection_action_class($manager, $context);
     }
 
     /**

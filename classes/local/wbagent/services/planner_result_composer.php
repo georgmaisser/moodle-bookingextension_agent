@@ -34,13 +34,11 @@ class planner_result_composer {
      */
     public function compose(array $discoverystate, array $selectionstate, array $constructionstate): array {
         $phasetrace = [
-            'discovery' => $this->build_phase_snapshot($discoverystate),
             'selection' => $this->build_phase_snapshot($selectionstate),
             'parameter_construction' => $this->build_phase_snapshot($constructionstate),
         ];
 
         $plannerresult = [
-            'discovery' => $discoverystate,
             'selection' => $selectionstate,
             'parameter_construction' => $constructionstate,
             'phase_trace' => $phasetrace,

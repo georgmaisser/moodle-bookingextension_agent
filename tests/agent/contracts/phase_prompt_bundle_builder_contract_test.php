@@ -34,13 +34,13 @@ use bookingextension_agent\local\wbagent\task_registry;
  */
 final class phase_prompt_bundle_builder_contract_test extends advanced_testcase {
     /**
-     * Discovery output contract must disallow command-bearing response types.
+     * Selection output contract must disallow command-bearing response types.
      */
-    public function test_discovery_output_contract_disallows_command_bearing_types(): void {
+    public function test_selection_output_contract_disallows_command_bearing_types(): void {
         $builder = $this->build_builder();
 
         $contract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
-            orchestrator_prompt_profile_service::PHASE_DISCOVERY,
+            orchestrator_prompt_profile_service::PHASE_SELECTION,
             false,
         ]);
 
@@ -63,6 +63,25 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
         $expected = 'For task_call/confirmation_request: '
             . 'commands must contain exactly one command object.';
         $this->assertStringContainsString($expected, $contract);
+    }
+
+    /**
+     * Full schema payload must stay hidden outside construction phase.
+     */
+    public function test_full_schema_payload_is_construction_only(): void {
+        $builder = $this->build_builder();
+
+        $selectionpayload = $this->invoke_private_method($builder, 'build_full_schema_json_for_phase', [
+            orchestrator_prompt_profile_service::PHASE_SELECTION,
+            ['task.a' => ['properties' => ['id' => ['type' => 'integer']]]],
+        ]);
+        $constructionpayload = $this->invoke_private_method($builder, 'build_full_schema_json_for_phase', [
+            orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION,
+            ['task.a' => ['properties' => ['id' => ['type' => 'integer']]]],
+        ]);
+
+        $this->assertSame('{}', $selectionpayload);
+        $this->assertStringContainsString('task.a', $constructionpayload);
     }
 
     /**
