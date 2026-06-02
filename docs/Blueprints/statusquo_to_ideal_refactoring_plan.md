@@ -37,6 +37,11 @@ Dieses Dokument definiert den konkreten Migrationspfad vom aktuellen Zustand zur
 
 ## Klassen- und Service-Matrix (vollstaendig fuer die Migration)
 
+Statusupdate 2026-06-02 (Family-Ranking):
+- Die Family-Ranking-Bausteine sind bereits implementiert und testabgedeckt.
+- Offener Schwerpunkt ist die vollstaendige Live-Verdrahtung in den Planner-Phasenpfad.
+- Einordnung "Neu" in Abschnitt B/C ist historisch und wird unten auf den realen Status korrigiert.
+
 Hinweis zur Einordnung:
 - Behalten: bleibt fachlich erhalten
 - Refactor: bleibt, aber Verantwortung/Signaturen werden angepasst
@@ -63,27 +68,27 @@ Hinweis zur Einordnung:
 
 ### B. Discovery (Family-first)
 
-- Neu: classes/local/wbagent/services/discovery/context_prior_builder.php
-- Neu: classes/local/wbagent/services/discovery/family_registry_service.php
-- Neu: classes/local/wbagent/services/discovery/core_family_set.php
-- Neu: classes/local/wbagent/services/discovery/family_signal_ranker.php
-- Neu: classes/local/wbagent/services/discovery/family_ranker.php
-- Neu: classes/local/wbagent/services/discovery/discovery_stage_controller.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/context_prior_builder.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/family_registry_service.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/core_family_set.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/family_signal_ranker.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/family_ranker.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/discovery_stage_controller.php
   Aufgabe: Stage A/B/C Gate-Entscheidungen mit Budget- und Confidence-Regeln
-- Neu: classes/local/wbagent/services/discovery/discovery_budget_policy.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/discovery_budget_policy.php
   Aufgabe: harte Obergrenzen je Stage
-- Neu: classes/local/wbagent/services/discovery/discovery_confidence_policy.php
+- Behalten/Refactor: classes/local/wbagent/services/discovery/discovery_confidence_policy.php
   Aufgabe: eindeutige Schwellwerte fuer Eskalation
-- Neu: classes/local/wbagent/dto/discovery_result.php
+- Behalten/Refactor: classes/local/wbagent/dto/discovery_result.php
 
 ### C. Embeddings auf Family-Ebene
 
 - Refactor: classes/local/wbagent/services/embeddings/embeddings_readiness_service.php
   Ziel: readiness fuer Family-Embeddings nutzbar machen
-- Neu: classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
-- Neu: classes/local/wbagent/services/embeddings/family_embeddings_index_service.php
+- Behalten/Refactor: classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
+- Behalten/Refactor: classes/local/wbagent/services/embeddings/family_embeddings_index_service.php
   Aufgabe: Build/Refresh/Status des Family-Index
-- Neu: classes/local/wbagent/dto/family_embedding_hit.php
+- Neu (optional): classes/local/wbagent/dto/family_embedding_hit.php
 - Refactor: classes/local/wbagent/services/embeddings/embeddings_retrieval_service.php
   Ziel: Task-top-k nicht mehr als primäre Planner-Strategie
 - Entfernen oder de-priorisieren nach Umschaltung: direkte Task-Top-K-Routingpfade als Hauptentscheidungsweg
