@@ -70,7 +70,7 @@ class orchestrator_routing_service {
     }
 
     /**
-     * Route to planner action classes by step profile for OpenAI providers, with fallback.
+     * Route to planner action classes by step profile, with provider-aware fallbacks.
      *
      * @param ai_manager $manager
      * @param context_module $context
@@ -94,6 +94,19 @@ class orchestrator_routing_service {
         context_module $context,
         string $steptype
     ): array {
+        try {
+            if ($manager->is_action_available($this->wbplanneraction)) {
+                return [
+                    'actionclass' => $this->wbplanneraction,
+                    'routepolicy' => 'wunderbyte',
+                    'routingfallback' => false,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Continue with non-wunderbyte fallback routes.
+            $ignored = $e;
+        }
+
         if (!$this->should_use_openai_step_routing($manager)) {
             return [
                 'actionclass' => generate_text::class,

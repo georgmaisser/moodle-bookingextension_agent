@@ -40,13 +40,13 @@ use bookingextension_agent\local\wbagent\llm_debug_logger;
  */
 class llm_call_service {
     /** Wunderbyte planner action class name. */
-    private const WB_ACTION_PLANNER_DECIDE = '\\aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
 
     /** Wunderbyte final reply action class name. */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = '\\aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
 
     /** Wunderbyte embedding action class name. */
-    private const WB_ACTION_GENERATE_EMBEDDINGS = '\\aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+    private const WB_ACTION_GENERATE_EMBEDDINGS = 'aiprovider_wunderbyte\\aiactions\\generate_embeddings';
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -257,18 +257,20 @@ class llm_call_service {
      * @return string
      */
     private function resolve_wunderbyte_prompt_action_class(string $actionclass): string {
+        $normalizedactionclass = ltrim($actionclass, '\\');
         $supported = [
             self::WB_ACTION_GENERATE_AGENT_REPLY,
             self::WB_ACTION_PLANNER_DECIDE,
         ];
-        if (!in_array($actionclass, $supported, true)) {
+        $normalizedsupported = array_map(static fn(string $fqcn): string => ltrim($fqcn, '\\'), $supported);
+        if (!in_array($normalizedactionclass, $normalizedsupported, true)) {
             return '';
         }
 
-        if (!class_exists($actionclass)) {
+        if (!class_exists($normalizedactionclass)) {
             return '';
         }
 
-        return $actionclass;
+        return $normalizedactionclass;
     }
 }

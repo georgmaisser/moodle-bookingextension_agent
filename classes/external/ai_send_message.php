@@ -258,7 +258,6 @@ class ai_send_message extends external_api {
      * Normalize any list-like value into a compact non-empty string list.
      *
      * @param mixed $value
-        $result = $runtime->run_loop($threadid, $contextid, (int)$USER->id);
      */
     private static function normalize_string_list($value): array {
         if (!is_array($value)) {
