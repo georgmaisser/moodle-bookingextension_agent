@@ -84,6 +84,18 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
     }
 
     /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'scope' => 'all',
+            'question' => 'Was kannst du?',
+        ];
+    }
+
+    /**
      * Return task-specific message triggers.
      *
      * @return array<int,array<string,mixed>>

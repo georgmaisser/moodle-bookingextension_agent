@@ -39,6 +39,9 @@ class phase_prompt_bundle_builder {
     /** Wunderbyte final reply action class name. */
     private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
 
+    /** Wunderbyte planner action class name. */
+    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+
     /** @var task_registry */
     private task_registry $registry;
 
@@ -105,6 +108,14 @@ class phase_prompt_bundle_builder {
             : orchestrator::get_default_initial_prompt_template_for_action($actionclass);
 
         if (
+            $configuredtemplate === ''
+            && $phase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
+            && $this->is_planner_action($actionclass)
+        ) {
+            $template = $this->get_default_constructor_prompt_template();
+        }
+
+        if (
             $actionclass === generate_text::class
             || $actionclass === self::WB_ACTION_GENERATE_AGENT_REPLY
         ) {
@@ -155,6 +166,40 @@ class phase_prompt_bundle_builder {
         );
 
         return $prompt;
+    }
+
+    /**
+     * Return true for planner-style action classes.
+     *
+     * @param string $actionclass
+     * @return bool
+     */
+    private function is_planner_action(string $actionclass): bool {
+        return $actionclass === \core_ai\aiactions\summarise_text::class
+            || $actionclass === self::WB_ACTION_PLANNER_DECIDE;
+    }
+
+    /**
+     * Return a strict constructor-only default prompt template.
+     *
+     * @return string
+     */
+    private function get_default_constructor_prompt_template(): string {
+        return <<<'PROMPT'
+You are an AI parameter constructor for the "{{bookingname}}" context.
+
+CONSTRUCTOR ROLE (STRICT):
+- This call is constructor-only.
+- selected_task is already chosen by selection phase.
+- Do NOT perform task discovery, task routing, or task switching.
+- Build parameters only for selected_task.
+- If selected_task cannot be fulfilled with grounded input, return clarification with commands=[].
+
+TASK CONTRACT FIRST (highest priority):
+- Follow task-level contracts from TASK CATALOG (minimal_input, example_input, example_parameters).
+- Use canonical parameter keys from the selected task contract.
+
+PROMPT;
     }
 
     /**
@@ -237,16 +282,22 @@ class phase_prompt_bundle_builder {
         $lines = [
             'Return exactly one valid JSON object and nothing else.',
             'Do not output markdown, code fences, prose, or bullet lists outside JSON.',
-            'Apply routing semantics from [SYSTEM] decision order; do not override them here.',
         ];
 
         if ($normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
+            $lines[] = 'Apply constructor semantics only; do not perform routing in this phase.';
             $lines[] = 'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.';
             $lines[] = 'For task_call/confirmation_request: commands must contain one or more command objects.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
             $lines[] = 'For mutating intents, do not use task_call; '
                 . 'use confirmation_request unless already completed -> sufficient.';
+            $lines[] = 'Constructor-only phase: do not discover/switch tasks. Build parameters for selected_task only.';
+            $lines[] = 'Each command.task must equal selected_task from phase_handoff.selection.';
+            $lines[] = 'Use canonical command envelope keys only: task, version, parameters.';
+            $lines[] = 'Do not emit non-canonical command-level keys: params, command_id, id, cid.';
+            $lines[] = 'Canonical example: {"task":"<selected_task>","version":1,"parameters":{...}}';
         } else {
+            $lines[] = 'Apply routing semantics from [SYSTEM] decision order; do not override them here.';
             $lines[] = 'Allowed response_type: task_call, clarification, confirm_pending, sufficient, error.';
             $lines[] = 'For task_call: commands must contain exactly one command object that selects exactly one task; '
                 . 'do not include full parameter payloads.';

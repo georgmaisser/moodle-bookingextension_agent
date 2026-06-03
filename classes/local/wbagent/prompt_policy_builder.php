@@ -67,8 +67,8 @@ class prompt_policy_builder {
         // 3. STEP INTENT POLICY (planner-facing guidance only).
         $policies[] = self::build_step_intent_policy();
 
-        // 4. DOCS ANSWER POLICY (selection + construction phases).
-        if ($normalizedphase !== 'discovery') {
+        // 4. DOCS ANSWER POLICY (selection phase only).
+        if ($normalizedphase === 'selection') {
             $policies[] = self::build_docs_answer_policy();
         }
 
@@ -103,6 +103,11 @@ class prompt_policy_builder {
                 . "- For task_call or confirmation_request, commands MUST contain one or more command objects.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
                 . "- This phase is constructor-only: build parameters for the selected task only.\n"
+                . "- Do not perform task discovery, task routing, or task switching in this phase.\n"
+                . "- Every command.task MUST match selected_task from phase handoff.\n"
+                . "- Canonical constructor command shape uses only command-level keys: task, version, parameters.\n"
+                . "- Do not emit non-canonical command-level keys such as params, command_id, id, or cid.\n"
+                . "- Canonical command example: {\"task\":\"<selected_task>\",\"version\":1,\"parameters\":{...}}\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
 

@@ -65,6 +65,17 @@ class get_current_user_task extends core_task_base implements task_trigger_provi
     }
 
     /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'outputlang' => 'de',
+        ];
+    }
+
+    /**
      * Check task input structure.
      *
      * @param array $input

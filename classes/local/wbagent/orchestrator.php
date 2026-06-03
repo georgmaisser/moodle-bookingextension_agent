@@ -1256,7 +1256,7 @@ class orchestrator {
             if (trim((string)($entry['task'] ?? '')) !== $selectedtask) {
                 continue;
             }
-            $filtered[] = $entry;
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedtask, $entry);
         }
 
         if (!empty($filtered)) {
@@ -1270,10 +1270,31 @@ class orchestrator {
             if (trim((string)($entry['task'] ?? '')) !== $selectedtask) {
                 continue;
             }
-            $filtered[] = $entry;
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedtask, $entry);
         }
 
         return array_values($filtered);
+    }
+
+    /**
+     * Attach concrete parameter examples for the selected construction task.
+     *
+     * @param string $selectedtask
+     * @param array<string,mixed> $entry
+     * @return array<string,mixed>
+     */
+    private function enrich_construction_catalog_entry(string $selectedtask, array $entry): array {
+        $task = $this->registry->get_task($selectedtask);
+        if ($task === null) {
+            return $entry;
+        }
+
+        $exampleparameters = (array)$task->get_example_input();
+        if (!empty($exampleparameters)) {
+            $entry['example_parameters'] = $exampleparameters;
+        }
+
+        return $entry;
     }
 
     /**

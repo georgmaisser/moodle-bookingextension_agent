@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\llm;
 
+use core\context;
 use context_module;
 use core\di;
 use core_ai\aiactions\explain_text;
@@ -189,6 +190,92 @@ class llm_call_service {
             $this->store,
             $threadid,
             $cmid,
+            $userid,
+            $source,
+            $inputtext,
+            $success ? '[embedding:' . count($embedding) . ']' : '',
+            $success,
+            $errormessage
+        );
+
+        return [
+            'success' => $success,
+            'embedding' => $embedding,
+            'model' => $model,
+            'dimensions' => $useddimensions,
+            'errormessage' => $errormessage,
+            'errorcode' => $errorcode,
+            'errorname' => $errorname,
+        ];
+    }
+
+    /**
+     * Invoke Wunderbyte embeddings action by context id (compatibility path).
+     *
+     * Some background jobs run without a module cmid and provide a context id
+     * directly. Keep this explicit entry-point for those callers.
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param string $source
+     * @param string $inputtext
+     * @param int|null $dimensions
+     * @return array{success:bool,embedding:array<int,float|int>,model:string,dimensions:int,errormessage:string,errorcode:int,errorname:string}
+     */
+    public function invoke_embeddings_for_context(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        string $source,
+        string $inputtext,
+        ?int $dimensions = null
+    ): array {
+        $embedding = [];
+        $model = '';
+        $useddimensions = 0;
+        $errormessage = '';
+        $errorcode = 0;
+        $errorname = '';
+        $success = false;
+
+        try {
+            if (!class_exists(self::WB_ACTION_GENERATE_EMBEDDINGS)) {
+                throw new \moodle_exception('wunderbyte embeddings action class is missing.');
+            }
+
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            $manager = di::get(ai_manager::class);
+
+            $actionclass = self::WB_ACTION_GENERATE_EMBEDDINGS;
+            $action = new $actionclass(
+                contextid: (int)$context->id,
+                userid: $userid,
+                inputtext: $inputtext,
+                dimensions: $dimensions,
+            );
+
+            $response = $manager->process_action($action);
+            $responsedata = (array)$response->get_response_data();
+
+            $embedding = (array)($responsedata['embedding'] ?? []);
+            $model = (string)($responsedata['model'] ?? '');
+            $useddimensions = (int)($responsedata['dimensions'] ?? count($embedding));
+            $success = (bool)$response->get_success() && !empty($embedding);
+            $errormessage = (string)($response->get_errormessage() ?? '');
+            $errorcode = (int)$response->get_errorcode();
+            $errorname = (string)$response->get_error();
+        } catch (\Throwable $e) {
+            $success = false;
+            $errormessage = $e->getMessage();
+            $errorcode = (int)$e->getCode();
+            $errorname = '';
+        }
+
+        llm_debug_logger::log_exchange_always(
+            $this->store,
+            $threadid,
+            0,
             $userid,
             $source,
             $inputtext,

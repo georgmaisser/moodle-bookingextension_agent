@@ -93,7 +93,7 @@ flowchart TD
         SINT["interpreter::interpret_phase_output(raw, selection, context)\nparse + contract + normalization"]
         SELTASK["selected_task handoff\nexactly one task\nfrom selector to constructor"]
         CPLLM["llm_call_service::invoke(..., source=planner_construction, action_class=constructor_build_params)\nPhase 2 call"]
-        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization"]
+        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization\ncommand envelope: use only task/version/input|parameters\nignore unknown command-level keys"]
         PCOMP["planner_result_composer\ncompose unified planner result\npersist planner_trace_history + phase_trace"]
         RESP_TYPE{"parsed\nresponse_type"}
     end

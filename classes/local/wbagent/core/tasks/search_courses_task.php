@@ -100,6 +100,18 @@ class search_courses_task extends core_task_base implements task_trigger_provide
     }
 
     /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'query' => 'Informatik',
+            'limit' => 5,
+        ];
+    }
+
+    /**
      * Return task-specific message triggers.
      *
      * @return array<int,array<string,mixed>>
