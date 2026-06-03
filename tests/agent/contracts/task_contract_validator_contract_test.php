@@ -247,6 +247,33 @@ final class task_contract_validator_contract_test extends TestCase {
     }
 
     /**
+     * R0 must always be declared as readonly.
+     */
+    public function test_validate_task_metadata_rejects_r0_when_not_readonly(): void {
+        $metadata = [
+            'taskname' => 'demo.lookup',
+            'namespace' => 'demo',
+            'family' => 'demo.general',
+            'version' => 1,
+            'component' => 'local_demo',
+            'capabilities' => ['local/demo:task_demo_lookup'],
+            'active' => true,
+            'alias_of' => '',
+            'deprecated_since' => '',
+            'readonly' => false,
+            'risk_class' => task_risk_class::R0,
+            'context_scopes' => ['module'],
+        ];
+
+        $validation = task_contract_validator::validate_task_metadata($metadata);
+        $this->assertFalse($validation['valid']);
+        $this->assertContains(
+            'Invalid risk_class declaration: R0 tasks must be read-only.',
+            $validation['errors']
+        );
+    }
+
+    /**
      * Validate mutating tasks require a non-readonly declaration and explicit scope.
      */
     public function test_validate_task_metadata_rejects_mutating_readonly_or_scope_missing_tasks(): void {

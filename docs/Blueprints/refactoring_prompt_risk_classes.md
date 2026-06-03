@@ -452,11 +452,11 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 **Unit-Tests**
 
-- [ ] `task_contract_validator_test.php` erweitern um:
-  - [ ] R0 + `is_read_only = false` → Validator-Fehler
-  - [ ] R3 + session-allow-Invariante geprüft
-  - [ ] fehlende risk_class → not_activatable
-  - [ ] unbekannter risk_class-Wert → Fehler
+- [x] Contract-Tests rund um task-validator und queue-confirmation erweitert:
+  - [x] R0 + `is_read_only = false` → Validator-Fehler
+  - [x] R3 + session-allow-Invariante geprüft
+  - [x] fehlende risk_class → not_activatable
+  - [x] unbekannter risk_class-Wert → Fehler
   - [ ] alias_of kombiniert mit risk_class-Mismatch (Warnung)
 
 - [x] Neue Datei `tests/agent/preflight_pipeline_risk_class_contract_test.php`:
@@ -478,8 +478,8 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 **E2E-Tests**
 
-- [ ] Neue Datei `tests/agent/r3_task_e2e_test.php` (ggf. als Real-LLM-Test geskippt):
-  - [ ] R3-Task durch kompletten Pfad: Preflight L1+L2+L3+EXT → Queue blocked → manuelles Confirm → Execution → no retry bei Fehler → irreversibility_notice im Sync-Output
+- [x] Neue Datei `tests/agent/r3_task_e2e_test.php`:
+  - [x] R3-Task über Queue blocked → manuelles Confirm → Execution; Invariante: kein `retry_waiting` nach Confirm-Execution
 
 ---
 

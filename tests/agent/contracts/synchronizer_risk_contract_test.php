@@ -17,21 +17,14 @@
 declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\tests;
-require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
-use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\task_risk_class;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\services\finalization_classifier;
-use bookingextension_agent\local\wbagent\task_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for risk-class aware synchronizer finalization guards.
  *
- * @covers \bookingextension_agent\local\wbagent\agent_runtime
  * @covers \bookingextension_agent\local\wbagent\services\finalization_classifier
  *
  * @package    bookingextension_agent
