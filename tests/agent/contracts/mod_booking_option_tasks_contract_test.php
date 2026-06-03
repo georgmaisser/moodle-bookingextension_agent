@@ -28,6 +28,7 @@ use mod_booking\singleton_service;
  * @covers \mod_booking\local\wbagent\options\tasks\create_selflearning_option_task
  * @covers \mod_booking\local\wbagent\options\tasks\create_slotbooking_option_task
  * @covers \mod_booking\local\wbagent\options\tasks\update_option_task
+ * @covers \mod_booking\local\wbagent\options\tasks\update_option_trainer_task
  * @covers \bookingextension_agent\local\wbagent\task_registry
  * @covers \bookingextension_agent\local\wbagent\task_registry_factory
  *
@@ -48,6 +49,7 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
             'mod_booking.create_selflearning_option',
             'mod_booking.create_slotbooking_option',
             'mod_booking.update_option',
+            'mod_booking.update_option_trainer',
         ];
 
         foreach ($expected as $taskname) {

@@ -357,14 +357,29 @@ class orchestrator {
             $manager
         );
 
-        $constructionstate = $this->run_construction_phase(
-            $threadid,
-            $cmid,
-            $userid,
-            $observations,
-            $discoverystate,
-            $selectionstate
-        );
+        $selectionresponsetype = trim((string)($selectionstate['response_type'] ?? ''));
+        if ($selectionresponsetype !== 'task_call') {
+            $constructionstate = [
+                'phase' => self::PHASE_PARAMETER_CONSTRUCTION,
+                'response_type' => $selectionresponsetype,
+                'message' => (string)($selectionstate['message'] ?? ''),
+                'commands' => (array)($selectionstate['commands'] ?? []),
+                'ambiguities' => (array)($selectionstate['ambiguities'] ?? []),
+                'errors' => (array)($selectionstate['errors'] ?? []),
+                'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
+                'lang' => (string)($selectionstate['lang'] ?? ''),
+                'user_lang' => (string)($selectionstate['user_lang'] ?? ''),
+            ];
+        } else {
+            $constructionstate = $this->run_construction_phase(
+                $threadid,
+                $cmid,
+                $userid,
+                $observations,
+                $discoverystate,
+                $selectionstate
+            );
+        }
 
         $plannerresultcomposer = new planner_result_composer();
         return $plannerresultcomposer->compose(
@@ -535,7 +550,9 @@ class orchestrator {
         $plannertracehistory = $this->normalize_planner_trace_history(
             $this->store->get_thread_metadata_value($threadid, 'planner_trace_history')
         );
-        $shouldincludetaskcatalog = !$hasanyobservations;
+        // Keep task catalog available in every loop iteration so follow-up
+        // selection rounds (B, C, ...) never run with an empty catalog.
+        $shouldincludetaskcatalog = true;
 
         $runtimecatalog = [];
         $unavailabletaskcatalog = [];
