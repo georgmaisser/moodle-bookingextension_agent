@@ -25,10 +25,10 @@ namespace bookingextension_agent\local\wbagent\services;
  */
 class planner_result_composer {
     /**
-    * Compose a unified planner result while preserving the construction payload.
-    *
-    * Phase trace is restricted to selection + parameter_construction.
-    * Discovery context remains available via planner_trace_history only.
+     * Compose a unified planner result while preserving the construction payload.
+     *
+     * Phase trace is restricted to selection + parameter_construction.
+     * Discovery context remains available via planner_trace_history only.
      *
      * @param array<string,mixed> $discoverystate
      * @param array<string,mixed> $selectionstate

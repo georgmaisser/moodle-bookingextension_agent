@@ -47,7 +47,7 @@ class task_selection_overlap_policy {
             return null;
         }
 
-        $matches = array_values(array_filter($allowedtasks, static function(string $taskname) use ($name): bool {
+        $matches = array_values(array_filter($allowedtasks, static function (string $taskname) use ($name): bool {
             return substr($taskname, strrpos($taskname, '.') + 1) === $name;
         }));
 

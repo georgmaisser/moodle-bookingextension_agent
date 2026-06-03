@@ -81,5 +81,4 @@ final class message_persistence_contract_test extends TestCase {
             ],
         ]);
     }
-
 }

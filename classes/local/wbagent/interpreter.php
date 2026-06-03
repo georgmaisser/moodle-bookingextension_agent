@@ -446,10 +446,10 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-    * Enforce explicit response contracts per planner phase.
-    *
-    * Discovery must not return command-bearing outputs. Selection is a
-    * command-bearing selector call that must stay single-task.
+     * Enforce explicit response contracts per planner phase.
+     *
+     * Discovery must not return command-bearing outputs. Selection is a
+     * command-bearing selector call that must stay single-task.
      *
      * @param array $result
      * @param string $phase
@@ -559,9 +559,9 @@ class interpreter implements agent_interpreter {
     /**
      * Normalize command payload shapes to a canonical list of command objects.
      *
-    * Accepts:
-    * - Commands as list: [{task,version,input|parameters}, ...]
-    * - Commands as single object: {task,version,input|parameters}
+     * Accepts:
+     * - Commands as list: [{task,version,input|parameters}, ...]
+     * - Commands as single object: {task,version,input|parameters}
      * - Top-level task/version/input fields when commands is missing
      *
      * @param array $parsed
