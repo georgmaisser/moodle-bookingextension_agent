@@ -60,6 +60,13 @@ class queue_manager {
         'blocked_expires_at',
         'next_retry_at',
         'retry_count',
+        'retry_layers',
+        'retry_layer',
+        'retry_origin',
+        'retry_reason',
+        'retry_attempt',
+        'retry_hint_category',
+        'retry_terminal_reason',
         'reason_code',
     ];
 

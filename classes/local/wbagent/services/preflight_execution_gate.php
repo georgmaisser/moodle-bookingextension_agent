@@ -50,6 +50,46 @@ class preflight_execution_gate {
         $retrycount = max(0, $retrycount);
         $issuecodes = array_values(array_unique(array_filter(array_map('strval', $issuecodes))));
 
+        $retrypolicy = new retry_policy_service();
+        $category = $retrypolicy->resolve_retry_hint_category($errorclass, $issuecodes, 'execution');
+        if ($category === retry_policy_service::CATEGORY_UNDEFINED) {
+            return new preflight_result_v2(
+                'hard_block',
+                array_values(array_unique(array_merge($issuecodes, [
+                    retry_policy_service::ISSUE_RETRY_CATEGORY_UNDEFINED,
+                ]))),
+                'execution_gate',
+                0,
+                $retrycount,
+                0
+            );
+        }
+
+        if (!$retrypolicy->is_retryable_category($category)) {
+            return new preflight_result_v2(
+                'hard_block',
+                array_values(array_unique(array_merge($issuecodes, [
+                    retry_policy_service::ISSUE_RETRY_CATEGORY_NOT_ALLOWED,
+                ]))),
+                'execution_gate',
+                0,
+                $retrycount,
+                0
+            );
+        }
+
+        $circuit = $retrypolicy->evaluate_provider_circuit_breaker($errorclass, $issuecodes);
+        if (!$circuit['allow']) {
+            return new preflight_result_v2(
+                'hard_block',
+                array_values(array_unique(array_merge($issuecodes, (array)($circuit['issue_codes'] ?? [])))),
+                'execution_gate',
+                0,
+                $retrycount,
+                0
+            );
+        }
+
         if (!preflight_error_classifier::is_retryable_error_class($errorclass)) {
             return new preflight_result_v2('hard_block', $issuecodes, 'execution_gate', 0, $retrycount, 0);
         }
@@ -72,7 +112,10 @@ class preflight_execution_gate {
         $backoffms = min($backoffms, self::MAX_BACKOFF_MS);
         return new preflight_result_v2(
             'retry_hint',
-            $issuecodes,
+            array_values(array_unique(array_merge($issuecodes, [
+                'RETRY_DECISION_LAYER_EXECUTION',
+                'RETRY_CATEGORY_' . $category,
+            ]))),
             'execution_gate',
             $backoffms,
             $retrycount,

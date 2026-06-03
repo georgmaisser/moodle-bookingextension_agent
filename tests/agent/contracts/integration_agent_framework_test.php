@@ -585,6 +585,303 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * R3 guardrail: planner loop retry must be blocked when R3_NO_RETRY is present.
+     */
+    public function test_agent_runtime_retry_resolver_blocks_retry_when_r3_issue_present(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('resolve_framework_retry_issue_code');
+        $method->setAccessible(true);
+
+        $result = [
+            'response_type' => 'error',
+            'issue_codes' => ['CONTRACT_PARSE_ERROR', 'R3_NO_RETRY'],
+            'commands' => [],
+        ];
+
+        $resolved = $method->invoke($runtime, $result, []);
+        $this->assertNull($resolved);
+    }
+
+    /**
+     * R3 guardrail: planner loop retry must be blocked when command risk class is R3.
+     */
+    public function test_agent_runtime_retry_resolver_blocks_retry_when_command_risk_is_r3(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('resolve_framework_retry_issue_code');
+        $method->setAccessible(true);
+
+        $result = [
+            'response_type' => 'error',
+            'issue_codes' => ['CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'],
+            'commands' => [
+                [
+                    'task' => 'mod_booking.book_users',
+                    'risk_class' => \bookingextension_agent\local\wbagent\dto\task_risk_class::R3,
+                    'input' => [],
+                ],
+            ],
+        ];
+
+        $resolved = $method->invoke($runtime, $result, []);
+        $this->assertNull($resolved);
+    }
+
+    /**
+     * Control check: retry remains enabled for retryable planner contract errors without R3 blockers.
+     */
+    public function test_agent_runtime_retry_resolver_allows_retry_without_r3_blocker(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('resolve_framework_retry_issue_code');
+        $method->setAccessible(true);
+
+        $result = [
+            'response_type' => 'error',
+            'issue_codes' => ['CONTRACT_PARSE_ERROR'],
+            'commands' => [],
+        ];
+
+        $resolved = $method->invoke($runtime, $result, []);
+        $this->assertSame('CONTRACT_PARSE_ERROR', $resolved);
+    }
+
+    /**
+     * Guardrail: same error class may not open retry in a third distinct layer.
+     */
+    public function test_queue_transition_retry_layer_guard_blocks_third_distinct_layer(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\queue_transition_service::class);
+        $service = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('evaluate_retry_layer_guard');
+        $method->setAccessible(true);
+
+        $decision = $method->invoke(
+            $service,
+            'provider_error',
+            ['preflight', 'execution'],
+            'provider_error',
+            'QUEUE_RETRY_HINT'
+        );
+
+        $this->assertFalse((bool)($decision['allow'] ?? true));
+        $this->assertSame(['preflight', 'execution'], array_values((array)($decision['layers'] ?? [])));
+    }
+
+    /**
+     * Guardrail: retry layer sequence resets when error class changes.
+     */
+    public function test_queue_transition_retry_layer_guard_resets_for_new_error_class(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\queue_transition_service::class);
+        $service = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('evaluate_retry_layer_guard');
+        $method->setAccessible(true);
+
+        $decision = $method->invoke(
+            $service,
+            'provider_error',
+            ['preflight', 'execution'],
+            'domain_error',
+            'QUEUE_RETRY_HINT'
+        );
+
+        $this->assertTrue((bool)($decision['allow'] ?? false));
+        $this->assertSame(['queue'], array_values((array)($decision['layers'] ?? [])));
+    }
+
+    /**
+     * Retry policy maps contract/parse signals to TECHNICAL category.
+     */
+    public function test_retry_policy_maps_contract_errors_to_technical(): void {
+        $policy = new \bookingextension_agent\local\wbagent\services\retry_policy_service();
+        $category = $policy->resolve_retry_hint_category(
+            '',
+            ['CONTRACT_PARSE_ERROR'],
+            'planner'
+        );
+
+        $this->assertSame(
+            \bookingextension_agent\local\wbagent\services\retry_policy_service::CATEGORY_TECHNICAL,
+            $category
+        );
+        $this->assertTrue($policy->is_retryable_category($category));
+    }
+
+    /**
+     * Retry policy classifies domain conflicts as non-retryable.
+     */
+    public function test_retry_policy_marks_domain_category_not_retryable(): void {
+        $policy = new \bookingextension_agent\local\wbagent\services\retry_policy_service();
+        $category = $policy->resolve_retry_hint_category(
+            'domain_conflict',
+            ['DOMAIN_CONFLICT'],
+            'preflight'
+        );
+
+        $this->assertSame(
+            \bookingextension_agent\local\wbagent\services\retry_policy_service::CATEGORY_DOMAIN,
+            $category
+        );
+        $this->assertFalse($policy->is_retryable_category($category));
+    }
+
+    /**
+     * Provider auth failures open the provider circuit breaker.
+     */
+    public function test_retry_policy_provider_circuit_breaker_blocks_auth(): void {
+        $policy = new \bookingextension_agent\local\wbagent\services\retry_policy_service();
+        $decision = $policy->evaluate_provider_circuit_breaker(
+            'auth_error',
+            ['PROVIDER_AUTH_FAILED']
+        );
+
+        $this->assertFalse((bool)($decision['allow'] ?? true));
+        $this->assertContains(
+            \bookingextension_agent\local\wbagent\services\retry_policy_service::ISSUE_PROVIDER_CIRCUIT_OPEN_AUTH,
+            (array)($decision['issue_codes'] ?? [])
+        );
+    }
+
+    /**
+     * Planner retry must be blocked when queue/execution retry is already active.
+     */
+    public function test_agent_runtime_blocks_planner_retry_on_non_planner_signal(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('has_active_non_planner_retry_signal');
+        $method->setAccessible(true);
+
+        $result = [
+            'issue_codes' => ['RETRY_WAITING', 'EXECUTION_RETRY_HINT'],
+        ];
+
+        $blocked = $method->invoke($runtime, $result);
+        $this->assertTrue((bool)$blocked);
+    }
+
+    /**
+     * Constructor JSON parse retries must exhaust exactly at configured limit.
+     */
+    public function test_agent_runtime_constructor_parse_retry_exhaustion_is_deterministic(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+
+        $retrymethod = $reflection->getMethod('resolve_framework_retry_issue_code');
+        $retrymethod->setAccessible(true);
+        $exhaustedmethod = $reflection->getMethod('resolve_exhausted_framework_retry_issue_code');
+        $exhaustedmethod->setAccessible(true);
+
+        $result = [
+            'response_type' => 'error',
+            'issue_codes' => ['CONTRACT_PARSE_ERROR'],
+            'commands' => [],
+        ];
+
+        $this->assertSame('CONTRACT_PARSE_ERROR', $retrymethod->invoke($runtime, $result, []));
+        $this->assertNull($retrymethod->invoke($runtime, $result, ['CONTRACT_PARSE_ERROR' => 1]));
+        $this->assertSame('CONTRACT_PARSE_ERROR', $exhaustedmethod->invoke($runtime, $result, ['CONTRACT_PARSE_ERROR' => 1]));
+    }
+
+    /**
+     * Budget guard must stop deterministically at the loop boundary.
+     */
+    public function test_agent_runtime_budget_guard_stops_at_limit_boundary(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('budget_guard_allows_next_llm_call');
+        $method->setAccessible(true);
+
+        $this->assertTrue((bool)$method->invoke($runtime, 0, 2));
+        $this->assertFalse((bool)$method->invoke($runtime, 1, 2));
+    }
+
+    /**
+     * Audit log payload must include deterministic reconstruction fields.
+     */
+    public function test_preflight_audit_log_format_contains_reconstruction_fields(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\preflight_audit_logger::class);
+        $source = file_get_contents((string)$reflection->getFileName());
+        $this->assertIsString($source);
+
+        $this->assertStringContainsString("'timestamp'", $source);
+        $this->assertStringContainsString("'thread_id'", $source);
+        $this->assertStringContainsString("'contextid'", $source);
+        $this->assertStringContainsString("'run_id'", $source);
+        $this->assertStringContainsString("'queue_item_id'", $source);
+        $this->assertStringContainsString("'layer'", $source);
+        $this->assertStringContainsString("'status'", $source);
+        $this->assertStringContainsString("'reason_code'", $source);
+        $this->assertStringContainsString("'issue_codes'", $source);
+        $this->assertStringContainsString("'retry_count'", $source);
+        $this->assertStringContainsString("'retry_after_ms'", $source);
+        $this->assertStringContainsString("'duration_ms'", $source);
+        $this->assertStringContainsString("'error_class'", $source);
+    }
+
+    /**
+     * Template finalization must keep technical root-cause messages explicit.
+     */
+    public function test_finalization_template_message_reflects_technical_cause(): void {
+        $templates = new \bookingextension_agent\local\wbagent\services\finalization_template_service();
+
+        $budget = $templates->resolve_message([
+            'issue_codes' => ['BUDGET_EXCEEDED'],
+        ]);
+        $this->assertStringContainsString('loop budget is exhausted', $budget);
+
+        $timeout = $templates->resolve_message([
+            'error_class' => 'provider_timeout',
+        ]);
+        $this->assertStringContainsString('timed out', $timeout);
+    }
+
+    /**
+     * Regression guard: readonly and mutating command routing split stays stable.
+     */
+    public function test_decision_service_mutability_split_preserves_readonly_vs_mutating(): void {
+        $reflection = new \ReflectionClass(
+            \bookingextension_agent\local\wbagent\services\decision\agent_decision_service::class
+        );
+        $service = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('split_commands_by_mutability');
+        $method->setAccessible(true);
+
+        $groups = $method->invoke($service, [
+            ['task' => 'core.get_current_user', 'input' => [], 'risk_class' => 'read_only'],
+            ['task' => 'mod_booking.create_option', 'input' => [], 'risk_class' => 'broad_write'],
+        ]);
+
+        $this->assertCount(1, (array)($groups['readonly'] ?? []));
+        $this->assertCount(1, (array)($groups['mutating'] ?? []));
+    }
+
+    /**
+     * Regression guard: pending confirmation flow stays consistent and unblocked.
+     */
+    public function test_pending_confirmation_message_is_not_blocked_as_new_intent(): void {
+        $reflection = new \ReflectionClass(
+            \bookingextension_agent\local\wbagent\services\decision\agent_decision_service::class
+        );
+        $service = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('should_block_new_intent_while_pending');
+        $method->setAccessible(true);
+
+        $confirmpending = $method->invoke($service, [
+            'response_type' => 'confirm_pending',
+            'commands' => [],
+            'used_triggers' => [],
+        ]);
+        $this->assertFalse((bool)$confirmpending);
+
+        $confirmmessage = $method->invoke($service, [
+            'response_type' => 'task_call',
+            'commands' => [['task' => 'core.get_current_user', 'input' => []]],
+            'used_triggers' => ['core.is_confirmation_message'],
+        ]);
+        $this->assertFalse((bool)$confirmmessage);
+    }
+
+    /**
      * Test that the planner result composer preserves the construction payload.
      */
     public function test_planner_result_composer_preserves_construction_payload(): void {
@@ -652,9 +949,11 @@ final class integration_agent_framework_test extends TestCase {
     public function test_interpreter_phase_contract_accepts_single_selector_task_in_selection(): void {
         $registry = task_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $selectionpayload = '{"response_type":"task_call","message":"Selecting task","used_triggers":[],'
+            . '"commands":[{"task":"mod_booking.create_option","version":1,"input":{}}]}';
 
         $result = $interpreter->interpret_phase_output(
-            '{"response_type":"task_call","message":"Selecting task","used_triggers":[],"commands":[{"task":"mod_booking.create_option","version":1,"input":{}}]}',
+            $selectionpayload,
             'selection',
             [
                 'contextid' => 12,

@@ -36,6 +36,15 @@ class queue_transition_service {
     /** Fallback reason code when a caller provides an empty value. */
     private const DEFAULT_REASON_CODE = 'TRANSITION_UNSPECIFIED';
 
+    /** Maximum distinct retry layers allowed for the same error class. */
+    private const MAX_RETRY_LAYERS_PER_ERROR_CLASS = 2;
+
+    /** Issue code emitted when retry layer guard blocks another retry. */
+    private const RETRY_LAYER_GUARD_ISSUE_CODE = 'RETRY_LAYER_LIMIT_EXCEEDED';
+
+    /** Issue code emitted when planner/queue/execution retry layers collide. */
+    private const RETRY_LAYER_COLLISION_ISSUE_CODE = 'RETRY_LAYER_COLLISION';
+
     /**
      * Apply canonical preflight decision to mutating queue items.
      *
@@ -129,11 +138,29 @@ class queue_transition_service {
             if (queue_status_policy::is_ready_status($targetstatus)) {
                 $reasoncode = $autoconfirmmode ? 'PREFLIGHT_PASS_AUTOCONFIRM' : 'PREFLIGHT_PASS_READY';
                 if ($riskclass === task_risk_class::R1 && !$autoconfirmmode) {
-                    $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, 'PREFLIGHT_PASS_NEEDS_CONFIRMATION', $issuecodes);
+                    $this->to_blocked_confirmation(
+                        $queuesvc,
+                        $threadid,
+                        $queueitemid,
+                        'PREFLIGHT_PASS_NEEDS_CONFIRMATION',
+                        $issuecodes
+                    );
                 } else if ($riskclass === task_risk_class::R2) {
-                    $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, 'PREFLIGHT_R2_EXPLICIT_CONFIRMATION', $issuecodes);
+                    $this->to_blocked_confirmation(
+                        $queuesvc,
+                        $threadid,
+                        $queueitemid,
+                        'PREFLIGHT_R2_EXPLICIT_CONFIRMATION',
+                        $issuecodes
+                    );
                 } else if ($riskclass === task_risk_class::R3) {
-                    $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, 'PREFLIGHT_R3_MANUAL_CONFIRMATION', $issuecodes);
+                    $this->to_blocked_confirmation(
+                        $queuesvc,
+                        $threadid,
+                        $queueitemid,
+                        'PREFLIGHT_R3_MANUAL_CONFIRMATION',
+                        $issuecodes
+                    );
                 } else {
                     $this->to_ready($queuesvc, $threadid, $queueitemid, $reasoncode, $issuecodes);
                 }
@@ -243,15 +270,155 @@ class queue_transition_service {
         string $message,
         array $meta
     ): void {
+        $retrylayer = $this->resolve_retry_layer_from_reason_code($reasoncode);
+        $retrypolicy = new retry_policy_service();
+        $retrycategory = $retrypolicy->resolve_retry_hint_category($errorclass, $issuecodes, $retrylayer);
+        if ($retrycategory === retry_policy_service::CATEGORY_UNDEFINED) {
+            $queuesvc->update_status(
+                $threadid,
+                $queueitemid,
+                queue_status_policy::failed_status(),
+                array_values(array_unique(array_merge($issuecodes, [
+                    retry_policy_service::ISSUE_RETRY_CATEGORY_UNDEFINED,
+                ]))),
+                trim($errorclass),
+                'Retry blocked: retry_hint category is undefined.',
+                [
+                    'reason_code' => $this->normalize_reason_code('RETRY_CATEGORY_UNDEFINED'),
+                    'retry_layer' => $retrylayer,
+                    'retry_origin' => $retrylayer,
+                    'retry_reason' => $this->normalize_reason_code($reasoncode),
+                    'retry_hint_category' => $retrycategory,
+                    'retry_terminal_reason' => 'retry_hint_category_undefined',
+                ]
+            );
+            return;
+        }
+
+        if (!$retrypolicy->is_retryable_category($retrycategory)) {
+            $queuesvc->update_status(
+                $threadid,
+                $queueitemid,
+                queue_status_policy::failed_status(),
+                array_values(array_unique(array_merge($issuecodes, [
+                    retry_policy_service::ISSUE_RETRY_CATEGORY_NOT_ALLOWED,
+                ]))),
+                trim($errorclass),
+                'Retry blocked: retry category is not retryable.',
+                [
+                    'reason_code' => $this->normalize_reason_code('RETRY_CATEGORY_NOT_ALLOWED'),
+                    'retry_layer' => $retrylayer,
+                    'retry_origin' => $retrylayer,
+                    'retry_reason' => $this->normalize_reason_code($reasoncode),
+                    'retry_hint_category' => $retrycategory,
+                    'retry_terminal_reason' => 'retry_category_not_allowed',
+                ]
+            );
+            return;
+        }
+
+        $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+        $previouserrorclass = is_array($item) ? trim((string)($item['error_class'] ?? '')) : '';
+        $existinglayers = is_array($item) ? $this->normalize_retry_layers($item['retry_layers'] ?? []) : [];
+        $layerdecision = $this->evaluate_retry_layer_guard(
+            $previouserrorclass,
+            $existinglayers,
+            $errorclass,
+            $reasoncode
+        );
+
+        if (!$layerdecision['allow']) {
+            $queuesvc->update_status(
+                $threadid,
+                $queueitemid,
+                queue_status_policy::failed_status(),
+                array_values(array_unique(array_merge($issuecodes, [
+                    self::RETRY_LAYER_GUARD_ISSUE_CODE,
+                    self::RETRY_LAYER_COLLISION_ISSUE_CODE,
+                ]))),
+                trim($errorclass),
+                'Retry blocked: identical error_class exceeded retry layer limit.',
+                [
+                    'reason_code' => $this->normalize_reason_code('RETRY_LAYER_GUARD_BLOCKED'),
+                    'retry_layers' => $layerdecision['layers'],
+                    'retry_layer' => $retrylayer,
+                    'retry_origin' => $retrylayer,
+                    'retry_reason' => $this->normalize_reason_code($reasoncode),
+                    'retry_hint_category' => $retrycategory,
+                    'retry_terminal_reason' => 'retry_layer_limit_exceeded',
+                ]
+            );
+            return;
+        }
+
+        $retryissuecodes = array_values(array_unique(array_merge(
+            $issuecodes,
+            [
+                'RETRY_DECISION_LAYER_' . strtoupper($retrylayer),
+                'RETRY_CATEGORY_' . $retrycategory,
+            ]
+        )));
+
+        $retryattempt = max(
+            1,
+            (int)($meta['retry_count'] ?? 0),
+            (int)($meta['preflight_retry_count'] ?? 0)
+        );
+
         $queuesvc->update_status(
             $threadid,
             $queueitemid,
             'retry_waiting',
-            $issuecodes,
+            $retryissuecodes,
             $errorclass,
             $message,
-            array_merge($meta, ['reason_code' => $this->normalize_reason_code($reasoncode)])
+            array_merge($meta, [
+                'reason_code' => $this->normalize_reason_code($reasoncode),
+                'retry_layers' => $layerdecision['layers'],
+                'retry_layer' => $retrylayer,
+                'retry_origin' => $retrylayer,
+                'retry_reason' => $this->normalize_reason_code($reasoncode),
+                'retry_attempt' => $retryattempt,
+                'retry_hint_category' => $retrycategory,
+                'retry_terminal_reason' => '',
+            ])
         );
+    }
+
+    /**
+     * Evaluate whether a retry transition is allowed under layer guardrails.
+     *
+     * @param string $previouserrorclass
+     * @param array<int,string> $existinglayers
+     * @param string $currenterrorclass
+     * @param string $reasoncode
+     * @return array{allow:bool,layers:array<int,string>}
+     */
+    private function evaluate_retry_layer_guard(
+        string $previouserrorclass,
+        array $existinglayers,
+        string $currenterrorclass,
+        string $reasoncode
+    ): array {
+        $normalizedcurrenterrorclass = trim($currenterrorclass);
+        $normalizedpreviouserrorclass = trim($previouserrorclass);
+        $layers = $this->normalize_retry_layers($existinglayers);
+        $retrylayer = $this->resolve_retry_layer_from_reason_code($reasoncode);
+
+        if ($normalizedcurrenterrorclass === '' || $normalizedpreviouserrorclass !== $normalizedcurrenterrorclass) {
+            return ['allow' => true, 'layers' => [$retrylayer]];
+        }
+
+        if (in_array($retrylayer, $layers, true)) {
+            return ['allow' => true, 'layers' => $layers];
+        }
+
+        if (count($layers) >= self::MAX_RETRY_LAYERS_PER_ERROR_CLASS) {
+            return ['allow' => false, 'layers' => $layers];
+        }
+
+        $layers[] = $retrylayer;
+        return ['allow' => true, 'layers' => array_values(array_unique($layers))];
     }
 
     /**
@@ -355,6 +522,52 @@ class queue_transition_service {
     private function normalize_reason_code(string $reasoncode): string {
         $value = trim($reasoncode);
         return $value !== '' ? $value : self::DEFAULT_REASON_CODE;
+    }
+
+    /**
+     * Resolve logical retry layer from transition reason code.
+     *
+     * @param string $reasoncode
+     * @return string
+     */
+    private function resolve_retry_layer_from_reason_code(string $reasoncode): string {
+        $normalized = strtoupper(trim($reasoncode));
+        if (str_starts_with($normalized, 'PREFLIGHT_')) {
+            return 'preflight';
+        }
+        if (str_starts_with($normalized, 'EXECUTION_')) {
+            return 'execution';
+        }
+        if (str_starts_with($normalized, 'QUEUE_')) {
+            return 'queue';
+        }
+        if (str_starts_with($normalized, 'LOOP_') || str_starts_with($normalized, 'PLANNER_')) {
+            return 'planner';
+        }
+
+        return 'runtime';
+    }
+
+    /**
+     * Normalize persisted retry layers to a unique non-empty list.
+     *
+     * @param mixed $layers
+     * @return array<int,string>
+     */
+    private function normalize_retry_layers($layers): array {
+        if (!is_array($layers)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($layers as $layer) {
+            $value = trim((string)$layer);
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     /**

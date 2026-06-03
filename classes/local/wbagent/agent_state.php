@@ -169,6 +169,21 @@ final class agent_state {
     }
 
     /**
+     * Append a framework-authored observation without recording a tool step.
+     *
+     * @param string $observation
+     * @return void
+     */
+    public function append_observation(string $observation): void {
+        $trimmed = trim($observation);
+        if ($trimmed === '') {
+            return;
+        }
+
+        $this->observations[] = $trimmed;
+    }
+
+    /**
      * Return all recorded step records (for debugging / testing).
      *
      * @return array<int,array>

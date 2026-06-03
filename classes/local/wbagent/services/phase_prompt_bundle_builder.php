@@ -301,9 +301,14 @@ PROMPT;
             $lines[] = 'Allowed response_type: task_call, clarification, confirm_pending, sufficient, error.';
             $lines[] = 'For task_call: commands must contain exactly one command object that selects exactly one task; '
                 . 'do not include full parameter payloads.';
+            $lines[] = 'Each element in commands[] must be a direct command object with task at top level. '
+                . 'Do not wrap commands in helper objects like current, next, action, command, or step.';
             $lines[] = 'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
             $lines[] = 'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.';
+            $lines[] = 'Valid example: {"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}]}';
+            $lines[] = 'Invalid example: {"response_type":"task_call","commands":['
+                . '{"current":{"task":"mod_booking.create_option"}}]}';
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {

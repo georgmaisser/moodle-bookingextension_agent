@@ -29,6 +29,7 @@ namespace bookingextension_agent\local\wbagent;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\finalization_classifier;
@@ -58,6 +59,15 @@ class agent_runtime {
         'error',
         'execution_result',
     ];
+
+    /** Planner contract issue codes eligible for one framework retry hint in the loop. */
+    private const LOOP_RETRYABLE_ISSUE_CODES = [
+        'CONTRACT_PARSE_ERROR',
+        'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED',
+    ];
+
+    /** Maximum number of loop-level framework retries per issue code. */
+    private const LOOP_MAX_RETRIES_PER_ISSUE = 1;
 
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
@@ -159,6 +169,7 @@ class agent_runtime {
         $cmid = $this->resolve_cmid_from_contextid($contextid);
         $limit = ($maxsteps > 0) ? $maxsteps : self::MAX_LOOP_STEPS;
         $state = agent_state::make($limit);
+        $frameworkretrycounts = [];
 
         for ($step = 0; $step < $limit; $step++) {
             $result = $this->run_internal($threadid, $cmid, $userid, $state->get_observations(), $state);
@@ -184,6 +195,44 @@ class agent_runtime {
                     return $this->finalize_and_persist_budget_exceeded($threadid, $result, $state, $limit);
                 }
                 continue;
+            }
+
+            $retryissuecode = $this->resolve_framework_retry_issue_code($result, $frameworkretrycounts);
+            if ($retryissuecode !== null) {
+                if ($this->has_active_non_planner_retry_signal($result)) {
+                    $result['issue_codes'] = array_values(array_unique(array_merge(
+                        (array)($result['issue_codes'] ?? []),
+                        ['PLANNER_RETRY_BLOCKED_LAYER_COLLISION']
+                    )));
+                    return $this->finalize_and_persist_result($threadid, $result, $state);
+                }
+
+                $frameworkretrycounts[$retryissuecode] = (int)($frameworkretrycounts[$retryissuecode] ?? 0) + 1;
+                $result['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    [
+                        'PLANNER_RETRY_DECISION',
+                        'RETRY_DECISION_LAYER_PLANNER',
+                        'RETRY_CATEGORY_TECHNICAL',
+                    ]
+                )));
+                $state->append_observation($this->build_framework_retry_observation($retryissuecode));
+
+                if (!$this->budget_guard_allows_next_llm_call($step, $limit)) {
+                    return $this->finalize_and_persist_budget_exceeded($threadid, $result, $state, $limit);
+                }
+                continue;
+            }
+
+            $exhaustedissuecode = $this->resolve_exhausted_framework_retry_issue_code($result, $frameworkretrycounts);
+            if ($exhaustedissuecode !== null) {
+                $result['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    [
+                        'LOOP_RETRY_EXHAUSTED',
+                        'LOOP_RETRY_EXHAUSTED_' . $exhaustedissuecode,
+                    ]
+                )));
             }
 
             return $this->finalize_and_persist_result($threadid, $result, $state);
@@ -371,6 +420,171 @@ class agent_runtime {
      */
     private function budget_guard_allows_next_llm_call(int $step, int $limit): bool {
         return ($step + 1) < $limit;
+    }
+
+    /**
+     * Resolve retry-eligible planner contract issue code for loop-level framework retry hints.
+     *
+     * @param array $result
+     * @param array<string,int> $retrycounts
+     * @return string|null
+     */
+    private function resolve_framework_retry_issue_code(array $result, array $retrycounts): ?string {
+        $responsetype = trim((string)($result['response_type'] ?? ''));
+        if ($responsetype !== 'error') {
+            return null;
+        }
+
+        if ($this->has_r3_retry_blocker($result)) {
+            return null;
+        }
+
+        $issuecodes = array_values(array_unique(array_filter(array_map(
+            static fn($issuecode): string => trim((string)$issuecode),
+            (array)($result['issue_codes'] ?? [])
+        ))));
+
+        foreach (self::LOOP_RETRYABLE_ISSUE_CODES as $issuecode) {
+            if (!in_array($issuecode, $issuecodes, true)) {
+                continue;
+            }
+
+            $attempts = (int)($retrycounts[$issuecode] ?? 0);
+            if ($attempts >= self::LOOP_MAX_RETRIES_PER_ISSUE) {
+                return null;
+            }
+
+            return $issuecode;
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve retryable planner contract issue code that already exhausted loop retry budget.
+     *
+     * @param array $result
+     * @param array<string,int> $retrycounts
+     * @return string|null
+     */
+    private function resolve_exhausted_framework_retry_issue_code(array $result, array $retrycounts): ?string {
+        $responsetype = trim((string)($result['response_type'] ?? ''));
+        if ($responsetype !== 'error') {
+            return null;
+        }
+
+        if ($this->has_r3_retry_blocker($result)) {
+            return null;
+        }
+
+        $issuecodes = array_values(array_unique(array_filter(array_map(
+            static fn($issuecode): string => trim((string)$issuecode),
+            (array)($result['issue_codes'] ?? [])
+        ))));
+
+        foreach (self::LOOP_RETRYABLE_ISSUE_CODES as $issuecode) {
+            if (!in_array($issuecode, $issuecodes, true)) {
+                continue;
+            }
+
+            $attempts = (int)($retrycounts[$issuecode] ?? 0);
+            if ($attempts >= self::LOOP_MAX_RETRIES_PER_ISSUE) {
+                return $issuecode;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Determine whether loop-level planner retries must be blocked by R3 guardrails.
+     *
+     * @param array $result
+     * @return bool
+     */
+    private function has_r3_retry_blocker(array $result): bool {
+        $issuecodes = array_values(array_unique(array_filter(array_map(
+            static fn($issuecode): string => trim((string)$issuecode),
+            (array)($result['issue_codes'] ?? [])
+        ))));
+        if (in_array('R3_NO_RETRY', $issuecodes, true)) {
+            return true;
+        }
+
+        $riskclass = trim((string)($result['risk_class'] ?? ''));
+        if ($riskclass === task_risk_class::R3) {
+            return true;
+        }
+
+        $queueriskclasses = (array)($result['queue_risk_classes'] ?? []);
+        foreach ($queueriskclasses as $queueriskclass) {
+            if (trim((string)$queueriskclass) === task_risk_class::R3) {
+                return true;
+            }
+        }
+
+        $commands = (array)($result['commands'] ?? []);
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+            if (trim((string)($command['risk_class'] ?? '')) === task_risk_class::R3) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check for active non-planner retry paths to avoid cross-layer retry collisions.
+     *
+     * @param array $result
+     * @return bool
+     */
+    private function has_active_non_planner_retry_signal(array $result): bool {
+        $issuecodes = array_values(array_unique(array_filter(array_map(
+            static fn($issuecode): string => trim((string)$issuecode),
+            (array)($result['issue_codes'] ?? [])
+        ))));
+
+        $signals = [
+            'RETRY_WAITING',
+            'PREFLIGHT_RETRY_HINT',
+            'EXECUTION_RETRY_HINT',
+            'EXECUTION_EXCEPTION_RETRY_HINT',
+            'RETRY_LAYER_LIMIT_EXCEEDED',
+            'RETRY_LAYER_COLLISION',
+        ];
+        foreach ($signals as $signal) {
+            if (in_array($signal, $issuecodes, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Build framework-authored retry observation for the next planner loop step.
+     *
+     * @param string $issuecode
+     * @return string
+     */
+    private function build_framework_retry_observation(string $issuecode): string {
+        if ($issuecode === 'CONTRACT_PARSE_ERROR') {
+            return 'RETRY_HINT: The previous parameter_construction output was not valid JSON. '
+                . 'Retry once and return exactly one valid JSON object only. '
+                . 'Do not use markdown fences. Escape inner double quotes inside string values.';
+        }
+
+        if ($issuecode === 'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED') {
+            return 'RETRY_HINT: Selection must emit exactly one direct command object in commands[]. '
+                . 'Do not wrap task inside helper keys like current/next/action. '
+                . 'Use canonical selector shape only, for example commands=[{"task":"<task>","input":{}}].';
+        }
+
+        return 'RETRY_HINT: Previous planner output violated the contract. Retry once with strict JSON contract compliance.';
     }
 
     /**
