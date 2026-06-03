@@ -56,7 +56,23 @@ Definition of Done:
 - Kritische Regressionen blockieren den Rollout automatisch.
 - Team kann Trends ueber mehrere Wochen nachvollziehen und erklaeren.
 
-### WS3: Preview API und UI (P0)
+### WS3: Bild-Input und visuelle Verarbeitung (P0)
+Ziel: Nutzer koennen Bilder direkt in den Agent-Chat droppen; der Agent verarbeitet den visuellen Inhalt und leitet daraus strukturierte Aktionen ab.
+
+Deliverables:
+- Drag-and-Drop- und Paste-Unterstuetzung fuer Bilder im Chat-UI (JPEG, PNG, WebP; konfigurierbare Groessengrenzen).
+- Upload-Handler: Bild wird als temporaere Moodle-Datei abgelegt und als Attachment an den Thread gehaengt.
+- Multimodaler LLM-Aufruf: Attachment-URL wird zusammen mit der Nutzernachricht an den Planner weitergegeben (vision-faehige Aktion via ai_manager).
+- Extraktion strukturierter Felder aus Bild-Inhalt (z. B. Tabellen, Formulare, Screenshots von Buchungsdaten) und Uebergabe als observierter Kontext an nachfolgende Tasks.
+- Klar definierte Fallbacks: Falls kein vision-faehiges Modell konfiguriert ist, wird dem Nutzer eine verstaendliche Fehlermeldung gezeigt, kein stiller Fehler.
+- Sicherheitskontrollen: MIME-Validierung, Groessenlimit, keine Persistenz ueber Session hinaus ohne explizite Nutzeraktion.
+
+Definition of Done:
+- Bilder koennen in einen aktiven Chat-Thread gedroppt und an den Planner uebergeben werden.
+- Extrahierte Daten aus Bildern werden als Kontext in nachfolgende Task-Parameter einspeist.
+- Contract-Test sichert Attachment-Handling und Fallback bei fehlendem Vision-Modell ab.
+
+### WS4: Preview API und UI (P0, ehem. WS3)
 Ziel: Jede mutierende Aktion kann vor Ausfuehrung als belastbare Vorschau dargestellt werden.
 
 Deliverables:
@@ -68,7 +84,7 @@ Definition of Done:
 - Preview fuer alle High-Impact Tasks verfuegbar.
 - Contract-Tests decken Preview-Konsistenz ab.
 
-### WS4: Agent im Kontext der Navigation (P1)
+### WS5: Agent im Kontext der Navigation (P1, ehem. WS4)
 Ziel: Der Agent wird kontextbewusst im UI verankert (Kurs, Option, Rolle, Filter).
 
 Deliverables:
@@ -79,7 +95,7 @@ Deliverables:
 Definition of Done:
 - Kontextsensitive Vorschlaege reduzieren Freitext-Fehleingaenge messbar.
 
-### WS5: Real Simulation Mode (P1)
+### WS6: Real Simulation Mode (P1, ehem. WS5)
 Ziel: Trockenlauf fuer mutierende Operationen mit entsorgbarem Ergebnisraum.
 
 Deliverables:
@@ -118,17 +134,19 @@ Definition of Done:
 ### Phase 1 (0-6 Wochen)
 - WS1 Risk-Class Framework (MVP, durchgaengig verdrahtet)
 - WS2 Benchmarking (MVP: Metrik-Schema + erster Runner + Baseline-Report)
-- WS3 Preview API (MVP fuer Kern-Tasks)
+- WS3 Bild-Input (MVP: Upload + multimodaler Planner-Aufruf)
+- WS4 Preview API (MVP fuer Kern-Tasks)
 
 ### Phase 2 (6-12 Wochen)
 - WS2 Benchmark-Reporting + CI-Gates fuer kritische Regressionen
-- WS3 Preview UI vervollstaendigen
-- WS4 Kontextintegration in Navigation
-- Start WS5 Simulation Mode (technischer Prototyp)
+- WS3 Bild-Extraktion und Kontext-Einspeisung vervollstaendigen
+- WS4 Preview UI vervollstaendigen
+- WS5 Kontextintegration in Navigation
+- Start WS6 Simulation Mode (technischer Prototyp)
 
 ### Phase 3 (12-20 Wochen)
 - Benchmark-Trendanalyse und automatische Drift-Erkennung
-- WS5 produktionsreif machen
+- WS6 produktionsreif machen
 - Observability/Audit Trail
 - Safety Policy Packs und Eval Harness
 
