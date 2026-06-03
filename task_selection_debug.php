@@ -29,9 +29,20 @@ require_once($CFG->libdir . '/adminlib.php');
 
 use bookingextension_agent\local\wbagent\services\debug\task_selection_debug_service;
 
-admin_externalpage_setup('bookingextension_agent_taskselectiondebug');
-
 $context = context_system::instance();
+
+try {
+    admin_externalpage_setup('bookingextension_agent_taskselectiondebug');
+} catch (\core\exception\moodle_exception $e) {
+    // In some environments the external page node may not be present yet
+    // (e.g. stale admin tree cache). Keep the page accessible in admin layout.
+    if ($e->errorcode !== 'sectionerror') {
+        throw $e;
+    }
+    require_login();
+    $PAGE->set_pagelayout('admin');
+}
+
 require_capability('bookingextension/agent:debugtaskselection', $context);
 
 $action = optional_param('action', '', PARAM_ALPHA);
