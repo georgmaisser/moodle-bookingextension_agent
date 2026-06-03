@@ -17,7 +17,7 @@
 /**
  * Application service for entity mutations with deduplication.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -35,7 +35,7 @@ use bookingextension_agent\local\wbagent\dto\mutation_result_dto;
  * Dedup is enforced before any write attempt, preventing duplicate entity records
  * even when the same request is replayed without an idempotency key.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

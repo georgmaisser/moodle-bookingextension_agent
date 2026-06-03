@@ -78,7 +78,7 @@ async def _verify_origin(wwwroot: str, nonce: str) -> bool:
     from the declared domain.
     """
     return True  # -- DISABLED FOR TESTING --
-    challenge_url = f"{wwwroot.rstrip('/')}/mod/booking/trial_challenge.php"
+    challenge_url = f"{wwwroot.rstrip('/')}/mod/booking/bookingextension/agent/trial_challenge.php"
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             resp = await client.get(challenge_url, params={"token": nonce})
@@ -162,7 +162,7 @@ async def _create_trial_key(site_id: str, wwwroot: str) -> str:
 @router.post("/moodle-trial", response_model=TrialResponse)
 async def request_moodle_trial(body: TrialRequest) -> TrialResponse:
     """
-    Entry point called by the Moodle mod_booking plugin when an admin clicks
+    Entry point called by the Moodle bookingextension_agent plugin when an admin clicks
     "Start my free trial".
 
     Steps

@@ -16,26 +16,24 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
-use bookingextension_agent\local\wbagent\booking\tasks\add_price_category_task;
-use bookingextension_agent\local\wbagent\booking\tasks\bulk_update_options_task;
-use bookingextension_agent\local\wbagent\booking\tasks\create_option_task;
-use bookingextension_agent\local\wbagent\booking\tasks\list_option_properties_task;
-use bookingextension_agent\local\wbagent\booking\tasks\search_options_task;
-use bookingextension_agent\local\wbagent\booking\tasks\update_option_task;
+use context_module;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\task_contract_validator;
+use bookingextension_agent\local\wbagent\task_executability_evaluator;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 
 /**
- * Task definition for booking.list_actions.
+ * Task definition for core.list_actions.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class list_actions_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class list_actions_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.list_actions';
+    public const TASK_NAME = 'core.list_actions';
 
     /**
      * Constructor.
@@ -63,8 +61,8 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
             'version' => 1,
             'description' => 'List the AI agent capabilities and task names that this booking agent supports.'
                 . ' Use this ONLY when the user asks what the agent CAN DO or which agent tasks/commands exist.'
-                . ' Do NOT use for listing bookable options or courses — use booking.search_options for that.',
-            'readonly' => $this->is_read_only(),
+                . ' Do NOT use for regular entity listing requests; use the appropriate search/list task instead.',
+            'readonly' => true,
             'properties' => [
                 'question' => [
                     'type' => 'string',
@@ -86,6 +84,18 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
     }
 
     /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'scope' => 'all',
+            'question' => 'Was kannst du?',
+        ];
+    }
+
+    /**
      * Return task-specific message triggers.
      *
      * @return array<int,array<string,mixed>>
@@ -93,35 +103,37 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.list_actions_request',
+                'id' => 'core.list_actions_request',
                 'description' => 'User asks which actions/tasks the booking agent can perform.',
             ],
             [
-                'id' => 'booking.list_actions_scope_filter',
+                'id' => 'core.list_actions_scope_filter',
                 'description' => 'User asks for only readonly or only mutating actions.',
             ],
         ];
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
+        $issuecodes = [];
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $allowed = ['all', 'readonly', 'mutating'];
         if (!in_array($scope, $allowed, true)) {
             $errors[] = get_string('agent_booking_list_actions_scope_invalid', 'bookingextension_agent');
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
 
         return [
             'valid' => empty($errors),
             'errors' => $errors,
             'ambiguities' => [],
+            'issue_codes' => array_values(array_unique($issuecodes)),
         ];
     }
 
@@ -140,9 +152,9 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
                     'welche felder', 'welche aktionen', 'was kannst du',
                 ],
                 'guidance' => [
-                    '- If user asks which booking option properties can be created/updated, use booking.list_option_properties.',
-                    '- If user asks which actions/tasks are supported, use booking.list_actions.',
-                    '- Do not map these capability/introspection questions to booking.search_options.',
+                    '- If user asks which actions/tasks are supported, use this introspection task.',
+                    '- If user asks for concrete entities (users, courses, options, etc.), route to a dedicated search/list task.',
+                    '- Keep introspection questions separate from entity lookup questions.',
                 ],
             ],
         ];
@@ -152,46 +164,67 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
         $question = trim((string)($input['question'] ?? ''));
-        $outputlang = $this->get_output_language($input);
+        $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
         $actions = [];
-        $selectedtasknames = [];
+        $unavailableactions = [];
         $registry = task_registry_factory::get_default();
-        foreach ($registry->get_task_names() as $name) {
-            if ($scope === 'readonly' && !$registry->is_read_only_task($name)) {
-                continue;
-            }
-            if ($scope === 'mutating' && $registry->is_read_only_task($name)) {
-                continue;
-            }
-
+        $evaluator = new task_executability_evaluator($registry, new authorization_service());
+        foreach ($registry->get_task_names_for_context($evaluator, $userid, $contextid, true) as $name) {
             $task = $registry->get_task($name);
             if (!$task) {
                 continue;
             }
 
             $schema = $task->get_schema();
-            $selectedtasknames[] = $name;
-            $actions[] = [
+            $evaluation = $evaluator->evaluate_task($name, $userid, $contextid);
+            $isallowed = (string)($evaluation['executable_state'] ?? '') === 'allow';
+
+            if ($isallowed) {
+                if ($scope === 'readonly' && !$registry->is_read_only_task($name)) {
+                    continue;
+                }
+                if ($scope === 'mutating' && $registry->is_read_only_task($name)) {
+                    continue;
+                }
+
+                $actions[] = [
+                    'task' => $name,
+                    'label' => $name,
+                    'description' => (string)($schema['description'] ?? ''),
+                    'readonly' => $task->is_read_only(),
+                    'provider' => (string)($registry->get_task_contract($name)['component'] ?? 'unknown'),
+                ];
+                continue;
+            }
+
+            if ($scope !== 'all' && $scope !== 'readonly' && $scope !== 'mutating') {
+                continue;
+            }
+
+            $unavailableactions[] = [
                 'task' => $name,
-                'label' => booking_task_support::get_localized_action_label_for_output($name),
+                'label' => $name,
                 'description' => (string)($schema['description'] ?? ''),
                 'readonly' => $task->is_read_only(),
+                'provider' => (string)($registry->get_task_contract($name)['component'] ?? 'unknown'),
+                'deny_reason' => (string)($evaluation['deny_reason'] ?? ''),
+                'deny_reason_label' => $this->describe_deny_reason((string)($evaluation['deny_reason'] ?? '')),
+                'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
             ];
         }
 
-        $available = array_fill_keys($selectedtasknames, true);
-        $capabilities = $this->build_user_capabilities($available);
+        $capabilities = $this->build_user_capabilities($actions);
 
-        $summary = $this->build_user_summary($scope, $capabilities);
+        $summary = $this->build_user_summary($scope, $capabilities, $unavailableactions);
 
-        $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities);
+        $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities, $unavailableactions);
 
         // ...Observation_full: vollständige, ungekürzte Liste aller Tasks mit Beschreibungen.
         $observation = $this->build_observation_full($actions, $outputlang);
@@ -203,6 +236,7 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
             'debugmessage' => $debugmessage,
             'capabilities' => $capabilities,
             'actions' => $actions,
+            'unavailable_actions' => $unavailableactions,
             'observation_full' => $observation,
         ];
     }
@@ -261,16 +295,20 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Build a technical debug summary for developers.
      *
      * @param string $scope
-     * @param array $actions
-     * @param array $capabilities
      * @return string
      */
-    private function build_debug_summary(string $scope, array $actions, array $capabilities): string {
+    private function build_debug_summary(
+        string $scope,
+        array $actions,
+        array $capabilities,
+        array $unavailableactions = []
+    ): string {
         $lines = [
             'Task: ' . self::TASK_NAME,
             'Scope: ' . $scope,
             'Returned actions: ' . count($actions),
-            'Derived capabilities: ' . count($capabilities),
+            'Provider groups: ' . count($capabilities),
+            'Unavailable actions: ' . count($unavailableactions),
         ];
         return implode("\n", $lines);
     }
@@ -279,109 +317,198 @@ class list_actions_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Build a user-facing summary sentence for the selected scope.
      *
      * @param string $scope
-     * @param array $capabilities
+     * @param array<int,array<string,mixed>> $capabilities
+     * @param array<int,array<string,mixed>> $unavailableactions
      * @return string
      */
-    private function build_user_summary(string $scope, array $capabilities): string {
-        $intro = '';
-
+    private function build_user_summary(string $scope, array $capabilities, array $unavailableactions = []): string {
         if (empty($capabilities)) {
-            return get_string('ai_list_actions_summary_none', 'bookingextension_agent');
-        }
-
-        if ($scope === 'readonly') {
-            $intro = get_string('ai_list_actions_summary_readonly', 'bookingextension_agent');
+            $summary = get_string('ai_list_actions_summary_none', 'bookingextension_agent');
+        } else if ($scope === 'readonly') {
+            $summary = get_string('ai_list_actions_summary_readonly', 'bookingextension_agent');
         } else if ($scope === 'mutating') {
-            $intro = get_string('ai_list_actions_summary_mutating', 'bookingextension_agent');
+            $summary = get_string('ai_list_actions_summary_mutating', 'bookingextension_agent');
         } else {
-            $intro = get_string('ai_list_actions_summary_all', 'bookingextension_agent');
+            $summary = get_string('ai_list_actions_summary_all', 'bookingextension_agent');
         }
 
-        $lines = array_map(static function (array $capability): string {
-            $title = trim((string)($capability['title'] ?? ''));
-            $description = trim((string)($capability['description'] ?? ''));
-
-            if ($title !== '' && $description !== '') {
-                return '- ' . $title . ': ' . $description;
+        $lines = [$summary];
+        foreach ($capabilities as $providerblock) {
+            $provider = trim((string)($providerblock['provider'] ?? 'unknown'));
+            $groups = (array)($providerblock['groups'] ?? []);
+            if ($provider === '') {
+                $provider = 'unknown';
             }
 
-            if ($title !== '') {
-                return '- ' . $title;
+            $lines[] = $provider . ':';
+            foreach (['readonly', 'write'] as $accesslevel) {
+                if (!isset($groups[$accesslevel])) {
+                    continue;
+                }
+
+                $lines[] = '  ' . $accesslevel . ':';
+                foreach ((array)$groups[$accesslevel] as $capability) {
+                    $tasklabel = trim((string)($capability['label'] ?? ''));
+                    $description = trim((string)($capability['description'] ?? ''));
+                    $taskname = trim((string)($capability['task'] ?? ''));
+
+                    $line = '    - ';
+                    if ($tasklabel !== '') {
+                        $line .= $tasklabel;
+                    } else if ($taskname !== '') {
+                        $line .= $taskname;
+                    } else {
+                        $line .= get_string('ai_list_actions_summary_none', 'bookingextension_agent');
+                    }
+
+                    if ($description !== '') {
+                        $line .= ': ' . $description;
+                    }
+
+                    $lines[] = $line;
+                }
             }
-
-            if ($description !== '') {
-                return '- ' . $description;
-            }
-
-            return '';
-        }, $capabilities);
-
-        $lines = array_values(array_filter($lines, static fn(string $line): bool => $line !== ''));
-        if (empty($lines)) {
-            return $intro;
         }
 
-        return $intro . "\n" . implode("\n", $lines);
+        if (!empty($unavailableactions)) {
+            $lines[] = '';
+            $lines[] = get_string('ai_list_actions_summary_unavailable_heading', 'bookingextension_agent');
+            foreach ($unavailableactions as $action) {
+                $taskname = trim((string)($action['task'] ?? ''));
+                $reason = trim((string)($action['deny_reason_label'] ?? ''));
+                $reasoncode = trim((string)($action['deny_reason'] ?? ''));
+                $detail = $this->build_unavailable_action_detail((array)$action);
+                $line = '  - ' . ($taskname !== '' ? $taskname : 'unknown task');
+                if ($reason !== '') {
+                    $line .= ': ' . $reason;
+                } else if ($reasoncode !== '') {
+                    $line .= ': ' . $reasoncode;
+                }
+                if ($detail !== '') {
+                    $line .= ' (' . $detail . ')';
+                }
+                $lines[] = $line;
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
-     * Build user-friendly capability blocks from the currently selected task set.
+     * Return a short human-readable description for a deny reason.
      *
-     * @param array $available
-     * @return array<int,array<string,string>>
+     * @param string $reason
+     * @return string
      */
-    private function build_user_capabilities(array $available): array {
-        $capabilities = [];
+    private function describe_deny_reason(string $reason): string {
+        return match ($reason) {
+            task_contract_validator::DENY_RUNTIME_DISABLED => get_string(
+                'ai_list_actions_unavailable_runtime_disabled',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_INACTIVE => get_string(
+                'ai_list_actions_unavailable_inactive',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_MISSING_CAPABILITY => get_string(
+                'ai_list_actions_unavailable_missing_capability',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_CONTEXT_INVALID => get_string(
+                'ai_list_actions_unavailable_context_invalid',
+                'bookingextension_agent'
+            ),
+            task_contract_validator::DENY_TASK_VERSION_UNSUPPORTED => get_string(
+                'ai_list_actions_unavailable_version_unsupported',
+                'bookingextension_agent'
+            ),
+            default => get_string('ai_list_actions_unavailable_unknown', 'bookingextension_agent'),
+        };
+    }
 
-        if (
-            isset($available[create_option_task::TASK_NAME])
-            || isset($available[update_option_task::TASK_NAME])
-            || isset($available[bulk_update_options_task::TASK_NAME])
-        ) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_manage_options_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_manage_options_desc', 'bookingextension_agent'),
+    /**
+     * Build a compact technical detail string for an unavailable action.
+     *
+     * @param array<string,mixed> $action
+     * @return string
+     */
+    private function build_unavailable_action_detail(array $action): string {
+        $diagnostics = (array)($action['diagnostics'] ?? []);
+        $details = [];
+
+        $requiredcapabilities = array_values(array_filter(array_map(
+            'strval',
+            (array)($diagnostics['required_capabilities'] ?? [])
+        )));
+        if (!empty($requiredcapabilities)) {
+            $details[] = 'required=' . implode(', ', $requiredcapabilities);
+        }
+
+        if (array_key_exists('active', $diagnostics) && $diagnostics['active'] === false) {
+            $details[] = 'platform disabled';
+        }
+
+        if (array_key_exists('contextid', $diagnostics)) {
+            $details[] = 'contextid=' . (string)$diagnostics['contextid'];
+        }
+
+        return implode('; ', $details);
+    }
+
+    /**
+     * Build user-friendly capability blocks grouped by provider and read/write state.
+     *
+     * @param array<int,array<string,mixed>> $actions
+     * @return array<int,array<string,mixed>>
+     */
+    private function build_user_capabilities(array $actions): array {
+        $grouped = [];
+
+        foreach ($actions as $action) {
+            $provider = trim((string)($action['provider'] ?? 'unknown'));
+            if ($provider === '') {
+                $provider = 'unknown';
+            }
+
+            $readonly = !empty($action['readonly']) ? 'readonly' : 'write';
+            if (!isset($grouped[$provider])) {
+                $grouped[$provider] = [
+                    'provider' => $provider,
+                    'groups' => [
+                        'readonly' => [],
+                        'write' => [],
+                    ],
+                ];
+            }
+
+            $grouped[$provider]['groups'][$readonly][] = [
+                'task' => (string)($action['task'] ?? ''),
+                'label' => (string)($action['label'] ?? ''),
+                'description' => (string)($action['description'] ?? ''),
             ];
         }
 
-        if (isset($available[search_options_task::TASK_NAME])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_search_options_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_search_options_desc', 'bookingextension_agent'),
-            ];
-        }
+        ksort($grouped);
+        foreach ($grouped as &$providerblock) {
+            foreach (['readonly', 'write'] as $accesslevel) {
+                usort(
+                    $providerblock['groups'][$accesslevel],
+                    static function (array $left, array $right): int {
+                        $leftlabel = trim((string)($left['label'] ?? ''));
+                        $rightlabel = trim((string)($right['label'] ?? ''));
+                        $lefttask = trim((string)($left['task'] ?? ''));
+                        $righttask = trim((string)($right['task'] ?? ''));
 
-        if (isset($available[search_users_task::TASK_NAME]) || isset($available[search_courses_task::TASK_NAME])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_search_people_courses_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_search_people_courses_desc', 'bookingextension_agent'),
-            ];
-        }
+                        $leftkey = $leftlabel !== '' ? $leftlabel : $lefttask;
+                        $rightkey = $rightlabel !== '' ? $rightlabel : $righttask;
 
-        if (
-            isset($available[list_option_properties_task::TASK_NAME])
-            || isset($available[self::TASK_NAME])
-        ) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_explain_setup_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_explain_setup_desc', 'bookingextension_agent'),
-            ];
+                        return strcmp($leftkey, $rightkey);
+                    }
+                );
+            }
         }
+        unset($providerblock);
 
-        if (isset($available[add_price_category_task::TASK_NAME])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_pricing_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_pricing_desc', 'bookingextension_agent'),
-            ];
-        }
-
-        if (isset($available[get_current_user_task::TASK_NAME])) {
-            $capabilities[] = [
-                'title' => get_string('ai_capability_user_context_title', 'bookingextension_agent'),
-                'description' => get_string('ai_capability_user_context_desc', 'bookingextension_agent'),
-            ];
-        }
-
-        return $capabilities;
+        return array_values($grouped);
     }
 }

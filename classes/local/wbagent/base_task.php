@@ -17,21 +17,21 @@
 namespace bookingextension_agent\local\wbagent;
 
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 
 /**
  * Base class for AI tasks.
  *
- * Provides default (pass-through) implementations of the two new preflight
- * phases so that tasks that have not yet been migrated continue to work via
- * the legacy validate() path.
+ * Provides default pass-through implementations for structural and preflight
+ * validation without legacy validate() shims.
  *
  * Migration path for subclasses:
  *  1. Override check_structure() for pure structural checks.
  *  2. Override preflight()       for DB-dependent deep validation.
  *  3. Override execute()         to use $preparedinput from preflight().
- *  4. Remove (or keep as a no-op) the old validate() override.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -70,6 +70,32 @@ abstract class base_task implements task_interface {
     }
 
     /**
+     * Default explicit prompt-contract derived from task schema.
+     *
+     * @return task_prompt_contract
+     */
+    public function get_prompt_contract(): task_prompt_contract {
+        $schema = (array)$this->get_schema();
+        $promptmeta = (array)($schema['prompt_meta'] ?? []);
+        $taskname = trim($this->get_name());
+        $namespace = '';
+        if ($taskname !== '' && strpos($taskname, '.') !== false) {
+            $namespace = (string)substr($taskname, 0, (int)strpos($taskname, '.'));
+        }
+
+        return new task_prompt_contract([
+            'intent' => trim((string)($promptmeta['intent'] ?? '')),
+            'anchors' => array_values(array_filter((array)($promptmeta['anchor_fields'] ?? []), 'is_string')),
+            'minimal_input' => array_values(array_filter((array)($promptmeta['input_fields_for_prompt'] ?? []), 'is_string')),
+            'example_input' => $this->get_example_input(),
+            'namespace' => $namespace,
+            'version' => max(1, (int)($schema['version'] ?? 1)),
+            'capabilities' => array_values(array_filter((array)($promptmeta['capabilities'] ?? []), 'is_string')),
+            'context_scopes' => array_values(array_filter((array)($promptmeta['context_scopes'] ?? ['module']), 'is_string')),
+        ]);
+    }
+
+    /**
      * Default structural validation — always passes.
      *
      * Override in concrete tasks to check required fields without DB access.
@@ -82,81 +108,35 @@ abstract class base_task implements task_interface {
     }
 
     /**
-     * Default preflight — delegates to the legacy validate() so unmigrated
-     * tasks continue to work transparently.
-     *
-     * Once a task overrides both check_structure() and preflight() the legacy
-     * validate() becomes a no-op and may be removed.
+     * Default deep preflight keeps input unchanged after structure checks pass.
      *
      * @param  array $input
-     * @param  int   $cmid
-     * @param  int   $userid  (unused by default; available for overrides)
-     * @return task_preflight_result
+     * @param  int   $contextid
+     * @param  int   $userid
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result {
-        $validation = $this->validate($input, $cmid);
-        if (!($validation['valid'] ?? true)) {
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? true)) {
             $issues = [];
-            foreach ((array)($validation['errors'] ?? []) as $error) {
+            foreach (array_merge((array)($structure['errors'] ?? []), (array)($structure['ambiguities'] ?? [])) as $error) {
                 $issues[] = [
-                    'code'     => 'VALIDATION_ERROR',
+                    'code' => 'VALIDATION_ERROR',
                     'severity' => 'needs_clarification',
-                    'message'  => (string)$error,
+                    'message' => (string)$error,
                 ];
             }
-            foreach ((array)($validation['ambiguities'] ?? []) as $ambiguity) {
-                $issues[] = [
-                    'code'     => 'AMBIGUITY',
-                    'severity' => 'needs_clarification',
-                    'message'  => (string)$ambiguity,
-                ];
-            }
-            // Merge legacy structured issues when present.
-            foreach ((array)($validation['issues'] ?? []) as $issue) {
-                if (is_array($issue)) {
-                    $issues[] = $issue;
-                }
-            }
-            return task_preflight_result::invalid($issues);
+            return preflight_result_v2::invalid($issues);
         }
 
-        // Legacy validation passed — return prepared_input == input (no enrichment).
-        $legacyissues = [];
-        foreach ((array)($validation['issues'] ?? []) as $issue) {
-            if (is_array($issue)) {
-                $legacyissues[] = $issue;
-            }
+        $confirmableissues = array_values(array_filter(
+            (array)($structure['issues'] ?? []),
+            static fn($issue): bool => is_array($issue) && (string)($issue['severity'] ?? '') === 'needs_confirmation'
+        ));
+        if (!empty($confirmableissues)) {
+            return preflight_result_v2::confirmable($input, $confirmableissues);
         }
 
-        $confirmable = array_filter(
-            $legacyissues,
-            static fn(array $i): bool => ($i['severity'] ?? '') === 'needs_confirmation'
-        );
-        if (!empty($confirmable)) {
-            return task_preflight_result::confirmable($input, array_values($legacyissues));
-        }
-
-        return task_preflight_result::ok($input);
-    }
-
-    /**
-     * Legacy combined validation.
-     *
-     * This method is no longer part of task_interface but is kept here as a
-     * concrete default so that existing tasks that have not yet been migrated
-     * to check_structure() + preflight() continue to work.  It is also called
-     * by base_task::preflight() as a compatibility shim.
-     *
-     * New tasks MUST NOT override this method — implement check_structure() and
-     * preflight() instead.
-     *
-     * @param  array $input
-     * @param  int   $cmid
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>,
-     *     issues?:array<int,array<string,mixed>>}
-     * @deprecated since 2026 — implement check_structure() + preflight() instead.
-     */
-    public function validate(array $input, int $cmid): array {
-        return ['valid' => true, 'errors' => [], 'ambiguities' => []];
+        return preflight_result_v2::ok($input);
     }
 }

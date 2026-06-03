@@ -17,25 +17,28 @@
 /**
  * Shared base test case for AI agent tests.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace mod_booking;
+namespace bookingextionsion_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
+use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\authorization_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\task_registry;
 use mod_booking\singleton_service;
 use stdClass;
@@ -47,7 +50,7 @@ use stdClass;
  * the executor directly (without a real LLM) so that Prompt→Result tests are
  * fully deterministic.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @category   test
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -59,10 +62,10 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     /** @var stdClass Booking module record (has ->cmid, ->id as bookingid). */
     protected stdClass $booking;
 
-    /** @var stdClass Teacher user with mod/booking:useaiinstructions capability. */
+    /** @var stdClass Teacher user with bookingextension/agent:useaiinstructions capability. */
     protected stdClass $teacher;
 
-    /** @var stdClass Student user without mod/booking:useaiinstructions capability. */
+    /** @var stdClass Student user without bookingextension/agent:useaiinstructions capability. */
     protected stdClass $student;
 
     /** @var \mod_booking_generator */
@@ -97,7 +100,11 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         parent::setUp();
         $this->resetAfterTest();
 
-        $this->course  = $this->getDataGenerator()->create_course();
+        $coursekey = substr(sha1(uniqid('booking_agent_', true)), 0, 12);
+        $this->course  = $this->getDataGenerator()->create_course([
+            'shortname' => 'tc_' . $coursekey,
+            'fullname' => 'Test Course ' . $coursekey,
+        ]);
         $this->booking = $this->getDataGenerator()->create_module('booking', [
             'course'          => $this->course->id,
             'name'            => 'Agent Test Booking',
@@ -111,13 +118,68 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $this->getDataGenerator()->enrol_user($this->teacher->id, $this->course->id, 'editingteacher');
         $this->getDataGenerator()->enrol_user($this->student->id, $this->course->id, 'student');
 
+        $this->grant_agent_capabilities_to_editingteacher();
+
         global $PAGE;
         $PAGE->set_url('/mod/booking/view.php', ['id' => (int)$this->booking->cmid]);
 
+        $this->preventResetByRollback();
+
         $this->gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
+
+        // Test baseline: keep governance task gates open unless a test overrides it explicitly.
+        set_config('aitaskenableall', 1, 'bookingextension_agent');
 
         $this->maybe_register_live_ai_provider();
         $this->maybe_load_embeddings_fixture();
+    }
+
+    /**
+     * Ensure editingteacher can run all bookingextension/agent test tasks in this module context.
+     *
+     * @return void
+     */
+    protected function grant_agent_capabilities_to_editingteacher(): void {
+        $roles = get_archetype_roles('editingteacher');
+        if (empty($roles)) {
+            return;
+        }
+
+        $role = reset($roles);
+        $roleid = (int)$role->id;
+        $systemcontext = \context_system::instance();
+        $modulecontext = \context_module::instance((int)$this->booking->cmid);
+
+        if (function_exists('update_capabilities')) {
+            update_capabilities('bookingextension_agent');
+            update_capabilities('mod_booking');
+        }
+
+        $agentcapabilities = [];
+        require(__DIR__ . '/../../db/access.php');
+
+        $modbookingcapabilities = [];
+        require(__DIR__ . '/../../../../db/access.php');
+
+        foreach (array_keys($agentcapabilities) as $capability) {
+            if (!str_starts_with((string)$capability, 'bookingextension/agent:')) {
+                continue;
+            }
+            assign_capability((string)$capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
+        }
+
+        foreach (array_keys($modbookingcapabilities) as $capability) {
+            $capability = (string)$capability;
+            if (!str_starts_with($capability, 'mod/booking:task_mod_booking_')) {
+                continue;
+            }
+            assign_capability($capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
+        }
+
+        role_assign($roleid, (int)$this->teacher->id, (int)$modulecontext->id);
+
+        accesslib_clear_all_caches(true);
+        accesslib_reset_role_cache();
     }
 
     // -------------------------------------------------------------------------
@@ -158,12 +220,125 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
             $minimodel = $model;
         }
 
-        $endpoint = rtrim($endpoint, '/');
-        if (!preg_match('#/chat/completions$#', $endpoint)) {
-            $endpoint .= '/chat/completions';
+        $chatendpoint = $this->normalize_chat_endpoint($endpoint);
+        $embeddingendpoint = $this->chat_endpoint_to_embeddings_endpoint($chatendpoint);
+
+        if (class_exists('\\aiprovider_wunderbyte\\provider')) {
+            $this->register_live_wunderbyte_provider(
+                $apikey,
+                $model,
+                $minimodel,
+                $embeddingmodel,
+                $chatendpoint,
+                $embeddingendpoint
+            );
+        } else {
+            $this->register_live_openai_provider($apikey, $model, $minimodel, $chatendpoint);
         }
 
+        // Keep embeddings tests stable: enforce a dedicated embeddings model on
+        // existing wunderbyte provider instances when present in the test DB.
+        // Chat models like minimax-m2.7 cannot be used for /v1/embeddings.
+        if ($embeddingmodel !== '') {
+            $this->configure_wunderbyte_embeddings_model($embeddingmodel);
+        }
+
+        $this->hasliveprovider = true;
+    }
+
+    /**
+     * Register and enable a live Wunderbyte provider for agent tests.
+     *
+     * @param string $apikey
+     * @param string $model
+     * @param string $minimodel
+     * @param string $embeddingmodel
+     * @param string $chatendpoint
+     * @param string $embeddingendpoint
+     * @return void
+     */
+    protected function register_live_wunderbyte_provider(
+        string $apikey,
+        string $model,
+        string $minimodel,
+        string $embeddingmodel,
+        string $chatendpoint,
+        string $embeddingendpoint
+    ): void {
         $manager = \core\di::get(\core_ai\manager::class);
+        $actionconfig = [
+            'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $minimodel,
+                    'endpoint' => $chatendpoint,
+                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $model,
+                    'endpoint' => $chatendpoint,
+                    'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $embeddingmodel,
+                    'endpoint' => $embeddingendpoint,
+                    'dimensions' => 1536,
+                ],
+            ],
+        ];
+
+        $instances = $manager->get_provider_instances([
+            'provider' => 'aiprovider_wunderbyte\\provider',
+        ]);
+
+        if (!empty($instances)) {
+            foreach ($instances as $instance) {
+                if (!$instance->enabled) {
+                    $manager->enable_provider_instance($instance);
+                }
+
+                $providerid = (int)($instance->id ?? 0);
+                if ($providerid > 0) {
+                    $this->update_provider_actionconfig($providerid, $actionconfig);
+                }
+            }
+            return;
+        }
+
+        $manager->create_provider_instance(
+            classname: '\\aiprovider_wunderbyte\\provider',
+            name: 'booking-test-provider',
+            enabled: true,
+            config: ['apikey' => $apikey],
+            actionconfig: $actionconfig,
+        );
+    }
+
+    /**
+     * Register and enable a live OpenAI provider for agent tests.
+     *
+     * This is only used when aiprovider_wunderbyte is not installed.
+     *
+     * @param string $apikey
+     * @param string $model
+     * @param string $minimodel
+     * @param string $chatendpoint
+     * @return void
+     */
+    protected function register_live_openai_provider(
+        string $apikey,
+        string $model,
+        string $minimodel,
+        string $chatendpoint
+    ): void {
+        $manager = \core\di::get(\core_ai\manager::class);
+
         $manager->create_provider_instance(
             classname: '\aiprovider_openai\provider',
             name: 'booking-test-provider',
@@ -174,7 +349,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
                     'enabled'  => true,
                     'settings' => [
                         'model'             => $model,
-                        'endpoint'          => $endpoint,
+                        'endpoint'          => $chatendpoint,
                         'systeminstruction' => '',
                     ],
                 ],
@@ -182,7 +357,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
                     'enabled'  => true,
                     'settings' => [
                         'model'             => $minimodel,
-                        'endpoint'          => $endpoint,
+                        'endpoint'          => $chatendpoint,
                         'systeminstruction' => '',
                     ],
                 ],
@@ -190,21 +365,63 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
                     'enabled'  => true,
                     'settings' => [
                         'model'             => $minimodel,
-                        'endpoint'          => $endpoint,
+                        'endpoint'          => $chatendpoint,
                         'systeminstruction' => '',
                     ],
                 ],
             ],
         );
+    }
 
-        // Keep embeddings tests stable: enforce a dedicated embeddings model on
-        // existing wunderbyte provider instances when present in the test DB.
-        // Chat models like minimax-m2.7 cannot be used for /v1/embeddings.
-        if ($embeddingmodel !== '') {
-            $this->configure_wunderbyte_embeddings_model($embeddingmodel);
+    /**
+     * Normalize an endpoint to the chat-completions route.
+     *
+     * @param string $endpoint
+     * @return string
+     */
+    protected function normalize_chat_endpoint(string $endpoint): string {
+        $endpoint = rtrim($endpoint, '/');
+        if (!preg_match('#/chat/completions$#', $endpoint)) {
+            $endpoint .= '/chat/completions';
+        }
+        return $endpoint;
+    }
+
+    /**
+     * Derive an embeddings endpoint from a chat endpoint.
+     *
+     * @param string $chatendpoint
+     * @return string
+     */
+    protected function chat_endpoint_to_embeddings_endpoint(string $chatendpoint): string {
+        if (preg_match('#/chat/completions$#', $chatendpoint)) {
+            return preg_replace('#/chat/completions$#', '/embeddings', $chatendpoint);
+        }
+        return rtrim($chatendpoint, '/') . '/embeddings';
+    }
+
+    /**
+     * Merge actionconfig into an existing provider record.
+     *
+     * @param int $providerid
+     * @param array $actionconfig
+     * @return void
+     */
+    protected function update_provider_actionconfig(int $providerid, array $actionconfig): void {
+        global $DB;
+
+        $provider = $DB->get_record('ai_providers', ['id' => $providerid], '*', MUST_EXIST);
+        $existing = json_decode((string)($provider->actionconfig ?? ''), true);
+        if (!is_array($existing)) {
+            $existing = [];
         }
 
-        $this->hasliveprovider = true;
+        foreach ($actionconfig as $actionkey => $actionentry) {
+            $existing[$actionkey] = $actionentry;
+        }
+
+        $provider->actionconfig = json_encode($existing, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $DB->update_record('ai_providers', $provider);
     }
 
     /**
@@ -245,19 +462,19 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     /**
      * Load embeddings CSV fixture into temp directory for tests.
      *
-     * Copies the pre-generated embeddings fixture from the tests/fixtures directory
+     * Copies the pre-generated embeddings fixture from the tests/agent/fixtures directory
      * into the runtime temp directory so that embeddings tests can use consistent,
      * deterministic data instead of generating embeddings on every test run.
      *
      * @return void
      */
     protected function maybe_load_embeddings_fixture(): void {
-        $fixturepath = __DIR__ . '/embedded_llm/fixtures/task_catalog_embeddings.csv';
+        $fixturepath = __DIR__ . '/fixtures/task_catalog_embeddings.csv';
         if (!file_exists($fixturepath)) {
             return; // Fixture not available.
         }
 
-        $runtimedir = make_temp_directory('mod_booking/wbagent');
+        $runtimedir = make_temp_directory('bookingextension_agent/wbagent');
         $runtimepath = $runtimedir . '/task_catalog_embeddings.csv';
 
         if (!copy($fixturepath, $runtimepath)) {
@@ -276,7 +493,9 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return stdClass Option record (with ->id).
      */
     protected function create_option(string $name, array $extra = []): stdClass {
-        $result = $this->exec_command('booking.create_option', array_merge(
+        $taskname = 'mod_booking.create_option';
+
+        $result = $this->exec_command($taskname, array_merge(
             [
                 'text'            => $name,
                 'maxanswers'      => 10,
@@ -315,7 +534,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * Sets the current user to $userid before calling (required for capability
      * checks that use the global $USER inside Moodle helper functions).
      *
-     * @param string   $taskname   e.g. 'booking.create_option'
+     * @param string   $taskname   e.g. 'mod_booking.create_option'
      * @param array    $input      Command input fields.
      * @param int|null $cmid       Defaults to the shared booking instance cmid.
      * @param int|null $userid     Defaults to the teacher user.
@@ -332,15 +551,21 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $this->setUser($userid);
 
+        $contextid = (int)\context_module::instance($cmid)->id;
         $store   = new conversation_store();
-        $thread  = $store->get_or_create_thread($userid, $cmid, (int)$this->booking->id);
+        $thread  = $store->get_or_create_thread($userid, $contextid, (int)$this->booking->id);
         $key     = hash('sha256', $taskname . ':' . $userid . ':' . uniqid('', true));
-        $runid   = $store->create_run($thread->id, $userid, $cmid, $key, []);
+        $runid   = $store->create_run($thread->id, $userid, $contextid, $key, []);
 
         $exec    = $this->make_executor();
+        $task    = task_registry::make_default()->get_task($taskname);
+        $command = ['task' => $taskname, 'version' => 1, 'input' => $input];
+        if ($task && !$task->is_read_only()) {
+            $command['guard_token'] = preflight_execution_gate::build_guard_token($taskname, $contextid, $input);
+        }
         $results = $exec->execute_commands(
-            [['task' => $taskname, 'version' => 1, 'input' => $input]],
-            $cmid,
+            [$command],
+            $contextid,
             $userid,
             $key,
             $runid
@@ -384,10 +609,12 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $model = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
         $endpoint = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
 
-        if ($apikey === '' || $model === '' || $endpoint === '') {
-            $this->markTestSkipped(
-                'Real-LLM tests require BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL + BOOKING_TEST_AI_ENDPOINT.'
-            );
+        if ($apikey === '' || $model === '') {
+            $this->fail('Real-LLM tests require BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL.');
+        }
+
+        if ($endpoint === '') {
+            $this->fail('Real-LLM tests require BOOKING_TEST_AI_ENDPOINT when key/model are provided.');
         }
 
         if (!$this->hasliveprovider) {
@@ -410,9 +637,10 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $orc      = new orchestrator($registry, new interpreter($registry), $store);
         $authz    = new authorization_service();
         $runtime  = new agent_runtime($registry, $orc, $store, $authz);
-        $thread   = $store->get_or_create_thread(
+        $contextid = $this->booking_contextid();
+        $thread   = $store->create_fresh_thread(
             (int)$this->teacher->id,
-            (int)$this->booking->cmid,
+            $contextid,
             (int)$this->booking->id
         );
         $threadid = (int)$thread->id;
@@ -440,14 +668,99 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $anon     = new privacy_anonymizer($store);
         $precheck = $anon->precheck_user_message($threadid, $message);
         $store->add_message($threadid, 'user', (string)($precheck['sanitizedmessage'] ?? $message));
-        return $runtime->run_loop($threadid, (int)$this->booking->cmid, (int)$this->teacher->id);
+        return $runtime->run_loop($threadid, $this->booking_contextid(), (int)$this->teacher->id);
+    }
+
+    /**
+     * Resolve the authoritative Moodle module context id for the shared booking.
+     *
+     * @return int
+     */
+    protected function booking_contextid(): int {
+        return (int)\context_module::instance((int)$this->booking->cmid)->id;
+    }
+
+    /**
+     * Resolve a queue item id suitable for ai_confirm_run from response/store state.
+     *
+     * @param array $result
+     * @param int $threadid
+     * @param conversation_store $store
+     * @return string
+     */
+    protected function resolve_queue_item_id_for_confirmation(array $result, int $threadid, conversation_store $store): string {
+        $queueitemid = trim((string)($result['queueitemid'] ?? ''));
+        if ($queueitemid !== '') {
+            return $queueitemid;
+        }
+
+        $pending = $store->get_pending_intent($threadid);
+        if (is_array($pending)) {
+            $pendingids = array_values(array_filter(array_map('strval', (array)($pending['queue_item_ids'] ?? []))));
+            if (!empty($pendingids)) {
+                return (string)$pendingids[0];
+            }
+        }
+
+        $queuesvc = new queue_manager($store);
+        $items = $queuesvc->get_queue_items($threadid);
+        if (empty($items)) {
+            return '';
+        }
+
+        usort($items, static function (array $a, array $b): int {
+            return (int)($b['updated_at'] ?? 0) <=> (int)($a['updated_at'] ?? 0);
+        });
+
+        foreach ($items as $item) {
+            if ((string)($item['mutability'] ?? '') !== 'mutating') {
+                continue;
+            }
+            $status = (string)($item['status'] ?? '');
+            if (!in_array($status, ['blocked_confirmation', 'ready', 'queued', 'retry_waiting'], true)) {
+                continue;
+            }
+            $candidate = trim((string)($item['queue_item_id'] ?? ''));
+            if ($candidate !== '') {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Confirm the current pending proposal using queue-authoritative id resolution.
+     *
+     * @param array $result
+     * @param int $threadid
+     * @param conversation_store $store
+     * @param bool $allowsession
+     * @return array
+     */
+    protected function confirm_pending_result(
+        array $result,
+        int $threadid,
+        conversation_store $store,
+        bool $allowsession = false
+    ): array {
+        $_POST['sesskey'] = sesskey();
+        $queueitemid = $this->resolve_queue_item_id_for_confirmation($result, $threadid, $store);
+        $this->assertNotSame('', $queueitemid, 'Could not resolve queue item id for confirmation.');
+
+        return ai_confirm_run::execute(
+            $this->booking_contextid(),
+            (int)$threadid,
+            $queueitemid,
+            $allowsession
+        );
     }
 
     /**
      * Extract the first command of a given task name from an AgentRuntime result.
      *
      * @param array  $result   AgentRuntime result.
-     * @param string $taskname e.g. 'booking.create_option'.
+     * @param string $taskname e.g. 'mod_booking.create_option'.
      * @return array|null
      */
     protected function extract_command(array $result, string $taskname): ?array {
@@ -486,10 +799,11 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
             $command['input'] = $command['args']['input'];
         }
         $command['version'] = $command['version'] ?? 1;
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $key     = hash('sha256', 'test:exec:' . serialize($command) . ':' . uniqid('', true));
         $results = $this->make_executor()->execute_commands(
             [$command],
-            (int)$this->booking->cmid,
+            $contextid,
             (int)$this->teacher->id,
             $key,
             0
@@ -515,10 +829,11 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
             $cmd['version'] = $cmd['version'] ?? 1;
         }
         unset($cmd);
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $key = hash('sha256', 'test:bulk:' . uniqid('', true));
         return $this->make_executor()->execute_commands(
             $commands,
-            (int)$this->booking->cmid,
+            $contextid,
             (int)$this->teacher->id,
             $key,
             0

@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
 /**
  * Optional interface for tasks that contribute message trigger definitions.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -28,7 +28,6 @@ interface task_trigger_provider_interface {
      * Return message trigger definitions this task wants the LLM to classify.
      *
      * Trigger schema:
-     * - id (string, required): stable identifier (e.g. booking.some_trigger)
      * - description (string, required): what should count as a match
      * - examples (array<int,string>, optional): non-exhaustive positive examples
      *

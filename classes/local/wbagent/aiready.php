@@ -17,7 +17,7 @@
 /**
  * AI readiness helper for booking AI instructions.
  *
- * @package     mod_booking
+ * @package     bookingextension_agent
  * @copyright   2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -30,6 +30,7 @@ use core\di;
 use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
 use mod_booking\singleton_service;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Central readiness state for the booking AI panel.
@@ -106,7 +107,7 @@ class aiready {
         $provideractive = false;
         $courseenabled = false;
         $contextenabled = false;
-        $debugmode = !empty(get_config('booking', 'bookingdebugmode'))
+        $debugmode = !empty(get_config('bookingextension_agent', 'bookingdebugmode'))
             || (isset($CFG->debug) && $CFG->debug >= DEBUG_DEVELOPER);
 
         $cm = get_coursemodule_from_id('booking', $this->cmid, 0, false, MUST_EXIST);
@@ -115,7 +116,7 @@ class aiready {
         $moduleconfigurl = (new \moodle_url('/course/modedit.php', ['update' => $this->cmid, 'return' => 1]))->out(false);
         $capabilityurl = (new \moodle_url('/admin/roles/check.php', [
             'contextid' => $context->id,
-            'capability' => 'mod/booking:useaiinstructions',
+            'capability' => 'bookingextension/agent:useaiinstructions',
         ]))->out(false);
 
         if (class_exists('\\core_ai\\manager')) {
@@ -132,7 +133,9 @@ class aiready {
                 ]));
                 $haswunderbyteprovider = $hasnativewunderbyteprovider || $haslegacywunderbyteprovider;
 
-                $registry = task_registry::make_default();
+                // Use shared factory fallback so readiness checks stay available
+                // even when strict task-governance blocks full registry boot.
+                $registry = task_registry_factory::get_default();
                 $store = new conversation_store();
                 $interp = new interpreter($registry);
                 $orchestrator = new orchestrator($registry, $interp, $store);
@@ -163,8 +166,8 @@ class aiready {
                     $contextenabled = true;
                 }
             } catch (\Throwable $e) {
-                $providersconfigured = false;
-                $haswunderbyteprovider = false;
+                // Keep provider discovery result if it was already computed and
+                // only mark runtime gates as unavailable for this request.
                 $provideractive = false;
                 $courseenabled = false;
                 $contextenabled = false;
@@ -176,7 +179,7 @@ class aiready {
 
         if ($readyforchat) {
             $store = new conversation_store();
-            $thread = $store->get_or_create_thread($this->userid, $this->cmid, $this->bookingid);
+            $thread = $store->get_or_create_thread($this->userid, (int)$context->id, $this->bookingid);
             $threadid = (int)$thread->id;
         }
 
@@ -252,6 +255,7 @@ class aiready {
 
         return [
             'cmid' => $this->cmid,
+            'contextid' => (int)$context->id,
             'threadid' => $threadid,
             'sesskey' => sesskey(),
             'wwwroot' => $CFG->wwwroot,

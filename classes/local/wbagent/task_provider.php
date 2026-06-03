@@ -27,9 +27,9 @@ use bookingextension_agent\local\wbagent\summarizer\docs_result_summary_contribu
 use bookingextension_agent\local\wbagent\summarizer\single_object_result_summary_contributor;
 
 /**
- * mod_booking task provider entrypoint.
+ * bookingextension_agent task provider entrypoint.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,7 +40,7 @@ class task_provider implements result_summary_provider_interface, task_provider_
      * @return string
      */
     public function get_component(): string {
-        return 'bookingextension_agent';
+        return 'bookingextension/agent';
     }
 
     /**
@@ -53,6 +53,15 @@ class task_provider implements result_summary_provider_interface, task_provider_
 
         usort($tasks, static fn(task_interface $a, task_interface $b): int => strcmp($a->get_name(), $b->get_name()));
         return $tasks;
+    }
+
+    /**
+     * Return discovery diagnostics from the last get_tasks() call.
+     *
+     * @return array<int,string>
+     */
+    public function get_discovery_diagnostics(): array {
+        return task_discovery::get_last_diagnostics();
     }
 
     /**

@@ -22,7 +22,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  * Implement this on tasks that need custom deterministic summary text beyond
  * plugin/general contributors.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

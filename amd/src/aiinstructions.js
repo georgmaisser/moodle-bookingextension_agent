@@ -28,8 +28,9 @@ import Templates from 'core/templates';
 
 /** Pending commands waiting for user confirmation. */
 let pendingCommands = null;
+let pendingQueueItemId = '';
 let currentThreadId = 0;
-let currentCmid = 0;
+let currentContextId = 0;
 let debugModeEnabled = false;
 let sessionAutoConfirmEnabled = false;
 let privacyCheckRunningLabel = 'Privacy check running...';
@@ -611,7 +612,7 @@ const initResizableLayout = () => {
     }
 
     const desktopMedia = window.matchMedia('(min-width: 992px)');
-    const storageKey = 'mod_booking_ai_preview_width';
+    const storageKey = 'bookingextension_agent_ai_preview_width';
 
     const applyColumns = (previewPercent) => {
         const safePreview = Math.min(90, Math.max(20, Number(previewPercent || 42)));
@@ -1113,7 +1114,7 @@ const loadDocInPreview = (docpath, fallbackUrl = '', fragment = '') => {
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_get_doc_content',
-        args: {cmid: currentCmid, path: safePath},
+        args: {contextid: currentContextId, path: safePath},
     }])[0].then((resp) => {
         if (resp && resp.success && String(resp.html || '').trim() !== '') {
             const title = String(resp.title || '').trim();
@@ -1316,36 +1317,38 @@ const buildAgentResponseMeta = (resp, source, extra = {}) => ({
 const handleFinalAgentResponse = (resp, source, responseType, messageText) => {
     clearActivePlanBubble();
 
-    if (responseType === 'execution_result') {
-        let results = [];
-        try {
-            results = JSON.parse(resp.resultsjson || '[]');
-        } catch (e) {
-            // Keep empty results on parse errors.
-        }
-        showRunStatus('completed', messageText || responseType, results);
+    let results = [];
+    try {
+        results = JSON.parse(resp.resultsjson || '[]');
+    } catch (e) {
+        // Keep empty results on parse errors.
+    }
+
+    const hasResults = Array.isArray(results) && results.length > 0;
+    const shouldPreferRunStatus = source === 'ai_confirm_run'
+        && hasResults
+        && isGenericStatusMessage(messageText);
+
+    if (responseType === 'execution_result' || shouldPreferRunStatus) {
+        const runStatus = responseType === 'error' ? 'failed' : 'completed';
+        showRunStatus(runStatus, messageText || responseType, results);
         return;
     }
 
     appendMessage('assistant', renderAssistantMessageHtml(messageText), buildAgentResponseMeta(resp, source, {
         response_type: responseType,
-        attempted_tasks: parseJsonList(resp.attemptedtasksjson).join(', '),
         issue_codes: parseJsonList(resp.issuecodesjson).join(', '),
-        pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
         errors: parseJsonList(resp.errorsjson).join(' || '),
     }));
 };
 
 const handleAgentCommandResponse = (resp, source, responseType, cmds, messageText) => {
-    const attemptedTasks = parseJsonList(resp.attemptedtasksjson);
     const errors = parseJsonList(resp.errorsjson);
     const issueCodes = parseJsonList(resp.issuecodesjson);
     const planBubble = appendMessage('assistant', messageText, buildAgentResponseMeta(resp, source, {
         commands_count: Array.isArray(cmds) ? cmds.length : 0,
         llm_commands_json: String(resp.commands || ''),
-        attempted_tasks: attemptedTasks.join(', '),
         issue_codes: issueCodes.join(', '),
-        pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
         errors: errors.join(' || '),
     }));
 
@@ -1379,6 +1382,7 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
     const responseType = String(resp.response_type || '');
     const cmds = parseCommandPayload(resp.commands || '[]');
     const messageText = String(resp.displaymessage || resp.message || '').trim();
+    pendingQueueItemId = String(resp.queueitemid || '').trim();
 
     appendAssistantPrivacyNote(resp, source);
 
@@ -1389,6 +1393,7 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
         || responseType === 'clarification'
         || responseType === 'error'
     ) {
+        pendingQueueItemId = '';
         handleFinalAgentResponse(resp, source, responseType, messageText);
         return;
     }
@@ -1404,6 +1409,9 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
  */
 const showConfirmPanel = (message, commands) => {
     pendingCommands = commands;
+    if (pendingQueueItemId === '' && Array.isArray(commands) && commands.length > 0) {
+        pendingQueueItemId = String((commands[0] && commands[0].queue_item_id) || '').trim();
+    }
 
     const panel = document.getElementById('booking-ai-confirm-panel');
     const preview = document.getElementById('booking-ai-confirm-preview');
@@ -1430,7 +1438,7 @@ const showConfirmPanel = (message, commands) => {
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_render_command_preview',
         args: {
-            cmid: currentCmid,
+            contextid: currentContextId,
             commands: JSON.stringify(commands),
         },
     }])[0].then((resp) => {
@@ -1451,11 +1459,11 @@ const showConfirmPanel = (message, commands) => {
 /**
  * Render booking option previews in the side preview panel.
  *
- * @param {number} cmid
+ * @param {number} contextid
  * @param {Array<number>} optionIds
  * @returns {Promise<void>}
  */
-const renderOptionPreviewsInline = (cmid, optionIds) => {
+const renderOptionPreviewsInline = (contextid, optionIds) => {
     const uniqueIds = [...new Set((optionIds || []).map((id) => Number(id || 0)).filter((id) => id > 0))].slice(0, 100);
 
     if (uniqueIds.length === 0) {
@@ -1465,7 +1473,7 @@ const renderOptionPreviewsInline = (cmid, optionIds) => {
     return Ajax.call([{
         methodname: 'bookingextension_agent_ai_render_command_preview',
         args: {
-            cmid,
+            contextid,
             optionids: JSON.stringify(uniqueIds),
         },
     }])[0].then((resp) => {
@@ -1535,9 +1543,14 @@ const buildTaskPreviewHtml = (results = []) => {
 
 /**
  * Hide the confirmation panel.
+ *
+ * @param {boolean} clearPendingState Whether pending confirmation state should be reset.
  */
-const hideConfirmPanel = () => {
-    pendingCommands = null;
+const hideConfirmPanel = (clearPendingState = true) => {
+    if (clearPendingState) {
+        pendingCommands = null;
+        pendingQueueItemId = '';
+    }
     const panel = document.getElementById('booking-ai-confirm-panel');
     if (panel) {
         panel.classList.add('d-none');
@@ -1567,7 +1580,7 @@ const clearActivePlanBubble = () => {
 const showRunStatus = (status, message, results = []) => {
     // Notify the page that AI has finished so other components (e.g. booking list) can reload.
     if (status === 'completed') {
-        document.dispatchEvent(new CustomEvent('mod_booking_ai_run_completed', {bubbles: true}));
+        document.dispatchEvent(new CustomEvent('bookingextension_agent_ai_run_completed', {bubbles: true}));
     }
 
     const friendlyMessage = buildFriendlyRunMessage(status, message, results);
@@ -1784,15 +1797,15 @@ const clearStepBubbles = () => {
  * Call stopStepPolling() to cancel.
  *
  * @param {number} threadid
- * @param {number} cmid
+ * @param {number} contextid
  */
-const startStepPolling = (threadid, cmid) => {
+const startStepPolling = (threadid, contextid) => {
     stopStepPolling();
     lastSeenStepId = 0;
     stepPollInterval = setInterval(() => {
         Ajax.call([{
             methodname: 'bookingextension_agent_ai_poll_thread',
-            args: {cmid, threadid},
+            args: {contextid, threadid},
         }])[0].then((resp) => {
             const messages = Array.isArray(resp.messages) ? resp.messages : [];
             messages.forEach((msg) => {
@@ -1818,13 +1831,13 @@ const startStepPolling = (threadid, cmid) => {
  * Only available in debug mode.
  */
 const refreshThreadDebugLogs = () => {
-    if (!debugModeEnabled || currentThreadId <= 0 || currentCmid <= 0) {
+    if (!debugModeEnabled || currentThreadId <= 0 || currentContextId <= 0) {
         return;
     }
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_get_thread_debug_logs',
-        args: {cmid: currentCmid, threadid: currentThreadId, limit: 100},
+        args: {contextid: currentContextId, threadid: currentThreadId, limit: 100},
     }])[0].then((resp) => {
         let debugLogs = [];
         try {
@@ -1909,8 +1922,8 @@ const stopStepPolling = () => {
  * Resume step polling for the active thread if a thread is available.
  */
 const resumeStepPolling = () => {
-    if (currentThreadId > 0 && currentCmid > 0) {
-        startStepPolling(currentThreadId, currentCmid);
+    if (currentThreadId > 0 && currentContextId > 0) {
+        startStepPolling(currentThreadId, currentContextId);
     }
 };
 
@@ -1948,7 +1961,7 @@ const sendMessage = (message) => {
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_privacy_precheck',
         args: {
-            cmid: currentCmid,
+            contextid: currentContextId,
             message,
             forcenewthread: forceNewThreadOnFirstMessage ? 1 : 0,
         },
@@ -1991,13 +2004,13 @@ const sendMessage = (message) => {
         }
 
         // Start polling for intermediate step updates while the LLM is processing.
-        startStepPolling(currentThreadId, currentCmid);
+        startStepPolling(currentThreadId, currentContextId);
         appendStepBubble(stepPlanningLabel, 0);
 
         return Ajax.call([{
         methodname: 'bookingextension_agent_ai_send_message',
         args: {
-            cmid: currentCmid,
+            contextid: currentContextId,
             message: sanitizedMessage,
             threadid: Number(currentThreadId || 0),
         },
@@ -2041,7 +2054,7 @@ const sendMessage = (message) => {
         // previewoptionidsjson carries the full id list; falls back to scalar + results.
         const earlyPreviewIds = collectPreviewOptionIds(resp, []);
         if (earlyPreviewIds.length > 0) {
-            renderOptionPreviewsInline(currentCmid, earlyPreviewIds);
+            renderOptionPreviewsInline(currentContextId, earlyPreviewIds);
         }
 
         if (resp.response_type === 'clarification' || resp.response_type === 'sufficient' || resp.response_type === 'error') {
@@ -2049,7 +2062,6 @@ const sendMessage = (message) => {
             stopStepPolling();
             clearStepBubbles();
             appendAssistantPrivacyNote(resp, 'ai_send_message');
-            const attemptedTasks = parseJsonList(resp.attemptedtasksjson);
             const errors = parseJsonList(resp.errorsjson);
             const issueCodes = parseJsonList(resp.issuecodesjson);
             let results = [];
@@ -2074,10 +2086,8 @@ const sendMessage = (message) => {
                         response_type: resp.response_type || '',
                         threadid: Number(resp.threadid || currentThreadId || 0),
                         runid: Number(resp.runid || 0),
-                        attempted_tasks: attemptedTasks.join(', '),
                         issue_codes: issueCodes.join(', '),
                         results_count: Array.isArray(results) ? results.length : 0,
-                        pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
                         errors: errors.join(' || '),
                         source: 'ai_send_message',
                         time: (new Date()).toISOString(),
@@ -2112,10 +2122,8 @@ const sendMessage = (message) => {
                 response_type: resp.response_type || '',
                 threadid: Number(resp.threadid || currentThreadId || 0),
                 runid: Number(resp.runid || 0),
-                attempted_tasks: attemptedTasks.join(', '),
                 issue_codes: issueCodes.join(', '),
                 results_count: Array.isArray(results) ? results.length : 0,
-                pending_confirmation_code: String(resp.pendingconfirmationcode || ''),
                 errors: errors.join(' || '),
                 source: 'ai_send_message',
                 time: (new Date()).toISOString(),
@@ -2231,25 +2239,32 @@ const confirmRun = (allowSession = false) => {
         return;
     }
 
+    if (pendingQueueItemId === '') {
+        showRunStatus('failed', 'Missing queue item id. Please confirm the latest assistant proposal again.');
+        return;
+    }
+
     clearStepBubbles();
     appendStepBubble(stepExecutingLabel, 0);
 
-    const commandsToSend = pendingCommands;
     const effectiveAllowSession = Boolean(allowSession || sessionAutoConfirmEnabled);
     if (effectiveAllowSession) {
         sessionAutoConfirmEnabled = true;
     }
-    hideConfirmPanel();
+    hideConfirmPanel(false);
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_confirm_run',
         args: {
-            cmid:     currentCmid,
+            contextid: currentContextId,
             threadid: currentThreadId,
-            commands: JSON.stringify(commandsToSend),
+            queue_item_id: pendingQueueItemId,
             allow_session: effectiveAllowSession,
         },
     }])[0].then((resp) => {
+        // Consume current pending confirmation. A follow-up confirmation_request
+        // may set a fresh pendingCommands inside handleConfirmationResponse().
+        pendingCommands = null;
         if (resp.success) {
             const responseType = String(resp.response_type || '');
             // Steps are ephemeral loading indicators. Clear them and stop polling when response arrives.
@@ -2263,7 +2278,7 @@ const confirmRun = (allowSession = false) => {
             }
             const confirmPreviewIds = collectPreviewOptionIds(resp, []);
             if (confirmPreviewIds.length > 0) {
-                renderOptionPreviewsInline(currentCmid, confirmPreviewIds);
+                renderOptionPreviewsInline(currentContextId, confirmPreviewIds);
             }
             handleConfirmationResponse(resp, 'ai_confirm_run');
         } else {
@@ -2272,6 +2287,41 @@ const confirmRun = (allowSession = false) => {
         }
         return resp;
     }).catch((err) => {
+        Notification.exception(err);
+    });
+};
+
+/**
+ * Discard currently pending confirmation and skip queued mutating item(s).
+ */
+const discardPendingConfirmation = () => {
+    if (currentThreadId <= 0 || pendingQueueItemId === '') {
+        hideConfirmPanel();
+        return;
+    }
+
+    Ajax.call([{
+        methodname: 'bookingextension_agent_ai_discard_pending',
+        args: {
+            contextid: currentContextId,
+            threadid: currentThreadId,
+        },
+    }])[0].then((resp) => {
+        const ok = Boolean(resp && resp.success);
+        hideConfirmPanel(true);
+        if (!ok) {
+            const message = String((resp && resp.message) || 'Unable to discard pending confirmation.');
+            showRunStatus('failed', message);
+            return resp;
+        }
+
+        const message = String((resp && resp.message) || 'Pending confirmation was discarded.');
+        appendFriendlyAssistantMessage(message);
+        return resp;
+    }).catch((err) => {
+        const fallbackMessage = 'Discard failed. Pending confirmation is still active. '
+            + 'If this happened after an update, run the Moodle plugin upgrade and reload the page.';
+        appendFriendlyAssistantMessage(fallbackMessage);
         Notification.exception(err);
     });
 };
@@ -2328,8 +2378,8 @@ const requestTrialKey = () => {
     }
 
     Ajax.call([{
-        methodname: 'mod_booking_request_trial_key',
-        args: {cmid: Number(ctx.trialBtn.dataset.cmid || 0)},
+        methodname: 'bookingextension_agent_request_trial_key',
+        args: {contextid: Number(ctx.trialBtn.dataset.contextid || 0)},
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {
             ctx.trialSpinner.classList.add('d-none');
@@ -2389,8 +2439,14 @@ const activateTrialContext = () => {
     }
 
     Ajax.call([{
-        methodname: 'mod_booking_activate_trial_context',
-        args: {cmid: Number((ctx.trialBtn && ctx.trialBtn.dataset.cmid) || (ctx.wrapper && ctx.wrapper.dataset.cmid) || 0)},
+        methodname: 'bookingextension_agent_activate_trial_context',
+        args: {
+            contextid: Number(
+                (ctx.trialBtn && ctx.trialBtn.dataset.contextid)
+                || (ctx.wrapper && ctx.wrapper.dataset.contextid)
+                || 0
+            ),
+        },
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {
             ctx.trialSpinner.classList.add('d-none');
@@ -2501,6 +2557,26 @@ const handleBodyClick = (event) => {
         return;
     }
 
+    // Handle confirm controls globally via event delegation first.
+    // Confirm panel markup may be re-rendered, so avoid wrapper-scoped binding assumptions.
+    const confirmBtn = target.closest('#booking-ai-btn-confirm');
+    if (confirmBtn instanceof HTMLElement) {
+        confirmRun();
+        return;
+    }
+
+    const confirmSessionBtn = target.closest('#booking-ai-btn-confirm-session');
+    if (confirmSessionBtn instanceof HTMLElement) {
+        confirmRun(true);
+        return;
+    }
+
+    const cancelBtn = target.closest('#booking-ai-btn-cancel');
+    if (cancelBtn instanceof HTMLElement) {
+        discardPendingConfirmation();
+        return;
+    }
+
     const wrapper = target.closest('#booking-ai-wrapper');
     if (!(wrapper instanceof HTMLElement)) {
         return;
@@ -2550,24 +2626,6 @@ const handleBodyClick = (event) => {
             inputEl.value = '';
             sendMessage(msg);
         }
-        return;
-    }
-
-    const confirmBtn = target.closest('#booking-ai-btn-confirm');
-    if (confirmBtn instanceof HTMLElement) {
-        confirmRun();
-        return;
-    }
-
-    const confirmSessionBtn = target.closest('#booking-ai-btn-confirm-session');
-    if (confirmSessionBtn instanceof HTMLElement) {
-        confirmRun(true);
-        return;
-    }
-
-    const cancelBtn = target.closest('#booking-ai-btn-cancel');
-    if (cancelBtn instanceof HTMLElement) {
-        hideConfirmPanel();
         return;
     }
 
@@ -2702,7 +2760,7 @@ export const init = (config = null) => {
         }
 
         runtimeConfig = {
-            cmid: Number(wrapper.dataset.cmid || 0),
+            contextid: Number(wrapper.dataset.contextid || 0),
             threadid: Number(wrapper.dataset.threadid || 0),
             ready_for_chat: String(wrapper.dataset.readyForChat || '0') === '1',
             num_options: Number(wrapper.dataset.numOptions || 0),
@@ -2719,7 +2777,7 @@ export const init = (config = null) => {
         };
     }
 
-    currentCmid     = runtimeConfig.cmid || 0;
+    currentContextId = runtimeConfig.contextid || 0;
     currentThreadId = runtimeConfig.threadid || 0;
     debugModeEnabled = Boolean(runtimeConfig.debug_mode);
     privacyCheckRunningLabel = String(runtimeConfig.privacy_check_running || privacyCheckRunningLabel);

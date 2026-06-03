@@ -17,7 +17,7 @@
 /**
  * Loop finalizer service.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -88,7 +88,8 @@ class loop_finalizer {
         }
 
         $commands = (array)($result['commands'] ?? []);
-        $tasks = $extractsteptasknames($commands, $results);
+        $extractsteptasknames($commands, $results);
+
         if ($state->step_count() < 2) {
             return false;
         }
@@ -100,19 +101,16 @@ class loop_finalizer {
             return false;
         }
 
-        $isdocsexplain = in_array('booking.explain_docs_topic', $tasks, true);
-        if ($isdocsexplain) {
-            foreach ($results as $entry) {
-                if (!is_array($entry)) {
-                    continue;
-                }
-                $selectedpath = trim((string)($entry['selected_doc_path'] ?? ''));
-                if ($selectedpath !== '') {
-                    return true;
-                }
-                if (!empty((array)($entry['docs'] ?? []))) {
-                    return true;
-                }
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $selectedpath = trim((string)($entry['selected_doc_path'] ?? ''));
+            if ($selectedpath !== '') {
+                return true;
+            }
+            if (!empty((array)($entry['docs'] ?? []))) {
+                return true;
             }
         }
 
@@ -147,7 +145,7 @@ class loop_finalizer {
         }
 
         if ($message === '' || $this->is_low_information_message($message)) {
-            $message = (string)$localizedstring('ai_run_executed', 'mod_booking', null, (string)($result['lang'] ?? ''));
+            $message = (string)$localizedstring('ai_run_executed', 'bookingextension_agent', null, (string)($result['lang'] ?? ''));
             if ($message === 'ai_run_executed') {
                 $message = 'I found enough information to answer your question.';
             }

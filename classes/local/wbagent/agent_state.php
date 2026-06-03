@@ -17,7 +17,7 @@
 /**
  * Internal agent loop state value object.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,7 +39,7 @@ namespace bookingextension_agent\local\wbagent;
  * - Observations are plain-text summaries of completed tool executions,
  *   passed back to the orchestrator so the LLM can reason about results.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -68,6 +68,27 @@ final class agent_state {
      * @var string[]
      */
     private array $observations = [];
+
+    /**
+     * Per-run discovery family/cache payloads keyed by fingerprint.
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $familycache = [];
+
+    /**
+     * Per-run selection cache keyed by fingerprint.
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $selectedtaskcache = [];
+
+    /**
+     * Per-run parameter-construction cache keyed by fingerprint.
+     *
+     * @var array<string,array<string,mixed>>
+     */
+    private array $paramscache = [];
 
     /**
      * Private constructor — use agent_state::make().
@@ -172,6 +193,103 @@ final class agent_state {
      */
     public function has_observations(): bool {
         return !empty($this->observations);
+    }
+
+    /**
+     * Return cached discovery family payload for the given key.
+     *
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    public function get_discovery_family_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->familycache, $cachekey);
+    }
+
+    /**
+     * Store discovery family payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    public function set_discovery_family_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->familycache, $cachekey, $payload);
+    }
+
+    /**
+     * Return cached selection payload for the given key.
+     *
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    public function get_selection_task_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->selectedtaskcache, $cachekey);
+    }
+
+    /**
+     * Store selection payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    public function set_selection_task_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->selectedtaskcache, $cachekey, $payload);
+    }
+
+    /**
+     * Return cached construction parameter payload for the given key.
+     *
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    public function get_construction_params_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->paramscache, $cachekey);
+    }
+
+    /**
+     * Store construction parameter payload for later loop steps.
+     *
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    public function set_construction_params_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->paramscache, $cachekey, $payload);
+    }
+
+    /**
+     * Read one cache entry from a phase-local cache.
+     *
+     * @param array<string,array<string,mixed>> $cache
+     * @param string $cachekey
+     * @return array<string,mixed>|null
+     */
+    private function get_cache_entry(array $cache, string $cachekey): ?array {
+        $key = trim($cachekey);
+        if ($key === '' || !isset($cache[$key])) {
+            return null;
+        }
+
+        $cached = $cache[$key];
+        return is_array($cached) ? $cached : null;
+    }
+
+    /**
+     * Write one cache entry into a phase-local cache.
+     *
+     * @param array<string,array<string,mixed>> $cache
+     * @param string $cachekey
+     * @param array<string,mixed> $payload
+     * @return void
+     */
+    private function set_cache_entry(array &$cache, string $cachekey, array $payload): void {
+        $key = trim($cachekey);
+        if ($key === '') {
+            return;
+        }
+
+        $cache[$key] = $payload;
     }
 
     /**

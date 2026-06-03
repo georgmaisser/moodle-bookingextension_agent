@@ -16,19 +16,18 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
- * Task definition for booking.search_courses.
+ * Task definition for core.search_courses.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class search_courses_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class search_courses_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.search_courses';
+    public const TASK_NAME = 'core.search_courses';
 
     /**
      * Constructor.
@@ -54,14 +53,37 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Search courses via mod_booking external search_courses functionality.',
+            'description' => 'Search courses and return matching course candidates '
+                . 'including courseid, shortname, fullname, course URL, and active '
+                . 'enrolment count. Use this first when a follow-up task needs a '
+                . 'concrete course identity or link.',
             'readonly' => $this->is_read_only(),
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_search_courses',
             'properties' => [
                 'query' => [
                     'type' => 'string',
                     'description' => 'Search text for course full name, short name or id.',
-                    'required' => true,
+                    'required' => false,
+                ],
+                'coursequery' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query.',
+                    'required' => false,
+                ],
+                'coursename' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query when only a course name is provided.',
+                    'required' => false,
+                ],
+                'course' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query.',
+                    'required' => false,
+                ],
+                'searchterm' => [
+                    'type' => 'string',
+                    'description' => 'Alias for query.',
+                    'required' => false,
                 ],
                 'outputlang' => [
                     'type' => 'string',
@@ -78,6 +100,18 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
     }
 
     /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'query' => 'Informatik',
+            'limit' => 5,
+        ];
+    }
+
+    /**
      * Return task-specific message triggers.
      *
      * @return array<int,array<string,mixed>>
@@ -85,11 +119,11 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.search_courses_request',
+                'id' => 'core.search_courses_request',
                 'description' => 'User asks to find/search courses by name, shortname or id.',
             ],
             [
-                'id' => 'booking.search_courses_limit_request',
+                'id' => 'core.search_courses_limit_request',
                 'description' => 'User asks for a limited number of returned courses.',
             ],
         ];
@@ -103,15 +137,19 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'booking.search_courses',
+                'id' => 'core.search_courses',
                 'triggers' => [
                     'search courses', 'find course', 'find courses', 'course id',
                     'suche kurs', 'suche kurse', 'finde kurs', 'kurs finden',
                 ],
                 'guidance' => [
-                    '- Use booking.search_courses as a FIRST STEP when you need a courseid to pass to',
-                    '  booking.create_option or booking.update_option and only a course name is known.',
+                    '- Use core.search_courses as a FIRST STEP when you need a courseid to pass to',
+                    '  a follow-up task and only a course name is known.',
                     '- Execute this task and wait for the observation; then use the resolved courseid.',
+                    '- This task already returns the course URL, so do not ask the model to invent or compose',
+                    '  a Moodle course link itself.',
+                    '- This task also returns the active enrolment count, so use it before asking a second task',
+                    '  only to learn how many active users are currently enrolled in the course.',
                     '- Use input.query for the search term and optionally input.limit to cap results.',
                     '- If multiple courses match, ask the user to clarify before continuing.',
                 ],
@@ -120,15 +158,14 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         $errors = [];
-        if (empty($input['query']) || !is_string($input['query'])) {
+        if ($this->resolve_query($input) === '') {
             $errors[] = get_string('agent_booking_search_courses_query_required', 'bookingextension_agent');
         }
 
@@ -143,13 +180,12 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
-        $query = trim((string)($input['query'] ?? ''));
-        $question = trim((string)($input['question'] ?? ''));
+    public function execute(array $input, int $contextid, int $userid): array {
+        $query = $this->resolve_query($input);
         $outputlang = $this->get_output_language($input);
         $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
 
@@ -163,7 +199,7 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
 
         $debugbase = $this->build_task_debug_message(self::TASK_NAME, $input);
 
-        $courses = booking_task_support::search_course_candidates_for_preview($query, $limit);
+        $courses = $this->search_course_candidates_for_preview($query, $limit);
         if (empty($courses)) {
             $usermessage = $this->localized_string('agent_booking_search_courses_no_results', null, $outputlang);
             return [
@@ -172,6 +208,7 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
                 'usermessage' => $usermessage,
                 'resultid' => null,
                 'courses' => [],
+                'observation_full' => $this->build_course_observation_full([], $outputlang),
                 'debugmessage' => $debugbase . "\nResults: 0",
             ];
         }
@@ -188,8 +225,107 @@ class search_courses_task extends \bookingextension_agent\local\wbagent\booking\
             'usermessage' => $usermessage,
             'resultid' => (int)($courses[0]['courseid'] ?? 0),
             'courses' => $courses,
+            'observation_full' => $this->build_course_observation_full($courses, $outputlang),
             'debugmessage' => $debugbase
                 . "\nResults: " . count($courses),
         ];
+    }
+
+    /**
+     * Build a user-facing course observation string.
+     *
+     * @param array<int,array<string,mixed>> $courses
+     * @param string $lang
+     * @return string
+     */
+    private function build_course_observation_full(array $courses, string $lang): string {
+        if (empty($courses)) {
+            return $this->localized_string('agent_booking_search_courses_no_results', null, $lang);
+        }
+
+        $lines = [];
+        $lines[] = $this->localized_string('agent_booking_search_courses_found', count($courses), $lang);
+
+        foreach ($courses as $course) {
+            $fullname = trim((string)($course['fullname'] ?? ''));
+            $shortname = trim((string)($course['shortname'] ?? ''));
+            $courseurl = trim((string)($course['courseurl'] ?? ''));
+            $activecount = (int)($course['activeenrolledcount'] ?? 0);
+
+            $label = $fullname !== '' ? $fullname : $shortname;
+            if ($label === '') {
+                $label = (string)($course['courseid'] ?? '');
+            }
+
+            $line = '- ' . $label;
+            if ($shortname !== '' && $shortname !== $label) {
+                $line .= ' (' . $shortname . ')';
+            }
+            if ($courseurl !== '') {
+                $line .= ': ' . $courseurl;
+            }
+            $line .= ' | active enrolled: ' . $activecount;
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Resolve the course search query from canonical and legacy alias fields.
+     *
+     * @param array<string,mixed> $input
+     * @return string
+     */
+    private function resolve_query(array $input): string {
+        $keys = [
+            'query',
+            'coursequery',
+            'coursename',
+            'course',
+            'searchterm',
+            'course_name',
+            'fullname',
+            'shortname',
+            'name',
+            'courseid',
+        ];
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $input)) {
+                continue;
+            }
+
+            $rawvalue = $input[$key];
+            if (is_array($rawvalue) && array_key_exists('value', $rawvalue) && is_scalar($rawvalue['value'])) {
+                $rawvalue = $rawvalue['value'];
+            }
+
+            if (!is_scalar($rawvalue)) {
+                continue;
+            }
+
+            $value = trim((string)$rawvalue);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        // Last-resort fallback: accept a single meaningful free-text scalar field.
+        foreach ($input as $key => $rawvalue) {
+            if (!is_string($key) || in_array($key, ['outputlang', 'limit', 'contextid', 'cmid'], true)) {
+                continue;
+            }
+            if (!is_scalar($rawvalue)) {
+                continue;
+            }
+
+            $value = trim((string)$rawvalue);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 }

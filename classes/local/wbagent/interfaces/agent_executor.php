@@ -17,7 +17,7 @@
 /**
  * Agent executor interface.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,7 +31,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  * dispatches each one to the appropriate task provider.  It enforces
  * idempotency and produces a structured result per command.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -43,12 +43,12 @@ interface agent_executor {
      * and report individual outcomes.  No rollback is performed.
      *
      * @param array  $commands  Validated command objects, each with 'task', 'version', 'input'.
-     * @param int    $cmid      Course-module id for context scoping.
+     * @param int    $contextid Moodle context id for context scoping.
      * @param int    $userid    User id performing the actions.
      * @param string $idempotencykey Unique key that prevents re-execution of the same run.
      * @param int    $runid          Current run id to exclude from duplicate checks.
      * @return array Array of per-command result arrays:
      *               ['status' => 'executed'|'skipped'|'error', 'detail' => string, 'resultid' => int|null]
      */
-    public function execute_commands(array $commands, int $cmid, int $userid, string $idempotencykey, int $runid): array;
+    public function execute_commands(array $commands, int $contextid, int $userid, string $idempotencykey, int $runid): array;
 }

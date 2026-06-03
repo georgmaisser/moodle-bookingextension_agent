@@ -17,7 +17,7 @@
 /**
  * CSV repository for task-catalog embeddings.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -51,7 +51,7 @@ class embeddings_csv_repository {
      * @return string
      */
     public function get_csv_path(): string {
-        $dir = make_temp_directory('mod_booking/wbagent');
+        $dir = make_temp_directory('bookingextension_agent/wbagent');
         return $dir . '/task_catalog_embeddings.csv';
     }
 

@@ -17,15 +17,19 @@
 /**
  * LLM output interpreter pipeline.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace bookingextension_agent\local\wbagent;
 
-use bookingextension_agent\local\wbagent\booking\support\slot_booking_normalizer;
+use bookingextension_agent\local\wbagent\services\construction\parameter_constructor;
+use bookingextension_agent\local\wbagent\services\construction\parameter_contract_validator;
+use bookingextension_agent\local\wbagent\services\selection\lazy_task_loader;
+use bookingextension_agent\local\wbagent\services\selection\task_selector;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
+use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Mandatory trust boundary between raw LLM output and the executor.
@@ -41,22 +45,29 @@ use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
  * performed here.  It is delegated to agent_decision_service via task->preflight()
  * during the routing phase.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class interpreter implements agent_interpreter {
     /** Allowed response_type values from the LLM. */
-    private const ALLOWED_RESPONSE_TYPES = ['clarification', 'confirmation_request', 'task_call', 'error', 'confirm_pending', 'sufficient'];
+    private const ALLOWED_RESPONSE_TYPES = [
+        'clarification',
+        'confirmation_request',
+        'task_call',
+        'error',
+        'confirm_pending',
+        'sufficient',
+    ];
 
     /** Canonical token representing the current executor user. */
     private const CURRENT_USER_TOKEN = '__current_user__';
 
+    /** Planner phases that must not emit command-bearing outputs. */
+    private const NON_COMMAND_PHASES = ['discovery'];
+
     /** @var task_registry */
     private task_registry $registry;
-
-    /** @var slot_booking_normalizer */
-    private slot_booking_normalizer $slotbookingnormalizer;
 
     /** @var string Last parse issue code for hard contract gate handling. */
     private string $lastparseissuecode = '';
@@ -71,19 +82,17 @@ class interpreter implements agent_interpreter {
      */
     public function __construct(task_registry $registry) {
         $this->registry = $registry;
-        $this->slotbookingnormalizer = new slot_booking_normalizer();
     }
 
     /**
      * Parse and validate raw LLM output.
      *
      * @param string $rawresponse
-     * @param int    $cmid
      * @param int    $userid
      * @param string $lastusermessage
      * @return array
      */
-    public function interpret(string $rawresponse, int $cmid, int $userid, string $lastusermessage = ''): array {
+    public function interpret(string $rawresponse, int $contextid, int $userid, string $lastusermessage = ''): array {
         $this->lastparseissuecode = '';
         $this->lastparseinputexcerpt = '';
 
@@ -213,14 +222,17 @@ class interpreter implements agent_interpreter {
         }
 
         [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedtasks, $issuecodes, $confirmablecommands] =
-            $this->validate_commands($commands, $cmid, $userid);
+            $this->validate_commands($commands, $contextid, $userid, $lastusermessage);
 
         // Stage 5: Any ambiguity from backend validation stops execution and forces clarification.
         // The confirm button must NEVER appear when unresolved questions remain.
 
         if (!empty($errors)) {
             $validationmessage = $this->user_facing_validation_message($errors, $lang);
-            $recoverableinputerror = $this->is_recoverable_input_validation_error($errors);
+            $recoverableinputerror = in_array('RECOVERABLE_INPUT_ERROR', array_map(
+                static fn(string $issuecode): string => strtoupper(trim($issuecode)),
+                (array)$issuecodes
+            ), true);
             if (!empty($confirmablecommands)) {
                 return $this->with_optional_next_step_intent([
                     'response_type' => 'confirmation_request',
@@ -296,11 +308,260 @@ class interpreter implements agent_interpreter {
     }
 
     /**
+     * Interpret phase output with explicit phase context.
+     *
+     * @param string $rawresponse
+     * @param string $phase
+     * @param array<string,mixed> $context
+     * @return array
+     */
+    public function interpret_phase_output(string $rawresponse, string $phase, array $context = []): array {
+        $contextid = (int)($context['contextid'] ?? 0);
+        $userid = (int)($context['userid'] ?? 0);
+        $lastusermessage = (string)($context['lastusermessage'] ?? '');
+        $normalizedphase = $this->normalize_phase_name($phase);
+
+        if ($normalizedphase === 'selection') {
+            $result = $this->interpret_selection_phase_output($rawresponse, $contextid, $userid, $lastusermessage);
+            $result = $this->enforce_phase_contract($result, $normalizedphase, $context);
+            $result['phase'] = $normalizedphase;
+            return $result;
+        }
+
+        $result = $this->interpret($rawresponse, $contextid, $userid, $lastusermessage);
+        $result = $this->enforce_phase_contract($result, $normalizedphase, $context);
+        $result['phase'] = $normalizedphase;
+        return $result;
+    }
+
+    /**
+     * Interpret the selection phase as a command-bearing selector call without executing the task.
+     *
+     * @param string $rawresponse
+     * @param int $contextid
+     * @param int $userid
+     * @param string $lastusermessage
+     * @return array<string,mixed>
+     */
+    private function interpret_selection_phase_output(
+        string $rawresponse,
+        int $contextid,
+        int $userid,
+        string $lastusermessage = ''
+    ): array {
+        $this->lastparseissuecode = '';
+        $this->lastparseinputexcerpt = '';
+
+        $parsed = $this->parse($rawresponse);
+        if ($parsed === null) {
+            $excerpt = $this->lastparseinputexcerpt;
+            $message = 'Failed to parse LLM response as JSON.';
+            if ($excerpt !== '') {
+                $message .= ' Raw excerpt: ' . $excerpt;
+            }
+            return $this->error_result_with_issue_code(
+                $message,
+                $this->lastparseissuecode !== '' ? $this->lastparseissuecode : 'CONTRACT_PARSE_ERROR'
+            );
+        }
+
+        $responsetype = $this->safe_string($parsed['response_type'] ?? '');
+        if (!in_array($responsetype, ['task_call', 'clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
+            $normalized = $this->normalize_task_like_response($parsed, $lastusermessage);
+            if ($normalized !== null) {
+                $parsed = $normalized;
+                $responsetype = $this->safe_string($parsed['response_type'] ?? '');
+            }
+        }
+
+        if ($responsetype === '') {
+            return $this->error_result_with_issue_code(
+                'LLM returned an unknown or missing response_type: (none)',
+                'CONTRACT_UNKNOWN_RESPONSE_TYPE'
+            );
+        }
+
+        $lang = $this->safe_string($parsed['lang'] ?? '');
+        $userlang = $this->safe_string($parsed['user_lang'] ?? $parsed['userlang'] ?? '');
+        if ($lang === '' && $userlang !== '') {
+            $lang = $userlang;
+        }
+        if ($lang !== '') {
+            $lang = strtolower(substr($lang, 0, 2));
+        }
+
+        if (in_array($responsetype, ['clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
+            $message = $this->safe_string($parsed['message'] ?? '');
+            if ($responsetype !== 'sufficient' && $message === '') {
+                return $this->error_result_with_issue_code(
+                    'Selection phase returned an empty message for non-sufficient response_type.',
+                    'CONTRACT_EMPTY_SELECTION_MESSAGE'
+                );
+            }
+
+            return [
+                'response_type' => $responsetype,
+                'lang' => $lang,
+                'user_lang' => $userlang,
+                'message' => $this->strip_command_prefix($message),
+                'used_triggers' => $this->extract_used_triggers($parsed),
+                'commands' => [],
+                'selected_task' => '',
+                'ambiguities' => [],
+                'ambiguity_options' => [],
+                'errors' => $responsetype === 'error' && $message !== '' ? [$message] : [],
+                'issue_codes' => [],
+            ];
+        }
+
+        $commands = $this->normalize_commands_payload($parsed, $lastusermessage);
+        if (count($commands) !== 1) {
+            return $this->error_result_with_issue_code(
+                'Selection phase must emit exactly one task command.',
+                'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'
+            );
+        }
+
+        $selectedtask = $this->safe_string($commands[0]['task'] ?? '');
+        if ($selectedtask === '') {
+            return $this->error_result_with_issue_code(
+                'Selection phase command is missing a task name.',
+                'CONTRACT_SELECTION_TASK_MISSING'
+            );
+        }
+
+        return [
+            'response_type' => 'task_call',
+            'lang' => $lang,
+            'user_lang' => $userlang,
+            'message' => $this->strip_command_prefix($this->safe_string($parsed['message'] ?? '')),
+            'used_triggers' => $this->extract_used_triggers($parsed),
+            'commands' => $commands,
+            'selected_task' => $selectedtask,
+            'ambiguities' => [],
+            'ambiguity_options' => [],
+            'errors' => [],
+            'issue_codes' => [],
+        ];
+    }
+
+    /**
+    * Enforce explicit response contracts per planner phase.
+    *
+    * Discovery must not return command-bearing outputs. Selection is a
+    * command-bearing selector call that must stay single-task.
+     *
+     * @param array $result
+     * @param string $phase
+     * @param array<string,mixed> $context
+     * @return array
+     */
+    private function enforce_phase_contract(array $result, string $phase, array $context = []): array {
+        $responsetype = $this->safe_string($result['response_type'] ?? '');
+        if ($responsetype === '' || $responsetype === 'error') {
+            return $result;
+        }
+
+        if (in_array($phase, self::NON_COMMAND_PHASES, true)) {
+            if (in_array($responsetype, ['task_call', 'confirmation_request'], true)) {
+                return $this->error_result_with_issue_code(
+                    'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit command-bearing response_type.',
+                    'CONTRACT_PHASE_RESPONSE_TYPE'
+                );
+            }
+
+            $commands = $result['commands'] ?? [];
+            if (is_array($commands) && !empty($commands)) {
+                return $this->error_result_with_issue_code(
+                    'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit commands.',
+                    'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED'
+                );
+            }
+        }
+
+        if ($phase === 'parameter_construction') {
+            if (in_array($responsetype, ['task_call', 'confirmation_request'], true)) {
+                $commands = $result['commands'] ?? [];
+                if (!is_array($commands)) {
+                    $commands = [];
+                }
+
+                if (empty($commands)) {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must emit at least one command.',
+                        'CONTRACT_COMMANDS_REQUIRED'
+                    );
+                }
+
+                $allowedtasks = array_values(array_filter(array_map(
+                    fn($task): string => trim((string)$task),
+                    (array)($context['allowed_tasks'] ?? [])
+                )));
+
+                if (!empty($allowedtasks)) {
+                    foreach ($commands as $command) {
+                        if (!is_array($command)) {
+                            return $this->error_result_with_issue_code(
+                                'CONTRACT_VIOLATION: phase "' . $phase . '" command payload is invalid.',
+                                'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                            );
+                        }
+
+                        $task = trim((string)($command['task'] ?? ''));
+                        if ($task === '' || !in_array($task, $allowedtasks, true)) {
+                            return $this->error_result_with_issue_code(
+                                'CONTRACT_VIOLATION: phase "' . $phase
+                                    . '" command task is outside discovery-ranked allow-list.',
+                                'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($phase === 'selection') {
+            if ($responsetype === 'task_call') {
+                $commands = $result['commands'] ?? [];
+                if (!is_array($commands)) {
+                    $commands = [];
+                }
+
+                if (count($commands) !== 1) {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must emit exactly one selector command.',
+                        'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'
+                    );
+                }
+
+                $selectedtask = trim((string)($result['selected_task'] ?? ''));
+                if ($selectedtask === '') {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must provide selected_task for handoff.',
+                        'CONTRACT_SELECTION_TASK_MISSING'
+                    );
+                }
+
+                $commandtask = trim((string)($commands[0]['task'] ?? ''));
+                if ($commandtask === '' || $commandtask !== $selectedtask) {
+                    return $this->error_result_with_issue_code(
+                        'CONTRACT_VIOLATION: phase "' . $phase
+                            . '" selector command task must match selected_task.',
+                        'CONTRACT_SELECTION_TASK_MISMATCH'
+                    );
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Normalize command payload shapes to a canonical list of command objects.
      *
-     * Accepts:
-     * - Commands as list: [{task,version,input}, ...]
-     * - Commands as single object: {task,version,input}
+    * Accepts:
+    * - Commands as list: [{task,version,input|parameters}, ...]
+    * - Commands as single object: {task,version,input|parameters}
      * - Top-level task/version/input fields when commands is missing
      *
      * @param array $parsed
@@ -308,7 +569,6 @@ class interpreter implements agent_interpreter {
      * @return array
      */
     private function normalize_commands_payload(array $parsed, string $lastusermessage = ''): array {
-        $allowedtasks = $this->registry->get_task_names();
         $commands = $parsed['commands'] ?? null;
 
         if (is_array($commands) && isset($commands['task']) && !array_is_list($commands)) {
@@ -322,8 +582,8 @@ class interpreter implements agent_interpreter {
                     continue;
                 }
 
-                $taskname = $this->resolve_task_name_alias((string)($command['task'] ?? ''), $allowedtasks);
-                if ($taskname === null) {
+                $taskname = $this->safe_string($command['task'] ?? '');
+                if ($taskname === '') {
                     continue;
                 }
 
@@ -331,13 +591,6 @@ class interpreter implements agent_interpreter {
                 if (is_array($command['input'] ?? null)) {
                     $input = array_merge($input, $command['input']);
                 }
-                // Accept compact command format where input fields are provided
-                // directly at command level (e.g. {task, optionquery, userquery}).
-                $flatinput = $this->extract_flat_command_input($command);
-                if (!empty($flatinput)) {
-                    $input = array_merge($flatinput, $input);
-                }
-                $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
                 $input = $this->prune_empty_input_values($input);
 
                 $normalized[] = [
@@ -351,10 +604,9 @@ class interpreter implements agent_interpreter {
         }
 
         // Fallback: top-level task/version/input fields.
-        $taskname = $this->resolve_task_name_alias((string)($parsed['task'] ?? ''), $allowedtasks);
-        if ($taskname !== null) {
+        $taskname = $this->safe_string($parsed['task'] ?? '');
+        if ($taskname !== '') {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
-            $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
             $input = $this->prune_empty_input_values($input);
             return [[
                 'task' => $taskname,
@@ -364,19 +616,6 @@ class interpreter implements agent_interpreter {
         }
 
         return [];
-    }
-
-    /**
-     * Extract non-meta fields from compact command objects as input payload.
-     *
-     * @param array $command
-     * @return array
-     */
-    private function extract_flat_command_input(array $command): array {
-        $flat = $command;
-        unset($flat['task'], $flat['version'], $flat['input'], $flat['parameters'], $flat['description']);
-
-        return is_array($flat) ? $flat : [];
     }
 
     /**
@@ -472,10 +711,9 @@ class interpreter implements agent_interpreter {
         $modeluserlang = $this->safe_string($parsed['user_lang'] ?? $parsed['userlang'] ?? '');
 
         $responsetype = (string)($parsed['response_type'] ?? '');
-        $responsereferencedtask = $this->resolve_task_name_alias($responsetype, $allowedtasks);
-        if ($responsereferencedtask !== null) {
+        $responsereferencedtask = $this->safe_string($responsetype);
+        if ($responsereferencedtask !== '' && in_array($responsereferencedtask, $allowedtasks, true)) {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
-            $input = $this->hydrate_question_field($responsereferencedtask, $input, $lastusermessage);
             return [
                 'response_type' => 'task_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
@@ -490,35 +728,10 @@ class interpreter implements agent_interpreter {
             ];
         }
 
-        // LLM returned a trigger ID as response_type — map it back to the corresponding task name.
-        if ($responsetype !== '') {
-            $triggermap = $this->registry->get_trigger_id_to_task_name_map();
-            if (isset($triggermap[$responsetype])) {
-                $taskname = $triggermap[$responsetype];
-                $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
-                $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
-                return [
-                    'response_type' => 'task_call',
-                    'lang' => $this->safe_string($parsed['lang'] ?? ''),
-                    'used_triggers' => [$responsetype],
-                    'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
-                    'next_step_intent' => $nextstepintent,
-                    'commands' => [
-                        [
-                            'task' => $taskname,
-                            'version' => (int)($parsed['version'] ?? 1),
-                            'input' => $input,
-                        ],
-                    ],
-                ];
-            }
-        }
-
         $task = (string)($parsed['task'] ?? '');
-        $resolvedtask = $this->resolve_task_name_alias($task, $allowedtasks);
-        if ($resolvedtask !== null) {
-            $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
-            $input = $this->hydrate_question_field($resolvedtask, $input, $lastusermessage);
+        $resolvedtask = $this->safe_string($task);
+        if ($resolvedtask !== '') {
+            $input = $this->extract_command_input($parsed);
             return [
                 'response_type' => 'task_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
@@ -540,12 +753,11 @@ class interpreter implements agent_interpreter {
                 if (!is_array($command)) {
                     continue;
                 }
-                $commandtask = $this->resolve_task_name_alias((string)($command['task'] ?? ''), $allowedtasks);
-                if ($commandtask === null) {
+                $commandtask = $this->safe_string($command['task'] ?? '');
+                if ($commandtask === '') {
                     continue;
                 }
-                $commandinput = is_array($command['input'] ?? null) ? $command['input'] : [];
-                $commandinput = $this->hydrate_question_field($commandtask, $commandinput, $lastusermessage);
+                $commandinput = $this->extract_command_input($command);
                 $normalizedcommands[] = [
                     'task' => $commandtask,
                     'version' => (int)($command['version'] ?? 1),
@@ -568,7 +780,7 @@ class interpreter implements agent_interpreter {
         // Heal it to clarification so the synthesis path can proceed rather than
         // triggering an unnecessary recovery loop iteration.
         $fallbackmessage = $this->safe_string($parsed['message'] ?? '');
-        if ($fallbackmessage !== '') {
+        if ($responsetype === '' && $fallbackmessage !== '') {
             $modellang = $this->safe_string($parsed['lang'] ?? '');
             if ($modellang === '' && $modeluserlang !== '') {
                 $modellang = $modeluserlang;
@@ -592,31 +804,115 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Resolve common task-name aliases to canonical task names.
+     * Safely coerce an arbitrary value to a trimmed string.
      *
-     * Accepts full names (booking.some_task) and unique short suffixes (some_task).
-     *
-     * @param string $candidate
-     * @param array $allowedtasks
-     * @return string|null
+     * @param mixed $value
+     * @return string
      */
-    private function resolve_task_name_alias(string $candidate, array $allowedtasks): ?string {
-        $name = trim($candidate);
-        if ($name === '') {
-            return null;
+    private function safe_string($value): string {
+        if (is_string($value)) {
+            return trim($value);
         }
-        if (in_array($name, $allowedtasks, true)) {
-            return $name;
+
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return trim((string)$value);
         }
-        if (strpos($name, '.') === false) {
-            $matches = array_values(array_filter($allowedtasks, static function (string $taskname) use ($name): bool {
-                return substr($taskname, strrpos($taskname, '.') + 1) === $name;
-            }));
-            if (count($matches) === 1) {
-                return $matches[0];
+
+        if (is_scalar($value) && $value !== null) {
+            return trim((string)$value);
+        }
+
+        return '';
+    }
+
+    /**
+     * Build a generic error response payload.
+     *
+     * @param string $message
+     * @return array
+     */
+    private function error_result(string $message): array {
+        return $this->error_result_with_issue_code($message, 'CONTRACT_VALIDATION_ERROR');
+    }
+
+    /**
+     * Build an error response payload with a canonical issue code.
+     *
+     * @param string $message
+     * @param string $issuecode
+     * @return array
+     */
+    private function error_result_with_issue_code(string $message, string $issuecode): array {
+        $cleanmessage = $this->safe_string($message);
+        return [
+            'response_type' => 'error',
+            'lang' => '',
+            'message' => $cleanmessage,
+            'used_triggers' => [],
+            'commands' => [],
+            'ambiguities' => [],
+            'ambiguity_options' => [],
+            'errors' => $cleanmessage !== '' ? [$cleanmessage] : [],
+            'issue_codes' => [$this->safe_string($issuecode)],
+        ];
+    }
+
+    /**
+     * Build a fallback clarification message from ambiguity data.
+     *
+     * @param array $parsed
+     * @param array $ambiguities
+     * @return string
+     */
+    private function clarification_message(array $parsed, array $ambiguities): string {
+        $message = $this->strip_command_prefix($this->safe_string($parsed['message'] ?? ''));
+        if ($message !== '') {
+            return $message;
+        }
+
+        $summary = [];
+        foreach ($ambiguities as $ambiguity) {
+            if (!is_array($ambiguity)) {
+                continue;
+            }
+
+            $label = $this->safe_string($ambiguity['label'] ?? '');
+            if ($label !== '') {
+                $summary[] = $label;
             }
         }
-        return null;
+
+        if (!empty($summary)) {
+            return implode(' ', array_unique($summary));
+        }
+
+        return 'Bitte präzisieren Sie die Anfrage.';
+    }
+
+    /**
+     * Build a fallback confirmation message from backend ambiguities.
+     *
+     * @param array $ambiguities
+     * @return string
+     */
+    private function confirmation_message_from_ambiguities(array $ambiguities): string {
+        $labels = [];
+        foreach ($ambiguities as $ambiguity) {
+            if (!is_array($ambiguity)) {
+                continue;
+            }
+
+            $label = $this->safe_string($ambiguity['label'] ?? '');
+            if ($label !== '') {
+                $labels[] = $label;
+            }
+        }
+
+        if (!empty($labels)) {
+            return implode(' ', array_unique($labels));
+        }
+
+        return 'Bitte bestätigen Sie die vorgeschlagene Aktion.';
     }
 
     /**
@@ -644,6 +940,16 @@ class interpreter implements agent_interpreter {
         }
 
         return $input;
+    }
+
+    /**
+     * Extract command input while tolerating common wrapper keys from LLM output.
+     *
+     * @param array $payload
+     * @return array
+     */
+    private function extract_command_input(array $payload): array {
+        return is_array($payload['input'] ?? null) ? (array)$payload['input'] : [];
     }
 
     /**
@@ -695,6 +1001,8 @@ class interpreter implements agent_interpreter {
             $candidate = trim((string)($matches[1] ?? ''));
         }
 
+        $candidate = trim(strip_tags($candidate));
+
         if ($candidate === '' || $candidate[0] !== '{' || substr($candidate, -1) !== '}') {
             $this->lastparseissuecode = 'CONTRACT_PARSE_ERROR';
             $this->lastparseinputexcerpt = $this->truncate_parse_excerpt($candidate);
@@ -724,101 +1032,6 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Extract likely JSON object candidates from raw model text.
-     *
-     * Handles plain JSON, markdown-fenced JSON blocks and multi-object output.
-     *
-     * @param string $text
-     * @return array<int,string>
-     */
-    private function extract_json_candidates(string $text): array {
-        $candidates = [];
-
-        $trimmed = trim($text);
-        if ($trimmed !== '') {
-            $candidates[] = $trimmed;
-        }
-
-        if (preg_match_all('/\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60/i', $text, $matches) === 1) {
-            foreach (($matches[1] ?? []) as $block) {
-                $block = trim((string)$block);
-                if ($block !== '') {
-                    $candidates[] = $block;
-                }
-            }
-        }
-
-        foreach ($this->extract_balanced_json_objects($text) as $json) {
-            $candidates[] = $json;
-        }
-
-        return array_values(array_unique(array_filter(array_map('trim', $candidates), static function (string $value): bool {
-            return $value !== '';
-        })));
-    }
-
-    /**
-     * Extract balanced top-level JSON object snippets from arbitrary text.
-     *
-     * @param string $text
-     * @return array<int,string>
-     */
-    private function extract_balanced_json_objects(string $text): array {
-        $objects = [];
-        $length = strlen($text);
-        $depth = 0;
-        $start = -1;
-        $instring = false;
-        $escaped = false;
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $text[$i];
-
-            if ($instring) {
-                if ($escaped) {
-                    $escaped = false;
-                    continue;
-                }
-
-                if ($char === '\\') {
-                    $escaped = true;
-                    continue;
-                }
-
-                if ($char === '"') {
-                    $instring = false;
-                }
-                continue;
-            }
-
-            if ($char === '"') {
-                $instring = true;
-                continue;
-            }
-
-            if ($char === '{') {
-                if ($depth === 0) {
-                    $start = $i;
-                }
-                $depth++;
-                continue;
-            }
-
-            if ($char === '}') {
-                if ($depth > 0) {
-                    $depth--;
-                    if ($depth === 0 && $start >= 0) {
-                        $objects[] = substr($text, $start, $i - $start + 1);
-                        $start = -1;
-                    }
-                }
-            }
-        }
-
-        return $objects;
-    }
-
-    /**
      * Extract used trigger ids from raw payload and allow-list them.
      *
      * @param array $parsed
@@ -833,19 +1046,16 @@ class interpreter implements agent_interpreter {
      * Validate all commands using structural (pure) checks only.
      *
      * This method MUST NOT:
-     *  - call task->validate()
+     *  - call task->check_structure()
      *  - perform any DB lookups
      *  - resolve entity IDs
      *
      * Deep validation (DB lookups, entity resolution, conflict detection) is
      * delegated to agent_decision_service via task->preflight().
      *
-     * @param array $commands
-     * @param int $cmid
-     * @param int $userid
      * Returns [validated, errors, ambiguities, ambiguityoptions, attemptedtasks, issuecodes, confirmablecommands].
      */
-    private function validate_commands(array $commands, int $cmid, int $userid): array {
+    private function validate_commands(array $commands, int $contextid, int $userid, string $lastusermessage = ''): array {
         $validated = [];
         $seencommandsigs = [];
         $errors = [];
@@ -856,84 +1066,74 @@ class interpreter implements agent_interpreter {
         $confirmablecommands = [];
         $commandnumber = 0;
 
-        $allowedtasks = $this->registry->get_task_names();
+        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
+        $allowedtasks = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
+        $selector = new task_selector(new lazy_task_loader($this->registry));
+        $constructor = new parameter_constructor($this->registry);
+        $validator = new parameter_contract_validator();
         $seencommandsigs = [];
 
         foreach ($commands as $cmd) {
             $commandnumber++;
             $label = 'Command #' . $commandnumber;
 
+            $rawinput = $this->extract_command_input((array)$cmd);
+
             // Deduplicate: skip exact duplicate commands (same task + same input).
-            $cmdsig = md5(json_encode(['task' => $cmd['task'] ?? '', 'input' => $cmd['input'] ?? []]));
+            $cmdsig = md5(json_encode(['task' => $cmd['task'] ?? '', 'input' => $rawinput]));
             if (isset($seencommandsigs[$cmdsig])) {
                 continue;
             }
             $seencommandsigs[$cmdsig] = true;
 
-            // Schema validation: required top-level keys.
-            if (!isset($cmd['task'])) {
-                $errors[] = "$label: missing 'task' key.";
+            $selection = $selector->select((array)$cmd, $allowedtasks, $label);
+            if ($selection->taskname !== '') {
+                $attemptedtasks[] = $selection->taskname;
+            }
+            if (!$selection->valid || $selection->task === null) {
+                if ($selection->taskname !== '') {
+                    $evaluation = $evaluator->evaluate_task($selection->taskname, $userid, $contextid);
+                    $denyreason = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
+                    $errors[] = "$label: task '" . $selection->taskname . "' denied by governance gate (" . $denyreason . ").";
+                    $issuecodes[] = 'TASK_DENIED';
+                } else {
+                    foreach ($selection->errors as $error) {
+                        $errors[] = $error;
+                    }
+                    $issuecodes[] = 'TASK_DENIED';
+                }
                 continue;
             }
 
-            $taskname = $cmd['task'];
-            $attemptedtasks[] = (string)$taskname;
-            if (!in_array($taskname, $allowedtasks, true)) {
-                $errors[] = "$label: task '$taskname' is not allowed.";
-                continue;
-            }
-
-            $task = $this->registry->get_task($taskname);
-            if (!$task) {
-                $errors[] = "$label: task '$taskname' is not registered.";
-                continue;
-            }
-
-            $input = $cmd['input'] ?? [];
-            if (!is_array($input)) {
+            if (!is_array($rawinput)) {
                 $errors[] = "$label: 'input' must be an object/array.";
                 continue;
             }
 
-            $input = $this->normalize_self_user_references($input);
-            $input = $this->canonicalize_command_input((string)$taskname, $input);
-
-            // Stage 3: Pure structural validation only — no DB access here.
-            // Deep validation (option resolution, duplicate-title checks, etc.) is
-            // handled by agent_decision_service::preflight() during routing.
-            $structural = $task->check_structure($input);
-            if (!($structural['valid'] ?? true)) {
-                foreach ((array)($structural['errors'] ?? []) as $e) {
-                    $errors[] = "$label: $e";
+            $constructed = $constructor->build($selection->taskname, $rawinput, $lastusermessage);
+            $structural = $validator->validate($selection->task, $constructed->input, $label);
+            if (!$structural->valid) {
+                foreach ($structural->errors as $error) {
+                    $errors[] = $error;
+                }
+                foreach ($structural->issuecodes as $issuecode) {
+                    $issuecodes[] = $issuecode;
                 }
                 continue;
             }
 
-            // Stage 6: Normalise dates.
-            if (isset($input['coursestarttime']) && !is_int($input['coursestarttime'])) {
-                $ts = strtotime($input['coursestarttime']);
-                if ($ts !== false) {
-                    $input['coursestarttime'] = $ts;
-                }
-            }
-            if (isset($input['courseendtime']) && !is_int($input['courseendtime'])) {
-                $ts = strtotime($input['courseendtime']);
-                if ($ts !== false) {
-                    $input['courseendtime'] = $ts;
-                }
-            }
-
             // Stage 7: Deduplicate identical commands (same task + input) and emit.
-            $commandsig = $taskname . '|' . json_encode($input, JSON_UNESCAPED_UNICODE);
+            $commandsig = $selection->taskname . '|' . json_encode($structural->input, JSON_UNESCAPED_UNICODE);
             if (isset($seencommandsigs[$commandsig])) {
                 continue;
             }
             $seencommandsigs[$commandsig] = true;
 
             $validated[] = [
-                'task'    => $taskname,
-                'version' => $cmd['version'] ?? 1,
-                'input'   => $input,
+                'task'    => $selection->taskname,
+                'version' => $selection->version,
+                'input'   => $structural->input,
+                '_structural_validated' => true,
             ];
         }
 
@@ -989,174 +1189,6 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Canonicalize user self-references in known user-query fields.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function normalize_self_user_references(array $input): array {
-        $fields = ['teacherquery', 'selectusersquery', 'bookusersquery'];
-        foreach ($fields as $field) {
-            if (!isset($input[$field]) || !is_string($input[$field])) {
-                continue;
-            }
-
-            $raw = trim($input[$field]);
-            if ($raw === '') {
-                continue;
-            }
-
-            $parts = array_map('trim', explode(',', $raw));
-            $normalizedparts = [];
-            foreach ($parts as $part) {
-                if ($part === '') {
-                    continue;
-                }
-                // Self-reference marker is explicit: only the canonical token is recognized.
-                // Fuzzy phrases (e.g., 'vous', 'me') must NOT be auto-detected; Planner must use the token.
-                $normalizedparts[] = $part;
-            }
-
-            if (!empty($normalizedparts)) {
-                $input[$field] = implode(', ', $normalizedparts);
-            }
-        }
-
-        return $input;
-    }
-
-    /**
-     * Canonicalize task input before validation/confirmation is returned to UI.
-     *
-     * Delegates domain-specific normalization (slot-booking, self-learning) to
-     * {@see slot_booking_normalizer} so the interpreter itself remains free of
-     * booking domain knowledge.
-     *
-     * @param string $taskname
-     * @param array $input
-     * @return array
-     */
-    private function canonicalize_command_input(string $taskname, array $input): array {
-        $input = $this->slotbookingnormalizer->normalize($taskname, $input);
-
-        // Self-reference for diagnose_booking_issue must be explicit:
-        // Planner MUST send either empty userquery (self) or the canonical token.
-        // NO fuzzy phrase detection (e.g., 'vous', 'me', 'ich') — these are ambiguous.
-        // If userquery is present as a fuzzy phrase, it indicates LLM misconfiguration.
-        // (No auto-normalization here; validation layer will catch it.)
-
-        // Normalize search_queries: LLMs sometimes serialize arrays as comma-separated strings.
-        if (isset($input['search_queries']) && is_string($input['search_queries'])) {
-            $parts = array_values(array_filter(array_map('trim', explode(',', $input['search_queries']))));
-            $input['search_queries'] = $parts;
-        }
-
-        // Remove empty arrays that LLMs send as placeholders (e.g. doc_path_candidates: []).
-        foreach ($input as $key => $value) {
-            if (is_array($value) && count($value) === 0) {
-                unset($input[$key]);
-            }
-        }
-
-        return $input;
-    }
-
-
-
-    /**
-     * Build a standard error result.
-     *
-     * @param string $message
-     * @return array
-     */
-    private function error_result(string $message): array {
-        return $this->error_result_with_issue_code($message, '');
-    }
-
-    /**
-     * Error result with contract gate issue code marker.
-     *
-     * Use this when a hard parse/contract failure occurs that must trigger
-     * early-exit and one-time retry before reaching decision_service.
-     *
-     * @param string $message
-     * @param string $issuecode Optional issue code for hard gates (CONTRACT_*)
-     * @return array
-     */
-    private function error_result_with_issue_code(string $message, string $issuecode = ''): array {
-        $result = [
-            'response_type' => 'error',
-            'message'       => $message,
-            'commands'      => [],
-            'ambiguities'   => [],
-            'ambiguity_options' => [],
-            'errors'        => [$message],
-        ];
-        if ($issuecode !== '') {
-            $result['issue_codes'] = [$issuecode];
-        }
-        return $result;
-    }
-
-    /**
-     * Safely extract a string value, stripping tags.
-     *
-     * @param  mixed $value
-     * @return string
-     */
-    private function safe_string($value): string {
-        return strip_tags((string)($value ?? ''));
-    }
-
-    /**
-     * Build a user-facing clarification message from ambiguities.
-     *
-     * Avoid placeholder LLM texts like "Executing." when validation asked for clarification.
-     *
-     * @param array $parsed
-     * @param array $ambiguities
-     * @return string
-     */
-    private function clarification_message(array $parsed, array $ambiguities): string {
-        $message = $this->safe_string($parsed['message'] ?? '');
-        $normalized = strtolower(trim($message));
-        $cleanambiguities = array_map(fn(string $line): string => $this->strip_command_prefix($line), $ambiguities);
-
-        // Prefer the LLM-authored clarification text so wording and language follow
-        // the detected lang field from structured JSON.
-        if ($normalized !== '' && !in_array($normalized, ['executing', 'executing.', 'running', 'running.'], true)) {
-            return $this->strip_command_prefix($message);
-        }
-
-        // Fallback only when the LLM message is empty or placeholder-like.
-        if (!empty($cleanambiguities)) {
-            return $this->safe_string(implode(' ', $cleanambiguities));
-        }
-
-        return $this->strip_command_prefix($message);
-    }
-
-    /**
-     * Build a confirmation message from validator-provided ambiguity lines.
-     *
-     * This is used for confirmable backend issues to avoid generic LLM text
-     * like "Moechten Sie ... buchen?" hiding the actual reason.
-     *
-     * @param array $ambiguities
-     * @return string
-     */
-    private function confirmation_message_from_ambiguities(array $ambiguities): string {
-        $cleanambiguities = array_map(fn(string $line): string => $this->strip_command_prefix($line), $ambiguities);
-        $cleanambiguities = array_values(array_filter($cleanambiguities, static fn(string $line): bool => trim($line) !== ''));
-
-        if (!empty($cleanambiguities)) {
-            return $this->safe_string(implode(' ', $cleanambiguities));
-        }
-
-        return '';
-    }
-
-    /**
      * Build a user-facing error text from validation errors.
      *
      * @param array $errors
@@ -1165,83 +1197,7 @@ class interpreter implements agent_interpreter {
      */
     private function user_facing_validation_message(array $errors, string $lang = ''): string {
         $clean = array_map(fn(string $line): string => $this->strip_command_prefix($line), $errors);
-
-        $joined = strtolower(implode(' ', $clean));
-        $isgerman = str_starts_with(strtolower($lang), 'de');
-
-        $missingslotduration = strpos($joined, 'slot_duration_minutes') !== false;
-        $missingslotcapacity = strpos($joined, 'slot_max_participants_per_slot') !== false;
-        $missingslotrange = strpos($joined, 'slot_valid_from') !== false || strpos($joined, 'slot_valid_until') !== false;
-        $missingslotdays = strpos($joined, 'slot_day_') !== false;
-        $hasslotbookingcontext = strpos($joined, 'slot booking type') !== false || strpos($joined, 'slot-buchungsart') !== false;
-
-        if ($hasslotbookingcontext && ($missingslotduration || $missingslotcapacity || $missingslotrange || $missingslotdays)) {
-            $parts = [];
-
-            if ($missingslotduration) {
-                $parts[] = $isgerman
-                    ? 'die Dauer pro Slot in Minuten'
-                    : 'the duration per slot in minutes';
-            }
-
-            if ($missingslotcapacity) {
-                $parts[] = $isgerman
-                    ? 'wie viele Personen pro Slot buchen duerfen'
-                    : 'how many people can book each slot';
-            }
-
-            if ($missingslotrange) {
-                $parts[] = $isgerman
-                    ? 'den Zeitraum, in dem Termine verfuegbar sein sollen (von/bis)'
-                    : 'the date range in which slots should be available (from/until)';
-            }
-
-            if ($missingslotdays) {
-                $parts[] = $isgerman
-                    ? 'an welchen Wochentagen Termine angeboten werden sollen'
-                    : 'on which weekdays slots should be offered';
-            }
-
-            if (!empty($parts)) {
-                if ($isgerman) {
-                    return 'Damit ich die Sprechstunde korrekt als Slot-Buchung anlegen kann, brauche ich noch: '
-                        . implode('; ', $parts) . '.';
-                }
-
-                return 'To create the office hours correctly as a slot booking, I still need: '
-                    . implode('; ', $parts) . '.';
-            }
-        }
-
         return implode(' ', $clean);
-    }
-
-    /**
-     * Determine whether validation errors are recoverable missing-input cases.
-     *
-     * @param array $errors
-     * @return bool
-     */
-    private function is_recoverable_input_validation_error(array $errors): bool {
-        $joined = strtolower(implode(' ', $errors));
-
-        $markers = [
-            'please provide',
-            'slot_duration_minutes',
-            'slot_max_participants_per_slot',
-            'slot_valid_from',
-            'slot_valid_until',
-            'slot_day_',
-            'missing',
-        ];
-
-        foreach ($markers as $marker) {
-            if (strpos($joined, $marker) !== false) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -1253,5 +1209,22 @@ class interpreter implements agent_interpreter {
     private function strip_command_prefix(string $text): string {
         $clean = preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', $text);
         return $this->safe_string($clean ?? $text);
+    }
+
+    /**
+     * Normalize a phase label for downstream planner composition.
+     *
+     * @param string $phase
+     * @return string
+     */
+    private function normalize_phase_name(string $phase): string {
+        $normalized = strtolower(trim($phase));
+        if ($normalized === 'selection') {
+            return 'selection';
+        }
+        if ($normalized === 'parameter_construction') {
+            return 'parameter_construction';
+        }
+        return 'discovery';
     }
 }

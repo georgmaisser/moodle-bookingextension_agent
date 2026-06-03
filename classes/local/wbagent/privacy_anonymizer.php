@@ -17,7 +17,7 @@
 /**
  * Privacy anonymization helper for LLM-bound text.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -187,19 +187,19 @@ class privacy_anonymizer {
     /**
      * De-anonymize command input using the active user thread in a booking context.
      *
-     * Useful during validation where only cmid/userid is available.
+     * Useful during validation where only contextid/userid is available.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $input
      * @return array
      */
-    public function deanonymize_command_input_for_active_user(int $cmid, int $userid, array $input): array {
-        if ($this->get_mode() === self::MODE_OFF || $cmid <= 0 || $userid <= 0) {
+    public function deanonymize_command_input_for_active_user(int $contextid, int $userid, array $input): array {
+        if ($this->get_mode() === self::MODE_OFF || $contextid <= 0 || $userid <= 0) {
             return $input;
         }
 
-        $thread = $this->store->get_active_thread($userid, $cmid);
+        $thread = $this->store->get_active_thread($userid, $contextid);
         if (!$thread || empty($thread->id)) {
             return $input;
         }
@@ -783,7 +783,7 @@ class privacy_anonymizer {
     private function get_user_name_match_index(): array {
         global $DB;
 
-        $cache = \cache::make('mod_booking', 'aiprivacynames');
+        $cache = \cache::make('bookingextension_agent', 'aiprivacynames');
         $cached = $cache->get(self::NAME_MATCH_INDEX_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;
@@ -876,7 +876,7 @@ class privacy_anonymizer {
     private function get_distinct_name_index(): array {
         global $DB;
 
-        $cache = \cache::make('mod_booking', 'aiprivacynames');
+        $cache = \cache::make('bookingextension_agent', 'aiprivacynames');
         $cached = $cache->get(self::NAME_INDEX_CACHE_KEY);
         if (is_array($cached)) {
             return $cached;

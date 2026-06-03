@@ -1,0 +1,305 @@
+# Vergleichsbericht Inventur: bookingextension_agent
+
+- Vergleichsdatum: 2026-05-30
+- Alter Stand: docs/Blueprints/bookingextension_agent_inventur_vollstaendig.md (vor Neugenerierung)
+- Neuer Stand: docs/Blueprints/bookingextension_agent_inventur_vollstaendig.md (aktuell)
+
+## Kennzahlen
+
+| Kennzahl | Alt | Neu | Delta |
+|---|---:|---:|---:|
+| Anzahl Ordner | 57 | 55 | -2 |
+| Anzahl Dateien | 164 | 169 | +5 |
+| PHP-Methoden/Funktionen | 1004 | 1020 | +16 |
+
+## Delta Dateiliste
+
+- Neu hinzugekommene Dateien: 9
+- Entfernte Dateien: 4
+
+### Neu hinzugekommen (Dateien)
+
+```text
+classes/local/wbagent/services/assistant_state_guidance_service.php
+classes/local/wbagent/services/completed_command_history_service.php
+classes/local/wbagent/services/confirm_preview_option_service.php
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php
+classes/local/wbagent/services/orchestrator_routing_service.php
+classes/local/wbagent/services/pending_queue_command_service.php
+classes/local/wbagent/services/runtime_step_analysis_service.php
+classes/local/wbagent/services/runtime_synthesis_policy_service.php
+classes/local/wbagent/wunderbyte_trial_endpoint.py
+```
+
+### Entfernt (Dateien)
+
+```text
+.github/workflows/erpnext.yml
+.github/workflows/moodle-plugin-ci.yml
+.github/workflows/moodle-release.yml
+.gitignore
+```
+
+## Delta PHP-Methodeninventur
+
+- Hinweis: Ein reiner Zeilenvergleich (datei:zeile) zeigt viel Churn bei Verschiebungen.
+- Zeilenbasierter Delta-Befund: +1011 / -995
+- Signaturbasierter Delta-Befund (ohne Zeilennummern): +129 / -115
+
+### Neu hinzugekommen (Methoden/Funktionen, signaturbasiert)
+
+```text
+classes/external/ai_get_doc_content.php	bookingextension_agent\external\ai_get_doc_content	build_moodle_url_from_parts
+classes/external/ai_get_doc_content.php	bookingextension_agent\external\ai_get_doc_content	format_non_doc_link
+classes/external/ai_get_doc_content.php	bookingextension_agent\external\ai_get_doc_content	inline_format
+classes/external/ai_get_doc_content.php	bookingextension_agent\external\ai_get_doc_content	normalize_relative_docs_path
+classes/external/ai_get_doc_content.php	bookingextension_agent\external\ai_get_doc_content	resolve_internal_doc_link
+classes/external/ai_render_command_preview.php	bookingextension_agent\external\ai_render_command_preview	execute_returns
+classes/external/booking_validate_option.php	bookingextension_agent\external\booking_validate_option	execute_returns
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	build_confirm_pending_no_intent_fallback
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	clarification_result_with_context
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	refresh_contract_command_fallback
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	build_deterministic_loop_repeat_fallback
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	is_final_clarification_without_commands
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	loop_repeat_narration_result
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	loop_repeat_result
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	normalize_final_reasoning_narration
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	normalize_trimmed_string_list
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	resolve_preview_option_id
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	resolve_synthesis_user_language
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	should_run_synthesis_for_clarification
+classes/local/wbagent/core/tasks/core_task_base.php	bookingextension_agent\local\wbagent\core\tasks\core_task_base	format_course_observation
+classes/local/wbagent/core/tasks/core_task_base.php	bookingextension_agent\local\wbagent\core\tasks\core_task_base	format_custom_profile_field_observation
+classes/local/wbagent/core/tasks/core_task_base.php	bookingextension_agent\local\wbagent\core\tasks\core_task_base	format_observation_scalar
+classes/local/wbagent/core/tasks/core_task_base.php	bookingextension_agent\local\wbagent\core\tasks\core_task_base	format_role_observation
+classes/local/wbagent/core/tasks/list_actions_task.php	bookingextension_agent\local\wbagent\core\tasks\list_actions_task	build_debug_summary
+classes/local/wbagent/core/tasks/list_actions_task.php	bookingextension_agent\local\wbagent\core\tasks\list_actions_task	build_unavailable_action_detail
+classes/local/wbagent/core/tasks/list_actions_task.php	bookingextension_agent\local\wbagent\core\tasks\list_actions_task	build_user_capabilities
+classes/local/wbagent/core/tasks/list_actions_task.php	bookingextension_agent\local\wbagent\core\tasks\list_actions_task	build_user_summary
+classes/local/wbagent/core/tasks/list_actions_task.php	bookingextension_agent\local\wbagent\core\tasks\list_actions_task	describe_deny_reason
+classes/local/wbagent/core/tasks/list_actions_task.php	bookingextension_agent\local\wbagent\core\tasks\list_actions_task	get_localized_string
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	append_json_list_section
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	append_json_object_section
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	append_planner_traces_and_observations
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	availability_from_deny_reason
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	build_local_output_contract_block
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	build_runtime_context_block
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	build_task_description_index
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	build_unavailable_task_catalog_for_runtime
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	json_encode_or_empty
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	normalize_planner_trace_history
+classes/local/wbagent/orchestrator.php	bookingextension_agent\local\wbagent\orchestrator	sanitize_unavailable_task_catalog
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	build_input_signature
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	build_input_signature_details
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	can_pickup_now
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	dependencies_succeeded
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	dependencies_succeeded_from_items
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	dfs_cycle_detect
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	fail_expired_blocked_items
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	next_sequence
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	normalize_for_signature
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	resolve_blocked_expires_at
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	resolve_thread_contextid
+classes/local/wbagent/queue/queue_manager.php	bookingextension_agent\local\wbagent\queue\queue_manager	validate_depends_on_is_dag
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	build_summary_context
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	compact_text
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	describe_entry
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	describe_result_for_state
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	detect_result_category
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	summarize_with_contributors
+classes/local/wbagent/result_payload_summarizer.php	bookingextension_agent\local\wbagent\result_payload_summarizer	summarize_with_task_provider
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	__construct
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	build_assistant_state_blocks
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	build_contextual_guidance
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	extract_result_facts
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	matches_contextual_pack
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	normalize_nonempty_string_list
+classes/local/wbagent/services/assistant_state_guidance_service.php	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	summarize_structured_state
+classes/local/wbagent/services/completed_command_history_service.php	bookingextension_agent\local\wbagent\services\completed_command_history_service	__construct
+classes/local/wbagent/services/completed_command_history_service.php	bookingextension_agent\local\wbagent\services\completed_command_history_service	build_signature
+classes/local/wbagent/services/completed_command_history_service.php	bookingextension_agent\local\wbagent\services\completed_command_history_service	extract_from_messages
+classes/local/wbagent/services/completed_command_history_service.php	bookingextension_agent\local\wbagent\services\completed_command_history_service	merge_from_queue
+classes/local/wbagent/services/completed_command_history_service.php	bookingextension_agent\local\wbagent\services\completed_command_history_service	normalize_input
+classes/local/wbagent/services/completed_command_history_service.php	bookingextension_agent\local\wbagent\services\completed_command_history_service	normalize_value
+classes/local/wbagent/services/confirm_preview_option_service.php	bookingextension_agent\local\wbagent\services\confirm_preview_option_service	__construct
+classes/local/wbagent/services/confirm_preview_option_service.php	bookingextension_agent\local\wbagent\services\confirm_preview_option_service	first_preview_option_id
+classes/local/wbagent/services/confirm_preview_option_service.php	bookingextension_agent\local\wbagent\services\confirm_preview_option_service	merge_preview_option_ids
+classes/local/wbagent/services/confirm_preview_option_service.php	bookingextension_agent\local\wbagent\services\confirm_preview_option_service	remember_confirm_preview_option_ids
+classes/local/wbagent/services/confirm_preview_option_service.php	bookingextension_agent\local\wbagent\services\confirm_preview_option_service	resolve_confirm_preview_option_ids_for_response
+classes/local/wbagent/services/confirm_preview_option_service.php	bookingextension_agent\local\wbagent\services\confirm_preview_option_service	resolve_preview_option_ids_for_response
+classes/local/wbagent/services/confirm_run_service.php	bookingextension_agent\local\wbagent\services\confirm_run_service	build_preview_response_fields
+classes/local/wbagent/services/mutation/entity_mutation_service.php	bookingextension_agent\local\wbagent\services\mutation\entity_mutation_service	entity_exists_by_name
+classes/local/wbagent/services/mutation/entity_mutation_service.php	bookingextension_agent\local\wbagent\services\mutation\entity_mutation_service	entity_exists_by_shortname
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	__construct
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	get_action_initial_prompt_config_key
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	get_history_limit_for_step
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	get_initial_prompt_config_key
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	normalize_config_prompt_template
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	normalize_step_type
+classes/local/wbagent/services/orchestrator_prompt_profile_service.php	bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service	observations_are_framework_retry_hints
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	__construct
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	build_debug_source
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	is_action_available_in_context
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	is_wunderbyte_routing_available
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	resolve_action_class_for_step
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	short_debug_token
+classes/local/wbagent/services/orchestrator_routing_service.php	bookingextension_agent\local\wbagent\services\orchestrator_routing_service	should_use_openai_step_routing
+classes/local/wbagent/services/pending_queue_command_service.php	bookingextension_agent\local\wbagent\services\pending_queue_command_service	__construct
+classes/local/wbagent/services/pending_queue_command_service.php	bookingextension_agent\local\wbagent\services\pending_queue_command_service	build_mutating_commands_from_pending_intent
+classes/local/wbagent/services/pending_queue_command_service.php	bookingextension_agent\local\wbagent\services\pending_queue_command_service	normalize_queue_item_ids
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	failed_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_blocked_confirmation_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_dependency_satisfied_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_failed_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_ready_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_retry_waiting_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_succeeded_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	is_terminal_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	ready_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	skipped_status
+classes/local/wbagent/services/queue_status_policy.php	bookingextension_agent\local\wbagent\services\queue_status_policy	succeeded_status
+classes/local/wbagent/services/queue_transition_service.php	bookingextension_agent\local\wbagent\services\queue_transition_service	apply_preflight_decision
+classes/local/wbagent/services/queue_transition_service.php	bookingextension_agent\local\wbagent\services\queue_transition_service	normalize_queue_item_ids
+classes/local/wbagent/services/queue_transition_service.php	bookingextension_agent\local\wbagent\services\queue_transition_service	to_blocked_confirmation
+classes/local/wbagent/services/runtime_step_analysis_service.php	bookingextension_agent\local\wbagent\services\runtime_step_analysis_service	extract_recorded_step_task_names
+classes/local/wbagent/services/runtime_step_analysis_service.php	bookingextension_agent\local\wbagent\services\runtime_step_analysis_service	extract_step_command_signatures
+classes/local/wbagent/services/runtime_step_analysis_service.php	bookingextension_agent\local\wbagent\services\runtime_step_analysis_service	extract_step_task_names
+classes/local/wbagent/services/runtime_step_analysis_service.php	bookingextension_agent\local\wbagent\services\runtime_step_analysis_service	humanize_task_name
+classes/local/wbagent/services/runtime_step_analysis_service.php	bookingextension_agent\local\wbagent\services\runtime_step_analysis_service	normalize_command_input_for_signature
+classes/local/wbagent/services/runtime_synthesis_policy_service.php	bookingextension_agent\local\wbagent\services\runtime_synthesis_policy_service	has_explain_or_diagnose_task
+classes/local/wbagent/services/runtime_synthesis_policy_service.php	bookingextension_agent\local\wbagent\services\runtime_synthesis_policy_service	is_sufficiency_exit_signal
+classes/local/wbagent/services/runtime_synthesis_policy_service.php	bookingextension_agent\local\wbagent\services\runtime_synthesis_policy_service	should_convert_sufficient_to_readonly_clarification
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_registry	__construct
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_registry	get_component
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_registry	get_discovery_diagnostics
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_registry	get_issue_code_provider
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_registry	get_prompt_guidance
+cli/rebuild_embeddings_fixture.php	bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc	read_fixture_rows
+cli/rebuild_embeddings_fixture.php	bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc	write_fixture_rows
+db/upgrade.php	bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc	xmldb_bookingextension_agent_ensure_ai_messages_userid
+db/upgrade.php	bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc	xmldb_bookingextension_agent_upgrade
+```
+
+### Entfernt (Methoden/Funktionen, signaturbasiert)
+
+```text
+classes/external/ai_get_doc_content.php	(global)	build_moodle_url_from_parts
+classes/external/ai_get_doc_content.php	(global)	format_non_doc_link
+classes/external/ai_get_doc_content.php	(global)	inline_format
+classes/external/ai_get_doc_content.php	(global)	normalize_relative_docs_path
+classes/external/ai_get_doc_content.php	(global)	resolve_internal_doc_link
+classes/external/ai_render_command_preview.php	(global)	execute_returns
+classes/external/booking_validate_option.php	(global)	execute_returns
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	apply_preflight_queue_decision
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	build_commands_from_pending_queue
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	build_confirmation_validation_message
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	extract_option_search_query
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	extract_teacher_query_from_validation_errors
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	is_non_substantive_clarification_message
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	is_substantive_clarification_message
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	slice_first_mutation_confirmation_stage
+classes/local/wbagent/agent_decision_service.php	bookingextension_agent\local\wbagent\agent_decision_service	user_allows_missing_user_autocreate
+classes/local/wbagent/agent_runtime.php	(global)	build_deterministic_loop_repeat_fallback
+classes/local/wbagent/agent_runtime.php	(global)	extract_recorded_step_task_names
+classes/local/wbagent/agent_runtime.php	(global)	has_explain_or_diagnose_task
+classes/local/wbagent/agent_runtime.php	(global)	is_final_clarification_without_commands
+classes/local/wbagent/agent_runtime.php	(global)	is_sufficiency_exit_signal
+classes/local/wbagent/agent_runtime.php	(global)	loop_repeat_narration_result
+classes/local/wbagent/agent_runtime.php	(global)	loop_repeat_result
+classes/local/wbagent/agent_runtime.php	(global)	normalize_final_reasoning_narration
+classes/local/wbagent/agent_runtime.php	(global)	normalize_trimmed_string_list
+classes/local/wbagent/agent_runtime.php	(global)	resolve_preview_option_id
+classes/local/wbagent/agent_runtime.php	(global)	resolve_synthesis_user_language
+classes/local/wbagent/agent_runtime.php	(global)	should_convert_sufficient_to_readonly_clarification
+classes/local/wbagent/agent_runtime.php	(global)	should_run_synthesis_for_clarification
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	extract_step_command_signatures
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	extract_step_task_names
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	humanize_task_name
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	is_meta_clarification_follow_up
+classes/local/wbagent/agent_runtime.php	bookingextension_agent\local\wbagent\agent_runtime	normalize_command_input_for_signature
+classes/local/wbagent/core/tasks/core_task_base.php	(global)	format_course_observation
+classes/local/wbagent/core/tasks/core_task_base.php	(global)	format_custom_profile_field_observation
+classes/local/wbagent/core/tasks/core_task_base.php	(global)	format_observation_scalar
+classes/local/wbagent/core/tasks/core_task_base.php	(global)	format_role_observation
+classes/local/wbagent/core/tasks/list_actions_task.php	(global)	build_debug_summary
+classes/local/wbagent/core/tasks/list_actions_task.php	(global)	build_unavailable_action_detail
+classes/local/wbagent/core/tasks/list_actions_task.php	(global)	build_user_capabilities
+classes/local/wbagent/core/tasks/list_actions_task.php	(global)	build_user_summary
+classes/local/wbagent/core/tasks/list_actions_task.php	(global)	describe_deny_reason
+classes/local/wbagent/core/tasks/list_actions_task.php	(global)	get_localized_string
+classes/local/wbagent/orchestrator.php	(global)	append_json_list_section
+classes/local/wbagent/orchestrator.php	(global)	append_json_object_section
+classes/local/wbagent/orchestrator.php	(global)	append_planner_traces_and_observations
+classes/local/wbagent/orchestrator.php	(global)	availability_from_deny_reason
+classes/local/wbagent/orchestrator.php	(global)	build_assistant_state_blocks
+classes/local/wbagent/orchestrator.php	(global)	build_completed_command_signature
+classes/local/wbagent/orchestrator.php	(global)	build_contextual_guidance
+classes/local/wbagent/orchestrator.php	(global)	build_local_output_contract_block
+classes/local/wbagent/orchestrator.php	(global)	build_orchestrator_debug_source
+classes/local/wbagent/orchestrator.php	(global)	build_runtime_context_block
+classes/local/wbagent/orchestrator.php	(global)	build_task_description_index
+classes/local/wbagent/orchestrator.php	(global)	build_unavailable_task_catalog_for_runtime
+classes/local/wbagent/orchestrator.php	(global)	extract_completed_commands_from_messages
+classes/local/wbagent/orchestrator.php	(global)	extract_result_facts
+classes/local/wbagent/orchestrator.php	(global)	get_action_initial_prompt_config_key
+classes/local/wbagent/orchestrator.php	(global)	get_history_limit_for_step
+classes/local/wbagent/orchestrator.php	(global)	get_initial_prompt_config_key
+classes/local/wbagent/orchestrator.php	(global)	is_action_available_in_context
+classes/local/wbagent/orchestrator.php	(global)	is_wunderbyte_routing_available
+classes/local/wbagent/orchestrator.php	(global)	json_encode_or_empty
+classes/local/wbagent/orchestrator.php	(global)	matches_contextual_pack
+classes/local/wbagent/orchestrator.php	(global)	merge_completed_commands_from_queue
+classes/local/wbagent/orchestrator.php	(global)	normalize_completed_command_input
+classes/local/wbagent/orchestrator.php	(global)	normalize_completed_command_value
+classes/local/wbagent/orchestrator.php	(global)	normalize_config_prompt_template
+classes/local/wbagent/orchestrator.php	(global)	normalize_nonempty_string_list
+classes/local/wbagent/orchestrator.php	(global)	normalize_planner_trace_history
+classes/local/wbagent/orchestrator.php	(global)	normalize_step_type
+classes/local/wbagent/orchestrator.php	(global)	observations_are_framework_retry_hints
+classes/local/wbagent/orchestrator.php	(global)	resolve_action_class_for_step
+classes/local/wbagent/orchestrator.php	(global)	sanitize_unavailable_task_catalog
+classes/local/wbagent/orchestrator.php	(global)	short_debug_token
+classes/local/wbagent/orchestrator.php	(global)	should_use_openai_step_routing
+classes/local/wbagent/orchestrator.php	(global)	summarize_structured_state
+classes/local/wbagent/queue/queue_manager.php	(global)	build_input_signature
+classes/local/wbagent/queue/queue_manager.php	(global)	build_input_signature_details
+classes/local/wbagent/queue/queue_manager.php	(global)	can_pickup_now
+classes/local/wbagent/queue/queue_manager.php	(global)	dependencies_succeeded
+classes/local/wbagent/queue/queue_manager.php	(global)	dependencies_succeeded_from_items
+classes/local/wbagent/queue/queue_manager.php	(global)	dfs_cycle_detect
+classes/local/wbagent/queue/queue_manager.php	(global)	fail_expired_blocked_items
+classes/local/wbagent/queue/queue_manager.php	(global)	next_sequence
+classes/local/wbagent/queue/queue_manager.php	(global)	normalize_for_signature
+classes/local/wbagent/queue/queue_manager.php	(global)	resolve_blocked_expires_at
+classes/local/wbagent/queue/queue_manager.php	(global)	resolve_thread_contextid
+classes/local/wbagent/queue/queue_manager.php	(global)	validate_depends_on_is_dag
+classes/local/wbagent/result_payload_summarizer.php	(global)	build_summary_context
+classes/local/wbagent/result_payload_summarizer.php	(global)	compact_text
+classes/local/wbagent/result_payload_summarizer.php	(global)	describe_entry
+classes/local/wbagent/result_payload_summarizer.php	(global)	describe_result_for_state
+classes/local/wbagent/result_payload_summarizer.php	(global)	detect_result_category
+classes/local/wbagent/result_payload_summarizer.php	(global)	summarize_with_contributors
+classes/local/wbagent/result_payload_summarizer.php	(global)	summarize_with_task_provider
+classes/local/wbagent/services/confirm_run_service.php	bookingextension_agent\local\wbagent\services\confirm_run_service	first_preview_option_id
+classes/local/wbagent/services/confirm_run_service.php	bookingextension_agent\local\wbagent\services\confirm_run_service	merge_preview_option_ids
+classes/local/wbagent/services/confirm_run_service.php	bookingextension_agent\local\wbagent\services\confirm_run_service	remember_confirm_preview_option_ids
+classes/local/wbagent/services/confirm_run_service.php	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_confirm_preview_option_ids_for_response
+classes/local/wbagent/services/confirm_run_service.php	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_preview_option_ids_for_response
+classes/local/wbagent/services/mutation/entity_mutation_service.php	(global)	entity_exists_by_name
+classes/local/wbagent/services/mutation/entity_mutation_service.php	(global)	entity_exists_by_shortname
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	__construct
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	get_component
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	get_contextual_prompt_packs
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	get_discovery_diagnostics
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	get_issue_code_provider
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	get_prompt_guidance
+classes/local/wbagent/task_registry.php	bookingextension_agent\local\wbagent\task_provider_interface	get_tasks
+cli/rebuild_embeddings_fixture.php	(global)	read_fixture_rows
+cli/rebuild_embeddings_fixture.php	(global)	write_fixture_rows
+db/upgrade.php	(global)	xmldb_bookingextension_agent_ensure_ai_messages_userid
+db/upgrade.php	(global)	xmldb_bookingextension_agent_upgrade
+```
+
+## Kurzfazit
+
+Die Inventur wurde vollständig neu aus dem aktuellen Dateisystem erzeugt. Gegenüber dem alten Stand wurden Verzeichnisse reduziert, Dateien erweitert und der deklarierte PHP-Methodenbestand netto erhöht. Der signaturbasierte Methodenvergleich isoliert echte API-/Deklarationsänderungen von bloßen Zeilenverschiebungen.

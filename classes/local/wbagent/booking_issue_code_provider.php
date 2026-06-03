@@ -19,11 +19,11 @@ namespace bookingextension_agent\local\wbagent;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 
 /**
- * Issue code provider for mod_booking.
+ * Issue code provider for bookingextension_agent.
  *
  * Defines all booking-specific issue codes and subscription URLs.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -16,19 +16,18 @@
 
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
-use bookingextension_agent\local\wbagent\booking\booking_task_support;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
- * Task definition for booking.search_users.
+ * Task definition for core.search_users.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class search_users_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class search_users_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.search_users';
+    public const TASK_NAME = 'core.search_users';
 
     /**
      * Constructor.
@@ -54,7 +53,9 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Search users via mod_booking external search_users functionality.',
+            'description' => 'Search users and return resolved candidates with profile data, '
+                . 'enrolled courses, roles, and profile URL. Use this first when a '
+                . 'follow-up task needs a concrete user identity.',
             'readonly' => $this->is_read_only(),
             'fallback_taskcall_string_key' => 'ai_status_taskcall_booking_search_users',
             'properties' => [
@@ -78,6 +79,18 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
     }
 
     /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'query' => 'max.mustermann',
+            'limit' => 5,
+        ];
+    }
+
+    /**
      * Return task-specific message triggers.
      *
      * @return array<int,array<string,mixed>>
@@ -85,7 +98,7 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.search_users_request',
+                'id' => 'core.search_users_request',
                 'description' => 'User asks to find users by name, email or id.',
                 'examples' => [
                     'Find users called John',
@@ -104,16 +117,19 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'booking.search_users',
+                'id' => 'core.search_users',
                 'triggers' => [
                     'find user', 'search user', 'suche benutzer', 'suche nutzer', 'finde benutzer',
                     'find users', 'search users', 'finde nutzer', 'user lookup',
                 ],
                 'guidance' => [
-                    '- Use booking.search_users as a FIRST STEP whenever you need to resolve a person by name,',
+                    '- Use core.search_users as a FIRST STEP whenever you need to resolve a person by name,',
                     '  email fragment, or partial id before calling a mutating task (e.g. booking.book_users).',
+                    '- This task already returns the matched user\'s enrolled courses and assigned roles,',
+                    '  so use it before asking for course participation or permission context about a user.',
                     '- Execute this task and wait for the observation before proceeding to the next step.',
-                    '- Return a short preview list of matching users including userid and fullname.',
+                    '- Return a short preview list of matching users including userid, fullname, profile URL,',
+                    '  enrolled courses, and roles when available.',
                     '- If more than one user matches, ask the user to clarify which one they mean.',
                 ],
             ],
@@ -121,17 +137,18 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
     }
 
     /**
-     * Validate task input.
+     * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
+        $input = self::normalize_query_input($input);
         $errors = [];
         $lang = $this->get_output_language($input);
         if (empty($input['query']) || !is_string($input['query'])) {
             $errors[] = $this->localized_string('agent_booking_search_users_required_query', null, $lang);
+            $errors[] = $this->build_query_retry_hint();
         }
 
         return [
@@ -145,27 +162,39 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
+        $input = self::normalize_query_input($input);
         $query = trim((string)($input['query'] ?? ''));
-        $question = trim((string)($input['question'] ?? ''));
         $outputlang = $this->get_output_language($input);
         $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
 
         if ($query === '') {
             return [
                 'status' => 'error',
-                'detail' => $this->localized_string('agent_booking_search_users_required_query', null, $outputlang),
+                'detail' => $this->localized_string('agent_booking_search_users_required_query', null, $outputlang)
+                    . ' ' . $this->build_query_retry_hint(),
                 'resultid' => null,
             ];
         }
 
         $debugbase = $this->build_task_debug_message(self::TASK_NAME, $input);
 
-        $users = booking_task_support::search_user_candidates_for_preview($query, $limit);
+        $users = $this->search_user_candidates_for_preview($query, $limit);
+        $payloadusers = [];
+        foreach ($users as $candidate) {
+            $candidateid = (int)($candidate['userid'] ?? 0);
+            if ($candidateid <= 0) {
+                continue;
+            }
+
+            $user = \core_user::get_user($candidateid, '*', MUST_EXIST);
+            $payloadusers[] = $this->build_user_payload($user);
+        }
+
         if (empty($users)) {
             $usermessage = $this->localized_string('agent_booking_search_users_no_results', null, $outputlang);
             return [
@@ -174,6 +203,9 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
                 'usermessage' => $usermessage,
                 'resultid' => null,
                 'users' => [],
+                'previewmode' => 'user_search',
+                'previewdata' => ['query' => $query, 'users' => []],
+                'observation_full' => 'Found 0 user(s).',
                 'debugmessage' => $debugbase . "\nResults: 0",
             ];
         }
@@ -194,10 +226,78 @@ class search_users_task extends \bookingextension_agent\local\wbagent\booking\ta
             'status' => 'executed',
             'detail' => $usermessage,
             'usermessage' => $usermessage,
-            'resultid' => (int)($users[0]['userid'] ?? 0),
-            'users' => $users,
+            'resultid' => (int)($payloadusers[0]['userid'] ?? ($users[0]['userid'] ?? 0)),
+            'users' => $payloadusers,
+            'user' => $payloadusers[0] ?? [],
+            'previewmode' => 'user_search',
+            'previewdata' => ['query' => $query, 'users' => $payloadusers],
+            'observation_full' => $this->build_user_observation_full($payloadusers),
             'previewuserids' => $previewids,
             'debugmessage' => $debugbase . "\n" . implode("\n", $debugextra),
         ];
+    }
+
+    /**
+     * Normalize common aliases to canonical query for user search.
+     *
+     * @param array<string,mixed> $input
+     * @return array<string,mixed>
+     */
+    private static function normalize_query_input(array $input): array {
+        if (!empty($input['query']) && is_scalar($input['query']) && trim((string)$input['query']) !== '') {
+            $input['query'] = trim((string)$input['query']);
+            return $input;
+        }
+
+        $aliases = [
+            'userquery',
+            'user',
+            'username',
+            'email',
+            'mail',
+            'fullname',
+            'name',
+            'searchterm',
+        ];
+        foreach ($aliases as $alias) {
+            if (!array_key_exists($alias, $input) || !is_scalar($input[$alias])) {
+                continue;
+            }
+
+            $value = trim((string)$input[$alias]);
+            if ($value === '') {
+                continue;
+            }
+
+            $input['query'] = $value;
+            return $input;
+        }
+
+        foreach ($input as $key => $value) {
+            if (!is_string($key) || in_array($key, ['outputlang', 'limit', 'contextid', 'cmid'], true)) {
+                continue;
+            }
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $text = trim((string)$value);
+            if ($text !== '') {
+                $input['query'] = $text;
+                return $input;
+            }
+        }
+
+        return $input;
+    }
+
+    /**
+     * Build a compact retry hint for missing user query input.
+     *
+     * @return string
+     */
+    private function build_query_retry_hint(): string {
+        return 'Retry core.search_users once with input.query (or alias: userquery, user, username, email, name). '
+            . 'Resend exactly one corrected task_call for the same task.';
     }
 }

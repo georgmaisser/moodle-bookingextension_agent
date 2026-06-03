@@ -17,7 +17,7 @@
 /**
  * Centralised result-payload summarizer.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -37,7 +37,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_result_summary_provider
  *  - for_client(): plain-text fallback message for client-facing responses when
  *    no LLM narration is available.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -71,7 +71,7 @@ class result_payload_summarizer {
                 continue;
             }
 
-            // observation_full: task-provided verbatim content that must not be truncated.
+            // Observation_full: task-provided verbatim content that must not be truncated.
             // Use it directly so list-type results (rules, notifications, etc.) are never cut.
             $full = isset($entry['observation_full']) ? trim((string)$entry['observation_full']) : '';
             if ($full !== '') {
@@ -318,7 +318,7 @@ class result_payload_summarizer {
                             $keylist = implode(', ', $keys);
                             $detailsummary .= ' Custom field values NOT loaded (only keys known): '
                                 . implode(', ', $labels) . '.'
-                                . " To retrieve a custom field value, call booking.get_option_details again"
+                                . " To retrieve a custom field value, call the corresponding details task again"
                                 . " with include_customfields=true and customfield_keys=[{$keylist}].";
                         }
                     }
@@ -418,7 +418,7 @@ class result_payload_summarizer {
         if ($component === '' && $taskname !== '' && strpos($taskname, '.') !== false) {
             $prefix = explode('.', $taskname)[0] ?? '';
             if ($prefix !== '') {
-                $component = $prefix === 'booking' ? 'mod_booking' : $prefix;
+                $component = $prefix === 'booking' ? 'bookingextension_agent' : $prefix;
             }
         }
 

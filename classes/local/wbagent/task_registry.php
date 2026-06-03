@@ -17,7 +17,7 @@
 /**
  * Task schema registry.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -25,8 +25,14 @@
 namespace bookingextension_agent\local\wbagent;
 
 use core_component;
+use core_text;
+use bookingextension_agent\local\wbagent\contracts\task_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_interface;
+use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\summarizer\result_summary_contributor_interface;
+use bookingextension_agent\local\wbagent\interfaces\task_input_normalizer_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
@@ -38,7 +44,7 @@ use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interf
  * to embed task schemas in the system prompt and the executor uses it to
  * dispatch commands to the correct provider.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -48,6 +54,15 @@ class task_registry {
 
     /** @var array<string, task_interface> task name => task instance */
     private array $tasks = [];
+
+    /** @var array<string, task_provider_interface> task name => provider instance */
+    private array $taskproviders = [];
+
+    /** @var array<string,array<string,mixed>> task name => normalized governance metadata */
+    private array $taskcontracts = [];
+
+    /** @var array<int,string> contract diagnostics collected during registration */
+    private array $contractdiagnostics = [];
 
     /** @var array<int,result_summary_contributor_interface> */
     private array $resultsummarycontributors = [];
@@ -62,7 +77,17 @@ class task_registry {
         $this->providers[$provider->get_component()] = $provider;
 
         if ($provider instanceof result_summary_provider_interface) {
-            foreach ($provider->get_result_summary_contributors() as $contributor) {
+            try {
+                $contributors = $provider->get_result_summary_contributors();
+            } catch (\Throwable $e) {
+                $this->add_contract_diagnostic(
+                    'Ignoring result summary contributors from component ' . $provider->get_component()
+                    . ' due to provider error: ' . get_class($e) . ': ' . $e->getMessage()
+                );
+                $contributors = [];
+            }
+
+            foreach ($contributors as $contributor) {
                 if (!$contributor instanceof result_summary_contributor_interface) {
                     continue;
                 }
@@ -82,27 +107,92 @@ class task_registry {
             }
         }
 
-        foreach ($provider->get_tasks() as $task) {
-            $taskname = trim($task->get_name());
+        try {
+            $providertasks = $provider->get_tasks();
+        } catch (\Throwable $e) {
+            $this->add_contract_diagnostic(
+                'Ignoring AI tasks from component ' . $provider->get_component()
+                . ' due to provider error: ' . get_class($e) . ': ' . $e->getMessage()
+            );
+            $this->append_provider_discovery_diagnostics($provider);
+            $this->fail_on_contract_diagnostics_when_strict();
+            return;
+        }
+
+        $this->append_provider_discovery_diagnostics($provider);
+
+        foreach ($providertasks as $task) {
+            if (!$task instanceof task_interface) {
+                $this->add_contract_diagnostic(
+                    'Ignoring non-task contribution from component ' . $provider->get_component()
+                );
+                continue;
+            }
+
+            try {
+                $taskname = trim($task->get_name());
+            } catch (\Throwable $e) {
+                $this->add_contract_diagnostic(
+                    'Ignoring AI task from component ' . $provider->get_component()
+                    . ' because get_name() failed: ' . get_class($e) . ': ' . $e->getMessage()
+                );
+                continue;
+            }
+
             if ($taskname === '') {
-                \debugging(
-                    'Ignoring AI task with empty name from component ' . $provider->get_component(),
-                    DEBUG_DEVELOPER
+                $this->add_contract_diagnostic(
+                    'Ignoring AI task with empty name from component ' . $provider->get_component()
+                );
+                continue;
+            }
+
+            $tasknamespace = task_contract_validator::extract_task_namespace($taskname);
+            if (!task_contract_validator::component_may_register_namespace($provider->get_component(), $tasknamespace)) {
+                $this->add_contract_diagnostic(
+                    'Ignoring AI task because namespace is reserved: ' . $taskname
+                    . ' (component: ' . $provider->get_component() . ')'
                 );
                 continue;
             }
 
             if (isset($this->tasks[$taskname])) {
-                \debugging(
+                $this->add_contract_diagnostic(
                     'Duplicate AI task name detected: ' . $taskname
-                    . ' (component: ' . $provider->get_component() . '). Keeping first registered task.',
-                    DEBUG_DEVELOPER
+                    . ' (component: ' . $provider->get_component() . '). Keeping first registered task.'
+                );
+                continue;
+            }
+
+            try {
+                $metadata = task_contract_validator::build_task_metadata($task, $provider->get_component());
+            } catch (\Throwable $e) {
+                $this->add_contract_diagnostic(
+                    'Ignoring task due to metadata build error: ' . $taskname
+                    . ' [' . get_class($e) . ': ' . $e->getMessage() . ']'
+                );
+                continue;
+            }
+
+            $validation = task_contract_validator::validate_task_metadata($metadata);
+            if (!$validation['valid']) {
+                $this->add_contract_diagnostic(
+                    'Ignoring task due to contract validation errors: ' . $taskname
+                    . ' [' . implode(' | ', (array)$validation['errors']) . ']'
                 );
                 continue;
             }
 
             $this->tasks[$taskname] = $task;
+            $this->taskcontracts[$taskname] = $metadata;
+            $this->taskproviders[$taskname] = $provider;
         }
+
+        $registryerrors = task_contract_validator::validate_registry_contracts($this->taskcontracts);
+        foreach ($registryerrors as $error) {
+            $this->add_contract_diagnostic($error);
+        }
+
+        $this->fail_on_contract_diagnostics_when_strict();
     }
 
     /**
@@ -116,6 +206,73 @@ class task_registry {
     }
 
     /**
+     * Return provider owning a given task, or null when unavailable.
+     *
+     * @param string $taskname
+     * @return task_provider_interface|null
+     */
+    public function get_provider_for_task(string $taskname): ?task_provider_interface {
+        return $this->taskproviders[$taskname] ?? null;
+    }
+
+    /**
+     * Normalize task input via optional provider-owned normalizer.
+     *
+     * @param string $taskname
+     * @param array $input
+     * @return array
+     */
+    public function normalize_task_input(string $taskname, array $input): array {
+        $provider = $this->get_provider_for_task($taskname);
+        if (!($provider instanceof task_input_normalizer_provider_interface)) {
+            return $input;
+        }
+
+        $normalizer = $provider->get_task_input_normalizer();
+        if ($normalizer === null) {
+            return $input;
+        }
+
+        return $normalizer->normalize($taskname, $input);
+    }
+
+    /**
+     * Resolve provider-owned preview option memory helper for a task.
+     *
+     * @param string $taskname
+     * @return preview_option_memory_interface|null
+     */
+    public function get_preview_option_memory_for_task(string $taskname): ?preview_option_memory_interface {
+        $provider = $this->get_provider_for_task($taskname);
+        if (!($provider instanceof preview_option_memory_provider_interface)) {
+            return null;
+        }
+
+        return $provider->get_preview_option_memory();
+    }
+
+    /**
+     * Return all provider-owned preview option memory helpers.
+     *
+     * @return array<int,preview_option_memory_interface>
+     */
+    public function get_preview_option_memory_helpers(): array {
+        $helpers = [];
+        foreach ($this->providers as $provider) {
+            if (!($provider instanceof preview_option_memory_provider_interface)) {
+                continue;
+            }
+
+            $helper = $provider->get_preview_option_memory();
+            if ($helper !== null) {
+                $helpers[] = $helper;
+            }
+        }
+
+        return $helpers;
+    }
+
+    /**
      * Return all registered task names (the allow-list).
      *
      * @return string[]
@@ -125,12 +282,62 @@ class task_registry {
     }
 
     /**
+     * Return task names for the given user/context filtered by executability.
+     *
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @param bool $includeunavailable
+     * @return array<int,string>
+     */
+    public function get_task_names_for_context(
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid,
+        bool $includeunavailable = false
+    ): array {
+        if ($includeunavailable) {
+            return $this->get_task_names();
+        }
+
+        return $evaluator->get_executable_task_names($userid, $contextid);
+    }
+
+    /**
      * Return all registered task instances.
      *
      * @return array
      */
     public function get_tasks(): array {
         return $this->tasks;
+    }
+
+    /**
+     * Return normalized governance metadata for a single task.
+     *
+     * @param string $taskname
+     * @return array<string,mixed>|null
+     */
+    public function get_task_contract(string $taskname): ?array {
+        return $this->taskcontracts[$taskname] ?? null;
+    }
+
+    /**
+     * Return normalized governance metadata for all registered tasks.
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    public function get_task_contracts(): array {
+        return $this->taskcontracts;
+    }
+
+    /**
+     * Return contract diagnostics collected during provider/task registration.
+     *
+     * @return array<int,string>
+     */
+    public function get_contract_diagnostics(): array {
+        return $this->contractdiagnostics;
     }
 
     /**
@@ -154,6 +361,63 @@ class task_registry {
     }
 
     /**
+     * Return whether a task is active according to governance metadata.
+     *
+     * @param string $taskname
+     * @return bool
+     */
+    public function is_task_active(string $taskname): bool {
+        $meta = $this->get_task_contract($taskname);
+        if ($meta === null) {
+            return false;
+        }
+
+        if ((bool)get_config('bookingextension_agent', 'aitaskenableall')) {
+            return true;
+        }
+
+        $settingname = self::get_task_toggle_setting_name($taskname);
+        $configured = get_config('bookingextension_agent', $settingname);
+        if ($configured !== false) {
+            return (bool)$configured;
+        }
+
+        // Default-off for newly discovered tasks until explicitly enabled.
+        return false;
+    }
+
+    /**
+     * Return config key used for system-wide task enabled/disabled flag.
+     *
+     * @param string $taskname
+     * @return string
+     */
+    public static function get_task_toggle_setting_name(string $taskname): string {
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', core_text::strtolower(trim($taskname)));
+        $normalized = trim((string)$normalized, '_');
+        if ($normalized === '') {
+            $normalized = 'unknown_task';
+        }
+
+        return 'aitaskenabled_' . $normalized;
+    }
+
+    /**
+     * Return task capability requirements from governance metadata.
+     *
+     * @param string $taskname
+     * @return array<int,string>
+     */
+    public function get_task_capabilities(string $taskname): array {
+        $meta = $this->get_task_contract($taskname);
+        if ($meta === null) {
+            return [];
+        }
+
+        return array_values((array)($meta['capabilities'] ?? []));
+    }
+
+    /**
      * Return schemas for all registered tasks (for inclusion in the system prompt).
      *
      * @return array  task name => schema array
@@ -164,6 +428,65 @@ class task_registry {
             $schemas[$name] = $task->get_schema();
         }
         return $schemas;
+    }
+
+    /**
+     * Return schemas filtered for the given user/context executability.
+     *
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @param bool $includeunavailable
+     * @return array<string,mixed>
+     */
+    public function get_all_schemas_for_context(
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid,
+        bool $includeunavailable = false
+    ): array {
+        $schemas = [];
+        $tasknames = $this->get_task_names_for_context($evaluator, $userid, $contextid, $includeunavailable);
+
+        foreach ($tasknames as $name) {
+            $task = $this->get_task((string)$name);
+            if ($task === null) {
+                continue;
+            }
+
+            $schemas[(string)$name] = $task->get_schema();
+        }
+
+        return $schemas;
+    }
+
+    /**
+     * Return one task schema enriched with executability diagnostics.
+     *
+     * @param string $taskname
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @return array<string,mixed>|null
+     */
+    public function explain_task_schema_for_context(
+        string $taskname,
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid
+    ): ?array {
+        $task = $this->get_task($taskname);
+        if ($task === null) {
+            return null;
+        }
+
+        $schema = (array)$task->get_schema();
+        $evaluation = $evaluator->evaluate_task($taskname, $userid, $contextid);
+        $schema['executable_state'] = (string)($evaluation['executable_state'] ?? 'deny');
+        $schema['deny_reason'] = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
+        $schema['governance_diagnostics'] = (array)($evaluation['diagnostics'] ?? []);
+
+        return $schema;
     }
 
     /**
@@ -183,6 +506,38 @@ class task_registry {
     }
 
     /**
+     * Return prompt contracts filtered for the given user/context executability.
+     *
+     * @param task_executability_evaluator $evaluator
+     * @param int $userid
+     * @param int $contextid
+     * @param bool $includeunavailable
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_prompt_contracts_for_context(
+        task_executability_evaluator $evaluator,
+        int $userid,
+        int $contextid,
+        bool $includeunavailable = false
+    ): array {
+        $allowed = array_fill_keys(
+            $this->get_task_names_for_context($evaluator, $userid, $contextid, $includeunavailable),
+            true
+        );
+        $contracts = [];
+
+        foreach ($this->tasks as $name => $task) {
+            if (!isset($allowed[$name])) {
+                continue;
+            }
+
+            $contracts[] = $this->build_prompt_contract($name, $task);
+        }
+
+        return $contracts;
+    }
+
+    /**
      * Build compact prompt metadata for one task.
      *
      * Attempts to extract input_fields and anchor_fields from schema['prompt_meta'].
@@ -194,26 +549,42 @@ class task_registry {
      */
     private function build_prompt_contract(string $taskname, task_interface $task): array {
         $schema = (array)$task->get_schema();
-        $properties = (array)($schema['properties'] ?? []);
-        $promptmeta = (array)($schema['prompt_meta'] ?? []);
+        $promptcontract = $task->get_prompt_contract()->to_array();
+        $taskmeta = (array)($this->get_task_contract($taskname) ?? []);
+        $minimalinput = array_values(array_filter(array_map('strval', (array)($promptcontract['minimal_input'] ?? []))));
+        $anchorfields = array_values(array_filter(array_map('strval', (array)($promptcontract['anchors'] ?? []))));
 
-        // Extract input fields: prefer schema metadata, fall back to legacy detection.
-        $minimalinput = [];
-        if (!empty($promptmeta['input_fields_for_prompt']) && is_array($promptmeta['input_fields_for_prompt'])) {
-            $minimalinput = array_values(array_filter($promptmeta['input_fields_for_prompt']));
-        } else {
-            $minimalinput = $this->build_minimal_input_fields($taskname, $properties);
+        $exampleinput = is_array($promptcontract['example_input'] ?? null)
+            ? (array)$promptcontract['example_input']
+            : $task->get_example_input();
+
+        $namespace = trim((string)($promptcontract['namespace'] ?? ''));
+        if ($namespace === '' && strpos($taskname, '.') !== false) {
+            $namespace = (string)substr($taskname, 0, (int)strpos($taskname, '.'));
+        }
+        if ($namespace === '') {
+            $namespace = 'core';
         }
 
-        // Extract anchor fields: prefer schema metadata, fall back to legacy detection.
-        $anchorfields = [];
-        if (!empty($promptmeta['anchor_fields']) && is_array($promptmeta['anchor_fields'])) {
-            $anchorfields = array_values(array_filter($promptmeta['anchor_fields']));
-        } else {
-            $anchorfields = $this->extract_anchor_fields($properties);
+        $contractversion = max(1, (int)($promptcontract['version'] ?? 1));
+        $metaversion = max(1, (int)($taskmeta['version'] ?? 1));
+        $version = max($contractversion, $metaversion);
+        $family = task_family_contract::resolve_from_prompt_contract($promptcontract, $taskname);
+        if ($family === task_family_contract::DEFAULT_FAMILY && !empty($taskmeta['family'])) {
+            $family = task_family_contract::normalize_family((string)$taskmeta['family']);
         }
 
-        $exampleinput = $task->get_example_input();
+        $capabilities = array_values(array_unique(array_filter(array_map(
+            'strval',
+            !empty($promptcontract['capabilities'])
+                ? (array)$promptcontract['capabilities']
+                : (array)($taskmeta['capabilities'] ?? [])
+        ))));
+
+        $contextscopes = array_values(array_unique(array_filter(array_map(
+            'strval',
+            (array)($promptcontract['context_scopes'] ?? ['module'])
+        ))));
 
         $messagetriggers = [];
         if ($task instanceof task_trigger_provider_interface) {
@@ -228,115 +599,20 @@ class task_registry {
             'task' => $taskname,
             'description' => trim((string)($schema['description'] ?? '')),
             'readonly' => (bool)($schema['readonly'] ?? $task->is_read_only()),
-            'intent' => $this->detect_task_intent($taskname, $schema),
+            'intent' => trim((string)($promptcontract['intent'] ?? '')) !== ''
+                ? trim((string)$promptcontract['intent'])
+                : 'task',
             'anchors' => $anchorfields,
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
+            'namespace' => $namespace,
+            'family' => $family,
+            'version' => $version,
+            'capabilities' => $capabilities,
+            'context_scopes' => $contextscopes,
             'message_triggers' => $messagetriggers,
         ];
     }
-
-    /**
-     * Build minimal planner input fields when schema prompt_meta is absent.
-     *
-     * @param string $taskname
-     * @param array<string,mixed> $properties
-     * @return array<int,string>
-     */
-    private function build_minimal_input_fields(string $taskname, array $properties): array {
-        $fields = [];
-
-        foreach ($properties as $name => $spec) {
-            if (!is_string($name) || $name === '' || !is_array($spec)) {
-                continue;
-            }
-            if (!empty($spec['required'])) {
-                $fields[] = $name;
-            }
-        }
-
-        return array_values(array_unique($fields));
-    }
-
-    /**
-     * Derive compact anchor fields from available task properties.
-     *
-     * @param array<string,mixed> $properties
-     * @return array<int,string>
-     */
-    private function extract_anchor_fields(array $properties): array {
-        $anchors = [];
-
-        $keys = array_map('strval', array_keys($properties));
-        $has = static function (string $needle) use ($keys): bool {
-            return in_array($needle, $keys, true);
-        };
-
-        if ($has('optionquery') || $has('optionid') || $has('optionids')) {
-            $anchors[] = 'option';
-        }
-        if ($has('userquery') || $has('userid') || $has('userids')) {
-            $anchors[] = 'user';
-        }
-        if ($has('courseid') || $has('coursequery') || $has('courseids')) {
-            $anchors[] = 'course';
-        }
-        if ($has('question')) {
-            $anchors[] = 'question';
-        }
-        if ($has('doc_path') || $has('doc_path_candidates') || $has('search_queries') || $has('topic_hint')) {
-            $anchors[] = 'docs';
-        }
-
-        return array_values(array_unique($anchors));
-    }
-
-    /**
-     * Derive a compact intent label for routing.
-     *
-     * @param string $taskname
-     * @param array $schema
-     * @return string
-     */
-    private function detect_task_intent(string $taskname, array $schema): string {
-        if (!empty($schema['readonly'])) {
-            if (strpos($taskname, '.diagnose_') !== false) {
-                return 'diagnose';
-            }
-            if (strpos($taskname, '.explain_') !== false) {
-                return 'explain';
-            }
-            if (strpos($taskname, '.search_') !== false) {
-                return 'search';
-            }
-            if (strpos($taskname, '.list_') !== false) {
-                return 'list';
-            }
-            if (strpos($taskname, '.get_') !== false) {
-                return 'get';
-            }
-            return 'read';
-        }
-
-        if (strpos($taskname, '.bulk_') !== false) {
-            return 'bulk_update';
-        }
-        if (strpos($taskname, '.create_') !== false) {
-            return 'create';
-        }
-        if (strpos($taskname, '.update_') !== false) {
-            return 'update';
-        }
-        if (strpos($taskname, '.add_') !== false) {
-            return 'add';
-        }
-        if (strpos($taskname, '.book_') !== false) {
-            return 'book';
-        }
-
-        return 'mutate';
-    }
-
 
     /**
      * Return all context-specific prompt packs from registered providers.
@@ -377,9 +653,9 @@ class task_registry {
     }
 
     /**
-     * Return a map of trigger-id → task-name for all registered trigger-providing tasks.
+     * Return a map of trigger-id to task-name for all registered trigger-providing tasks.
      *
-     * @return array<string,string>  e.g. ['booking.explain_docs_topic_feature_help' => 'booking.explain_docs_topic']
+     * @return array<string,string>
      */
     public function get_trigger_id_to_task_name_map(): array {
         // Breaking cleanup: trigger-to-task routing is disabled.
@@ -388,7 +664,7 @@ class task_registry {
     }
 
     /**
-     * Build and return the default registry loaded with all booking task providers.
+     * Build and return the default registry loaded with all discovered task providers.
      *
      * @return self
      */
@@ -399,12 +675,17 @@ class task_registry {
         foreach (core_component::get_component_names() as $component) {
             $classname = '\\' . $component . '\\local\\wbagent\\task_provider';
             if (!class_exists($classname)) {
+                self::register_discovered_tasks_without_provider($registry, $component, $registeredcomponents);
                 continue;
             }
 
             try {
                 $provider = new $classname();
             } catch (\Throwable $e) {
+                $registry->add_contract_diagnostic(
+                    'Ignoring AI task provider ' . $classname . ' because construction failed: '
+                    . get_class($e) . ': ' . $e->getMessage()
+                );
                 continue;
             }
 
@@ -415,16 +696,230 @@ class task_registry {
             try {
                 $registry->register($provider);
             } catch (\Throwable $e) {
+                $registry->add_contract_diagnostic(
+                    'Ignoring AI task provider ' . $classname . ' because registration failed: '
+                    . get_class($e) . ': ' . $e->getMessage()
+                );
                 continue;
             }
             $registeredcomponents[$provider->get_component()] = true;
         }
 
-        if (!isset($registeredcomponents['bookingextension_agent'])) {
+        if (!isset($registeredcomponents['bookingextension/agent'])) {
             $provider = new task_provider();
-            $registry->register($provider);
+            try {
+                $registry->register($provider);
+            } catch (\Throwable $e) {
+                $registry->add_contract_diagnostic(
+                    'Ignoring default bookingextension_agent provider because registration failed: '
+                    . get_class($e) . ': ' . $e->getMessage()
+                );
+            }
         }
 
+        $registry->fail_on_contract_diagnostics_when_strict();
         return $registry;
+    }
+
+    /**
+     * Register discovered tasks directly when a component has no task_provider class.
+     *
+     * Provider-first rule: this fallback runs only when no provider class exists.
+     *
+     * @param self $registry
+     * @param string $component
+     * @param array<string,bool> $registeredcomponents
+     * @return void
+     */
+    private static function register_discovered_tasks_without_provider(
+        self $registry,
+        string $component,
+        array &$registeredcomponents
+    ): void {
+        $tasks = array_values(task_discovery::get_task_instances($component));
+        if (empty($tasks)) {
+            return;
+        }
+
+        usort($tasks, static fn(task_interface $a, task_interface $b): int => strcmp($a->get_name(), $b->get_name()));
+
+        $providercomponent = self::normalize_provider_component_name($component);
+        if ($providercomponent === null) {
+            return;
+        }
+
+        $provider = new class ($providercomponent, $tasks) implements task_provider_interface {
+            /** @var string */
+            private string $component;
+
+            /** @var array<int,task_interface> */
+            private array $tasks;
+
+            /** @var array<int,string> */
+            private array $diagnostics;
+
+            /**
+             * Create a provider wrapper for discovered fallback tasks.
+             *
+             * @param string $component
+             * @param array<int,task_interface> $tasks
+             */
+            public function __construct(string $component, array $tasks) {
+                $this->component = $component;
+                $this->tasks = $tasks;
+                $this->diagnostics = task_discovery::get_last_diagnostics();
+            }
+
+            /**
+             * Return provider component name.
+             *
+             * @return string
+             */
+            public function get_component(): string {
+                return $this->component;
+            }
+
+            /**
+             * Return discovered task instances.
+             *
+             * @return array
+             */
+            public function get_tasks(): array {
+                return $this->tasks;
+            }
+
+            /**
+             * Return contextual prompt packs.
+             *
+             * @return array<int,array<string,mixed>>
+             */
+            public function get_contextual_prompt_packs(): array {
+                return [];
+            }
+
+            /**
+             * Return optional issue code provider.
+             *
+             * @return issue_code_provider_interface|null
+             */
+            public function get_issue_code_provider(): ?issue_code_provider_interface {
+                return null;
+            }
+
+            /**
+             * Return prompt guidance payload.
+             *
+             * @return array<string,mixed>
+             */
+            public function get_prompt_guidance(): array {
+                return [];
+            }
+
+            /**
+             * Return discovery diagnostics captured during wrapper creation.
+             *
+             * @return array<int,string>
+             */
+            public function get_discovery_diagnostics(): array {
+                return $this->diagnostics;
+            }
+        };
+
+        try {
+            $registry->register($provider);
+        } catch (\Throwable $e) {
+            $registry->add_contract_diagnostic(
+                'Ignoring direct task discovery for component ' . $providercomponent . ' because registration failed: '
+                . get_class($e) . ': ' . $e->getMessage()
+            );
+            return;
+        }
+
+        $registeredcomponents[$providercomponent] = true;
+    }
+
+    /**
+     * Convert plugin component notation (mod_booking) to provider notation (mod/booking).
+     *
+     * @param string $component
+     * @return string|null
+     */
+    private static function normalize_provider_component_name(string $component): ?string {
+        [$plugintype, $pluginname] = core_component::normalize_component($component);
+        if ($plugintype === 'core' || $pluginname === '') {
+            return null;
+        }
+
+        return $plugintype . '/' . $pluginname;
+    }
+
+    /**
+     * Append optional discovery diagnostics exposed by a provider.
+     *
+     * @param task_provider_interface $provider
+     * @return void
+     */
+    private function append_provider_discovery_diagnostics(task_provider_interface $provider): void {
+        if (!method_exists($provider, 'get_discovery_diagnostics')) {
+            return;
+        }
+
+        try {
+            $diagnostics = (array)$provider->get_discovery_diagnostics();
+        } catch (\Throwable $e) {
+            $this->add_contract_diagnostic(
+                'Could not read discovery diagnostics for component ' . $provider->get_component()
+                . ': ' . get_class($e) . ': ' . $e->getMessage()
+            );
+            return;
+        }
+
+        foreach ($diagnostics as $diagnostic) {
+            $this->add_contract_diagnostic((string)$diagnostic);
+        }
+    }
+
+    /**
+     * Append a contract diagnostic and forward to developer debugging output.
+     *
+     * @param string $message
+     * @return void
+     */
+    private function add_contract_diagnostic(string $message): void {
+        $message = trim($message);
+        if ($message === '') {
+            return;
+        }
+
+        $this->contractdiagnostics[] = $message;
+    }
+
+    /**
+     * Throw when strict governance mode is enabled and diagnostics exist.
+     *
+     * @return void
+     */
+    private function fail_on_contract_diagnostics_when_strict(): void {
+        if (!$this->is_governance_strict_mode_enabled()) {
+            return;
+        }
+
+        if (empty($this->contractdiagnostics)) {
+            return;
+        }
+
+        throw new \coding_exception(
+            'AI task governance strict mode blocked registry initialization: '
+            . implode(' || ', $this->contractdiagnostics)
+        );
+    }
+
+    /**
+     * Whether governance strict mode is enabled via plugin config.
+     *
+     * @return bool
+     */
+    private function is_governance_strict_mode_enabled(): bool {
+        return (bool)get_config('bookingextension_agent', 'aigovernancestrictmode');
     }
 }

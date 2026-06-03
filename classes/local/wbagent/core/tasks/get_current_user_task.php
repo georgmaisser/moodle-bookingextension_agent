@@ -18,15 +18,15 @@ namespace bookingextension_agent\local\wbagent\core\tasks;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
- * Task definition for booking.get_current_user.
+ * Task definition for core.get_current_user.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_current_user_task extends \bookingextension_agent\local\wbagent\booking\tasks\booking_task_base implements task_trigger_provider_interface {
+class get_current_user_task extends core_task_base implements task_trigger_provider_interface {
     /** Task name constant. */
-    public const TASK_NAME = 'booking.get_current_user';
+    public const TASK_NAME = 'core.get_current_user';
 
     /**
      * Constructor.
@@ -65,13 +65,23 @@ class get_current_user_task extends \bookingextension_agent\local\wbagent\bookin
     }
 
     /**
-     * Validate task input.
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'outputlang' => 'de',
+        ];
+    }
+
+    /**
+     * Check task input structure.
      *
      * @param array $input
-     * @param int $cmid
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
-    public function validate(array $input, int $cmid): array {
+    public function check_structure(array $input): array {
         return [
             'valid' => true,
             'errors' => [],
@@ -87,7 +97,7 @@ class get_current_user_task extends \bookingextension_agent\local\wbagent\bookin
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'booking.get_current_user_request',
+                'id' => 'core.get_current_user_request',
                 'description' => 'User asks about their current account or profile information.',
                 'examples' => [
                     'Who am I?',
@@ -106,12 +116,12 @@ class get_current_user_task extends \bookingextension_agent\local\wbagent\bookin
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'booking.get_current_user',
+                'id' => 'core.get_current_user',
                 'triggers' => [
                     'who am i', 'show my profile', 'wer bin ich', 'zeige mein profil', 'my account',
                 ],
                 'guidance' => [
-                    '- Use booking.get_current_user as a FIRST STEP when the request refers to "me",',
+                    '- Use core.get_current_user as a FIRST STEP when the request refers to "me",',
                     '  "myself", "mich", or "meine Buchung" and you do not yet know the current userid.',
                     '- Execute this task and wait for the observation; then pass the resolved userid',
                     '  to any follow-up task that needs it (e.g. booking.book_users for self-booking).',
@@ -125,25 +135,22 @@ class get_current_user_task extends \bookingextension_agent\local\wbagent\bookin
      * Execute task.
      *
      * @param array $input
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @return array
      */
-    public function execute(array $input, int $cmid, int $userid): array {
+    public function execute(array $input, int $contextid, int $userid): array {
         global $USER;
 
         $user = $USER;
-        $fullname = trim((string)$user->firstname . ' ' . (string)$user->lastname);
-        $userdata = [
-            'userid' => (int)$user->id,
-            'fullname' => $fullname,
-            'email' => (string)$user->email,
-        ];
+        $userdata = $this->build_user_payload($user);
+        $fullname = (string)($userdata['fullname'] ?? fullname($user));
+        $email = (string)($userdata['email'] ?? $user->email);
 
         $outputlang = $this->get_output_language($input);
         $usermessage = $this->localized_string(
             'agent_booking_get_current_user_fallback',
-            (object)['fullname' => $fullname, 'email' => $user->email],
+            (object)['fullname' => $fullname, 'email' => $email],
             $outputlang
         );
 
@@ -152,10 +159,13 @@ class get_current_user_task extends \bookingextension_agent\local\wbagent\bookin
             'detail' => $this->localized_string('agent_booking_get_current_user_identified', null, $outputlang),
             'resultid' => (int)$user->id,
             'userid' => (int)$user->id,
-            'email' => (string)$user->email,
+            'email' => $email,
             'fullname' => $fullname,
+            'user' => $userdata,
+            'users' => [$userdata],
             'previewmode' => 'user_profile',
             'previewdata' => $userdata,
+            'observation_full' => $this->build_user_observation_full([$userdata]),
             'usermessage' => $usermessage,
             'debugmessage' => $this->build_task_debug_message(
                 self::TASK_NAME,

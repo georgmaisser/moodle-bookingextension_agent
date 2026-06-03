@@ -17,20 +17,21 @@
 /**
  * DB-backed conversation store.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 namespace bookingextension_agent\local\wbagent;
 
+use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\interfaces\agent_conversation_store;
 use stdClass;
 
 /**
  * Persists agent conversation threads, messages, and runs in the Moodle DB.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,24 +40,33 @@ class conversation_store implements agent_conversation_store {
     private const PENDING_INTENT_TTL = 900;
 
     /** Preference key that stores session allowlist entries. */
-    private const CONFIRMATION_SESSION_ALLOWLIST_KEY = 'mod_booking_ai_confirmation_session_allowlist';
+    private const CONFIRMATION_SESSION_ALLOWLIST_KEY = 'bookingextension_agent_ai_confirmation_session_allowlist';
 
     /** Default lifetime for a confirmation allowlist entry in seconds (12h). */
     private const CONFIRMATION_SESSION_ALLOWLIST_TTL = 43200;
 
     /**
-     * Get the active thread for a user and cmid.
+     * Read-only runtime feature-flag snapshot used by orchestration consumers.
+     *
+     * @return array<string,bool>
+     */
+    public static function get_runtime_feature_flags_snapshot(): array {
+        return runtime_feature_flags::snapshot();
+    }
+
+    /**
+     * Get the active thread for a user and contextid.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @return stdClass|null
      */
-    public function get_active_thread(int $userid, int $cmid): ?stdClass {
+    public function get_active_thread(int $userid, int $contextid): ?stdClass {
         global $DB;
 
         $thread = $DB->get_record('local_wbagent_ai_threads', [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'status' => 'active',
         ]);
 
@@ -67,16 +77,16 @@ class conversation_store implements agent_conversation_store {
      * Get or create an active thread for the given user and booking context.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $bookingid
      * @return stdClass Thread record.
      */
-    public function get_or_create_thread(int $userid, int $cmid, int $bookingid): stdClass {
+    public function get_or_create_thread(int $userid, int $contextid, int $bookingid): stdClass {
         global $DB;
 
         $thread = $DB->get_record('local_wbagent_ai_threads', [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'status' => 'active',
         ]);
 
@@ -87,7 +97,7 @@ class conversation_store implements agent_conversation_store {
         $now = time();
         $record = new stdClass();
         $record->userid = $userid;
-        $record->cmid = $cmid;
+        $record->contextid = $contextid;
         $record->bookingid = $bookingid;
         $record->status = 'active';
         $record->metadatajson = null;
@@ -102,17 +112,17 @@ class conversation_store implements agent_conversation_store {
      * Archive existing active threads for this user/context and create a fresh thread.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $bookingid
      * @return stdClass
      */
-    public function create_fresh_thread(int $userid, int $cmid, int $bookingid): stdClass {
+    public function create_fresh_thread(int $userid, int $contextid, int $bookingid): stdClass {
         global $DB;
 
         $now = time();
         $activethreads = $DB->get_records('local_wbagent_ai_threads', [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'status' => 'active',
         ]);
 
@@ -126,7 +136,7 @@ class conversation_store implements agent_conversation_store {
 
         $record = new stdClass();
         $record->userid = $userid;
-        $record->cmid = $cmid;
+        $record->contextid = $contextid;
         $record->bookingid = $bookingid;
         $record->status = 'active';
         $record->metadatajson = null;
@@ -173,7 +183,7 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int    $threadid
      * @param int    $stepnum   1-based step counter.
-     * @param string $label     Short human-readable label ("Step 1: booking.search_options").
+     * @param string $label     Short human-readable label ("Step 1: provider.task_name").
      * @param string $task      Raw task name for frontend icon selection.
      * @return int New message id.
      */
@@ -276,15 +286,15 @@ class conversation_store implements agent_conversation_store {
      * 3) latest thread excluding the active one
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @return stdClass|null
      */
-    public function get_last_thread_for_user(int $userid, int $cmid): ?stdClass {
+    public function get_last_thread_for_user(int $userid, int $contextid): ?stdClass {
         global $DB;
 
         $activethread = $DB->get_record('local_wbagent_ai_threads', [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'status' => 'active',
         ], '*', IGNORE_MISSING);
         $activeid = (int)($activethread->id ?? 0);
@@ -292,12 +302,12 @@ class conversation_store implements agent_conversation_store {
         $sql = 'SELECT *
                   FROM {local_wbagent_ai_threads}
                  WHERE userid = :userid
-                   AND cmid = :cmid
+                   AND contextid = :contextid
                    AND status = :status
               ORDER BY timemodified DESC, id DESC';
         $archived = $DB->get_records_sql($sql, [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'status' => 'archived',
         ], 0, 1);
         if (!empty($archived)) {
@@ -308,12 +318,12 @@ class conversation_store implements agent_conversation_store {
         $sql = 'SELECT *
                   FROM {local_wbagent_ai_threads}
                  WHERE userid = :userid
-                   AND cmid = :cmid
+                   AND contextid = :contextid
                    AND status <> :status
               ORDER BY timemodified DESC, id DESC';
         $nonactive = $DB->get_records_sql($sql, [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'status' => 'active',
         ], 0, 1);
         if (!empty($nonactive)) {
@@ -323,7 +333,7 @@ class conversation_store implements agent_conversation_store {
 
         $params = [
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
         ];
         $excludewhere = '';
         if ($activeid > 0) {
@@ -333,7 +343,7 @@ class conversation_store implements agent_conversation_store {
         $sql = 'SELECT *
                   FROM {local_wbagent_ai_threads}
                  WHERE userid = :userid
-                   AND cmid = :cmid'
+                   AND contextid = :contextid'
                 . $excludewhere
                 . ' ORDER BY timemodified DESC, id DESC';
         $threads = $DB->get_records_sql($sql, $params, 0, 1);
@@ -345,14 +355,14 @@ class conversation_store implements agent_conversation_store {
      * Return user-owned thread ids with messages in the given time window.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $fromtimestamp
      * @param int $totimestamp
      * @return int[]
      */
     public function get_user_threads_by_date_window(
         int $userid,
-        int $cmid,
+        int $contextid,
         int $fromtimestamp,
         int $totimestamp
     ): array {
@@ -364,14 +374,14 @@ class conversation_store implements agent_conversation_store {
                     ON m.threadid = t.id
                  WHERE t.userid = :userid
                    AND m.userid = :userid2
-                   AND t.cmid = :cmid
+                   AND t.contextid = :contextid
                    AND m.timecreated >= :fromts
                    AND m.timecreated <= :tots
               ORDER BY t.timemodified DESC, t.id DESC';
         $records = $DB->get_records_sql($sql, [
             'userid' => $userid,
             'userid2' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'fromts' => $fromtimestamp,
             'tots' => $totimestamp,
         ]);
@@ -448,19 +458,19 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int    $threadid
      * @param int    $userid
-     * @param int    $cmid
+     * @param int    $contextid
      * @param string $idempotencykey
      * @param array  $commands   Interpreter-validated commands.
      * @return int   New run id.
      */
-    public function create_run(int $threadid, int $userid, int $cmid, string $idempotencykey, array $commands): int {
+    public function create_run(int $threadid, int $userid, int $contextid, string $idempotencykey, array $commands): int {
         global $DB;
 
         $now = time();
         $record = new stdClass();
         $record->threadid = $threadid;
         $record->userid = $userid;
-        $record->cmid = $cmid;
+        $record->contextid = $contextid;
         $record->status = 'pending';
         $record->idempotencykey = $idempotencykey;
         $record->commandsjson = json_encode($commands);
@@ -603,42 +613,119 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
-     * Store a pending intent (commands awaiting user confirmation) for a thread.
+     * Store the latest planner trace history on the thread.
      *
-     * Call this whenever the agent returns a confirmation_request so that a
-     * subsequent short confirmation ("ja", "yes", …) can re-use the commands
-     * without triggering a new LLM call.
+     * @param int $threadid
+     * @param array<int,string> $plannertracehistory
+     * @return void
+     */
+    public function set_planner_trace_history(int $threadid, array $plannertracehistory): void {
+        $history = [];
+        foreach ($plannertracehistory as $entry) {
+            $trimmed = trim((string)$entry);
+            if ($trimmed !== '') {
+                $history[] = $trimmed;
+            }
+        }
+
+        $this->set_thread_metadata_value($threadid, 'planner_trace_history', $history);
+    }
+
+    /**
+     * Store the latest phase trace on the thread.
      *
-     * @param int    $threadid
-     * @param array  $commands  The mutation commands awaiting confirmation.
-     * @param string $intentkey A caller-generated hash to identify this intent.
-     * @param int    $userid
-     * @param int    $cmid
-     * @param int    $ttl
+     * @param int $threadid
+     * @param array<string,mixed> $phasetrace
+     * @return void
+     */
+    public function set_phase_trace(int $threadid, array $phasetrace): void {
+        $this->set_thread_metadata_value($threadid, 'phase_trace', $this->normalize_phase_trace($phasetrace));
+    }
+
+    /**
+     * Normalize phase-trace metadata to strict phase keys.
+     *
+     * @param array<string,mixed> $phasetrace
+     * @return array<string,array<string,mixed>>
+     */
+    private function normalize_phase_trace(array $phasetrace): array {
+        $normalized = [
+            'discovery' => [],
+            'selection' => [],
+            'parameter_construction' => [],
+        ];
+
+        if (isset($phasetrace['discovery']) && is_array($phasetrace['discovery'])) {
+            $normalized['discovery'] = $phasetrace['discovery'];
+        }
+        if (isset($phasetrace['selection']) && is_array($phasetrace['selection'])) {
+            $normalized['selection'] = $phasetrace['selection'];
+        }
+        if (isset($phasetrace['parameter_construction']) && is_array($phasetrace['parameter_construction'])) {
+            $normalized['parameter_construction'] = $phasetrace['parameter_construction'];
+        }
+
+        foreach ($phasetrace as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $phase = trim((string)($entry['phase'] ?? ''));
+            if ($phase !== '' && isset($normalized[$phase]) && empty($normalized[$phase])) {
+                $normalized[$phase] = $entry;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Store pending confirmation intent for a thread.
+     *
+     * @param int $threadid
+     * @param string $intentkey
+     * @param int $userid
+     * @param int $contextid
+     * @param array $metadata
+     * @param int $ttl
      * @return void
      */
     public function set_pending_intent(
         int $threadid,
-        array $commands,
         string $intentkey,
         int $userid = 0,
-        int $cmid = 0,
+        int $contextid = 0,
+        array $metadata = [],
         int $ttl = self::PENDING_INTENT_TTL
     ): void {
         $now = time();
         $confirmationcode = 'C' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-        $this->set_thread_metadata_value($threadid, 'pending_intent', [
-            'commands' => $commands,
+        $queueitemids = array_values(array_filter(array_map('strval', (array)($metadata['queue_item_ids'] ?? []))));
+        $queueitemids = array_values(array_unique($queueitemids));
+
+        $pendingintent = [
             'intentkey' => $intentkey,
-            'checksum' => hash('sha256', json_encode($commands)),
+            'checksum' => hash('sha256', json_encode($queueitemids)),
             'timestamp' => $now,
             'expiresat' => $now + max(1, $ttl),
             'state' => 'pending',
             'userid' => $userid,
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'confirmationcode' => $confirmationcode,
-        ]);
+            'queue_item_ids' => $queueitemids,
+            'queue_authoritative' => true,
+        ];
+
+        foreach ($metadata as $key => $value) {
+            $normalizedkey = trim((string)$key);
+            if ($normalizedkey === '') {
+                continue;
+            }
+            $pendingintent[$normalizedkey] = $value;
+        }
+
+        $this->set_thread_metadata_value($threadid, 'pending_intent', $pendingintent);
     }
 
     /**
@@ -649,7 +736,12 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_pending_intent(int $threadid): ?array {
         $value = $this->get_thread_metadata_value($threadid, 'pending_intent');
-        if (!is_array($value) || empty($value['commands']) || !is_array($value['commands'])) {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $hasqueueitems = !empty(array_filter(array_map('strval', (array)($value['queue_item_ids'] ?? []))));
+        if (!$hasqueueitems) {
             return null;
         }
 
@@ -672,10 +764,10 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int $threadid
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @return array<string,mixed>|null
      */
-    public function consume_pending_intent(int $threadid, int $userid = 0, int $cmid = 0): ?array {
+    public function consume_pending_intent(int $threadid, int $userid = 0, int $contextid = 0): ?array {
         $pending = $this->get_pending_intent($threadid);
         if ($pending === null) {
             return null;
@@ -684,7 +776,7 @@ class conversation_store implements agent_conversation_store {
         if ($userid > 0 && (int)($pending['userid'] ?? 0) > 0 && (int)$pending['userid'] !== $userid) {
             return null;
         }
-        if ($cmid > 0 && (int)($pending['cmid'] ?? 0) > 0 && (int)$pending['cmid'] !== $cmid) {
+        if ($contextid > 0 && (int)($pending['contextid'] ?? 0) > 0 && (int)$pending['contextid'] !== $contextid) {
             return null;
         }
 
@@ -706,26 +798,51 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
+     * Allow confirmations for a Moodle context for the current session window.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @param int|null $expiresat
+     * @return void
+     */
+    public function allow_confirmation_for_session(int $userid, int $contextid, ?int $expiresat = null): void {
+        $this->allow_confirmation_for_thread($userid, $contextid, 0, $expiresat);
+    }
+
+    /**
      * Allow confirmations for a booking context for the current session window.
      *
      * Thread id is accepted for backward compatibility but not part of the key,
      * so a page reload/new thread keeps the allowance active.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $threadid
      * @param int|null $expiresat
      * @return void
      */
-    public function allow_confirmation_for_thread(int $userid, int $cmid, int $threadid, ?int $expiresat = null): void {
+    public function allow_confirmation_for_thread(int $userid, int $contextid, int $threadid, ?int $expiresat = null): void {
         $allowlist = $this->get_confirmation_session_allowlist($userid);
-        $key = $this->make_confirmation_session_allowlist_key($cmid);
+        $key = $this->make_confirmation_session_allowlist_key($contextid);
         $allowlist[$key] = [
-            'cmid' => $cmid,
+            'contextid' => $contextid,
             'threadid' => $threadid,
             'expiresat' => $expiresat ?? (time() + self::CONFIRMATION_SESSION_ALLOWLIST_TTL),
         ];
         $this->save_confirmation_session_allowlist($userid, $allowlist);
+    }
+
+    /**
+     * Check whether confirmations may be auto-approved for this Moodle context.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @return bool
+     */
+    public function is_confirmation_allowed_for_session(int $userid, int $contextid): bool {
+        $allowlist = $this->get_confirmation_session_allowlist($userid);
+        $key = $this->make_confirmation_session_allowlist_key($contextid);
+        return !empty($allowlist[$key]);
     }
 
     /**
@@ -734,14 +851,12 @@ class conversation_store implements agent_conversation_store {
      * Thread id is accepted for backward compatibility but ignored for matching.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $threadid
      * @return bool
      */
-    public function is_confirmation_allowed_for_thread(int $userid, int $cmid, int $threadid): bool {
-        $allowlist = $this->get_confirmation_session_allowlist($userid);
-        $key = $this->make_confirmation_session_allowlist_key($cmid);
-        return !empty($allowlist[$key]);
+    public function is_confirmation_allowed_for_thread(int $userid, int $contextid, int $threadid): bool {
+        return $this->is_confirmation_allowed_for_session($userid, $contextid);
     }
 
     /**
@@ -750,13 +865,13 @@ class conversation_store implements agent_conversation_store {
      * Thread id is accepted for backward compatibility but ignored for matching.
      *
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $threadid
      * @return void
      */
-    public function clear_confirmation_allowance(int $userid, int $cmid, int $threadid): void {
+    public function clear_confirmation_allowance(int $userid, int $contextid, int $threadid): void {
         $allowlist = $this->get_confirmation_session_allowlist($userid);
-        $key = $this->make_confirmation_session_allowlist_key($cmid);
+        $key = $this->make_confirmation_session_allowlist_key($contextid);
         unset($allowlist[$key]);
         $this->save_confirmation_session_allowlist($userid, $allowlist);
     }
@@ -764,11 +879,11 @@ class conversation_store implements agent_conversation_store {
     /**
      * Build a stable preference key per booking context.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @return string
      */
-    private function make_confirmation_session_allowlist_key(int $cmid): string {
-        return (string)$cmid;
+    private function make_confirmation_session_allowlist_key(int $contextid): string {
+        return (string)$contextid;
     }
 
     /**
@@ -795,17 +910,17 @@ class conversation_store implements agent_conversation_store {
                 continue;
             }
 
-            $cmid = (int)($entry['cmid'] ?? 0);
+            $contextid = (int)($entry['contextid'] ?? 0);
             // Thread id is informational only and not part of matching.
             // Keep 0 for pre-thread allowances created before first message.
             $threadid = max(0, (int)($entry['threadid'] ?? 0));
             $expiresat = (int)($entry['expiresat'] ?? 0);
-            if ($cmid <= 0 || $expiresat <= $now) {
+            if ($contextid <= 0 || $expiresat <= $now) {
                 continue;
             }
 
             $allowlist[(string)$key] = [
-                'cmid' => $cmid,
+                'contextid' => $contextid,
                 'threadid' => $threadid,
                 'expiresat' => $expiresat,
             ];
@@ -834,7 +949,7 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int $threadid
      * @param int $userid
-     * @param int $cmid
+     * @param int $contextid
      * @param string $source
      * @param string $requesttext
      * @param string $responsetext
@@ -845,7 +960,7 @@ class conversation_store implements agent_conversation_store {
     public function add_llm_debug_entry(
         int $threadid,
         int $userid,
-        int $cmid,
+        int $contextid,
         string $source,
         string $requesttext,
         string $responsetext,
@@ -857,7 +972,7 @@ class conversation_store implements agent_conversation_store {
         $record = new stdClass();
         $record->threadid = $threadid;
         $record->userid = $userid;
-        $record->cmid = $cmid;
+        $record->contextid = $contextid;
         $record->source = trim($source);
         $record->requesttext = $requesttext;
         $record->responsetext = $responsetext;

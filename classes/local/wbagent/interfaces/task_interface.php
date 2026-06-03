@@ -16,7 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\interfaces;
 
-use bookingextension_agent\local\wbagent\task_preflight_result;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 
 /**
  * Structured AI task interface.
@@ -29,20 +30,16 @@ use bookingextension_agent\local\wbagent\task_preflight_result;
  *  2. preflight()       — DB lookups, entity resolution, conflict detection;
  *                         used by agent_decision_service during routing.
  *
- * execute() receives the prepared_input from task_preflight_result and must
+ * execute() receives the prepared_input from preflight_result_v2 and must
  * NOT repeat heavy resolution logic already done in preflight().
  *
- * The legacy validate() method is kept for backward-compatibility but
- * SHOULD NOT be overridden in new tasks.  It is called only by the
- * executor's stale-state guard and by legacy callers.
- *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 interface task_interface {
     /**
-     * Return the fully-qualified task name, e.g. booking.create_option.
+     * Return the fully-qualified task name, e.g. vendor.action_name.
      *
      * @return string
      */
@@ -66,6 +63,13 @@ interface task_interface {
     public function get_example_input(): array;
 
     /**
+     * Return the explicit planner prompt contract for this task.
+     *
+     * @return task_prompt_contract
+     */
+    public function get_prompt_contract(): task_prompt_contract;
+
+    /**
      * Structural (pure) validation — no DB access, no side-effects.
      *
      * Called by the interpreter immediately after JSON parsing to verify that
@@ -81,15 +85,15 @@ interface task_interface {
      * Deep preflight validation — DB lookups, entity resolution, conflict detection.
      *
      * Called by agent_decision_service after structural validation passes.
-     * MUST NOT perform writes.  Returns a task_preflight_result whose
+     * MUST NOT perform writes.  Returns a preflight_result_v2 whose
      * prepared_input carries resolved IDs and normalised values ready for execute().
      *
      * @param  array $input   Input that has already passed check_structure().
-     * @param  int   $cmid    Course-module ID.
+     * @param  int   $contextid Moodle context ID.
      * @param  int   $userid  Executing user ID.
-     * @return task_preflight_result
+     * @return preflight_result_v2
      */
-    public function preflight(array $input, int $cmid, int $userid): task_preflight_result;
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2;
 
     /**
      * Execute the task.
@@ -99,11 +103,11 @@ interface task_interface {
      * resolution logic already done in preflight().
      *
      * @param  array $preparedinput  Resolved, normalised input from preflight().
-     * @param  int   $cmid
+     * @param  int   $contextid
      * @param  int   $userid
      * @return array
      */
-    public function execute(array $preparedinput, int $cmid, int $userid): array;
+    public function execute(array $preparedinput, int $contextid, int $userid): array;
 
     /**
      * Whether the task is read-only and can be auto-executed.

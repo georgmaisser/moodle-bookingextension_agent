@@ -14,16 +14,43 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Admin settings for the bookingextension_agent plugin.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 defined('MOODLE_INTERNAL') || die();
 
 use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\task_registry_factory;
+use core_ai\aiactions\summarise_text;
 
 global $CFG;
 
+require_once($CFG->dirroot . '/mod/booking/bookingextension/agent/lib.php');
+
 if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
     $defaultsummarypromptprefix = orchestrator::get_default_summary_prompt_prefix();
+    $defaultplannerprompttemplate = orchestrator::get_default_initial_prompt_template_for_action(summarise_text::class);
 } else {
     $defaultsummarypromptprefix = '';
+    $defaultplannerprompttemplate = '';
+}
+
+if (get_config('bookingextension_agent', 'aiinitialprompt_discovery') === false) {
+    set_config('aiinitialprompt_discovery', $defaultplannerprompttemplate, 'bookingextension_agent');
+}
+
+if (get_config('bookingextension_agent', 'aiinitialprompt_selection') === false) {
+    set_config('aiinitialprompt_selection', $defaultplannerprompttemplate, 'bookingextension_agent');
+}
+
+if (get_config('bookingextension_agent', 'aiinitialprompt_parameter_construction') === false) {
+    set_config('aiinitialprompt_parameter_construction', $defaultplannerprompttemplate, 'bookingextension_agent');
 }
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') === false) {
@@ -112,6 +139,42 @@ $aisettingspage->add(
 
 $aisettingspage->add(
     new admin_setting_configtextarea(
+        'bookingextension_agent/aiinitialprompt_discovery',
+        get_string('aiinitialprompt_discovery', 'bookingextension_agent'),
+        get_string('aiinitialprompt_discovery_desc', 'bookingextension_agent'),
+        $defaultplannerprompttemplate,
+        PARAM_RAW,
+        120,
+        8
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configtextarea(
+        'bookingextension_agent/aiinitialprompt_selection',
+        get_string('aiinitialprompt_selection', 'bookingextension_agent'),
+        get_string('aiinitialprompt_selection_desc', 'bookingextension_agent'),
+        $defaultplannerprompttemplate,
+        PARAM_RAW,
+        120,
+        8
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configtextarea(
+        'bookingextension_agent/aiinitialprompt_parameter_construction',
+        get_string('aiinitialprompt_parameter_construction', 'bookingextension_agent'),
+        get_string('aiinitialprompt_parameter_construction_desc', 'bookingextension_agent'),
+        $defaultplannerprompttemplate,
+        PARAM_RAW,
+        120,
+        8
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configtextarea(
         'bookingextension_agent/aiinitialprompt_summarise_text',
         get_string('aiinitialprompt_summarise_text', 'bookingextension_agent'),
         get_string('aiinitialprompt_summarise_text_desc', 'bookingextension_agent'),
@@ -121,5 +184,112 @@ $aisettingspage->add(
         8
     )
 );
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/aigovernancestrictmode',
+        get_string('aigovernancestrictmode', 'bookingextension_agent'),
+        get_string('aigovernancestrictmode_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/queue_dag_validation_enabled',
+        get_string('queue_dag_validation_enabled', 'bookingextension_agent'),
+        get_string('queue_dag_validation_enabled_desc', 'bookingextension_agent'),
+        1
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/queue_blocked_ttl_enabled',
+        get_string('queue_blocked_ttl_enabled', 'bookingextension_agent'),
+        get_string('queue_blocked_ttl_enabled_desc', 'bookingextension_agent'),
+        1
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/preflight_audit_enabled',
+        get_string('preflight_audit_enabled', 'bookingextension_agent'),
+        get_string('preflight_audit_enabled_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+$aisettingspage->add(
+    new admin_setting_heading(
+        'bookingextension_agent_aitaskgovernance_heading',
+        get_string('aitaskgovernanceheading', 'bookingextension_agent'),
+        get_string('aitaskgovernanceheading_desc', 'bookingextension_agent')
+    )
+);
+
+try {
+    $registry = task_registry_factory::get_default();
+    $contracts = $registry->get_task_contracts();
+    ksort($contracts);
+
+    foreach ($contracts as $taskname => $meta) {
+        $capabilities = (array)($meta['capabilities'] ?? []);
+        $capabilitylabel = implode(', ', $capabilities);
+        if ($capabilitylabel === '') {
+            $capabilitylabel = '-';
+        }
+
+        $settingkey = 'bookingextension_agent/' . task_registry::get_task_toggle_setting_name((string)$taskname);
+        $settingtitle = get_string('aitaskenabled_label', 'bookingextension_agent', (string)$taskname);
+        $settingdesc = get_string(
+            'aitaskenabled_desc',
+            'bookingextension_agent',
+            (object)[
+                'component' => (string)($meta['component'] ?? ''),
+                'capability' => $capabilitylabel,
+            ]
+        );
+
+        $aisettingspage->add(
+            new admin_setting_configcheckbox(
+                $settingkey,
+                $settingtitle,
+                $settingdesc,
+                0
+            )
+        );
+    }
+} catch (\Throwable $e) {
+    $aisettingspage->add(
+        new admin_setting_heading(
+            'bookingextension_agent_aitaskgovernance_unavailable',
+            get_string('aitaskgovernanceunavailable', 'bookingextension_agent'),
+            get_string('aitaskgovernanceunavailable_desc', 'bookingextension_agent')
+        )
+    );
+}
+
+// Enable all is added last so Moodle processes individual task toggles first.
+// When this checkbox fires its callback, all per-task configs are already written
+// to the DB and the sync can safely overwrite them with 1.
+$enableallsetting = new admin_setting_configcheckbox(
+    'bookingextension_agent/aitaskenableall',
+    get_string('aitaskenableall', 'bookingextension_agent'),
+    get_string('aitaskenableall_desc', 'bookingextension_agent'),
+    0
+);
+$enableallsetting->set_updatedcallback(
+    '\\bookingextension_agent\\local\\wbagent\\task_governance_service::sync_enableall_toggles'
+);
+$aisettingspage->add($enableallsetting);
+
+$adminroot->add('modbookingfolder', new admin_externalpage(
+    'bookingextension_agent_taskselectiondebug',
+    get_string('taskselectiondebug', 'bookingextension_agent'),
+    new moodle_url('/mod/booking/bookingextension/agent/task_selection_debug.php'),
+    'bookingextension/agent:debugtaskselection'
+));
 
 $adminroot->add('modbookingfolder', $aisettingspage);

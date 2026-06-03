@@ -1,0 +1,106 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+declare(strict_types=1);
+
+namespace bookingextension_agent\tests\agent\contracts;
+
+use bookingextension_agent\local\wbagent\prompt_policy_builder;
+use advanced_testcase;
+
+/**
+ * Tests for planner policy extraction and phase-specific response contracts.
+ *
+ * @covers \bookingextension_agent\local\wbagent\prompt_policy_builder
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+final class prompt_policy_builder_test extends advanced_testcase {
+    /**
+     * Verifies that planner policies stay free of final-synthesis text.
+     */
+    public function test_planner_policies_do_not_contain_legacy_finalization_policy(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
+
+        $this->assertStringNotContainsString('SYNTHESIS RESPONSE POLICY', $plannerpolicies);
+        $this->assertStringContainsString('NON-OPTIONAL SUFFICIENCY POLICY', $plannerpolicies);
+    }
+
+    /**
+     * Discovery phase must never encourage command-bearing output.
+     */
+    public function test_discovery_policy_forbids_command_bearing_response_types(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('discovery', false, false);
+
+        $expectedtypes = 'Allowed response_type values: clarification, '
+            . 'confirm_pending, sufficient, error.';
+        $this->assertStringContainsString($expectedtypes, $plannerpolicies);
+        $this->assertStringContainsString('commands MUST always be [] in this phase.', $plannerpolicies);
+        $this->assertStringContainsString('Never emit task_call or confirmation_request in this phase.', $plannerpolicies);
+    }
+
+    /**
+     * Selection phase must behave like a tool selector with exactly one command.
+     */
+    public function test_selection_policy_requires_single_selector_command(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
+
+        $expectedtypes = 'Allowed response_type values: task_call, clarification, '
+            . 'confirm_pending, sufficient, error.';
+        $this->assertStringContainsString($expectedtypes, $plannerpolicies);
+        $this->assertStringContainsString(
+            'For task_call, commands MUST contain exactly one command object that selects exactly one task',
+            $plannerpolicies
+        );
+        $this->assertStringContainsString(
+            'Selection must not perform parameter construction; command input should be omitted or {}.',
+            $plannerpolicies
+        );
+        $this->assertStringContainsString(
+            'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.',
+            $plannerpolicies
+        );
+    }
+
+    /**
+     * Parameter construction must keep exactly one command for command-bearing types.
+     */
+    public function test_parameter_construction_policy_requires_one_or_more_commands(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('parameter_construction', false, false);
+
+        $expected = 'For task_call or confirmation_request, '
+            . 'commands MUST contain one or more command objects.';
+        $this->assertStringContainsString($expected, $plannerpolicies);
+        $this->assertStringContainsString(
+            'This phase is constructor-only: build parameters for the selected task only.',
+            $plannerpolicies
+        );
+    }
+
+    /**
+     * Discovery routing determinism must explicitly preserve selector/constructor role split.
+     */
+    public function test_discovery_routing_policy_describes_two_call_roles(): void {
+        $plannerpolicies = prompt_policy_builder::build_planner_policies('discovery', false, false);
+
+        $this->assertStringContainsString(
+            'Respect strict 2-call roles: discovery stays non-command, selection does task choice, construction does parameters.',
+            $plannerpolicies
+        );
+    }
+}

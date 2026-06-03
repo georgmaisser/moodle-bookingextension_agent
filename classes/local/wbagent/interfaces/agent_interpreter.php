@@ -17,7 +17,7 @@
 /**
  * Agent interpreter interface.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -31,7 +31,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  * response and the executor.  It validates, normalises, and classifies
  * the response before any action is taken.
  *
- * @package    mod_booking
+ * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -46,7 +46,6 @@ interface agent_interpreter {
      *  - 'error'                – Unrecoverable parse or schema error.
      *
      * @param string $rawresponse      Raw text output from the LLM.
-     * @param int    $cmid             Course-module id for context/domain scoping.
      * @param int    $userid           User id.
      * @param string $lastusermessage  Optional: the latest user message text, used as fallback
      *                                 when the LLM omits a required 'question' field.
@@ -58,5 +57,5 @@ interface agent_interpreter {
      *     'errors'        => string[],        // Validation error strings.
      * ]
      */
-    public function interpret(string $rawresponse, int $cmid, int $userid, string $lastusermessage = ''): array;
+    public function interpret(string $rawresponse, int $contextid, int $userid, string $lastusermessage = ''): array;
 }
