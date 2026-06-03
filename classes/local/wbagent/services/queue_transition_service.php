@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 
 /**
@@ -89,6 +90,7 @@ class queue_transition_service {
             if ((string)($item['mutability'] ?? '') !== 'mutating') {
                 continue;
             }
+            $riskclass = $this->normalize_risk_class((string)($item['risk_class'] ?? ''));
             if (
                 queue_status_policy::is_failed_status((string)($item['status'] ?? ''))
                 && !empty((array)($item['issue_codes'] ?? []))
@@ -97,6 +99,18 @@ class queue_transition_service {
             }
 
             if (queue_status_policy::is_retry_waiting_status($targetstatus)) {
+                if ($riskclass === task_risk_class::R3) {
+                    $this->to_failed(
+                        $queuesvc,
+                        $threadid,
+                        $queueitemid,
+                        'R3_NO_RETRY',
+                        array_values(array_unique(array_merge($issuecodes, ['R3_NO_RETRY']))),
+                        'preflight_retry_forbidden',
+                        'Retry is forbidden for irreversible_or_external tasks.'
+                    );
+                    continue;
+                }
                 $currentretrycount = max(0, (int)($item['preflight_retry_count'] ?? $item['retry_count'] ?? 0));
                 $nextretrycount = $currentretrycount + 1;
                 $retryafterms = max(1, (int)($v2result['retry_after_ms'] ?? 0));
@@ -114,7 +128,15 @@ class queue_transition_service {
 
             if (queue_status_policy::is_ready_status($targetstatus)) {
                 $reasoncode = $autoconfirmmode ? 'PREFLIGHT_PASS_AUTOCONFIRM' : 'PREFLIGHT_PASS_READY';
-                $this->to_ready($queuesvc, $threadid, $queueitemid, $reasoncode, $issuecodes);
+                if ($riskclass === task_risk_class::R1 && !$autoconfirmmode) {
+                    $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, 'PREFLIGHT_PASS_NEEDS_CONFIRMATION', $issuecodes);
+                } else if ($riskclass === task_risk_class::R2) {
+                    $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, 'PREFLIGHT_R2_EXPLICIT_CONFIRMATION', $issuecodes);
+                } else if ($riskclass === task_risk_class::R3) {
+                    $this->to_blocked_confirmation($queuesvc, $threadid, $queueitemid, 'PREFLIGHT_R3_MANUAL_CONFIRMATION', $issuecodes);
+                } else {
+                    $this->to_ready($queuesvc, $threadid, $queueitemid, $reasoncode, $issuecodes);
+                }
             } else if ($targetstatus === 'blocked_confirmation') {
                 $reasoncode = $status === 'soft_block'
                     ? 'PREFLIGHT_SOFT_BLOCK'
@@ -351,5 +373,20 @@ class queue_transition_service {
         }
 
         return array_values(array_unique($normalized));
+    }
+
+    /**
+     * Normalize a risk class value.
+     *
+     * @param string $riskclass
+     * @return string
+     */
+    private function normalize_risk_class(string $riskclass): string {
+        $riskclass = trim($riskclass);
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        return task_risk_class::R3;
     }
 }

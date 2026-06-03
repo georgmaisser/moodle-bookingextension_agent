@@ -20,6 +20,8 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use core\context;
 use context_module;
+use bookingextension_agent\local\wbagent\interfaces\external_dependency_checker_interface;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\task_registry;
@@ -50,19 +52,28 @@ class preflight_pipeline {
     /** @var preflight_audit_logger */
     private preflight_audit_logger $auditlogger;
 
+    /** @var external_dependency_checker_interface */
+    private external_dependency_checker_interface $externaldependencychecker;
+
     /**
      * Constructor.
      *
      * @param task_registry $registry
      * @param conversation_store $store
+     * @param external_dependency_checker_interface|null $externaldependencychecker
      */
-    public function __construct(task_registry $registry, conversation_store $store) {
+    public function __construct(
+        task_registry $registry,
+        conversation_store $store,
+        ?external_dependency_checker_interface $externaldependencychecker = null
+    ) {
         $this->registry = $registry;
         $this->store = $store;
         $this->contractvalidator = new preflight_contract_validator($registry);
         $this->domainrunner = new preflight_domain_check_runner();
         $this->executiongate = new preflight_execution_gate();
         $this->auditlogger = new preflight_audit_logger($store);
+        $this->externaldependencychecker = $externaldependencychecker ?? new noop_external_dependency_checker();
     }
 
     /**
@@ -79,10 +90,11 @@ class preflight_pipeline {
         $errors = [];
         $attemptedtasks = [];
         $issuecodes = [];
-                $issues = [];
+        $issues = [];
         $layer1issuecodes = [];
         $anonymizer = new privacy_anonymizer($this->store);
         $startedat = microtime(true);
+        $batchriskclass = $this->resolve_batch_risk_class($commands);
         try {
             $context = context::instance_by_id($contextid, MUST_EXIST);
             if (!($context instanceof context_module)) {
@@ -91,7 +103,7 @@ class preflight_pipeline {
         } catch (\Throwable $e) {
             $context = context_module::instance($contextid, MUST_EXIST);
         }
-                $cmid = (int)$context->instanceid;
+        $cmid = (int)$context->instanceid;
 
         foreach ($commands as $idx => $command) {
             $label = 'Command #' . ($idx + 1);
@@ -184,6 +196,28 @@ class preflight_pipeline {
                 continue;
             }
 
+            $taskriskclass = $this->resolve_command_risk_class($command);
+            if ($taskriskclass === task_risk_class::R3) {
+                $externalresult = $this->externaldependencychecker->check($command, $contextid, $userid);
+                foreach ($externalresult->issuecodes as $code) {
+                    if ($code !== '') {
+                        $issuecodes[] = $code;
+                    }
+                }
+                $issues = array_merge($issues, $externalresult->issues);
+                if ($externalresult->status !== 'pass') {
+                    foreach ($externalresult->issues as $issue) {
+                        $msg = trim((string)($issue['message'] ?? ''));
+                        if ($msg !== '') {
+                            $errors[] = $msg;
+                        }
+                    }
+
+                    $result = $externalresult;
+                    break;
+                }
+            }
+
             $updatedcommand = $command;
             $updatedcommand['input'] = $preflightresult->preparedinput;
             $preparedcommands[] = $updatedcommand;
@@ -207,7 +241,10 @@ class preflight_pipeline {
 
         $errorclass = preflight_error_classifier::infer_from_issue_codes($combinedissuecodes);
         $result = $domainresult;
-        if (preflight_error_classifier::is_retryable_error_class($errorclass)) {
+        if (
+            in_array($batchriskclass, [task_risk_class::R2, task_risk_class::R3], true)
+            && preflight_error_classifier::is_retryable_error_class($errorclass)
+        ) {
             $result = $this->executiongate->evaluate($errorclass, 0, $combinedissuecodes);
         }
 
@@ -224,6 +261,7 @@ class preflight_pipeline {
 
         $this->auditlogger->append($threadid, 0, array_merge($this->build_audit_command_context($commands), [
             'contextid' => $contextid,
+            'risk_class' => $batchriskclass,
             'layer' => $result->blockinglayer !== '' ? $result->blockinglayer : 'preflight',
             'status' => $result->status,
             'reason_code' => $this->resolve_preflight_reason_code($result),
@@ -252,6 +290,68 @@ class preflight_pipeline {
             $issues,
             $result
         );
+    }
+
+    /**
+     * Resolve the highest-risk class present in the batch.
+     *
+     * @param array<int,mixed> $commands
+     * @return string
+     */
+    private function resolve_batch_risk_class(array $commands): string {
+        $highest = task_risk_class::R0;
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+            $taskriskclass = $this->resolve_command_risk_class($command);
+            if ($this->risk_class_rank($taskriskclass) > $this->risk_class_rank($highest)) {
+                $highest = $taskriskclass;
+            }
+        }
+
+        return $highest;
+    }
+
+    /**
+     * Resolve the effective risk class for one command.
+     *
+     * @param array<string,mixed> $command
+     * @return string
+     */
+    private function resolve_command_risk_class(array $command): string {
+        $riskclass = trim((string)($command['risk_class'] ?? ''));
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        $taskname = trim((string)($command['task'] ?? ''));
+        if ($taskname !== '') {
+            $task = $this->registry->get_task($taskname);
+            if ($task !== null) {
+                $taskriskclass = trim($task->get_risk_class());
+                if (task_risk_class::is_valid($taskriskclass)) {
+                    return $taskriskclass;
+                }
+            }
+        }
+
+        return task_risk_class::R3;
+    }
+
+    /**
+     * Rank risk classes from least to most restrictive.
+     *
+     * @param string $riskclass
+     * @return int
+     */
+    private function risk_class_rank(string $riskclass): int {
+        return match ($riskclass) {
+            task_risk_class::R0 => 0,
+            task_risk_class::R1 => 1,
+            task_risk_class::R2 => 2,
+            default => 3,
+        };
     }
 
     /**

@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\queue;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\queue_identity_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
@@ -118,6 +119,7 @@ class queue_manager {
                 'input_signature_mode' => 'none',
                 'input_signature_payload' => [],
                 'mutability' => $mutability,
+                'risk_class' => $this->normalize_risk_class((string)($command['risk_class'] ?? '')),
                 'depends_on' => $dependson,
                 'status' => queue_status_policy::failed_status(),
                 'retry_count' => 0,
@@ -146,6 +148,7 @@ class queue_manager {
         $signature = (string)($signaturedetails['signature'] ?? '');
         $signaturemode = (string)($signaturedetails['mode'] ?? 'raw_input');
         $signaturepayload = is_array($signaturedetails['payload'] ?? null) ? (array)$signaturedetails['payload'] : [];
+        $riskclass = $this->normalize_risk_class((string)($command['risk_class'] ?? ''));
 
         // Idempotency: if an equivalent item (same signature) is already in a
         // non-terminal state, return it instead of creating a duplicate.
@@ -176,6 +179,7 @@ class queue_manager {
             'input_signature_mode' => $signaturemode,
             'input_signature_payload' => $signaturepayload,
             'mutability' => $mutability,
+            'risk_class' => $riskclass,
             'depends_on' => $dependson,
             'status' => $status,
             'retry_count' => 0,
@@ -183,7 +187,7 @@ class queue_manager {
             'next_retry_at' => null,
             'retry_after_ms' => 0,
             'backoff_ms' => 0,
-            'blocked_expires_at' => $this->resolve_blocked_expires_at($status, $now),
+            'blocked_expires_at' => $this->resolve_blocked_expires_at($status, $now, $riskclass),
             'issue_codes' => [],
             'error_class' => '',
             'last_error_message' => '',
@@ -702,18 +706,55 @@ class queue_manager {
      * @param int $now
      * @return int|null
      */
-    private function resolve_blocked_expires_at(string $status, int $now): ?int {
+    private function resolve_blocked_expires_at(string $status, int $now, string $riskclass = ''): ?int {
         if (!queue_status_policy::is_blocked_confirmation_status($status)) {
             return null;
         }
-        if (!(bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
+        $ttl = $this->resolve_blocked_ttl_seconds($riskclass);
+        if ($ttl <= 0) {
             return null;
+        }
+        $ttl = max(1, $ttl);
+        return $now + $ttl;
+    }
+
+    /**
+     * Resolve blocked_confirmation TTL in seconds.
+     *
+     * @param string $riskclass
+     * @return int
+     */
+    private function resolve_blocked_ttl_seconds(string $riskclass): int {
+        if (!(bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
+            return 0;
+        }
+
+        $riskclass = $this->normalize_risk_class($riskclass);
+        if ($riskclass === task_risk_class::R2) {
+            return 300;
+        }
+
+        if (in_array($riskclass, [task_risk_class::R1, task_risk_class::R3], true)) {
+            return self::DEFAULT_BLOCKED_TTL_SECONDS;
         }
 
         $configuredttl = (int)get_config('bookingextension_agent', 'queue_blocked_ttl_seconds');
-        $ttl = $configuredttl > 0 ? $configuredttl : self::DEFAULT_BLOCKED_TTL_SECONDS;
-        $ttl = max(1, $ttl);
-        return $now + $ttl;
+        return $configuredttl > 0 ? $configuredttl : self::DEFAULT_BLOCKED_TTL_SECONDS;
+    }
+
+    /**
+     * Normalize a command risk class for queue persistence.
+     *
+     * @param string $riskclass
+     * @return string
+     */
+    private function normalize_risk_class(string $riskclass): string {
+        $riskclass = trim($riskclass);
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        return task_risk_class::R3;
     }
 
     /**

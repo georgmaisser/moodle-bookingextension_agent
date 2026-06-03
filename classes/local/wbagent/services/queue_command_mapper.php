@@ -26,6 +26,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
+
 /**
  * Maps queue items to normalized runtime command payloads.
  */
@@ -51,6 +53,7 @@ class queue_command_mapper {
             'task' => $task,
             'version' => max(1, (int)($item['version'] ?? 1)),
             'input' => $input,
+            'risk_class' => self::normalize_risk_class((string)($item['risk_class'] ?? '')),
         ];
 
         $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
@@ -89,5 +92,20 @@ class queue_command_mapper {
         }
 
         return $commands;
+    }
+
+    /**
+     * Normalize a risk class from queue storage.
+     *
+     * @param string $riskclass
+     * @return string
+     */
+    private static function normalize_risk_class(string $riskclass): string {
+        $riskclass = trim($riskclass);
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        return task_risk_class::R3;
     }
 }

@@ -220,6 +220,33 @@ final class task_contract_validator_contract_test extends TestCase {
     }
 
     /**
+     * Unknown risk classes must be rejected immediately.
+     */
+    public function test_validate_task_metadata_rejects_unknown_risk_class_value(): void {
+        $metadata = [
+            'taskname' => 'demo.lookup',
+            'namespace' => 'demo',
+            'family' => 'demo.general',
+            'version' => 1,
+            'component' => 'local_demo',
+            'capabilities' => ['local/demo:task_demo_lookup'],
+            'active' => true,
+            'alias_of' => '',
+            'deprecated_since' => '',
+            'readonly' => true,
+            'risk_class' => 'R9',
+            'context_scopes' => ['module'],
+        ];
+
+        $validation = task_contract_validator::validate_task_metadata($metadata);
+        $this->assertFalse($validation['valid']);
+        $this->assertContains(
+            'Invalid required field: risk_class must be one of read_only, scoped_write, broad_write, irreversible_or_external.',
+            $validation['errors']
+        );
+    }
+
+    /**
      * Validate mutating tasks require a non-readonly declaration and explicit scope.
      */
     public function test_validate_task_metadata_rejects_mutating_readonly_or_scope_missing_tasks(): void {

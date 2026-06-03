@@ -16,6 +16,7 @@
 
 namespace bookingextension_agent\local\wbagent\tests;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\services\finalization_classifier;
 use PHPUnit\Framework\TestCase;
 
@@ -190,5 +191,37 @@ final class finalization_classifier_contract_test extends TestCase {
         ]);
 
         $this->assertSame(finalization_classifier::STRATEGY_DIRECT_FINAL, $strategy);
+    }
+
+    /**
+     * R3 sufficient outputs must require irreversibility confirmation in the synchronizer guard.
+     */
+    public function test_requires_irreversibility_notice_for_r3_sufficient_results(): void {
+        $classifier = new finalization_classifier();
+
+        $this->assertTrue($classifier->requires_irreversibility_notice([
+            'response_type' => 'sufficient',
+            'risk_class' => task_risk_class::R3,
+        ]));
+        $this->assertFalse($classifier->requires_irreversibility_notice([
+            'response_type' => 'sufficient',
+            'risk_class' => task_risk_class::R2,
+        ]));
+    }
+
+    /**
+     * R2 sufficient outputs must carry an affected scope summary.
+     */
+    public function test_requires_affected_scope_summary_for_r2_sufficient_results(): void {
+        $classifier = new finalization_classifier();
+
+        $this->assertTrue($classifier->requires_affected_scope_summary([
+            'response_type' => 'sufficient',
+            'risk_class' => task_risk_class::R2,
+        ]));
+        $this->assertFalse($classifier->requires_affected_scope_summary([
+            'response_type' => 'sufficient',
+            'risk_class' => task_risk_class::R3,
+        ]));
     }
 }

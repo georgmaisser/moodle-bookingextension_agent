@@ -50,6 +50,10 @@ abstract class base_task implements task_interface {
      * @param string $riskclass
      */
     public function __construct(bool $readonly, string $riskclass) {
+        if (!task_risk_class::is_valid($riskclass)) {
+            throw new \coding_exception('Invalid risk class declared for task base: ' . trim($riskclass));
+        }
+
         $this->readonly = $readonly;
         $this->riskclass = trim($riskclass);
     }

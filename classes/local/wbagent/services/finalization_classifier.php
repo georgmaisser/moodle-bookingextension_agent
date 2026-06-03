@@ -18,6 +18,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
+
 /**
  * Deterministic classifier for runtime finalization strategy.
  *
@@ -88,6 +90,7 @@ class finalization_classifier {
         $errorclass = trim((string)($result['error_class'] ?? ''));
         $errorclass = strtolower($errorclass);
         $structuralfailure = !empty($result['structural_failure']);
+        $riskclass = $this->resolve_risk_class($result);
 
         if ($hascommands) {
             return self::STRATEGY_DIRECT_FINAL;
@@ -110,6 +113,10 @@ class finalization_classifier {
         }
 
         if ($responsetype === 'sufficient' || $responsetype === 'clarification') {
+            if (in_array($riskclass, [task_risk_class::R2, task_risk_class::R3], true)) {
+                return self::STRATEGY_LLM_POLISH;
+            }
+
             return self::STRATEGY_LLM_POLISH;
         }
 
@@ -119,6 +126,28 @@ class finalization_classifier {
 
         // Safe fallback: preserve deterministic and structural behavior.
         return self::STRATEGY_DIRECT_FINAL;
+    }
+
+    /**
+     * Check whether the synchronizer output must include an irreversibility notice.
+     *
+     * @param array<string,mixed> $result
+     * @return bool
+     */
+    public function requires_irreversibility_notice(array $result): bool {
+        return trim((string)($result['response_type'] ?? '')) === 'sufficient'
+            && $this->resolve_risk_class($result) === task_risk_class::R3;
+    }
+
+    /**
+     * Check whether the synchronizer output must include an affected-scope summary.
+     *
+     * @param array<string,mixed> $result
+     * @return bool
+     */
+    public function requires_affected_scope_summary(array $result): bool {
+        return trim((string)($result['response_type'] ?? '')) === 'sufficient'
+            && $this->resolve_risk_class($result) === task_risk_class::R2;
     }
 
     /**
@@ -183,5 +212,29 @@ class finalization_classifier {
         }
 
         return false;
+    }
+
+    /**
+     * Resolve the effective risk class from the result payload.
+     *
+     * @param array<string,mixed> $result
+     * @return string
+     */
+    private function resolve_risk_class(array $result): string {
+        $riskclass = trim((string)($result['risk_class'] ?? ''));
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        $commands = $result['commands'] ?? [];
+        if (is_array($commands)) {
+            $firstcommand = array_is_list($commands) ? (array)($commands[0] ?? []) : $commands;
+            $riskclass = trim((string)($firstcommand['risk_class'] ?? ''));
+            if (task_risk_class::is_valid($riskclass)) {
+                return $riskclass;
+            }
+        }
+
+        return task_risk_class::R3;
     }
 }

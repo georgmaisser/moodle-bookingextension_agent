@@ -28,6 +28,7 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use core\task\manager as task_manager;
 use bookingextension_agent\local\wbagent\agent_runtime;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -786,6 +787,25 @@ class confirm_run_service {
     ): array {
         $item = $queuesvc->get_queue_item($threadid, $queueitemid);
         $retrycount = is_array($item) ? max(0, (int)($item['retry_count'] ?? 0)) : 0;
+        $riskclass = is_array($item) ? $this->normalize_risk_class((string)($item['risk_class'] ?? '')) : task_risk_class::R3;
+
+        // R3 tasks are idempotency-critical; retry after execution is forbidden.
+        if ($riskclass === task_risk_class::R3) {
+            $budget = attempt_budget_dto::from_queue_item([
+                'preflight_retry_count' => $retrycount,
+                'retry_count' => $retrycount,
+            ], max(1, $retrycount + 1), 'R3_NO_RETRY')->to_array();
+
+            return [
+                'queue_status' => 'failed',
+                'issue_codes' => array_values(array_unique(array_merge($issuecodes, ['R3_NO_RETRY']))),
+                'meta' => [
+                    'retry_count' => $retrycount,
+                    'attempt_budget' => $budget,
+                ],
+            ];
+        }
+
         $gate = new preflight_execution_gate();
         $decision = $gate->evaluate($errorclass, $retrycount, $issuecodes);
         $decisionissuecodes = array_values(array_unique(array_merge($issuecodes, $decision->issuecodes)));
@@ -823,6 +843,21 @@ class confirm_run_service {
                 'attempt_budget' => $budget,
             ],
         ];
+    }
+
+    /**
+     * Normalize a queued risk class.
+     *
+     * @param string $riskclass
+     * @return string
+     */
+    private function normalize_risk_class(string $riskclass): string {
+        $riskclass = trim($riskclass);
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        return task_risk_class::R3;
     }
 
     /**

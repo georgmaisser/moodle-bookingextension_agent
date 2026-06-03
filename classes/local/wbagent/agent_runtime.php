@@ -322,6 +322,24 @@ class agent_runtime {
         }
 
         unset($syncresult['_planner_raw_response']);
+
+        if ($this->finalizationclassifier->requires_irreversibility_notice($result)) {
+            $notice = trim((string)($syncresult['irreversibility_notice'] ?? ''));
+            if ($notice === '') {
+                return $result;
+            }
+        }
+
+        if ($this->finalizationclassifier->requires_affected_scope_summary($result)) {
+            $summary = trim((string)($syncresult['affected_scope_summary'] ?? ''));
+            if ($summary === '') {
+                $result['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    ['SYNC_AFFECTED_SCOPE_SUMMARY_MISSING']
+                )));
+            }
+        }
+
         return $this->synchronizeroutputcontract->merge($result, $syncresult);
     }
 

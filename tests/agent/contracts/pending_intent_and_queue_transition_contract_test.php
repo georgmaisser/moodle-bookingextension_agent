@@ -17,9 +17,11 @@
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
+use bookingextension_agent\local\wbagent\services\queue_status_policy;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -92,6 +94,100 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
             'transient_io',
             'temporary I/O issue',
             ['retry_count' => 2, 'retry_after_ms' => 500]
+        );
+    }
+
+    /**
+     * R3 retry hints must be converted to failed status without retrying.
+     */
+    public function test_queue_transition_service_forbids_retry_waiting_for_r3(): void {
+        $queue = $this->getMockBuilder(queue_manager::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_queue_item', 'update_status'])
+            ->getMock();
+
+        $queue->expects($this->once())
+            ->method('get_queue_item')
+            ->with(12, 'q12_1')
+            ->willReturn([
+                'queue_item_id' => 'q12_1',
+                'mutability' => 'mutating',
+                'risk_class' => task_risk_class::R3,
+                'status' => 'ready',
+                'retry_count' => 0,
+            ]);
+
+        $queue->expects($this->once())
+            ->method('update_status')
+            ->with(
+                12,
+                'q12_1',
+                queue_status_policy::failed_status(),
+                ['TRANSIENT_IO', 'R3_NO_RETRY'],
+                'preflight_retry_forbidden',
+                'Retry is forbidden for irreversible_or_external tasks.',
+                $this->callback(static function (array $extra): bool {
+                    return (string)($extra['reason_code'] ?? '') === 'R3_NO_RETRY';
+                })
+            );
+
+        $service = new queue_transition_service();
+        $service->apply_preflight_decision(
+            $queue,
+            12,
+            ['q12_1'],
+            'retry_hint',
+            ['TRANSIENT_IO'],
+            ['Retry requested'],
+            ['retry_after_ms' => 500],
+            false
+        );
+    }
+
+    /**
+     * R3 pass decisions must stay blocked_confirmation even if autoconfirm is enabled.
+     */
+    public function test_queue_transition_service_keeps_r3_blocked_confirmation_under_autoconfirm(): void {
+        $queue = $this->getMockBuilder(queue_manager::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_queue_item', 'update_status'])
+            ->getMock();
+
+        $queue->expects($this->once())
+            ->method('get_queue_item')
+            ->with(12, 'q12_2')
+            ->willReturn([
+                'queue_item_id' => 'q12_2',
+                'mutability' => 'mutating',
+                'risk_class' => task_risk_class::R3,
+                'status' => 'blocked_confirmation',
+                'retry_count' => 0,
+            ]);
+
+        $queue->expects($this->once())
+            ->method('update_status')
+            ->with(
+                12,
+                'q12_2',
+                'blocked_confirmation',
+                ['TRANSIENT_IO'],
+                '',
+                '',
+                $this->callback(static function (array $extra): bool {
+                    return (string)($extra['reason_code'] ?? '') === 'PREFLIGHT_R3_MANUAL_CONFIRMATION';
+                })
+            );
+
+        $service = new queue_transition_service();
+        $service->apply_preflight_decision(
+            $queue,
+            12,
+            ['q12_2'],
+            'pass',
+            ['TRANSIENT_IO'],
+            [],
+            ['retry_after_ms' => 0],
+            true
         );
     }
 }

@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\decision;
 
 use core_text;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\booking_issue_code_provider;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\executor;
@@ -951,14 +952,41 @@ class agent_decision_service {
         array $queueitemids
     ): string {
         $queueitemids = $this->normalize_queue_item_ids($queueitemids);
+        $queueriskclasses = $this->resolve_queue_item_risk_classes($threadid, $queueitemids);
         return $this->pendingintentsvc->set(
             $threadid,
             $userid,
             $contextid,
             [
                 'queue_item_ids' => $queueitemids,
+                'queue_risk_classes' => $queueriskclasses,
             ]
         );
+    }
+
+    /**
+     * Resolve risk classes for a set of queue items.
+     *
+     * @param int $threadid
+     * @param array<int,string> $queueitemids
+     * @return array<int,string>
+     */
+    private function resolve_queue_item_risk_classes(int $threadid, array $queueitemids): array {
+        $riskclasses = [];
+        foreach ($queueitemids as $queueitemid) {
+            $item = $this->queuesvc->get_queue_item($threadid, $queueitemid);
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $riskclass = trim((string)($item['risk_class'] ?? ''));
+            if (!task_risk_class::is_valid($riskclass)) {
+                $riskclass = task_risk_class::R3;
+            }
+            $riskclasses[] = $riskclass;
+        }
+
+        return array_values(array_unique($riskclasses));
     }
 
     // -------------------------------------------------------------------------
@@ -1252,7 +1280,7 @@ class agent_decision_service {
      * @return bool
      */
     private function has_mutating_commands(array $result): bool {
-        $commands = $result['commands'] ?? [];
+        $commands = $this->inject_risk_class_into_commands((array)($result['commands'] ?? []));
         if (!is_array($commands) || empty($commands)) {
             return false;
         }
@@ -1260,8 +1288,7 @@ class agent_decision_service {
             if (!is_array($command)) {
                 continue;
             }
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname !== '' && !$this->registry->is_read_only_task($taskname)) {
+            if ($this->resolve_command_risk_class($command) !== task_risk_class::R0) {
                 return true;
             }
         }
@@ -1269,31 +1296,99 @@ class agent_decision_service {
     }
 
     /**
-     * Split commands into read-only and mutating groups.
+     * Split commands into risk-class groups.
      *
-     * Unknown or malformed commands are treated as mutating for safety.
+     * Unknown or malformed commands are treated as R3 for safety.
+     *
+     * @param  array $commands
+     * @return array{r0:array<int,array<string,mixed>>,r1:array<int,array<string,mixed>>,r2:array<int,array<string,mixed>>,r3:array<int,array<string,mixed>>}
+     */
+    private function split_commands_by_risk_class(array $commands): array {
+        $groups = [
+            'r0' => [],
+            'r1' => [],
+            'r2' => [],
+            'r3' => [],
+        ];
+
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                $groups['r3'][] = ['task' => '', 'input' => [], 'risk_class' => task_risk_class::R3];
+                continue;
+            }
+            $riskclass = $this->resolve_command_risk_class($command);
+            $command['risk_class'] = $riskclass;
+            if ($riskclass === task_risk_class::R0) {
+                $groups['r0'][] = $command;
+            } else if ($riskclass === task_risk_class::R1) {
+                $groups['r1'][] = $command;
+            } else if ($riskclass === task_risk_class::R2) {
+                $groups['r2'][] = $command;
+            } else {
+                $groups['r3'][] = $command;
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Split commands into read-only and mutating groups.
      *
      * @param  array $commands
      * @return array ['readonly' => array, 'mutating' => array]
      */
     private function split_commands_by_mutability(array $commands): array {
-        $readonly = [];
-        $mutating = [];
+        $groups = $this->split_commands_by_risk_class($commands);
 
-        foreach ($commands as $command) {
+        return [
+            'readonly' => $groups['r0'],
+            'mutating' => array_values(array_merge($groups['r1'], $groups['r2'], $groups['r3'])),
+        ];
+    }
+
+    /**
+     * Inject resolved risk_class into commands.
+     *
+     * @param array<int,array<string,mixed>> $commands
+     * @return array<int,array<string,mixed>>
+     */
+    private function inject_risk_class_into_commands(array $commands): array {
+        foreach ($commands as &$command) {
             if (!is_array($command)) {
-                $mutating[] = ['task' => '', 'input' => []];
                 continue;
             }
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname !== '' && $this->registry->is_read_only_task($taskname)) {
-                $readonly[] = $command;
-            } else {
-                $mutating[] = $command;
+            $command['risk_class'] = $this->resolve_command_risk_class($command);
+        }
+        unset($command);
+
+        return $commands;
+    }
+
+    /**
+     * Resolve the effective risk class for a command.
+     *
+     * @param array<string,mixed> $command
+     * @return string
+     */
+    private function resolve_command_risk_class(array $command): string {
+        $riskclass = trim((string)($command['risk_class'] ?? ''));
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        $taskname = trim((string)($command['task'] ?? ''));
+        if ($taskname !== '') {
+            $task = $this->registry->get_task($taskname);
+            if ($task !== null) {
+                $taskriskclass = trim($task->get_risk_class());
+                if (task_risk_class::is_valid($taskriskclass)) {
+                    return $taskriskclass;
+                }
             }
         }
 
-        return ['readonly' => $readonly, 'mutating' => $mutating];
+        return task_risk_class::R3;
     }
 
     /**
