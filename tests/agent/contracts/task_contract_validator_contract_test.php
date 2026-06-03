@@ -16,8 +16,10 @@
 
 namespace bookingextension_agent\local\wbagent\tests;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
+use bookingextension_agent\local\wbagent\services\task_prompt_contract;
 use bookingextension_agent\local\wbagent\task_contract_validator;
 use bookingextension_agent\local\wbagent\task_registry;
 use PHPUnit\Framework\TestCase;
@@ -70,6 +72,8 @@ final class task_contract_validator_contract_test extends TestCase {
                 'alias_of' => '',
                 'deprecated_since' => '',
                 'readonly' => true,
+                'risk_class' => task_risk_class::R0,
+                'context_scopes' => ['module'],
             ],
             'entities.lookup' => [
                 'taskname' => 'entities.lookup',
@@ -82,6 +86,8 @@ final class task_contract_validator_contract_test extends TestCase {
                 'alias_of' => 'entities.search',
                 'deprecated_since' => '',
                 'readonly' => true,
+                'risk_class' => task_risk_class::R0,
+                'context_scopes' => ['module'],
             ],
         ];
 
@@ -104,6 +110,19 @@ final class task_contract_validator_contract_test extends TestCase {
             'required' => [],
         ]);
         $task->method('is_read_only')->willReturn(true);
+        $task->method('get_risk_class')->willReturn(task_risk_class::R0);
+        $task->method('get_example_input')->willReturn([]);
+        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([
+            'intent' => 'invalid',
+            'anchors' => [],
+            'minimal_input' => [],
+            'example_input' => [],
+            'namespace' => 'booking',
+            'version' => 1,
+            'capabilities' => [],
+            'context_scopes' => ['module'],
+            'risk_class' => task_risk_class::R0,
+        ]));
 
         $provider = $this->createMock(task_provider_interface::class);
         $provider->method('get_component')->willReturn('local_dummy');
@@ -136,8 +155,9 @@ final class task_contract_validator_contract_test extends TestCase {
             'required' => ['query'],
         ]);
         $task->method('is_read_only')->willReturn(true);
+        $task->method('get_risk_class')->willReturn(task_risk_class::R0);
         $task->method('get_example_input')->willReturn(['query' => 'demo']);
-        $task->method('get_prompt_contract')->willReturn(new \bookingextension_agent\local\wbagent\services\task_prompt_contract([
+        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([
             'intent' => 'search',
             'anchors' => ['demo'],
             'minimal_input' => ['query'],
@@ -146,6 +166,7 @@ final class task_contract_validator_contract_test extends TestCase {
             'version' => 1,
             'capabilities' => ['local/demo:task_demo_lookup'],
             'context_scopes' => ['module'],
+            'risk_class' => task_risk_class::R0,
         ]));
 
         $provider = $this->createMock(task_provider_interface::class);
@@ -166,6 +187,67 @@ final class task_contract_validator_contract_test extends TestCase {
         $this->assertSame('demo.general', (string)$contracts[0]['family']);
         $this->assertSame(1, (int)$contracts[0]['version']);
         $this->assertContains('local/demo:task_demo_lookup', (array)$contracts[0]['capabilities']);
+        $this->assertSame(task_risk_class::R0, (string)$contracts[0]['risk_class']);
+    }
+
+    /**
+     * Validate risk-class metadata is built and enforced for readonly tasks.
+     */
+    public function test_validate_task_metadata_requires_risk_class_and_readonly_alignment(): void {
+        $metadata = [
+            'taskname' => 'demo.lookup',
+            'namespace' => 'demo',
+            'family' => 'demo.general',
+            'version' => 1,
+            'component' => 'local_demo',
+            'capabilities' => ['local/demo:task_demo_lookup'],
+            'active' => true,
+            'alias_of' => '',
+            'deprecated_since' => '',
+            'readonly' => true,
+            'risk_class' => task_risk_class::R0,
+            'context_scopes' => ['module'],
+        ];
+
+        $validation = task_contract_validator::validate_task_metadata($metadata);
+        $this->assertTrue($validation['valid']);
+        $this->assertEmpty($validation['errors']);
+
+        $metadata['risk_class'] = '';
+        $validation = task_contract_validator::validate_task_metadata($metadata);
+        $this->assertFalse($validation['valid']);
+        $this->assertContains('Missing required field: risk_class.', $validation['errors']);
+    }
+
+    /**
+     * Validate mutating tasks require a non-readonly declaration and explicit scope.
+     */
+    public function test_validate_task_metadata_rejects_mutating_readonly_or_scope_missing_tasks(): void {
+        $metadata = [
+            'taskname' => 'demo.mutate',
+            'namespace' => 'demo',
+            'family' => 'demo.general',
+            'version' => 1,
+            'component' => 'local_demo',
+            'capabilities' => ['local/demo:task_demo_mutate'],
+            'active' => true,
+            'alias_of' => '',
+            'deprecated_since' => '',
+            'readonly' => true,
+            'risk_class' => task_risk_class::R2,
+            'context_scopes' => [],
+        ];
+
+        $validation = task_contract_validator::validate_task_metadata($metadata);
+        $this->assertFalse($validation['valid']);
+        $this->assertContains(
+            'Invalid risk_class declaration: mutating tasks must not be marked read-only.',
+            $validation['errors']
+        );
+        $this->assertContains(
+            'Invalid risk_class declaration: broad or irreversible tasks must declare explicit context scopes.',
+            $validation['errors']
+        );
     }
 
     /**
@@ -182,6 +264,19 @@ final class task_contract_validator_contract_test extends TestCase {
             'required' => [],
         ]);
         $goodtask->method('is_read_only')->willReturn(true);
+        $goodtask->method('get_risk_class')->willReturn(task_risk_class::R0);
+        $goodtask->method('get_example_input')->willReturn([]);
+        $goodtask->method('get_prompt_contract')->willReturn(new task_prompt_contract([
+            'intent' => 'healthy',
+            'anchors' => [],
+            'minimal_input' => [],
+            'example_input' => [],
+            'namespace' => 'demo',
+            'version' => 1,
+            'capabilities' => [],
+            'context_scopes' => ['module'],
+            'risk_class' => task_risk_class::R0,
+        ]));
 
         $goodprovider = $this->createMock(task_provider_interface::class);
         $goodprovider->method('get_component')->willReturn('local_demo');

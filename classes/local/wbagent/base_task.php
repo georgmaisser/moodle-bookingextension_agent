@@ -16,6 +16,7 @@
 
 namespace bookingextension_agent\local\wbagent;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\task_prompt_contract;
@@ -39,13 +40,18 @@ abstract class base_task implements task_interface {
     /** @var bool */
     protected bool $readonly;
 
+    /** @var string */
+    protected string $riskclass;
+
     /**
      * Constructor.
      *
      * @param bool $readonly
+     * @param string $riskclass
      */
-    public function __construct(bool $readonly = false) {
+    public function __construct(bool $readonly, string $riskclass) {
         $this->readonly = $readonly;
+        $this->riskclass = trim($riskclass);
     }
 
     /**
@@ -55,6 +61,15 @@ abstract class base_task implements task_interface {
      */
     public function is_read_only(): bool {
         return $this->readonly;
+    }
+
+    /**
+     * Return the declared risk class.
+     *
+     * @return string
+     */
+    public function get_risk_class(): string {
+        return $this->riskclass;
     }
 
     /**
@@ -92,6 +107,7 @@ abstract class base_task implements task_interface {
             'version' => max(1, (int)($schema['version'] ?? 1)),
             'capabilities' => array_values(array_filter((array)($promptmeta['capabilities'] ?? []), 'is_string')),
             'context_scopes' => array_values(array_filter((array)($promptmeta['context_scopes'] ?? ['module']), 'is_string')),
+            'risk_class' => task_risk_class::is_valid($this->riskclass) ? $this->riskclass : '',
         ]);
     }
 

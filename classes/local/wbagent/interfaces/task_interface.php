@@ -70,6 +70,13 @@ interface task_interface {
     public function get_prompt_contract(): task_prompt_contract;
 
     /**
+     * Return the declarative risk class for this task.
+     *
+     * @return string
+     */
+    public function get_risk_class(): string;
+
+    /**
      * Structural (pure) validation — no DB access, no side-effects.
      *
      * Called by the interpreter immediately after JSON parsing to verify that

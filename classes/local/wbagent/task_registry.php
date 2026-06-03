@@ -599,6 +599,7 @@ class task_registry {
             'task' => $taskname,
             'description' => trim((string)($schema['description'] ?? '')),
             'readonly' => (bool)($schema['readonly'] ?? $task->is_read_only()),
+            'risk_class' => trim((string)($promptcontract['risk_class'] ?? ($taskmeta['risk_class'] ?? $task->get_risk_class()))),
             'intent' => trim((string)($promptcontract['intent'] ?? '')) !== ''
                 ? trim((string)$promptcontract['intent'])
                 : 'task',

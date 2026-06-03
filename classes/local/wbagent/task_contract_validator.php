@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 use core_text;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\contracts\task_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 
@@ -71,6 +72,7 @@ class task_contract_validator {
     public static function build_task_metadata(task_interface $task, string $component): array {
         $schema = (array)$task->get_schema();
         $governance = (array)($schema['governance'] ?? []);
+        $promptcontract = (array)$task->get_prompt_contract()->to_array();
         $taskname = trim($task->get_name());
         $capabilities = [];
         $defaultcapability = self::build_task_capability_name($component, $taskname);
@@ -89,6 +91,8 @@ class task_contract_validator {
             'alias_of' => trim((string)($governance['alias_of'] ?? '')),
             'deprecated_since' => trim((string)($governance['deprecated_since'] ?? '')),
             'readonly' => (bool)$task->is_read_only(),
+            'risk_class' => trim((string)$task->get_risk_class()),
+            'context_scopes' => array_values(array_filter(array_map('strval', (array)($promptcontract['context_scopes'] ?? [])))),
         ];
     }
 
@@ -167,6 +171,27 @@ class task_contract_validator {
             }
         }
 
+        $riskclass = trim((string)($taskmeta['risk_class'] ?? ''));
+        if ($riskclass === '') {
+            $errors[] = 'Missing required field: risk_class.';
+        } else if (!task_risk_class::is_valid($riskclass)) {
+            $errors[] = 'Invalid required field: risk_class must be one of '
+                . 'read_only, scoped_write, broad_write, irreversible_or_external.';
+        }
+
+        $readonly = array_key_exists('readonly', $taskmeta) ? (bool)$taskmeta['readonly'] : null;
+        if ($riskclass === task_risk_class::R0 && $readonly !== true) {
+            $errors[] = 'Invalid risk_class declaration: R0 tasks must be read-only.';
+        }
+        if ($readonly === true && $riskclass !== '' && $riskclass !== task_risk_class::R0) {
+            $errors[] = 'Invalid risk_class declaration: mutating tasks must not be marked read-only.';
+        }
+
+        $contextscopes = array_values(array_filter(array_map('strval', (array)($taskmeta['context_scopes'] ?? []))));
+        if (in_array($riskclass, [task_risk_class::R2, task_risk_class::R3], true) && empty($contextscopes)) {
+            $errors[] = 'Invalid risk_class declaration: broad or irreversible tasks must declare explicit context scopes.';
+        }
+
         $aliasof = trim((string)($taskmeta['alias_of'] ?? ''));
         if ($aliasof !== '' && $aliasof === trim((string)($taskmeta['taskname'] ?? ''))) {
             $errors[] = 'Invalid alias_of: alias cannot target itself.';
@@ -180,10 +205,6 @@ class task_contract_validator {
             && self::extract_task_namespace($aliasof) !== $namespace
         ) {
             $errors[] = 'Invalid alias_of: alias target must stay in the same namespace.';
-        }
-
-        if (!is_string((string)($taskmeta['deprecated_since'] ?? ''))) {
-            $errors[] = 'Invalid optional field: deprecated_since must be string.';
         }
 
         return [

@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use core\task\manager;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 use bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc;
 
@@ -35,7 +36,7 @@ class recreate_task_catalog_task extends core_task_base implements task_trigger_
      * Constructor.
      */
     public function __construct() {
-        parent::__construct(false);
+        parent::__construct(false, task_risk_class::R2);
     }
 
     /**

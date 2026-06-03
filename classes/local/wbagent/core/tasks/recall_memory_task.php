@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
 
 /**
@@ -34,7 +35,7 @@ class recall_memory_task extends core_task_base implements task_trigger_provider
      * Constructor.
      */
     public function __construct() {
-        parent::__construct(true);
+        parent::__construct(true, task_risk_class::R0);
     }
 
     /**

@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\tests;
 
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\contracts\task_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
@@ -81,9 +82,23 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
         $task->method('get_name')->willReturn('demo.lookup');
         $task->method('get_schema')->willReturn(['version' => 1, 'governance' => []]);
         $task->method('is_read_only')->willReturn(true);
+        $task->method('get_risk_class')->willReturn(task_risk_class::R0);
+        $task->method('get_example_input')->willReturn([]);
+        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([
+            'intent' => 'lookup',
+            'anchors' => [],
+            'minimal_input' => [],
+            'example_input' => [],
+            'namespace' => 'demo',
+            'version' => 1,
+            'capabilities' => [],
+            'context_scopes' => ['module'],
+            'risk_class' => task_risk_class::R0,
+        ]));
 
         $meta = task_contract_validator::build_task_metadata($task, 'local_demo');
         $this->assertSame('demo.general', $meta['family']);
+        $this->assertSame(task_risk_class::R0, $meta['risk_class']);
 
         $validation = task_contract_validator::validate_task_metadata($meta);
         $this->assertTrue($validation['valid']);

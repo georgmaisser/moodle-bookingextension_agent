@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
@@ -56,8 +57,19 @@ final class prompt_and_language_contract_test extends TestCase {
             'required' => [],
         ]);
         $task->method('is_read_only')->willReturn(false);
+        $task->method('get_risk_class')->willReturn(task_risk_class::R2);
         $task->method('get_example_input')->willReturn([]);
-        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([]));
+        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([
+            'intent' => '',
+            'anchors' => [],
+            'minimal_input' => [],
+            'example_input' => [],
+            'namespace' => 'dummy',
+            'version' => 1,
+            'capabilities' => [],
+            'context_scopes' => ['module'],
+            'risk_class' => task_risk_class::R2,
+        ]));
 
         $provider = $this->createMock(task_provider_interface::class);
         $provider->method('get_component')->willReturn('local_dummy');
@@ -75,6 +87,7 @@ final class prompt_and_language_contract_test extends TestCase {
         $this->assertSame('task', $contract['intent']);
         $this->assertSame([], $contract['minimal_input']);
         $this->assertSame([], $contract['anchors']);
+        $this->assertSame(task_risk_class::R2, $contract['risk_class']);
     }
 
     /**

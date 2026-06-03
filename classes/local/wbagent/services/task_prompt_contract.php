@@ -60,6 +60,7 @@ class task_prompt_contract {
             'version' => max(1, (int)($this->payload['version'] ?? 1)),
             'capabilities' => self::normalize_string_list((array)($this->payload['capabilities'] ?? [])),
             'context_scopes' => self::normalize_string_list((array)($this->payload['context_scopes'] ?? [])),
+            'risk_class' => trim((string)($this->payload['risk_class'] ?? '')),
         ];
     }
 

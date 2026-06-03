@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\core\tasks;
 
 use context_module;
+use bookingextension_agent\local\wbagent\dto\task_risk_class;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\interfaces\task_interface;
 use bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface;
@@ -39,7 +40,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
      * Constructor.
      */
     public function __construct() {
-        parent::__construct(true);
+        parent::__construct(true, task_risk_class::R0);
     }
 
     /**
