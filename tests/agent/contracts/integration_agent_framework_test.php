@@ -869,6 +869,41 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * Test that unknown command envelope keys are ignored during input normalization.
+     */
+    public function test_interpreter_normalize_commands_payload_ignores_unknown_command_keys(): void {
+        $registry = task_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+
+        $reflection = new \ReflectionClass($interpreter);
+        $method = $reflection->getMethod('normalize_commands_payload');
+        $method->setAccessible(true);
+
+        $commands = $method->invoke($interpreter, [
+            'commands' => [[
+                'task' => 'mod_booking.create_option',
+                'version' => 1,
+                'command_id' => 'cmd_1',
+                'commandid' => 'cmd_legacy',
+                'id' => '42',
+                'cid' => 'abc',
+                'parameters' => [
+                    'text' => 'Portishead 1',
+                    'maxanswers' => 8,
+                ],
+            ]],
+        ], 'Portishead');
+
+        $this->assertSame('mod_booking.create_option', (string)($commands[0]['task'] ?? ''));
+        $this->assertSame('Portishead 1', (string)($commands[0]['input']['text'] ?? ''));
+        $this->assertSame(8, (int)($commands[0]['input']['maxanswers'] ?? 0));
+        $this->assertArrayNotHasKey('command_id', $commands[0]['input']);
+        $this->assertArrayNotHasKey('commandid', $commands[0]['input']);
+        $this->assertArrayNotHasKey('id', $commands[0]['input']);
+        $this->assertArrayNotHasKey('cid', $commands[0]['input']);
+    }
+
+    /**
      * Test that preflight pipeline supports skipping duplicate schema checks for interpreter-validated commands.
      */
     public function test_preflight_pipeline_supports_structural_validation_skip_flag(): void {

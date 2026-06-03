@@ -559,9 +559,9 @@ class interpreter implements agent_interpreter {
     /**
      * Normalize command payload shapes to a canonical list of command objects.
      *
-     * Accepts:
-     * - Commands as list: [{task,version,input}, ...]
-     * - Commands as single object: {task,version,input}
+    * Accepts:
+    * - Commands as list: [{task,version,input|parameters}, ...]
+    * - Commands as single object: {task,version,input|parameters}
      * - Top-level task/version/input fields when commands is missing
      *
      * @param array $parsed
@@ -591,12 +591,6 @@ class interpreter implements agent_interpreter {
                 if (is_array($command['input'] ?? null)) {
                     $input = array_merge($input, $command['input']);
                 }
-                // Accept compact command format where input fields are provided
-                // directly at command level (e.g. {task, optionquery, userquery}).
-                $flatinput = $this->extract_flat_command_input($command);
-                if (!empty($flatinput)) {
-                    $input = array_merge($flatinput, $input);
-                }
                 $input = $this->prune_empty_input_values($input);
 
                 $normalized[] = [
@@ -622,19 +616,6 @@ class interpreter implements agent_interpreter {
         }
 
         return [];
-    }
-
-    /**
-     * Extract non-meta fields from compact command objects as input payload.
-     *
-     * @param array $command
-     * @return array
-     */
-    private function extract_flat_command_input(array $command): array {
-        $flat = $command;
-        unset($flat['task'], $flat['version'], $flat['input'], $flat['parameters'], $flat['description']);
-
-        return is_array($flat) ? $flat : [];
     }
 
     /**
