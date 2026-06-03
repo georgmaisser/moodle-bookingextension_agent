@@ -33,6 +33,13 @@ $capabilities = [
             'editingteacher' => CAP_ALLOW,
         ],
     ],
+    'bookingextension/agent:debugtaskselection' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];
 
 $teachertasks = [

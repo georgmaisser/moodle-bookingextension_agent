@@ -285,4 +285,11 @@ $enableallsetting->set_updatedcallback(
 );
 $aisettingspage->add($enableallsetting);
 
+$adminroot->add('modbookingfolder', new admin_externalpage(
+    'bookingextension_agent_taskselectiondebug',
+    get_string('taskselectiondebug', 'bookingextension_agent'),
+    new moodle_url('/mod/booking/bookingextension/agent/task_selection_debug.php'),
+    'bookingextension/agent:debugtaskselection'
+));
+
 $adminroot->add('modbookingfolder', $aisettingspage);

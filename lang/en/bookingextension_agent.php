@@ -15,6 +15,34 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 $string['agent:task_booking_analyze_rules'] = 'Analyze booking rules';
+$string['agent:debugtaskselection'] = 'Use task selection debug tool';
+$string['taskselectiondebug'] = 'Task selection debug';
+$string['taskselectiondebug_desc'] = 'Dry-run task selection and inspect embedding collisions without executing mutations.';
+$string['taskselectiondebug_simulator'] = 'Selection simulator';
+$string['taskselectiondebug_input'] = 'Input text';
+$string['taskselectiondebug_cmid'] = 'Course module id (cmid)';
+$string['taskselectiondebug_topk'] = 'Top-K candidates';
+$string['taskselectiondebug_includeunavailable'] = 'Include unavailable tasks in contract base';
+$string['taskselectiondebug_runsimulation'] = 'Run simulation';
+$string['taskselectiondebug_simulationresult'] = 'Simulation result';
+$string['taskselectiondebug_noselection'] = 'No task selected.';
+$string['taskselectiondebug_selectedtask'] = 'Selected task: {$a}';
+$string['taskselectiondebug_task'] = 'Task';
+$string['taskselectiondebug_combinedscore'] = 'Combined score';
+$string['taskselectiondebug_lexicalscore'] = 'Lexical score';
+$string['taskselectiondebug_embeddingscore'] = 'Embedding score';
+$string['taskselectiondebug_source'] = 'Source';
+$string['taskselectiondebug_matchterms'] = 'Matched terms';
+$string['taskselectiondebug_rawjson'] = 'Raw JSON';
+$string['taskselectiondebug_collisions'] = 'Collision analyzer';
+$string['taskselectiondebug_collisionlimit'] = 'Collision rows limit';
+$string['taskselectiondebug_runcollisions'] = 'Run collision analysis';
+$string['taskselectiondebug_collisionresult'] = 'Collision result';
+$string['taskselectiondebug_embeddingsmissing'] = 'No valid embeddings catalog found. Build task embeddings first.';
+$string['taskselectiondebug_task_a'] = 'Task A';
+$string['taskselectiondebug_task_b'] = 'Task B';
+$string['taskselectiondebug_similarity'] = 'Similarity';
+$string['taskselectiondebug_risk'] = 'Risk';
 $string['ai_please_clarify'] = 'Please clarify your request so I can continue.';
 $string['agent_booking_add_pricecat_capability_required'] = 'Adding price categories requires moodle/site:config capability.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Please confirm how booking policy consent should be transmitted.';

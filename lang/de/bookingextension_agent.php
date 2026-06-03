@@ -15,6 +15,34 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 $string['agent:task_booking_analyze_rules'] = 'Buchungsregeln analysieren';
+$string['agent:debugtaskselection'] = 'Task-Selection-Debug-Tool verwenden';
+$string['taskselectiondebug'] = 'Task-Selection-Debug';
+$string['taskselectiondebug_desc'] = 'Task-Selection im Dry-Run testen und Embedding-Kollisionen analysieren, ohne Mutationen auszufuehren.';
+$string['taskselectiondebug_simulator'] = 'Selection-Simulator';
+$string['taskselectiondebug_input'] = 'Eingabetext';
+$string['taskselectiondebug_cmid'] = 'Kursmodul-ID (cmid)';
+$string['taskselectiondebug_topk'] = 'Top-K Kandidaten';
+$string['taskselectiondebug_includeunavailable'] = 'Nicht verfuegbare Tasks in der Vertragsbasis einbeziehen';
+$string['taskselectiondebug_runsimulation'] = 'Simulation starten';
+$string['taskselectiondebug_simulationresult'] = 'Simulationsergebnis';
+$string['taskselectiondebug_noselection'] = 'Kein Task selektiert.';
+$string['taskselectiondebug_selectedtask'] = 'Selektierter Task: {$a}';
+$string['taskselectiondebug_task'] = 'Task';
+$string['taskselectiondebug_combinedscore'] = 'Kombinierter Score';
+$string['taskselectiondebug_lexicalscore'] = 'Lexikalischer Score';
+$string['taskselectiondebug_embeddingscore'] = 'Embedding-Score';
+$string['taskselectiondebug_source'] = 'Quelle';
+$string['taskselectiondebug_matchterms'] = 'Treffer-Terme';
+$string['taskselectiondebug_rawjson'] = 'Roh-JSON';
+$string['taskselectiondebug_collisions'] = 'Kollisionsanalyse';
+$string['taskselectiondebug_collisionlimit'] = 'Limit Kollisionszeilen';
+$string['taskselectiondebug_runcollisions'] = 'Kollisionsanalyse starten';
+$string['taskselectiondebug_collisionresult'] = 'Kollisionsergebnis';
+$string['taskselectiondebug_embeddingsmissing'] = 'Kein gueltiger Embedding-Katalog gefunden. Bitte zuerst Task-Embeddings aufbauen.';
+$string['taskselectiondebug_task_a'] = 'Task A';
+$string['taskselectiondebug_task_b'] = 'Task B';
+$string['taskselectiondebug_similarity'] = 'Aehnlichkeit';
+$string['taskselectiondebug_risk'] = 'Risiko';
 $string['ai_please_clarify'] = 'Bitte praezisieren Sie Ihre Anfrage, damit ich fortfahren kann.';
 $string['agent_booking_add_pricecat_capability_required'] = 'Zum Anlegen von Preiskategorien ist die Berechtigung moodle/site:config erforderlich.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Bitte bestaetigen Sie, wie die Zustimmung zur Buchungsrichtlinie uebermittelt werden soll.';
