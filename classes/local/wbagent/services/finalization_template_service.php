@@ -40,6 +40,8 @@ class finalization_template_service {
             'Some required input is missing or invalid. Please provide the needed details and try again.',
         'CONTEXT_INVALID' =>
             'This request is not valid in the current context. Please open the target context and try again.',
+        'CONTRACT_SELECTION_TASK_MISSING' =>
+            'The request could not continue because no next task was selected. Please repeat the action or provide the next concrete step.',
     ];
 
     /** @var array<string,string> */

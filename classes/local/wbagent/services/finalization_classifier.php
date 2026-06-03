@@ -63,6 +63,7 @@ class finalization_classifier {
         'PERMISSION_ERROR',
         'VALIDATION_ERROR',
         'CONTEXT_INVALID',
+        'CONTRACT_SELECTION_TASK_MISSING',
     ];
 
     /** @var string[] */
