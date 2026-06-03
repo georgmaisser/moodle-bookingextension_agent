@@ -107,8 +107,8 @@ class aiready {
         $provideractive = false;
         $courseenabled = false;
         $contextenabled = false;
-        $debugmode = !empty(get_config('bookingextension_agent', 'bookingdebugmode'))
-            || (isset($CFG->debug) && $CFG->debug >= DEBUG_DEVELOPER);
+        $debugmode = !empty(get_config('bookingextension_agent', 'aidebugmode'));
+        $llmdebugenabled = llm_debug_logger::is_enabled();
 
         $cm = get_coursemodule_from_id('booking', $this->cmid, 0, false, MUST_EXIST);
         $providerconfigurl = (new \moodle_url('/admin/settings.php', ['section' => 'aiprovider']))->out(false);
@@ -274,6 +274,7 @@ class aiready {
             'num_booked' => $stats['num_booked'],
             'welcome_text' => $welcometext,
             'debug_mode' => $debugmode,
+            'llm_debug_enabled' => $llmdebugenabled,
         ];
     }
 

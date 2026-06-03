@@ -135,8 +135,11 @@ class finalization_classifier {
      * @return bool
      */
     public function requires_irreversibility_notice(array $result): bool {
-        return trim((string)($result['response_type'] ?? '')) === 'sufficient'
-            && $this->resolve_risk_class($result) === task_risk_class::R3;
+        if (trim((string)($result['response_type'] ?? '')) !== 'sufficient') {
+            return false;
+        }
+
+        return $this->resolve_explicit_risk_class($result) === task_risk_class::R3;
     }
 
     /**
@@ -146,8 +149,29 @@ class finalization_classifier {
      * @return bool
      */
     public function requires_affected_scope_summary(array $result): bool {
-        return trim((string)($result['response_type'] ?? '')) === 'sufficient'
-            && $this->resolve_risk_class($result) === task_risk_class::R2;
+        if (trim((string)($result['response_type'] ?? '')) !== 'sufficient') {
+            return false;
+        }
+
+        return $this->resolve_explicit_risk_class($result) === task_risk_class::R2;
+    }
+
+    /**
+     * Resolve explicit risk_class from the top-level payload.
+     *
+     * Synchronizer guard requirements should only trigger when risk_class
+     * is declared explicitly by runtime output, not inferred implicitly.
+     *
+     * @param array<string,mixed> $result
+     * @return string
+     */
+    private function resolve_explicit_risk_class(array $result): string {
+        $riskclass = trim((string)($result['risk_class'] ?? ''));
+        if (task_risk_class::is_valid($riskclass)) {
+            return $riskclass;
+        }
+
+        return '';
     }
 
     /**

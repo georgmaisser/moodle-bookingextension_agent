@@ -32,6 +32,7 @@ let pendingQueueItemId = '';
 let currentThreadId = 0;
 let currentContextId = 0;
 let debugModeEnabled = false;
+let llmDebugEnabled = false;
 let sessionAutoConfirmEnabled = false;
 let privacyCheckRunningLabel = 'Privacy check running...';
 let privacyAnswerNoteLabel = 'Privacy note: personal data in this response was de-anonymized for display.';
@@ -1170,31 +1171,6 @@ const isGenericStatusMessage = (message) => {
 };
 
 /**
- * Read the first non-empty string field from structured results.
- *
- * @param {Array} results
- * @param {Array<string>} fields
- * @returns {string}
- */
-const getFirstResultField = (results, fields) => {
-    const safeResults = Array.isArray(results) ? results : [];
-    for (const result of safeResults) {
-        if (!result || typeof result !== 'object') {
-            continue;
-        }
-
-        for (const field of fields) {
-            const value = String(result[field] || '').trim();
-            if (value !== '') {
-                return value;
-            }
-        }
-    }
-
-    return '';
-};
-
-/**
  * Build a user-friendly chat message from structured run results.
  *
  * @param {string} status
@@ -1267,15 +1243,9 @@ const buildDebugRunHtml = (status, message, results = []) => {
             + '</div>';
     }
 
-    const fallback = getFirstResultField(results, ['detail']);
-    const safeMessage = String(message || fallback || status).trim();
-    if (safeMessage === '') {
-        return '';
-    }
-
-    return '<div class="booking-ai-run-status-inline alert alert-secondary mb-0">'
-        + `<strong>${escapeHtml(String(status || 'debug'))}</strong>: ${renderTextWithLinks(safeMessage)}`
-        + '</div>';
+    // No task-authored debug payload available.
+    // Avoid duplicating the already rendered assistant message in debug mode.
+    return '';
 };
 
 /**
@@ -1881,7 +1851,7 @@ const refreshThreadDebugLogs = () => {
  * Create a debug logs refresh button in the UI.
  */
 const initDebugRefreshButton = () => {
-    if (!debugModeEnabled) {
+    if (!debugModeEnabled || !llmDebugEnabled) {
         return;
     }
 
@@ -2766,6 +2736,7 @@ export const init = (config = null) => {
             num_options: Number(wrapper.dataset.numOptions || 0),
             num_booked: Number(wrapper.dataset.numBooked || 0),
             debug_mode: String(wrapper.dataset.debugMode || '0') === '1',
+            llm_debug_enabled: String(wrapper.dataset.llmDebugEnabled || '0') === '1',
             privacy_check_running: String(wrapper.dataset.privacyCheckRunning || 'Privacy check running...'),
             privacy_answer_note: String(
                 wrapper.dataset.privacyAnswerNote
@@ -2780,6 +2751,7 @@ export const init = (config = null) => {
     currentContextId = runtimeConfig.contextid || 0;
     currentThreadId = runtimeConfig.threadid || 0;
     debugModeEnabled = Boolean(runtimeConfig.debug_mode);
+    llmDebugEnabled = Boolean(runtimeConfig.llm_debug_enabled);
     privacyCheckRunningLabel = String(runtimeConfig.privacy_check_running || privacyCheckRunningLabel);
     privacyAnswerNoteLabel = String(runtimeConfig.privacy_answer_note || privacyAnswerNoteLabel);
     trialTokenInvalidMessageLabel = String(runtimeConfig.trial_token_invalid_message || '');

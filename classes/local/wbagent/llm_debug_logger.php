@@ -38,8 +38,7 @@ class llm_debug_logger {
     public static function is_enabled(): bool {
         global $CFG;
 
-        return !empty(get_config('bookingextension_agent', 'aidebugmode'))
-            || (isset($CFG->debug) && (int)$CFG->debug >= DEBUG_DEVELOPER);
+        return !empty(get_config('bookingextension_agent', 'aidebugmode'));
     }
 
     /**

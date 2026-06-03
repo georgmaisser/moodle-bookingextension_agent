@@ -42,6 +42,9 @@ final class synchronizer_risk_contract_test extends TestCase {
             'response_type' => 'sufficient',
             'risk_class' => task_risk_class::R3,
         ]));
+        $this->assertFalse($classifier->requires_irreversibility_notice([
+            'response_type' => 'sufficient',
+        ]));
     }
 
     /**
@@ -53,6 +56,9 @@ final class synchronizer_risk_contract_test extends TestCase {
         $this->assertTrue($classifier->requires_affected_scope_summary([
             'response_type' => 'sufficient',
             'risk_class' => task_risk_class::R2,
+        ]));
+        $this->assertFalse($classifier->requires_affected_scope_summary([
+            'response_type' => 'sufficient',
         ]));
     }
 }
