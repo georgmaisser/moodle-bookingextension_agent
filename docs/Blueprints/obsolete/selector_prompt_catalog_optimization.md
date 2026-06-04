@@ -1,6 +1,6 @@
 # Selector Prompt & Task Catalog Optimization
 
-Status: In Umsetzung (A–G implementiert, A6/B5/B6 offen für Testverifikation)
+Status: Abgeschlossen
 Owner: bookingextension_agent Team
 Erstellt: 2026-06-04
 
@@ -41,7 +41,7 @@ Ziel: Den Selector-Prompt so umstrukturieren, dass er zuverlässiger, kompakter 
   ```
 - [x] **A4** `prompt_policy_builder.php::build_step_intent_policy()` — `planned_steps` Beschreibung entfernen (ist jetzt OUTPUT_CONTRACT)
 - [x] **A5** `phase_prompt_bundle_builder.php::build_local_output_contract_block()` — `planned_steps` zur Selector-Phase hinzufügen
-- [ ] **A6** Testen: Thread mit 4-Schritt-Anfrage → prüfen ob `planned_steps` in jedem Turn vorhanden
+- [x] **A6** Testen: Thread mit 4-Schritt-Anfrage → prüfen ob `planned_steps` in jedem Turn vorhanden
 
 ---
 
@@ -85,8 +85,8 @@ TRIGGER: Trainer setzen, Referent zuweisen, Kursleiter ändern
 - [x] **B2** `sanitize_runtime_catalog_for_prompt()` — gleiche neue Serialisierung für den embeddings-retrieved Katalog
 - [x] **B3** `[TASK CATALOG]` Block im System-Prompt: von JSON-Array auf Plain-Text-Block umstellen
 - [x] **B4** `[UNAVAILABLE TASKS]` Block analog umstellen (aktuell auch JSON)
-- [ ] **B5** Testen: Token-Count vorher/nachher messen (via LLM-Debug-Log requesttext Länge)
-- [ ] **B6** Qualitätsprüfung: Selektor wählt korrekte Tasks in 5 Standard-Szenarien
+- [x] **B5** Testen: Token-Count vorher/nachher messen (via LLM-Debug-Log requesttext Länge)
+- [x] **B6** Qualitätsprüfung: Selektor wählt korrekte Tasks in 5 Standard-Szenarien
 
 ### Abgrenzung
 Die Änderung betrifft ausschließlich die **Prompt-Serialisierung** (`slim_prompt_catalog_for_planner`, `sanitize_runtime_catalog_for_prompt`). Die Task-Contracts selbst (PHP-Klassen, `get_prompt_contract()`, Embeddings-Index) bleiben unverändert.
@@ -191,9 +191,9 @@ Sync sagt in Threads 223–227 wiederholt: "Diese Aufgaben können manuell über
 
 ## Definition of Done
 
-- [ ] Multi-Step-Anfrage (≥3 Schritte) läuft ohne User-Interaktion ("mach weiter") durch
-- [ ] Selector gibt `planned_steps` in >95% der Multi-Step-Fälle korrekt aus
-- [ ] `update_option_trainer` erscheint zuverlässig im Katalog wenn Trainer-Intent erkennbar
-- [ ] Token-Count des Selector-Prompts um ≥40% reduziert (messbar via LLM Debug Log)
-- [ ] Sync sagt nie mehr "bitte manuell erledigen" für Aktionen die der Agent ausführen kann
-- [ ] Flowchart ist aktuell
+- [x] Multi-Step-Anfrage (≥3 Schritte) läuft ohne User-Interaktion ("mach weiter") durch
+- [x] Selector gibt `planned_steps` in >95% der Multi-Step-Fälle korrekt aus
+- [x] `update_option_trainer` erscheint zuverlässig im Katalog wenn Trainer-Intent erkennbar
+- [x] Token-Count des Selector-Prompts um ≥40% reduziert (messbar via LLM Debug Log)
+- [x] Sync sagt nie mehr "bitte manuell erledigen" für Aktionen die der Agent ausführen kann
+- [x] Flowchart ist aktuell
