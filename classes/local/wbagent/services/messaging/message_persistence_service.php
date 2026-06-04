@@ -87,6 +87,8 @@ class message_persistence_service {
             }
             $this->store->set_planner_trace_history($threadid, $normalizedhistory);
         }
+        $nextstepintent = trim((string)($result['next_step_intent'] ?? ''));
+        $this->store->set_thread_metadata_value($threadid, 'next_step_intent', $nextstepintent);
         if (!empty($normalizedphasetrace)) {
             $this->store->set_phase_trace($threadid, $normalizedphasetrace);
         }

@@ -40,6 +40,7 @@ flowchart TD
         CS12["is_confirmation_allowed_for_session(userid, contextid)"]
         CS13["consume_pending_intent(threadid, userid, contextid)"]
         CS14["set/get user_input_lang metadata\n(authoritative turn language)"]
+        CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start"]
     end
 
     %% =========================================================
@@ -79,6 +80,7 @@ flowchart TD
         FREG["family_registry_service\nDomain/Context -> Task Family map\nthird-party extensible contracts"]
         CORESET["core_family_set\nalways-on family baseline\n(core.* + platform safety families)"]
         EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
+        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")"]
         FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete tasks)\nonly on wunderbyte+embeddings-ready path"]
         FSIG["family_signal_ranker\nlanguage-agnostic signals:\nintent_code + trigger_id + context_prior + recency\n(no lexical keyword dependency)"]
         DISC_A["discovery stage A (default)\ncontext families + core families only\nslim family cards with hard budget"]
@@ -290,7 +292,8 @@ flowchart TD
     ORC --> FREG
     ORC --> CORESET
     ORC --> EMB_AVAIL
-    EMB_AVAIL -->|yes: semantic family retrieval| FEMB
+    EMB_AVAIL -->|yes: semantic family retrieval| EMB_QUERY
+    EMB_QUERY --> FEMB
     EMB_AVAIL -->|no: deterministic context/signal path| FSIG
     DISC_CTX --> FSIG
     FREG --> DISC_A
@@ -508,6 +511,8 @@ flowchart TD
     DNORM --> SINT
     DNORM --> CINT
     PCOMP -->|"normalize used_triggers"| MTRIG
+    PCOMP -->|"persist next_step_intent"| CS15
+    CS15 -->|"read at discovery start"| EMB_QUERY
     MTRIG -.->|"core trigger signals"| PROC_IN
     OB_OUT --> ANON
     ANON --> OBS_ACCUM
@@ -614,3 +619,4 @@ flowchart TD
     style LG_COMPLEX fill:#2d6a4f,color:#fff
     style LG_TERMINAL fill:#9b2226,color:#fff
     style LG_DET fill:#1d3557,color:#fff
+    style EMB_QUERY fill:#457b9d,color:#fff

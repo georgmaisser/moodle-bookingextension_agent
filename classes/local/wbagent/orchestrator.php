@@ -589,6 +589,10 @@ class orchestrator {
                         break;
                     }
                 }
+                $pendingstepintent = trim((string)$this->store->get_thread_metadata_value($threadid, 'next_step_intent'));
+                if ($pendingstepintent !== '' && $pendingstepintent !== $querytext) {
+                    $querytext = $querytext . ' ' . $pendingstepintent;
+                }
 
                 $cachekey = '';
                 if ($querytext !== '') {
