@@ -87,7 +87,13 @@ class message_persistence_service {
             }
             $this->store->set_planner_trace_history($threadid, $normalizedhistory);
         }
-        $nextstepintent = trim((string)($result['next_step_intent'] ?? ''));
+        // Normalize next_step_intent — guard against null from constructor LLM output.
+        $rawintent = $result['next_step_intent'] ?? '';
+        $nextstepintent = is_string($rawintent) ? trim($rawintent) : '';
+        if ($nextstepintent === '') {
+            // Fall back to planner result's selection-phase intent when construction phase omits it.
+            $nextstepintent = trim((string)($result['planner_result']['selection']['next_step_intent'] ?? ''));
+        }
         $this->store->set_thread_metadata_value($threadid, 'next_step_intent', $nextstepintent);
         if (!empty($normalizedphasetrace)) {
             $this->store->set_phase_trace($threadid, $normalizedphasetrace);

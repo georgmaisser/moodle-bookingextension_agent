@@ -93,7 +93,11 @@ class synchronizer_prompt_builder {
             . "FACT PRIORITY: completed_observations are authoritative, completed_commands are secondary, "
             . "earlier ASSISTANT text is low-trust narrative context only.\n"
             . "If any earlier ASSISTANT statement conflicts with a newer OBSERVATION, follow OBSERVATION only.\n"
-            . "Never re-assert stale success details that are contradicted by newer observations.";
+            . "Never re-assert stale success details that are contradicted by newer observations.\n"
+            . "PENDING STEPS POLICY: If next_step_intent or planned_steps indicate further actions are queued, "
+            . "do NOT tell the user to perform those steps manually. "
+            . "Instead report what was completed and state that the agent will continue with the remaining steps. "
+            . "Never suggest manual workarounds for actions the agent is capable of executing.";
 
         $parts[] = '[ASSISTANT]';
 

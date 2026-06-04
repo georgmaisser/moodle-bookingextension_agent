@@ -80,7 +80,7 @@ flowchart TD
         FREG["family_registry_service\nDomain/Context -> Task Family map\nthird-party extensible contracts"]
         CORESET["core_family_set\nalways-on family baseline\n(core.* + platform safety families)"]
         EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
-        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")"]
+        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users: always-include downstream tasks\n(ALWAYS_INCLUDE_TASK_NAMES in adaptive_task_catalog_service)"]
         FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete tasks)\nonly on wunderbyte+embeddings-ready path"]
         FSIG["family_signal_ranker\nlanguage-agnostic signals:\nintent_code + trigger_id + context_prior + recency\n(no lexical keyword dependency)"]
         DISC_A["discovery stage A (default)\ncontext families + core families only\nslim family cards with hard budget"]
@@ -90,7 +90,7 @@ flowchart TD
         DISC_C["discovery stage C (last resort)\nglobal slim family fallback\nstrict hard budget, never full task dump"]
         FRANK["family_ranker\nscore = semantic_similarity(optional) + signal_score + context_prior\n+ optional recency_bias\nkeeps low-score tail for recall safety"]
         TASKLOAD["lazy_task_loader\nload concrete tasks only for ranked families\nload minimal task contracts first\nload full schema only on demand"]
-        TSEL["task_selector\nselect concrete task inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nfirst turn of multi-step request: outputs planned_steps[]\n(intent strings for future steps → enqueued as Q_PLANNED)\nsubsequent turns: omit planned_steps (placeholders already exist)"]
+        TSEL["task_selector\nselect concrete task inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nplanned_steps[] REQUIRED in every selector output:\n  → [] for single-step or when [PENDING PLANNED STEPS] in context\n  → [{intent:...},...] for multi-step first turn (future steps only)\nnext_step_intent REQUIRED: always string, never null"]
         PCON["parameter_constructor\nbuild parameters only after concrete task selection\nsingle-task schema focus (50+ properties supported)"]
         PVAL["parameter_contract_validator\ncheck structure + schema + ambiguity rules\nemit clarification / recoverable_input_error when needed"]
         ORCSVC["orchestrator_routing_service\nresolve model/action per phase\nselection(selector) -> construction(constructor-only)\nphase fallback chain applies independently"]
@@ -107,7 +107,7 @@ flowchart TD
     %% SYNCHRONIZER
     %% =========================================================
     subgraph SYNC["synchronizer — Final User-Facing Contract"]
-        SYNC_RUN["synchronize(threadid, contextid, userid,\nplanner_result, observations, state)\nLLM polish only for humanizable states\n(sufficient / clarification / safe domain error)"]
+        SYNC_RUN["synchronize(threadid, contextid, userid,\nplanner_result, observations, state)\nLLM polish only for humanizable states\n(sufficient / clarification / safe domain error)\nNEVER suggest manual steps when next_step_intent\nor planned_steps indicate pending agent actions"]
         SYNC_TEMPLATE["synchronize_template_only(threadid, contextid, userid,\nterminal_result, state)\nno LLM call\nfor budget_exceeded / hard_block_with_user_message"]
         SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n+ confirm path: execution feedback as observation context\n→ no task discovery / no command mutation"]
         SYNC_PPB["synchronizer_prompt_builder::build()\nseparate synchronizer prompt/profile\n(synchronizer_profile.md)"]

@@ -431,6 +431,16 @@ class orchestrator {
             [],
             $messages
         );
+        // Inject pending planned step intents so the sync never suggests manual workarounds
+        // for steps the agent is still planning to execute.
+        $pendingintents = (new queue_manager($this->store, $this->registry))
+            ->get_planned_placeholder_intents($threadid);
+        if (!empty($pendingintents)) {
+            $runtimecontext .= "\n\nPENDING AGENT STEPS (will be executed automatically — do NOT suggest manual workarounds):\n";
+            foreach ($pendingintents as $idx => $intent) {
+                $runtimecontext .= ($idx + 1) . '. ' . trim($intent) . "\n";
+            }
+        }
         $prompt = $this->synchronizerpromptbuilder->build_prompt(
             $systemprompt,
             $messages,
@@ -592,6 +602,16 @@ class orchestrator {
                 $pendingstepintent = trim((string)$this->store->get_thread_metadata_value($threadid, 'next_step_intent'));
                 if ($pendingstepintent !== '' && $pendingstepintent !== $querytext) {
                     $querytext = $querytext . ' ' . $pendingstepintent;
+                }
+                // Also augment with all remaining planned placeholder intents so the embedding
+                // retrieval surfaces the right tasks for each pending step, not just the next one.
+                $plannedintents = (new queue_manager($this->store, $this->registry))
+                    ->get_planned_placeholder_intents($threadid);
+                foreach ($plannedintents as $plannedintent) {
+                    $plannedintent = trim($plannedintent);
+                    if ($plannedintent !== '' && strpos($querytext, $plannedintent) === false) {
+                        $querytext = $querytext . ' ' . $plannedintent;
+                    }
                 }
 
                 $cachekey = '';
@@ -1503,17 +1523,18 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
   3) missing required input for the selected task
       -> response_type=clarification, commands=[].
   4) grounded mutating intent
-      -> response_type=confirmation_request, commands non-empty.
+      -> response_type=task_call (selector) or confirmation_request (constructor), commands non-empty.
   5) grounded read-only intent
       -> response_type=task_call, commands non-empty.
+  6) multi-step request, first turn, no [PENDING PLANNED STEPS] in context
+      -> select the first task + set planned_steps=[{intent of step 2},{intent of step 3},...].
 - Use only exact task names from the TASK CATALOG. Never invent aliases.
 - If a matching task appears in UNAVAILABLE TASKS, mention that it exists but is currently not executable.
 - Do not emit unavailable tasks in commands.
 - Never re-emit an already completed action signature (same task + normalized input intent).
-- Never use response_type=task_call for mutating intents.
 
 TASK CONTRACT FIRST (highest priority):
-- Follow task-level routing hints from the TASK CATALOG (intent, minimal_input, anchors, example_input, message_triggers).
+- Follow task-level routing hints from the TASK CATALOG (WHEN, REQUIRED, OPTIONAL, TRIGGERS).
 - Keep global routing generic; do not hardcode special behavior for individual task names.
 
 PROMPT;
@@ -1737,6 +1758,86 @@ PROMPT;
      * @param string $description
      * @return string
      */
+    /**
+     * Render the task catalog as compact plain text instead of JSON.
+     *
+     * Each task gets a heading line plus WHEN / REQUIRED / OPTIONAL / TRIGGERS lines.
+     * This is ~75% more token-efficient than JSON and easier for the LLM to scan.
+     *
+     * @param array $catalog
+     * @return string
+     */
+    private function render_catalog_as_text(array $catalog): string {
+        $blocks = [];
+
+        foreach ($catalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $taskname = trim((string)($entry['task'] ?? ''));
+            if ($taskname === '') {
+                continue;
+            }
+
+            $readonly = !empty($entry['readonly']) && (string)($entry['readonly']) !== '0';
+            $mutability = $readonly ? 'readonly' : 'mutating';
+            $lines = [];
+            $lines[] = "## {$taskname} [{$mutability}]";
+
+            $description = trim(preg_replace('/\s+/', ' ', (string)($entry['description'] ?? '')) ?? '');
+            if ($description !== '') {
+                $lines[] = core_text::substr($description, 0, 160);
+            }
+
+            // WHEN: from first message trigger description.
+            $triggers = (array)($entry['message_triggers'] ?? []);
+            $firsttrigger = !empty($triggers) && is_array($triggers[0]) ? (array)$triggers[0] : [];
+            $when = trim(preg_replace('/\s+/', ' ', (string)($firsttrigger['description'] ?? '')) ?? '');
+            if ($when !== '') {
+                $lines[] = 'WHEN: ' . core_text::substr($when, 0, 180);
+            }
+
+            // REQUIRED: minimal_input fields.
+            $minimal = array_filter(array_map('strval', (array)($entry['minimal_input'] ?? [])));
+            if (!empty($minimal)) {
+                $lines[] = 'REQUIRED: ' . implode(', ', array_values($minimal));
+            }
+
+            // OPTIONAL: additional example_input fields not in minimal.
+            $examplekeys = array_filter(array_map('strval', array_keys((array)($entry['example_input'] ?? []))));
+            if (empty($examplekeys)) {
+                // example_input may be a list of strings, not a map.
+                $examplekeys = array_filter(array_map('strval', (array)($entry['example_input'] ?? [])));
+            }
+            $optionalkeys = array_diff(array_values($examplekeys), array_values($minimal));
+            if (!empty($optionalkeys)) {
+                $lines[] = 'OPTIONAL: ' . implode(', ', array_slice(array_values($optionalkeys), 0, 8));
+            }
+
+            // TRIGGERS: trigger IDs as readable keywords (strip namespace prefix for brevity).
+            $triggerids = [];
+            foreach ($triggers as $trigger) {
+                if (!is_array($trigger)) {
+                    continue;
+                }
+                $id = trim((string)($trigger['id'] ?? ''));
+                if ($id !== '') {
+                    // Strip module prefix for brevity (e.g. "mod_booking.create_option_canonical_fallback" → "create_option_canonical_fallback").
+                    $shortid = (string)preg_replace('/^[a-z_]+\./', '', $id);
+                    $triggerids[] = $shortid;
+                }
+            }
+            if (!empty($triggerids)) {
+                $lines[] = 'TRIGGERS: ' . implode(' | ', array_slice($triggerids, 0, 5));
+            }
+
+            $blocks[] = implode("\n", $lines);
+        }
+
+        return implode("\n\n", $blocks);
+    }
+
     private function compact_catalog_description(string $description): string {
         $normalized = trim(preg_replace('/\s+/', ' ', $description) ?? $description);
         if ($normalized === '') {
@@ -1997,10 +2098,22 @@ PROMPT;
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
         }
 
-        $this->append_json_object_section($lines, 'TASK CATALOG:', $taskcatalog);
+        if (!empty($taskcatalog)) {
+            if ($phase === self::PHASE_PARAMETER_CONSTRUCTION) {
+                // Construction phase needs full parameter details — keep JSON so the constructor
+                // can read types, descriptions and validation hints for the single selected task.
+                $this->append_json_object_section($lines, 'TASK CATALOG:', $taskcatalog);
+            } else {
+                $lines[] = '';
+                $lines[] = 'TASK CATALOG:';
+                $lines[] = $this->render_catalog_as_text($taskcatalog);
+            }
+        }
 
         if (!empty($unavailabletaskcatalog)) {
-            $this->append_json_object_section($lines, 'UNAVAILABLE TASKS:', $unavailabletaskcatalog);
+            $lines[] = '';
+            $lines[] = 'UNAVAILABLE TASKS (exist but not currently executable):';
+            $lines[] = $this->render_catalog_as_text($unavailabletaskcatalog);
         }
 
         $privacy = new privacy_anonymizer($this->store);

@@ -1,6 +1,6 @@
 # Selector Prompt & Task Catalog Optimization
 
-Status: Planung
+Status: In Umsetzung (A–G implementiert, A6/B5/B6 offen für Testverifikation)
 Owner: bookingextension_agent Team
 Erstellt: 2026-06-04
 
@@ -23,8 +23,8 @@ Ziel: Den Selector-Prompt so umstrukturieren, dass er zuverlässiger, kompakter 
 
 ### Umsetzung
 
-- [ ] **A1** `planned_steps` aus der STEP INTENT POLICY entfernen (separates Dokument, weniger Verwirrung)
-- [ ] **A2** `planned_steps` in den OUTPUT_CONTRACT aufnehmen — Required, kein Optional:
+- [x] **A1** `planned_steps` aus der STEP INTENT POLICY entfernen (separates Dokument, weniger Verwirrung)
+- [x] **A2** `planned_steps` in den OUTPUT_CONTRACT aufnehmen — Required, kein Optional:
   ```
   planned_steps: required array.
     - Empty [] for single-step requests.
@@ -34,13 +34,13 @@ Ziel: Den Selector-Prompt so umstrukturieren, dass er zuverlässiger, kompakter 
     - Omit from OUTPUT_CONTRACT only if [PENDING PLANNED STEPS] section is present in context
       (placeholders already exist from a previous turn).
   ```
-- [ ] **A3** Valides Beispiel im OUTPUT_CONTRACT ergänzen:
+- [x] **A3** Valides Beispiel im OUTPUT_CONTRACT ergänzen:
   ```json
   {"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}],
    "planned_steps":[{"intent":"Set trainer"},{"intent":"Book user"}],"next_step_intent":"..."}
   ```
-- [ ] **A4** `prompt_policy_builder.php::build_step_intent_policy()` — `planned_steps` Beschreibung entfernen (ist jetzt OUTPUT_CONTRACT)
-- [ ] **A5** `phase_prompt_bundle_builder.php::build_local_output_contract_block()` — `planned_steps` zur Selector-Phase hinzufügen
+- [x] **A4** `prompt_policy_builder.php::build_step_intent_policy()` — `planned_steps` Beschreibung entfernen (ist jetzt OUTPUT_CONTRACT)
+- [x] **A5** `phase_prompt_bundle_builder.php::build_local_output_contract_block()` — `planned_steps` zur Selector-Phase hinzufügen
 - [ ] **A6** Testen: Thread mit 4-Schritt-Anfrage → prüfen ob `planned_steps` in jedem Turn vorhanden
 
 ---
@@ -74,7 +74,7 @@ TRIGGER: Trainer setzen, Referent zuweisen, Kursleiter ändern
 
 ### Umsetzung
 
-- [ ] **B1** `orchestrator::slim_prompt_catalog_for_planner()` — neue Serialisierungsmethode `render_catalog_as_text(array $catalog): string`:
+- [x] **B1** `orchestrator::slim_prompt_catalog_for_planner()` — neue Serialisierungsmethode `render_catalog_as_text(array $catalog): string`:
   - `## {task} [{readonly ? 'readonly' : 'mutating'}]`
   - Beschreibung: erste 120 Zeichen, klar formuliert
   - `WANN:` — kondensierter Use-Case aus `intent` + erster `message_trigger.description`
@@ -82,9 +82,9 @@ TRIGGER: Trainer setzen, Referent zuweisen, Kursleiter ändern
   - `PFLICHT:` — `minimal_input` als komma-separierte Liste
   - `OPTIONAL:` — weitere `example_input` Felder (max. 6)
   - `TRIGGER:` — Keywords aus `message_triggers[].examples` (komprimiert, max. 1 Zeile)
-- [ ] **B2** `sanitize_runtime_catalog_for_prompt()` — gleiche neue Serialisierung für den embeddings-retrieved Katalog
-- [ ] **B3** `[TASK CATALOG]` Block im System-Prompt: von JSON-Array auf Plain-Text-Block umstellen
-- [ ] **B4** `[UNAVAILABLE TASKS]` Block analog umstellen (aktuell auch JSON)
+- [x] **B2** `sanitize_runtime_catalog_for_prompt()` — gleiche neue Serialisierung für den embeddings-retrieved Katalog
+- [x] **B3** `[TASK CATALOG]` Block im System-Prompt: von JSON-Array auf Plain-Text-Block umstellen
+- [x] **B4** `[UNAVAILABLE TASKS]` Block analog umstellen (aktuell auch JSON)
 - [ ] **B5** Testen: Token-Count vorher/nachher messen (via LLM-Debug-Log requesttext Länge)
 - [ ] **B6** Qualitätsprüfung: Selektor wählt korrekte Tasks in 5 Standard-Szenarien
 
@@ -97,34 +97,34 @@ Die Änderung betrifft ausschließlich die **Prompt-Serialisierung** (`slim_prom
 
 ### C1 — "NON-OPTIONAL" Widersprüche auflösen
 
-- [ ] **C1a** Alle Policy-Abschnitte prüfen: Enthält ein "NON-OPTIONAL"-Block optional-Formulierungen ("if present", "may be omitted")? → Entweder wirklich verpflichtend machen oder in optionalen Block verschieben
-- [ ] **C1b** STEP INTENT POLICY: `next_step_intent` ist required (steht in OUTPUT_CONTRACT), `planned_steps` wird nach Fix A dort verankert → Policy-Block kann stark gekürzt werden
-- [ ] **C1c** DOCS ANSWER POLICY: Prüfen ob relevant für Selector oder nur für Sync — ggf. aus Selector-Prompt entfernen
+- [x] **C1a** Alle Policy-Abschnitte prüfen: Enthält ein "NON-OPTIONAL"-Block optional-Formulierungen ("if present", "may be omitted")? → Entweder wirklich verpflichtend machen oder in optionalen Block verschieben
+- [x] **C1b** STEP INTENT POLICY: `next_step_intent` ist required (steht in OUTPUT_CONTRACT), `planned_steps` wird nach Fix A dort verankert → Policy-Block kann stark gekürzt werden
+- [x] **C1c** DOCS ANSWER POLICY: Prüfen ob relevant für Selector oder nur für Sync — ggf. aus Selector-Prompt entfernen
 
 ### C2 — Redundanzen zwischen SYSTEM und OUTPUT_CONTRACT
 
 Mehrere Regeln werden doppelt genannt (einmal in SYSTEM, einmal in OUTPUT_CONTRACT). Das ist teilweise sinnvoll (Reinforcement), aber teilweise widersprüchlich (wenn sie leicht unterschiedlich formuliert sind).
 
-- [ ] **C2a** SYSTEM enthält: "For task_call, commands MUST contain exactly one command object..." → auch im OUTPUT_CONTRACT. Formulierungen angleichen (exakt gleicher Wortlaut = Reinforcement, unterschiedlicher Wortlaut = Verwirrung)
-- [ ] **C2b** Routing decision order (1–5) nur im SYSTEM, nicht im OUTPUT_CONTRACT → gut so, beibehalten
-- [ ] **C2c** OUTPUT_CONTRACT entfernt alles was nur SYSTEM-Level ist, enthält nur: required fields, format rules, phase-spezifische contracts
+- [x] **C2a** SYSTEM enthält: "For task_call, commands MUST contain exactly one command object..." → auch im OUTPUT_CONTRACT. Formulierungen angleichen (exakt gleicher Wortlaut = Reinforcement, unterschiedlicher Wortlaut = Verwirrung)
+- [x] **C2b** Routing decision order (1–5) nur im SYSTEM, nicht im OUTPUT_CONTRACT → gut so, beibehalten
+- [x] **C2c** OUTPUT_CONTRACT entfernt alles was nur SYSTEM-Level ist, enthält nur: required fields, format rules, phase-spezifische contracts
 
 ### C3 — Decision Order: Multi-Step explizit adressieren
 
-- [ ] **C3a** Routing-Reihenfolge ergänzen um expliziten Multi-Step-Fall:
+- [x] **C3a** Routing-Reihenfolge ergänzen um expliziten Multi-Step-Fall:
   ```
   6) multi-step request with no pending planned steps in context
      → response_type=task_call + planned_steps=[future steps]
   ```
-- [ ] **C3b** Klarstellen: `planned_steps` enthält KEINE Parameter, nur Intent-Strings
+- [x] **C3b** Klarstellen: `planned_steps` enthält KEINE Parameter, nur Intent-Strings
 
 ### C4 — Trigger-Format vereinfachen
 
 Aktuell: `message_triggers` als Array von `{id, description, examples[]}` Objekten (JSON in JSON).
 
-- [ ] **C4a** In Plain-Text-Katalog (nach Fix B): Trigger als einfache Stichwort-Liste
-- [ ] **C4b** Trigger-IDs weglassen (sind backend-intern, LLM braucht sie nicht zur Selektion)
-- [ ] **C4c** `used_triggers` Policy bleibt unverändert (Trigger-IDs sind für Backend-Signale)
+- [x] **C4a** In Plain-Text-Katalog (nach Fix B): Trigger als einfache Stichwort-Liste
+- [x] **C4b** Trigger-IDs weglassen (sind backend-intern, LLM braucht sie nicht zur Selektion)
+- [x] **C4c** `used_triggers` Policy bleibt unverändert (Trigger-IDs sind für Backend-Signale)
 
 ---
 
@@ -134,14 +134,14 @@ Aktuell: `message_triggers` als Array von `{id, description, examples[]}` Objekt
 
 Das Embedding für Multi-Step-Anfragen findet `update_option_trainer` oft nicht, weil semantisch "Veranstaltung erstellen" dominiert.
 
-- [ ] **D1a** `update_option_trainer` Trigger-Beschreibung verbessern: explizit Keywords "Trainer", "Referent", "Kursleiter", "zuweisen", "setzen" aufnehmen
-- [ ] **D1b** Prüfen ob `update_option_trainer` und `book_users` als "core downstream tasks" immer inkludiert werden sollen (unabhängig vom Embedding-Ergebnis) — ähnlich wie `CORESET` im Flowchart für Basis-Tasks
-- [ ] **D1c** Falls D1b: In `adaptive_task_catalog_service.php::get_mandatory_tasks()` — `update_option_trainer` und `book_users` als immer-inkludierte Tasks registrieren
+- [x] **D1a** `update_option_trainer` Trigger-Beschreibung verbessern: explizit Keywords "Trainer", "Referent", "Kursleiter", "zuweisen", "setzen" aufnehmen
+- [x] **D1b** Prüfen ob `update_option_trainer` und `book_users` als "core downstream tasks" immer inkludiert werden sollen (unabhängig vom Embedding-Ergebnis) — ähnlich wie `CORESET` im Flowchart für Basis-Tasks
+- [x] **D1c** Falls D1b: In `adaptive_task_catalog_service.php::get_mandatory_tasks()` — `update_option_trainer` und `book_users` als immer-inkludierte Tasks registrieren
 
 ### D2 — `planned_steps` als Discovery-Signal nutzen
 
-- [ ] **D2a** In der Discovery-Phase: wenn `planned_steps` aus Thread-Metadata vorhanden, Intent-Strings als zusätzliche Embedding-Query-Augmentierung verwenden (ergänzt bestehenden `next_step_intent`-Mechanismus)
-- [ ] **D2b** Verhindern dass bei vorhandenen Placeholders der nächste Selector nur Tasks für den ersten Placeholder findet — Embedding-Query soll alle pending Intents berücksichtigen
+- [x] **D2a** In der Discovery-Phase: wenn `planned_steps` aus Thread-Metadata vorhanden, Intent-Strings als zusätzliche Embedding-Query-Augmentierung verwenden (ergänzt bestehenden `next_step_intent`-Mechanismus)
+- [x] **D2b** Verhindern dass bei vorhandenen Placeholders der nächste Selector nur Tasks für den ersten Placeholder findet — Embedding-Query soll alle pending Intents berücksichtigen
 
 ---
 
@@ -150,9 +150,9 @@ Das Embedding für Multi-Step-Anfragen findet `update_option_trainer` oft nicht,
 ### Kontext
 Thread 226, ID 1920: Constructor gibt `"next_step_intent": null` aus — null statt String. Das bricht die `next_step_intent`-Persistenz.
 
-- [ ] **E1** Constructor OUTPUT_CONTRACT: `next_step_intent` muss String sein (nie null, leerer String erlaubt)
-- [ ] **E2** Constructor darf `planned_steps` nicht ausgeben (ist nur Selector-Phase) — explizit verbieten
-- [ ] **E3** `message_persistence_service`: null-Guard für `next_step_intent` — `null` → `''` konvertieren
+- [x] **E1** Constructor OUTPUT_CONTRACT: `next_step_intent` muss String sein (nie null, leerer String erlaubt)
+- [x] **E2** Constructor darf `planned_steps` nicht ausgeben (ist nur Selector-Phase) — explizit verbieten
+- [x] **E3** `message_persistence_service`: null-Guard für `next_step_intent` — `null` → `''` konvertieren
 
 ---
 
@@ -161,17 +161,17 @@ Thread 226, ID 1920: Constructor gibt `"next_step_intent": null` aus — null st
 ### Kontext
 Sync sagt in Threads 223–227 wiederholt: "Diese Aufgaben können manuell über die Buchungsseiten erledigt werden." — Der Sync halluziniert über Agent-Fähigkeiten.
 
-- [ ] **F1** Sync-Prompt: explizite Regel hinzufügen: "Never suggest manual steps as fallback unless the planner explicitly returned an error or clarification for those steps. If the planner has planned_steps or next_step_intent for pending actions, do NOT say they must be done manually."
-- [ ] **F2** Sync-Prompt: "Noch ausstehend"-Formulierungen OHNE "bitte manuell" — stattdessen neutral: "wird im nächsten Schritt fortgesetzt"
-- [ ] **F3** Sync erhält `planned_steps` aus dem Planner-Result als Kontext — damit er weiß was noch aussteht
+- [x] **F1** Sync-Prompt: explizite Regel hinzufügen: "Never suggest manual steps as fallback unless the planner explicitly returned an error or clarification for those steps. If the planner has planned_steps or next_step_intent for pending actions, do NOT say they must be done manually."
+- [x] **F2** Sync-Prompt: "Noch ausstehend"-Formulierungen OHNE "bitte manuell" — stattdessen neutral: "wird im nächsten Schritt fortgesetzt"
+- [x] **F3** Sync erhält `planned_steps` aus dem Planner-Result als Kontext — damit er weiß was noch aussteht
 
 ---
 
 ## G — Flowchart aktualisieren
 
-- [ ] **G1** Flowchart: `TSEL`-Node um `planned_steps` als required Output für Multi-Step updaten (war bisher "optional")
-- [ ] **G2** Flowchart: Sync-Node (`SYNC_RUN`) — Notiz ergänzen: "darf keine manuellen Fallbacks vorschlagen wenn planned_steps vorhanden"
-- [ ] **G3** Flowchart: Catalog-Rendering-Schritt in Discovery/Selection explizit als "plain text rendering" kennzeichnen (nach Fix B)
+- [x] **G1** Flowchart: `TSEL`-Node um `planned_steps` als required Output für Multi-Step updaten (war bisher "optional")
+- [x] **G2** Flowchart: Sync-Node (`SYNC_RUN`) — Notiz ergänzen: "darf keine manuellen Fallbacks vorschlagen wenn planned_steps vorhanden"
+- [x] **G3** Flowchart: Catalog-Rendering-Schritt in Discovery/Selection explizit als "plain text rendering" kennzeichnen (nach Fix B)
 
 ---
 

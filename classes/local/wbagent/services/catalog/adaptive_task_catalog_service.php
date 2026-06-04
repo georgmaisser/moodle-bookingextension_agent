@@ -54,6 +54,15 @@ class adaptive_task_catalog_service {
     /** Mandatory tasks that should always be visible. */
     private const MANDATORY_TASK_KEYWORDS = ['help', 'search', 'list', 'get_tasks'];
 
+    /**
+     * Downstream mutation tasks always included regardless of embedding score.
+     * Ensures trainer-assignment and user-booking are available after creation tasks.
+     */
+    private const ALWAYS_INCLUDE_TASK_NAMES = [
+        'mod_booking.update_option_trainer',
+        'mod_booking.book_users',
+    ];
+
         /**
          * Reduce full task catalog to tiered adaptive catalog.
          *
@@ -108,12 +117,25 @@ class adaptive_task_catalog_service {
     private static function get_mandatory_tasks(array $fullcatalog): array {
         $mandatory = [];
         foreach ($fullcatalog as $task) {
-            $taskname = strtolower((string)($task['task'] ?? ''));
+            $taskname = (string)($task['task'] ?? '');
+            $tasknamelower = strtolower($taskname);
+            $ismandatory = false;
             foreach (self::MANDATORY_TASK_KEYWORDS as $keyword) {
-                if (strpos($taskname, $keyword) !== false) {
-                    $mandatory[] = $task;
+                if (strpos($tasknamelower, $keyword) !== false) {
+                    $ismandatory = true;
                     break;
                 }
+            }
+            if (!$ismandatory) {
+                foreach (self::ALWAYS_INCLUDE_TASK_NAMES as $alwaysname) {
+                    if (strtolower($taskname) === strtolower($alwaysname)) {
+                        $ismandatory = true;
+                        break;
+                    }
+                }
+            }
+            if ($ismandatory) {
+                $mandatory[] = $task;
             }
         }
         return $mandatory;

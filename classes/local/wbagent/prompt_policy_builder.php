@@ -96,6 +96,8 @@ class prompt_policy_builder {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
                 . "- Return valid JSON only (no markdown).\n"
                 . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
+                . "- next_step_intent MUST always be a string (never null; use empty string if no follow-up planned).\n"
+                . "- Do NOT include planned_steps — this field belongs to the selector phase only.\n"
                 . "- message MUST be a non-empty user-facing sentence (never an empty string) "
                 . "EXCEPT for response_type=sufficient (omit message or leave empty).\n"
                 . "- Allowed response_type values: task_call, confirmation_request, "
@@ -114,7 +116,7 @@ class prompt_policy_builder {
         if ($phase === 'selection') {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
             . "- Return valid JSON only (no markdown).\n"
-            . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
+            . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang, planned_steps.\n"
             . "- Allowed response_type values: task_call, clarification, confirm_pending, sufficient, error.\n"
             . "- For task_call, commands MUST contain exactly one command object that selects exactly one task and MUST NOT carry full parameter payloads.\n"
             . "- Selection must not perform parameter construction; command input should be omitted or {}.\n"
@@ -123,6 +125,8 @@ class prompt_policy_builder {
             . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
             . "- This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.\n"
             . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
+            . "- next_step_intent MUST always be a string (never null).\n"
+            . "- planned_steps MUST always be a JSON array: [] for single-step, [{\"intent\":\"...\"},...] for multi-step.\n"
             . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
 
@@ -226,15 +230,8 @@ class prompt_policy_builder {
      */
     private static function build_step_intent_policy(): string {
         return "NON-OPTIONAL STEP INTENT POLICY:\n"
-            . "- If present, keep it short and aligned with the user language.\n"
-            . "- Keep next_step_intent model-authored and grounded in the immediate next action.\n"
-            . "- If the user requests multiple sequential mutating tasks (multi-step intent) AND there are no "
-            . "PENDING PLANNED STEPS already listed in the context: include an optional top-level "
-            . "\"planned_steps\" array listing the remaining future steps as intent strings. "
-            . "Example: [{\"intent\":\"Set trainer for Tuesday event\"},{\"intent\":\"Book user for Wednesday event\"}].\n"
-            . "- Do NOT include planned_steps if PENDING PLANNED STEPS are already present in the context "
-            . "(they were created in a previous turn).\n"
-            . "- planned_steps contains only future steps beyond the current one — never the current step itself.";
+            . "- next_step_intent: always a short string (never null) grounded in the immediate next action.\n"
+            . "- planned_steps: see OUTPUT_CONTRACT — required for multi-step requests.";
     }
 
     /**

@@ -309,6 +309,8 @@ PROMPT;
             $lines[] = 'Each command.task must equal selected_task from phase_handoff.selection.';
             $lines[] = 'Use canonical command envelope keys only: task, version, parameters.';
             $lines[] = 'Do not emit non-canonical command-level keys: params, command_id, id, cid.';
+            $lines[] = 'Do NOT include planned_steps — selector phase only.';
+            $lines[] = 'next_step_intent MUST be a string (never null; use "" if no follow-up).';
             $lines[] = 'Canonical example: {"task":"<selected_task>","version":1,"parameters":{...}}';
         } else {
             $lines[] = 'Apply routing semantics from [SYSTEM] decision order; do not override them here.';
@@ -320,7 +322,13 @@ PROMPT;
             $lines[] = 'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
             $lines[] = 'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.';
-            $lines[] = 'Valid example: {"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}]}';
+            $lines[] = 'planned_steps REQUIRED: always include as a top-level array.';
+            $lines[] = '  - Single-step request or [PENDING PLANNED STEPS] already in context: planned_steps=[].';
+            $lines[] = '  - Multi-step request (multiple sequential mutations) on first turn: '
+                . 'planned_steps=[{"intent":"..."},{"intent":"..."}] listing ALL future steps beyond the current one.';
+            $lines[] = 'next_step_intent REQUIRED: always a string (never null).';
+            $lines[] = 'Valid example: {"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}],'
+                . '"planned_steps":[{"intent":"Set trainer"},{"intent":"Book user"}],"next_step_intent":"Create event 2"}';
             $lines[] = 'Invalid example: {"response_type":"task_call","commands":['
                 . '{"current":{"task":"mod_booking.create_option"}}]}';
         }
