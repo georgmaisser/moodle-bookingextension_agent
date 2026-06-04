@@ -51,6 +51,9 @@ class planner_result_composer {
         $result = $constructionstate;
         $result['phase_trace'] = $phasetrace;
         $result['planner_result'] = $plannerresult;
+        if (!empty($selectionstate['planned_steps'])) {
+            $result['planned_steps'] = $selectionstate['planned_steps'];
+        }
         return $result;
     }
 

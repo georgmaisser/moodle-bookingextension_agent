@@ -430,6 +430,18 @@ class interpreter implements agent_interpreter {
             );
         }
 
+        $plannedsteps = [];
+        if (isset($parsed['planned_steps']) && is_array($parsed['planned_steps'])) {
+            foreach ($parsed['planned_steps'] as $step) {
+                $intent = is_array($step)
+                    ? trim((string)($step['intent'] ?? ''))
+                    : trim((string)$step);
+                if ($intent !== '') {
+                    $plannedsteps[] = ['intent' => $intent];
+                }
+            }
+        }
+
         return [
             'response_type' => 'task_call',
             'lang' => $lang,
@@ -438,6 +450,7 @@ class interpreter implements agent_interpreter {
             'used_triggers' => $this->extract_used_triggers($parsed),
             'commands' => $commands,
             'selected_task' => $selectedtask,
+            'planned_steps' => $plannedsteps,
             'ambiguities' => [],
             'ambiguity_options' => [],
             'errors' => [],

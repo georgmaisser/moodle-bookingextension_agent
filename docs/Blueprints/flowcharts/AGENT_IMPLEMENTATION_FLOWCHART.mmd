@@ -62,8 +62,8 @@ flowchart TD
         LOOP_COLLIDE{"active non-planner retry\nsignal present?"}
         FW_RETRY_OBS["build_framework_retry_observation()\nappend RETRY_HINT observation for:\n- CONTRACT_PARSE_ERROR (parameter_construction JSON)\n- CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED (selector command shape)"]
         FCLASS["finalization_classifier\ninputs: response_type + has_commands\n+ issue_codes + error_class\n+ structural_failure flag"]
-        CONF_TERM["confirm terminalization gate\n(successful confirmed execution\n+ no next mutating queue item)"]
-        CONF_FOLLOW["confirm follow-up gate\n(error/retry/next mutating item\n-> continue runtime loop)"]
+        CONF_TERM["confirm terminalization gate\n(successful confirmed execution\n+ no next mutating queue item\n+ no planned placeholder items)"]
+        CONF_FOLLOW["confirm follow-up gate\n(error/retry/next mutating item\nOR planned placeholder items present\n-> continue runtime loop)"]
         DIRECT_FINAL["direct finalization\nstructured / risky / non-message paths\n(task_call / confirmation_request / schema_error / dependency_cycle)"]
         ENFORCE["enforce_final_response_contract(result, threadid)"]
         MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
@@ -90,7 +90,7 @@ flowchart TD
         DISC_C["discovery stage C (last resort)\nglobal slim family fallback\nstrict hard budget, never full task dump"]
         FRANK["family_ranker\nscore = semantic_similarity(optional) + signal_score + context_prior\n+ optional recency_bias\nkeeps low-score tail for recall safety"]
         TASKLOAD["lazy_task_loader\nload concrete tasks only for ranked families\nload minimal task contracts first\nload full schema only on demand"]
-        TSEL["task_selector\nselect concrete task inside selected family\nhandles semantic overlaps (booking vs calendar etc)"]
+        TSEL["task_selector\nselect concrete task inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nfirst turn of multi-step request: outputs planned_steps[]\n(intent strings for future steps → enqueued as Q_PLANNED)\nsubsequent turns: omit planned_steps (placeholders already exist)"]
         PCON["parameter_constructor\nbuild parameters only after concrete task selection\nsingle-task schema focus (50+ properties supported)"]
         PVAL["parameter_contract_validator\ncheck structure + schema + ambiguity rules\nemit clarification / recoverable_input_error when needed"]
         ORCSVC["orchestrator_routing_service\nresolve model/action per phase\nselection(selector) -> construction(constructor-only)\nphase fallback chain applies independently"]
@@ -186,6 +186,7 @@ flowchart TD
         Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
         Q_READY["status: ready"]
         Q_BLOCKED["status: blocked_confirmation\nR1: blocked_expires_at = now + 900s\nR2: blocked_expires_at = now + 300s\nR3: blocked_expires_at = now + 900s\nmanually only, no auto-consume"]
+        Q_PLANNED["status: planned (placeholder)\nintent string only — no task name, no parameters yet\ncreated by selector on first turn of multi-step request\nconsumed (→ succeeded) when real task is enqueued\ntriggers CONF_FOLLOW while present\nchecked via has_planned_placeholders()"]
         Q_RETRY["status: retry_waiting\nnext_retry_at = now + retry_after_ms\nbackoff_ms persisted\nR3: no execution retry, direct FAIL_OUT on transient error"]
         Q_RTRACE["retry metadata on queue item\nretry_layer + retry_origin + retry_reason\nretry_attempt + retry_hint_category\nretry_layers (max 2 distinct layers per error_class)"]
         Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_TIMEOUT)"]
@@ -383,6 +384,7 @@ flowchart TD
     PRV2 -->|"hard_block: terminal"| FAIL_OUT
 
     %% Queue ingestion (done before preflight in command routing)
+    D_CMD_ROUTE -->|"planned_steps[] from selector\n(first multi-step turn only,\nguarded: no enqueue if placeholders exist)"| Q_PLANNED
     D_CMD_ROUTE --> Q_ENQUEUE
     Q_ENQUEUE --> Q_IDEM
     Q_IDEM -->|yes| Q_IDEM_HIT
@@ -403,6 +405,8 @@ flowchart TD
     Q_RUNNING -->|slot free| EXC
 
     %% Blocked confirmation TTL
+    Q_PLANNED -->|"real task enqueued → consume_next_placeholder()"| Q_UPDST
+    Q_PLANNED -.->|"has_planned_placeholders() → true"| CONF_FOLLOW
     Q_BLOCKED -->|"TTL check: fail_expired_blocked_items()"| Q_FAIL_TTL
     Q_FAIL_TTL --> FAIL_OUT
     Q_BLOCKED -->|"user confirms via ai_confirm_run"| CS13
@@ -430,7 +434,7 @@ flowchart TD
     EXC_SUCC -->|"ai_confirm_run: terminal success\n(no next mutating item)"| EXECFEEDB
     EXECFEEDB -->|"observation input"| CONF_TERM
     EXECFEEDB -.->|"feeds as observation context"| SYNC_CTX
-    EXC_SUCC -->|"ai_confirm_run: follow-up required\n(error/retry/next mutating)"| CONF_FOLLOW
+    EXC_SUCC -->|"ai_confirm_run: follow-up required\n(error/retry/next mutating\nOR planned placeholders present)"| CONF_FOLLOW
     EXC_SUCC -.->|"optional: spawn contract path"| EXC_SPAWN
     EXC_SPAWN -.->|"optional enqueue of child commands"| Q_SPAWN
     Q_SPAWN -.->|"optional: enqueue planned child"| Q_ENQUEUE
@@ -620,3 +624,4 @@ flowchart TD
     style LG_TERMINAL fill:#9b2226,color:#fff
     style LG_DET fill:#1d3557,color:#fff
     style EMB_QUERY fill:#457b9d,color:#fff
+    style Q_PLANNED fill:#e9c46a,color:#000

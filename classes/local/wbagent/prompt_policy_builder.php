@@ -227,7 +227,14 @@ class prompt_policy_builder {
     private static function build_step_intent_policy(): string {
         return "NON-OPTIONAL STEP INTENT POLICY:\n"
             . "- If present, keep it short and aligned with the user language.\n"
-            . "- Keep next_step_intent model-authored and grounded in the immediate next action.";
+            . "- Keep next_step_intent model-authored and grounded in the immediate next action.\n"
+            . "- If the user requests multiple sequential mutating tasks (multi-step intent) AND there are no "
+            . "PENDING PLANNED STEPS already listed in the context: include an optional top-level "
+            . "\"planned_steps\" array listing the remaining future steps as intent strings. "
+            . "Example: [{\"intent\":\"Set trainer for Tuesday event\"},{\"intent\":\"Book user for Wednesday event\"}].\n"
+            . "- Do NOT include planned_steps if PENDING PLANNED STEPS are already present in the context "
+            . "(they were created in a previous turn).\n"
+            . "- planned_steps contains only future steps beyond the current one — never the current step itself.";
     }
 
     /**

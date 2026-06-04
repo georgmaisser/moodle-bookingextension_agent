@@ -604,6 +604,120 @@ class queue_manager {
     }
 
     /**
+     * Enqueue a planned placeholder for a future multi-step task.
+     *
+     * Placeholders carry an intent string only — no real task name or parameters.
+     * They are consumed (marked succeeded) when a real task is enqueued in their place.
+     *
+     * @param int $threadid
+     * @param int $runid
+     * @param int $stepid
+     * @param string $intent Human-readable description of the future step.
+     * @return array The created queue item.
+     */
+    public function enqueue_placeholder(int $threadid, int $runid, int $stepid, string $intent): array {
+        $items = $this->get_queue_items($threadid);
+        $contextid = $this->resolve_thread_contextid($threadid);
+        $seq = $this->next_sequence($threadid);
+        $now = time();
+
+        $item = [
+            'queue_item_id' => 'q' . $threadid . '_' . $seq,
+            'thread_id' => $threadid,
+            'contextid' => $contextid,
+            'run_id' => $runid,
+            'step_id' => $stepid,
+            'task' => '__placeholder__',
+            'version' => 1,
+            'input' => ['intent' => trim($intent)],
+            'prepared_input' => null,
+            'guard_token' => '',
+            'input_signature' => '',
+            'input_signature_mode' => 'none',
+            'input_signature_payload' => [],
+            'mutability' => 'mutating',
+            'risk_class' => '',
+            'depends_on' => [],
+            'status' => queue_status_policy::planned_status(),
+            'retry_count' => 0,
+            'preflight_retry_count' => 0,
+            'next_retry_at' => null,
+            'retry_after_ms' => 0,
+            'backoff_ms' => 0,
+            'blocked_expires_at' => null,
+            'issue_codes' => [],
+            'error_class' => '',
+            'last_error_message' => '',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        $items[] = $item;
+        $this->save_queue_items($threadid, $items);
+        return $item;
+    }
+
+    /**
+     * Whether any planned placeholder items exist in the queue.
+     *
+     * Used by confirm_run_service to trigger CONF_FOLLOW even when the
+     * executable queue is empty.
+     *
+     * @param int $threadid
+     * @return bool
+     */
+    public function has_planned_placeholders(int $threadid): bool {
+        foreach ($this->get_queue_items($threadid) as $item) {
+            if (queue_status_policy::is_planned_status((string)($item['status'] ?? ''))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Consume (mark as succeeded) the oldest planned placeholder.
+     *
+     * Called when a real task is enqueued to take the placeholder's place.
+     *
+     * @param int $threadid
+     * @return bool True if a placeholder was consumed, false if none found.
+     */
+    public function consume_next_placeholder(int $threadid): bool {
+        $items = $this->get_queue_items($threadid);
+        foreach ($items as &$item) {
+            if (queue_status_policy::is_planned_status((string)($item['status'] ?? ''))) {
+                $item['status'] = queue_status_policy::succeeded_status();
+                $item['updated_at'] = time();
+                $this->save_queue_items($threadid, $items);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Return intent strings of all remaining planned placeholders.
+     *
+     * Used to inject pending steps into the selector prompt context.
+     *
+     * @param int $threadid
+     * @return array<int,string>
+     */
+    public function get_planned_placeholder_intents(int $threadid): array {
+        $intents = [];
+        foreach ($this->get_queue_items($threadid) as $item) {
+            if (queue_status_policy::is_planned_status((string)($item['status'] ?? ''))) {
+                $intent = trim((string)($item['input']['intent'] ?? ''));
+                if ($intent !== '') {
+                    $intents[] = $intent;
+                }
+            }
+        }
+        return $intents;
+    }
+
+    /**
      * Build deterministic input signature.
      *
      * @param string $task

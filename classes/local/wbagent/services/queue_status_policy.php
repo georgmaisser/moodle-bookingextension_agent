@@ -51,6 +51,9 @@ class queue_status_policy {
     /** Canonical status: retry is scheduled but not yet due. */
     private const STATUS_RETRY_WAITING = 'retry_waiting';
 
+    /** Canonical status: placeholder for a future multi-step task (intent only, no task/params yet). */
+    public const STATUS_PLANNED = 'planned';
+
     /** Actionable mutating statuses. */
     private const ACTIONABLE_MUTATING_STATUSES = [
         self::STATUS_QUEUED,
@@ -210,5 +213,24 @@ class queue_status_policy {
      */
     public static function is_retry_waiting_status(string $status): bool {
         return trim($status) === self::STATUS_RETRY_WAITING;
+    }
+
+    /**
+     * Canonical planned status value.
+     *
+     * @return string
+     */
+    public static function planned_status(): string {
+        return self::STATUS_PLANNED;
+    }
+
+    /**
+     * Check whether a queue item is a planned placeholder.
+     *
+     * @param string $status
+     * @return bool
+     */
+    public static function is_planned_status(string $status): bool {
+        return trim($status) === self::STATUS_PLANNED;
     }
 }

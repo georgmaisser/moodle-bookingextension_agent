@@ -243,7 +243,8 @@ PROMPT;
         string $phase = orchestrator_prompt_profile_service::PHASE_SELECTION,
         string $runtimecontext = '',
         array $plannertracehistory = [],
-        bool $autoconfirmmode = false
+        bool $autoconfirmmode = false,
+        array $plannedstepintents = []
     ): string {
         $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_phase($phase));
 
@@ -260,6 +261,19 @@ PROMPT;
         }
 
         $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
+
+        if (
+            $phase === orchestrator_prompt_profile_service::PHASE_SELECTION
+            && !empty($plannedstepintents)
+        ) {
+            $lines = ['The following future steps are already planned as placeholders in the queue.'];
+            $lines[] = 'Do NOT include planned_steps in your response — placeholders already exist.';
+            $lines[] = 'Select the real task for the next pending step below:';
+            foreach ($plannedstepintents as $i => $intent) {
+                $lines[] = ($i + 1) . '. ' . $intent;
+            }
+            $parts[] = "[PENDING PLANNED STEPS]\n" . implode("\n", $lines);
+        }
 
         $localoutputcontract = $this->build_local_output_contract_block($phase, $autoconfirmmode);
         if ($localoutputcontract !== '') {

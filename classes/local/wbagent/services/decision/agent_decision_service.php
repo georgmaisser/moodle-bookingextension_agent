@@ -587,6 +587,18 @@ class agent_decision_service {
         }
         $stepid = (int)($result['loop_step'] ?? 0);
 
+        // Enqueue planned placeholders from selector's planned_steps output.
+        // Only on the first multi-step turn — skip if placeholders already exist.
+        $plannedsteps = (array)($result['planned_steps'] ?? []);
+        if (!empty($plannedsteps) && !$this->queuesvc->has_planned_placeholders($threadid)) {
+            foreach ($plannedsteps as $plannedstep) {
+                $intent = trim((string)($plannedstep['intent'] ?? $plannedstep));
+                if ($intent !== '') {
+                    $this->queuesvc->enqueue_placeholder($threadid, $runid, $stepid, $intent);
+                }
+            }
+        }
+
         foreach ($readonlycommands as $readonlycommand) {
             $queued = $this->queuesvc->enqueue_command(
                 $threadid,
@@ -599,7 +611,13 @@ class agent_decision_service {
             $readonlyqueueids[] = (string)($queued['queue_item_id'] ?? '');
         }
 
+        $firstmutatingenqueued = false;
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
+            // Consume one planned placeholder when a real mutating task is enqueued.
+            if (!$firstmutatingenqueued) {
+                $this->queuesvc->consume_next_placeholder($threadid);
+                $firstmutatingenqueued = true;
+            }
             $status = 'queued';
             $dependson = array_values(array_map('strval', (array)($mutatingcommand['depends_on'] ?? [])));
             if ($idx > 0 && !empty($mutatingqueueids[$idx - 1])) {

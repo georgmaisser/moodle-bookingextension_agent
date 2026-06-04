@@ -90,10 +90,10 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching tasks to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 6;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 8;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild task. */
-    public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 300;
+    public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 100;
 
     /** Wunderbyte planner action class name. */
     private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
@@ -958,6 +958,8 @@ class orchestrator {
             $messages
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
+        $plannedstepintents = (new queue_manager($this->store, $this->registry))
+            ->get_planned_placeholder_intents($threadid);
         $prompt = $this->build_prompt(
             $systemprompt,
             $messages,
@@ -965,7 +967,8 @@ class orchestrator {
             self::PHASE_SELECTION,
             $runtimecontext,
             $plannertracehistory,
-            $autoconfirmmode
+            $autoconfirmmode,
+            $plannedstepintents
         );
 
         $historycount = count(array_slice(
@@ -1062,6 +1065,7 @@ class orchestrator {
             'message' => (string)($phaseoutput['message'] ?? ''),
             'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
             'errors' => (array)($phaseoutput['errors'] ?? []),
+            'planned_steps' => (array)($phaseoutput['planned_steps'] ?? []),
         ];
     }
 
@@ -1894,7 +1898,8 @@ PROMPT;
         string $phase = self::PHASE_DISCOVERY,
         string $runtimecontext = '',
         array $plannertracehistory = [],
-        bool $autoconfirmmode = false
+        bool $autoconfirmmode = false,
+        array $plannedstepintents = []
     ): string {
         return $this->promptbundlebuilder->build_prompt(
             $systemprompt,
@@ -1903,7 +1908,8 @@ PROMPT;
             $phase,
             $runtimecontext,
             $plannertracehistory,
-            $autoconfirmmode
+            $autoconfirmmode,
+            $plannedstepintents
         );
     }
 

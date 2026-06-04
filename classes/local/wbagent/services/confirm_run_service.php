@@ -444,7 +444,8 @@ class confirm_run_service {
             );
             $nextmutatingqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
             $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults)
-                || is_array($nextmutatingqueueitem);
+                || is_array($nextmutatingqueueitem)
+                || $queuesvc->has_planned_placeholders($threadid);
             $usedterminalfinalizer = false;
 
             $orchestrator = new orchestrator($this->registry, new interpreter($this->registry), $this->store);
