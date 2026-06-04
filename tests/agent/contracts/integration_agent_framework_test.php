@@ -604,6 +604,28 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * Synchronizer gate issue codes must not be interpreted as planner-retryable contract errors.
+     */
+    public function test_agent_runtime_retry_resolver_ignores_synchronizer_gate_issue_codes(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('resolve_framework_retry_issue_code');
+        $method->setAccessible(true);
+
+        $result = [
+            'response_type' => 'error',
+            'issue_codes' => [
+                'SYNC_FACT_CONFLICT_REJECTED',
+                'SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED',
+            ],
+            'commands' => [],
+        ];
+
+        $resolved = $method->invoke($runtime, $result, []);
+        $this->assertNull($resolved);
+    }
+
+    /**
      * R3 guardrail: planner loop retry must be blocked when command risk class is R3.
      */
     public function test_agent_runtime_retry_resolver_blocks_retry_when_command_risk_is_r3(): void {
@@ -1279,6 +1301,172 @@ final class integration_agent_framework_test extends TestCase {
         $merged = $contract->merge($source, $sync);
         $this->assertSame($source['commands'], $merged['commands']);
         $this->assertSame('Original', $merged['message']);
+    }
+
+    /**
+     * Synchronizer must reject stale fact drift when source evidence and polished text disagree.
+     */
+    public function test_synchronizer_output_contract_rejects_option_id_fact_conflict(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'sufficient',
+            'message' => 'Booking option created (title="Agent Fire 2", id=1429, link=https://example.invalid).',
+            'results' => [
+                [
+                    'status' => 'executed',
+                    'task' => 'mod_booking.create_option',
+                    'detail' => 'Booking option created (title="Agent Fire 2", id=1429, link=https://example.invalid).',
+                ],
+            ],
+            'issue_codes' => [],
+            'commands' => [],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Alle Aktionen erledigt. Agent Fire 2 wurde mit id=1428 erstellt.',
+            'commands' => [],
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame($source['message'], $merged['message']);
+        $this->assertContains('SYNC_FACT_CONFLICT_REJECTED', (array)($merged['issue_codes'] ?? []));
+        $this->assertSame('failed', (string)($merged['sync_gate_status'] ?? ''));
+        $this->assertSame('SYNC_FACT_CONFLICT_REJECTED', (string)($merged['sync_gate_reason'] ?? ''));
+    }
+
+    /**
+     * Synchronizer must emit deterministic issue code + telemetry for contract rejects.
+     */
+    public function test_synchronizer_output_contract_sets_issue_code_for_contract_reject(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'sufficient',
+            'message' => 'Original source result.',
+            'issue_codes' => [],
+            'commands' => [],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Any text',
+            'issue_codes' => ['CONTRACT_PARSE_ERROR'],
+            'commands' => [],
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame('Original source result.', (string)($merged['message'] ?? ''));
+        $this->assertContains('SYNC_CONTRACT_ISSUE_REJECTED', (array)($merged['issue_codes'] ?? []));
+        $this->assertSame('failed', (string)($merged['sync_gate_status'] ?? ''));
+        $this->assertSame('SYNC_CONTRACT_ISSUE_REJECTED', (string)($merged['sync_gate_reason'] ?? ''));
+    }
+
+    /**
+     * Synchronizer must never replace source message when source response_type is error.
+     */
+    public function test_synchronizer_output_contract_rejects_message_replace_for_source_error(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'error',
+            'message' => 'Source error detail that must stay visible.',
+            'commands' => [],
+            'issue_codes' => [],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Everything completed successfully.',
+            'commands' => [],
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame('Source error detail that must stay visible.', (string)($merged['message'] ?? ''));
+        $this->assertContains('SYNC_SOURCE_RESPONSE_ERROR_REJECTED', (array)($merged['issue_codes'] ?? []));
+        $this->assertSame('failed', (string)($merged['sync_gate_status'] ?? ''));
+        $this->assertSame('SYNC_SOURCE_RESPONSE_ERROR_REJECTED', (string)($merged['sync_gate_reason'] ?? ''));
+    }
+
+    /**
+     * Synchronizer must preserve source message for failed postcondition outcomes.
+     */
+    public function test_synchronizer_output_contract_rejects_message_replace_for_failed_postcondition(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'execution_result',
+            'postcondition_status' => 'failed',
+            'message' => 'Trainer assignment postcondition failed.',
+            'commands' => [],
+            'issue_codes' => ['POSTCONDITION_FAILED'],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Trainer assignment completed.',
+            'commands' => [],
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame('Trainer assignment postcondition failed.', (string)($merged['message'] ?? ''));
+        $this->assertContains('SYNC_SOURCE_POSTCONDITION_FAILED_REJECTED', (array)($merged['issue_codes'] ?? []));
+        $this->assertSame('failed', (string)($merged['sync_gate_status'] ?? ''));
+        $this->assertSame('SYNC_SOURCE_POSTCONDITION_FAILED_REJECTED', (string)($merged['sync_gate_reason'] ?? ''));
+    }
+
+    /**
+     * Synchronizer must reject success polishing when the latest source result is an error.
+     */
+    public function test_synchronizer_output_contract_rejects_success_when_latest_result_is_error(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'execution_result',
+            'message' => 'One sub-step failed and requires attention.',
+            'commands' => [],
+            'issue_codes' => [],
+            'results' => [
+                ['status' => 'executed', 'task' => 'mod_booking.create_option'],
+                ['status' => 'error', 'task' => 'mod_booking.update_option_trainer'],
+            ],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'All requested actions were completed successfully.',
+            'commands' => [],
+        ];
+
+        $merged = $contract->merge($source, $sync);
+        $this->assertSame('One sub-step failed and requires attention.', (string)($merged['message'] ?? ''));
+        $this->assertContains('SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED', (array)($merged['issue_codes'] ?? []));
+        $this->assertSame('failed', (string)($merged['sync_gate_status'] ?? ''));
+        $this->assertSame('SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED', (string)($merged['sync_gate_reason'] ?? ''));
+    }
+
+    /**
+     * Source-of-truth merge behavior must remain deterministic for identical inputs.
+     */
+    public function test_synchronizer_output_contract_merge_is_deterministic_for_same_input(): void {
+        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+
+        $source = [
+            'response_type' => 'sufficient',
+            'message' => 'Booking option created (id=1429).',
+            'results' => [
+                ['status' => 'executed', 'detail' => 'Booking option created (id=1429).'],
+            ],
+            'issue_codes' => [],
+            'commands' => [],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Option wurde erstellt (id=1428).',
+            'commands' => [],
+        ];
+
+        $mergedone = $contract->merge($source, $sync);
+        $mergedtwo = $contract->merge($source, $sync);
+
+        $this->assertSame($mergedone, $mergedtwo);
+        $this->assertContains('SYNC_FACT_CONFLICT_REJECTED', (array)($mergedone['issue_codes'] ?? []));
     }
 
     /**

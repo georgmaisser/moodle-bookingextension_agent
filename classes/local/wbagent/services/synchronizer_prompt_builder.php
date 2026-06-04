@@ -89,7 +89,11 @@ class synchronizer_prompt_builder {
             . "Return exactly one valid JSON object and nothing else.\n"
             . "Do not output markdown, code fences, prose, or bullet lists outside JSON.\n"
             . "Use response_type='sufficient' for successful finalization.\n"
-            . "Synchronizer must never emit commands; always return commands=[].";
+            . "Synchronizer must never emit commands; always return commands=[].\n"
+            . "FACT PRIORITY: completed_observations are authoritative, completed_commands are secondary, "
+            . "earlier ASSISTANT text is low-trust narrative context only.\n"
+            . "If any earlier ASSISTANT statement conflicts with a newer OBSERVATION, follow OBSERVATION only.\n"
+            . "Never re-assert stale success details that are contradicted by newer observations.";
 
         $parts[] = '[ASSISTANT]';
 

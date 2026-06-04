@@ -79,6 +79,11 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
         $result = $task->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
         $this->assertSame('executed', (string)($result['status'] ?? ''));
         $this->assertGreaterThan(0, (int)($result['resultid'] ?? 0)); // That is the optionid.
+        $this->assertSame('passed', (string)($result['postcondition_status'] ?? ''));
+        $this->assertIsArray($result['failed_postconditions'] ?? null);
+        $this->assertSame([], (array)($result['failed_postconditions'] ?? []));
+        $this->assertArrayHasKey('postcondition_evidence', $result);
+        $this->assertSame('mod_booking.create_option', (string)(($result['postcondition_evidence']['task'] ?? '')));
 
         $settings = singleton_service::get_instance_of_booking_option_settings((int)$result['resultid']);
         $this->assertSame($bookingid, (int)$settings->bookingid ?? 0);
@@ -211,6 +216,157 @@ final class mod_booking_option_tasks_contract_test extends booking_advanced_test
         $this->assertSame('create_slotbooking', (string)($createcontract['intent'] ?? ''));
         $this->assertContains('slot_opening_time', (array)($createcontract['minimal_input'] ?? []));
         $this->assertContains('optionid', array_keys((array)$update->get_schema()['properties']));
+    }
+
+    /**
+     * Ensure duplicate signature guard blocks exact same title+time recreation.
+     */
+    public function test_create_option_duplicate_signature_requires_confirmation(): void {
+        [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
+
+        /** @var \mod_booking_generator $gen */
+        $gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
+        $gen->create_option([
+            'bookingid' => $bookingid,
+            'text' => 'Agent Fire 2',
+            'coursestarttime' => 1781078400,
+            'courseendtime' => 1781085600,
+            'maxanswers' => 9,
+        ]);
+
+        task_registry_factory::reset();
+        $registry = task_registry_factory::get_default();
+        $task = $registry->get_task('mod_booking.create_option');
+        $this->assertNotNull($task);
+
+        $preflight = $task->preflight([
+            'text' => 'Agent Fire 2',
+            'coursestarttime' => 1781078400,
+            'courseendtime' => 1781085600,
+            'maxanswers' => 9,
+            'override' => ['duplicate_title'],
+        ], $contextid, (int)$teacher->id);
+
+        $this->assertSame('hard_block', (string)$preflight->status);
+        $codes = array_values(array_filter(array_map(
+            static fn(array $issue): string => (string)($issue['code'] ?? ''),
+            (array)$preflight->issues
+        )));
+        $this->assertContains('DUPLICATE_SIGNATURE_CONFIRM_REQUIRED', $codes);
+    }
+
+    /**
+     * duplicate_title override must not leak into duplicate_signature allowance on follow-up calls.
+     */
+    public function test_create_option_duplicate_title_override_does_not_bypass_signature_guard(): void {
+        [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
+
+        /** @var \mod_booking_generator $gen */
+        $gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
+        $gen->create_option([
+            'bookingid' => $bookingid,
+            'text' => 'Agent Fire 2',
+            'coursestarttime' => 1781078400,
+            'courseendtime' => 1781085600,
+            'maxanswers' => 9,
+        ]);
+
+        task_registry_factory::reset();
+        $registry = task_registry_factory::get_default();
+        $task = $registry->get_task('mod_booking.create_option');
+        $this->assertNotNull($task);
+
+        // User confirmed duplicate title only, but not duplicate signature.
+        $preflight = $task->preflight([
+            'text' => 'Agent Fire 2',
+            'coursestarttime' => 1781078400,
+            'courseendtime' => 1781085600,
+            'maxanswers' => 9,
+            'override' => ['duplicate_title'],
+        ], $contextid, (int)$teacher->id);
+
+        $this->assertSame('hard_block', (string)$preflight->status);
+        $codes = array_values(array_filter(array_map(
+            static fn(array $issue): string => (string)($issue['code'] ?? ''),
+            (array)$preflight->issues
+        )));
+        $this->assertContains('DUPLICATE_SIGNATURE_CONFIRM_REQUIRED', $codes);
+        $this->assertNotContains('DUPLICATE_TITLE_CONFIRM_REQUIRED', $codes);
+    }
+
+    /**
+     * Trainer verification should emit warnings when expected trainer is not present.
+     */
+    public function test_option_input_verification_reports_missing_expected_trainer(): void {
+        $input = ['teacherids' => [1006]];
+        $settings = (object)[
+            'teachers' => [
+                (object)['id' => 1001, 'email' => 'other@example.invalid'],
+            ],
+        ];
+
+        $warnings = \mod_booking\local\wbagent\options\tasks\option_input_verification::verify_common_fields($input, $settings);
+        $joined = implode(' ', $warnings);
+        $this->assertStringContainsString('Postcondition failed', $joined);
+        $this->assertStringContainsString('trainer id 1006', $joined);
+
+        $structured = \mod_booking\local\wbagent\options\tasks\option_input_verification::verify_common_fields_structured(
+            $input,
+            $settings
+        );
+        $this->assertNotEmpty($structured);
+        $this->assertSame('POSTCOND_TRAINER_ID_MISSING', (string)($structured[0]['code'] ?? ''));
+        $this->assertStringContainsString('trainer id 1006', (string)($structured[0]['message'] ?? ''));
+    }
+
+    /**
+     * Ensure trainer assignment does not report false success when trainer persistence is not observable.
+     */
+    public function test_update_option_trainer_fails_when_requested_trainer_id_not_persisted(): void {
+        [$teacher, $contextid, $bookingid] = $this->create_booking_test_context();
+
+        $expectedtrainer = $this->getDataGenerator()->create_user();
+        $othertrainer = $this->getDataGenerator()->create_user();
+
+        /** @var \mod_booking_generator $gen */
+        $gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
+        $option = $gen->create_option([
+            'bookingid' => $bookingid,
+            'text' => 'Trainer postcondition guard',
+            'maxanswers' => 5,
+        ]);
+
+        task_registry_factory::reset();
+        $registry = task_registry_factory::get_default();
+        $task = $registry->get_task('mod_booking.update_option_trainer');
+
+        $this->assertNotNull($task);
+
+        $input = [
+            'optionid' => (int)$option->id,
+            'teacherids' => [(int)$expectedtrainer->id],
+            'teacheremail' => (string)$othertrainer->email,
+        ];
+
+        $preflight = $task->preflight($input, $contextid, (int)$teacher->id);
+        $this->assertSame('pass', $preflight->status, 'Preflight should pass; postcondition must guard trainer mismatch.');
+
+        $result = $task->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
+        $this->assertSame('error', (string)($result['status'] ?? ''));
+        $this->assertSame('failed', (string)($result['postcondition_status'] ?? ''));
+
+        $issuecodes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
+        $this->assertContains('POSTCONDITION_FAILED', $issuecodes);
+        $this->assertContains('POSTCONDITION_FAILED_OPTION_MUTATION', $issuecodes);
+        $this->assertContains('POSTCOND_TRAINER_ID_MISSING', $issuecodes);
+
+        $failedpostconditions = (array)($result['failed_postconditions'] ?? []);
+        $this->assertNotEmpty($failedpostconditions);
+        $this->assertSame('POSTCOND_TRAINER_ID_MISSING', (string)($failedpostconditions[0]['code'] ?? ''));
+
+        $evidence = (array)($result['postcondition_evidence'] ?? []);
+        $this->assertSame('mod_booking.update_option_trainer', (string)($evidence['task'] ?? ''));
+        $this->assertSame((int)$option->id, (int)($evidence['optionid'] ?? 0));
     }
 
     /**

@@ -36,16 +36,36 @@ class synchronizer_output_contract {
     public function merge(array $source, array $sync): array {
         $syncmessage = trim((string)($sync['message'] ?? ''));
         if ($syncmessage === '') {
-            return $source;
+            return $this->with_gate_telemetry($source, 'failed', 'SYNC_EMPTY_MESSAGE');
         }
 
-        if ($this->should_reject($sync, $syncmessage)) {
-            return $source;
+        $rejectreason = $this->reject_reason($sync, $syncmessage);
+        if ($rejectreason !== '') {
+            return $this->with_issue_code(
+                $this->with_gate_telemetry($source, 'failed', $rejectreason),
+                $rejectreason
+            );
+        }
+
+        if ($this->has_fact_conflict_with_source($source, $syncmessage)) {
+            $merged = $this->with_gate_telemetry($source, 'failed', 'SYNC_FACT_CONFLICT_REJECTED');
+            return $this->with_issue_code($merged, 'SYNC_FACT_CONFLICT_REJECTED');
+        }
+
+        $sourceconflictreason = $this->source_conflict_reason($source);
+        if ($sourceconflictreason !== '') {
+            return $this->with_issue_code(
+                $this->with_gate_telemetry($source, 'failed', $sourceconflictreason),
+                $sourceconflictreason
+            );
         }
 
         $synccommands = $sync['commands'] ?? [];
         if (is_array($synccommands) && !empty($synccommands)) {
-            return $source;
+            return $this->with_issue_code(
+                $this->with_gate_telemetry($source, 'failed', 'SYNC_COMMAND_PAYLOAD_REJECTED'),
+                'SYNC_COMMAND_PAYLOAD_REJECTED'
+            );
         }
 
         $merged = $source;
@@ -56,7 +76,92 @@ class synchronizer_output_contract {
             $merged['lang'] = $synclang;
         }
 
-        return $merged;
+        return $this->with_gate_telemetry($merged, 'passed', 'SYNC_MESSAGE_ACCEPTED');
+    }
+
+    /**
+     * Reject sync message when it conflicts with authoritative source execution facts.
+     *
+     * Current guardrail: if source has a latest option id evidence and sync message
+     * references option ids, the latest source id must be present in sync output.
+     *
+     * @param array $source
+     * @param string $syncmessage
+     * @return bool
+     */
+    private function has_fact_conflict_with_source(array $source, string $syncmessage): bool {
+        $latestsourceoptionid = $this->extract_latest_source_option_id($source);
+        if ($latestsourceoptionid <= 0) {
+            return false;
+        }
+
+        $syncoptionids = $this->extract_option_ids($syncmessage);
+        if (empty($syncoptionids)) {
+            return false;
+        }
+
+        return !in_array($latestsourceoptionid, $syncoptionids, true);
+    }
+
+    /**
+     * Extract the newest option id referenced by source facts.
+     *
+     * @param array $source
+     * @return int
+     */
+    private function extract_latest_source_option_id(array $source): int {
+        $results = (array)($source['results'] ?? []);
+        for ($i = count($results) - 1; $i >= 0; $i--) {
+            $row = $results[$i];
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $candidates = [
+                (string)($row['observation_full'] ?? ''),
+                (string)($row['observation'] ?? ''),
+                (string)($row['detail'] ?? ''),
+            ];
+
+            foreach ($candidates as $text) {
+                $ids = $this->extract_option_ids($text);
+                if (!empty($ids)) {
+                    return (int)end($ids);
+                }
+            }
+        }
+
+        $messageids = $this->extract_option_ids((string)($source['message'] ?? ''));
+        if (!empty($messageids)) {
+            return (int)end($messageids);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Extract option ids from free text using common task output patterns.
+     *
+     * @param string $text
+     * @return array<int,int>
+     */
+    private function extract_option_ids(string $text): array {
+        $trimmed = trim($text);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $ids = [];
+        if (preg_match_all('/(?:option\s*id\s*=\s*|id\s*=\s*|optionid\s*=\s*)(\d+)/i', $trimmed, $matches)) {
+            foreach ((array)($matches[1] ?? []) as $rawid) {
+                $id = (int)$rawid;
+                if ($id > 0) {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -66,28 +171,106 @@ class synchronizer_output_contract {
      * @param string $syncmessage
      * @return bool
      */
-    private function should_reject(array $sync, string $syncmessage): bool {
+    private function reject_reason(array $sync, string $syncmessage): string {
         $responsetype = trim((string)($sync['response_type'] ?? ''));
         if ($responsetype === 'error') {
-            return true;
+            return 'SYNC_RESPONSE_TYPE_ERROR_REJECTED';
         }
 
         $issuecodes = $this->normalize_issue_codes((array)($sync['issue_codes'] ?? []));
         foreach ($issuecodes as $code) {
             if (str_starts_with($code, 'CONTRACT_')) {
-                return true;
+                return 'SYNC_CONTRACT_ISSUE_REJECTED';
             }
         }
 
         if (str_starts_with($syncmessage, 'Failed to parse LLM response as JSON.')) {
-            return true;
+            return 'SYNC_PARSE_FAILURE_REJECTED';
         }
 
         if (strpos($syncmessage, 'Raw excerpt:') !== false) {
-            return true;
+            return 'SYNC_RAW_EXCERPT_REJECTED';
         }
 
-        return false;
+        return '';
+    }
+
+    /**
+     * Detect source-side states where message replacement must be blocked.
+     *
+     * @param array $source
+     * @return string Empty string when no source conflict exists.
+     */
+    private function source_conflict_reason(array $source): string {
+        $sourceresponsetype = trim((string)($source['response_type'] ?? ''));
+        if ($sourceresponsetype === 'error') {
+            return 'SYNC_SOURCE_RESPONSE_ERROR_REJECTED';
+        }
+
+        if ($this->latest_source_result_is_error($source)) {
+            return 'SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED';
+        }
+
+        $sourcepostcondition = trim((string)($source['postcondition_status'] ?? ''));
+        if ($sourcepostcondition === 'failed') {
+            return 'SYNC_SOURCE_POSTCONDITION_FAILED_REJECTED';
+        }
+
+        return '';
+    }
+
+    /**
+     * Check whether the newest source result row carries an error status.
+     *
+     * @param array $source
+     * @return bool
+     */
+    private function latest_source_result_is_error(array $source): bool {
+        $results = (array)($source['results'] ?? []);
+        if (empty($results)) {
+            return false;
+        }
+
+        $latest = $results[count($results) - 1];
+        if (!is_array($latest)) {
+            return false;
+        }
+
+        return trim((string)($latest['status'] ?? '')) === 'error';
+    }
+
+    /**
+     * Append deterministic issue code to result payload.
+     *
+     * @param array $payload
+     * @param string $issuecode
+     * @return array
+     */
+    private function with_issue_code(array $payload, string $issuecode): array {
+        $code = trim($issuecode);
+        if ($code === '') {
+            return $payload;
+        }
+
+        $payload['issue_codes'] = array_values(array_unique(array_merge(
+            (array)($payload['issue_codes'] ?? []),
+            [$code]
+        )));
+        return $payload;
+    }
+
+    /**
+     * Attach lightweight gate telemetry to merged result.
+     *
+     * @param array $payload
+     * @param string $status
+     * @param string $reason
+     * @return array
+     */
+    private function with_gate_telemetry(array $payload, string $status, string $reason): array {
+        $payload['sync_gate_status'] = trim($status);
+        $payload['sync_gate_reason'] = trim($reason);
+        return $payload;
     }
 
     /**
