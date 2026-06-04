@@ -18,8 +18,18 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
+
 /**
  * Enforces the synchronizer output contract.
+ *
+ * completed_observations = authoritative observed domain outcome after task execution.
+ * completed_commands     = executed command intent (secondary; no domain verification).
+ *
+ * Gate enforcement respects CONSISTENCY_GATE_MODE:
+ *   observe → log telemetry only, pass sync message through
+ *   warn    → log telemetry, append warning to message, pass through
+ *   enforce → block + return source with issue_code (default)
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -34,6 +44,7 @@ class synchronizer_output_contract {
      * @return array
      */
     public function merge(array $source, array $sync): array {
+        $mode = runtime_feature_flags::enforcement_mode(runtime_feature_flags::CONSISTENCY_GATE_MODE);
         $syncmessage = trim((string)($sync['message'] ?? ''));
         if ($syncmessage === '') {
             return $this->with_gate_telemetry($source, 'failed', 'SYNC_EMPTY_MESSAGE');
@@ -41,6 +52,9 @@ class synchronizer_output_contract {
 
         $rejectreason = $this->reject_reason($sync, $syncmessage);
         if ($rejectreason !== '') {
+            if ($mode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE) {
+                return $this->with_gate_telemetry($this->apply_sync_message($source, $syncmessage), 'observe', $rejectreason);
+            }
             return $this->with_issue_code(
                 $this->with_gate_telemetry($source, 'failed', $rejectreason),
                 $rejectreason
@@ -48,12 +62,22 @@ class synchronizer_output_contract {
         }
 
         if ($this->has_fact_conflict_with_source($source, $syncmessage)) {
+            if ($mode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE) {
+                return $this->with_gate_telemetry($this->apply_sync_message($source, $syncmessage), 'observe', 'SYNC_FACT_CONFLICT_OBSERVED');
+            }
             $merged = $this->with_gate_telemetry($source, 'failed', 'SYNC_FACT_CONFLICT_REJECTED');
             return $this->with_issue_code($merged, 'SYNC_FACT_CONFLICT_REJECTED');
         }
 
         $sourceconflictreason = $this->source_conflict_reason($source);
         if ($sourceconflictreason !== '') {
+            $postcondmode = runtime_feature_flags::enforcement_mode(runtime_feature_flags::POSTCONDITION_ENFORCEMENT_MODE);
+            if (
+                str_contains($sourceconflictreason, 'POSTCONDITION')
+                && $postcondmode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE
+            ) {
+                return $this->with_gate_telemetry($this->apply_sync_message($source, $syncmessage), 'observe', $sourceconflictreason);
+            }
             return $this->with_issue_code(
                 $this->with_gate_telemetry($source, 'failed', $sourceconflictreason),
                 $sourceconflictreason
@@ -246,6 +270,19 @@ class synchronizer_output_contract {
      * @param string $issuecode
      * @return array
      */
+    /**
+     * Apply the sync message to source payload (used in observe-mode to pass message through).
+     *
+     * @param array $source
+     * @param string $message
+     * @return array
+     */
+    private function apply_sync_message(array $source, string $message): array {
+        $merged = $source;
+        $merged['message'] = $message;
+        return $merged;
+    }
+
     private function with_issue_code(array $payload, string $issuecode): array {
         $code = trim($issuecode);
         if ($code === '') {

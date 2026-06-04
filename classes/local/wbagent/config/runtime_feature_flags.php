@@ -43,13 +43,52 @@ class runtime_feature_flags {
     /** @var string Enables stricter synchronizer output contract behavior. */
     public const SYNCHRONIZER_STRICT_CONTRACT = 'synchronizer_strict_contract';
 
+    /**
+     * Consistency gate enforcement mode.
+     * Values: 'observe' (log only), 'warn' (log + soft message), 'enforce' (block + issue_code).
+     * Default: 'enforce' (gate is always active for now; flag allows staged rollback).
+     */
+    public const CONSISTENCY_GATE_MODE = 'consistency_gate_mode';
+
+    /**
+     * Postcondition enforcement mode.
+     * Values: 'observe' (log only), 'warn' (log + soft message), 'enforce' (block success).
+     * Default: 'enforce'.
+     */
+    public const POSTCONDITION_ENFORCEMENT_MODE = 'postcondition_enforcement_mode';
+
     /** @var string[] Known and supported runtime feature flags. */
     private const KNOWN_FLAGS = [
         self::FAMILY_DISCOVERY_ENABLED,
         self::FAMILY_EMBEDDINGS_ENABLED,
         self::STAGED_DISCOVERY_ENABLED,
         self::SYNCHRONIZER_STRICT_CONTRACT,
+        self::CONSISTENCY_GATE_MODE,
+        self::POSTCONDITION_ENFORCEMENT_MODE,
     ];
+
+    /** Valid enforcement mode values (observe → warn → enforce). */
+    public const ENFORCEMENT_MODE_OBSERVE  = 'observe';
+    public const ENFORCEMENT_MODE_WARN     = 'warn';
+    public const ENFORCEMENT_MODE_ENFORCE  = 'enforce';
+
+    /**
+     * Resolve enforcement mode flag, returning one of the ENFORCEMENT_MODE_* constants.
+     * Defaults to 'enforce' when flag is unset or invalid.
+     *
+     * @param string $flag One of CONSISTENCY_GATE_MODE or POSTCONDITION_ENFORCEMENT_MODE.
+     * @return string
+     */
+    public static function enforcement_mode(string $flag): string {
+        if (!in_array($flag, self::KNOWN_FLAGS, true)) {
+            return self::ENFORCEMENT_MODE_ENFORCE;
+        }
+        $raw = trim((string)(get_config(self::COMPONENT, $flag) ?? ''));
+        if (in_array($raw, [self::ENFORCEMENT_MODE_OBSERVE, self::ENFORCEMENT_MODE_WARN], true)) {
+            return $raw;
+        }
+        return self::ENFORCEMENT_MODE_ENFORCE;
+    }
 
     /**
      * Resolve whether a known runtime feature flag is enabled.

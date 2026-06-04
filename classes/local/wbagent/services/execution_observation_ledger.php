@@ -32,6 +32,14 @@ use bookingextension_agent\local\wbagent\result_payload_summarizer;
 /**
  * Stores canonical task observations from all execution sources.
  */
+/**
+ * Semantic definition:
+ *   completed_observations = authoritative observed domain outcome.
+ *   Each entry represents what the system VERIFIED happened after task execution
+ *   (e.g. "Trainer persisted in DB", "Booking option created with id=42").
+ *   Observations are the highest-trust evidence tier for final synthesis.
+ *   Source-of-truth hierarchy: observations > completed_commands > assistant narrative.
+ */
 class execution_observation_ledger {
     /** Metadata key for persisted execution observations. */
     private const META_KEY = '_execution_observations_v1';

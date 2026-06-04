@@ -66,6 +66,14 @@ class finalization_classifier {
         'VALIDATION_ERROR',
         'CONTEXT_INVALID',
         'CONTRACT_SELECTION_TASK_MISSING',
+        // Synchronizer consistency gate rejections are terminal — never retry via llm_polish.
+        'SYNC_FACT_CONFLICT_REJECTED',
+        'SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED',
+        'SYNC_SOURCE_POSTCONDITION_FAILED_REJECTED',
+        'SYNC_SOURCE_RESPONSE_ERROR_REJECTED',
+        'SYNC_COMMAND_PAYLOAD_REJECTED',
+        'SYNC_EMPTY_MESSAGE',
+        'SYNC_RAW_EXCERPT_REJECTED',
     ];
 
     /** @var string[] */

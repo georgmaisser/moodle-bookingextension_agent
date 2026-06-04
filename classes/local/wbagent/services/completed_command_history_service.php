@@ -30,6 +30,16 @@ use core_text;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+/**
+ * Semantic definition:
+ *   completed_commands = executed command intent (secondary evidence tier).
+ *   Each entry represents what the system ATTEMPTED to execute (task name + input),
+ *   reconstructed from message history and queue state.
+ *   Commands confirm intent was dispatched but do NOT verify domain outcome.
+ *   Use completed_observations as authoritative source; commands only for reconstruction
+ *   when observations are unavailable.
+ *   Source-of-truth hierarchy: observations > completed_commands > assistant narrative.
+ */
 class completed_command_history_service {
     /** @var conversation_store */
     private conversation_store $store;

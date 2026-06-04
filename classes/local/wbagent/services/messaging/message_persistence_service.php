@@ -68,6 +68,11 @@ class message_persistence_service {
             'loop_step'                => $result['loop_step'] ?? 0,
             'loop_max_steps'           => $result['loop_max_steps'] ?? 0,
             'lang'                     => $result['lang'] ?? '',
+            // Gate telemetry — consistency_gate_fail_rate, postcondition_fail_rate_by_task.
+            'sync_gate_status'         => $result['sync_gate_status'] ?? '',
+            'sync_gate_reason'         => $result['sync_gate_reason'] ?? '',
+            'postcondition_status'     => $result['postcondition_status'] ?? '',
+            'failed_postconditions'    => $result['failed_postconditions'] ?? [],
         ];
 
         $normalizedphasetrace = [];
