@@ -85,7 +85,8 @@ if ($options['help']) {
 }
 
 $setname   = (string)$options['scenario-set'];
-$modelid   = (string)($options['model'] ?: (get_config('bookingextension_agent', 'default_model') ?: 'unknown'));
+$envmodel  = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
+$modelid   = (string)($options['model'] ?: ($envmodel ?: (get_config('bookingextension_agent', 'default_model') ?: 'unknown')));
 $label     = (string)($options['label'] ?: date('Y-m-d H:i') . ' ' . $setname);
 $env       = (string)$options['env'];
 $gitref    = (string)($options['git-ref'] ?: trim(shell_exec('git rev-parse --short HEAD 2>/dev/null') ?: ''));
@@ -115,8 +116,15 @@ if (!$usestub) {
 $scenarios = $registry->get_scenarios($setname);
 $total     = count($scenarios);
 
+$hasenvvars = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: '')) !== ''
+    && trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: '')) !== ''
+    && $envmodel !== '';
+
 cli_writeln("=== bookingextension_agent Benchmark Runner ===");
 cli_writeln("Set: {$setname} | Model: {$modelid} | Env: {$env} | Stub: " . ($usestub ? 'yes' : 'no'));
+if (!$usestub && $hasenvvars) {
+    cli_writeln("Credentials: BOOKING_TEST_AI_KEY / ENDPOINT / MODEL (env vars override provider config).");
+}
 cli_writeln("Scenarios: {$total}");
 cli_writeln(str_repeat('-', 60));
 
