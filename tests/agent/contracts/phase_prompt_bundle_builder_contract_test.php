@@ -76,23 +76,45 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
     }
 
     /**
-     * Full schema payload must stay hidden outside construction phase.
+     * Full schema payload (field-level construction) must be restricted to the construction phase.
+     *
+     * In production this is enforced via the output-contract block, not by a separate
+     * schema-injection method. The selection phase explicitly forbids any field-level
+     * parameter construction (input must be omitted or {}), while the construction phase
+     * enables full constructor semantics with a complete parameter payload.
      */
     public function test_full_schema_payload_is_construction_only(): void {
         $builder = $this->build_builder();
 
-        $selectionpayload = $this->invoke_private_method($builder, 'build_full_schema_json_for_phase', [
+        $selectioncontract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_SELECTION,
-            ['task.a' => ['properties' => ['id' => ['type' => 'integer']]]],
+            false,
         ]);
-        $constructionpayload = $this->invoke_private_method($builder, 'build_full_schema_json_for_phase', [
+        $constructioncontract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION,
-            ['task.a' => ['properties' => ['id' => ['type' => 'integer']]]],
+            false,
         ]);
 
-        $this->assertSame('{}', $selectionpayload);
-        $this->assertStringContainsString('task.a', $constructionpayload);
+        // Selection phase: field-level construction is explicitly prohibited.
+        $this->assertStringContainsString(
+            'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.',
+            $selectioncontract
+        );
+
+        // Construction phase: full parameter payload is expected.
+        $this->assertStringContainsString(
+            'Apply constructor semantics only; do not perform routing in this phase.',
+            $constructioncontract
+        );
+
+        // The constructor-semantics instruction must NOT appear in the selection phase.
+        $this->assertStringNotContainsString(
+            'Apply constructor semantics only',
+            $selectioncontract,
+            'Selection phase must not apply constructor semantics.'
+        );
     }
+
 
     /**
      * Build phase prompt bundle builder with minimal dependencies.

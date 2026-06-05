@@ -589,8 +589,12 @@ class agent_decision_service {
 
         // Enqueue planned placeholders from selector's planned_steps output.
         // Only on the first multi-step turn — skip if placeholders already exist.
+        // Track whether placeholders existed BEFORE this turn so we know whether the
+        // current command is replacing a planned step (subsequent turns) or is the
+        // initial step that created the plan (first turn).
+        $hadplaceholders = $this->queuesvc->has_planned_placeholders($threadid);
         $plannedsteps = (array)($result['planned_steps'] ?? []);
-        if (!empty($plannedsteps) && !$this->queuesvc->has_planned_placeholders($threadid)) {
+        if (!empty($plannedsteps) && !$hadplaceholders) {
             foreach ($plannedsteps as $plannedstep) {
                 $intent = trim((string)($plannedstep['intent'] ?? $plannedstep));
                 if ($intent !== '') {
@@ -613,9 +617,15 @@ class agent_decision_service {
 
         $firstmutatingenqueued = false;
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
-            // Consume one planned placeholder when a real mutating task is enqueued.
+            // Consume one planned placeholder when a real mutating task is enqueued for a
+            // subsequent planned step. On the first multi-step turn ($hadplaceholders=false)
+            // the current command IS the initial step — placeholders represent future steps
+            // only, so nothing is consumed yet. Starting with Turn 2 ($hadplaceholders=true)
+            // each real command takes the place of the oldest remaining placeholder.
             if (!$firstmutatingenqueued) {
-                $this->queuesvc->consume_next_placeholder($threadid);
+                if ($hadplaceholders) {
+                    $this->queuesvc->consume_next_placeholder($threadid);
+                }
                 $firstmutatingenqueued = true;
             }
             $status = 'queued';

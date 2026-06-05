@@ -166,7 +166,9 @@ class completed_command_history_service {
             }
 
             $task = trim((string)($item['task'] ?? ''));
-            if ($task === '') {
+            // Placeholders are planning artifacts only — they were never executed.
+            // Excluding them prevents the synchronizer from reporting unexecuted steps as done.
+            if ($task === '' || $task === '__placeholder__') {
                 continue;
             }
 
