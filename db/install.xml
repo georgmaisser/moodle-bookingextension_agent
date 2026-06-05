@@ -87,5 +87,102 @@
         <INDEX NAME="contextidtimeidx" UNIQUE="false" FIELDS="contextid, timecreated"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="local_wbagent_benchmark_runs" COMMENT="One row per benchmark run (full scenario set execution)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="run_uuid" TYPE="char" LENGTH="36" NOTNULL="true" SEQUENCE="false" COMMENT="UUID v4"/>
+        <FIELD NAME="label" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="model_id" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="model_version" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="prompt_profile" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="task_set" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="total_scenarios" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="passed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="failed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="skipped" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="success_rate" TYPE="number" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="baseline_run_id" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="is_baseline" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="regression_detected" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="total_tokens" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="total_cost_estimate" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" DECIMALS="4"/>
+        <FIELD NAME="duration_ms" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="environment" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="git_ref" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="run_uuid_idx" UNIQUE="true" FIELDS="run_uuid"/>
+        <INDEX NAME="timecreated_idx" UNIQUE="false" FIELDS="timecreated"/>
+        <INDEX NAME="is_baseline_idx" UNIQUE="false" FIELDS="is_baseline"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_wbagent_benchmark_scenarios" COMMENT="Individual scenario results within a benchmark run">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="scenario_key" TYPE="char" LENGTH="120" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="scenario_class" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="passed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="response_type_expected" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="response_type_actual" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="task_expected" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="task_selected" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="json_valid" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="contract_compliant" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="planned_steps_present" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="tokens_prompt" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="tokens_completion" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="duration_ms" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="step_count" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="error_message" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="result_json" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="local_wbagent_benchmark_runs" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="run_scenario_idx" UNIQUE="false" FIELDS="run_id, scenario_key"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="local_wbagent_benchmark_baselines" COMMENT="Pinned benchmark baselines for regression comparison">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="label" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="locked" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="local_wbagent_benchmark_runs" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="local_wbagent_benchmark_metrics" COMMENT="Aggregated metric snapshots per benchmark run for trend queries">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="metric_key" TYPE="char" LENGTH="80" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="metric_value" TYPE="number" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" DECIMALS="4"/>
+        <FIELD NAME="metric_unit" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="scenario_class" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="local_wbagent_benchmark_runs" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="run_metric_idx" UNIQUE="false" FIELDS="run_id, metric_key"/>
+        <INDEX NAME="timecreated_idx" UNIQUE="false" FIELDS="timecreated"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>
