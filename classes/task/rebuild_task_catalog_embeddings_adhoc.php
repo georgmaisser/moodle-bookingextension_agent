@@ -58,5 +58,25 @@ class rebuild_task_catalog_embeddings_adhoc extends \core\task\adhoc_task {
             . ', reused=' . (int)($summary['reused'] ?? 0)
             . ', deleted=' . (int)($summary['deleted'] ?? 0)
             . ', written=' . (int)($summary['written'] ?? 0));
+
+        $taskstates = (array)($summary['taskstates'] ?? []);
+        if (!empty($taskstates)) {
+            $statecounts = ['created' => 0, 'updated' => 0, 'deleted' => 0, 'untouched' => 0];
+            foreach ($taskstates as $state) {
+                if (isset($statecounts[$state])) {
+                    $statecounts[$state]++;
+                }
+            }
+            mtrace('bookingextension_agent embeddings rebuild states summary: '
+                . 'created=' . $statecounts['created']
+                . ', updated=' . $statecounts['updated']
+                . ', deleted=' . $statecounts['deleted']
+                . ', untouched=' . $statecounts['untouched']);
+            ksort($taskstates);
+            mtrace('bookingextension_agent embeddings rebuild task states:');
+            foreach ($taskstates as $taskname => $state) {
+                mtrace(' - ' . $state . ' ' . $taskname);
+            }
+        }
     }
 }
