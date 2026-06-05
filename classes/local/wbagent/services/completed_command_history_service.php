@@ -115,7 +115,7 @@ class completed_command_history_service {
                 continue;
             }
 
-            $input = (array)($entry['executed_input'] ?? $entry['input'] ?? []);
+            $input = (array)($entry['input'] ?? $entry['executed_input'] ?? []);
             $compact = ['task' => $task];
             $normalizedinput = $this->normalize_input($input);
             if (!empty($normalizedinput)) {
@@ -171,10 +171,10 @@ class completed_command_history_service {
             }
 
             $input = [];
-            if (is_array($item['prepared_input'] ?? null)) {
-                $input = (array)$item['prepared_input'];
-            } else if (is_array($item['input'] ?? null)) {
+            if (is_array($item['input'] ?? null)) {
                 $input = (array)$item['input'];
+            } else if (is_array($item['prepared_input'] ?? null)) {
+                $input = (array)$item['prepared_input'];
             }
 
             $compact = ['task' => $task];

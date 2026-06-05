@@ -86,15 +86,8 @@ class phase_prompt_bundle_builder {
         bool $includetaskcatalog = false
     ): string {
         $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
-        $schemas = $this->registry->get_all_schemas_for_context($evaluator, $userid, $contextid);
-        $taskcatalog = $adaptivecatalog ?? $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
-        if (!empty($systemtaskcatalog)) {
-            $taskcatalog = $systemtaskcatalog;
-        }
-        $tasklist = implode(', ', array_keys($schemas));
-        $fullschemajson = $this->build_full_schema_json_for_phase($phase, $schemas);
-        $taskcatalogjson = json_encode($taskcatalog, JSON_UNESCAPED_UNICODE);
-        $systemtaskcatalogjson = $includetaskcatalog ? (string)$taskcatalogjson : '[]';
+        $tasknames = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
+        $tasklist = implode(', ', $tasknames);
         $phaseconfigkey = $this->promptprofilesvc->get_planner_initial_prompt_config_key_for_phase($phase);
         $configuredtemplate = $this->promptprofilesvc->normalize_config_prompt_template(
             (string)(get_config('bookingextension_agent', $phaseconfigkey) ?? ''),
@@ -153,9 +146,9 @@ class phase_prompt_bundle_builder {
             '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
             '{{nowiso}}' => '[SYSTEM_RUNTIME.now_iso]',
             '{{tasklist}}' => $tasklist,
-            '{{schemajson}}' => $systemtaskcatalogjson,
-            '{{taskcatalogjson}}' => $systemtaskcatalogjson,
-            '{{fullschemajson}}' => (string)$fullschemajson,
+            '{{schemajson}}' => '[]',
+            '{{taskcatalogjson}}' => '[]',
+            '{{fullschemajson}}' => '{}',
         ]);
 
         $policybuilder = new prompt_policy_builder();
@@ -202,23 +195,7 @@ TASK CONTRACT FIRST (highest priority):
 PROMPT;
     }
 
-    /**
-     * Build phase-aware full schema payload.
-     *
-     * Full schemas are only exposed during parameter construction. Earlier
-     * phases must stay on slim task contracts.
-     *
-     * @param string $phase
-     * @param array<string,mixed> $schemas
-     * @return string
-     */
-    private function build_full_schema_json_for_phase(string $phase, array $schemas): string {
-        if ($phase !== orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
-            return '{}';
-        }
 
-        return (string)json_encode($schemas, JSON_UNESCAPED_UNICODE);
-    }
 
     /**
      * Build the full prompt string from system prompt + message history + observations.

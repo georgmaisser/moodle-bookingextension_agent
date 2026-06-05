@@ -62,7 +62,7 @@ class list_actions_task extends core_task_base implements task_trigger_provider_
             'version' => 1,
             'description' => 'List the AI agent capabilities and task names that this booking agent supports.'
                 . ' Use this ONLY when the user asks what the agent CAN DO or which agent tasks/commands exist.'
-                . ' Do NOT use for regular entity listing requests; use the appropriate search/list task instead.',
+                . ' Do NOT use for regular entity listing requests; use the appropriate search/list task instead. ',
             'readonly' => true,
             'properties' => [
                 'question' => [
