@@ -65,8 +65,19 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
     public function test_queue_transition_service_retry_waiting_transition(): void {
         $queue = $this->getMockBuilder(queue_manager::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['update_status'])
+            ->onlyMethods(['get_queue_item', 'update_status'])
             ->getMock();
+
+        $queue->expects($this->once())
+            ->method('get_queue_item')
+            ->with(12, 'q12_1')
+            ->willReturn([
+                'queue_item_id' => 'q12_1',
+                'mutability' => 'mutating',
+                'risk_class' => task_risk_class::R2,
+                'status' => 'ready',
+                'retry_count' => 0,
+            ]);
 
         $queue->expects($this->once())
             ->method('update_status')
@@ -74,14 +85,14 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
                 12,
                 'q12_1',
                 'retry_waiting',
-                ['TRANSIENT_IO'],
+                ['TRANSIENT_IO', 'RETRY_DECISION_LAYER_EXECUTION', 'RETRY_CATEGORY_TECHNICAL'],
                 'transient_io',
                 'temporary I/O issue',
-                [
-                    'retry_count' => 2,
-                    'retry_after_ms' => 500,
-                    'reason_code' => 'EXECUTION_RETRY_HINT',
-                ]
+                $this->callback(static function (array $extra): bool {
+                    return (int)($extra['retry_count'] ?? 0) === 2
+                        && (int)($extra['retry_after_ms'] ?? 0) === 500
+                        && (string)($extra['reason_code'] ?? '') === 'EXECUTION_RETRY_HINT';
+                })
             );
 
         $service = new queue_transition_service();

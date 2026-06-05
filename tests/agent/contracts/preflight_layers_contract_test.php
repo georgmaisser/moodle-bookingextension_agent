@@ -70,7 +70,7 @@ final class preflight_layers_contract_test extends TestCase {
         $this->assertSame(preflight_result_v2::BLOCKING_LAYER_EXECUTION_GATE, $result->blockinglayer);
         $this->assertGreaterThanOrEqual(500, $result->retryafterms);
         $this->assertLessThanOrEqual(700, $result->retryafterms);
-        $this->assertSame(['PROVIDER_TIMEOUT'], $result->issuecodes);
+        $this->assertSame(['PROVIDER_TIMEOUT', 'RETRY_DECISION_LAYER_EXECUTION', 'RETRY_CATEGORY_TECHNICAL'], $result->issuecodes);
     }
 
     /**

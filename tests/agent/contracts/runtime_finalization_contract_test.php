@@ -75,7 +75,13 @@ final class runtime_finalization_contract_test extends TestCase {
 
         $merged = $contract->merge($source, $sync);
 
-        $this->assertSame($source, $merged);
+        $expected = array_merge($source, [
+            'sync_gate_status' => 'failed',
+            'sync_gate_reason' => 'SYNC_RESPONSE_TYPE_ERROR_REJECTED',
+            'issue_codes' => ['SYNC_RESPONSE_TYPE_ERROR_REJECTED'],
+        ]);
+
+        $this->assertSame($expected, $merged);
     }
 
     /**

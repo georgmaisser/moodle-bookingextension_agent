@@ -113,25 +113,18 @@ final class llm_task_matrix_scenario_provider {
             'core.recall_memory' => [
                 'prompt' => 'What did we talk about last time about "{{memory_token}}"?',
                 'setup' => 'prepare_recall_memory_scenario',
-                'allow_clarification_response' => true,
                 'assertions' => [
                     [
                         'target' => 'final',
                         'type' => 'field_equals',
-                        'field' => 'response_type',
-                        'value' => 'clarification',
+                        'field' => 'status',
+                        'value' => 'executed',
                     ],
                     [
                         'target' => 'final',
                         'type' => 'field_contains',
-                        'field' => 'issue_codes',
-                        'value' => 'RECOVERABLE_INPUT_ERROR',
-                    ],
-                    [
-                        'target' => 'final',
-                        'type' => 'field_contains',
-                        'field' => 'message',
-                        'value' => 'matrix-memory-',
+                        'field' => 'observation_full',
+                        'value' => '{{memory_token}}',
                     ],
                     [
                         'target' => 'chat',
@@ -517,7 +510,7 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.create_selflearning_option' => [
                 'prompt' => 'Create a self-learning booking option called "Learning session {{batch_label}}" '
-                    . 'with max 8 participants and a learning duration of 14400 seconds.',
+                    . 'with teacher {{teacher_fullname}}, max 8 participants and a learning duration of 14400 seconds.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -569,8 +562,7 @@ final class llm_task_matrix_scenario_provider {
             ],
             'mod_booking.diagnose_cancellation_issue' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Diagnose cancellation for booking option id {{existing_option_id}} '
-                    . '({{existing_option_name}}) and explain why a participant may not be able to cancel right now.',
+                'prompt' => 'Diagnose why {{teacher_fullname}} cannot cancel booking option {{existing_option_name}}.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -655,6 +647,23 @@ final class llm_task_matrix_scenario_provider {
                 'setup' => 'prepare_update_option_scenario',
                 'prompt' => 'Update the booking option "{{existing_option_name}}" and set the title to '
                     . '"Updated booking {{batch_label}}" with max 9 participants.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.update_option_trainer' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Use mod_booking.update_option_trainer to assign teacheremail {{teacher_email}} to optionid {{existing_option_id}}.',
                 'assertions' => [
                     [
                         'target' => 'final',

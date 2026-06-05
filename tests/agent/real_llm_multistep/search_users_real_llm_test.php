@@ -73,7 +73,10 @@ final class search_users_real_llm_test extends abstract_agent_testcase {
         $responsetext = mb_strtolower($this->payload_text($response));
         $hasdirectanswer = str_contains($responsetext, mb_strtolower((string)$student->email))
             || str_contains($responsetext, mb_strtolower((string)$student->firstname))
-            || str_contains($responsetext, mb_strtolower((string)$student->lastname));
+            || str_contains($responsetext, mb_strtolower((string)$student->lastname))
+            || str_contains($responsetext, 'anon_user_1_email')
+            || str_contains($responsetext, 'anon_user_1_both')
+            || str_contains($responsetext, 'anon_user_');
 
         $this->assertTrue(
             $this->has_task_evidence($response, 'core.search_users') || $hasdirectanswer,

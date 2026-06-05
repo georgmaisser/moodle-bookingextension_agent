@@ -414,13 +414,16 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         $token = 'matrix-memory-' . substr(sha1(uniqid('', true)), 0, 8);
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $store = new conversation_store();
-        $thread = $store->get_or_create_thread((int)$this->teacher->id, $contextid, (int)$this->booking->id);
-        $threadid = (int)$thread->id;
+        $thread1 = $store->get_or_create_thread((int)$this->teacher->id, $contextid, (int)$this->booking->id);
+        $thread1id = (int)$thread1->id;
 
-        $store->add_message($threadid, 'user', 'Please remember the token ' . $token . '.');
-        $store->add_message($threadid, 'assistant', 'I will remember the token ' . $token . '.', [
+        $store->add_message($thread1id, 'user', 'Please remember the token ' . $token . '.');
+        $store->add_message($thread1id, 'assistant', 'I will remember the token ' . $token . '.', [
             'response_type' => 'sufficient',
         ]);
+
+        $thread2 = $store->create_fresh_thread((int)$this->teacher->id, $contextid, (int)$this->booking->id);
+        $thread2id = (int)$thread2->id;
 
         $registry = task_registry::make_default();
         $runtime = new agent_runtime(
@@ -433,7 +436,7 @@ abstract class abstract_llm_task_matrix_testcase extends abstract_agent_testcase
         return [
             'store' => $store,
             'runtime' => $runtime,
-            'threadid' => $threadid,
+            'threadid' => $thread2id,
             'replacements' => [
                 'memory_token' => $token,
             ],

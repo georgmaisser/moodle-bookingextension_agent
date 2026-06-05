@@ -30,6 +30,11 @@ use advanced_testcase;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class routing_decision_log_service_test extends advanced_testcase {
+    protected function setUp(): void {
+        parent::setUp();
+        $this->resetAfterTest();
+    }
+
     /**
      * Verifies that embedding comparison snapshots expose live-vs-shadow deltas.
      *

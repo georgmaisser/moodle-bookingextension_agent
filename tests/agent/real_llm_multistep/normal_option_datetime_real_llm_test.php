@@ -176,10 +176,13 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         $response = ai_send_message::execute($contextid, $prompt, (int)$threadid);
 
         if ((string)($response['response_type'] ?? '') === 'clarification') {
+            $startdate = date('d.m.Y', $nextnextmonday);
+            $enddate = date('d.m.Y', strtotime('+4 days', $nextnextmonday));
+            $kw = date('W', $nextnextmonday);
             $_POST['sesskey'] = sesskey();
             $response = ai_send_message::execute(
                 $contextid,
-                'Uebernaechste Woche (KW 25, 08.06.2026 bis 12.06.2026). Bitte genauso erstellen.',
+                'Uebernaechste Woche (KW ' . $kw . ', ' . $startdate . ' bis ' . $enddate . '). Bitte genauso erstellen.',
                 (int)$threadid
             );
         }
