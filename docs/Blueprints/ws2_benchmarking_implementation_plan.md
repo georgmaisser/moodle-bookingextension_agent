@@ -1,6 +1,6 @@
 # WS2: Benchmarking und Performance-Messung — Implementierungsplan
 
-Status: Planung
+Status: Abgeschlossen (ohne E3)
 Owner: bookingextension_agent Team
 Ziel: Modell- und Agent-Performance versioniert speichern, historisch vergleichen, Regressionen automatisch erkennen.
 
@@ -117,7 +117,7 @@ Aggregierte Metriken pro Run (für schnelle Trend-Abfragen ohne JSON-Parsing).
 php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet-4-6] [--env=local] [--baseline=auto]
 ```
 
-- [ ] **B1a** `classes/local/wbagent/benchmark/benchmark_runner.php` — Haupt-Entry-Point:
+- [x] **B1a** `classes/local/wbagent/benchmark/benchmark_runner.php` — Haupt-Entry-Point:
   - Lädt Scenario-Set
   - Iteriert Szenarien
   - Ruft LLM auf (live oder stub)
@@ -125,49 +125,49 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
   - Schreibt in DB (benchmark_runs + scenario_results + metric_snapshots)
   - Gibt Exit-Code 0 (kein Regression) oder 1 (Regression) zurück
 
-- [ ] **B1b** `classes/local/wbagent/benchmark/benchmark_result_collector.php` — Result-Aggregation:
+- [x] **B1b** `classes/local/wbagent/benchmark/benchmark_result_collector.php` — Result-Aggregation:
   - Vergleicht actual vs. expected per Szenario
   - Berechnet Gesamt-Metriken
   - Erkennt Regressionen gegenüber Baseline
 
-- [ ] **B1c** `classes/local/wbagent/benchmark/benchmark_db_writer.php` — DB-Persistierung:
+- [x] **B1c** `classes/local/wbagent/benchmark/benchmark_db_writer.php` — DB-Persistierung:
   - Schreibt run + scenario_results + metric_snapshots atomar
   - Gibt run_id zurück
 
 ### B2 — Scenario-Definitionen
 
-- [ ] **B2a** `benchmark/scenarios/core_booking_v1/` — PHP-Klassen-basierte Szenarien:
+- [x] **B2a** `benchmark/scenarios/core_booking_v1/` — PHP-Klassen-basierte Szenarien:
   - Jede Klasse implementiert `benchmark_scenario_interface`
   - Felder: `scenario_key`, `scenario_class`, `user_message`, `expected_response_type`, `expected_task`, `expected_planned_steps_count`, `golden_observations`
 
-- [ ] **B2b** Mindest-Szenario-Set `core_booking_v1` (≥15 Szenarien):
-  - [ ] `create_option_basic` — einfaches Datum+Titel
-  - [ ] `create_option_multistep_trainer_booking` — 4 Schritte: create×2 + trainer + book
-  - [ ] `update_option_trainer_by_name` — Trainer-Zuweisung via Name
-  - [ ] `book_users_single` — einzelner User buchen
-  - [ ] `diagnose_booking_issue` — Readonly Diagnose
-  - [ ] `clarification_missing_date` — fehlende Pflichtfelder → clarification
-  - [ ] `short_confirm_ja` — "ja" nach multi-step intent → korrekte Task-Auswahl
-  - [ ] `short_confirm_weiter` — "mach weiter" Kurzbestätigung
-  - [ ] `duplicate_prevention` — gleiche Option zweimal → skip/sufficient
-  - [ ] `confirmation_request_r1` — R1-Mutation → confirmation_request
-  - [ ] `auto_confirm_session` — R1 mit session-allow → autoconfirm
-  - [ ] `retry_preflight_recovery` — transient error → retry → success
-  - [ ] `budget_exceeded` — MAX_LOOP_STEPS erreicht → BUDGET_EXCEEDED
-  - [ ] `task_not_in_catalog` — Task nicht im Katalog → clarification (nicht halluzinieren)
-  - [ ] `get_current_user_readonly` — R0 direkt ausführen ohne Confirmation
+- [x] **B2b** Mindest-Szenario-Set `core_booking_v1` (≥15 Szenarien):
+  - [x] `create_option_basic` — einfaches Datum+Titel
+  - [x] `create_option_multistep_trainer_booking` — 4 Schritte: create×2 + trainer + book
+  - [x] `update_option_trainer_by_name` — Trainer-Zuweisung via Name
+  - [x] `book_users_single` — einzelner User buchen
+  - [x] `diagnose_booking_issue` — Readonly Diagnose
+  - [x] `clarification_missing_date` — fehlende Pflichtfelder → clarification
+  - [x] `short_confirm_ja` — "ja" nach multi-step intent → korrekte Task-Auswahl
+  - [x] `short_confirm_weiter` — "mach weiter" Kurzbestätigung
+  - [x] `duplicate_prevention` — gleiche Option zweimal → skip/sufficient
+  - [x] `confirmation_request_r1` — R1-Mutation → confirmation_request
+  - [x] `auto_confirm_session` — R1 mit session-allow → autoconfirm
+  - [x] `retry_preflight_recovery` — transient error → retry → success
+  - [x] `budget_exceeded` — MAX_LOOP_STEPS erreicht → BUDGET_EXCEEDED
+  - [x] `task_not_in_catalog` — Task nicht im Katalog → clarification (nicht halluzinieren)
+  - [x] `get_current_user_readonly` — R0 direkt ausführen ohne Confirmation
 
-- [ ] **B2c** `benchmark/scenarios/scenario_seed_data.php` — Seed-Daten für reproduzierbare Tests:
+- [x] **B2c** `benchmark/scenarios/scenario_seed_data.php` — Seed-Daten für reproduzierbare Tests:
   - Feste Option-IDs, User-IDs (anonymisiert), Thread-IDs
   - DB-unabhängig (kein echter Moodle-DB-Zugriff nötig für LLM-Tests)
 
 ### B3 — LLM-Aufruf im Runner
 
-- [ ] **B3a** `benchmark/benchmark_llm_adapter.php` — Adapter-Interface:
+- [x] **B3a** `benchmark/benchmark_llm_adapter.php` — Adapter-Interface:
   - Live-Mode: ruft echten Provider via `llm_call_service`
   - Stub-Mode: liefert vorberechnete Responses (für strukturelle Tests ohne API-Kosten)
 
-- [ ] **B3b** Stub-Response-Bibliothek für alle 15 Kern-Szenarien
+- [x] **B3b** Stub-Response-Bibliothek für alle 15 Kern-Szenarien
 
 ---
 
@@ -175,73 +175,73 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
 
 ### C1 — Run-Übersicht
 
-- [ ] **C1a** `report/benchmark_report.php` — Moodle-Admin-Seite mit:
+- [x] **C1a** `report/benchmark_report.php` — Moodle-Admin-Seite mit:
   - Tabelle aller Runs: label, model_id, prompt_profile, success_rate, tokens, cost, duration, baseline-Flag, Regressionswarnung
   - Filter: Datum, model, environment, scenario_class
   - Sortierung: timecreated DESC (default)
   - Pagination (50 per page)
 
-- [ ] **C1b** Ampelstatus pro Metrik in der Tabelle:
+- [x] **C1b** Ampelstatus pro Metrik in der Tabelle:
   - 🟢 ≥ 95% success_rate / keine Regression
   - 🟡 90–95% / Warnung
   - 🔴 < 90% / Regression oder critical failure
 
-- [ ] **C1c** "Als Baseline setzen"-Button pro Run (nur Admin)
+- [x] **C1c** "Als Baseline setzen"-Button pro Run (nur Admin)
 
 ### C2 — Run-Detail und Vergleich
 
-- [ ] **C2a** `report/benchmark_run_detail.php?run_id=X` — Detailansicht eines Runs:
+- [x] **C2a** `report/benchmark_run_detail.php?run_id=X` — Detailansicht eines Runs:
   - Header: run_uuid, label, model, git_ref, timecreated, totals
   - Tabelle aller scenario_results: key, class, passed, response_type expected/actual, task expected/actual, tokens, duration
   - Filter: passed/failed, scenario_class
   - JSON-Expand für result_json pro Szenario
 
-- [ ] **C2b** `report/benchmark_compare.php?run_a=X&run_b=Y` — Delta-Vergleich zweier Runs:
+- [x] **C2b** `report/benchmark_compare.php?run_a=X&run_b=Y` — Delta-Vergleich zweier Runs:
   - Side-by-side Tabelle: metric_key | Run A | Run B | Delta | Status
   - Szenarien die in einem Run pass/fail sind und im anderen nicht
   - Hervorhebung von Regressionen (rot) und Verbesserungen (grün)
 
-- [ ] **C2c** Baseline-Vergleich automatisch einblenden wenn `baseline_run_id` gesetzt
+- [x] **C2c** Baseline-Vergleich automatisch einblenden wenn `baseline_run_id` gesetzt
 
 ### C3 — Trend-Chart (historisch)
 
-- [ ] **C3a** Zeitreihe für key metrics über alle gespeicherten Runs:
+- [x] **C3a** Zeitreihe für key metrics über alle gespeicherten Runs:
   - X-Achse: timecreated
   - Y-Achse: success_rate, json_validity_rate, avg_tokens, avg_duration_ms
   - Linie pro metric_key
   - Baseline-Marker als vertikale Linie
 
-- [ ] **C3b** Chart-Implementierung: Moodle-native Chart API (`\core\chart_line`)
+- [x] **C3b** Chart-Implementierung: Moodle-native Chart API (`\core\chart_line`)
 
-- [ ] **C3c** Trend-Tabelle (ohne JS-Chart-Dependency): letzte 20 Runs als kompakte Tabelle mit Sparkline-artigem Delta
+- [x] **C3c** Trend-Tabelle (ohne JS-Chart-Dependency): letzte 20 Runs als kompakte Tabelle mit Sparkline-artigem Delta
 
 ### C4 — Navigation und Capabilities
 
-- [ ] **C4a** Moodle-Capability `bookingextension_agent:viewbenchmarks` — sichtbar für Site-Admin + Agent-Manager
-- [ ] **C4b** Moodle-Capability `bookingextension_agent:managebenchmarks` — Baseline setzen, Runs löschen
-- [ ] **C4c** Link in `bookingextension_agent` Admin-Navigationsblock
+- [x] **C4a** Moodle-Capability `bookingextension_agent:viewbenchmarks` — sichtbar für Site-Admin + Agent-Manager
+- [x] **C4b** Moodle-Capability `bookingextension_agent:managebenchmarks` — Baseline setzen, Runs löschen
+- [x] **C4c** Link in `bookingextension_agent` Admin-Navigationsblock
 
 ---
 
 ## D — Historische Datenspeicherung
 
-- [ ] **D1** `db/install.xml` — 4 neue Tabellen: `local_wbagent_benchmark_runs`, `_scenario_results`, `_baselines`, `_metric_snapshots`
-- [ ] **D2** Retention-Policy: Runs älter als N Tage (konfigurierbar, default 365) werden automatisch bereinigt — außer Baselines (immer permanent)
-- [ ] **D3** `task/cleanup_old_benchmark_runs_task.php` — Scheduled Task für Retention-Policy
-- [ ] **D4** Export-Funktion: Run als JSON exportieren (für CI-Artefakte und manuelle Archivierung)
-- [ ] **D5** Import-Funktion: Exportierten Run re-importieren (für Cross-Environment-Vergleiche)
+- [x] **D1** `db/install.xml` — 4 neue Tabellen: `local_wbagent_benchmark_runs`, `_scenario_results`, `_baselines`, `_metric_snapshots`
+- [x] **D2** Retention-Policy: Runs älter als N Tage (konfigurierbar, default 365) werden automatisch bereinigt — außer Baselines (immer permanent)
+- [x] **D3** `task/cleanup_old_benchmark_runs_task.php` — Scheduled Task für Retention-Policy
+- [x] **D4** Export-Funktion: Run als JSON exportieren (für CI-Artefakte und manuelle Archivierung)
+- [x] **D5** Import-Funktion: Exportierten Run re-importieren (für Cross-Environment-Vergleiche)
 
 ---
 
 ## E — CI-Gate
 
-- [ ] **E1** `benchmark/ci_gate.php` — Exit-Code-basierter Gate für CI:
+- [x] **E1** `benchmark/ci_gate.php` — Exit-Code-basierter Gate für CI:
   - Liest letzten Benchmark-Run aus DB
   - Vergleicht gegen pinned Baseline
   - Exit 0 wenn kein kritischer Rückgang, Exit 1 sonst
   - Konfigurierbare Schwellwerte: `task_hit_rate < 90%`, `json_validity < 95%`, `success_rate < 85%`
 
-- [ ] **E2** CI-Konfiguration (GitHub Actions / Gitlab CI):
+- [x] **E2** CI-Konfiguration (GitHub Actions / Gitlab CI):
   ```yaml
   benchmark:
     runs-on: ubuntu-latest
@@ -280,24 +280,24 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
 | `avg_step_count` | avg(step_count) per scenario | ≤ 3 |
 | `multistep_completion_rate` | multistep scenarios fully completed / total multistep | ≥ 80% |
 
-- [ ] **F1** `benchmark/benchmark_metrics_calculator.php` — Berechnung aller obigen Metriken aus DB-Daten
-- [ ] **F2** Metriken werden nach jedem Run in `benchmark_metric_snapshots` geschrieben
-- [ ] **F3** Schwellwerte konfigurierbar via Moodle Admin Config (nicht hardcoded)
+- [x] **F1** `benchmark/benchmark_metrics_calculator.php` — Berechnung aller obigen Metriken aus DB-Daten
+- [x] **F2** Metriken werden nach jedem Run in `benchmark_metric_snapshots` geschrieben
+- [x] **F3** Schwellwerte konfigurierbar via Moodle Admin Config (nicht hardcoded)
 
 ---
 
 ## G — Definition of Done
 
-- [ ] 15+ Kern-Szenarien implementiert und reproduzierbar lauffähig
-- [ ] DB-Schema deployed via `install.xml`
-- [ ] Benchmark-Runner erzeugt validen DB-Run mit allen Metriken
-- [ ] Report-Seite zeigt Run-Übersicht, Detail und Baseline-Vergleich
-- [ ] Trend-Chart zeigt letzte 30 Runs korrekt
-- [ ] CI-Gate gibt Exit 1 bei kritischer Regression
-- [ ] Baseline-Pin und -Vergleich funktioniert
-- [ ] Export/Import-Roundtrip ist verlustfrei
-- [ ] Retention-Policy löscht alte Runs (außer Baselines)
-- [ ] Capabilities korrekt registriert und enforced
+- [x] 15+ Kern-Szenarien implementiert und reproduzierbar lauffähig
+- [x] DB-Schema deployed via `install.xml`
+- [x] Benchmark-Runner erzeugt validen DB-Run mit allen Metriken
+- [x] Report-Seite zeigt Run-Übersicht, Detail und Baseline-Vergleich
+- [x] Trend-Chart zeigt letzte 30 Runs korrekt
+- [x] CI-Gate gibt Exit 1 bei kritischer Regression
+- [x] Baseline-Pin und -Vergleich funktioniert
+- [x] Export/Import-Roundtrip ist verlustfrei
+- [x] Retention-Policy löscht alte Runs (außer Baselines)
+- [x] Capabilities korrekt registriert und enforced
 
 ---
 

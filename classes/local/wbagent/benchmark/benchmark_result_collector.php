@@ -1,0 +1,172 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+declare(strict_types=1);
+
+namespace bookingextension_agent\local\wbagent\benchmark;
+
+/**
+ * Evaluates a raw LLM selector response against a scenario's expected outcome.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class benchmark_result_collector {
+    /**
+     * Evaluate one scenario against its actual LLM response.
+     *
+     * @param benchmark_scenario_interface $scenario
+     * @param string  $rawresponse  Raw JSON string from LLM.
+     * @param int     $durationms   Wall-clock time for this call.
+     * @param int     $tokensprompt
+     * @param int     $tokenscompletion
+     * @return array<string,mixed>  Scenario result record (matches benchmark_scenarios table).
+     */
+    public function evaluate(
+        benchmark_scenario_interface $scenario,
+        string $rawresponse,
+        int $durationms = 0,
+        int $tokensprompt = 0,
+        int $tokenscompletion = 0
+    ): array {
+        $parsed = json_decode($rawresponse, true);
+        $jsonvalid = is_array($parsed);
+
+        $responsetype = '';
+        $taskselected = '';
+        $plannedstetspresent = 0;
+        $contractcompliant   = 0;
+        $errors = [];
+
+        if ($jsonvalid) {
+            $responsetype = trim((string)($parsed['response_type'] ?? ''));
+            $taskselected = trim((string)($parsed['commands'][0]['task'] ?? ''));
+            $plannedstetspresent = isset($parsed['planned_steps']) && is_array($parsed['planned_steps']) ? 1 : 0;
+            $contractcompliant = $this->check_contract_compliance($parsed, $errors);
+        } else {
+            $errors[] = 'JSON parse failed';
+        }
+
+        $expectedrt  = $scenario->get_expected_response_type();
+        $expectedtask = $scenario->get_expected_task();
+
+        $rtmatch   = $expectedrt === '' || $responsetype === $expectedrt;
+        $taskmatch = $expectedtask === '' || $taskselected === $expectedtask;
+        $planmatch = !$scenario->expects_planned_steps()
+            || ($plannedstetspresent && !empty($parsed['planned_steps']));
+
+        $additional = $scenario->assert_additional($parsed ?? []);
+        $addpassed  = empty(array_filter($additional, fn($a) => !$a['passed']));
+
+        $passed = $jsonvalid && $contractcompliant && $rtmatch && $taskmatch && $planmatch && $addpassed;
+
+        $errormessage = null;
+        if (!$passed) {
+            $parts = [];
+            if (!$jsonvalid) {
+                $parts[] = 'json_invalid';
+            }
+            if (!$contractcompliant) {
+                $parts[] = 'contract: ' . implode('; ', $errors);
+            }
+            if (!$rtmatch) {
+                $parts[] = "rt: expected={$expectedrt} actual={$responsetype}";
+            }
+            if (!$taskmatch) {
+                $parts[] = "task: expected={$expectedtask} actual={$taskselected}";
+            }
+            if (!$planmatch) {
+                $parts[] = 'planned_steps_missing';
+            }
+            if (!$addpassed) {
+                foreach ($additional as $a) {
+                    if (!$a['passed']) {
+                        $parts[] = $a['label'] . ': ' . ($a['detail'] ?? '');
+                    }
+                }
+            }
+            $errormessage = implode(' | ', $parts);
+        }
+
+        return [
+            'scenario_key'           => $scenario->get_key(),
+            'scenario_class'         => $scenario->get_class(),
+            'passed'                 => $passed ? 1 : 0,
+            'response_type_expected' => $expectedrt,
+            'response_type_actual'   => $responsetype,
+            'task_expected'          => $expectedtask,
+            'task_selected'          => $taskselected,
+            'json_valid'             => $jsonvalid ? 1 : 0,
+            'contract_compliant'     => $contractcompliant ? 1 : 0,
+            'planned_steps_present'  => $plannedstetspresent,
+            'tokens_prompt'          => $tokensprompt,
+            'tokens_completion'      => $tokenscompletion,
+            'duration_ms'            => $durationms,
+            'step_count'             => 1,
+            'error_message'          => $errormessage,
+            'result_json'            => $jsonvalid ? json_encode($parsed) : $rawresponse,
+        ];
+    }
+
+    /**
+     * Basic selector contract compliance check.
+     *
+     * @param array  $parsed
+     * @param array &$errors
+     * @return bool
+     */
+    private function check_contract_compliance(array $parsed, array &$errors): bool {
+        $ok = true;
+        $required = ['response_type', 'used_triggers', 'next_step_intent', 'lang', 'user_lang', 'planned_steps'];
+        foreach ($required as $field) {
+            if (!array_key_exists($field, $parsed)) {
+                $errors[] = "missing field: {$field}";
+                $ok = false;
+            }
+        }
+        if (!is_array($parsed['used_triggers'] ?? null)) {
+            $errors[] = 'used_triggers not array';
+            $ok = false;
+        }
+        if (!is_array($parsed['planned_steps'] ?? null)) {
+            $errors[] = 'planned_steps not array';
+            $ok = false;
+        }
+        $rt = $parsed['response_type'] ?? '';
+        $validtypes = ['task_call', 'clarification', 'confirm_pending', 'sufficient', 'error'];
+        if (!in_array($rt, $validtypes, true)) {
+            $errors[] = "invalid response_type: {$rt}";
+            $ok = false;
+        }
+        if ($rt === 'task_call') {
+            if (empty($parsed['commands']) || !is_array($parsed['commands'])) {
+                $errors[] = 'task_call requires non-empty commands';
+                $ok = false;
+            } else if (count($parsed['commands']) !== 1) {
+                $errors[] = 'selector must emit exactly one command';
+                $ok = false;
+            }
+        }
+        if (in_array($rt, ['clarification', 'sufficient', 'error'], true)) {
+            if (!empty($parsed['commands'])) {
+                $errors[] = "{$rt} must have empty commands";
+                $ok = false;
+            }
+        }
+        return $ok;
+    }
+}

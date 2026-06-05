@@ -65,7 +65,12 @@ class agent extends bookingextension implements bookingextension_interface {
     public function load_settings(\part_of_admin_tree $adminroot, $parentnodename, $hassiteconfig): void {
         global $CFG;
 
-        require($CFG->dirroot . '/mod/booking/bookingextension/agent/settings.php');
+        try {
+            require($CFG->dirroot . '/mod/booking/bookingextension/agent/settings.php');
+        } catch (\Throwable $e) {
+            // Never let a settings error abort the extension loading loop in mod_booking/settings.php.
+            debugging('bookingextension_agent: load_settings failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
     }
 
     /**

@@ -145,3 +145,18 @@ foreach ($managertasks as $tasksuffix) {
 foreach ($adminonlytasks as $tasksuffix) {
     $capabilities += $buildtaskcapability($tasksuffix, 'admin');
 }
+
+// Benchmark capabilities.
+$capabilities['bookingextension/agent:viewbenchmarks'] = [
+    'captype'      => 'read',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes'   => [
+        'manager' => CAP_ALLOW,
+    ],
+];
+
+$capabilities['bookingextension/agent:managebenchmarks'] = [
+    'captype'      => 'write',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes'   => [],
+];

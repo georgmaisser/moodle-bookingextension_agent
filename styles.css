@@ -7,6 +7,7 @@
 
 #booking-ai-wrapper .booking-ai-intro {
     background: linear-gradient(135deg, #fff9e6 0%, #fff 100%);
+    color: #3f2000;
 }
 
 #booking-ai-wrapper .booking-ai-body-layout {
@@ -60,7 +61,7 @@
     margin-top: 0.25rem;
     font-size: 0.72rem;
     line-height: 1.2;
-    color: #6c757d;
+    color: #495057;
     word-break: break-word;
     white-space: pre-wrap;
 }
@@ -68,7 +69,7 @@
 #booking-ai-wrapper .booking-ai-debug-json {
     margin-top: 0.25rem;
     font-size: 0.72rem;
-    color: #5f6b77;
+    color: #343a40;
 }
 
 #booking-ai-wrapper .booking-ai-debug-json summary {
@@ -93,7 +94,7 @@
     margin: 0.15rem 0 0.4rem;
     font-size: 0.74rem;
     line-height: 1.15;
-    color: #7b8794;
+    color: #2d3748;
     text-align: left;
 }
 
@@ -103,6 +104,7 @@
     border-radius: 4px;
     padding: 0.12rem 0.4rem;
     display: inline-block;
+    color: #0b4f8d;
 }
 
 #booking-ai-wrapper .booking-ai-mobile-toggle {
@@ -127,6 +129,7 @@
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.04em;
+    color: #212529;
 }
 
 #booking-ai-wrapper .booking-ai-messages .booking-ai-msg {
@@ -135,6 +138,8 @@
 
 #booking-ai-wrapper .booking-ai-messages .booking-ai-msg.user .bubble {
     background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
     border-radius: 10px;
     padding: 0.5rem 1rem;
     display: inline-block;
@@ -143,6 +148,7 @@
 
 #booking-ai-wrapper .booking-ai-messages .booking-ai-msg.assistant .bubble {
     background: #f8f9fa;
+    color: #212529;
     border: 1px solid #dee2e6;
     border-radius: 10px;
     padding: 0.5rem 1rem;
@@ -219,7 +225,7 @@
     width: 0.75rem;
     height: 0.75rem;
     border: 2px solid #adb5bd;
-    border-top-color: #6c757d;
+    border-top-color: #343a40;
     border-radius: 50%;
     animation: booking-ai-spin 0.8s linear infinite;
     flex-shrink: 0;
@@ -227,7 +233,7 @@
 
 #booking-ai-wrapper .booking-ai-step-label {
     font-size: 0.78rem;
-    color: #6c757d;
+    color: #343a40;
     font-style: italic;
 }
 
@@ -259,10 +265,14 @@
     width: 0.65rem;
     height: 0.65rem;
     border: 2px solid #adb5bd;
-    border-top-color: #6c757d;
+    border-top-color: #343a40;
     border-radius: 50%;
     animation: booking-ai-spin 0.8s linear infinite;
     flex-shrink: 0;
+}
+
+#booking-ai-wrapper .text-muted {
+    color: #495057 !important;
 }
 
 #booking-ai-wrapper #booking-ai-thinking-label {
@@ -279,11 +289,11 @@
 #booking-ai-wrapper .booking-ai-btn-stop:hover {
     color: #a71d2a;
     text-decoration: underline;
+}
 
 #booking-ai-wrapper .booking-ai-btn-stop:focus {
     outline: 1px solid #dc3545;
     outline-offset: 2px;
-}
 }
 
 /* ---- LLM Debug Logs ---- */
@@ -338,7 +348,7 @@
 
 #booking-ai-wrapper .booking-ai-debug-log-entry details summary {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: #343a40;
     padding: 0.25rem 0.5rem;
     background-color: transparent;
     border: none;

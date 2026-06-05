@@ -1,0 +1,65 @@
+<?php
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+declare(strict_types=1);
+namespace bookingextension_agent\local\wbagent\benchmark\scenarios;
+use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
+
+/**
+ * Scenario: extremely vague request that should produce clarification, not a hallucinated task.
+ * Also covers: selector does not invent non-existent tasks when intent is unclear.
+ * @package bookingextension_agent
+ */
+class budget_exceeded extends abstract_benchmark_scenario {
+    public function get_key(): string {
+        return 'ambiguous_request_no_hallucination';
+    }
+    public function get_class(): string {
+        return 'clarification';
+    }
+    public function get_description(): string {
+        return 'Highly ambiguous request: selector must clarify, not hallucinate a task or loop';
+    }
+    public function get_user_message(): string {
+        return 'Mach das mit den Sachen.';
+    }
+    public function get_expected_response_type(): string {
+        return 'clarification';
+    }
+    public function get_expected_task(): string {
+        return '';
+    }
+
+    public function get_stub_selector_response(): string {
+        return '{"response_type":"clarification","message":"Koennen Sie Ihre Anfrage genauer beschreiben?",'
+            . '"commands":[],"planned_steps":[],"next_step_intent":"",'
+            . '"used_triggers":[],"lang":"de","user_lang":"de"}';
+    }
+    public function assert_additional(array $result): array {
+        return [
+            [
+                'label'  => 'No commands emitted for ambiguous request',
+                'passed' => empty($result['commands']),
+                'detail' => 'commands: ' . json_encode($result['commands'] ?? []),
+            ],
+            [
+                'label'  => 'planned_steps is empty for non-actionable request',
+                'passed' => empty($result['planned_steps']),
+                'detail' => 'planned_steps: ' . json_encode($result['planned_steps'] ?? []),
+            ],
+        ];
+    }
+}

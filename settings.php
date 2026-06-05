@@ -31,8 +31,6 @@ use core_ai\aiactions\summarise_text;
 
 global $CFG;
 
-require_once($CFG->dirroot . '/mod/booking/bookingextension/agent/lib.php');
-
 if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
     $defaultsummarypromptprefix = orchestrator::get_default_summary_prompt_prefix();
     $defaultplannerprompttemplate = orchestrator::get_default_initial_prompt_template_for_action(summarise_text::class);
@@ -292,4 +290,52 @@ $adminroot->add('modbookingfolder', new admin_externalpage(
     'bookingextension/agent:debugtaskselection'
 ));
 
+$adminroot->add('modbookingfolder', new admin_externalpage(
+    'bookingextension_agent_benchmarkreport',
+    get_string('benchmark_report_nav', 'bookingextension_agent'),
+    new moodle_url('/mod/booking/bookingextension/agent/benchmark_report.php'),
+    'bookingextension/agent:viewbenchmarks'
+));
+
+// Benchmark settings.
+$benchmarkpage = new admin_settingpage(
+    'bookingextension_agent_benchmark',
+    get_string('benchmark_settings_nav', 'bookingextension_agent'),
+    'moodle/site:config',
+    !$hassiteconfig
+);
+
+$benchmarkpage->add(new admin_setting_configtext(
+    'bookingextension_agent/benchmark_retention_days',
+    get_string('benchmark_retention_days', 'bookingextension_agent'),
+    get_string('benchmark_retention_days_desc', 'bookingextension_agent'),
+    '365',
+    PARAM_INT
+));
+
+$benchmarkpage->add(new admin_setting_configtext(
+    'bookingextension_agent/benchmark_threshold_task_hit_rate',
+    get_string('benchmark_threshold_task_hit_rate', 'bookingextension_agent'),
+    get_string('benchmark_threshold_task_hit_rate_desc', 'bookingextension_agent'),
+    '90',
+    PARAM_FLOAT
+));
+
+$benchmarkpage->add(new admin_setting_configtext(
+    'bookingextension_agent/benchmark_threshold_json_validity',
+    get_string('benchmark_threshold_json_validity', 'bookingextension_agent'),
+    get_string('benchmark_threshold_json_validity_desc', 'bookingextension_agent'),
+    '99',
+    PARAM_FLOAT
+));
+
+$benchmarkpage->add(new admin_setting_configtext(
+    'bookingextension_agent/benchmark_threshold_e2e_success',
+    get_string('benchmark_threshold_e2e_success', 'bookingextension_agent'),
+    get_string('benchmark_threshold_e2e_success_desc', 'bookingextension_agent'),
+    '85',
+    PARAM_FLOAT
+));
+
+$adminroot->add('modbookingfolder', $benchmarkpage);
 $adminroot->add('modbookingfolder', $aisettingspage);

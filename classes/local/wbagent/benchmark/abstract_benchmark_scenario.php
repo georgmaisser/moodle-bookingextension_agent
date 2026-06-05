@@ -14,23 +14,35 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\services;
+declare(strict_types=1);
 
-use bookingextension_agent\local\wbagent\interfaces\external_dependency_checker_interface;
+namespace bookingextension_agent\local\wbagent\benchmark;
 
 /**
- * Default no-op PF_L3_EXT implementation.
+ * Base scenario with sensible defaults.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class noop_external_dependency_checker implements external_dependency_checker_interface {
-    /**
-     * {@inheritDoc}
-     */
-    public function check(array $command, int $contextid, int $userid): preflight_result_v2 {
-        $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-        return preflight_result_v2::ok($input);
+abstract class abstract_benchmark_scenario implements benchmark_scenario_interface {
+    public function get_prior_messages(): array {
+        return [];
+    }
+
+    public function expects_planned_steps(): bool {
+        return false;
+    }
+
+    public function requires_live_llm(): bool {
+        return false;
+    }
+
+    public function get_stub_selector_response(): string {
+        return '';
+    }
+
+    public function assert_additional(array $result): array {
+        return [];
     }
 }

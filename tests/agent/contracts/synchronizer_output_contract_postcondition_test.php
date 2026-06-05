@@ -36,7 +36,6 @@ use PHPUnit\Framework\TestCase;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class synchronizer_output_contract_postcondition_test extends TestCase {
-
     // -----------------------------------------------------------------------
     // Postcondition enforcement
     // -----------------------------------------------------------------------

@@ -38,7 +38,6 @@ use PHPUnit\Framework\TestCase;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class consistency_gate_regression_test extends TestCase {
-
     // -----------------------------------------------------------------------
     // Normal flow: clean success passes gate
     // -----------------------------------------------------------------------

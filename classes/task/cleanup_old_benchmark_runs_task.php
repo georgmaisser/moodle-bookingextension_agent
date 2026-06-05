@@ -14,23 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\services;
+declare(strict_types=1);
 
-use bookingextension_agent\local\wbagent\interfaces\external_dependency_checker_interface;
+namespace bookingextension_agent\task;
+
+use bookingextension_agent\local\wbagent\benchmark\benchmark_db_writer;
+use core\task\scheduled_task;
 
 /**
- * Default no-op PF_L3_EXT implementation.
+ * Scheduled task: purge benchmark runs older than retention period.
+ * Baselines (is_baseline=1) are always kept.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class noop_external_dependency_checker implements external_dependency_checker_interface {
-    /**
-     * {@inheritDoc}
-     */
-    public function check(array $command, int $contextid, int $userid): preflight_result_v2 {
-        $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-        return preflight_result_v2::ok($input);
+class cleanup_old_benchmark_runs_task extends scheduled_task {
+    public function get_name(): string {
+        return 'Clean up old benchmark runs';
+    }
+
+    public function execute(): void {
+        $days = (int)(get_config('bookingextension_agent', 'benchmark_retention_days') ?: 365);
+        $writer = new benchmark_db_writer();
+        $deleted = $writer->purge_old_runs($days);
+        mtrace("Cleaned {$deleted} old benchmark run(s) (retention: {$days} days, baselines kept).");
     }
 }

@@ -86,7 +86,7 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
                     return null;
                 }
 
-                $task = new class($taskname, $taskriskmap[$taskname]) implements task_interface {
+                $task = new class ($taskname, $taskriskmap[$taskname]) implements task_interface {
                     private string $name;
                     private string $riskclass;
 
