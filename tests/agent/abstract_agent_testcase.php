@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextionsion_agent;
+namespace bookingextension_agent;
 
 use mod_booking\local\testing\booking_advanced_testcase;
 use core_ai\aiactions\explain_text;

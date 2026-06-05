@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextionsion_agent;
+namespace bookingextension_agent;
 
 defined('MOODLE_INTERNAL') || die();
 

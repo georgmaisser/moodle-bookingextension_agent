@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextionsion_agent;
+namespace bookingextension_agent;
 
 use bookingextension_agent\local\wbagent\task_registry_factory;
 

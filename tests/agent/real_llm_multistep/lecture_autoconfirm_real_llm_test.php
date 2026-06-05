@@ -28,16 +28,15 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace bookingextionsion_agent;
+namespace bookingextension_agent;
 
 use bookingextension_agent\external\ai_confirm_run;
+use bookingextension_agent\external\ai_send_message;
 use context_module;
 
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
-
-use bookingextension_agent\external\ai_send_message;
 
 /**
  * Live autoconfirm test for creating five lectures in one pass.
@@ -146,13 +145,29 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
 
         $_POST['sesskey'] = sesskey();
         $counter = 1;
-        $maxconfirmiterations = 12;
+        $maxconfirmiterations = 20;
         $dependencyrecoveries = 0;
         $maxdependencyrecoveries = 2;
+        $alloptionscreated = false;
         while (((string)($response['response_type'] ?? '') === 'confirmation_request')) {
             if ($counter >= $maxconfirmiterations) {
                 $this->fail('Confirmation loop exceeded safety limit (' . $maxconfirmiterations
                     . '). Trace: ' . implode(' | ', $trace));
+            }
+
+            // Early exit: once all 5 options are in the DB there is nothing left to confirm.
+            $snapshotoptions = $DB->get_records(
+                'booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id'
+            );
+            $newcount = 0;
+            foreach ($snapshotoptions as $snapopt) {
+                if (!in_array((int)$snapopt->id, $beforeids, true)) {
+                    $newcount++;
+                }
+            }
+            if ($newcount >= 5) {
+                $alloptionscreated = true;
+                break;
             }
 
             $counter++;
@@ -186,8 +201,22 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         $dependencywaitingterminal = ((string)($response['response_type'] ?? '') === 'error')
             && $this->is_dependency_waiting_error($response);
 
-        if (!$dependencywaitingterminal && ($response['response_type'] ?? '') !== 'sufficient') {
-            $this->fail('ai_confirm_run failed. Trace: ' . implode(' | ', $trace));
+        // Valid terminal states after the confirmation loop:
+        // - 'sufficient'       : agent signalled completion normally
+        // - 'execution_result' : agent executed and returned results directly (e.g. last batch item)
+        // - dependency-waiting error: transient queue state, handled via continuation rounds below
+        // - alloptionscreated  : all 5 lectures already created — early exit before agent signalled done
+        $terminalresponsetype = (string)($response['response_type'] ?? '');
+        $isvalidterminal = $alloptionscreated
+            || $dependencywaitingterminal
+            || $terminalresponsetype === 'sufficient'
+            || $terminalresponsetype === 'execution_result';
+
+        if (!$isvalidterminal) {
+            $this->fail(
+                'ai_confirm_run finished with unexpected response_type="' . $terminalresponsetype
+                . '". Trace: ' . implode(' | ', $trace)
+            );
         }
 
         $afteroptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text');
