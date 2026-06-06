@@ -40,6 +40,7 @@ define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/../../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
+use bookingextension_agent\local\wbagent\benchmark\benchmark_envkey_manager;
 use bookingextension_agent\local\wbagent\benchmark\benchmark_scenario_registry;
 use bookingextension_agent\local\wbagent\benchmark\benchmark_result_collector;
 use bookingextension_agent\local\wbagent\benchmark\benchmark_metrics_calculator;
@@ -48,6 +49,8 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\task_registry_factory;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\interpreter;
+use core\di;
+use core_ai\manager as ai_manager;
 
 [$options, $unrecognized] = cli_get_params(
     [
@@ -104,6 +107,14 @@ $collector = new benchmark_result_collector();
 $metrics   = new benchmark_metrics_calculator();
 $dbwriter  = new benchmark_db_writer();
 
+// When BOOKING_TEST_AI_KEY is set, inject a custom AI manager that bypasses
+// is_provider_configured() so a DB provider with an empty apikey is still used.
+// This is a process-local DI override — no DB writes.
+$envkey = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
+if (!$usestub && $envkey !== '') {
+    di::set(ai_manager::class, new benchmark_envkey_manager($DB));
+}
+
 // Build orchestrator stack for live runs (reused across scenarios).
 $store      = null;
 $orc        = null;
@@ -116,14 +127,18 @@ if (!$usestub) {
 $scenarios = $registry->get_scenarios($setname);
 $total     = count($scenarios);
 
-$hasenvvars = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: '')) !== ''
+$hasenvvars = $envkey !== ''
     && trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: '')) !== ''
     && $envmodel !== '';
 
 cli_writeln("=== bookingextension_agent Benchmark Runner ===");
 cli_writeln("Set: {$setname} | Model: {$modelid} | Env: {$env} | Stub: " . ($usestub ? 'yes' : 'no'));
-if (!$usestub && $hasenvvars) {
-    cli_writeln("Credentials: BOOKING_TEST_AI_KEY / ENDPOINT / MODEL (env vars override provider config).");
+if (!$usestub && $envkey !== '') {
+    $envinfo = 'BOOKING_TEST_AI_KEY set';
+    if ($hasenvvars) {
+        $envinfo .= ' (+ ENDPOINT + MODEL)';
+    }
+    cli_writeln("Credentials: {$envinfo} — env vars override provider config; is_provider_configured() gate bypassed.");
 }
 cli_writeln("Scenarios: {$total}");
 cli_writeln(str_repeat('-', 60));
