@@ -75,8 +75,10 @@ $calc = new benchmark_metrics_calculator();
 $thresholds = $calc->get_thresholds();
 
 // Trend chart — last 20 runs.
+// Select m.id first so get_records_sql keys by m.id (unique per row).
+// Multiple metrics per run share the same r.id, which would cause overwrites otherwise.
 $trendruns = $DB->get_records_sql(
-    'SELECT r.id, r.timecreated, m.metric_key, m.metric_value
+    'SELECT m.id, r.id AS run_id, r.timecreated, m.metric_key, m.metric_value
        FROM {local_wbagent_benchmark_runs} r
        JOIN {local_wbagent_benchmark_metrics} m ON m.run_id = r.id
       WHERE m.metric_key IN (\'e2e_success_rate\', \'task_hit_rate\', \'json_validity_rate\')
@@ -87,23 +89,25 @@ $trendruns = $DB->get_records_sql(
     20 * 3
 );
 
-$chartdata = ['labels' => [], 'success' => [], 'taskhit' => [], 'jsonok' => []];
-$seen = [];
+// Group by run_id; each run contributes up to 3 metric rows.
+$runmetrics = [];
+$runorder   = [];
 foreach ($trendruns as $t) {
-    $rid = $t->id;
-    if (!isset($seen[$rid])) {
-        $seen[$rid] = true;
-        $chartdata['labels'][] = date('d.m H:i', $t->timecreated);
+    $rid = (int)$t->run_id;
+    if (!isset($runmetrics[$rid])) {
+        $runmetrics[$rid] = ['timecreated' => (int)$t->timecreated];
+        $runorder[] = $rid;
     }
-    if ($t->metric_key === 'e2e_success_rate') {
-        $chartdata['success'][] = (float)$t->metric_value;
-    }
-    if ($t->metric_key === 'task_hit_rate') {
-        $chartdata['taskhit'][] = (float)$t->metric_value;
-    }
-    if ($t->metric_key === 'json_validity_rate') {
-        $chartdata['jsonok'][]  = (float)$t->metric_value;
-    }
+    $runmetrics[$rid][$t->metric_key] = (float)$t->metric_value;
+}
+
+$chartdata = ['labels' => [], 'success' => [], 'taskhit' => [], 'jsonok' => []];
+foreach ($runorder as $rid) {
+    $m = $runmetrics[$rid];
+    $chartdata['labels'][]  = date('d.m H:i', $m['timecreated']);
+    $chartdata['success'][] = $m['e2e_success_rate'] ?? null;
+    $chartdata['taskhit'][] = $m['task_hit_rate']    ?? null;
+    $chartdata['jsonok'][]  = $m['json_validity_rate'] ?? null;
 }
 
 echo '<h2>Benchmark Runs</h2>';
@@ -147,14 +151,17 @@ if (!empty($chartdata['labels'])) {
     echo '<table class="table table-sm table-bordered" style="font-size:0.85em">';
     echo '<tr><th>Run</th><th>e2e Success</th><th>Task Hit</th><th>JSON Valid</th></tr>';
     foreach ($chartdata['labels'] as $idx => $lbl) {
-        $suc = $chartdata['success'][$idx] ?? '';
-        $tsk = $chartdata['taskhit'][$idx] ?? '';
-        $jsn = $chartdata['jsonok'][$idx] ?? '';
-        $succlass = $suc !== '' && $suc < 85 ? 'table-danger' : ($suc < 95 ? 'table-warning' : 'table-success');
+        $suc = $chartdata['success'][$idx];
+        $tsk = $chartdata['taskhit'][$idx];
+        $jsn = $chartdata['jsonok'][$idx];
+        $sucfmt = $suc !== null ? $suc . '%' : '—';
+        $tskfmt = $tsk !== null ? $tsk . '%' : '—';
+        $jsnfmt = $jsn !== null ? $jsn . '%' : '—';
+        $succlass = $suc === null ? '' : ($suc < 85 ? 'table-danger' : ($suc < 95 ? 'table-warning' : 'table-success'));
         echo "<tr><td>{$lbl}</td>"
-            . "<td class='{$succlass}'>{$suc}%</td>"
-            . "<td>{$tsk}%</td>"
-            . "<td>{$jsn}%</td></tr>";
+            . "<td class='{$succlass}'>{$sucfmt}</td>"
+            . "<td>{$tskfmt}</td>"
+            . "<td>{$jsnfmt}</td></tr>";
     }
     echo '</table>';
 }

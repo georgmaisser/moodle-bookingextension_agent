@@ -19,7 +19,11 @@ namespace bookingextension_agent\local\wbagent\benchmark\scenarios;
 use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
 
 /**
- * Scenario: "ja" after agent listed pending steps — correct task must be selected.
+ * Scenario: "ja" after agent listed pending steps — selector must signal confirm_pending.
+ *
+ * When the user confirms ("ja") after the agent proposed pending multi-step work,
+ * the correct selector response is confirm_pending (user acknowledged, execute pending queue).
+ * The selector does NOT jump directly to task_call here; the pipeline resolves the pending item.
  *
  * @package bookingextension_agent
  */
@@ -31,7 +35,7 @@ class short_confirm_ja extends abstract_benchmark_scenario {
         return 'multistep';
     }
     public function get_description(): string {
-        return '"ja" after agent listed pending trainer+booking steps — correct downstream task selected';
+        return '"ja" after agent listed pending trainer+booking steps — selector signals confirm_pending';
     }
     public function get_user_message(): string {
         return 'ja';
@@ -46,24 +50,26 @@ class short_confirm_ja extends abstract_benchmark_scenario {
     }
 
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'confirm_pending';
     }
     public function get_expected_task(): string {
-        return 'mod_booking.update_option_trainer';
+        return '';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"mod_booking.update_option_trainer","input":{}}],'
-            . '"planned_steps":[],"next_step_intent":"Set trainer for TestA","used_triggers":[],"lang":"de","user_lang":"de"}';
+        return '{"response_type":"confirm_pending","commands":[],'
+            . '"planned_steps":[],"next_step_intent":"Set trainer for TestA",'
+            . '"message":"Alles klar, ich fahre fort mit dem Trainer-Schritt.",'
+            . '"used_triggers":["core.is_confirmation_message"],"lang":"de","user_lang":"de"}';
     }
 
     public function assert_additional(array $result): array {
-        $task = $result['commands'][0]['task'] ?? '';
+        $commands = $result['commands'] ?? [];
         return [
             [
-                'label'  => 'Short "ja" selects downstream task, not create_option',
-                'passed' => $task !== 'mod_booking.create_option',
-                'detail' => "Selected task: {$task}",
+                'label'  => 'confirm_pending must have empty commands array',
+                'passed' => empty($commands),
+                'detail' => 'commands: ' . json_encode($commands),
             ],
         ];
     }

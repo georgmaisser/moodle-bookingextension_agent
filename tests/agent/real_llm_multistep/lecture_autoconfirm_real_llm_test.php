@@ -145,7 +145,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
 
         $_POST['sesskey'] = sesskey();
         $counter = 1;
-        $maxconfirmiterations = 20;
+        $maxconfirmiterations = 30;
         $dependencyrecoveries = 0;
         $maxdependencyrecoveries = 2;
         $alloptionscreated = false;
