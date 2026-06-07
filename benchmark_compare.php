@@ -53,29 +53,31 @@ if ($runbid <= 0) {
 
 $PAGE->set_context(context_system::instance());
 $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/benchmark_compare.php', ['run_a' => $runaid, 'run_b' => $runbid]));
-$PAGE->set_title('Compare Benchmark Runs');
-$PAGE->set_heading('Compare: Run #' . $runaid . ' vs ' . ($runb ? 'Run #' . $runb->id : 'no baseline'));
+$PAGE->set_title(get_string('benchmark_compare_title', 'bookingextension_agent'));
+$PAGE->set_heading(get_string('benchmark_compare_heading', 'bookingextension_agent', (object)[
+    'runa' => $runaid,
+    'runb' => $runb ? '#' . $runb->id : get_string('benchmark_no_baseline', 'bookingextension_agent', 'no baseline')
+]));
 $PAGE->set_pagelayout('admin');
 
 echo $OUTPUT->header();
 
 $calc = new benchmark_metrics_calculator();
 
-// Run selector form.
+// Run selector dropdown (using Moodle's single_select component).
 $allruns = $DB->get_records_sql('SELECT id, label, timecreated FROM {local_wbagent_benchmark_runs} ORDER BY timecreated DESC LIMIT 50');
-echo '<form method="get" class="form-inline mb-3">';
-echo '<input type="hidden" name="run_a" value="' . $runaid . '">';
-echo '<label class="mr-2">Compare with:</label>';
-echo '<select name="run_b" class="form-control mr-2">';
+$options = [];
 foreach ($allruns as $r) {
-    $sel = ($runb && $r->id == $runb->id) ? ' selected' : '';
-    echo '<option value="' . $r->id . '"' . $sel . '>#' . $r->id . ' ' . htmlspecialchars($r->label) . ' (' . date('d.m', $r->timecreated) . ')</option>';
+    $options[$r->id] = '#' . $r->id . ' ' . $r->label . ' (' . userdate($r->timecreated, '%d.%m') . ')';
 }
-echo '</select>';
-echo '<button type="submit" class="btn btn-primary">Compare</button></form>';
+$selecturl = new moodle_url('/mod/booking/bookingextension/agent/benchmark_compare.php', ['run_a' => $runaid]);
+$select = new single_select($selecturl, 'run_b', $options, $runb ? $runb->id : '', null, 'compare-select');
+$select->label = get_string('benchmark_compare_with', 'bookingextension_agent');
+$select->class = 'mb-3';
+echo $OUTPUT->render($select);
 
 if (!$runb) {
-    echo $OUTPUT->notification('No comparison run available.', 'info');
+    echo $OUTPUT->notification(get_string('benchmark_no_comparison_run', 'bookingextension_agent'), 'info');
     echo $OUTPUT->footer();
     exit;
 }
@@ -92,23 +94,47 @@ $comparison = $calc->compare(
 );
 
 // Header summary.
-echo '<div class="row mb-3">';
+echo html_writer::start_div('row mb-3');
 foreach ([['A', $runa], ['B', $runb]] as [$tag, $r]) {
-    echo '<div class="col-md-6"><div class="card">';
-    echo '<div class="card-header"><strong>Run ' . $tag . '</strong>: #' . $r->id . ' ' . htmlspecialchars($r->label) . '</div>';
-    echo '<div class="card-body p-2"><small>';
-    echo 'Model: ' . htmlspecialchars($r->model_id) . '<br>';
-    echo 'Set: ' . htmlspecialchars($r->task_set) . '<br>';
-    echo 'Success: ' . $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')<br>';
-    echo 'Date: ' . userdate($r->timecreated, '%d.%m.%Y %H:%M');
-    echo '</small></div></div></div>';
+    echo html_writer::start_div('col-md-6');
+    echo html_writer::start_div('card');
+    
+    $runstr = get_string('benchmark_run_a', 'bookingextension_agent');
+    if ($tag === 'B') {
+        $runstr = get_string('benchmark_run_b', 'bookingextension_agent');
+    }
+    
+    echo html_writer::div(
+        html_writer::tag('strong', $runstr) . ': #' . $r->id . ' ' . htmlspecialchars($r->label),
+        'card-header'
+    );
+    
+    $cardcontent = '';
+    $cardcontent .= get_string('benchmark_model', 'bookingextension_agent') . ': ' . htmlspecialchars($r->model_id) . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' . htmlspecialchars($r->task_set) . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_success', 'bookingextension_agent') . ': ' . $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')' . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_date', 'bookingextension_agent') . ': ' . userdate($r->timecreated, '%d.%m.%Y %H:%M');
+    
+    echo html_writer::div(html_writer::tag('small', $cardcontent), 'card-body p-2');
+    echo html_writer::end_div(); // card
+    echo html_writer::end_div(); // col-md-6
 }
-echo '</div>';
+echo html_writer::end_div(); // row
 
 // Delta table.
-echo '<h3>Metric Delta (A vs B)</h3>';
-echo '<table class="table table-bordered table-sm">';
-echo '<thead><tr><th>Metric</th><th>Run A</th><th>Run B</th><th>Delta</th><th>Threshold</th><th>Status</th></tr></thead><tbody>';
+echo html_writer::tag('h3', get_string('benchmark_metric_delta', 'bookingextension_agent'));
+
+$table = new html_table();
+$table->head = [
+    get_string('benchmark_metric', 'bookingextension_agent'),
+    get_string('benchmark_run_a', 'bookingextension_agent'),
+    get_string('benchmark_run_b', 'bookingextension_agent'),
+    get_string('benchmark_delta', 'bookingextension_agent'),
+    get_string('benchmark_threshold', 'bookingextension_agent'),
+    get_string('benchmark_status', 'bookingextension_agent')
+];
+$table->attributes['class'] = 'table table-bordered table-sm';
+$table->data = [];
 
 $allkeys = array_unique(array_merge(array_keys($mapa), array_keys($mapb)));
 sort($allkeys);
@@ -132,16 +158,21 @@ foreach ($allkeys as $key) {
         }
     }
     $unit = strpos($key, 'ms') !== false ? 'ms' : (strpos($key, 'token') !== false || strpos($key, 'count') !== false ? '' : '%');
-    echo "<tr class='{$rowclass}'>"
-        . "<td>{$key}</td>"
-        . "<td>{$va}{$unit}</td>"
-        . "<td>{$vb}{$unit}</td>"
-        . "<td><strong>{$delta}</strong></td>"
-        . "<td>{$thresh}</td>"
-        . "<td>{$status}</td>"
-        . "</tr>";
+    
+    $row = new html_table_row([
+        $key,
+        "{$va}{$unit}",
+        "{$vb}{$unit}",
+        html_writer::tag('strong', "{$delta}"),
+        $thresh,
+        $status
+    ]);
+    if ($rowclass) {
+        $row->attributes['class'] = $rowclass;
+    }
+    $table->data[] = $row;
 }
-echo '</tbody></table>';
+echo html_writer::table($table);
 
 // Scenario diff.
 $scenaa = $DB->get_records('local_wbagent_benchmark_scenarios', ['run_id' => $runa->id]);
@@ -158,18 +189,36 @@ $diffs = array_filter($allscenkeys, function ($k) use ($bykeya, $bykeyb) {
 });
 
 if (!empty($diffs)) {
-    echo '<h3>Scenario Differences</h3>';
-    echo '<table class="table table-sm table-bordered">';
-    echo '<thead><tr><th>Scenario</th><th>Run A</th><th>Run B</th></tr></thead><tbody>';
+    echo html_writer::tag('h3', get_string('benchmark_scenario_differences', 'bookingextension_agent'));
+    
+    $table = new html_table();
+    $table->head = [
+        get_string('benchmark_scenario', 'bookingextension_agent'),
+        get_string('benchmark_run_a', 'bookingextension_agent'),
+        get_string('benchmark_run_b', 'bookingextension_agent')
+    ];
+    $table->attributes['class'] = 'table table-sm table-bordered';
+    $table->data = [];
+    
     foreach ($diffs as $k) {
-        $pa = isset($bykeya[$k]) ? ($bykeya[$k]->passed ? '✅ pass' : '❌ fail') : '—';
-        $pb = isset($bykeyb[$k]) ? ($bykeyb[$k]->passed ? '✅ pass' : '❌ fail') : '—';
+        $pa = isset($bykeya[$k]) ? ($bykeya[$k]->passed ? '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') : '❌ ' . get_string('benchmark_failed', 'bookingextension_agent')) : '—';
+        $pb = isset($bykeyb[$k]) ? ($bykeyb[$k]->passed ? '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') : '❌ ' . get_string('benchmark_failed', 'bookingextension_agent')) : '—';
+        
         $rowclass = (strpos($pa, 'fail') !== false || strpos($pb, 'fail') !== false) ? 'table-warning' : '';
-        echo "<tr class='{$rowclass}'><td><small>{$k}</small></td><td>{$pa}</td><td>{$pb}</td></tr>";
+        
+        $row = new html_table_row([
+            html_writer::tag('small', $k),
+            $pa,
+            $pb
+        ]);
+        if ($rowclass) {
+            $row->attributes['class'] = $rowclass;
+        }
+        $table->data[] = $row;
     }
-    echo '</tbody></table>';
+    echo html_writer::table($table);
 } else {
-    echo '<p class="text-muted">No scenario differences between these two runs.</p>';
+    echo html_writer::tag('p', get_string('benchmark_no_scenario_differences', 'bookingextension_agent'), ['class' => 'text-muted']);
 }
 
 echo $OUTPUT->footer();

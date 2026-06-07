@@ -35,8 +35,11 @@ $run = $DB->get_record('local_wbagent_benchmark_runs', ['id' => $id], '*', MUST_
 
 $PAGE->set_context(context_system::instance());
 $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/benchmark_run_detail.php', ['id' => $id]));
-$PAGE->set_title('Benchmark Run #' . $id);
-$PAGE->set_heading('Benchmark Run #' . $id . ': ' . $run->label);
+$PAGE->set_title(get_string('benchmark_run_detail_title', 'bookingextension_agent', $id));
+$PAGE->set_heading(get_string('benchmark_run_detail_heading', 'bookingextension_agent', (object)[
+    'id' => $id,
+    'label' => htmlspecialchars($run->label)
+]));
 $PAGE->set_pagelayout('admin');
 
 echo $OUTPUT->header();
@@ -55,51 +58,119 @@ foreach ($metrics as $m) {
 
 $backurl = new moodle_url('/mod/booking/bookingextension/agent/benchmark_report.php');
 
-echo '<p><a href="' . $backurl . '" class="btn btn-secondary">← All Runs</a></p>';
+echo html_writer::tag('p', 
+    html_writer::link($backurl, get_string('benchmark_back_all_runs', 'bookingextension_agent'), ['class' => 'btn btn-secondary'])
+);
 
 // Run header.
-echo '<div class="card mb-3"><div class="card-body">';
-echo '<dl class="row mb-0">';
+echo html_writer::start_div('card mb-3');
+echo html_writer::start_div('card-body');
+
+// Baseline Pin action in header card!
+if (!$run->is_baseline) {
+    echo html_writer::start_tag('form', [
+        'method' => 'post', 
+        'action' => new moodle_url('/mod/booking/bookingextension/agent/benchmark_report.php'), 
+        'class' => 'form-inline float-right'
+    ]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'pinbaseline']);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'runid', 'value' => $run->id]);
+    echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+    echo html_writer::empty_tag('input', [
+        'type' => 'text', 
+        'name' => 'baselinelabel', 
+        'value' => htmlspecialchars($run->label), 
+        'class' => 'form-control form-control-sm mr-2',
+        'placeholder' => get_string('benchmark_baseline_label', 'bookingextension_agent')
+    ]);
+    echo html_writer::empty_tag('input', [
+        'type' => 'submit', 
+        'value' => get_string('benchmark_pin_baseline', 'bookingextension_agent'), 
+        'class' => 'btn btn-sm btn-warning'
+    ]);
+    echo html_writer::end_tag('form');
+} else {
+    echo html_writer::div(
+        html_writer::span(get_string('benchmark_baseline_label', 'bookingextension_agent') . ': ' . htmlspecialchars($run->label), 'badge badge-primary float-right')
+    );
+}
+
+echo html_writer::start_tag('dl', ['class' => 'row mb-0']);
 $fields = [
-    'Run UUID'   => $run->run_uuid,
-    'Model'      => $run->model_id,
-    'Task Set'   => $run->task_set,
-    'Env'        => $run->environment,
-    'Git Ref'    => $run->git_ref,
-    'Date'       => userdate($run->timecreated, '%d.%m.%Y %H:%M'),
-    'Duration'   => number_format($run->duration_ms / 1000, 2) . 's',
-    'Tokens'     => number_format((int)$run->total_tokens),
+    get_string('benchmark_run_uuid', 'bookingextension_agent')   => $run->run_uuid,
+    get_string('benchmark_model', 'bookingextension_agent')      => $run->model_id,
+    get_string('benchmark_task_set', 'bookingextension_agent')   => $run->task_set,
+    get_string('benchmark_env', 'bookingextension_agent')        => $run->environment,
+    get_string('benchmark_git_ref', 'bookingextension_agent')    => $run->git_ref,
+    get_string('benchmark_date', 'bookingextension_agent')       => userdate($run->timecreated, '%d.%m.%Y %H:%M'),
+    get_string('benchmark_duration', 'bookingextension_agent')   => number_format($run->duration_ms / 1000, 2) . 's',
+    get_string('benchmark_tokens', 'bookingextension_agent')     => number_format((int)$run->total_tokens),
 ];
 foreach ($fields as $k => $v) {
-    echo "<dt class='col-sm-3'>{$k}</dt><dd class='col-sm-9'>" . htmlspecialchars((string)$v) . "</dd>";
+    echo html_writer::tag('dt', $k, ['class' => 'col-sm-3']);
+    echo html_writer::tag('dd', htmlspecialchars((string)$v), ['class' => 'col-sm-9']);
 }
-echo '</dl></div></div>';
+echo html_writer::end_tag('dl');
+echo html_writer::end_div(); // card-body
+echo html_writer::end_div(); // card
 
 // Metric summary.
-echo '<h3>Metrics</h3>';
-echo '<table class="table table-sm table-bordered">';
-echo '<thead><tr><th>Metric</th><th>Value</th><th>Threshold</th><th>Status</th></tr></thead><tbody>';
+echo html_writer::tag('h3', get_string('benchmark_metrics', 'bookingextension_agent'));
+
+$table = new html_table();
+$table->head = [
+    get_string('benchmark_metric', 'bookingextension_agent'),
+    get_string('benchmark_value', 'bookingextension_agent'),
+    get_string('benchmark_threshold', 'bookingextension_agent'),
+    get_string('benchmark_status', 'bookingextension_agent')
+];
+$table->attributes['class'] = 'table table-sm table-bordered';
+$table->data = [];
+
 foreach ($metricsmap as $key => $val) {
     $threshold = $thresholds[$key] ?? null;
     $status = $threshold === null ? '' : ($val >= $threshold ? '✅' : ($val >= $threshold * 0.95 ? '⚠️' : '❌'));
     $unit = strpos($key, 'ms') !== false ? 'ms' : (strpos($key, 'count') !== false ? '' : '%');
-    echo "<tr><td>{$key}</td><td>{$val}{$unit}</td><td>" . ($threshold ?? '—') . "</td><td>{$status}</td></tr>";
+    
+    $table->data[] = [
+        $key,
+        "{$val}{$unit}",
+        $threshold ?? '—',
+        $status
+    ];
 }
-echo '</tbody></table>';
+echo html_writer::table($table);
 
 // Scenario results.
-echo '<h3>Scenario Results (' . count($scenarios) . ')</h3>';
+echo html_writer::tag('h3', get_string('benchmark_scenario_results', 'bookingextension_agent', count($scenarios)));
 
 $filter = optional_param('filter', '', PARAM_ALPHA);
-echo '<p>';
-echo '<a href="' . $PAGE->url . '" class="btn btn-xs btn-outline-secondary">All</a> ';
-echo '<a href="' . new moodle_url($PAGE->url, ['filter' => 'failed']) . '" class="btn btn-xs btn-outline-danger">Failed only</a>';
-echo '</p>';
+echo html_writer::start_tag('p');
+echo html_writer::link($PAGE->url, get_string('benchmark_filter_all', 'bookingextension_agent'), [
+    'class' => 'btn btn-xs ' . ($filter === 'failed' ? 'btn-outline-secondary' : 'btn-secondary')
+]) . ' ';
+echo html_writer::link(new moodle_url($PAGE->url, ['filter' => 'failed']), get_string('benchmark_filter_failed', 'bookingextension_agent'), [
+    'class' => 'btn btn-xs ' . ($filter === 'failed' ? 'btn-danger' : 'btn-outline-danger')
+]);
+echo html_writer::end_tag('p');
 
-echo '<table class="table table-sm generaltable">';
-echo '<thead><tr><th>Key</th><th>Class</th><th>Pass</th><th>RT exp.</th><th>RT act.</th>'
-    . '<th>Task exp.</th><th>Task sel.</th><th>JSON</th><th>Contract</th><th>Planned</th>'
-    . '<th>ms</th><th>Error</th></tr></thead><tbody>';
+$table = new html_table();
+$table->head = [
+    get_string('benchmark_id', 'bookingextension_agent'),
+    get_string('benchmark_class', 'bookingextension_agent'),
+    get_string('benchmark_pass', 'bookingextension_agent'),
+    get_string('benchmark_rt_expected', 'bookingextension_agent'),
+    get_string('benchmark_rt_actual', 'bookingextension_agent'),
+    get_string('benchmark_task_expected', 'bookingextension_agent'),
+    get_string('benchmark_task_selected', 'bookingextension_agent'),
+    get_string('benchmark_json_valid', 'bookingextension_agent'),
+    get_string('benchmark_contract', 'bookingextension_agent'),
+    get_string('benchmark_planned', 'bookingextension_agent'),
+    get_string('benchmark_duration_ms', 'bookingextension_agent'),
+    get_string('benchmark_error', 'bookingextension_agent')
+];
+$table->attributes['class'] = 'table table-sm generaltable';
+$table->data = [];
 
 foreach ($scenarios as $s) {
     if ($filter === 'failed' && $s->passed) {
@@ -110,21 +181,26 @@ foreach ($scenarios as $s) {
     $json     = $s->json_valid ? '✅' : '❌';
     $contract = $s->contract_compliant ? '✅' : '❌';
     $planned  = $s->planned_steps_present ? '✅' : '—';
-    echo "<tr class='{$rowclass}'>"
-        . "<td><small>" . htmlspecialchars($s->scenario_key) . "</small></td>"
-        . "<td><small>{$s->scenario_class}</small></td>"
-        . "<td>{$pass}</td>"
-        . "<td><small>" . htmlspecialchars($s->response_type_expected) . "</small></td>"
-        . "<td><small>" . htmlspecialchars($s->response_type_actual) . "</small></td>"
-        . "<td><small>" . htmlspecialchars($s->task_expected) . "</small></td>"
-        . "<td><small>" . htmlspecialchars($s->task_selected) . "</small></td>"
-        . "<td>{$json}</td>"
-        . "<td>{$contract}</td>"
-        . "<td>{$planned}</td>"
-        . "<td>{$s->duration_ms}</td>"
-        . "<td><small style='color:red'>" . htmlspecialchars((string)$s->error_message) . "</small></td>"
-        . "</tr>";
+    
+    $row = new html_table_row([
+        html_writer::tag('small', htmlspecialchars($s->scenario_key)),
+        html_writer::tag('small', $s->scenario_class),
+        $pass,
+        html_writer::tag('small', htmlspecialchars($s->response_type_expected)),
+        html_writer::tag('small', htmlspecialchars($s->response_type_actual)),
+        html_writer::tag('small', htmlspecialchars($s->task_expected)),
+        html_writer::tag('small', htmlspecialchars($s->task_selected)),
+        $json,
+        $contract,
+        $planned,
+        $s->duration_ms,
+        html_writer::tag('small', htmlspecialchars((string)$s->error_message), ['style' => 'color:red'])
+    ]);
+    if ($rowclass) {
+        $row->attributes['class'] = $rowclass;
+    }
+    $table->data[] = $row;
 }
-echo '</tbody></table>';
+echo html_writer::table($table);
 
 echo $OUTPUT->footer();

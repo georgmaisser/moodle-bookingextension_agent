@@ -37,8 +37,8 @@ $runid   = optional_param('runid', 0, PARAM_INT);
 
 $PAGE->set_context(context_system::instance());
 $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/benchmark_report.php'));
-$PAGE->set_title(get_string('benchmark_report_title', 'bookingextension_agent', 'Benchmark Report'));
-$PAGE->set_heading(get_string('benchmark_report_title', 'bookingextension_agent', 'Benchmark Report'));
+$PAGE->set_title(get_string('benchmark_report_title', 'bookingextension_agent'));
+$PAGE->set_heading(get_string('benchmark_report_title', 'bookingextension_agent'));
 $PAGE->set_pagelayout('admin');
 
 // Handle actions.
@@ -46,7 +46,7 @@ if ($action === 'pinbaseline' && $runid > 0 && confirm_sesskey()) {
     $label = optional_param('baselinelabel', date('Y-m-d'), PARAM_TEXT);
     $writer = new benchmark_db_writer();
     $writer->pin_baseline($runid, $label, '', $USER->id);
-    redirect($PAGE->url, 'Baseline pinned.', 2);
+    redirect($PAGE->url, get_string('benchmark_baseline_pinned', 'bookingextension_agent'), 2);
 }
 
 echo $OUTPUT->header();
@@ -55,7 +55,7 @@ $DB->get_manager(); // Ensure DB is loaded.
 
 // Check tables exist.
 if (!$DB->get_manager()->table_exists('local_wbagent_benchmark_runs')) {
-    echo $OUTPUT->notification('Benchmark tables not installed. Run Moodle upgrade first.', 'error');
+    echo $OUTPUT->notification(get_string('benchmark_tables_not_installed', 'bookingextension_agent'), 'error');
     echo $OUTPUT->footer();
     exit;
 }
@@ -107,27 +107,27 @@ foreach ($runorder as $rid) {
     $chartdata['jsonok'][]  = $m['json_validity_rate'] ?? null;
 }
 
-echo '<h2>Benchmark Runs</h2>';
+echo html_writer::tag('h2', get_string('benchmark_runs', 'bookingextension_agent'));
 
 // Trend chart (Moodle Chart API) + fallback trend table.
 if (!empty($chartdata['labels'])) {
     $nruns = count($chartdata['labels']);
-    echo '<h3>Trend (' . $nruns . ' runs)</h3>';
+    echo html_writer::tag('h3', get_string('benchmark_trend', 'bookingextension_agent', $nruns));
 
     // Moodle line chart.
     if (class_exists('\core\chart_line')) {
         $chart = new \core\chart_line();
         $chart->set_smooth(true);
 
-        $sset = new \core\chart_series('e2e Success %', array_pad($chartdata['success'], $nruns, null));
+        $sset = new \core\chart_series(get_string('benchmark_success', 'bookingextension_agent') . ' %', array_pad($chartdata['success'], $nruns, null));
         $sset->set_color('#2d6a4f');
         $chart->add_series($sset);
 
-        $tset = new \core\chart_series('Task Hit %', array_pad($chartdata['taskhit'], $nruns, null));
+        $tset = new \core\chart_series(get_string('benchmark_task_hit', 'bookingextension_agent') . ' %', array_pad($chartdata['taskhit'], $nruns, null));
         $tset->set_color('#457b9d');
         $chart->add_series($tset);
 
-        $jset = new \core\chart_series('JSON Valid %', array_pad($chartdata['jsonok'], $nruns, null));
+        $jset = new \core\chart_series(get_string('benchmark_json_valid', 'bookingextension_agent') . ' %', array_pad($chartdata['jsonok'], $nruns, null));
         $jset->set_color('#e9c46a');
         $chart->add_series($jset);
 
@@ -148,9 +148,19 @@ if (!empty($chartdata['labels'])) {
     }
 
     // Compact trend table (C3c — no-JS fallback + quick scan).
-    echo '<h4>Trend Table</h4>';
-    echo '<table class="table table-sm table-bordered" style="font-size:0.85em">';
-    echo '<tr><th>Run</th><th>e2e Success</th><th>Task Hit</th><th>JSON Valid</th></tr>';
+    echo html_writer::tag('h4', get_string('benchmark_trend_table', 'bookingextension_agent'));
+
+    $table = new html_table();
+    $table->head = [
+        get_string('benchmark_run', 'bookingextension_agent'),
+        get_string('benchmark_success', 'bookingextension_agent'),
+        get_string('benchmark_task_hit', 'bookingextension_agent'),
+        get_string('benchmark_json_valid', 'bookingextension_agent')
+    ];
+    $table->attributes['class'] = 'table table-sm table-bordered';
+    $table->attributes['style'] = 'font-size:0.85em';
+    $table->data = [];
+
     foreach ($chartdata['labels'] as $idx => $lbl) {
         $suc = $chartdata['success'][$idx];
         $tsk = $chartdata['taskhit'][$idx];
@@ -159,50 +169,77 @@ if (!empty($chartdata['labels'])) {
         $tskfmt = $tsk !== null ? $tsk . '%' : '—';
         $jsnfmt = $jsn !== null ? $jsn . '%' : '—';
         $succlass = $suc === null ? '' : ($suc < 85 ? 'table-danger' : ($suc < 95 ? 'table-warning' : 'table-success'));
-        echo "<tr><td>{$lbl}</td>"
-            . "<td class='{$succlass}'>{$sucfmt}</td>"
-            . "<td>{$tskfmt}</td>"
-            . "<td>{$jsnfmt}</td></tr>";
+
+        $row = new html_table_row([
+            $lbl,
+            $sucfmt,
+            $tskfmt,
+            $jsnfmt
+        ]);
+        if ($succlass) {
+            $row->cells[1]->attributes['class'] = $succlass;
+        }
+        $table->data[] = $row;
     }
-    echo '</table>';
+    echo html_writer::table($table);
 }
 
 // Runs table.
-echo '<table class="table table-hover generaltable">';
-echo '<thead><tr>'
-    . '<th>ID</th><th>Label</th><th>Model</th><th>Set</th>'
-    . '<th>Success</th><th>Passed</th><th>Duration</th><th>Tokens</th>'
-    . '<th>Env</th><th>Git</th><th>Date</th><th>Actions</th>'
-    . '</tr></thead><tbody>';
+$table = new html_table();
+$table->head = [
+    get_string('benchmark_id', 'bookingextension_agent'),
+    get_string('benchmark_label', 'bookingextension_agent'),
+    get_string('benchmark_model', 'bookingextension_agent'),
+    get_string('benchmark_set', 'bookingextension_agent'),
+    get_string('benchmark_success', 'bookingextension_agent'),
+    get_string('benchmark_passed', 'bookingextension_agent'),
+    get_string('benchmark_duration', 'bookingextension_agent'),
+    get_string('benchmark_tokens', 'bookingextension_agent'),
+    get_string('benchmark_env', 'bookingextension_agent'),
+    get_string('benchmark_git', 'bookingextension_agent'),
+    get_string('benchmark_date', 'bookingextension_agent'),
+    get_string('benchmark_actions', 'bookingextension_agent')
+];
+$table->attributes['class'] = 'table table-hover generaltable';
+$table->data = [];
 
 foreach ($runs as $run) {
     $rate    = (float)$run->success_rate;
     $color   = $rate >= 95 ? 'success' : ($rate >= 85 ? 'warning' : 'danger');
-    $baseline = $run->is_baseline ? ' <span class="badge badge-primary">baseline</span>' : '';
-    $regression = $run->regression_detected ? ' <span class="badge badge-danger">regression</span>' : '';
+    $baseline = $run->is_baseline ? ' ' . html_writer::span(get_string('benchmark_baseline_label', 'bookingextension_agent'), 'badge badge-primary') : '';
+    $regression = $run->regression_detected ? ' ' . html_writer::span(get_string('benchmark_regression', 'bookingextension_agent'), 'badge badge-danger') : '';
 
     $detailurl  = new moodle_url('/mod/booking/bookingextension/agent/benchmark_run_detail.php', ['id' => $run->id]);
     $compareurl = new moodle_url('/mod/booking/bookingextension/agent/benchmark_compare.php', ['run_a' => $run->id]);
 
-    echo "<tr>"
-        . "<td>{$run->id}</td>"
-        . "<td>" . htmlspecialchars($run->label) . $baseline . $regression . "</td>"
-        . "<td>" . htmlspecialchars($run->model_id) . "</td>"
-        . "<td>" . htmlspecialchars($run->task_set) . "</td>"
-        . "<td><span class='badge badge-{$color}'>{$rate}%</span></td>"
-        . "<td>{$run->passed}/{$run->total_scenarios}</td>"
-        . "<td>" . number_format($run->duration_ms / 1000, 1) . "s</td>"
-        . "<td>" . number_format((int)$run->total_tokens) . "</td>"
-        . "<td>" . htmlspecialchars($run->environment) . "</td>"
-        . "<td><small>" . htmlspecialchars(substr($run->git_ref, 0, 8)) . "</small></td>"
-        . "<td><small>" . userdate($run->timecreated, '%d.%m %H:%M') . "</small></td>"
-        . "<td>"
-        . "<a href='{$detailurl}' class='btn btn-xs btn-secondary'>Detail</a> "
-        . "<a href='{$compareurl}' class='btn btn-xs btn-info'>Compare</a>"
-        . "</td>"
-        . "</tr>";
+    $actions = html_writer::link($detailurl, get_string('benchmark_detail', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-secondary']) . ' ';
+    $actions .= html_writer::link($compareurl, get_string('benchmark_compare', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-info']);
+    
+    if (!$run->is_baseline) {
+        $pinurl = new moodle_url($PAGE->url, [
+            'action' => 'pinbaseline',
+            'runid' => $run->id,
+            'sesskey' => sesskey()
+        ]);
+        $actions .= ' ' . html_writer::link($pinurl, get_string('benchmark_pin_baseline', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-warning']);
+    }
+
+    $table->data[] = [
+        $run->id,
+        htmlspecialchars($run->label) . $baseline . $regression,
+        htmlspecialchars($run->model_id),
+        htmlspecialchars($run->task_set),
+        html_writer::span("{$rate}%", "badge badge-{$color}"),
+        "{$run->passed}/{$run->total_scenarios}",
+        number_format($run->duration_ms / 1000, 1) . 's',
+        number_format((int)$run->total_tokens),
+        htmlspecialchars($run->environment),
+        html_writer::tag('small', htmlspecialchars(substr($run->git_ref, 0, 8))),
+        html_writer::tag('small', userdate($run->timecreated, '%d.%m %H:%M')),
+        $actions
+    ];
 }
-echo '</tbody></table>';
+echo html_writer::table($table);
 
 echo $OUTPUT->paging_bar($total, $page, $perpage, $PAGE->url);
 echo $OUTPUT->footer();
