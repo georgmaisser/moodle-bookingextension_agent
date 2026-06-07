@@ -74,7 +74,7 @@ $runs  = $DB->get_records_sql(
 $calc = new benchmark_metrics_calculator();
 $thresholds = $calc->get_thresholds();
 
-// Trend chart — last 20 runs.
+// Trend chart — all runs.
 // Select m.id first so get_records_sql keys by m.id (unique per row).
 // Multiple metrics per run share the same r.id, which would cause overwrites otherwise.
 $trendruns = $DB->get_records_sql(
@@ -83,10 +83,7 @@ $trendruns = $DB->get_records_sql(
        JOIN {local_wbagent_benchmark_metrics} m ON m.run_id = r.id
       WHERE m.metric_key IN (\'e2e_success_rate\', \'task_hit_rate\', \'json_validity_rate\')
         AND m.scenario_class IS NULL
-      ORDER BY r.timecreated ASC',
-    [],
-    0,
-    20 * 3
+      ORDER BY r.timecreated ASC'
 );
 
 // Group by run_id; each run contributes up to 3 metric rows.
@@ -115,7 +112,7 @@ echo '<h2>Benchmark Runs</h2>';
 // Trend chart (Moodle Chart API) + fallback trend table.
 if (!empty($chartdata['labels'])) {
     $nruns = count($chartdata['labels']);
-    echo '<h3>Trend (last ' . $nruns . ' runs)</h3>';
+    echo '<h3>Trend (' . $nruns . ' runs)</h3>';
 
     // Moodle line chart.
     if (class_exists('\core\chart_line')) {
@@ -143,7 +140,85 @@ if (!empty($chartdata['labels'])) {
         $yaxis->set_max(100);
         $chart->set_yaxis($yaxis);
 
+        // Wrap chart in a horizontally scrollable container.
+        echo '<style>
+        .benchmark-chart-container::-webkit-scrollbar {
+            height: 8px;
+        }
+        .benchmark-chart-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 10px;
+        }
+        .benchmark-chart-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            transition: background 0.2s ease;
+        }
+        .benchmark-chart-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.4);
+        }
+        </style>';
+        echo '<div class="benchmark-chart-container" id="benchmark-chart-container" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 20px;">';
+        echo '<div style="min-width: ' . max(800, $nruns * 35) . 'px;">';
         echo $OUTPUT->render($chart);
+        echo '</div>';
+        echo '</div>';
+        echo '<script>
+        (function() {
+            var container = document.getElementById("benchmark-chart-container");
+            if (!container) return;
+
+            var done = false;
+            var scrollToRight = function() {
+                container.scrollLeft = container.scrollWidth;
+                var canvas = container.querySelector("canvas");
+                if (canvas && canvas.offsetWidth > 0) {
+                    setTimeout(function() {
+                        container.scrollLeft = container.scrollWidth;
+                    }, 50);
+                    done = true;
+                    if (observer) observer.disconnect();
+                    if (resizeObserver) resizeObserver.disconnect();
+                    if (interval) clearInterval(interval);
+                }
+            };
+
+            var observer = new MutationObserver(function() {
+                if (!done) scrollToRight();
+            });
+            observer.observe(container, { childList: true, subtree: true });
+
+            var resizeObserver = null;
+            if (window.ResizeObserver) {
+                resizeObserver = new ResizeObserver(function() {
+                    if (!done) scrollToRight();
+                });
+                resizeObserver.observe(container);
+                if (container.firstElementChild) {
+                    resizeObserver.observe(container.firstElementChild);
+                }
+            }
+
+            var count = 0;
+            var interval = setInterval(function() {
+                if (!done) {
+                    scrollToRight();
+                    count++;
+                    if (count > 30) {
+                        clearInterval(interval);
+                        if (observer) observer.disconnect();
+                        if (resizeObserver) resizeObserver.disconnect();
+                    }
+                } else {
+                    clearInterval(interval);
+                }
+            }, 100);
+
+            scrollToRight();
+            window.addEventListener("load", scrollToRight);
+            document.addEventListener("DOMContentLoaded", scrollToRight);
+        })();
+        </script>';
     }
 
     // Compact trend table (C3c — no-JS fallback + quick scan).
