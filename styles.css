@@ -378,3 +378,20 @@
     color: #333;
     word-break: break-all;
 }
+
+/* Benchmark report custom scrollbar and chart wrapper styling */
+.benchmark-chart-container::-webkit-scrollbar {
+    height: 8px;
+}
+.benchmark-chart-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+}
+.benchmark-chart-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    transition: background 0.2s ease;
+}
+.benchmark-chart-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+}

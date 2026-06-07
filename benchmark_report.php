@@ -139,86 +139,12 @@ if (!empty($chartdata['labels'])) {
         $yaxis->set_min(0);
         $yaxis->set_max(100);
         $chart->set_yaxis($yaxis);
-
-        // Wrap chart in a horizontally scrollable container.
-        echo '<style>
-        .benchmark-chart-container::-webkit-scrollbar {
-            height: 8px;
-        }
-        .benchmark-chart-container::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.05);
-            border-radius: 10px;
-        }
-        .benchmark-chart-container::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 10px;
-            transition: background 0.2s ease;
-        }
-        .benchmark-chart-container::-webkit-scrollbar-thumb:hover {
-            background: rgba(0, 0, 0, 0.4);
-        }
-        </style>';
-        echo '<div class="benchmark-chart-container" id="benchmark-chart-container" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 20px;">';
-        echo '<div style="min-width: ' . max(800, $nruns * 35) . 'px;">';
-        echo $OUTPUT->render($chart);
-        echo '</div>';
-        echo '</div>';
-        echo '<script>
-        (function() {
-            var container = document.getElementById("benchmark-chart-container");
-            if (!container) return;
-
-            var done = false;
-            var scrollToRight = function() {
-                container.scrollLeft = container.scrollWidth;
-                var canvas = container.querySelector("canvas");
-                if (canvas && canvas.offsetWidth > 0) {
-                    setTimeout(function() {
-                        container.scrollLeft = container.scrollWidth;
-                    }, 50);
-                    done = true;
-                    if (observer) observer.disconnect();
-                    if (resizeObserver) resizeObserver.disconnect();
-                    if (interval) clearInterval(interval);
-                }
-            };
-
-            var observer = new MutationObserver(function() {
-                if (!done) scrollToRight();
-            });
-            observer.observe(container, { childList: true, subtree: true });
-
-            var resizeObserver = null;
-            if (window.ResizeObserver) {
-                resizeObserver = new ResizeObserver(function() {
-                    if (!done) scrollToRight();
-                });
-                resizeObserver.observe(container);
-                if (container.firstElementChild) {
-                    resizeObserver.observe(container.firstElementChild);
-                }
-            }
-
-            var count = 0;
-            var interval = setInterval(function() {
-                if (!done) {
-                    scrollToRight();
-                    count++;
-                    if (count > 30) {
-                        clearInterval(interval);
-                        if (observer) observer.disconnect();
-                        if (resizeObserver) resizeObserver.disconnect();
-                    }
-                } else {
-                    clearInterval(interval);
-                }
-            }, 100);
-
-            scrollToRight();
-            window.addEventListener("load", scrollToRight);
-            document.addEventListener("DOMContentLoaded", scrollToRight);
-        })();
-        </script>';
+        $charthtml = $OUTPUT->render($chart);
+        echo $OUTPUT->render_from_template('bookingextension_agent/benchmark_trend_chart', [
+            'containerid' => 'benchmark-chart-container',
+            'minwidth' => max(800, $nruns * 35),
+            'charthtml' => $charthtml,
+        ]);
     }
 
     // Compact trend table (C3c — no-JS fallback + quick scan).
