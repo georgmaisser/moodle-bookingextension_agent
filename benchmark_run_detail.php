@@ -52,7 +52,10 @@ $thresholds = $calc->get_thresholds();
 $metricsmap = [];
 foreach ($metrics as $m) {
     if ($m->scenario_class === null) {
-        $metricsmap[$m->metric_key] = (float)$m->metric_value;
+        $metricsmap[$m->metric_key] = [
+            'value' => (float)$m->metric_value,
+            'unit'  => $m->metric_unit
+        ];
     }
 }
 
@@ -127,15 +130,25 @@ $table->head = [
 $table->attributes['class'] = 'table table-sm table-bordered';
 $table->data = [];
 
-foreach ($metricsmap as $key => $val) {
+foreach ($metricsmap as $key => $data) {
+    $val = $data['value'];
+    $unit = $data['unit'];
     $threshold = $thresholds[$key] ?? null;
     $status = $threshold === null ? '' : ($val >= $threshold ? '✅' : ($val >= $threshold * 0.95 ? '⚠️' : '❌'));
-    $unit = strpos($key, 'ms') !== false ? 'ms' : (strpos($key, 'count') !== false ? '' : '%');
+    
+    $unitstr = '';
+    if ($unit === 'percent') {
+        $unitstr = '%';
+    } else if ($unit === 'ms') {
+        $unitstr = 'ms';
+    } else if ($unit === 'tokens') {
+        $unitstr = '';
+    }
     
     $table->data[] = [
         $key,
-        "{$val}{$unit}",
-        $threshold ?? '—',
+        "{$val}{$unitstr}",
+        $threshold !== null ? "{$threshold}%" : '—',
         $status
     ];
 }

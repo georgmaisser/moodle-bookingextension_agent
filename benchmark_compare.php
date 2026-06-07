@@ -85,8 +85,24 @@ if (!$runb) {
 // Load metrics.
 $metaa = $DB->get_records('local_wbagent_benchmark_metrics', ['run_id' => $runa->id]);
 $metab = $DB->get_records('local_wbagent_benchmark_metrics', ['run_id' => $runb->id]);
-$mapa  = array_column((array)$metaa, 'metric_value', 'metric_key');
-$mapb  = array_column((array)$metab, 'metric_value', 'metric_key');
+
+$mapa  = [];
+$units = [];
+foreach ($metaa as $m) {
+    if ($m->scenario_class === null) {
+        $mapa[$m->metric_key] = (float)$m->metric_value;
+        $units[$m->metric_key] = $m->metric_unit;
+    }
+}
+$mapb  = [];
+foreach ($metab as $m) {
+    if ($m->scenario_class === null) {
+        $mapb[$m->metric_key] = (float)$m->metric_value;
+        if (!isset($units[$m->metric_key])) {
+            $units[$m->metric_key] = $m->metric_unit;
+        }
+    }
+}
 
 $comparison = $calc->compare(
     array_map('floatval', $mapa),
@@ -157,14 +173,27 @@ foreach ($allkeys as $key) {
             $rowclass = 'table-danger';
         }
     }
-    $unit = strpos($key, 'ms') !== false ? 'ms' : (strpos($key, 'token') !== false || strpos($key, 'count') !== false ? '' : '%');
+    $unit = $units[$key] ?? 'percent';
+    $unitstr = '';
+    if ($unit === 'percent') {
+        $unitstr = '%';
+    } else if ($unit === 'ms') {
+        $unitstr = 'ms';
+    } else if ($unit === 'tokens') {
+        $unitstr = '';
+    }
+    
+    $threshstr = $thresh;
+    if ($thresh !== '—') {
+        $threshstr = "{$thresh}%";
+    }
     
     $row = new html_table_row([
         $key,
-        "{$va}{$unit}",
-        "{$vb}{$unit}",
-        html_writer::tag('strong', "{$delta}"),
-        $thresh,
+        "{$va}{$unitstr}",
+        "{$vb}{$unitstr}",
+        html_writer::tag('strong', "{$delta}" . ($unitstr === '%' ? '%' : '')),
+        $threshstr,
         $status
     ]);
     if ($rowclass) {
