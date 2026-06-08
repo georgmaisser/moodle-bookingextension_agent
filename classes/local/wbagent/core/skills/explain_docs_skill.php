@@ -18,7 +18,7 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface;
+use bookingextension_agent\local\wbagent\doc_markdown_preview_renderer;
 use bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service;
 use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readiness_service;
 
@@ -41,8 +41,7 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class explain_docs_skill extends core_skill_base implements
-    skill_trigger_provider_interface,
-    skill_preview_provider_interface {
+    skill_trigger_provider_interface {
     /** Skill name constant. */
     public const SKILL_NAME = 'core.explain_docs';
 
@@ -508,12 +507,29 @@ class explain_docs_skill extends core_skill_base implements
      *
      * @return array
      */
-    public function get_preview_descriptor(): array {
+    /**
+     * Provide the documentation preview as ready-to-insert server-rendered HTML data.
+     *
+     * @param array $resultentry One executed skill result entry.
+     * @param int $contextid
+     * @param int $userid
+     * @return array{type:string,html:string,payload:array}|null
+     */
+    public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
+        $path = trim((string)($resultentry['doc_path'] ?? $resultentry['path'] ?? ''));
+        if ($path === '') {
+            return null;
+        }
+
+        $html = (new doc_markdown_preview_renderer())->render(['path' => $path], $contextid, $userid);
+        if (trim($html) === '') {
+            return null;
+        }
+
         return [
             'type' => 'doc_markdown',
-            'renderer' => '\\bookingextension_agent\\local\\wbagent\\doc_markdown_preview_renderer',
-            'js_module' => null,
-            'description' => 'Preview of the documentation file.',
+            'html' => $html,
+            'payload' => ['path' => $path],
         ];
     }
 }

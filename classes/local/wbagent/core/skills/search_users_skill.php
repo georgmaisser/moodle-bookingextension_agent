@@ -18,7 +18,6 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface;
 
 /**
  * Skill definition for core.search_users.
@@ -28,8 +27,7 @@ use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_inter
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class search_users_skill extends core_skill_base implements
-    skill_trigger_provider_interface,
-    skill_preview_provider_interface {
+    skill_trigger_provider_interface {
     /** Skill name constant. */
     public const SKILL_NAME = 'core.search_users';
 
@@ -305,12 +303,35 @@ class search_users_skill extends core_skill_base implements
      *
      * @return array
      */
-    public function get_preview_descriptor(): array {
-        return [
-            'type' => 'user_search',
-            'renderer' => null,
-            'js_module' => null,
-            'description' => 'Preview of the searched users.',
-        ];
+    /**
+     * Provide the user-search preview as ready-to-insert server-rendered HTML data.
+     *
+     * @param array $resultentry One executed skill result entry.
+     * @param int $contextid
+     * @param int $userid
+     * @return array{type:string,html:string}|null
+     */
+    public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
+        $users = is_array($resultentry['users'] ?? null) ? (array)$resultentry['users'] : [];
+        if (empty($users)) {
+            return null;
+        }
+
+        $rows = \html_writer::tag('tr',
+            \html_writer::tag('th', s('Name')) . \html_writer::tag('th', s('Email')) . \html_writer::tag('th', s('ID')));
+        foreach ($users as $user) {
+            if (!is_array($user)) {
+                continue;
+            }
+            $name = (string)($user['fullname'] ?? $user['username'] ?? '');
+            $rows .= \html_writer::tag('tr',
+                \html_writer::tag('td', s($name))
+                . \html_writer::tag('td', s((string)($user['email'] ?? '')))
+                . \html_writer::tag('td', s((string)($user['id'] ?? ''))));
+        }
+
+        $html = \html_writer::tag('table', $rows, ['class' => 'table table-sm booking-ai-preview-user-search']);
+
+        return ['type' => 'user_search', 'html' => $html];
     }
 }

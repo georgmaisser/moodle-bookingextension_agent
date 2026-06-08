@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent;
 
-use bookingextension_agent\local\wbagent\interfaces\skill_preview_renderer_interface;
 use bookingextension_agent\external\ai_get_doc_content;
 
 /**
@@ -36,7 +35,7 @@ use bookingextension_agent\external\ai_get_doc_content;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class doc_markdown_preview_renderer implements skill_preview_renderer_interface {
+class doc_markdown_preview_renderer {
     /**
      * Render markdown doc file preview as HTML.
      *

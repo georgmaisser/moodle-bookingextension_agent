@@ -277,7 +277,7 @@ class confirm_run_service {
                 'pending_confirmation_code' => '',
                 'queueitemid' => $activequeueitemid,
                 'attempt_budget' => attempt_budget_dto::from_queue_item($activeitem)->to_array(),
-                ...$this->build_preview_response_fields($threadid, []),
+                ...$this->build_preview_response_fields($threadid, [], $contextid, $userid),
             ];
         }
 
@@ -642,7 +642,7 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => '',
-                ...$this->build_preview_response_fields($threadid, $feedbackresults),
+                ...$this->build_preview_response_fields($threadid, $feedbackresults, $contextid, $userid),
             ];
         }
     }
@@ -684,7 +684,7 @@ class confirm_run_service {
             'pending_confirmation_code' => '',
             'queueitemid' => $queueitemid,
             'attempt_budget' => $attemptbudget,
-            ...$this->build_preview_response_fields($threadid, []),
+            ...$this->build_preview_response_fields($threadid, [], $contextid, $userid),
         ];
     }
 
@@ -695,9 +695,14 @@ class confirm_run_service {
      * @param array<int,mixed> $results
      * @return array{previewjson:string}
      */
-    private function build_preview_response_fields(int $threadid, array $results): array {
+    private function build_preview_response_fields(
+        int $threadid,
+        array $results,
+        int $contextid,
+        int $userid
+    ): array {
         return [
-            'previewjson' => $this->resolve_and_accumulate_preview_json($threadid, $results),
+            'previewjson' => $this->resolve_and_accumulate_preview_json($threadid, $results, $contextid, $userid),
         ];
     }
 
@@ -708,9 +713,21 @@ class confirm_run_service {
      * @param array $results
      * @return string
      */
-    private function resolve_and_accumulate_preview_json(int $threadid, array $results): string {
+    private function resolve_and_accumulate_preview_json(
+        int $threadid,
+        array $results,
+        int $contextid,
+        int $userid
+    ): string {
         // Generic, domain-agnostic passthrough of skill-provided preview blocks.
-        return preview_passthrough::resolve_preview_json($results, $threadid, '_confirm_previews');
+        return preview_passthrough::resolve_preview_json(
+            $this->registry,
+            $results,
+            $contextid,
+            $userid,
+            $threadid,
+            '_confirm_previews'
+        );
     }
 
     /**

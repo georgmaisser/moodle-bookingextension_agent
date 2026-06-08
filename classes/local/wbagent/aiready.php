@@ -269,13 +269,10 @@ class aiready {
                 'numbooked' => $stats['num_booked'],
             ]);
 
+        // Previews are now self-contained: each skill returns ready HTML (and optionally its own
+        // AMD module name) as data inside the result, so there is no global preview-type/js-module
+        // registry to seed here.
         $jsmodules = [];
-        try {
-            $registry = skill_registry_factory::get_default();
-            $jsmodules = $registry->get_preview_type_registry()->get_all_js_modules();
-        } catch (\Throwable $e) {
-            // Ignore.
-        }
 
         return [
             'cmid' => $this->cmid,

@@ -27,37 +27,53 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Resolves the user-facing preview for a webservice response purely from skill-provided data.
  *
- * A skill that wants a preview simply attaches a `preview` block to its execute() result:
- *   'preview' => [
- *       'type'      => 'booking_option',   // free, skill-defined string (for client dispatch)
- *       'html'      => '<div>…</div>',      // optional, server-rendered HTML (trusted plugin output)
- *       'js_module' => 'mod_x/preview',     // optional AMD module name for client-side rendering
- *       'payload'   => [ … ],               // optional data handed to the js_module
+ * A skill that wants a preview simply exposes a method:
+ *
+ *   public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array
+ *
+ * returning a plain data block (no framework types):
+ *
+ *   [
+ *     'type'      => 'booking_option',  // free, skill-defined string (for client dispatch)
+ *     'html'      => '<div>…</div>',     // optional, server-rendered HTML (trusted plugin output)
+ *     'js_module' => 'mod_x/preview',    // optional AMD module name for client-side rendering
+ *     'payload'   => [ … ],              // optional data handed to the js_module
  *   ]
  *
- * The engine never inspects the type or renders anything itself — it just forwards the block and,
+ * The engine never inspects the type and never renders anything — it just forwards the block and,
  * across a multi-step confirm chain, concatenates HTML of the same type. This keeps the framework
- * free of any per-skill/domain preview knowledge (no booking_option/user_profile/… branches).
+ * free of any per-skill/domain preview knowledge (no booking_option/user_profile/… branches) and
+ * lets a skill output whatever HTML/JS it wants, produced entirely inside its own plugin.
  */
 class preview_passthrough {
+    /** Optional method a skill may expose to provide its preview as data. */
+    public const PREVIEW_METHOD = 'get_result_preview';
+
     /**
      * Resolve the preview JSON for a webservice response from executed skill results.
      *
-     * @param array<int,mixed> $results   Executed skill results.
+     * @param skill_registry $registry
+     * @param array<int,mixed> $results Executed skill results.
+     * @param int $contextid
+     * @param int $userid
      * @param int $threadid
      * @param string $metadatakey Thread-metadata key used to accumulate previews across a chain.
      * @return string JSON-encoded preview block, or '' when there is none.
      */
     public static function resolve_preview_json(
+        skill_registry $registry,
         array $results,
+        int $contextid,
+        int $userid,
         int $threadid,
         string $metadatakey = '_confirm_previews'
     ): string {
-        $preview = self::extract_first_preview($results);
+        $preview = self::extract_first_preview($registry, $results, $contextid, $userid);
 
         $store = new conversation_store();
         $stored = $store->get_thread_metadata_value($threadid, $metadatakey);
@@ -81,19 +97,40 @@ class preview_passthrough {
     /**
      * Return the first valid skill-provided preview block from the results, or null.
      *
+     * @param skill_registry $registry
      * @param array<int,mixed> $results
+     * @param int $contextid
+     * @param int $userid
      * @return array<string,mixed>|null
      */
-    private static function extract_first_preview(array $results): ?array {
+    private static function extract_first_preview(
+        skill_registry $registry,
+        array $results,
+        int $contextid,
+        int $userid
+    ): ?array {
         foreach ($results as $entry) {
-            if (!is_array($entry) || empty($entry['preview']) || !is_array($entry['preview'])) {
+            if (!is_array($entry)) {
                 continue;
             }
-            $preview = $entry['preview'];
-            if (trim((string)($preview['type'] ?? '')) === '') {
+            $skillname = trim((string)($entry['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
-            return $preview;
+            $skill = $registry->get_skill($skillname);
+            if ($skill === null || !method_exists($skill, self::PREVIEW_METHOD)) {
+                continue;
+            }
+
+            try {
+                $candidate = $skill->{self::PREVIEW_METHOD}($entry, $contextid, $userid);
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            if (is_array($candidate) && trim((string)($candidate['type'] ?? '')) !== '') {
+                return $candidate;
+            }
         }
 
         return null;

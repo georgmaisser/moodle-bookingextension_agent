@@ -18,7 +18,6 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface;
 
 /**
  * Skill definition for core.get_current_user.
@@ -28,8 +27,7 @@ use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_inter
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class get_current_user_skill extends core_skill_base implements
-    skill_trigger_provider_interface,
-    skill_preview_provider_interface {
+    skill_trigger_provider_interface {
     /** Skill name constant. */
     public const SKILL_NAME = 'core.get_current_user';
 
@@ -178,12 +176,37 @@ class get_current_user_skill extends core_skill_base implements
         ];
     }
 
-    public function get_preview_descriptor(): array {
-        return [
-            'type' => 'user_profile',
-            'renderer' => null,
-            'js_module' => null,
-            'description' => 'Preview of the current user profile.',
-        ];
+    /**
+     * Provide the user-profile preview as ready-to-insert server-rendered HTML data.
+     *
+     * @param array $resultentry One executed skill result entry.
+     * @param int $contextid
+     * @param int $userid
+     * @return array{type:string,html:string}|null
+     */
+    public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
+        $user = is_array($resultentry['user'] ?? null) ? (array)$resultentry['user'] : [];
+        if (empty($user) && !empty($resultentry['users']) && is_array($resultentry['users'])) {
+            $user = (array)($resultentry['users'][0] ?? []);
+        }
+        if (empty($user)) {
+            return null;
+        }
+
+        $rows = '';
+        foreach (['fullname' => 'Name', 'email' => 'Email', 'id' => 'ID'] as $key => $label) {
+            if (!isset($user[$key]) || (string)$user[$key] === '') {
+                continue;
+            }
+            $rows .= \html_writer::tag('tr',
+                \html_writer::tag('th', s($label)) . \html_writer::tag('td', s((string)$user[$key])));
+        }
+        if ($rows === '') {
+            return null;
+        }
+
+        $html = \html_writer::tag('table', $rows, ['class' => 'table table-sm booking-ai-preview-user-profile']);
+
+        return ['type' => 'user_profile', 'html' => $html];
     }
 }

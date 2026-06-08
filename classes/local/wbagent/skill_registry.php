@@ -35,7 +35,6 @@ use bookingextension_agent\local\wbagent\interfaces\skill_input_normalizer_provi
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\preview_type_registry;
 
 /**
  * Central registry that maps skill names to their provider instances.
@@ -67,14 +66,11 @@ class skill_registry {
     /** @var array<int,result_summary_contributor_interface> */
     private array $resultsummarycontributors = [];
 
-    /** @var preview_type_registry */
-    private preview_type_registry $previewtyperegistry;
 
     /**
      * Constructor.
      */
     public function __construct() {
-        $this->previewtyperegistry = new preview_type_registry();
     }
 
     /**
@@ -196,31 +192,6 @@ class skill_registry {
             $this->skillcontracts[$skillname] = $metadata;
             $this->skillproviders[$skillname] = $provider;
 
-            if ($skill instanceof \bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface) {
-                try {
-                    $descriptor = $skill->get_preview_descriptor();
-                    $type = trim($descriptor['type'] ?? '');
-                    if ($type !== '') {
-                        $rendererinstance = null;
-                        if (!empty($descriptor['renderer'])) {
-                            $rendererclass = $descriptor['renderer'];
-                            if (class_exists($rendererclass)) {
-                                $rendererinstance = new $rendererclass();
-                            }
-                        }
-                        $this->previewtyperegistry->register(
-                            $type,
-                            $rendererinstance,
-                            $descriptor['js_module'] ?? null
-                        );
-                    }
-                } catch (\Throwable $e) {
-                    $this->add_contract_diagnostic(
-                        'Failed registering preview type from skill ' . $skillname
-                        . ': ' . get_class($e) . ': ' . $e->getMessage()
-                    );
-                }
-            }
         }
 
         $registryerrors = skill_contract_validator::validate_registry_contracts($this->skillcontracts);
@@ -270,15 +241,6 @@ class skill_registry {
         }
 
         return $normalizer->normalize($skillname, $input);
-    }
-
-    /**
-     * Return the preview type registry.
-     *
-     * @return preview_type_registry
-     */
-    public function get_preview_type_registry(): preview_type_registry {
-        return $this->previewtyperegistry;
     }
 
     /**

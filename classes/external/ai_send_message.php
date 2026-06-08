@@ -293,8 +293,11 @@ class ai_send_message extends external_api {
             'threadid'              => $threadid,
             'runid'                 => (int)($result['runid'] ?? 0),
             'resultsjson'           => json_encode($result['results'] ?? []),
-            'previewjson'           => self::resolve_preview_json_for_response(
+            'previewjson'           => preview_passthrough::resolve_preview_json(
+                $registry,
                 (array)($result['results'] ?? []),
+                $contextid,
+                (int)$USER->id,
                 $threadid
             ),
         ];
@@ -387,23 +390,6 @@ class ai_send_message extends external_api {
         }
 
         return [$command];
-    }
-
-    /**
-     * Resolve the active preview descriptor for WS responses.
-     *
-     * @param skill_registry $registry
-     * @param array $results The executed skill results.
-     * @param int $threadid
-     * @param string $metadatakey
-     * @return string JSON-encoded preview descriptor or empty string.
-     */
-    private static function resolve_preview_json_for_response(
-        array $results,
-        int $threadid,
-        string $metadatakey = '_confirm_previews'
-    ): string {
-        return preview_passthrough::resolve_preview_json($results, $threadid, $metadatakey);
     }
 
     /**
