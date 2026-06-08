@@ -82,16 +82,16 @@ class attachment_processor {
                 // Token is consumed here — the PDF file is not needed again.
                 try {
                     $text = $extractor->extract((string)$resolved['path']);
-                    $prefixes[] = "--- DOKUMENT: {$filename} ---\n{$text}\n--- ENDE DOKUMENT ---";
+                    $prefixes[] = "--- DOCUMENT: {$filename} ---\n{$text}\n--- END DOCUMENT ---";
                 } catch (\moodle_exception $e) {
-                    $prefixes[] = "--- DOKUMENT: {$filename} ---\n"
-                        . "[Konnte nicht verarbeitet werden: " . $e->getMessage() . "]\n--- ENDE DOKUMENT ---";
+                    $prefixes[] = "--- DOCUMENT: {$filename} ---\n"
+                        . "[Could not be processed: " . $e->getMessage() . "]\n--- END DOCUMENT ---";
                 }
                 $tokensvc->invalidate($token);
 
             } else if ($type === 'image') {
                 // Prepend a compact text hint. Token stays alive for skill resolution.
-                $prefixes[] = "[Anhang: {$filename} — Attachment-Token: {$token}]";
+                $prefixes[] = "[Attachment: {$filename} — Attachment-Token: {$token}]";
             }
             // Unknown types are silently ignored.
         }
