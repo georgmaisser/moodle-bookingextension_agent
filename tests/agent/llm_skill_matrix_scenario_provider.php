@@ -577,9 +577,9 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'mod_booking.explain_docs_topic' => [
-                'prompt' => 'Use mod_booking.explain_docs_topic to explain how to create a booking option in Moodle booking docs.',
-                'skip_reason' => 'Temporarily skipped: dedicated sub-LLM docs call was removed and provider path is currently unstable for this scenario.',
+            'core.explain_docs' => [
+                'prompt' => 'Explain how to create a booking option using the plugin documentation.',
+                'skip_reason' => 'Temporarily skipped: docs embeddings index may not be built in CI.',
                 'assertions' => [
                     [
                         'target' => 'final',

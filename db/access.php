@@ -67,7 +67,7 @@ $teacherskills = [
     'booking_create_slotbooking_option',
     'booking_diagnose_booking_issue',
     'booking_diagnose_cancellation_issue',
-    'booking_explain_docs_topic',
+    'core_explain_docs',
     'booking_explain_skill_schema',
     'core_get_current_user',
     'booking_get_option_details',
