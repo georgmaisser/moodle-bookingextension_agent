@@ -58,6 +58,18 @@ class finalization_template_service {
             'AI runtime is currently disabled for this context.',
     ];
 
+    /** @var array<string,string> */
+    private const ERROR_CLASS_LANG_KEYS = [
+        'auth_failed' => 'error_ai_trial_token_invalid',
+        'quota_exceeded' => 'error_ai_provider_quota_exceeded',
+        'runtime_disabled' => 'error_ai_context_disabled',
+    ];
+
+    /** @var array<string,string> */
+    private const ISSUE_CODE_LANG_KEYS = [
+        'PERMISSION_ERROR' => 'error_ai_permission_denied',
+    ];
+
     /**
      * Resolve a deterministic template-only message.
      *
@@ -67,15 +79,46 @@ class finalization_template_service {
      * @return string
      */
     public function resolve_message(array $result): string {
+        $msg = '';
+
         foreach ($this->normalize_issue_codes($result) as $issuecode) {
+            if (isset(self::ISSUE_CODE_LANG_KEYS[$issuecode])) {
+                $localized = get_string(self::ISSUE_CODE_LANG_KEYS[$issuecode], 'bookingextension_agent');
+                if ($localized !== '' && !str_starts_with($localized, '[[')) {
+                    $msg = $localized;
+                    break;
+                }
+            }
             if (isset(self::ISSUE_CODE_MESSAGES[$issuecode])) {
-                return self::ISSUE_CODE_MESSAGES[$issuecode];
+                $msg = self::ISSUE_CODE_MESSAGES[$issuecode];
+                break;
             }
         }
 
-        $errorclass = strtolower(trim((string)($result['error_class'] ?? '')));
-        if ($errorclass !== '' && isset(self::ERROR_CLASS_MESSAGES[$errorclass])) {
-            return self::ERROR_CLASS_MESSAGES[$errorclass];
+        if ($msg === '') {
+            $errorclass = strtolower(trim((string)($result['error_class'] ?? '')));
+            if ($errorclass !== '') {
+                if (isset(self::ERROR_CLASS_LANG_KEYS[$errorclass])) {
+                    $localized = get_string(self::ERROR_CLASS_LANG_KEYS[$errorclass], 'bookingextension_agent');
+                    if ($localized !== '' && !str_starts_with($localized, '[[')) {
+                        $msg = $localized;
+                    }
+                }
+                if ($msg === '' && isset(self::ERROR_CLASS_MESSAGES[$errorclass])) {
+                    $msg = self::ERROR_CLASS_MESSAGES[$errorclass];
+                }
+            }
+        }
+
+        if ($msg !== '') {
+            $rawerrors = $result['errors'] ?? [];
+            if (!empty($rawerrors) && is_array($rawerrors)) {
+                $rawerror = trim(implode(' ', $rawerrors));
+                if ($rawerror !== '') {
+                    $msg .= ' (Details: ' . $rawerror . ')';
+                }
+            }
+            return $msg;
         }
 
         return '';

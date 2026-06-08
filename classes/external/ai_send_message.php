@@ -110,7 +110,29 @@ class ai_send_message extends external_api {
         $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
+
+        if (!$authz->can_use((int)$USER->id, (int)$context->id)) {
+            $errormessage = get_string('error_ai_permission_denied', 'bookingextension_agent');
+            return [
+                'response_type'         => 'error',
+                'message'               => $errormessage,
+                'displaymessage'        => $errormessage,
+                'privacyapplied'        => 0,
+                'autoconfirm'           => 0,
+                'commands'              => '[]',
+                'ambiguities'           => '[]',
+                'ambiguityoptionsjson'  => '[]',
+                'errorsjson'            => json_encode(['permission_denied']),
+                'issuecodesjson'        => json_encode(['PERMISSION_ERROR']),
+                'phasetracejson'        => '[]',
+                'queueitemid'           => '',
+                'threadid'              => 0,
+                'runid'                 => 0,
+                'resultsjson'           => '[]',
+                'previewoptionid'       => 0,
+                'previewoptionidsjson'  => '[]',
+            ];
+        }
 
         if (empty($message)) {
             $emptymsg = get_string('ai_empty_message', 'bookingextension_agent');
@@ -142,11 +164,28 @@ class ai_send_message extends external_api {
 
         $runtimeproviderstatus = $orchestrator->get_runtime_provider_status($cmid);
         if (empty($runtimeproviderstatus['runtimeavailable'])) {
+            $reason = $runtimeproviderstatus['failurereason'] ?? '';
             $errormessage = get_string('ai_provider_not_configured', 'bookingextension_agent');
-            if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['courseenabled'])) {
-                $errormessage = get_string('aiready_check_course_enabled_todo', 'bookingextension_agent');
-            } else if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['contextenabled'])) {
-                $errormessage = get_string('aiready_check_context_enabled_todo', 'bookingextension_agent');
+
+            $reasonmap = [
+                'subsystem_missing' => 'error_ai_subsystem_missing',
+                'no_provider'       => 'error_ai_no_provider',
+                'provider_inactive' => 'error_ai_provider_inactive',
+                'actions_missing'   => 'error_ai_actions_missing',
+                'course_disabled'   => 'error_ai_course_disabled',
+                'context_disabled'  => 'error_ai_context_disabled',
+            ];
+
+            if ($reason !== '' && isset($reasonmap[$reason])) {
+                $errormessage = get_string($reasonmap[$reason], 'bookingextension_agent');
+            } else if ($reason === 'exception_thrown') {
+                $errormessage = get_string('ai_provider_error', 'bookingextension_agent');
+            } else {
+                if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['courseenabled'])) {
+                    $errormessage = get_string('error_ai_course_disabled', 'bookingextension_agent');
+                } else if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['contextenabled'])) {
+                    $errormessage = get_string('error_ai_context_disabled', 'bookingextension_agent');
+                }
             }
 
             return [
@@ -158,8 +197,8 @@ class ai_send_message extends external_api {
                 'commands'              => '[]',
                 'ambiguities'           => '[]',
                 'ambiguityoptionsjson'  => '[]',
-                'errorsjson'            => '[]',
-                'issuecodesjson'        => '[]',
+                'errorsjson'            => json_encode([$reason !== '' ? $reason : 'runtime_unavailable']),
+                'issuecodesjson'        => json_encode(['RUNTIME_UNAVAILABLE']),
                 'phasetracejson'        => '[]',
                 'queueitemid'           => '',
                 'threadid'              => 0,

@@ -189,9 +189,11 @@ class orchestrator {
             'finalactionclass' => '',
             'toolroutepolicy' => 'default',
             'finalroutepolicy' => 'default',
+            'failurereason' => '',
         ];
 
         if (!class_exists('\core_ai\manager')) {
+            $default['failurereason'] = 'subsystem_missing';
             return $default;
         }
 
@@ -298,6 +300,21 @@ class orchestrator {
             $contextenabled = $toolenabledincontext && $finalenabledincontext;
             $runtimeavailable = $provideractive && $courseenabled && $contextenabled;
 
+            $failurereason = '';
+            if (!$runtimeavailable) {
+                if (!$providerconfigured) {
+                    $failurereason = 'no_provider';
+                } else if (!$provideractive) {
+                    $failurereason = 'provider_inactive';
+                } else if ($toolactionclass === '' || $finalactionclass === '') {
+                    $failurereason = 'actions_missing';
+                } else if (!$courseenabled) {
+                    $failurereason = 'course_disabled';
+                } else if (!$contextenabled) {
+                    $failurereason = 'context_disabled';
+                }
+            }
+
             return [
                 'providerconfigured' => $providerconfigured,
                 'provideractive' => $provideractive,
@@ -308,8 +325,10 @@ class orchestrator {
                 'finalactionclass' => $finalactionclass,
                 'toolroutepolicy' => $toolroutepolicy,
                 'finalroutepolicy' => $finalroutepolicy,
+                'failurereason' => $failurereason,
             ];
         } catch (\Throwable $e) {
+            $default['failurereason'] = 'exception_thrown';
             return $default;
         }
     }
@@ -1448,6 +1467,21 @@ class orchestrator {
         $errorcode = (int)($call['errorcode'] ?? 0);
         $errorname = (string)($call['errorname'] ?? '');
         $issuecodes = ai_error_classifier::classify_from_response($errormessage, $errorcode, $errorname);
+
+        $errorclass = 'provider_error';
+        if (in_array('TRIAL_TOKEN_INVALID', $issuecodes, true)) {
+            $errorclass = 'auth_failed';
+        } else if (in_array('AI_PROVIDER_QUOTA_EXCEEDED', $issuecodes, true)) {
+            $errorclass = 'quota_exceeded';
+        } else {
+            $lower = core_text::strtolower($errormessage);
+            if (strpos($lower, 'timeout') !== false || strpos($lower, 'timed out') !== false) {
+                $errorclass = 'provider_timeout';
+            } else if (strpos($lower, 'curl error 28') !== false || strpos($lower, 'connection reset') !== false) {
+                $errorclass = 'transient_io';
+            }
+        }
+
         return [
             'response_type' => 'error',
             'message' => get_string('ai_provider_error', 'bookingextension_agent'),
@@ -1455,6 +1489,7 @@ class orchestrator {
             'ambiguities' => [],
             'errors' => [$errormessage],
             'issue_codes' => $issuecodes,
+            'error_class' => $errorclass,
         ];
     }
 
@@ -1471,6 +1506,7 @@ class orchestrator {
             'ambiguities' => [],
             'errors' => ['Provider returned empty content.'],
             'issue_codes' => [],
+            'error_class' => 'transient_io',
         ];
     }
 

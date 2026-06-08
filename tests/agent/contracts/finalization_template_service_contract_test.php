@@ -67,7 +67,7 @@ final class finalization_template_service_contract_test extends TestCase {
             'error_class' => 'provider_timeout',
         ]);
 
-        $this->assertStringContainsString('current permissions', $message);
+        $this->assertStringContainsString('permissions', $message);
     }
 
     /**

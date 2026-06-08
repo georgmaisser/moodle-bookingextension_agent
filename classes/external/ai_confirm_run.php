@@ -105,7 +105,27 @@ class ai_confirm_run extends external_api {
         $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
+
+        if (!$authz->can_use((int)$USER->id, (int)$context->id)) {
+            $errormessage = get_string('error_ai_permission_denied', 'bookingextension_agent');
+            return [
+                'success' => false,
+                'runid' => 0,
+                'threadid' => (int)$params['threadid'],
+                'response_type' => 'error',
+                'message' => ws_message_formatter::format_ws_message($errormessage, $context),
+                'displaymessage' => ws_message_formatter::format_ws_message($errormessage, $context),
+                'privacyapplied' => 0,
+                'autoconfirm' => 0,
+                'commands' => '[]',
+                'resultsjson' => '[]',
+                'issuecodesjson' => json_encode(['PERMISSION_ERROR']),
+                'errorsjson' => json_encode(['permission_denied']),
+                'queueitemid' => '',
+                'previewoptionid' => 0,
+                'previewoptionidsjson' => '[]',
+            ];
+        }
 
         $store = new conversation_store();
         $registry = skill_registry::make_default();

@@ -233,9 +233,25 @@ class aiready {
 
         if (!$readyforchat) {
             if ($isplatformadmin) {
-                $admintext = $haswunderbyteprovider
-                    ? ''
-                    : get_string('aiready_admin_text', 'bookingextension_agent');
+                if (!$haswunderbyteprovider) {
+                    $admintext = get_string('aiready_admin_text', 'bookingextension_agent');
+                } else {
+                    $reason = $runtimeproviderstatus['failurereason'] ?? '';
+                    $reasonmap = [
+                        'subsystem_missing' => 'error_ai_subsystem_missing',
+                        'no_provider'       => 'error_ai_no_provider',
+                        'provider_inactive' => 'error_ai_provider_inactive',
+                        'actions_missing'   => 'error_ai_actions_missing',
+                        'course_disabled'   => 'error_ai_course_disabled',
+                        'context_disabled'  => 'error_ai_context_disabled',
+                        'exception_thrown'  => 'ai_provider_error',
+                    ];
+                    if ($reason !== '' && isset($reasonmap[$reason])) {
+                        $admintext = get_string($reasonmap[$reason], 'bookingextension_agent');
+                    } else {
+                        $admintext = get_string('ai_provider_not_configured', 'bookingextension_agent');
+                    }
+                }
             } else {
                 $nonadmintext = get_string('aiready_nonadmin_text', 'bookingextension_agent');
             }

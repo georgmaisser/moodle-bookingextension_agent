@@ -6,6 +6,8 @@ flowchart TD
     %% =========================================================
     subgraph ENTRY["External API Layer (classes/external/)"]
         ASM["ai_send_message::execute()\ncontextid · message · threadid"]
+        ASM_GATE{"Readiness Gate\n(Auth / Subsystem / Provider / Context)"}
+        ASM_FAIL["Return specific error JSON\n(e.g., error_ai_provider_inactive,\nerror_ai_course_disabled)"]
         ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session"]
         ACD["ai_discard_pending::execute()\ncontextid · threadid"]
         APO["ai_poll_thread::execute()"]
@@ -260,8 +262,10 @@ flowchart TD
     ASM -->|"0. extension installed?"| AZ3
     ASM -->|"1. require_sesskey()"| AZ1
     ASM -->|"2. validate_parameters()"| AZ2
-    ASM -->|"3. add_message(user)"| CS2
-    ASM -->|"4. run_loop()"| RUNLOOP
+    ASM --> ASM_GATE
+    ASM_GATE -->|"fail"| ASM_FAIL
+    ASM_GATE -->|"pass: add_message(user)"| CS2
+    CS2 -->|"run_loop()"| RUNLOOP
     ASM -->|"response autoconfirm?"| CS12
     ACR --> AZ3
     ACD --> AZ3
