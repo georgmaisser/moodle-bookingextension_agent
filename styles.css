@@ -231,6 +231,17 @@
     flex-shrink: 0;
 }
 
+#booking-ai-wrapper .booking-ai-step-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.75rem;
+    height: 0.75rem;
+    color: #28a745;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
 #booking-ai-wrapper .booking-ai-step-label {
     font-size: 0.78rem;
     color: #343a40;
