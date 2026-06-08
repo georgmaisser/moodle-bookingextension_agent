@@ -219,69 +219,21 @@ $aisettingspage->add(
     )
 );
 
+$skillgovurl = new moodle_url('/mod/booking/bookingextension/agent/skill_governance.php');
 $aisettingspage->add(
     new admin_setting_heading(
         'bookingextension_agent_aiskillgovernance_heading',
-        get_string('aiskillgovernanceheading', 'bookingextension_agent'),
-        get_string('aiskillgovernanceheading_desc', 'bookingextension_agent')
+        get_string('skillgovernance', 'bookingextension_agent'),
+        get_string('skillgovernance_desc', 'bookingextension_agent', $skillgovurl->out())
     )
 );
 
-try {
-    $registry = skill_registry_factory::get_default();
-    $contracts = $registry->get_skill_contracts();
-    ksort($contracts);
-
-    foreach ($contracts as $skillname => $meta) {
-        $capabilities = (array)($meta['capabilities'] ?? []);
-        $capabilitylabel = implode(', ', $capabilities);
-        if ($capabilitylabel === '') {
-            $capabilitylabel = '-';
-        }
-
-        $settingkey = 'bookingextension_agent/' . skill_registry::get_skill_toggle_setting_name((string)$skillname);
-        $settingtitle = get_string('aiskillenabled_label', 'bookingextension_agent', (string)$skillname);
-        $settingdesc = get_string(
-            'aiskillenabled_desc',
-            'bookingextension_agent',
-            (object)[
-                'component' => (string)($meta['component'] ?? ''),
-                'capability' => $capabilitylabel,
-            ]
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configcheckbox(
-                $settingkey,
-                $settingtitle,
-                $settingdesc,
-                0
-            )
-        );
-    }
-} catch (\Throwable $e) {
-    $aisettingspage->add(
-        new admin_setting_heading(
-            'bookingextension_agent_aiskillgovernance_unavailable',
-            get_string('aiskillgovernanceunavailable', 'bookingextension_agent'),
-            get_string('aiskillgovernanceunavailable_desc', 'bookingextension_agent')
-        )
-    );
-}
-
-// Enable all is added last so Moodle processes individual skill toggles first.
-// When this checkbox fires its callback, all per-skill configs are already written
-// to the DB and the sync can safely overwrite them with 1.
-$enableallsetting = new admin_setting_configcheckbox(
-    'bookingextension_agent/aiskillenableall',
-    get_string('aiskillenableall', 'bookingextension_agent'),
-    get_string('aiskillenableall_desc', 'bookingextension_agent'),
-    0
-);
-$enableallsetting->set_updatedcallback(
-    '\\bookingextension_agent\\local\\wbagent\\skill_governance_service::sync_enableall_toggles'
-);
-$aisettingspage->add($enableallsetting);
+$adminroot->add('modbookingfolder', new admin_externalpage(
+    'bookingextension_agent_skillgovernance',
+    get_string('skillgovernance', 'bookingextension_agent'),
+    $skillgovurl,
+    'moodle/site:config'
+));
 
 $adminroot->add('modbookingfolder', new admin_externalpage(
     'bookingextension_agent_skillselectiondebug',
