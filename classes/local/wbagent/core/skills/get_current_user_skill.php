@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface;
 
 /**
  * Skill definition for core.get_current_user.
@@ -26,7 +27,9 @@ use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_inter
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class get_current_user_skill extends core_skill_base implements skill_trigger_provider_interface {
+class get_current_user_skill extends core_skill_base implements
+    skill_trigger_provider_interface,
+    skill_preview_provider_interface {
     /** Skill name constant. */
     public const SKILL_NAME = 'core.get_current_user';
 
@@ -165,8 +168,6 @@ class get_current_user_skill extends core_skill_base implements skill_trigger_pr
             'fullname' => $fullname,
             'user' => $userdata,
             'users' => [$userdata],
-            'previewmode' => 'user_profile',
-            'previewdata' => $userdata,
             'observation_full' => $this->build_user_observation_full([$userdata]),
             'usermessage' => $usermessage,
             'debugmessage' => $this->build_skill_debug_message(
@@ -174,6 +175,15 @@ class get_current_user_skill extends core_skill_base implements skill_trigger_pr
                 $input,
                 ['Resolved user: ' . $fullname . ' (id=' . $user->id . ')']
             ),
+        ];
+    }
+
+    public function get_preview_descriptor(): array {
+        return [
+            'type' => 'user_profile',
+            'renderer' => null,
+            'js_module' => null,
+            'description' => 'Preview of the current user profile.',
         ];
     }
 }

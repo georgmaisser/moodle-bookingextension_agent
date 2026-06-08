@@ -63,8 +63,7 @@ class confirm_run_service {
     /** @var queue_transition_service */
     private queue_transition_service $queuetransitionsvc;
 
-    /** @var confirm_preview_option_service */
-    private confirm_preview_option_service $confirmpreviewsvc;
+
 
     /**
      * Constructor.
@@ -79,7 +78,6 @@ class confirm_run_service {
         $this->authz = $authz;
         $this->pendingintentsvc = new pending_intent_service($store);
         $this->queuetransitionsvc = new queue_transition_service();
-        $this->confirmpreviewsvc = new confirm_preview_option_service($registry, $store);
     }
 
     /**
@@ -279,7 +277,7 @@ class confirm_run_service {
                 'pending_confirmation_code' => '',
                 'queueitemid' => $activequeueitemid,
                 'attempt_budget' => attempt_budget_dto::from_queue_item($activeitem)->to_array(),
-                ...$this->build_preview_response_fields($cmid, $userid, []),
+                ...$this->build_preview_response_fields($threadid, []),
             ];
         }
 
@@ -435,13 +433,7 @@ class confirm_run_service {
                 ]
             );
 
-            $aggregatedpreviewids = $this->confirmpreviewsvc->remember_confirm_preview_option_ids(
-                $threadid,
-                $cmid,
-                $userid,
-                $results,
-                self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY
-            );
+            $previewjson = $this->resolve_and_accumulate_preview_json($threadid, $results);
             $nextmutatingqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
             $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults)
                 || is_array($nextmutatingqueueitem)
@@ -567,21 +559,7 @@ class confirm_run_service {
                 'errors' => $errors,
                 'pending_confirmation_code' => (string)($finalresult['pending_confirmation_code'] ?? ''),
                 'queueitemid' => $responsequeueitemid,
-                'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id(
-                    $this->confirmpreviewsvc->resolve_preview_option_ids_for_response(
-                        $cmid,
-                        $userid,
-                        (array)($finalresult['results'] ?? [])
-                    )
-                ),
-                'previewoptionids' => $this->confirmpreviewsvc->resolve_confirm_preview_option_ids_for_response(
-                    $threadid,
-                    $cmid,
-                    $userid,
-                    $results,
-                    self::CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY,
-                    $aggregatedpreviewids
-                ),
+                'previewjson' => $previewjson,
             ];
         } catch (\Throwable $e) {
             $rawresults = [['status' => 'error', 'detail' => $e->getMessage(), 'resultid' => null]];
@@ -664,7 +642,7 @@ class confirm_run_service {
                 'errors' => [],
                 'pending_confirmation_code' => '',
                 'queueitemid' => '',
-                ...$this->build_preview_response_fields($cmid, $userid, $feedbackresults),
+                ...$this->build_preview_response_fields($threadid, $feedbackresults),
             ];
         }
     }
@@ -706,24 +684,33 @@ class confirm_run_service {
             'pending_confirmation_code' => '',
             'queueitemid' => $queueitemid,
             'attempt_budget' => $attemptbudget,
-            ...$this->build_preview_response_fields($cmid, $userid, []),
+            ...$this->build_preview_response_fields($threadid, []),
         ];
     }
 
     /**
      * Build response preview fields from current result context.
      *
-     * @param int $cmid
-     * @param int $userid
+     * @param int $threadid
      * @param array<int,mixed> $results
-     * @return array{previewoptionid:int,previewoptionids:array<int,int>}
+     * @return array{previewjson:string}
      */
-    private function build_preview_response_fields(int $cmid, int $userid, array $results): array {
-        $previewoptionids = $this->confirmpreviewsvc->resolve_preview_option_ids_for_response($cmid, $userid, $results);
+    private function build_preview_response_fields(int $threadid, array $results): array {
         return [
-            'previewoptionid' => $this->confirmpreviewsvc->first_preview_option_id($previewoptionids),
-            'previewoptionids' => $previewoptionids,
+            'previewjson' => $this->resolve_and_accumulate_preview_json($threadid, $results),
         ];
+    }
+
+    /**
+     * Resolve and accumulate preview json for the thread.
+     *
+     * @param int $threadid
+     * @param array $results
+     * @return string
+     */
+    private function resolve_and_accumulate_preview_json(int $threadid, array $results): string {
+        // Generic, domain-agnostic passthrough of skill-provided preview blocks.
+        return preview_passthrough::resolve_preview_json($results, $threadid, '_confirm_previews');
     }
 
     /**

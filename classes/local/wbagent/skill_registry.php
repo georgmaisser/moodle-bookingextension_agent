@@ -29,13 +29,13 @@ use core_text;
 use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_interface;
-use bookingextension_agent\local\wbagent\interfaces\preview_option_memory_provider_interface;
+
 use bookingextension_agent\local\wbagent\interfaces\summarizer\result_summary_contributor_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_input_normalizer_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\preview_type_registry;
 
 /**
  * Central registry that maps skill names to their provider instances.
@@ -66,6 +66,16 @@ class skill_registry {
 
     /** @var array<int,result_summary_contributor_interface> */
     private array $resultsummarycontributors = [];
+
+    /** @var preview_type_registry */
+    private preview_type_registry $previewtyperegistry;
+
+    /**
+     * Constructor.
+     */
+    public function __construct() {
+        $this->previewtyperegistry = new preview_type_registry();
+    }
 
     /**
      * Register a skill provider.  All skills it declares are mapped to it.
@@ -185,6 +195,32 @@ class skill_registry {
             $this->skills[$skillname] = $skill;
             $this->skillcontracts[$skillname] = $metadata;
             $this->skillproviders[$skillname] = $provider;
+
+            if ($skill instanceof \bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface) {
+                try {
+                    $descriptor = $skill->get_preview_descriptor();
+                    $type = trim($descriptor['type'] ?? '');
+                    if ($type !== '') {
+                        $rendererinstance = null;
+                        if (!empty($descriptor['renderer'])) {
+                            $rendererclass = $descriptor['renderer'];
+                            if (class_exists($rendererclass)) {
+                                $rendererinstance = new $rendererclass();
+                            }
+                        }
+                        $this->previewtyperegistry->register(
+                            $type,
+                            $rendererinstance,
+                            $descriptor['js_module'] ?? null
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    $this->add_contract_diagnostic(
+                        'Failed registering preview type from skill ' . $skillname
+                        . ': ' . get_class($e) . ': ' . $e->getMessage()
+                    );
+                }
+            }
         }
 
         $registryerrors = skill_contract_validator::validate_registry_contracts($this->skillcontracts);
@@ -237,39 +273,12 @@ class skill_registry {
     }
 
     /**
-     * Resolve provider-owned preview option memory helper for a skill.
+     * Return the preview type registry.
      *
-     * @param string $skillname
-     * @return preview_option_memory_interface|null
+     * @return preview_type_registry
      */
-    public function get_preview_option_memory_for_skill(string $skillname): ?preview_option_memory_interface {
-        $provider = $this->get_provider_for_skill($skillname);
-        if (!($provider instanceof preview_option_memory_provider_interface)) {
-            return null;
-        }
-
-        return $provider->get_preview_option_memory();
-    }
-
-    /**
-     * Return all provider-owned preview option memory helpers.
-     *
-     * @return array<int,preview_option_memory_interface>
-     */
-    public function get_preview_option_memory_helpers(): array {
-        $helpers = [];
-        foreach ($this->providers as $provider) {
-            if (!($provider instanceof preview_option_memory_provider_interface)) {
-                continue;
-            }
-
-            $helper = $provider->get_preview_option_memory();
-            if ($helper !== null) {
-                $helpers[] = $helper;
-            }
-        }
-
-        return $helpers;
+    public function get_preview_type_registry(): preview_type_registry {
+        return $this->previewtyperegistry;
     }
 
     /**

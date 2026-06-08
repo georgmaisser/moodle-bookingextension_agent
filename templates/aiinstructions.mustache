@@ -208,6 +208,6 @@
 
 {{#js}}
 require(['bookingextension_agent/aiinstructions'], function(AIInstructions) {
-    AIInstructions.init();
+    AIInstructions.init({{{registered_js_modules_json}}});
 });
 {{/js}}

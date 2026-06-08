@@ -74,10 +74,10 @@ $functions = [
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
-    'bookingextension_agent_ai_render_command_preview' => [
-        'classname'   => '\\bookingextension_agent\\external\\ai_render_command_preview',
+    'bookingextension_agent_ai_get_preview' => [
+        'classname'   => '\\bookingextension_agent\\external\\ai_get_preview',
         'methodname'  => 'execute',
-        'description' => 'Render preview HTML for AI mutation commands using booking option row rendering.',
+        'description' => 'Render visual previews for AI commands dynamically using registered preview types.',
         'type'        => 'read',
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
@@ -126,7 +126,7 @@ $services = [
             'bookingextension_agent_ai_discard_pending',
             'bookingextension_agent_ai_poll_thread',
             'bookingextension_agent_ai_get_thread_debug_logs',
-            'bookingextension_agent_ai_render_command_preview',
+            'bookingextension_agent_ai_get_preview',
             'bookingextension_agent_ai_get_doc_content',
             'bookingextension_agent_request_trial_key',
             'bookingextension_agent_activate_trial_context',

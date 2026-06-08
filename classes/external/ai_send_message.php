@@ -41,6 +41,7 @@ use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
+use bookingextension_agent\local\wbagent\services\preview_passthrough;
 use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
@@ -129,8 +130,7 @@ class ai_send_message extends external_api {
                 'threadid'              => 0,
                 'runid'                 => 0,
                 'resultsjson'           => '[]',
-                'previewoptionid'       => 0,
-                'previewoptionidsjson'  => '[]',
+                'previewjson'           => '',
             ];
         }
 
@@ -152,8 +152,7 @@ class ai_send_message extends external_api {
                 'threadid'              => 0,
                 'runid'                 => 0,
                 'resultsjson'           => '[]',
-                'previewoptionid'       => 0,
-                'previewoptionidsjson'  => '[]',
+                'previewjson'           => '',
             ];
         }
 
@@ -204,8 +203,7 @@ class ai_send_message extends external_api {
                 'threadid'              => 0,
                 'runid'                 => 0,
                 'resultsjson'           => '[]',
-                'previewoptionid'       => 0,
-                'previewoptionidsjson'  => '[]',
+                'previewjson'           => '',
             ];
         }
 
@@ -228,7 +226,7 @@ class ai_send_message extends external_api {
         }
         $threadid = (int)$thread->id;
         $anonymizer = new privacy_anonymizer($store);
-        $store->set_thread_metadata_value($threadid, '_confirm_preview_option_ids', []);
+        $store->set_thread_metadata_value($threadid, '_confirm_previews', []);
 
         // Privacy precheck before storing the user message.
         $precheck = $anonymizer->precheck_user_message($threadid, $message);
@@ -271,12 +269,6 @@ class ai_send_message extends external_api {
         $issuecodes = self::normalize_string_list($result['issue_codes'] ?? []);
         $errors = self::normalize_string_list($result['errors'] ?? []);
         $autoconfirmblocked = !empty($issuecodes) || !empty($errors);
-        $previewoptionid = self::resolve_preview_option_id_for_response(
-            $registry,
-            $cmid,
-            (int)$USER->id,
-            (array)($result['results'] ?? [])
-        );
         $responsequeueitemid = self::resolve_response_queue_item_id($store, $threadid);
         $responsecommands = self::resolve_response_commands($store, $threadid, $responsequeueitemid, $result);
         $phasetracejson = self::encode_phase_trace_for_response($result);
@@ -301,12 +293,9 @@ class ai_send_message extends external_api {
             'threadid'              => $threadid,
             'runid'                 => (int)($result['runid'] ?? 0),
             'resultsjson'           => json_encode($result['results'] ?? []),
-            'previewoptionid'       => $previewoptionid,
-            'previewoptionidsjson'  => self::resolve_preview_option_ids_json_for_response(
-                $registry,
-                $cmid,
-                (int)$USER->id,
-                (array)($result['results'] ?? [])
+            'previewjson'           => self::resolve_preview_json_for_response(
+                (array)($result['results'] ?? []),
+                $threadid
             ),
         ];
     }
@@ -401,98 +390,20 @@ class ai_send_message extends external_api {
     }
 
     /**
-     * Resolve all preview option ids for WS responses as a JSON-encoded array.
+     * Resolve the active preview descriptor for WS responses.
      *
      * @param skill_registry $registry
-     * @param int $cmid
-     * @param int $userid
-     * @param array $results
-     * @return string JSON-encoded int array
+     * @param array $results The executed skill results.
+     * @param int $threadid
+     * @param string $metadatakey
+     * @return string JSON-encoded preview descriptor or empty string.
      */
-    private static function resolve_preview_option_ids_json_for_response(
-        skill_registry $registry,
-        int $cmid,
-        int $userid,
-        array $results
+    private static function resolve_preview_json_for_response(
+        array $results,
+        int $threadid,
+        string $metadatakey = '_confirm_previews'
     ): string {
-        $ids = [];
-        foreach ($results as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $previewids = is_array($entry['previewoptionids'] ?? null) ? (array)$entry['previewoptionids'] : [];
-            foreach ($previewids as $id) {
-                $normalized = (int)$id;
-                if ($normalized > 0) {
-                    $ids[] = $normalized;
-                }
-            }
-            $resultid = (int)($entry['resultid'] ?? 0);
-            if ($resultid > 0 && !in_array($resultid, $ids, true)) {
-                $ids[] = $resultid;
-            }
-        }
-        if (empty($ids)) {
-            foreach ($registry->get_preview_option_memory_helpers() as $helper) {
-                $storedids = array_map(
-                    'intval',
-                    (array)$helper->resolve_last_preview_option_ids_for_execute($cmid, $userid)
-                );
-                foreach ($storedids as $storedid) {
-                    if ($storedid > 0) {
-                        $ids[] = $storedid;
-                    }
-                }
-            }
-        }
-        return json_encode(array_values(array_unique($ids)));
-    }
-
-    /**
-     * Resolve preview option id for WS responses.
-     *
-     * @param skill_registry $registry
-     * @param int $cmid
-     * @param int $userid
-     * @param array $results
-     * @return int
-     */
-    private static function resolve_preview_option_id_for_response(
-        skill_registry $registry,
-        int $cmid,
-        int $userid,
-        array $results
-    ): int {
-        foreach ($results as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $resultid = (int)($entry['resultid'] ?? 0);
-            if ($resultid > 0) {
-                return $resultid;
-            }
-
-            $previewids = is_array($entry['previewoptionids'] ?? null) ? (array)$entry['previewoptionids'] : [];
-            foreach ($previewids as $id) {
-                $optionid = (int)$id;
-                if ($optionid > 0) {
-                    return $optionid;
-                }
-            }
-        }
-
-        foreach ($registry->get_preview_option_memory_helpers() as $helper) {
-            $storedpreviewids = (array)$helper->resolve_last_preview_option_ids_for_execute($cmid, $userid);
-            foreach ($storedpreviewids as $id) {
-                $optionid = (int)$id;
-                if ($optionid > 0) {
-                    return $optionid;
-                }
-            }
-        }
-
-        return 0;
+        return preview_passthrough::resolve_preview_json($results, $threadid, $metadatakey);
     }
 
     /**
@@ -548,12 +459,11 @@ class ai_send_message extends external_api {
             'threadid'      => new external_value(PARAM_INT, 'Thread id.'),
             'runid'         => new external_value(PARAM_INT, 'Run id (0 if not yet created).'),
             'resultsjson'   => new external_value(PARAM_RAW, 'JSON-encoded execution results (if available).'),
-            'previewoptionid' => new external_value(PARAM_INT, 'Latest option id to preview directly, if available.'),
-            'previewoptionidsjson' => new external_value(
+            'previewjson' => new external_value(
                 PARAM_RAW,
-                'JSON-encoded array of all preview option ids.',
+                'JSON-encoded preview descriptor payload.',
                 VALUE_DEFAULT,
-                '[]'
+                ''
             ),
         ]);
     }

@@ -122,8 +122,7 @@ class ai_confirm_run extends external_api {
                 'issuecodesjson' => json_encode(['PERMISSION_ERROR']),
                 'errorsjson' => json_encode(['permission_denied']),
                 'queueitemid' => '',
-                'previewoptionid' => 0,
-                'previewoptionidsjson' => '[]',
+                'previewjson' => '',
             ];
         }
 
@@ -164,8 +163,7 @@ class ai_confirm_run extends external_api {
             'issuecodesjson' => json_encode((array)($payload['issue_codes'] ?? [])),
             'errorsjson' => json_encode((array)($payload['errors'] ?? [])),
             'queueitemid' => (string)($payload['queueitemid'] ?? ''),
-            'previewoptionid' => (int)($payload['previewoptionid'] ?? 0),
-            'previewoptionidsjson' => json_encode((array)($payload['previewoptionids'] ?? [])),
+            'previewjson' => (string)($payload['previewjson'] ?? ''),
         ];
     }
 
@@ -189,12 +187,11 @@ class ai_confirm_run extends external_api {
             'issuecodesjson' => new external_value(PARAM_RAW, 'JSON-encoded issue codes.'),
             'errorsjson' => new external_value(PARAM_RAW, 'JSON-encoded errors.'),
             'queueitemid' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id for the next confirmation step.'),
-            'previewoptionid' => new external_value(PARAM_INT, 'Latest option id to preview directly, if available.'),
-            'previewoptionidsjson' => new external_value(
+            'previewjson' => new external_value(
                 PARAM_RAW,
-                'JSON-encoded array of all preview option ids.',
+                'JSON-encoded preview descriptor payload.',
                 VALUE_DEFAULT,
-                '[]'
+                ''
             ),
         ]);
     }

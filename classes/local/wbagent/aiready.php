@@ -269,6 +269,14 @@ class aiready {
                 'numbooked' => $stats['num_booked'],
             ]);
 
+        $jsmodules = [];
+        try {
+            $registry = skill_registry_factory::get_default();
+            $jsmodules = $registry->get_preview_type_registry()->get_all_js_modules();
+        } catch (\Throwable $e) {
+            // Ignore.
+        }
+
         return [
             'cmid' => $this->cmid,
             'contextid' => (int)$context->id,
@@ -291,6 +299,7 @@ class aiready {
             'welcome_text' => $welcometext,
             'debug_mode' => $debugmode,
             'llm_debug_enabled' => $llmdebugenabled,
+            'registered_js_modules_json' => json_encode($jsmodules),
         ];
     }
 

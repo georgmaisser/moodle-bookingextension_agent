@@ -114,6 +114,37 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * The construction-phase catalog entry for the selected skill must carry that skill's full
+     * prompt-pack guidance unconditionally (no language-gated trigger filter). This is what makes
+     * situational rules — e.g. "for same-named options, call search_options first and use optionid"
+     * — reach the constructor regardless of the user's language.
+     */
+    public function test_construction_catalog_includes_skill_guidance_unconditionally(): void {
+        $registry = skill_registry_factory::get_default();
+        $store = new \bookingextension_agent\local\wbagent\conversation_store();
+        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $orchestrator = new \bookingextension_agent\local\wbagent\orchestrator($registry, $interpreter, $store);
+
+        $skill = $registry->get_skill('mod_booking.update_option');
+        if ($skill === null) {
+            $this->markTestSkipped('mod_booking.update_option not registered in default registry.');
+        }
+
+        $method = new \ReflectionMethod($orchestrator, 'enrich_construction_catalog_entry');
+        $method->setAccessible(true);
+        $entry = $method->invoke(
+            $orchestrator,
+            'mod_booking.update_option',
+            ['skill' => 'mod_booking.update_option']
+        );
+
+        $this->assertArrayHasKey('guidance', $entry, 'Construction entry must carry skill guidance.');
+        $guidancejoined = implode("\n", (array)$entry['guidance']);
+        $this->assertStringContainsString('search_options', $guidancejoined);
+        $this->assertStringContainsString('optionid', $guidancejoined);
+    }
+
+    /**
      * Test that skill schema includes prompt_meta when available.
      */
     public function test_skill_schema_includes_prompt_meta(): void {

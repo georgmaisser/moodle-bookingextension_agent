@@ -1371,7 +1371,49 @@ class orchestrator {
             $entry['example_parameters'] = $exampleparameters;
         }
 
+        // In the construction phase exactly one skill is in scope, so we surface ALL of its prompt-pack
+        // guidance unconditionally (no lexical trigger gate). This is the only place situational rules
+        // — e.g. "for several options with the same name, search first to obtain their IDs and use
+        // optionid" — actually reach the constructor. Without this, get_contextual_prompt_packs() only
+        // feeds the embeddings catalog and never the live planner prompt, and trigger-based gating made
+        // such guidance language-dependent (it silently vanished for non-English requests).
+        $guidance = $this->collect_skill_guidance_lines($skill);
+        if (!empty($guidance)) {
+            $entry['guidance'] = $guidance;
+        }
+
         return $entry;
+    }
+
+    /**
+     * Collect all contextual prompt-pack guidance lines declared by a skill, unconditionally.
+     *
+     * Trigger arrays on the packs are ignored on purpose: in the construction phase the skill is
+     * already chosen, so relevance filtering is unnecessary and the (lexical, language-specific)
+     * trigger gate would only drop useful guidance.
+     *
+     * @param object $skill
+     * @return array<int,string>
+     */
+    private function collect_skill_guidance_lines(object $skill): array {
+        if (!method_exists($skill, 'get_contextual_prompt_packs')) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ((array)$skill->get_contextual_prompt_packs() as $pack) {
+            if (!is_array($pack)) {
+                continue;
+            }
+            foreach ((array)($pack['guidance'] ?? []) as $line) {
+                $line = trim((string)$line);
+                if ($line !== '') {
+                    $lines[] = $line;
+                }
+            }
+        }
+
+        return array_values(array_unique($lines));
     }
 
     /**

@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface;
 
 /**
  * Skill definition for core.search_users.
@@ -26,7 +27,9 @@ use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_inter
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class search_users_skill extends core_skill_base implements skill_trigger_provider_interface {
+class search_users_skill extends core_skill_base implements
+    skill_trigger_provider_interface,
+    skill_preview_provider_interface {
     /** Skill name constant. */
     public const SKILL_NAME = 'core.search_users';
 
@@ -204,8 +207,6 @@ class search_users_skill extends core_skill_base implements skill_trigger_provid
                 'usermessage' => $usermessage,
                 'resultid' => null,
                 'users' => [],
-                'previewmode' => 'user_search',
-                'previewdata' => ['query' => $query, 'users' => []],
                 'observation_full' => 'Found 0 user(s).',
                 'debugmessage' => $debugbase . "\nResults: 0",
             ];
@@ -230,10 +231,7 @@ class search_users_skill extends core_skill_base implements skill_trigger_provid
             'resultid' => (int)($payloadusers[0]['userid'] ?? ($users[0]['userid'] ?? 0)),
             'users' => $payloadusers,
             'user' => $payloadusers[0] ?? [],
-            'previewmode' => 'user_search',
-            'previewdata' => ['query' => $query, 'users' => $payloadusers],
             'observation_full' => $this->build_user_observation_full($payloadusers),
-            'previewuserids' => $previewids,
             'debugmessage' => $debugbase . "\n" . implode("\n", $debugextra),
         ];
     }
@@ -300,5 +298,19 @@ class search_users_skill extends core_skill_base implements skill_trigger_provid
     private function build_query_retry_hint(): string {
         return 'Retry core.search_users once with input.query (or alias: userquery, user, username, email, name). '
             . 'Resend exactly one corrected skill_call for the same skill.';
+    }
+
+    /**
+     * Return the preview descriptor for this skill.
+     *
+     * @return array
+     */
+    public function get_preview_descriptor(): array {
+        return [
+            'type' => 'user_search',
+            'renderer' => null,
+            'js_module' => null,
+            'description' => 'Preview of the searched users.',
+        ];
     }
 }

@@ -22,9 +22,7 @@
  */
 
 import Ajax from 'core/ajax';
-import Fragment from 'core/fragment';
 import Notification from 'core/notification';
-import Templates from 'core/templates';
 
 /** Pending commands waiting for user confirmation. */
 let pendingCommands = null;
@@ -42,6 +40,8 @@ let defaultThinkingLabel = '';
 let forceNewThreadOnFirstMessage = true;
 let trialTokenInvalidMessageLabel = '';
 let bodyHandlersBound = false;
+const previewRenderers = {};
+const registeredJsModules = {};
 /** @type {HTMLElement|null} */
 let activePlanBubble = null;
 
@@ -65,17 +65,6 @@ const TRIAL_TOKEN_ISSUE_CODES = [
     'AI_PROVIDER_QUOTA_EXCEEDED',
 ];
 
-/**
- * Execute collected JavaScript returned by Moodle web service responses.
- *
- * @param {string} javascript
- */
-const runCollectedJavascript = (javascript) => {
-    const js = Fragment.processCollectedJavascript(String(javascript || ''));
-    if (js && js.trim() !== '') {
-        Templates.runTemplateJS(js);
-    }
-};
 
 /** @type {Array<string>} */
 const READ_ONLY_SKILLS = [
@@ -605,6 +594,131 @@ const setSidePreviewHtml = (html) => {
     preview.innerHTML = String(html || '');
 };
 
+export const registerPreviewRenderer = (type, renderFn) => {
+    previewRenderers[type] = renderFn;
+};
+
+// Register core client-side renderers
+registerPreviewRenderer('user_profile', async (payload) => {
+    const fullname = escapeHtml(String(payload.fullname || '-'));
+    const email = escapeHtml(String(payload.email || '-'));
+    const userid = Number(payload.userid || 0);
+    const userIdText = userid > 0 ? String(userid) : '-';
+
+    return '<div class="booking-ai-run-status-inline card mb-0">'
+        + '<div class="card-body p-3">'
+        + '<h6 class="mb-2">User profile</h6>'
+        + `<div><strong>Name:</strong> ${fullname}</div>`
+        + `<div><strong>E-Mail:</strong> ${email}</div>`
+        + `<div><strong>User ID:</strong> ${escapeHtml(userIdText)}</div>`
+        + '</div></div>';
+});
+
+registerPreviewRenderer('user_search', async (payload) => {
+    const users = Array.isArray(payload.users) ? payload.users : [];
+    if (users.length === 0) {
+        return '<div class="p-3 text-muted small">No users found.</div>';
+    }
+
+    let rows = users.map((user) => {
+        const fullname = escapeHtml(String(user.fullname || '-'));
+        const email = escapeHtml(String(user.email || '-'));
+        const userid = Number(user.userid || 0);
+        return `<tr>
+            <td>${fullname}</td>
+            <td>${email}</td>
+            <td>${userid > 0 ? userid : '-'}</td>
+        </tr>`;
+    }).join('');
+
+    return '<div class="booking-ai-run-status-inline card mb-0">'
+        + '<div class="card-body p-3">'
+        + '<h6 class="mb-2">User search results</h6>'
+        + '<table class="table table-sm mb-0">'
+        + '<thead><tr><th>Name</th><th>E-Mail</th><th>User ID</th></tr></thead>'
+        + `<tbody>${rows}</tbody>`
+        + '</table>'
+        + '</div></div>';
+});
+
+registerPreviewRenderer('command_list', async (payload) => {
+    const commands = Array.isArray(payload.commands) ? payload.commands : [];
+    if (commands.length === 0) {
+        return '';
+    }
+
+    let items = commands.map((cmd) => {
+        const skill = escapeHtml(cmd.skill || '');
+        const inputDesc = escapeHtml(JSON.stringify(cmd.input || {}));
+        return `<li><strong>Skill:</strong> ${skill}<br/><small class="text-muted">${inputDesc}</small></li>`;
+    }).join('');
+
+    return '<div class="booking-ai-run-status-inline card mb-0">'
+        + '<div class="card-body p-3">'
+        + '<h6 class="mb-2">Proposed Actions</h6>'
+        + `<ul class="mb-0 pl-3">${items}</ul>`
+        + '</div></div>';
+});
+
+export const dispatchSkillPreview = async (previewDescriptor, contextid) => {
+    const type = String((previewDescriptor && previewDescriptor.type) || '').trim();
+    if (!type) {
+        return;
+    }
+
+    // 1. Direct HTML from server
+    if (previewDescriptor.html !== undefined) {
+        setSidePreviewHtml(previewDescriptor.html);
+        return;
+    }
+
+    // 2. Client-side handler already loaded
+    const renderer = previewRenderers[type];
+    if (renderer) {
+        try {
+            const html = await renderer(previewDescriptor.payload, contextid);
+            if (html) {
+                setSidePreviewHtml(html);
+            }
+        } catch (e) {
+            setSidePreviewHtml(`<div class="text-danger small">Error: ${escapeHtml(e.message)}</div>`);
+        }
+        return;
+    }
+
+    // 3. Lazy-load JS AMD module if declared
+    const jsModule = registeredJsModules[type];
+    if (jsModule) {
+        return new Promise((resolve, reject) => {
+            require([jsModule], () => {
+                const loadedRenderer = previewRenderers[type];
+                if (loadedRenderer) {
+                    loadedRenderer(previewDescriptor.payload, contextid).then(resolve).catch(reject);
+                } else {
+                    resolve();
+                }
+            }, reject);
+        });
+    }
+
+    // 4. Fallback to generic server-side rendering Webservice
+    try {
+        const resp = await Ajax.call([{
+            methodname: 'bookingextension_agent_ai_get_preview',
+            args: {
+                contextid,
+                type,
+                payload_json: JSON.stringify(previewDescriptor.payload || {}),
+            }
+        }])[0];
+        if (resp && resp.success && resp.html) {
+            setSidePreviewHtml(resp.html);
+        }
+    } catch (err) {
+        setSidePreviewHtml(`<div class="text-danger small">Error loading preview: ${escapeHtml(err.message || '')}</div>`);
+    }
+};
+
 /**
  * Initialize drag-to-resize behavior for chat and preview panes on desktop.
  */
@@ -880,9 +994,9 @@ const getDocLinkMeta = (href) => {
     const queryIndex = withoutHash.indexOf('?');
     const withoutQuery = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
 
-    if (/^\/mod\/booking\/docs\//i.test(withoutQuery)) {
-        const docpath = withoutQuery.replace(/^\/mod\/booking\/docs\//i, '').trim();
-        return {docpath, fragment};
+    const match = withoutQuery.match(/^\/(?:public\/)?mod\/[a-z0-9_]+\/docs\/(.+)$/i);
+    if (match) {
+        return {docpath: match[1].trim(), fragment: fragment};
     }
 
     if (/\.md$/i.test(withoutQuery) && !/^\//.test(withoutQuery)) {
@@ -992,23 +1106,7 @@ const renderAssistantMessageHtml = (content) => {
  * @param {Array} results
  * @returns {{path:string, url:string}} — both may be empty strings when no doc is found.
  */
-const extractFirstDoc = (results) => {
-    const safeResults = Array.isArray(results) ? results : [];
-    for (const result of safeResults) {
-        if (!result || typeof result !== 'object') {
-            continue;
-        }
-        const docs = Array.isArray(result.docs) ? result.docs : [];
-        for (const doc of docs) {
-            const url  = String((doc && doc.url)  || '').trim();
-            const path = String((doc && doc.path) || '').trim();
-            if (url !== '' || path !== '') {
-                return {path, url};
-            }
-        }
-    }
-    return {path: '', url: ''};
-};
+
 
 /**
  * Extract the first absolute URL from text.
@@ -1392,34 +1490,25 @@ const showConfirmPanel = (message, commands) => {
         ? `<div class="booking-ai-confirm-message mb-2">${messageHtml}</div>`
         : '';
 
-    if (debugModeEnabled) {
-        let previewHtml = `${preview.innerHTML}<ul>`;
-        commands.forEach((cmd) => {
-            previewHtml += `<li><strong>${escapeHtml(cmd.skill)}</strong>: ${escapeHtml(JSON.stringify(cmd.input))}`;
-            previewHtml += '</li>';
-        });
-        previewHtml += '</ul>';
-        preview.innerHTML = previewHtml;
-        setSidePreviewHtml(previewHtml);
-    }
-
-    Ajax.call([{
-        methodname: 'bookingextension_agent_ai_render_command_preview',
-        args: {
-            contextid: currentContextId,
-            commands: JSON.stringify(commands),
-        },
-    }])[0].then((resp) => {
-        if (resp && resp.success && resp.html && resp.html.trim() !== '') {
-            setSidePreviewHtml(resp.html);
-            runCollectedJavascript(resp.javascript);
-        } else if (resp && resp.message) {
-            setSidePreviewHtml(`<div class="text-muted small">${escapeHtml(String(resp.message))}</div>`);
+    // Dispatch the proposed commands preview.
+    const optionIds = [];
+    (commands || []).forEach((cmd) => {
+        if (cmd.skill && (cmd.skill.startsWith('mod_booking.') || cmd.skill.startsWith('booking.'))) {
+            const input = cmd.input || {};
+            if (input.optionid) {
+                optionIds.push(Number(input.optionid));
+            }
+            if (input.resolvedoptionid) {
+                optionIds.push(Number(input.resolvedoptionid));
+            }
         }
-        return resp;
-    }).catch((err) => {
-        setSidePreviewHtml(`<div class="text-danger small">${escapeHtml(String(err.message || ''))}</div>`);
     });
+
+    if (optionIds.length > 0) {
+        dispatchSkillPreview({type: 'booking_option', payload: {optionids: optionIds}}, currentContextId);
+    } else {
+        dispatchSkillPreview({type: 'command_list', payload: {commands}}, currentContextId);
+    }
 
     panel.classList.remove('d-none');
 };
@@ -1431,29 +1520,7 @@ const showConfirmPanel = (message, commands) => {
  * @param {Array<number>} optionIds
  * @returns {Promise<void>}
  */
-const renderOptionPreviewsInline = (contextid, optionIds) => {
-    const uniqueIds = [...new Set((optionIds || []).map((id) => Number(id || 0)).filter((id) => id > 0))].slice(0, 100);
 
-    if (uniqueIds.length === 0) {
-        return Promise.resolve();
-    }
-
-    return Ajax.call([{
-        methodname: 'bookingextension_agent_ai_render_command_preview',
-        args: {
-            contextid,
-            optionids: JSON.stringify(uniqueIds),
-        },
-    }])[0].then((resp) => {
-        if (resp && resp.success && resp.html && resp.html.trim() !== '') {
-            setSidePreviewHtml(resp.html);
-            runCollectedJavascript(resp.javascript);
-        }
-        return resp;
-    }).catch((err) => {
-        Notification.exception(err);
-    });
-};
 
 /**
  * Build skill-authored side preview HTML when provided by results.
@@ -1461,53 +1528,7 @@ const renderOptionPreviewsInline = (contextid, optionIds) => {
  * @param {Array} results
  * @returns {string}
  */
-const buildSkillPreviewHtml = (results = []) => {
-    const entries = Array.isArray(results) ? results : [];
-    if (entries.length === 0) {
-        return '';
-    }
 
-    // Preferred path: skill explicitly requests a user-profile preview.
-    for (const result of entries) {
-        const previewMode = String((result && result.previewmode) || '').trim();
-        if (previewMode === 'user_profile') {
-            const payload = (result && typeof result.previewdata === 'object' && result.previewdata)
-                ? result.previewdata
-                : result;
-            const fullname = escapeHtml(String((payload && payload.fullname) || result.fullname || '-'));
-            const email = escapeHtml(String((payload && payload.email) || result.email || '-'));
-            const userid = Number((payload && payload.userid) || result.userid || 0);
-            const userIdText = userid > 0 ? String(userid) : '-';
-
-            return '<div class="booking-ai-run-status-inline card mb-0">'
-                + '<div class="card-body p-3">'
-                + '<h6 class="mb-2">User profile</h6>'
-                + `<div><strong>Name:</strong> ${fullname}</div>`
-                + `<div><strong>E-Mail:</strong> ${email}</div>`
-                + `<div><strong>User ID:</strong> ${escapeHtml(userIdText)}</div>`
-                + '</div></div>';
-        }
-    }
-
-    // Backward-compatible fallback: infer user-profile preview from result fields.
-    const userResult = entries.find((result) => Number((result && result.userid) || 0) > 0);
-    if (!userResult) {
-        return '';
-    }
-
-    const fullname = escapeHtml(String(userResult.fullname || '-'));
-    const email = escapeHtml(String(userResult.email || '-'));
-    const userid = Number(userResult.userid || 0);
-    const userIdText = userid > 0 ? String(userid) : '-';
-
-    return '<div class="booking-ai-run-status-inline card mb-0">'
-        + '<div class="card-body p-3">'
-        + '<h6 class="mb-2">User profile</h6>'
-        + `<div><strong>Name:</strong> ${fullname}</div>`
-        + `<div><strong>E-Mail:</strong> ${email}</div>`
-        + `<div><strong>User ID:</strong> ${escapeHtml(userIdText)}</div>`
-        + '</div></div>';
-};
 
 /**
  * Hide the confirmation panel.
@@ -1576,11 +1597,7 @@ const showRunStatus = (status, message, results = []) => {
         });
     }
 
-    const skillPreviewHtml = buildSkillPreviewHtml(results);
-    if (skillPreviewHtml && (status === 'completed' || status === 'failed')) {
-        setSidePreviewHtml(skillPreviewHtml);
-        return;
-    }
+
 
     if (friendlyMessage && (status === 'completed' || status === 'failed')) {
         setSidePreviewHtml(
@@ -1658,64 +1675,7 @@ const showRunStatus = (status, message, results = []) => {
  * @param {Array} results
  * @returns {Array<number>}
  */
-const extractPreviewOptionIds = (results) => {
-    const ids = [];
-    (Array.isArray(results) ? results : []).forEach((result) => {
-        const isUserCentricResult = Number(result.userid || 0) > 0;
-        const singleId = Number(result.resultid || 0);
-        if (!isUserCentricResult && singleId > 0) {
-            ids.push(singleId);
-        }
 
-        const many = Array.isArray(result.previewoptionids) ? result.previewoptionids : [];
-        many.forEach((id) => {
-            const normalized = Number(id || 0);
-            if (normalized > 0) {
-                ids.push(normalized);
-            }
-        });
-    });
-
-    return [...new Set(ids)];
-};
-
-/**
- * Collect all preview option ids from a WS response.
- *
- * Prefers the dedicated previewoptionidsjson field (populated server-side from
- * the full skill result), then merges with extractPreviewOptionIds(results) as
- * a fallback, and finally falls back to the scalar previewoptionid.
- *
- * @param {Object} resp     WS response object.
- * @param {Array}  results  Parsed resultsjson array (may be empty).
- * @returns {Array<number>}
- */
-const collectPreviewOptionIds = (resp, results = []) => {
-    const ids = [];
-    try {
-        const fromJson = JSON.parse(String(resp.previewoptionidsjson || '[]'));
-        if (Array.isArray(fromJson)) {
-            fromJson.forEach((id) => {
-                const n = Number(id || 0);
-                if (n > 0) {
-                    ids.push(n);
-                }
-            });
-        }
-    } catch (e) {
-        // Ignore parse errors — fall through to other sources.
-    }
-    extractPreviewOptionIds(results).forEach((id) => {
-        if (!ids.includes(id)) {
-            ids.push(id);
-        }
-    });
-    const scalar = Number(resp.previewoptionid || 0);
-    if (scalar > 0 && !ids.includes(scalar)) {
-        ids.push(scalar);
-    }
-    return ids;
-};
 
 /**
  * Append an ephemeral step-progress bubble to the message list.
@@ -2179,9 +2139,15 @@ const sendMessage = (message) => {
 
         // Trigger option preview for all non-command response types.
         // previewoptionidsjson carries the full id list; falls back to scalar + results.
-        const earlyPreviewIds = collectPreviewOptionIds(resp, []);
-        if (earlyPreviewIds.length > 0) {
-            renderOptionPreviewsInline(currentContextId, earlyPreviewIds);
+        if (resp.previewjson) {
+            try {
+                const desc = JSON.parse(resp.previewjson);
+                if (desc) {
+                    dispatchSkillPreview(desc, currentContextId);
+                }
+            } catch (e) {
+                // Ignore.
+            }
         }
 
         if (resp.response_type === 'clarification' || resp.response_type === 'sufficient' || resp.response_type === 'error') {
@@ -2298,11 +2264,7 @@ const sendMessage = (message) => {
                 });
             }
 
-            // Auto-load the first doc from explain_docs_topic results into the side preview.
-            const firstDoc = extractFirstDoc(results);
-            if (firstDoc.path !== '' || firstDoc.url !== '') {
-                loadDocInPreview(firstDoc.path, firstDoc.url);
-            }
+
         } else if (resp.response_type === 'execution_result') {
             appendAssistantPrivacyNote(resp, 'ai_send_message');
             let results = [];
@@ -2418,9 +2380,15 @@ const confirmRun = (allowSession = false) => {
                 stopBtn.classList.add('d-none');
             }
 
-            const confirmPreviewIds = collectPreviewOptionIds(resp, []);
-            if (confirmPreviewIds.length > 0) {
-                renderOptionPreviewsInline(currentContextId, confirmPreviewIds);
+            if (resp.previewjson) {
+                try {
+                    const desc = JSON.parse(resp.previewjson);
+                    if (desc) {
+                        dispatchSkillPreview(desc, currentContextId);
+                    }
+                } catch (e) {
+                    // Ignore.
+                }
             }
             handleConfirmationResponse(resp, 'ai_confirm_run');
         } else {
@@ -2903,10 +2871,19 @@ const initCentralBodyHandlers = () => {
 /**
  * Initialise the AI instructions interface.
  *
- * @param {Object|null} config Template data from DOM or explicit config.
+ * @param {Object} jsModulesOrConfig Registered JS modules map or main configuration object.
+ * @param {Object|null} config Main configuration object if JS modules map is provided first.
  */
-export const init = (config = null) => {
+export const init = (jsModulesOrConfig = {}, config = null) => {
     let runtimeConfig = config;
+    let jsModules = jsModulesOrConfig;
+
+    if (jsModulesOrConfig && jsModulesOrConfig.contextid !== undefined) {
+        runtimeConfig = jsModulesOrConfig;
+        jsModules = {};
+    }
+
+    Object.assign(registeredJsModules, jsModules || {});
 
     if (!runtimeConfig) {
         const wrapper = document.getElementById('booking-ai-wrapper');

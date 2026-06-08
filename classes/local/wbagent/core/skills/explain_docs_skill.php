@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_preview_provider_interface;
 use bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service;
 use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readiness_service;
 
@@ -39,7 +40,9 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readine
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class explain_docs_skill extends core_skill_base implements skill_trigger_provider_interface {
+class explain_docs_skill extends core_skill_base implements
+    skill_trigger_provider_interface,
+    skill_preview_provider_interface {
     /** Skill name constant. */
     public const SKILL_NAME = 'core.explain_docs';
 
@@ -498,5 +501,19 @@ class explain_docs_skill extends core_skill_base implements skill_trigger_provid
             $docsroot !== '' ? $docsroot : null,
             $docsentry
         );
+    }
+
+    /**
+     * Return the preview descriptor for this skill.
+     *
+     * @return array
+     */
+    public function get_preview_descriptor(): array {
+        return [
+            'type' => 'doc_markdown',
+            'renderer' => '\\bookingextension_agent\\local\\wbagent\\doc_markdown_preview_renderer',
+            'js_module' => null,
+            'description' => 'Preview of the documentation file.',
+        ];
     }
 }

@@ -298,11 +298,13 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         );
 
         $this->assertTrue((bool)($result2['success'] ?? false), 'Second queued mutation should execute successfully.');
-        $previewids = json_decode((string)($result2['previewoptionidsjson'] ?? '[]'), true);
-        $this->assertIsArray($previewids);
+        $previewdesc = json_decode((string)($result2['previewjson'] ?? '{}'), true);
+        $this->assertIsArray($previewdesc);
+        $this->assertEquals('booking_option', $previewdesc['type'] ?? '');
+        $optionids = $previewdesc['payload']['optionids'] ?? [];
         $this->assertCount(
             2,
-            array_values(array_unique(array_map('intval', $previewids))),
+            array_values(array_unique(array_map('intval', $optionids))),
             'Preview ids should aggregate all created options across the confirm chain.'
         );
     }

@@ -255,27 +255,27 @@ getDocLinkMeta = href => {
 
 ---
 
-## 5. Effort Estimate & Tasks
+## 5. Tasks & Implementation Status
 
-### Task 1: Code Removal & Deprecation (~1.5 days)
-- Delete `preview_policy.php`, `ai_render_command_preview.php`, `confirm_preview_option_service.php` and the memory interfaces.
-- Remove deprecated WS parameters `previewoptionid` and `previewoptionidsjson` from all webservice registration files.
-- Purge obsolete preview JS helper functions from `aiinstructions.js`.
+- [x] **Task 1: Code Removal & Deprecation**
+  - [x] Delete `preview_policy.php`, `ai_render_command_preview.php`, `confirm_preview_option_service.php` and the memory interfaces.
+  - [x] Remove deprecated WS parameters `previewoptionid` and `previewoptionidsjson` from all webservice registration files.
+  - [x] Purge obsolete preview JS helper functions from `aiinstructions.js`.
 
-### Task 2: Framework Interfaces & Registry (~2 days)
-- Implement `skill_preview_provider_interface` and `skill_preview_renderer_interface`.
-- Implement `preview_type_registry` and hook it into `skill_discovery`.
-- Implement the generic thread metadata preview accumulation logic.
+- [x] **Task 2: Framework Interfaces & Registry**
+  - [x] Implement `skill_preview_provider_interface` and `skill_preview_renderer_interface`.
+  - [x] Implement `preview_type_registry` and hook it into `skill_discovery`.
+  - [x] Implement the generic thread metadata preview accumulation logic.
 
-### Task 3: Generic Webservice & JS Client (~2.5 days)
-- Create the generic `ai_get_preview` external service.
-- Implement the JS dynamic dispatcher `dispatchSkillPreview` with lazy AMD module loading.
-- Implement the generic `getDocLinkMeta` regex parser.
+- [x] **Task 3: Generic Webservice & JS Client**
+  - [x] Create the generic `ai_get_preview` external service.
+  - [x] Implement the JS dynamic dispatcher `dispatchSkillPreview` with lazy AMD module loading.
+  - [x] Implement the generic `getDocLinkMeta` regex parser.
 
-### Task 4: Typspezifische Renderer & Test-Update (~2 days)
-- Implement `booking_option_preview_renderer` (extracted from the old code).
-- Implement client-side renderers for `user_profile`, `user_search` and `command_list`.
-- Implement `doc_markdown_preview_renderer`.
-- Clean up and rewrite unit tests to conform to the new schemas.
-
-**Total Estimated Effort:** **~8 working days**
+- [x] **Task 4: Typspezifische Renderer & Test-Update**
+  - [x] Implement `booking_option_preview_renderer` (extracted from the old code).
+  - [x] Implement client-side renderers for `user_profile`, `user_search` and `command_list`.
+  - [x] Implement `doc_markdown_preview_renderer`.
+  - [x] Clean up and rewrite unit tests to conform to the new schemas (updated and verified).
+  - [x] Fix ESLint and Grunt compilation errors on `aiinstructions.js`.
+  - [x] Align `search_users_skill.php` to set `js_module` to `null` to use inline rendering.

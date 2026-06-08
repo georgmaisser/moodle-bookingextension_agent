@@ -14,20 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\interfaces;
-
 /**
- * Optional provider capability for preview option id memory support.
+ * Skill preview renderer interface.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-interface preview_option_memory_provider_interface {
+
+namespace bookingextension_agent\local\wbagent\interfaces;
+
+/**
+ * Interface implemented by server-side preview renderer classes.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+interface skill_preview_renderer_interface {
     /**
-     * Return provider-owned preview option memory helper.
+     * Render preview HTML for a specific payload.
      *
-     * @return preview_option_memory_interface|null
+     * @param array $payload      The preview payload (either execution result or proposed commands).
+     * @param int   $contextid    Moodle context id.
+     * @param int   $userid       Current user id.
+     * @return string             Rendered HTML.
      */
-    public function get_preview_option_memory(): ?preview_option_memory_interface;
+    public function render(array $payload, int $contextid, int $userid): string;
 }
