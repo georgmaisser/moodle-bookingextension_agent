@@ -94,7 +94,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
             $table->add_field('model_id', XMLDB_TYPE_CHAR, '80', null, null, null, null);
             $table->add_field('model_version', XMLDB_TYPE_CHAR, '40', null, null, null, null);
             $table->add_field('prompt_profile', XMLDB_TYPE_CHAR, '80', null, null, null, null);
-            $table->add_field('task_set', XMLDB_TYPE_CHAR, '80', null, null, null, null);
+            $table->add_field('skill_set', XMLDB_TYPE_CHAR, '80', null, null, null, null);
             $table->add_field('total_scenarios', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('passed', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('failed', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -126,8 +126,8 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
             $table->add_field('passed', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('response_type_expected', XMLDB_TYPE_CHAR, '40', null, null, null, null);
             $table->add_field('response_type_actual', XMLDB_TYPE_CHAR, '40', null, null, null, null);
-            $table->add_field('task_expected', XMLDB_TYPE_CHAR, '120', null, null, null, null);
-            $table->add_field('task_selected', XMLDB_TYPE_CHAR, '120', null, null, null, null);
+            $table->add_field('skill_expected', XMLDB_TYPE_CHAR, '120', null, null, null, null);
+            $table->add_field('skill_selected', XMLDB_TYPE_CHAR, '120', null, null, null, null);
             $table->add_field('json_valid', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('contract_compliant', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('planned_steps_present', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');

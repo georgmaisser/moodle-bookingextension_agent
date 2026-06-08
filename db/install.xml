@@ -95,7 +95,7 @@
         <FIELD NAME="model_id" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="model_version" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="prompt_profile" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="task_set" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="skill_set" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="total_scenarios" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="passed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="failed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -129,8 +129,8 @@
         <FIELD NAME="passed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="response_type_expected" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="response_type_actual" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="task_expected" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="task_selected" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="skill_expected" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="skill_selected" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="json_valid" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="contract_compliant" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="planned_steps_present" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
