@@ -74,14 +74,6 @@ $functions = [
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
-    'bookingextension_agent_ai_list_candidate_options' => [
-        'classname'   => '\\bookingextension_agent\\external\\ai_list_candidate_options',
-        'methodname'  => 'execute',
-        'description' => 'Return a list of booking options for AI disambiguation.',
-        'type'        => 'read',
-        'capabilities' => 'bookingextension/agent:useaiinstructions',
-        'ajax'        => 1,
-    ],
     'bookingextension_agent_ai_render_command_preview' => [
         'classname'   => '\\bookingextension_agent\\external\\ai_render_command_preview',
         'methodname'  => 'execute',
@@ -125,7 +117,6 @@ $services = [
             'bookingextension_agent_ai_discard_pending',
             'bookingextension_agent_ai_poll_thread',
             'bookingextension_agent_ai_get_thread_debug_logs',
-            'bookingextension_agent_ai_list_candidate_options',
             'bookingextension_agent_ai_render_command_preview',
             'bookingextension_agent_ai_get_doc_content',
             'bookingextension_agent_request_trial_key',

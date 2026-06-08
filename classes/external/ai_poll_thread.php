@@ -51,8 +51,9 @@ class ai_poll_thread extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'contextid'     => new external_value(PARAM_INT, 'Module context id.'),
-            'threadid' => new external_value(PARAM_INT, 'Thread id (0 = auto-resolve for current user).'),
+            'contextid'  => new external_value(PARAM_INT, 'Module context id.'),
+            'threadid'   => new external_value(PARAM_INT, 'Thread id (0 = auto-resolve for current user).'),
+            'lastseenid' => new external_value(PARAM_INT, 'Only fetch step messages newer than this ID.', VALUE_DEFAULT, 0),
         ]);
     }
 
@@ -61,12 +62,17 @@ class ai_poll_thread extends external_api {
      *
      * @param int $contextid
      * @param int $threadid
+     * @param int $lastseenid
      * @return array
      */
-    public static function execute(int $contextid, int $threadid): array {
+    public static function execute(int $contextid, int $threadid, int $lastseenid = 0): array {
         global $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['contextid' => $contextid, 'threadid' => $threadid]);
+        $params = self::validate_parameters(self::execute_parameters(), [
+            'contextid'  => $contextid, 
+            'threadid'   => $threadid,
+            'lastseenid' => $lastseenid,
+        ]);
 
         $authz = new authorization_service();
         try {
@@ -92,20 +98,16 @@ class ai_poll_thread extends external_api {
             $tid    = $thread->id;
         }
 
-        $messages = $store->get_messages($tid);
+        // Only fetch step messages since last seen, drastically reducing payload size.
+        $messages = $store->get_step_messages_since($tid, $params['lastseenid']);
         $result   = [];
 
         foreach ($messages as $msg) {
-            $content = (string)($msg->content ?? '');
-            if ((string)($msg->role ?? '') === 'assistant') {
-                $content = ws_message_formatter::format_ws_message($content, $context);
-            }
-
             $result[] = [
                 'id'             => (int)$msg->id,
                 'role'           => $msg->role,
-                'content'        => $content,
-                'structuredjson' => $msg->structuredjson ?? '',
+                'content'        => (string)($msg->content ?? ''),
+                'structuredjson' => '', // Omitted to save bandwidth.
                 'timecreated'    => (int)$msg->timecreated,
             ];
         }

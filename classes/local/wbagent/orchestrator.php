@@ -357,6 +357,19 @@ class orchestrator {
             $manager
         );
 
+        $intent = trim((string)($selectionstate['next_step_intent'] ?? ''));
+        if ($intent === '') {
+            $selectedskill = trim((string)($selectionstate['selected_skill'] ?? ''));
+            if ($selectedskill !== '') {
+                $intent = 'Executing ' . $selectedskill;
+            }
+        }
+
+        if ($intent !== '') {
+            $stepnum = ($agentstate !== null) ? ($agentstate->step_count() + 1) : 1;
+            $this->store->add_step_message($threadid, $stepnum, $intent);
+        }
+
         $selectionresponsetype = trim((string)($selectionstate['response_type'] ?? ''));
         if ($selectionresponsetype !== 'skill_call') {
             $constructionstate = [

@@ -1294,12 +1294,7 @@ const handleFinalAgentResponse = (resp, source, responseType, messageText) => {
         // Keep empty results on parse errors.
     }
 
-    const hasResults = Array.isArray(results) && results.length > 0;
-    const shouldPreferRunStatus = source === 'ai_confirm_run'
-        && hasResults
-        && isGenericStatusMessage(messageText);
-
-    if (responseType === 'execution_result' || shouldPreferRunStatus) {
+    if (responseType === 'execution_result') {
         const runStatus = responseType === 'error' ? 'failed' : 'completed';
         showRunStatus(runStatus, messageText || responseType, results);
         return;
@@ -1734,6 +1729,16 @@ const appendStepBubble = (label, msgId) => {
         return;
     }
 
+    // Mark previous steps as done by changing the spinner to a checkmark.
+    activeStepBubbles.forEach((el) => {
+        const spinner = el.querySelector('.booking-ai-step-spinner');
+        if (spinner) {
+            spinner.className = 'booking-ai-step-done';
+            spinner.innerHTML = '✓';
+            spinner.removeAttribute('aria-hidden');
+        }
+    });
+
     const div = document.createElement('div');
     div.classList.add('booking-ai-msg', 'booking-ai-msg-step');
     div.dataset.stepMsgId = String(msgId);
@@ -1775,8 +1780,12 @@ const startStepPolling = (threadid, contextid) => {
     stepPollInterval = setInterval(() => {
         Ajax.call([{
             methodname: 'bookingextension_agent_ai_poll_thread',
-            args: {contextid, threadid},
+            args: {contextid, threadid, lastseenid: lastSeenStepId},
         }])[0].then((resp) => {
+            if (stepPollInterval === null) {
+                // Polling was stopped while this request was in-flight. Discard results.
+                return resp;
+            }
             const messages = Array.isArray(resp.messages) ? resp.messages : [];
             messages.forEach((msg) => {
                 if (String(msg.role || '') !== 'step') {
@@ -1888,14 +1897,7 @@ const stopStepPolling = () => {
     }
 };
 
-/**
- * Resume step polling for the active thread if a thread is available.
- */
-const resumeStepPolling = () => {
-    if (currentThreadId > 0 && currentContextId > 0) {
-        startStepPolling(currentThreadId, currentContextId);
-    }
-};
+
 
 /**
  * Send a message to the AI agent.
@@ -2156,7 +2158,7 @@ const sendMessage = (message) => {
             }
             showRunStatus(resp.status || 'completed', resp.displaymessage || resp.message || '', results);
 
-            resumeStepPolling();
+            startStepPolling(currentThreadId, currentContextId);
         } else if (resp.response_type === 'confirmation_request' || resp.response_type === 'skill_call') {
             try {
                 handleConfirmationResponse(resp, 'ai_send_message');
@@ -2217,6 +2219,17 @@ const confirmRun = (allowSession = false) => {
     clearStepBubbles();
     appendStepBubble(stepExecutingLabel, 0);
 
+    const thinking = document.getElementById('booking-ai-thinking');
+    const stopBtn  = document.getElementById('booking-ai-btn-stop');
+    if (thinking) {
+        updateThinkingLabel(stepExecutingLabel);
+        thinking.classList.remove('d-none');
+    }
+    if (stopBtn) {
+        stopBtn.classList.remove('d-none');
+    }
+    startStepPolling(currentThreadId, currentContextId);
+
     const effectiveAllowSession = Boolean(allowSession || sessionAutoConfirmEnabled);
     if (effectiveAllowSession) {
         sessionAutoConfirmEnabled = true;
@@ -2236,16 +2249,20 @@ const confirmRun = (allowSession = false) => {
         // may set a fresh pendingCommands inside handleConfirmationResponse().
         pendingCommands = null;
         if (resp.success) {
-            const responseType = String(resp.response_type || '');
             // Steps are ephemeral loading indicators. Clear them and stop polling when response arrives.
             stopStepPolling();
             clearStepBubbles();
-            // After confirmation, resume polling only if agent loop continues (execution_result, skill_call).
-            // For final responses (sufficient, error) or clarification, polling already stopped above.
-            if (responseType === 'execution_result' || responseType === 'skill_call') {
-                appendStepBubble(stepExecutingLabel, 0);
-                resumeStepPolling();
+
+            const thinking = document.getElementById('booking-ai-thinking');
+            const stopBtn  = document.getElementById('booking-ai-btn-stop');
+            if (thinking) {
+                thinking.classList.add('d-none');
+                updateThinkingLabel(defaultThinkingLabel);
             }
+            if (stopBtn) {
+                stopBtn.classList.add('d-none');
+            }
+
             const confirmPreviewIds = collectPreviewOptionIds(resp, []);
             if (confirmPreviewIds.length > 0) {
                 renderOptionPreviewsInline(currentContextId, confirmPreviewIds);
@@ -2257,6 +2274,19 @@ const confirmRun = (allowSession = false) => {
         }
         return resp;
     }).catch((err) => {
+        stopStepPolling();
+        clearStepBubbles();
+
+        const thinking = document.getElementById('booking-ai-thinking');
+        const stopBtn  = document.getElementById('booking-ai-btn-stop');
+        if (thinking) {
+            thinking.classList.add('d-none');
+            updateThinkingLabel(defaultThinkingLabel);
+        }
+        if (stopBtn) {
+            stopBtn.classList.add('d-none');
+        }
+
         Notification.exception(err);
     });
 };
