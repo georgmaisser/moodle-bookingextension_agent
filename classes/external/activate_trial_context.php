@@ -37,7 +37,7 @@ use bookingextension_agent\local\wbagent\services\security\authorization_service
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Activate trial context by enabling AI at course and module level.
@@ -91,7 +91,7 @@ class activate_trial_context extends external_api {
             ];
         }
 
-        $registry = task_registry::make_default();
+        $registry = skill_registry::make_default();
         $store = new conversation_store();
         $status = (new orchestrator($registry, new interpreter($registry), $store))
             ->get_runtime_provider_status($cmid);

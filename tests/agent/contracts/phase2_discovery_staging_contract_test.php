@@ -107,9 +107,9 @@ final class phase2_discovery_staging_contract_test extends TestCase {
     }
 
     /**
-     * Signal ranker must ignore language tokens that are not task namespaces.
+     * Signal ranker must ignore language tokens that are not skill namespaces.
      */
-    public function test_signal_ranker_ignores_language_tokens_without_task_namespace_shape(): void {
+    public function test_signal_ranker_ignores_language_tokens_without_skill_namespace_shape(): void {
         $ranker = new family_signal_ranker();
 
         $baseline = $ranker->score_families(
@@ -148,9 +148,9 @@ final class phase2_discovery_staging_contract_test extends TestCase {
      */
     public function test_family_registry_uses_prior_without_hard_exclusion(): void {
         $promptcontracts = [
-            ['task' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
-            ['task' => 'local_entities.create_entity', 'family' => 'local_entities.general'],
-            ['task' => 'core.search', 'family' => 'core.general'],
+            ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
+            ['skill' => 'local_entities.create_entity', 'family' => 'local_entities.general'],
+            ['skill' => 'core.search', 'family' => 'core.general'],
         ];
         $prior = (new context_prior_builder())->build(123, [
             'userid' => 42,

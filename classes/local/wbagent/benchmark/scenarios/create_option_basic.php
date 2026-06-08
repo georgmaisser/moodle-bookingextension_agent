@@ -39,14 +39,14 @@ class create_option_basic extends abstract_benchmark_scenario {
         return 'Erstelle eine Veranstaltung "Jahresmeeting" am naechsten Montag von 9 bis 11 Uhr, maximal 20 Teilnehmer.';
     }
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'skill_call';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return 'mod_booking.create_option';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}],'
+        return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.create_option","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Create Jahresmeeting","used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 

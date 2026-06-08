@@ -18,45 +18,45 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
- * Layer-1 task-version validator.
+ * Layer-1 skill-version validator.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preflight_version_validator {
-    /** @var string Task registration issue code. */
-    public const ISSUE_TASK_NOT_REGISTERED = 'TASK_NOT_REGISTERED';
+    /** @var string Skill registration issue code. */
+    public const ISSUE_SKILL_NOT_REGISTERED = 'SKILL_NOT_REGISTERED';
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
-    /** @var task_version_policy */
-    private task_version_policy $policy;
+    /** @var skill_version_policy */
+    private skill_version_policy $policy;
 
     /**
      * Constructor.
      *
-     * @param task_registry $registry
-     * @param task_version_policy|null $policy
+     * @param skill_registry $registry
+     * @param skill_version_policy|null $policy
      */
-    public function __construct(task_registry $registry, ?task_version_policy $policy = null) {
+    public function __construct(skill_registry $registry, ?skill_version_policy $policy = null) {
         $this->registry = $registry;
-        $this->policy = $policy ?? new task_version_policy();
+        $this->policy = $policy ?? new skill_version_policy();
     }
 
     /**
-     * Validate task registration + task version for one command.
+     * Validate skill registration + skill version for one command.
      *
      * @param array<string,mixed> $command
      * @return array{valid:bool,error_class:string,issue_codes:array<int,string>,errors:array<int,string>}
      */
     public function validate(array $command): array {
-        $taskname = trim((string)($command['task'] ?? ''));
-        if ($taskname === '') {
+        $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        if ($skillname === '') {
             return [
                 'valid' => true,
                 'error_class' => '',
@@ -65,13 +65,13 @@ class preflight_version_validator {
             ];
         }
 
-        $contract = $this->registry->get_task_contract($taskname);
+        $contract = $this->registry->get_skill_contract($skillname);
         if ($contract === null) {
             return [
                 'valid' => false,
                 'error_class' => 'schema_error',
-                'issue_codes' => [self::ISSUE_TASK_NOT_REGISTERED],
-                'errors' => ['Task "' . $taskname . '" is not registered.'],
+                'issue_codes' => [self::ISSUE_SKILL_NOT_REGISTERED],
+                'errors' => ['Skill "' . $skillname . '" is not registered.'],
             ];
         }
 
@@ -80,30 +80,30 @@ class preflight_version_validator {
             return [
                 'valid' => false,
                 'error_class' => 'schema_error',
-                'issue_codes' => [task_version_policy::ISSUE_UNSUPPORTED],
+                'issue_codes' => [skill_version_policy::ISSUE_UNSUPPORTED],
                 'errors' => ['Field "version" must be an integer > 0 when provided.'],
             ];
         }
 
         $evaluation = $this->policy->evaluate($contract, $requestedversion);
-        if (($evaluation['status'] ?? '') === task_version_policy::STATUS_UNSUPPORTED) {
+        if (($evaluation['status'] ?? '') === skill_version_policy::STATUS_UNSUPPORTED) {
             $supportedversion = (int)($evaluation['supported_version'] ?? 1);
             return [
                 'valid' => false,
                 'error_class' => 'schema_error',
-                'issue_codes' => array_values((array)($evaluation['issue_codes'] ?? [task_version_policy::ISSUE_UNSUPPORTED])),
+                'issue_codes' => array_values((array)($evaluation['issue_codes'] ?? [skill_version_policy::ISSUE_UNSUPPORTED])),
                 'errors' => [
-                    'Unsupported task version "' . $requestedversion . '" for task "' . $taskname
+                    'Unsupported skill version "' . $requestedversion . '" for skill "' . $skillname
                     . '". Supported version is "' . $supportedversion . '".',
                 ],
             ];
         }
 
-        if (($evaluation['status'] ?? '') === task_version_policy::STATUS_DEPRECATED) {
+        if (($evaluation['status'] ?? '') === skill_version_policy::STATUS_DEPRECATED) {
             return [
                 'valid' => true,
                 'error_class' => '',
-                'issue_codes' => array_values((array)($evaluation['issue_codes'] ?? [task_version_policy::ISSUE_DEPRECATED])),
+                'issue_codes' => array_values((array)($evaluation['issue_codes'] ?? [skill_version_policy::ISSUE_DEPRECATED])),
                 'errors' => [],
             ];
         }
@@ -126,8 +126,10 @@ class preflight_version_validator {
     private function resolve_requested_version(array $command, array $contract): int {
         if (array_key_exists('version', $command)) {
             $value = $command['version'];
-        } else if (array_key_exists('task_version', $command)) {
-            $value = $command['task_version'];
+        } else if (array_key_exists('skill_version', $command)) {
+            $value = $command['skill_version'];
+        } else if (array_key_exists('skill_version', $command)) {
+            $value = $command['skill_version'];
         } else {
             return (int)($contract['version'] ?? 1);
         }

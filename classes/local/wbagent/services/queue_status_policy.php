@@ -51,7 +51,7 @@ class queue_status_policy {
     /** Canonical status: retry is scheduled but not yet due. */
     private const STATUS_RETRY_WAITING = 'retry_waiting';
 
-    /** Canonical status: placeholder for a future multi-step task (intent only, no task/params yet). */
+    /** Canonical status: placeholder for a future multi-step skill (intent only, no skill/params yet). */
     public const STATUS_PLANNED = 'planned';
 
     /** Actionable mutating statuses. */

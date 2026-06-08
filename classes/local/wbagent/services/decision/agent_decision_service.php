@@ -27,13 +27,13 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\decision;
 
 use core_text;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\booking_issue_code_provider;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\queue\observation_builder;
 use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
@@ -55,7 +55,7 @@ use bookingextension_agent\local\wbagent\services\pending_queue_command_service;
  *  - Confirmation flow (confirm_pending state machine)
  *  - Duplicate-title overrides
  *  - Lookup-safety mutation guard
- *  - Mutating command promotion from task_call → confirmation_request
+ *  - Mutating command promotion from skill_call → confirmation_request
  *  - Read-only command auto-execution
  *  - Pre-validation of confirmation commands (with deanonymization)
  *  - Teacher autocreate augmentation
@@ -70,7 +70,7 @@ use bookingextension_agent\local\wbagent\services\pending_queue_command_service;
  */
 class agent_decision_service {
     /** Response type constant used in routing decisions. */
-    private const RESPONSE_TYPE_TASK_CALL = 'task_call';
+    private const RESPONSE_TYPE_SKILL_CALL = 'skill_call';
 
     /** Response type constant used in routing decisions. */
     private const RESPONSE_TYPE_CONFIRMATION_REQUEST = 'confirmation_request';
@@ -90,8 +90,8 @@ class agent_decision_service {
     /** Trigger id: user allows creating missing user in confirmation flow. */
     private const TRIGGER_ALLOW_MISSING_USER_AUTOCREATE = 'booking.create_user_allowed_if_missing';
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -126,13 +126,13 @@ class agent_decision_service {
     /**
      * Constructor.
      *
-     * @param task_registry                   $registry
+     * @param skill_registry                   $registry
      * @param conversation_store              $store
      * @param authorization_service          $authz
      * @param issue_code_provider_interface   $issuecodeprovider
      */
     public function __construct(
-        task_registry $registry,
+        skill_registry $registry,
         conversation_store $store,
         authorization_service $authz,
         issue_code_provider_interface $issuecodeprovider = null
@@ -200,7 +200,7 @@ class agent_decision_service {
                 'ambiguities'               => array_values(array_unique((array)($result['ambiguities'] ?? []))),
                 'ambiguity_options'         => [],
                 'errors'                    => array_values(array_unique((array)($result['errors'] ?? []))),
-                'attempted_tasks'           => [],
+                'attempted_skills'          => [],
                 'issue_codes'               => array_values(array_unique((array)($result['issue_codes'] ?? []))),
                 'pending_confirmation_code' => '',
             ];
@@ -243,13 +243,13 @@ class agent_decision_service {
                 'commands'        => [],
                 'ambiguities'     => array_values(array_unique((array)($result['ambiguities'] ?? []))),
                 'errors'          => array_values(array_unique((array)($result['errors'] ?? []))),
-                'attempted_tasks' => $result['attempted_tasks'] ?? [],
+                'attempted_skills' => $result['attempted_skills'] ?? [],
                 'issue_codes'     => array_values(array_unique((array)($result['issue_codes'] ?? []))),
             ];
         }
 
-        // 4. Harden: if the LLM incorrectly used task_call for a mutating command, promote.
-        if ($this->has_mutating_commands($result) && ($result['response_type'] ?? '') === self::RESPONSE_TYPE_TASK_CALL) {
+        // 4. Harden: if the LLM incorrectly used skill_call for a mutating command, promote.
+        if ($this->has_mutating_commands($result) && ($result['response_type'] ?? '') === self::RESPONSE_TYPE_SKILL_CALL) {
             $result['response_type'] = self::RESPONSE_TYPE_CONFIRMATION_REQUEST;
             $normalizedmsg = core_text::strtolower(trim((string)($result['message'] ?? '')));
             if (in_array($normalizedmsg, ['executing', 'executing.', 'running', 'running.'], true)) {
@@ -262,7 +262,7 @@ class agent_decision_service {
             in_array(
                 (string)($result['response_type'] ?? ''),
                 [
-                    self::RESPONSE_TYPE_TASK_CALL,
+                    self::RESPONSE_TYPE_SKILL_CALL,
                     self::RESPONSE_TYPE_CONFIRMATION_REQUEST,
                 ],
                 true
@@ -316,7 +316,7 @@ class agent_decision_service {
 
         return in_array(
             $responsetype,
-            [self::RESPONSE_TYPE_TASK_CALL, self::RESPONSE_TYPE_CONFIRMATION_REQUEST, 'sufficient'],
+            [self::RESPONSE_TYPE_SKILL_CALL, self::RESPONSE_TYPE_CONFIRMATION_REQUEST, 'sufficient'],
             true
         );
     }
@@ -355,7 +355,7 @@ class agent_decision_service {
             $message,
             $result,
             [
-                'attempted_tasks' => array_values(array_unique((array)($result['attempted_tasks'] ?? []))),
+                'attempted_skills' => array_values(array_unique((array)($result['attempted_skills'] ?? []))),
                 'issue_codes' => array_values(array_unique(array_merge(
                     (array)($result['issue_codes'] ?? []),
                     ['PENDING_CONFIRMATION_EXISTS']
@@ -394,16 +394,16 @@ class agent_decision_service {
     private function build_fallback_message(array $result, string $outputlang = ''): string {
         $responsetype = (string)($result['response_type'] ?? '');
         $commands = $result['commands'] ?? [];
-        $firsttask = '';
+        $firstskill = '';
         if (is_array($commands) && !empty($commands) && is_array($commands[0] ?? null)) {
-            $firsttask = (string)($commands[0]['task'] ?? '');
+            $firstskill = (string)($commands[0]['skill'] ?? '');
         }
 
         if ($responsetype === 'confirmation_request') {
-            if ($firsttask !== '') {
-                $task = $this->registry->get_task($firsttask);
-                if ($task !== null) {
-                    $key = (string)($task->get_schema()['fallback_confirm_string_key'] ?? '');
+            if ($firstskill !== '') {
+                $skill = $this->registry->get_skill($firstskill);
+                if ($skill !== null) {
+                    $key = (string)($skill->get_schema()['fallback_confirm_string_key'] ?? '');
                     if ($key !== '') {
                         return localized_string_service::get($key, 'bookingextension_agent', null, $outputlang);
                     }
@@ -412,19 +412,19 @@ class agent_decision_service {
             return localized_string_service::get('ai_status_confirm_default', 'bookingextension_agent', null, $outputlang);
         }
 
-        if ($responsetype === 'task_call') {
-            if ($firsttask !== '') {
-                $task = $this->registry->get_task($firsttask);
-                if ($task !== null) {
-                    $key = (string)($task->get_schema()['fallback_taskcall_string_key'] ?? '');
+        if ($responsetype === 'skill_call') {
+            if ($firstskill !== '') {
+                $skill = $this->registry->get_skill($firstskill);
+                if ($skill !== null) {
+                    $key = (string)($skill->get_schema()['fallback_skillcall_string_key'] ?? '');
                     if ($key !== '') {
                         return localized_string_service::get($key, 'bookingextension_agent', null, $outputlang);
                     }
                 }
             }
-            // Any task not registered in the booking registry (e.g. cross-plugin tasks)
+            // Any skill not registered in the booking registry (e.g. cross-plugin skills)
             // falls back to the generic default string.
-            return localized_string_service::get('ai_status_taskcall_default', 'bookingextension_agent', null, $outputlang);
+            return localized_string_service::get('ai_status_skillcall_default', 'bookingextension_agent', null, $outputlang);
         }
 
         return trim((string)($result['message'] ?? ''));
@@ -494,7 +494,7 @@ class agent_decision_service {
                 $result,
                 [
                     'errors' => $preflightresult['errors'] ?? [],
-                    'attempted_tasks' => $preflightresult['attempted_tasks'] ?? [],
+                    'attempted_skills' => $preflightresult['attempted_skills'] ?? [],
                     'issue_codes' => $preflightresult['issue_codes'] ?? [],
                 ]
             );
@@ -537,7 +537,7 @@ class agent_decision_service {
             'ambiguities'               => [],
             'ambiguity_options'         => [],
             'errors'                    => [],
-            'attempted_tasks'           => [],
+            'attempted_skills'          => [],
             'issue_codes'               => [],
             'pending_confirmation_code' => $confirmationcode,
             'used_triggers'             => $result['used_triggers'] ?? [],
@@ -617,7 +617,7 @@ class agent_decision_service {
 
         $firstmutatingenqueued = false;
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
-            // Consume one planned placeholder when a real mutating task is enqueued for a
+            // Consume one planned placeholder when a real mutating skill is enqueued for a
             // subsequent planned step. On the first multi-step turn ($hadplaceholders=false)
             // the current command IS the initial step — placeholders represent future steps
             // only, so nothing is consumed yet. Starting with Turn 2 ($hadplaceholders=true)
@@ -734,7 +734,7 @@ class agent_decision_service {
     /**
      * Run preflight validation on confirmation commands.
      *
-     * Calls task->preflight() for each command, which:
+     * Calls skill->preflight() for each command, which:
      *  - resolves entity IDs (options, users, etc.)
      *  - detects conflicts (duplicate titles, missing fields, etc.)
      *  - normalises input
@@ -778,7 +778,7 @@ class agent_decision_service {
         ));
         $status = trim((string)($preflightresult['status'] ?? ''));
         $allissuecodes = array_values(array_unique(array_map('strval', (array)($preflightresult['issue_codes'] ?? []))));
-        $attemptedtasks = array_values(array_unique(array_map('strval', (array)($preflightresult['attempted_tasks'] ?? []))));
+        $attemptedskills = array_values(array_unique(array_map('strval', (array)($preflightresult['attempted_skills'] ?? []))));
         $allissues = array_values(array_filter(
             (array)($preflightresult['issues'] ?? []),
             static fn($issue): bool => is_array($issue)
@@ -843,7 +843,7 @@ class agent_decision_service {
                     'queue_item_ids'  => $queueitemids,
                     'ambiguities'     => [],
                     'errors'          => $blockingerrors,
-                    'attempted_tasks' => $attemptedtasks,
+                    'attempted_skills' => $attemptedskills,
                     'issue_codes'     => $allissuecodes,
                     'used_triggers'   => $result['used_triggers'] ?? [],
                 ];
@@ -874,7 +874,7 @@ class agent_decision_service {
                     'queue_item_ids'  => $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []),
                     'ambiguities'     => [],
                     'errors'          => $blockingerrors,
-                    'attempted_tasks' => $attemptedtasks,
+                    'attempted_skills' => $attemptedskills,
                     'issue_codes'     => $allissuecodes,
                     'used_triggers'   => $result['used_triggers'] ?? [],
                 ];
@@ -891,7 +891,7 @@ class agent_decision_service {
                 'commands'        => [],
                 'ambiguities'     => [],
                 'errors'          => $blockingerrors,
-                'attempted_tasks' => $attemptedtasks,
+                'attempted_skills' => $attemptedskills,
                 'issue_codes'     => $allissuecodes,
                 'used_triggers'   => $result['used_triggers'] ?? [],
             ];
@@ -903,7 +903,7 @@ class agent_decision_service {
             (array)($result['issue_codes'] ?? []),
             $allissuecodes
         )));
-        $result['attempted_tasks'] = $attemptedtasks;
+        $result['attempted_skills'] = $attemptedskills;
 
         // If preflight returned confirmable issues (but is_valid=true), surface them.
         $confirmableissues = array_filter(
@@ -941,20 +941,20 @@ class agent_decision_service {
                 continue;
             }
 
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '') {
+            $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
 
-            $task = $this->registry->get_task($taskname);
-            if ($task === null || $task->is_read_only()) {
+            $skill = $this->registry->get_skill($skillname);
+            if ($skill === null || $skill->is_read_only()) {
                 unset($command['guard_token']);
                 continue;
             }
 
             $preparedinput = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
             $command['guard_token'] = \bookingextension_agent\local\wbagent\services\preflight_execution_gate::build_guard_token(
-                $taskname,
+                $skillname,
                 $contextid,
                 $preparedinput
             );
@@ -1008,8 +1008,8 @@ class agent_decision_service {
             }
 
             $riskclass = trim((string)($item['risk_class'] ?? ''));
-            if (!task_risk_class::is_valid($riskclass)) {
-                $riskclass = task_risk_class::R3;
+            if (!skill_risk_class::is_valid($riskclass)) {
+                $riskclass = skill_risk_class::R3;
             }
             $riskclasses[] = $riskclass;
         }
@@ -1242,8 +1242,8 @@ class agent_decision_service {
     /**
      * Inject a canonical output language into each command input.
      *
-     * This is framework-wide and avoids per-task language plumbing.
-     * Tasks may still override outputlang explicitly.
+     * This is framework-wide and avoids per-skill language plumbing.
+     * Skills may still override outputlang explicitly.
      *
      * @param array $commands
      * @param string $outputlang
@@ -1316,7 +1316,7 @@ class agent_decision_service {
             if (!is_array($command)) {
                 continue;
             }
-            if ($this->resolve_command_risk_class($command) !== task_risk_class::R0) {
+            if ($this->resolve_command_risk_class($command) !== skill_risk_class::R0) {
                 return true;
             }
         }
@@ -1341,16 +1341,16 @@ class agent_decision_service {
 
         foreach ($commands as $command) {
             if (!is_array($command)) {
-                $groups['r3'][] = ['task' => '', 'input' => [], 'risk_class' => task_risk_class::R3];
+                $groups['r3'][] = ['skill' => '', 'input' => [], 'risk_class' => skill_risk_class::R3];
                 continue;
             }
             $riskclass = $this->resolve_command_risk_class($command);
             $command['risk_class'] = $riskclass;
-            if ($riskclass === task_risk_class::R0) {
+            if ($riskclass === skill_risk_class::R0) {
                 $groups['r0'][] = $command;
-            } else if ($riskclass === task_risk_class::R1) {
+            } else if ($riskclass === skill_risk_class::R1) {
                 $groups['r1'][] = $command;
-            } else if ($riskclass === task_risk_class::R2) {
+            } else if ($riskclass === skill_risk_class::R2) {
                 $groups['r2'][] = $command;
             } else {
                 $groups['r3'][] = $command;
@@ -1401,22 +1401,22 @@ class agent_decision_service {
      */
     private function resolve_command_risk_class(array $command): string {
         $riskclass = trim((string)($command['risk_class'] ?? ''));
-        if (task_risk_class::is_valid($riskclass)) {
+        if (skill_risk_class::is_valid($riskclass)) {
             return $riskclass;
         }
 
-        $taskname = trim((string)($command['task'] ?? ''));
-        if ($taskname !== '') {
-            $task = $this->registry->get_task($taskname);
-            if ($task !== null) {
-                $taskriskclass = trim($task->get_risk_class());
-                if (task_risk_class::is_valid($taskriskclass)) {
-                    return $taskriskclass;
+        $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        if ($skillname !== '') {
+            $skill = $this->registry->get_skill($skillname);
+            if ($skill !== null) {
+                $skillriskclass = trim($skill->get_risk_class());
+                if (skill_risk_class::is_valid($skillriskclass)) {
+                    return $skillriskclass;
                 }
             }
         }
 
-        return task_risk_class::R3;
+        return skill_risk_class::R3;
     }
 
     /**
@@ -1477,7 +1477,7 @@ class agent_decision_service {
             'ambiguities'               => [],
             'ambiguity_options'         => [],
             'errors'                    => [],
-            'attempted_tasks'           => [],
+            'attempted_skills'          => [],
             'issue_codes'               => [],
             'pending_confirmation_code' => '',
             'used_triggers'             => [],

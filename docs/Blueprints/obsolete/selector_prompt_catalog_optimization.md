@@ -36,7 +36,7 @@ Ziel: Den Selector-Prompt so umstrukturieren, dass er zuverlässiger, kompakter 
   ```
 - [x] **A3** Valides Beispiel im OUTPUT_CONTRACT ergänzen:
   ```json
-  {"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}],
+  {"response_type":"skill_call","commands":[{"task":"mod_booking.create_option","input":{}}],
    "planned_steps":[{"intent":"Set trainer"},{"intent":"Book user"}],"next_step_intent":"..."}
   ```
 - [x] **A4** `prompt_policy_builder.php::build_step_intent_policy()` — `planned_steps` Beschreibung entfernen (ist jetzt OUTPUT_CONTRACT)
@@ -105,7 +105,7 @@ Die Änderung betrifft ausschließlich die **Prompt-Serialisierung** (`slim_prom
 
 Mehrere Regeln werden doppelt genannt (einmal in SYSTEM, einmal in OUTPUT_CONTRACT). Das ist teilweise sinnvoll (Reinforcement), aber teilweise widersprüchlich (wenn sie leicht unterschiedlich formuliert sind).
 
-- [x] **C2a** SYSTEM enthält: "For task_call, commands MUST contain exactly one command object..." → auch im OUTPUT_CONTRACT. Formulierungen angleichen (exakt gleicher Wortlaut = Reinforcement, unterschiedlicher Wortlaut = Verwirrung)
+- [x] **C2a** SYSTEM enthält: "For skill_call, commands MUST contain exactly one command object..." → auch im OUTPUT_CONTRACT. Formulierungen angleichen (exakt gleicher Wortlaut = Reinforcement, unterschiedlicher Wortlaut = Verwirrung)
 - [x] **C2b** Routing decision order (1–5) nur im SYSTEM, nicht im OUTPUT_CONTRACT → gut so, beibehalten
 - [x] **C2c** OUTPUT_CONTRACT entfernt alles was nur SYSTEM-Level ist, enthält nur: required fields, format rules, phase-spezifische contracts
 
@@ -114,7 +114,7 @@ Mehrere Regeln werden doppelt genannt (einmal in SYSTEM, einmal in OUTPUT_CONTRA
 - [x] **C3a** Routing-Reihenfolge ergänzen um expliziten Multi-Step-Fall:
   ```
   6) multi-step request with no pending planned steps in context
-     → response_type=task_call + planned_steps=[future steps]
+     → response_type=skill_call + planned_steps=[future steps]
   ```
 - [x] **C3b** Klarstellen: `planned_steps` enthält KEINE Parameter, nur Intent-Strings
 

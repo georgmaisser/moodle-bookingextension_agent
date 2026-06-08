@@ -19,7 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use core_text;
 
 /**
@@ -30,15 +30,15 @@ use core_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class assistant_state_guidance_service {
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      */
-    public function __construct(task_registry $registry) {
+    public function __construct(skill_registry $registry) {
         $this->registry = $registry;
     }
 
@@ -168,9 +168,9 @@ class assistant_state_guidance_service {
             $lines[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 8));
         }
 
-        $attemptedtasks = $this->normalize_nonempty_string_list((array)($structured['attempted_tasks'] ?? []));
-        if (!empty($attemptedtasks)) {
-            $lines[] = 'attempted_tasks=' . implode(',', array_slice($attemptedtasks, 0, 8));
+        $attemptedskills = $this->normalize_nonempty_string_list((array)($structured['attempted_skills'] ?? []));
+        if (!empty($attemptedskills)) {
+            $lines[] = 'attempted_skills=' . implode(',', array_slice($attemptedskills, 0, 8));
         }
 
         $results = (array)($structured['results'] ?? []);
@@ -185,7 +185,7 @@ class assistant_state_guidance_service {
     }
 
     /**
-     * Extract compact factual lines from structured task results.
+     * Extract compact factual lines from structured skill results.
      *
      * @param array $results
      * @return array<int,string>
@@ -202,10 +202,10 @@ class assistant_state_guidance_service {
                 continue;
             }
 
-            $task = trim((string)($entry['task'] ?? ''));
+            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
             $status = trim((string)($entry['status'] ?? ''));
-            if ($task !== '' || $status !== '') {
-                $facts[] = trim('result=' . $task . ' status=' . $status);
+            if ($skill !== '' || $status !== '') {
+                $facts[] = trim('result=' . $skill . ' status=' . $status);
             }
 
             $diagnosis = $entry['diagnosis'] ?? null;

@@ -17,9 +17,9 @@
 namespace bookingextension_agent\local\wbagent\interfaces;
 
 /**
- * Optional interface for task-defined queue business identity.
+ * Optional interface for skill-defined queue business identity.
  *
- * Tasks implementing this interface can provide a canonical identity payload
+ * Skills implementing this interface can provide a canonical identity payload
  * used by queue deduplication instead of raw command input.
  *
  * @package    bookingextension_agent

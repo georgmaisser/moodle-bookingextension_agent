@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Builder for full task-catalog embeddings input rows.
+ * Builder for full skill-catalog embeddings input rows.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -26,7 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\embeddings;
 
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Builds canonical embedding rows from the full prompt catalog.
@@ -35,12 +35,12 @@ class embeddings_catalog_builder_service {
     /**
      * Build embedding row payloads from full catalog contracts.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param string $model
      * @param int $dimensions
      * @return array<int,array<string,string>>
      */
-    public function build_full_catalog_rows(task_registry $registry, string $model, int $dimensions): array {
+    public function build_full_catalog_rows(skill_registry $registry, string $model, int $dimensions): array {
         $rows = [];
         $contracts = $registry->get_all_prompt_contracts();
 
@@ -49,8 +49,8 @@ class embeddings_catalog_builder_service {
                 continue;
             }
 
-            $task = trim((string)($contract['task'] ?? ''));
-            if ($task === '') {
+            $skill = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            if ($skill === '') {
                 continue;
             }
 
@@ -60,10 +60,10 @@ class embeddings_catalog_builder_service {
             $minimalinput = (array)($contract['minimal_input'] ?? []);
             $exampleinput = (array)($contract['example_input'] ?? []);
             $messagetriggers = (array)($contract['message_triggers'] ?? []);
-            $contextualpromptpacks = $this->get_contextual_prompt_packs_for_task($registry, $task);
+            $contextualpromptpacks = $this->get_contextual_prompt_packs_for_skill($registry, $skill);
 
             $canonical = [
-                'task' => $task,
+                'skill' => $skill,
                 'intent' => $intent,
                 'readonly' => $readonly,
                 'description' => $description,
@@ -77,7 +77,7 @@ class embeddings_catalog_builder_service {
             $embeddinginput = $this->to_embedding_input($canonical);
 
             $rows[] = [
-                'task' => $task,
+                'skill' => $skill,
                 'intent' => $intent,
                 'readonly' => $readonly,
                 'description' => $description,
@@ -126,7 +126,7 @@ class embeddings_catalog_builder_service {
         $contextualpromptpacks = json_encode($canonicalrow['contextual_prompt_packs'] ?? [], JSON_UNESCAPED_UNICODE);
 
         return implode("\n", [
-            'task: ' . (string)($canonicalrow['task'] ?? ''),
+            'skill: ' . (string)($canonicalrow['skill'] ?? $canonicalrow['skill'] ?? ''),
             'intent: ' . (string)($canonicalrow['intent'] ?? ''),
             'readonly: ' . (string)($canonicalrow['readonly'] ?? '0'),
             'description: ' . (string)($canonicalrow['description'] ?? ''),
@@ -138,20 +138,20 @@ class embeddings_catalog_builder_service {
     }
 
     /**
-     * Extract task-specific contextual prompt packs for embedding enrichment.
+     * Extract skill-specific contextual prompt packs for embedding enrichment.
      *
-     * @param task_registry $registry
-     * @param string $taskname
+     * @param skill_registry $registry
+     * @param string $skillname
      * @return array<int,array<string,mixed>>
      */
-    private function get_contextual_prompt_packs_for_task(task_registry $registry, string $taskname): array {
-        $task = $registry->get_task($taskname);
-        if ($task === null || !method_exists($task, 'get_contextual_prompt_packs')) {
+    private function get_contextual_prompt_packs_for_skill(skill_registry $registry, string $skillname): array {
+        $skill = $registry->get_skill($skillname);
+        if ($skill === null || !method_exists($skill, 'get_contextual_prompt_packs')) {
             return [];
         }
 
         try {
-            $packs = (array)$task->get_contextual_prompt_packs();
+            $packs = (array)$skill->get_contextual_prompt_packs();
         } catch (\Throwable $e) {
             return [];
         }

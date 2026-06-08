@@ -90,7 +90,7 @@ class privacy_anonymizer {
     /**
      * Return true if the given string value looks like an ANON token.
      *
-     * Tasks call this static helper to skip semantic validation on values that
+     * Skills call this static helper to skip semantic validation on values that
      * are anonymized placeholders.  No infrastructure is required — the check
      * is a pure string test.
      *

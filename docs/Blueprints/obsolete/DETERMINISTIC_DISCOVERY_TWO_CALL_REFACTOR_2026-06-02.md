@@ -43,7 +43,7 @@ A) Discovery-LLM-Phase faellt komplett weg:
 
 B) Planner reduziert sich auf 2 LLM-Phasen:
 
-- Selection (LLM 1): tool_selector-Fokus, genau eine Taskentscheidung, nur slim task contracts fuer M Tasks.
+- Selection (LLM 1): tool_selector-Fokus, genau eine Taskentscheidung, nur slim skill contracts fuer M Tasks.
 - Construction (LLM 2): parameter_constructor-Fokus, genau eine selektierte Task inkl. vollem Schema.
 
 C) Prompt-/Routing-Profile werden zweiphasig:
@@ -88,7 +88,7 @@ Zieldelta fuer [docs/Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd](d
 4. SPLLM-Label aktualisieren:
 - source=planner_selection
 - action_class=selector_pick_task
-- Kontext: nur slim task contracts fuer M ranked tasks, keine Parameter-Schemata.
+- Kontext: nur slim skill contracts fuer M ranked tasks, keine Parameter-Schemata.
 - Ausgabe: genau eine selektierte Task fuer den Constructor-Handoff.
 
 5. CPLLM bleibt LLM Call 2:
@@ -129,13 +129,13 @@ Vorgaben:
 2. Discovery-Ausgabe deterministisch liefern:
 - ranked families
 - hard-budgeted selected families/tasks
-- slim task contracts fuer selection
+- slim skill contracts fuer selection
 - ohne embeddings ueber context/core/signal (deterministisch),
 - mit embeddings ueber semantische Family-Retrieval plus context/signal weighting,
 - alles ueber family_signal_ranker, family_ranker, optional family_embeddings_retrieval_service.
 
 3. Selection-Invoke bleibt, aber Input strikt slim:
-- USER + kurzer Kontext + slim task contracts fuer M Tasks.
+- USER + kurzer Kontext + slim skill contracts fuer M Tasks.
 - keine full schema payloads.
 - Output ist ein echter Selector-Call: genau eine selektierte Task, keine finalen strukturierten Parameter.
 
@@ -229,7 +229,7 @@ Erfuellt, wenn:
 
 ## 12. Risiken und Gegenmassnahmen
 
-1. Risiko: Zu grosse slim task contract payload in Selection.
+1. Risiko: Zu grosse slim skill contract payload in Selection.
 - Gegenmassnahme: explizites M-task Budget + harte pruning rules.
 
 2. Risiko: Discovery-Deterministik verliert Recall in Randfaellen.
@@ -299,7 +299,7 @@ Hinweis zur Nutzung:
 ### Block D - Selection auf schlanke Kandidaten haerten
 
 - [x] D1 Selection-Eingang auf slim contracts begrenzen.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/selection/lazy_task_loader.php](../../classes/local/wbagent/services/selection/lazy_task_loader.php), [classes/local/wbagent/services/selection/task_selector.php](../../classes/local/wbagent/services/selection/task_selector.php).
+	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/selection/lazy_skill_loader.php](../../classes/local/wbagent/services/selection/lazy_skill_loader.php), [classes/local/wbagent/services/selection/skill_selector.php](../../classes/local/wbagent/services/selection/skill_selector.php).
 	Abnahme: Selection-Prompt enthaelt keine full schemas.
 
 - [x] D2 Promptvertrag der Selection-Phase nachziehen.
@@ -376,11 +376,11 @@ Vorlage:
 - 2026-06-02 | F1/F2/F3/F4 | Planner auf 2 Phasen verdichtet: keine Discovery-Action-Routingpfade im Planner-Invoke, Prompt-Profile auf selection+construction, Composer ohne Discovery-Payload/Trace; Contracts/Integration gruen (48 Tests, 578 Assertions) | orchestrator_routing_service.php, orchestrator_prompt_profile_service.php, phase_prompt_bundle_builder.php, planner_result_composer.php, adaptive_task_catalog_service.php, orchestrator_prompt_profile_service_test.php, phase_prompt_bundle_builder_contract_test.php, integration_agent_framework_test.php, planner_context_continuity_contract_test.php, phase3_selection_construction_contract_test.php, orchestrator_routing_service_test.php
 - 2026-06-02 | G1 | Legacy-Delete-Pass: keine Treffer mehr auf planner_discovery, router_discover_family oder aiinitialprompt_discovery in Klassen/Contracts | orchestrator.php, orchestrator_routing_service.php, orchestrator_prompt_profile_service.php, planner_result_composer.php
 - 2026-06-02 | H1/H2/H3 | Abschluss-Abnahme fuer 2-Phasen-Planner, Dualpfad-Regression und Synchronizer/Finalization gruen (48 Tests, 131 Assertions) | phase_prompt_bundle_builder_contract_test.php, orchestrator_routing_service_test.php, prompt_policy_builder_test.php, phase3_selection_construction_contract_test.php, planner_context_continuity_contract_test.php, family_embeddings_retrieval_service_test.php, phase1_discovery_foundation_contract_test.php, phase2_discovery_staging_contract_test.php, runtime_finalization_contract_test.php, finalization_classifier_contract_test.php, synchronizer_input_contract_test.php
-- 2026-06-02 | N1 | Selection-Handoff im Orchestrator auf explizite Single-Task-Selector-Entscheidung normalisiert: genau ein Command, `selected_task` verpflichtend, Parameterpayload aus Selection entfernt | orchestrator.php (`run_selection_phase()`, `normalize_selection_phase_output_for_handoff()`, `build_selection_contract_error_result()`), integration_agent_framework_test.php
+- 2026-06-02 | N1 | Selection-Handoff im Orchestrator auf explizite Single-Task-Selector-Entscheidung normalisiert: genau ein Command, `selected_skill` verpflichtend, Parameterpayload aus Selection entfernt | orchestrator.php (`run_selection_phase()`, `normalize_selection_phase_output_for_handoff()`, `build_selection_contract_error_result()`), integration_agent_framework_test.php
 - 2026-06-02 | N3 | Selection-Output-Contract als Tool-Selector verschaerft: erster Call ohne Parameterkonstruktion (`input` nur ausgelassen oder `{}`), Selection bleibt reine Taskwahl | phase_prompt_bundle_builder.php (`build_local_output_contract_block()`), phase_prompt_bundle_builder_contract_test.php
 - 2026-06-02 | N4 | Prompt-Policies auf Selector/Constructor-Rollen abgeglichen: Selection als reine Taskwahl ohne Parameterbau, Construction constructor-only; Discovery-Routing nennt 2-Call-Rollentrennung explizit | prompt_policy_builder.php (`build_response_contract_policy()`, `build_routing_determinism_policy()`), prompt_policy_builder_test.php
-- 2026-06-02 | N5 | Interpreter-Phase-Contract auf Selector/Constructor-Trennung gehaertet: Selection wird in `enforce_phase_contract()` validiert (single selector command + `selected_task`-Konsistenz), Construction bleibt single-command + allow-list | interpreter.php (`interpret_phase_output()`, `enforce_phase_contract()`), integration_agent_framework_test.php
-- 2026-06-02 | N6 | Planner-Result/Trace auf Selection+Construction sichtbar gemacht: `selected_task` im Selection-Trace explizit asserted, Discovery nicht im `phase_trace` | planner_result_composer.php, integration_agent_framework_test.php
+- 2026-06-02 | N5 | Interpreter-Phase-Contract auf Selector/Constructor-Trennung gehaertet: Selection wird in `enforce_phase_contract()` validiert (single selector command + `selected_skill`-Konsistenz), Construction bleibt single-command + allow-list | interpreter.php (`interpret_phase_output()`, `enforce_phase_contract()`), integration_agent_framework_test.php
+- 2026-06-02 | N6 | Planner-Result/Trace auf Selection+Construction sichtbar gemacht: `selected_skill` im Selection-Trace explizit asserted, Discovery nicht im `phase_trace` | planner_result_composer.php, integration_agent_framework_test.php
 - 2026-06-02 | N7 | Blueprint und Flowchart auf identisches Rollen-Wording gezogen: `selection(selector) -> construction(constructor-only)` | DETERMINISTIC_DISCOVERY_TWO_CALL_REFACTOR_2026-06-02.md, flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd
 
 ## 16. Nachtrag: Selector-First / Constructor-Only Fixplan
@@ -396,13 +396,13 @@ Ziel dieses Nachtrags:
 - [x] N1 Selection-Output als echte Taskwahl fest verdrahten.
 	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php)
 	Methode: `run_selection_phase()`
-	Aenderung: `phase_output` und `selected_task` muessen eine explizite Tool-Selector-Entscheidung tragen; keine versteckte Mehrfach-Auswahl, keine Parameterpayload.
+	Aenderung: `phase_output` und `selected_skill` muessen eine explizite Tool-Selector-Entscheidung tragen; keine versteckte Mehrfach-Auswahl, keine Parameterpayload.
 	Abnahme: Selection liefert genau eine gewaehlte Task fuer den Constructor-Handoff.
 
 - [x] N2 Construction-Phase strikt auf die selektierte Task begrenzen.
 	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php)
 	Methode: `run_construction_phase()`
-	Aenderung: `allowed_tasks` und Prompt-Kontext duerfen nur die vom Selector gewaehlte Task enthalten; keine Rueckfaelle auf weitere Katalogeintraege.
+	Aenderung: `allowed_skills` und Prompt-Kontext duerfen nur die vom Selector gewaehlte Task enthalten; keine Rueckfaelle auf weitere Katalogeintraege.
 	Abnahme: Construction baut nur Parameter fuer genau eine Task.
 
 - [x] N3 Phase-Prompt der Selection auf Tool-Selector trimmen.
@@ -434,4 +434,4 @@ Ziel dieses Nachtrags:
 	Aenderung: Selector-First/Constructor-Only-Formulierung muss in beiden Artefakten identisch sein.
 	Abnahme: Dokumentation und Flowchart widersprechen sich nicht mehr.
 
-- 2026-06-02 | N2 | Construction strikt auf selected_task gehaertet: in `run_construction_phase()` kein Fallback mehr auf Ranked-Task-Pool; Prompt-/Runtime-Kontext + `allowed_tasks` nur noch fuer Selector-Task; Fehlerpfad bei fehlendem `selected_task` hinzugefuegt (`CONTRACT_SELECTION_TASK_MISSING`) | orchestrator.php (`run_construction_phase()`, `build_construction_runtime_catalog_for_selected_task()`, `build_selector_handoff_error_result()`)
+- 2026-06-02 | N2 | Construction strikt auf selected_skill gehaertet: in `run_construction_phase()` kein Fallback mehr auf Ranked-Task-Pool; Prompt-/Runtime-Kontext + `allowed_skills` nur noch fuer Selector-Task; Fehlerpfad bei fehlendem `selected_skill` hinzugefuegt (`CONTRACT_SELECTION_SKILL_MISSING`) | orchestrator.php (`run_construction_phase()`, `build_construction_runtime_catalog_for_selected_skill()`, `build_selector_handoff_error_result()`)

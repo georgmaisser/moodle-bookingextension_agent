@@ -32,9 +32,9 @@ use bookingextension_agent\local\wbagent\dto\bulk_update_options_input_dto;
 use bookingextension_agent\local\wbagent\dto\mutation_result_dto;
 
 /**
- * Centralises booking option mutation logic previously spread across booking_task_support.
+ * Centralises booking option mutation logic previously spread across booking_skill_support.
  *
- * Tasks orchestrate, services execute.  Both paths call the same underlying logic
+ * Skills orchestrate, services execute.  Both paths call the same underlying logic
  * so architectural tests can verify identical results for identical input.
  *
  * @package    bookingextension_agent
@@ -52,7 +52,7 @@ class option_mutation_service {
     public function validate_create(create_option_input_dto $dto, int $cmid): array {
         return [
             'valid' => false,
-            'errors' => [get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.create_option')],
+            'errors' => [get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.create_option')],
             'ambiguities' => [],
         ];
     }
@@ -67,7 +67,7 @@ class option_mutation_service {
     public function validate_update(update_option_input_dto $dto, int $cmid): array {
         return [
             'valid' => false,
-            'errors' => [get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.update_option')],
+            'errors' => [get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.update_option')],
             'ambiguities' => [],
         ];
     }
@@ -82,7 +82,7 @@ class option_mutation_service {
     public function validate_bulk_update(bulk_update_options_input_dto $dto, int $cmid): array {
         return [
             'valid' => false,
-            'errors' => [get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.bulk_update_options')],
+            'errors' => [get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.bulk_update_options')],
             'ambiguities' => [],
         ];
     }
@@ -96,7 +96,7 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function create_option(create_option_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        return mutation_result_dto::error(get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.create_option'));
+        return mutation_result_dto::error(get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.create_option'));
     }
 
     /**
@@ -108,7 +108,7 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function update_option(update_option_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        return mutation_result_dto::error(get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.update_option'));
+        return mutation_result_dto::error(get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.update_option'));
     }
 
     /**
@@ -120,6 +120,6 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function bulk_update_options(bulk_update_options_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        return mutation_result_dto::error(get_string('agent_booking_unknown_task', 'bookingextension_agent', 'booking.bulk_update_options'));
+        return mutation_result_dto::error(get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.bulk_update_options'));
     }
 }

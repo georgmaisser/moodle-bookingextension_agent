@@ -19,7 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Resolves and aggregates preview option ids for confirm-run responses.
@@ -29,8 +29,8 @@ use bookingextension_agent\local\wbagent\task_registry;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class confirm_preview_option_service {
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -38,10 +38,10 @@ class confirm_preview_option_service {
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param conversation_store $store
      */
-    public function __construct(task_registry $registry, conversation_store $store) {
+    public function __construct(skill_registry $registry, conversation_store $store) {
         $this->registry = $registry;
         $this->store = $store;
     }

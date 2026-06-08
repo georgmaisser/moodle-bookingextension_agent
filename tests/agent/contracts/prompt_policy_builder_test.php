@@ -51,7 +51,7 @@ final class prompt_policy_builder_test extends advanced_testcase {
             . 'confirm_pending, sufficient, error.';
         $this->assertStringContainsString($expectedtypes, $plannerpolicies);
         $this->assertStringContainsString('commands MUST always be [] in this phase.', $plannerpolicies);
-        $this->assertStringContainsString('Never emit task_call or confirmation_request in this phase.', $plannerpolicies);
+        $this->assertStringContainsString('Never emit skill_call or confirmation_request in this phase.', $plannerpolicies);
     }
 
     /**
@@ -60,11 +60,11 @@ final class prompt_policy_builder_test extends advanced_testcase {
     public function test_selection_policy_requires_single_selector_command(): void {
         $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
 
-        $expectedtypes = 'Allowed response_type values: task_call, clarification, '
+        $expectedtypes = 'Allowed response_type values: skill_call, clarification, '
             . 'confirm_pending, sufficient, error.';
         $this->assertStringContainsString($expectedtypes, $plannerpolicies);
         $this->assertStringContainsString(
-            'For task_call, commands MUST contain exactly one command object that selects exactly one task',
+            'For skill_call, commands MUST contain exactly one command object that selects exactly one skill',
             $plannerpolicies
         );
         $this->assertStringContainsString(
@@ -72,7 +72,7 @@ final class prompt_policy_builder_test extends advanced_testcase {
             $plannerpolicies
         );
         $this->assertStringContainsString(
-            'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.',
+            'This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.',
             $plannerpolicies
         );
     }
@@ -83,11 +83,11 @@ final class prompt_policy_builder_test extends advanced_testcase {
     public function test_parameter_construction_policy_requires_one_or_more_commands(): void {
         $plannerpolicies = prompt_policy_builder::build_planner_policies('parameter_construction', false, false);
 
-        $expected = 'For task_call or confirmation_request, '
+        $expected = 'For skill_call or confirmation_request, '
             . 'commands MUST contain one or more command objects.';
         $this->assertStringContainsString($expected, $plannerpolicies);
         $this->assertStringContainsString(
-            'This phase is constructor-only: build parameters for the selected task only.',
+            'This phase is constructor-only: build parameters for the selected skill only.',
             $plannerpolicies
         );
     }
@@ -99,7 +99,7 @@ final class prompt_policy_builder_test extends advanced_testcase {
         $plannerpolicies = prompt_policy_builder::build_planner_policies('discovery', false, false);
 
         $this->assertStringContainsString(
-            'Respect strict 2-call roles: discovery stays non-command, selection does task choice, construction does parameters.',
+            'Respect strict 2-call roles: discovery stays non-command, selection does skill choice, construction does parameters.',
             $plannerpolicies
         );
     }

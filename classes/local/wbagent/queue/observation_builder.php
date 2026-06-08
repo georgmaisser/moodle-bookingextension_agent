@@ -43,15 +43,15 @@ class observation_builder {
                 continue;
             }
 
-            $task = trim((string)($item['task'] ?? ''));
+            $skill = trim((string)($item['skill'] ?? ''));
             $status = trim((string)($item['status'] ?? ''));
             $issuecodes = array_values(array_filter(array_map('strval', (array)($item['issue_codes'] ?? []))));
 
-            if ($task === '') {
+            if ($skill === '') {
                 continue;
             }
 
-            $line = $task . ': ' . ($status !== '' ? $status : 'unknown');
+            $line = $skill . ': ' . ($status !== '' ? $status : 'unknown');
             if (!empty($issuecodes)) {
                 $line .= ' [' . implode(', ', $issuecodes) . ']';
             }

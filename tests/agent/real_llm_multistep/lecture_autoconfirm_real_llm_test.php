@@ -61,8 +61,8 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
     public function test_lecture_autoconfirm_single_pass_creates_five_actions(): void {
         global $DB;
 
-        if (!$this->is_task_available('mod_booking.create_option')) {
-            $this->fail('booking.create_option is not available in the current task catalog.');
+        if (!$this->is_skill_available('mod_booking.create_option')) {
+            $this->fail('booking.create_option is not available in the current skill catalog.');
         }
 
         $this->setUser($this->teacher);
@@ -122,7 +122,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
             $response = ai_send_message::execute(
                 (int)$contextid,
                 'Letzter Versuch: Bleibe bei mod_booking.create_option und sende nur gueltige Keys. '
-                    . 'Kein slot/task-Wechsel, keine Zusatzfelder, nur Lecture 1 bis 5 wie angegeben.',
+                    . 'Kein slot/skill-Wechsel, keine Zusatzfelder, nur Lecture 1 bis 5 wie angegeben.',
                 (int)$threadid
             );
             $trace[] = $this->build_trace_line('send', 2, $response);
@@ -339,7 +339,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
             if (!is_array($command)) {
                 continue;
             }
-            if ((string)($command['task'] ?? '') === 'mod_booking.create_option') {
+            if ((string)($command['skill'] ?? '') === 'mod_booking.create_option') {
                 $count++;
             }
         }
@@ -348,14 +348,14 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Check if a task currently exists in the registry.
+     * Check if a skill currently exists in the registry.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @return bool
      */
-    private function is_task_available(string $taskname): bool {
-        $registry = \bookingextension_agent\local\wbagent\task_registry_factory::get_default();
-        return $registry->get_task($taskname) !== null;
+    private function is_skill_available(string $skillname): bool {
+        $registry = \bookingextension_agent\local\wbagent\skill_registry_factory::get_default();
+        return $registry->get_skill($skillname) !== null;
     }
 
     /**

@@ -27,7 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\interfaces\summarizer;
 
 /**
- * Contract for task/domain specific summary contributors.
+ * Contract for skill/domain specific summary contributors.
  */
 interface result_summary_contributor_interface {
     /**

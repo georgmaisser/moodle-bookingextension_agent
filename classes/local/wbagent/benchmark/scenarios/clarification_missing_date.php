@@ -35,7 +35,7 @@ class clarification_missing_date extends abstract_benchmark_scenario {
     public function get_expected_response_type(): string {
         return 'clarification';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return '';
     }
 

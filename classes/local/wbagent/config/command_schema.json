@@ -3,12 +3,12 @@
   "title": "bookingextension_agent command schema",
   "type": "object",
   "required": [
-    "task",
+    "skill",
     "version",
     "input"
   ],
   "properties": {
-    "task": {
+    "skill": {
       "type": "string",
       "minLength": 1
     },
@@ -41,10 +41,10 @@
       "items": {
         "type": "object",
         "required": [
-          "task"
+          "skill"
         ],
         "properties": {
-          "task": {
+          "skill": {
             "type": "string",
             "minLength": 1
           },

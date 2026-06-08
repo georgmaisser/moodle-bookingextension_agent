@@ -34,7 +34,7 @@ final class synchronizer_input_contract_test extends TestCase {
     /**
      * PHASE_TRACE should keep only minimal telemetry and exclude discovery payloads.
      */
-    public function test_phase_trace_excludes_task_discovery_payload(): void {
+    public function test_phase_trace_excludes_skill_discovery_payload(): void {
         $builder = new synchronizer_input_builder();
 
         $observations = $builder->build_observations([
@@ -54,14 +54,14 @@ final class synchronizer_input_contract_test extends TestCase {
                     'response_type' => 'clarification',
                     'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
                     'errors' => [],
-                    'runtimecatalog' => [['task' => 'mod_booking.create_option']],
+                    'runtimecatalog' => [['skill' => 'mod_booking.create_option']],
                 ],
                 'parameter_construction' => [
                     'phase' => 'parameter_construction',
-                    'response_type' => 'task_call',
+                    'response_type' => 'skill_call',
                     'issue_codes' => [],
                     'errors' => [],
-                    'commands' => [['task' => 'mod_booking.create_option']],
+                    'commands' => [['skill' => 'mod_booking.create_option']],
                 ],
             ],
         ]);

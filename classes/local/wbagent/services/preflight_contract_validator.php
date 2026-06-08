@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Unified L1 contract validator (schema + version/deprecation policy).
@@ -28,14 +28,14 @@ use bookingextension_agent\local\wbagent\task_registry;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preflight_contract_validator {
-    /** Task registration issue code. */
-    public const ISSUE_TASK_NOT_REGISTERED = preflight_version_validator::ISSUE_TASK_NOT_REGISTERED;
+    /** Skill registration issue code. */
+    public const ISSUE_SKILL_NOT_REGISTERED = preflight_version_validator::ISSUE_SKILL_NOT_REGISTERED;
 
     /** Unsupported version issue code. */
-    public const ISSUE_TASK_VERSION_UNSUPPORTED = task_version_policy::ISSUE_UNSUPPORTED;
+    public const ISSUE_SKILL_VERSION_UNSUPPORTED = skill_version_policy::ISSUE_UNSUPPORTED;
 
     /** Deprecated version issue code. */
-    public const ISSUE_TASK_VERSION_DEPRECATED = task_version_policy::ISSUE_DEPRECATED;
+    public const ISSUE_SKILL_VERSION_DEPRECATED = skill_version_policy::ISSUE_DEPRECATED;
 
     /** @var preflight_schema_validator */
     private preflight_schema_validator $schemavalidator;
@@ -43,24 +43,24 @@ class preflight_contract_validator {
     /** @var preflight_version_validator */
     private preflight_version_validator $versionvalidator;
 
-    /** @var task_version_policy */
-    private task_version_policy $versionpolicy;
+    /** @var skill_version_policy */
+    private skill_version_policy $versionpolicy;
 
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param preflight_schema_validator|null $schemavalidator
      * @param preflight_version_validator|null $versionvalidator
-     * @param task_version_policy|null $versionpolicy
+     * @param skill_version_policy|null $versionpolicy
      */
     public function __construct(
-        task_registry $registry,
+        skill_registry $registry,
         ?preflight_schema_validator $schemavalidator = null,
         ?preflight_version_validator $versionvalidator = null,
-        ?task_version_policy $versionpolicy = null
+        ?skill_version_policy $versionpolicy = null
     ) {
-        $this->versionpolicy = $versionpolicy ?? new task_version_policy();
+        $this->versionpolicy = $versionpolicy ?? new skill_version_policy();
         $this->versionvalidator = $versionvalidator ?? new preflight_version_validator($registry, $this->versionpolicy);
         $this->schemavalidator = $schemavalidator ?? new preflight_schema_validator();
     }

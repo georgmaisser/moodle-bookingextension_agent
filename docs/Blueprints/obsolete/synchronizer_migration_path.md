@@ -75,7 +75,7 @@ Wir bauen keinen zweiten grossen Orchestrator neben den bestehenden Code. Stattd
 - `tool_call_parse`
 - `simple_retrieval`
 - planner prompt policies
-- planner task catalog selection
+- planner skill catalog selection
 - interpreter fuer planner JSON
 - decision service
 - preflight / queue / executor

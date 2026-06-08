@@ -46,7 +46,7 @@ use bookingextension_agent\local\wbagent\benchmark\benchmark_result_collector;
 use bookingextension_agent\local\wbagent\benchmark\benchmark_metrics_calculator;
 use bookingextension_agent\local\wbagent\benchmark\benchmark_db_writer;
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\skill_registry_factory;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\interpreter;
 use core\di;
@@ -119,9 +119,9 @@ if (!$usestub && $envkey !== '') {
 $store      = null;
 $orc        = null;
 if (!$usestub) {
-    $taskregistry = task_registry_factory::get_default();
+    $skillregistry = skill_registry_factory::get_default();
     $store        = new conversation_store();
-    $orc          = new orchestrator($taskregistry, new interpreter($taskregistry), $store);
+    $orc          = new orchestrator($skillregistry, new interpreter($skillregistry), $store);
 }
 
 $scenarios = $registry->get_scenarios($setname);
@@ -213,8 +213,8 @@ foreach ($scenarios as $i => $scenario) {
                 'passed'                 => 0,
                 'response_type_expected' => $scenario->get_expected_response_type(),
                 'response_type_actual'   => '',
-                'task_expected'          => $scenario->get_expected_task(),
-                'task_selected'          => '',
+                'skill_expected'          => $scenario->get_expected_skill(),
+                'skill_selected'          => '',
                 'json_valid'             => 0,
                 'contract_compliant'     => 0,
                 'planned_steps_present'  => 0,
@@ -259,7 +259,7 @@ $rundata = [
     'label'              => $label,
     'model_id'           => $modelid,
     'prompt_profile'     => 'default',
-    'task_set'           => $setname,
+    'skill_set'           => $setname,
     'total_scenarios'    => $total,
     'passed'             => $passed,
     'failed'             => $failed,

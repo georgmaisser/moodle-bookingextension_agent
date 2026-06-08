@@ -21,7 +21,7 @@ namespace bookingextension_agent\local\wbagent\services;
 use bookingextension_agent\local\wbagent\agent_state;
 
 /**
- * Runtime helper for step task/signature extraction and normalization.
+ * Runtime helper for step skill/signature extraction and normalization.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -29,56 +29,56 @@ use bookingextension_agent\local\wbagent\agent_state;
  */
 class runtime_step_analysis_service {
     /**
-     * Extract task names for a completed loop step.
+     * Extract skill names for a completed loop step.
      *
      * @param array $commands
      * @param array $results
      * @return array<int,string>
      */
-    public function extract_step_task_names(array $commands, array $results): array {
-        $tasknames = [];
+    public function extract_step_skill_names(array $commands, array $results): array {
+        $skillnames = [];
         foreach ($commands as $command) {
             if (!is_array($command)) {
                 continue;
             }
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname !== '') {
-                $tasknames[] = $taskname;
+            $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            if ($skillname !== '') {
+                $skillnames[] = $skillname;
             }
         }
 
-        if (!empty($tasknames)) {
-            return array_values(array_unique($tasknames));
+        if (!empty($skillnames)) {
+            return array_values(array_unique($skillnames));
         }
 
         foreach ($results as $result) {
             if (!is_array($result)) {
                 continue;
             }
-            $taskname = trim((string)($result['task'] ?? ''));
-            if ($taskname !== '') {
-                $tasknames[] = $taskname;
+            $skillname = trim((string)($result['skill'] ?? $result['skill'] ?? ''));
+            if ($skillname !== '') {
+                $skillnames[] = $skillname;
             }
         }
 
-        return array_values(array_unique($tasknames));
+        return array_values(array_unique($skillnames));
     }
 
     /**
-     * Convert technical task name into readable fallback label.
+     * Convert technical skill name into readable fallback label.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @return string
      */
-    public function humanize_task_name(string $taskname): string {
-        $taskname = trim($taskname);
-        if ($taskname === '') {
+    public function humanize_skill_name(string $skillname): string {
+        $skillname = trim($skillname);
+        if ($skillname === '') {
             return 'Processing';
         }
 
-        $tail = $taskname;
-        if (str_contains($taskname, '.')) {
-            $parts = explode('.', $taskname);
+        $tail = $skillname;
+        if (str_contains($skillname, '.')) {
+            $parts = explode('.', $skillname);
             $tail = (string)end($parts);
         }
 
@@ -100,8 +100,8 @@ class runtime_step_analysis_service {
                 continue;
             }
 
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '') {
+            $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
 
@@ -112,38 +112,38 @@ class runtime_step_analysis_service {
 
             $normalizedinput = $this->normalize_command_input_for_signature($input);
             $encodedinput = json_encode($normalizedinput, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $signatures[] = $taskname . '|' . (is_string($encodedinput) ? $encodedinput : '{}');
+            $signatures[] = $skillname . '|' . (is_string($encodedinput) ? $encodedinput : '{}');
         }
 
         if (!empty($signatures)) {
             return array_values(array_unique($signatures));
         }
 
-        return $this->extract_step_task_names($commands, $results);
+        return $this->extract_step_skill_names($commands, $results);
     }
 
     /**
-     * Collect unique task names recorded in loop state steps.
+     * Collect unique skill names recorded in loop state steps.
      *
      * @param agent_state $state
      * @return array<int,string>
      */
-    public function extract_recorded_step_task_names(agent_state $state): array {
-        $tasknames = [];
+    public function extract_recorded_skill_names(agent_state $state): array {
+        $skillnames = [];
         foreach ($state->get_steps() as $step) {
-            $names = $this->extract_step_task_names(
+            $names = $this->extract_step_skill_names(
                 (array)($step['tool_calls'] ?? []),
                 (array)($step['results'] ?? [])
             );
             foreach ($names as $name) {
                 $trimmed = trim((string)$name);
                 if ($trimmed !== '') {
-                    $tasknames[] = $trimmed;
+                    $skillnames[] = $trimmed;
                 }
             }
         }
 
-        return array_values(array_unique($tasknames));
+        return array_values(array_unique($skillnames));
     }
 
     /**

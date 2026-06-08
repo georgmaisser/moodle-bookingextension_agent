@@ -19,10 +19,10 @@ namespace bookingextension_agent\local\wbagent\benchmark\scenarios;
 use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
 
 /**
- * Scenario: "delete all bookings for a course" — no such task exists, agent must return error.
+ * Scenario: "delete all bookings for a course" — no such skill exists, agent must return error.
  *
- * There is no bulk-cancel-all-bookings task in the catalog. The correct selector
- * response is error, not task_call. This verifies the agent does not hallucinate a task.
+ * There is no bulk-cancel-all-bookings skill in the catalog. The correct selector
+ * response is error, not skill_call. This verifies the agent does not hallucinate a skill.
  *
  * @package bookingextension_agent
  */
@@ -34,7 +34,7 @@ class confirmation_request_r1 extends abstract_benchmark_scenario {
         return 'catalog_gap';
     }
     public function get_description(): string {
-        return 'No bulk-cancel task in catalog — agent must return error, not hallucinate a task_call';
+        return 'No bulk-cancel skill in catalog — agent must return error, not hallucinate a skill_call';
     }
     public function get_user_message(): string {
         return 'Loesche alle Buchungen fuer den Kurs "Yoga Intensiv".';
@@ -42,7 +42,7 @@ class confirmation_request_r1 extends abstract_benchmark_scenario {
     public function get_expected_response_type(): string {
         return 'error';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return '';
     }
 

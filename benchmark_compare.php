@@ -127,7 +127,7 @@ foreach ([['A', $runa], ['B', $runb]] as [$tag, $r]) {
     
     $cardcontent = '';
     $cardcontent .= get_string('benchmark_model', 'bookingextension_agent') . ': ' . htmlspecialchars($r->model_id) . html_writer::empty_tag('br');
-    $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' . htmlspecialchars($r->task_set) . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' . htmlspecialchars($r->skill_set) . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_success', 'bookingextension_agent') . ': ' . $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')' . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_date', 'bookingextension_agent') . ': ' . userdate($r->timecreated, '%d.%m.%Y %H:%M');
     

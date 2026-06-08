@@ -47,14 +47,14 @@ class benchmark_result_collector {
         $jsonvalid = is_array($parsed);
 
         $responsetype = '';
-        $taskselected = '';
+        $skillselected = '';
         $plannedstetspresent = 0;
         $contractcompliant   = 0;
         $errors = [];
 
         if ($jsonvalid) {
             $responsetype = trim((string)($parsed['response_type'] ?? ''));
-            $taskselected = trim((string)($parsed['commands'][0]['task'] ?? ''));
+            $skillselected = trim((string)($parsed['commands'][0]['skill'] ?? ''));
             $plannedstetspresent = isset($parsed['planned_steps']) && is_array($parsed['planned_steps']) ? 1 : 0;
             $contractcompliant = $this->check_contract_compliance($parsed, $errors);
         } else {
@@ -62,17 +62,17 @@ class benchmark_result_collector {
         }
 
         $expectedrt  = $scenario->get_expected_response_type();
-        $expectedtask = $scenario->get_expected_task();
+        $expectedskill = $scenario->get_expected_skill();
 
         $rtmatch   = $expectedrt === '' || $responsetype === $expectedrt;
-        $taskmatch = $expectedtask === '' || $taskselected === $expectedtask;
+        $skillmatch = $expectedskill === '' || $skillselected === $expectedskill;
         $planmatch = !$scenario->expects_planned_steps()
             || ($plannedstetspresent && !empty($parsed['planned_steps']));
 
         $additional = $scenario->assert_additional($parsed ?? []);
         $addpassed  = empty(array_filter($additional, fn($a) => !$a['passed']));
 
-        $passed = $jsonvalid && $contractcompliant && $rtmatch && $taskmatch && $planmatch && $addpassed;
+        $passed = $jsonvalid && $contractcompliant && $rtmatch && $skillmatch && $planmatch && $addpassed;
 
         $errormessage = null;
         if (!$passed) {
@@ -86,8 +86,8 @@ class benchmark_result_collector {
             if (!$rtmatch) {
                 $parts[] = "rt: expected={$expectedrt} actual={$responsetype}";
             }
-            if (!$taskmatch) {
-                $parts[] = "task: expected={$expectedtask} actual={$taskselected}";
+            if (!$skillmatch) {
+                $parts[] = "skill: expected={$expectedskill} actual={$skillselected}";
             }
             if (!$planmatch) {
                 $parts[] = 'planned_steps_missing';
@@ -108,8 +108,8 @@ class benchmark_result_collector {
             'passed'                 => $passed ? 1 : 0,
             'response_type_expected' => $expectedrt,
             'response_type_actual'   => $responsetype,
-            'task_expected'          => $expectedtask,
-            'task_selected'          => $taskselected,
+            'skill_expected'          => $expectedskill,
+            'skill_selected'          => $skillselected,
             'json_valid'             => $jsonvalid ? 1 : 0,
             'contract_compliant'     => $contractcompliant ? 1 : 0,
             'planned_steps_present'  => $plannedstetspresent,
@@ -147,14 +147,14 @@ class benchmark_result_collector {
             $ok = false;
         }
         $rt = $parsed['response_type'] ?? '';
-        $validtypes = ['task_call', 'clarification', 'confirm_pending', 'sufficient', 'error'];
+        $validtypes = ['skill_call', 'clarification', 'confirm_pending', 'sufficient', 'error'];
         if (!in_array($rt, $validtypes, true)) {
             $errors[] = "invalid response_type: {$rt}";
             $ok = false;
         }
-        if ($rt === 'task_call') {
+        if ($rt === 'skill_call') {
             if (empty($parsed['commands']) || !is_array($parsed['commands'])) {
-                $errors[] = 'task_call requires non-empty commands';
+                $errors[] = 'skill_call requires non-empty commands';
                 $ok = false;
             } else if (count($parsed['commands']) !== 1) {
                 $errors[] = 'selector must emit exactly one command';

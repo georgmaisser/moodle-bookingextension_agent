@@ -10,14 +10,14 @@ Scope: mod/booking/bookingextension/agent
 - Tag erstellt: baseline-pre-consolidation-20260530-1
 
 2. Duplikatbereinigung bei Test-Fixtures umgesetzt
-- Geloescht: tests/agent/embedded_llm/fixtures/task_catalog_embeddings.csv
-- Geloescht: tests/fixtures/task_catalog_embeddings.csv
-- Kanonische Datei bleibt: tests/agent/fixtures/task_catalog_embeddings.csv
+- Geloescht: tests/agent/embedded_llm/fixtures/skill_catalog_embeddings.csv
+- Geloescht: tests/fixtures/skill_catalog_embeddings.csv
+- Kanonische Datei bleibt: tests/agent/fixtures/skill_catalog_embeddings.csv
 
 3. CLI auf kanonische Fixture vereinheitlicht
 - Datei: cli/rebuild_embeddings_fixture.php
 - Hilfe-Text angepasst auf neuen Default-Pfad
-- Default-Outputpfad angepasst auf tests/agent/fixtures/task_catalog_embeddings.csv
+- Default-Outputpfad angepasst auf tests/agent/fixtures/skill_catalog_embeddings.csv
 
 4. CLI/Public-Spiegelung geprueft
 - Ergebnis: unter cli/public existieren keine Dateien (0), damit kein aktiver Spiegelungsbestand
@@ -52,8 +52,8 @@ Detail (grosses Paket):
 - classes/local/wbagent/examples/tasks/spawn_child_example_task.php: -175
 - classes/local/wbagent/examples/tasks/spawn_parent_example_task.php: -194
 - tests/agent/real_llm_multistep/example_tasks_real_llm_test.php: -360
-- tests/agent/embedded_llm/fixtures/task_catalog_embeddings.csv: -31
-- tests/fixtures/task_catalog_embeddings.csv: -31
+- tests/agent/embedded_llm/fixtures/skill_catalog_embeddings.csv: -31
+- tests/fixtures/skill_catalog_embeddings.csv: -31
 - cli/rebuild_embeddings_fixture.php: +2 / -2
 - docs/Blueprints/bookingextension_agent_inventur_vollstaendig.md: +85 / -133
 - docs/Blueprints/bookingextension_agent_konsolidierung_checkliste_vollstaendig.md: +5 / -5

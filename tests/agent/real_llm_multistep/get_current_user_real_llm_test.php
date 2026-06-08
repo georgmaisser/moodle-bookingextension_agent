@@ -32,7 +32,7 @@ require_once(__DIR__ . '/../abstract_agent_testcase.php');
 use bookingextension_agent\external\ai_send_message;
 
 /**
- * Real provider regression test for the current-user task.
+ * Real provider regression test for the current-user skill.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -63,12 +63,12 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
         );
 
         $this->assertTrue(
-            $this->has_task_evidence($response, 'core.get_current_user')
+            $this->has_skill_evidence($response, 'core.get_current_user')
                 || str_contains($message, (string)$this->teacher->email)
                 || str_contains($message, (string)$this->course->fullname)
                 || str_contains(mb_strtolower($message), 'profil wurde gefunden')
                 || str_contains(mb_strtolower($message), 'profile was found'),
-            'Expected either task evidence or a direct profile answer. Payload: ' . $message
+            'Expected either skill evidence or a direct profile answer. Payload: ' . $message
         );
 
         $result = $this->exec_command('core.get_current_user', [], (int)$this->booking->cmid, (int)$this->teacher->id);
@@ -120,14 +120,14 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Check whether the LLM response references the expected task.
+     * Check whether the LLM response references the expected skill.
      *
      * @param array<string,mixed> $payload
-     * @param string $taskname
+     * @param string $skillname
      * @return bool
      */
-    private function has_task_evidence(array $payload, string $taskname): bool {
-        return $this->extract_command($payload, $taskname) !== null
-            || $this->extract_task_result($payload, $taskname) !== null;
+    private function has_skill_evidence(array $payload, string $skillname): bool {
+        return $this->extract_command($payload, $skillname) !== null
+            || $this->extract_skill_result($payload, $skillname) !== null;
     }
 }

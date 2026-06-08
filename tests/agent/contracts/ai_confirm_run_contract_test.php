@@ -23,7 +23,7 @@ require_once(__DIR__ . '/../abstract_agent_testcase.php');
 use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Contract tests for ai_confirm_run state handling.
@@ -45,10 +45,10 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
 
         $this->setUser($this->teacher);
 
-        $registry = task_registry::make_default();
-        $task = $registry->get_task('mod_booking.create_option');
-        if ($task === null) {
-            $this->fail('mod_booking.create_option is not available in the current task catalog.');
+        $registry = skill_registry::make_default();
+        $skill = $registry->get_skill('mod_booking.create_option');
+        if ($skill === null) {
+            $this->fail('mod_booking.create_option is not available in the current skill catalog.');
         }
 
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
@@ -64,14 +64,14 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         ]);
 
         $command = [
-            'task' => 'mod_booking.create_option',
+            'skill' => 'mod_booking.create_option',
             'version' => 1,
             'input' => [
                 'text' => 'Terminal finalizer contract option 1',
             ],
         ];
 
-        $preflight = $task->preflight((array)$command['input'], $contextid, $userid);
+        $preflight = $skill->preflight((array)$command['input'], $contextid, $userid);
         $this->assertSame('pass', $preflight->status);
 
         $queued = $queuesvc->enqueue_command($threadid, 0, 0, $command, 'mutating', 'blocked_confirmation');
@@ -153,10 +153,10 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
 
         $this->setUser($this->teacher);
 
-        $registry = task_registry::make_default();
-        $task = $registry->get_task('mod_booking.create_option');
-        if ($task === null) {
-            $this->fail('mod_booking.create_option is not available in the current task catalog.');
+        $registry = skill_registry::make_default();
+        $skill = $registry->get_skill('mod_booking.create_option');
+        if ($skill === null) {
+            $this->fail('mod_booking.create_option is not available in the current skill catalog.');
         }
 
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
@@ -172,22 +172,22 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         ]);
 
         $command1 = [
-            'task' => 'mod_booking.create_option',
+            'skill' => 'mod_booking.create_option',
             'version' => 1,
             'input' => [
                 'text' => 'Follow-up contract option 1',
             ],
         ];
         $command2 = [
-            'task' => 'mod_booking.create_option',
+            'skill' => 'mod_booking.create_option',
             'version' => 1,
             'input' => [
                 'text' => 'Follow-up contract option 2',
             ],
         ];
 
-        $preflight1 = $task->preflight((array)$command1['input'], $contextid, $userid);
-        $preflight2 = $task->preflight((array)$command2['input'], $contextid, $userid);
+        $preflight1 = $skill->preflight((array)$command1['input'], $contextid, $userid);
+        $preflight2 = $skill->preflight((array)$command2['input'], $contextid, $userid);
         $this->assertSame('pass', $preflight1->status);
         $this->assertSame('pass', $preflight2->status);
 

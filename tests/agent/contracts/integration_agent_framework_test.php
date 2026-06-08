@@ -17,9 +17,9 @@
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
-use bookingextension_agent\local\wbagent\task_registry;
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
+use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wbagent\skill_registry_factory;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -35,33 +35,33 @@ use PHPUnit\Framework\TestCase;
  */
 final class integration_agent_framework_test extends TestCase {
     /**
-     * Test that task_registry discovers tasks from the booking plugin provider.
+     * Test that skill_registry discovers skills from the booking plugin provider.
      */
-    public function test_task_registry_discovers_booking_tasks(): void {
-        $registry = task_registry_factory::get_default();
-        $tasks = $registry->get_tasks();
+    public function test_skill_registry_discovers_booking_skills(): void {
+        $registry = skill_registry_factory::get_default();
+        $skills = $registry->get_skills();
 
-        // Verify that tasks are discovered.
-        $this->assertNotEmpty($tasks, 'Task registry should discover tasks from booking plugin');
-        $this->assertGreaterThanOrEqual(2, count($tasks), 'Should discover at least 2 booking tasks');
+        // Verify that skills are discovered.
+        $this->assertNotEmpty($skills, 'Skill registry should discover skills from booking plugin');
+        $this->assertGreaterThanOrEqual(2, count($skills), 'Should discover at least 2 booking skills');
 
-        // Verify task names follow the pattern: <component>.<taskname>.
-        foreach ($tasks as $task) {
-            $name = $task->get_name();
-            $this->assertStringContainsString('.', $name, 'Task name should include component prefix');
+        // Verify skill names follow the pattern: <component>.<skillname>.
+        foreach ($skills as $skill) {
+            $name = $skill->get_name();
+            $this->assertStringContainsString('.', $name, 'Skill name should include component prefix');
         }
     }
 
     /**
-     * Test that task_provider interface supports optional issue code provider.
+     * Test that skill_provider interface supports optional issue code provider.
      */
-    public function test_task_provider_interface_supports_issue_code_provider(): void {
-        $provider = new \bookingextension_agent\local\wbagent\task_provider();
+    public function test_skill_provider_interface_supports_issue_code_provider(): void {
+        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
 
         // Verify interface methods exist.
         $this->assertTrue(
             method_exists($provider, 'get_issue_code_provider'),
-            'task_provider should implement get_issue_code_provider()'
+            'skill_provider should implement get_issue_code_provider()'
         );
 
         // Verify method returns issue code provider.
@@ -74,15 +74,15 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that task_provider interface supports optional prompt guidance.
+     * Test that skill_provider interface supports optional prompt guidance.
      */
-    public function test_task_provider_interface_supports_prompt_guidance(): void {
-        $provider = new \bookingextension_agent\local\wbagent\task_provider();
+    public function test_skill_provider_interface_supports_prompt_guidance(): void {
+        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
 
         // Verify interface methods exist.
         $this->assertTrue(
             method_exists($provider, 'get_prompt_guidance'),
-            'task_provider should implement get_prompt_guidance()'
+            'skill_provider should implement get_prompt_guidance()'
         );
 
         // Verify method returns array.
@@ -95,7 +95,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_issue_code_provider_injected_into_agent_runtime(): void {
         $provider = new \bookingextension_agent\local\wbagent\booking_issue_code_provider();
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $store = new \bookingextension_agent\local\wbagent\conversation_store();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
         $orchestrator = new \bookingextension_agent\local\wbagent\orchestrator($registry, $interpreter, $store);
@@ -114,18 +114,18 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that task schema includes prompt_meta when available.
+     * Test that skill schema includes prompt_meta when available.
      */
-    public function test_task_schema_includes_prompt_meta(): void {
-        $registry = task_registry_factory::get_default();
+    public function test_skill_schema_includes_prompt_meta(): void {
+        $registry = skill_registry_factory::get_default();
 
-        // Get tasks and verify at least one has prompt_meta.
-        $tasks = $registry->get_tasks();
-        $this->assertNotEmpty($tasks, 'Registry should have tasks');
+        // Get skills and verify at least one has prompt_meta.
+        $skills = $registry->get_skills();
+        $this->assertNotEmpty($skills, 'Registry should have skills');
 
         $foundpromptmeta = false;
-        foreach ($tasks as $task) {
-            $schema = $task->get_schema();
+        foreach ($skills as $skill) {
+            $schema = $skill->get_schema();
             if (isset($schema['prompt_meta'])) {
                 $foundpromptmeta = true;
                 $this->assertIsArray($schema['prompt_meta'], 'prompt_meta should be array');
@@ -135,24 +135,24 @@ final class integration_agent_framework_test extends TestCase {
             }
         }
 
-        $this->assertTrue($foundpromptmeta, 'At least one booking task should have prompt_meta');
+        $this->assertTrue($foundpromptmeta, 'At least one booking skill should have prompt_meta');
     }
 
     /**
-     * Test that task registry uses prompt_meta when building prompt contract.
+     * Test that skill registry uses prompt_meta when building prompt contract.
      */
-    public function test_task_registry_prioritizes_prompt_meta(): void {
-        $registry = task_registry_factory::get_default();
-        $contract = ['tasks' => $registry->get_all_prompt_contracts()];
+    public function test_skill_registry_prioritizes_prompt_meta(): void {
+        $registry = skill_registry_factory::get_default();
+        $contract = ['skills' => $registry->get_all_prompt_contracts()];
 
-        // Verify contract includes task catalog.
+        // Verify contract includes skill catalog.
         $this->assertIsArray($contract, 'Prompt contract should be array');
-        $this->assertArrayHasKey('tasks', $contract, 'Contract should include tasks');
+        $this->assertArrayHasKey('skills', $contract, 'Contract should include skills');
 
-        // Verify each task has routing metadata.
-        foreach ((array)$contract['tasks'] as $taskinfo) {
-            $this->assertIsArray($taskinfo, 'Task info should be array');
-            $this->assertArrayHasKey('task', $taskinfo, 'Should have task name');
+        // Verify each skill has routing metadata.
+        foreach ((array)$contract['skills'] as $skillinfo) {
+            $this->assertIsArray($skillinfo, 'Skill info should be array');
+            $this->assertArrayHasKey('skill', $skillinfo, 'Should have skill name');
         }
     }
 
@@ -160,35 +160,35 @@ final class integration_agent_framework_test extends TestCase {
      * Test that prompt contracts separate required inputs from routing examples.
      */
     public function test_prompt_contracts_use_required_minimals_and_explicit_examples(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $contracts = $registry->get_all_prompt_contracts();
 
-        $foundreadonlytask = false;
-        $foundmutatingtask = false;
-        foreach ($contracts as $taskinfo) {
-            $this->assertArrayHasKey('task', $taskinfo, 'Every task should expose task name');
-            $this->assertArrayHasKey('minimal_input', $taskinfo, 'Every task should expose minimal_input');
-            $this->assertArrayHasKey('example_input', $taskinfo, 'Every task should expose example_input');
-            $this->assertIsArray($taskinfo['minimal_input'], 'minimal_input should always be an array');
-            $this->assertIsArray($taskinfo['example_input'], 'example_input should always be an array');
+        $foundreadonlyskill = false;
+        $foundmutatingskill = false;
+        foreach ($contracts as $skillinfo) {
+            $this->assertArrayHasKey('skill', $skillinfo, 'Every skill should expose skill name');
+            $this->assertArrayHasKey('minimal_input', $skillinfo, 'Every skill should expose minimal_input');
+            $this->assertArrayHasKey('example_input', $skillinfo, 'Every skill should expose example_input');
+            $this->assertIsArray($skillinfo['minimal_input'], 'minimal_input should always be an array');
+            $this->assertIsArray($skillinfo['example_input'], 'example_input should always be an array');
 
-            if (!empty($taskinfo['readonly'])) {
-                $foundreadonlytask = true;
+            if (!empty($skillinfo['readonly'])) {
+                $foundreadonlyskill = true;
             } else {
-                $foundmutatingtask = true;
+                $foundmutatingskill = true;
             }
         }
 
         $this->assertNotEmpty($contracts, 'Prompt contracts should not be empty');
-        $this->assertTrue($foundreadonlytask, 'Expected at least one readonly task contract');
-        $this->assertTrue($foundmutatingtask, 'Expected at least one mutating task contract');
+        $this->assertTrue($foundreadonlyskill, 'Expected at least one readonly skill contract');
+        $this->assertTrue($foundmutatingskill, 'Expected at least one mutating skill contract');
     }
 
     /**
      * Test that slim planner catalog never recreates example_input from minimal_input.
      */
     public function test_slim_catalog_keeps_examples_separate_from_minimals(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
         $assistantsummaryprop = $orchestratorreflection->getProperty('assistantsummariesvc');
@@ -199,21 +199,21 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $slimcatalog = $method->invoke($orchestrator, $registry->get_all_prompt_contracts());
-        $bytask = [];
-        foreach ($slimcatalog as $taskinfo) {
-            $bytask[(string)$taskinfo['task']] = $taskinfo;
-            $this->assertArrayHasKey('minimal_input', $taskinfo, 'Slim catalog should keep minimal_input');
-            $this->assertIsArray($taskinfo['minimal_input'], 'Slim minimal_input should be an array');
-            if (array_key_exists('example_input', $taskinfo)) {
-                $this->assertIsArray($taskinfo['example_input'], 'Slim example_input should remain an array');
+        $byskill = [];
+        foreach ($slimcatalog as $skillinfo) {
+            $byskill[(string)($skillinfo['skill'] ?? $skillinfo['skill'] ?? '')] = $skillinfo;
+            $this->assertArrayHasKey('minimal_input', $skillinfo, 'Slim catalog should keep minimal_input');
+            $this->assertIsArray($skillinfo['minimal_input'], 'Slim minimal_input should be an array');
+            if (array_key_exists('example_input', $skillinfo)) {
+                $this->assertIsArray($skillinfo['example_input'], 'Slim example_input should remain an array');
             }
 
-            if (isset($taskinfo['description']) && is_string($taskinfo['description'])) {
-                $this->assertLessThanOrEqual(240, \core_text::strlen($taskinfo['description']));
+            if (isset($skillinfo['description']) && is_string($skillinfo['description'])) {
+                $this->assertLessThanOrEqual(240, \core_text::strlen($skillinfo['description']));
             }
         }
 
-        $this->assertNotEmpty($bytask, 'Slim catalog should contain task entries');
+        $this->assertNotEmpty($byskill, 'Slim catalog should contain skill entries');
     }
 
     /**
@@ -227,10 +227,10 @@ final class integration_agent_framework_test extends TestCase {
 
         $catalog = [
             [
-                'task' => 'mod_booking.diagnose_booking_issue',
+                'skill' => 'mod_booking.diagnose_booking_issue',
                 'description' => 'Diagnose booking issue.',
                 'readonly' => '1',
-                'intent' => 'task',
+                'intent' => 'skill',
                 'minimal_input_json' => '[]',
                 'example_input_json' => '{"question":"Why"}',
                 'message_triggers_json' => '[{"id":"t1","description":"desc"}]',
@@ -241,7 +241,7 @@ final class integration_agent_framework_test extends TestCase {
                 'score' => '0.27',
             ],
             [
-                'task' => 'mod_booking.list_options',
+                'skill' => 'mod_booking.list_options',
                 'description' => 'List booking options.',
                 'readonly' => false,
                 'intent' => 'lookup',
@@ -254,12 +254,12 @@ final class integration_agent_framework_test extends TestCase {
         $sanitized = $method->invoke($orchestrator, $catalog);
         $this->assertCount(2, $sanitized);
         $this->assertSame(
-            ['task', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers', 'example_input'],
+            ['skill', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers', 'example_input'],
             array_keys($sanitized[0])
         );
-        $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['task']);
+        $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['skill']);
         $this->assertTrue((bool)$sanitized[0]['readonly']);
-        $this->assertSame('task', (string)$sanitized[0]['intent']);
+        $this->assertSame('skill', (string)$sanitized[0]['intent']);
         $this->assertSame([], $sanitized[0]['minimal_input']);
         $this->assertSame(['question'], $sanitized[0]['example_input']);
         $this->assertArrayHasKey('id', (array)($sanitized[0]['message_triggers'][0] ?? []));
@@ -270,10 +270,10 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertArrayNotHasKey('score', $sanitized[0]);
 
         $this->assertSame(
-            ['task', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers'],
+            ['skill', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers'],
             array_keys($sanitized[1])
         );
-        $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['task']);
+        $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['skill']);
         $this->assertFalse((bool)$sanitized[1]['readonly']);
         $this->assertSame('lookup', (string)$sanitized[1]['intent']);
         $this->assertSame(['optionquery'], $sanitized[1]['minimal_input']);
@@ -281,44 +281,44 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Discovery-ranked construction allow-lists must keep all candidate tasks
-     * when selection has not explicitly chosen a single task.
+     * Discovery-ranked construction allow-lists must keep all candidate skills
+     * when selection has not explicitly chosen a single skill.
      */
-    public function test_construction_allow_list_keeps_all_ranked_tasks_without_explicit_selection(): void {
+    public function test_construction_allow_list_keeps_all_ranked_skills_without_explicit_selection(): void {
         $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
 
-        $allowlistmethod = $orchestratorreflection->getMethod('build_construction_allowed_tasks');
+        $allowlistmethod = $orchestratorreflection->getMethod('build_construction_allowed_skills');
         $allowlistmethod->setAccessible(true);
-        $selectedtaskmethod = $orchestratorreflection->getMethod('extract_selected_task_from_selection_phase_output');
-        $selectedtaskmethod->setAccessible(true);
+        $selectedskillmethod = $orchestratorreflection->getMethod('extract_selected_skill_from_selection_phase_output');
+        $selectedskillmethod->setAccessible(true);
 
         $allowed = $allowlistmethod->invoke($orchestrator, [
-            ['task' => 'mod_booking.create_option'],
-            ['task' => 'mod_booking.search_options'],
-            ['task' => 'mod_booking.create_option'],
+            ['skill' => 'mod_booking.create_option'],
+            ['skill' => 'mod_booking.search_options'],
+            ['skill' => 'mod_booking.create_option'],
         ], [
-            ['task' => 'mod_booking.update_option'],
+            ['skill' => 'mod_booking.update_option'],
         ]);
 
         $this->assertSame(
             ['mod_booking.create_option', 'mod_booking.search_options'],
             $allowed
         );
-        $this->assertSame('', $selectedtaskmethod->invoke($orchestrator, ['response_type' => 'sufficient']));
+        $this->assertSame('', $selectedskillmethod->invoke($orchestrator, ['response_type' => 'sufficient']));
     }
 
     /**
-     * Test that embedding-selected planner subsets keep full task descriptions.
+     * Test that embedding-selected planner subsets keep full skill descriptions.
      */
     public function test_embedding_subset_keeps_full_descriptions(): void {
         $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
-        $csvdescription = 'Persisted CSV description that should not win over live task schema metadata.';
-        $livedescription = 'Live task description from get_schema that must win when embed task selection is mapped back to tasks.';
+        $csvdescription = 'Persisted CSV description that should not win over live skill schema metadata.';
+        $livedescription = 'Live skill description from get_schema that must win when embed skill selection is mapped back to skills.';
 
         $subset = $retrieval->build_planner_catalog_subset([
             [
-                'task' => 'booking.create_rule_from_template',
+                'skill' => 'booking.create_rule_from_template',
                 'intent' => 'create',
                 'readonly' => '0',
                 'description' => $csvdescription,
@@ -332,7 +332,7 @@ final class integration_agent_framework_test extends TestCase {
             ],
         ], [
             [
-                'task' => 'booking.create_rule_from_template',
+                'skill' => 'booking.create_rule_from_template',
                 'intent' => 'create',
                 'readonly' => false,
                 'description' => $livedescription,
@@ -353,12 +353,12 @@ final class integration_agent_framework_test extends TestCase {
      * Test that embedding-selected planner subsets include compact schema properties.
      */
     public function test_embedding_subset_includes_property_descriptions(): void {
-        task_registry_factory::reset();
+        skill_registry_factory::reset();
 
         $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
         $subset = $retrieval->build_planner_catalog_subset([
             [
-                'task' => 'core.recreate_task_catalog',
+                'skill' => 'core.recreate_skill_catalog',
                 'intent' => 'mutate',
                 'readonly' => '0',
                 'description' => 'stale csv description',
@@ -392,7 +392,7 @@ final class integration_agent_framework_test extends TestCase {
             \core_ai\aiactions\summarise_text::class
         );
 
-        // Verify template does not contain hardcoded plugin-specific task names.
+        // Verify template does not contain hardcoded plugin-specific skill names.
         $this->assertNotEmpty($template, 'Prompt template should not be empty');
 
         // Verify the live planner fallback remains templated and generic.
@@ -416,19 +416,19 @@ final class integration_agent_framework_test extends TestCase {
             'Action prompt should not hardcode "booking.explain_docs_topic"'
         );
         $this->assertStringContainsString(
-            'TASK CATALOG',
+            'SKILL CATALOG',
             $summariseprompt,
-            'Action prompt should reference task catalog routing'
+            'Action prompt should reference skill catalog routing'
         );
         $this->assertStringContainsString(
-            'Use only exact task names from the TASK CATALOG',
+            'Use only exact skill names from the SKILL CATALOG',
             $summariseprompt,
-            'Action prompt should enforce task-catalog based routing'
+            'Action prompt should enforce skill-catalog based routing'
         );
         $this->assertStringContainsString(
             'Never invent aliases',
             $summariseprompt,
-            'Action prompt should explicitly forbid invented task aliases'
+            'Action prompt should explicitly forbid invented skill aliases'
         );
 
         // Test explain_text action prompt.
@@ -439,24 +439,24 @@ final class integration_agent_framework_test extends TestCase {
             'Explain prompt should not hardcode booking-specific names'
         );
         $this->assertStringContainsString(
-            'TASK CATALOG',
+            'SKILL CATALOG',
             $explainprompt,
-            'Explain prompt should reference task-catalog based routing'
+            'Explain prompt should reference skill-catalog based routing'
         );
     }
 
     /**
      * Test that booking base class is properly renamed.
      */
-    public function test_discovered_tasks_implement_task_interface(): void {
-        $provider = new \bookingextension_agent\local\wbagent\task_provider();
-        $tasks = $provider->get_tasks();
+    public function test_discovered_skills_implement_skill_interface(): void {
+        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $skills = $provider->get_skills();
 
-        $this->assertNotEmpty($tasks, 'Provider should discover at least one task');
-        foreach ($tasks as $task) {
+        $this->assertNotEmpty($skills, 'Provider should discover at least one skill');
+        foreach ($skills as $skill) {
             $this->assertInstanceOf(
-                \bookingextension_agent\local\wbagent\interfaces\task_interface::class,
-                $task
+                \bookingextension_agent\local\wbagent\interfaces\skill_interface::class,
+                $skill
             );
         }
     }
@@ -466,105 +466,105 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_multi_provider_discovery(): void {
         // This test validates the discovery and registration mechanism.
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
 
-        // Verify booking tasks are registered.
-        $tasks = $registry->get_tasks();
-        $this->assertNotEmpty($tasks, 'Registry should have tasks from providers');
+        // Verify booking skills are registered.
+        $skills = $registry->get_skills();
+        $this->assertNotEmpty($skills, 'Registry should have skills from providers');
 
-        // Verify task names include component prefix (plugin-specific routing).
-        // Legacy names used booking.*, current core tasks use core.*.
-        $componentprefixtaskfound = false;
-        $coretaskfound = false;
-        foreach ($tasks as $task) {
-            $name = (string)$task->get_name();
+        // Verify skill names include component prefix (plugin-specific routing).
+        // Legacy names used booking.*, current core skills use core.*.
+        $componentprefixskillfound = false;
+        $coreskillfound = false;
+        foreach ($skills as $skill) {
+            $name = (string)$skill->get_name();
             if (preg_match('/^[a-z][a-z0-9_]*\.[a-z0-9_]/', $name) === 1) {
-                $componentprefixtaskfound = true;
+                $componentprefixskillfound = true;
             }
             if (str_starts_with($name, 'core.')) {
-                $coretaskfound = true;
+                $coreskillfound = true;
             }
         }
 
-        $this->assertTrue($componentprefixtaskfound, 'Should have tasks prefixed with plugin component');
-        $this->assertTrue($coretaskfound, 'Should expose core.* tasks from bookingextension_agent');
+        $this->assertTrue($componentprefixskillfound, 'Should have skills prefixed with plugin component');
+        $this->assertTrue($coreskillfound, 'Should expose core.* skills from bookingextension_agent');
     }
 
     /**
-     * Test that task discovery scans all direct task namespaces under local/wbagent.
+     * Test that skill discovery scans all direct skill namespaces under local/wbagent.
      */
-    public function test_task_discovery_scans_all_wbagent_task_namespaces(): void {
-        task_registry_factory::reset();
+    public function test_skill_discovery_scans_all_wbagent_skill_namespaces(): void {
+        skill_registry_factory::reset();
 
-        $provider = new \bookingextension_agent\local\wbagent\task_provider();
-        $tasknames = array_map(static fn($task): string => $task->get_name(), $provider->get_tasks());
+        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $skillnames = array_map(static fn($skill): string => $skill->get_name(), $provider->get_skills());
 
-        $this->assertContains('core.get_current_user', $tasknames);
-        $this->assertContains('core.recreate_task_catalog', $tasknames);
+        $this->assertContains('core.get_current_user', $skillnames);
+        $this->assertContains('core.recreate_skill_catalog', $skillnames);
 
-        $exampletaskclass = '\\bookingextension_agent\\local\\wbagent\\examples\\tasks\\readonly_example_task';
-        if (class_exists($exampletaskclass)) {
-            $this->assertContains('examples.readonly_example', $tasknames);
+        $exampleskillclass = '\\bookingextension_agent\\local\\wbagent\\examples\\skills\\readonly_example_skill';
+        if (class_exists($exampleskillclass)) {
+            $this->assertContains('examples.readonly_example', $skillnames);
         }
     }
 
     /**
-     * Test that discovery does not expose duplicate task names.
+     * Test that discovery does not expose duplicate skill names.
      */
-    public function test_task_discovery_deduplicates_same_task_name(): void {
-        task_registry_factory::reset();
+    public function test_skill_discovery_deduplicates_same_skill_name(): void {
+        skill_registry_factory::reset();
 
-        $provider = new \bookingextension_agent\local\wbagent\task_provider();
-        $tasknames = array_map(static fn($task): string => $task->get_name(), $provider->get_tasks());
+        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $skillnames = array_map(static fn($skill): string => $skill->get_name(), $provider->get_skills());
 
-        $this->assertSame($tasknames, array_values(array_unique($tasknames)));
+        $this->assertSame($skillnames, array_values(array_unique($skillnames)));
     }
 
     /**
      * Test that trigger-provider discovery ignores non-trigger classes without failing.
      */
     public function test_trigger_provider_discovery_ignores_non_trigger_classes(): void {
-        $providers = \bookingextension_agent\local\wbagent\task_discovery::get_trigger_provider_instances('bookingextension_agent');
+        $providers = \bookingextension_agent\local\wbagent\skill_discovery::get_trigger_provider_instances('bookingextension_agent');
 
         $this->assertNotEmpty($providers);
         foreach ($providers as $provider) {
             $this->assertInstanceOf(
-                \bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface::class,
+                \bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface::class,
                 $provider
             );
         }
     }
 
     /**
-     * Test that language-specific logic is removed from tasks.
+     * Test that language-specific logic is removed from skills.
      */
-    public function test_tasks_no_language_specific_logic(): void {
-        $provider = new \bookingextension_agent\local\wbagent\task_provider();
-        $tasks = $provider->get_tasks();
+    public function test_skills_no_language_specific_logic(): void {
+        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $skills = $provider->get_skills();
 
-        $this->assertNotEmpty($tasks, 'Provider should discover tasks for reflection checks');
-        foreach ($tasks as $task) {
-            $reflection = new \ReflectionClass($task);
+        $this->assertNotEmpty($skills, 'Provider should discover skills for reflection checks');
+        foreach ($skills as $skill) {
+            $reflection = new \ReflectionClass($skill);
             $this->assertFalse(
                 $reflection->hasMethod('looks_like_german'),
-                'Task classes must not contain language-token heuristics'
+                'Skill classes must not contain language-token heuristics'
             );
             $this->assertFalse(
                 $reflection->hasMethod('build_disambiguation_message'),
-                'Task classes must not contain language-specific disambiguation helpers'
+                'Skill classes must not contain language-specific disambiguation helpers'
             );
         }
     }
 
     /**
-     * Test task schema validation includes all required fields.
+     * Test skill schema validation includes all required fields.
      */
-    public function test_task_schema_required_fields(): void {
-        $registry = task_registry_factory::get_default();
-        $tasks = $registry->get_tasks();
+    public function test_skill_schema_required_fields(): void {
+        $registry = skill_registry_factory::get_default();
+        $skills = $registry->get_skills();
 
-        foreach ($tasks as $task) {
-            $schema = $task->get_schema();
+        foreach ($skills as $skill) {
+            $schema = $skill->get_schema();
 
             // Verify required fields.
             $this->assertArrayHasKey('version', $schema, 'Schema should have version');
@@ -639,8 +639,8 @@ final class integration_agent_framework_test extends TestCase {
             'issue_codes' => ['CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'],
             'commands' => [
                 [
-                    'task' => 'mod_booking.book_users',
-                    'risk_class' => \bookingextension_agent\local\wbagent\dto\task_risk_class::R3,
+                    'skill' => 'mod_booking.book_users',
+                    'risk_class' => \bookingextension_agent\local\wbagent\dto\skill_risk_class::R3,
                     'input' => [],
                 ],
             ],
@@ -869,8 +869,8 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $groups = $method->invoke($service, [
-            ['task' => 'core.get_current_user', 'input' => [], 'risk_class' => 'read_only'],
-            ['task' => 'mod_booking.create_option', 'input' => [], 'risk_class' => 'broad_write'],
+            ['skill' => 'core.get_current_user', 'input' => [], 'risk_class' => 'read_only'],
+            ['skill' => 'mod_booking.create_option', 'input' => [], 'risk_class' => 'broad_write'],
         ]);
 
         $this->assertCount(1, (array)($groups['readonly'] ?? []));
@@ -896,8 +896,8 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertFalse((bool)$confirmpending);
 
         $confirmmessage = $method->invoke($service, [
-            'response_type' => 'task_call',
-            'commands' => [['task' => 'core.get_current_user', 'input' => []]],
+            'response_type' => 'skill_call',
+            'commands' => [['skill' => 'core.get_current_user', 'input' => []]],
             'used_triggers' => ['core.is_confirmation_message'],
         ]);
         $this->assertFalse((bool)$confirmmessage);
@@ -916,9 +916,9 @@ final class integration_agent_framework_test extends TestCase {
                 'embeddingstatus' => 'applied',
             ],
             [
-                'response_type' => 'task_call',
+                'response_type' => 'skill_call',
                 'message' => 'selection message',
-                'selected_task' => 'core.get_current_user',
+                'selected_skill' => 'core.get_current_user',
                 'catalogselectionmode' => 'embed_topk',
                 'embeddingstatus' => 'applied',
             ],
@@ -937,7 +937,7 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertSame(['discovery-trace'], $result['planner_result']['planner_trace_history']);
         $this->assertArrayHasKey('parameter_construction', $result['planner_result']);
         $this->assertSame('construction message', $result['planner_result']['parameter_construction']['message']);
-        $this->assertSame('core.get_current_user', $result['phase_trace']['selection']['selected_task']);
+        $this->assertSame('core.get_current_user', $result['phase_trace']['selection']['selected_skill']);
         $this->assertSame('embed_topk', $result['phase_trace']['selection']['catalogselectionmode']);
         $this->assertSame('', $result['phase_trace']['parameter_construction']['embeddingstatus']);
         $this->assertArrayNotHasKey('discovery', $result['phase_trace']);
@@ -947,7 +947,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that the phase-aware interpreter wrapper tags the normalized phase.
      */
     public function test_interpret_phase_output_tags_phase(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $result = $interpreter->interpret_phase_output(
@@ -966,13 +966,13 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that selection phase now behaves like a single-task selector call.
+     * Test that selection phase now behaves like a single-skill selector call.
      */
-    public function test_interpreter_phase_contract_accepts_single_selector_task_in_selection(): void {
-        $registry = task_registry_factory::get_default();
+    public function test_interpreter_phase_contract_accepts_single_selector_skill_in_selection(): void {
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
-        $selectionpayload = '{"response_type":"task_call","message":"Selecting task","used_triggers":[],'
-            . '"commands":[{"task":"mod_booking.create_option","version":1,"input":{}}]}';
+        $selectionpayload = '{"response_type":"skill_call","message":"Selecting skill","used_triggers":[],'
+            . '"commands":[{"skill":"mod_booking.create_option","version":1,"input":{}}]}';
 
         $result = $interpreter->interpret_phase_output(
             $selectionpayload,
@@ -984,14 +984,14 @@ final class integration_agent_framework_test extends TestCase {
             ]
         );
 
-        $this->assertSame('task_call', $result['response_type']);
+        $this->assertSame('skill_call', $result['response_type']);
         $this->assertSame('selection', $result['phase']);
-        $this->assertSame('mod_booking.create_option', $result['selected_task']);
+        $this->assertSame('mod_booking.create_option', $result['selected_skill']);
         $this->assertCount(1, $result['commands']);
     }
 
     /**
-     * Test that selection handoff strips parameter payload and keeps only one selected task command.
+     * Test that selection handoff strips parameter payload and keeps only one selected skill command.
      */
     public function test_orchestrator_selection_handoff_normalization_strips_payload(): void {
         $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
@@ -1001,29 +1001,29 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $result = $method->invoke($orchestrator, [
-            'response_type' => 'task_call',
-            'message' => 'Selecting task',
+            'response_type' => 'skill_call',
+            'message' => 'Selecting skill',
             'commands' => [[
-                'task' => 'mod_booking.create_option',
+                'skill' => 'mod_booking.create_option',
                 'version' => 2,
                 'input' => [
                     'optionname' => 'Yoga',
                     'duration' => 60,
                 ],
             ]],
-            'selected_task' => 'mod_booking.create_option',
+            'selected_skill' => 'mod_booking.create_option',
         ]);
 
-        $this->assertSame('task_call', $result['response_type']);
-        $this->assertSame('mod_booking.create_option', $result['selected_task']);
+        $this->assertSame('skill_call', $result['response_type']);
+        $this->assertSame('mod_booking.create_option', $result['selected_skill']);
         $this->assertCount(1, $result['commands']);
-        $this->assertSame('mod_booking.create_option', (string)$result['commands'][0]['task']);
+        $this->assertSame('mod_booking.create_option', (string)$result['commands'][0]['skill']);
         $this->assertSame(2, (int)$result['commands'][0]['version']);
         $this->assertSame([], $result['commands'][0]['input']);
     }
 
     /**
-     * Test that selection handoff normalization rejects multi-command task_call payloads.
+     * Test that selection handoff normalization rejects multi-command skill_call payloads.
      */
     public function test_orchestrator_selection_handoff_normalization_rejects_multi_command_payload(): void {
         $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
@@ -1033,26 +1033,26 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $result = $method->invoke($orchestrator, [
-            'response_type' => 'task_call',
-            'message' => 'Selecting task',
+            'response_type' => 'skill_call',
+            'message' => 'Selecting skill',
             'commands' => [
-                ['task' => 'mod_booking.create_option', 'version' => 1, 'input' => []],
-                ['task' => 'mod_booking.update_option', 'version' => 1, 'input' => []],
+                ['skill' => 'mod_booking.create_option', 'version' => 1, 'input' => []],
+                ['skill' => 'mod_booking.update_option', 'version' => 1, 'input' => []],
             ],
-            'selected_task' => 'mod_booking.create_option',
+            'selected_skill' => 'mod_booking.create_option',
         ]);
 
         $this->assertSame('error', $result['response_type']);
         $this->assertContains('CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED', $result['issue_codes']);
         $this->assertSame([], $result['commands']);
-        $this->assertSame('', $result['selected_task']);
+        $this->assertSame('', $result['selected_skill']);
     }
 
     /**
      * Test that interpreter keeps strict JSON parsing at the trust boundary.
      */
     public function test_interpreter_rejects_non_json_payload(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $result = $interpreter->interpret('this is not json', 0, 0, '');
@@ -1065,7 +1065,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that unknown response_type values are rejected by allow-list contract.
      */
     public function test_interpreter_rejects_unknown_response_type(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $result = $interpreter->interpret(
@@ -1093,10 +1093,10 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that construction phase allows multiple commands when all tasks are in allow-list.
+     * Test that construction phase allows multiple commands when all skills are in allow-list.
      */
     public function test_interpreter_construction_phase_accepts_multi_command_batch_in_allow_list(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
@@ -1104,25 +1104,25 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $result = $method->invoke($interpreter, [
-            'response_type' => 'task_call',
+            'response_type' => 'skill_call',
             'commands' => [
-                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
-                ['task' => 'core.get_current_user', 'version' => 1, 'input' => ['foo' => 'bar']],
+                ['skill' => 'core.get_current_user', 'version' => 1, 'input' => []],
+                ['skill' => 'core.get_current_user', 'version' => 1, 'input' => ['foo' => 'bar']],
             ],
             'message' => 'Executing.',
         ], 'parameter_construction', [
-            'allowed_tasks' => ['core.get_current_user'],
+            'allowed_skills' => ['core.get_current_user'],
         ]);
 
-        $this->assertSame('task_call', $result['response_type']);
+        $this->assertSame('skill_call', $result['response_type']);
         $this->assertCount(2, (array)($result['commands'] ?? []));
     }
 
     /**
-     * Test that construction phase rejects tasks outside discovery-ranked allow-list.
+     * Test that construction phase rejects skills outside discovery-ranked allow-list.
      */
-    public function test_interpreter_construction_phase_rejects_task_outside_allow_list(): void {
-        $registry = task_registry_factory::get_default();
+    public function test_interpreter_construction_phase_rejects_skill_outside_allow_list(): void {
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
@@ -1130,24 +1130,24 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $result = $method->invoke($interpreter, [
-            'response_type' => 'task_call',
+            'response_type' => 'skill_call',
             'commands' => [
-                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+                ['skill' => 'core.get_current_user', 'version' => 1, 'input' => []],
             ],
             'message' => 'Executing.',
         ], 'parameter_construction', [
-            'allowed_tasks' => ['core.recreate_task_catalog'],
+            'allowed_skills' => ['core.recreate_skill_catalog'],
         ]);
 
         $this->assertSame('error', $result['response_type']);
-        $this->assertContains('CONTRACT_PHASE_TASK_NOT_ALLOWED', $result['issue_codes']);
+        $this->assertContains('CONTRACT_PHASE_SKILL_NOT_ALLOWED', $result['issue_codes']);
     }
 
     /**
-     * Test that selection contract rejects selector task and selected_task mismatches.
+     * Test that selection contract rejects selector skill and selected_skill mismatches.
      */
-    public function test_interpreter_selection_phase_rejects_selected_task_mismatch(): void {
-        $registry = task_registry_factory::get_default();
+    public function test_interpreter_selection_phase_rejects_selected_skill_mismatch(): void {
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
@@ -1155,23 +1155,23 @@ final class integration_agent_framework_test extends TestCase {
         $method->setAccessible(true);
 
         $result = $method->invoke($interpreter, [
-            'response_type' => 'task_call',
+            'response_type' => 'skill_call',
             'commands' => [
-                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+                ['skill' => 'core.get_current_user', 'version' => 1, 'input' => []],
             ],
-            'selected_task' => 'core.recreate_task_catalog',
+            'selected_skill' => 'core.recreate_skill_catalog',
             'message' => 'Selecting.',
         ], 'selection');
 
         $this->assertSame('error', $result['response_type']);
-        $this->assertContains('CONTRACT_SELECTION_TASK_MISMATCH', $result['issue_codes']);
+        $this->assertContains('CONTRACT_SELECTION_SKILL_MISMATCH', $result['issue_codes']);
     }
 
     /**
-     * Test that command payload normalization keeps raw task names for selector-only canonicalization.
+     * Test that command payload normalization keeps raw skill names for selector-only canonicalization.
      */
-    public function test_interpreter_normalize_commands_payload_keeps_raw_task_name(): void {
-        $registry = task_registry_factory::get_default();
+    public function test_interpreter_normalize_commands_payload_keeps_raw_skill_name(): void {
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
@@ -1180,20 +1180,20 @@ final class integration_agent_framework_test extends TestCase {
 
         $commands = $method->invoke($interpreter, [
             'commands' => [[
-                'task' => 'create_booking',
+                'skill' => 'create_booking',
                 'version' => 1,
                 'input' => ['question' => 'Need help'],
             ]],
         ], 'Need help');
 
-        $this->assertSame('create_booking', (string)($commands[0]['task'] ?? ''));
+        $this->assertSame('create_booking', (string)($commands[0]['skill'] ?? ''));
     }
 
     /**
      * Test that unknown command envelope keys are ignored during input normalization.
      */
     public function test_interpreter_normalize_commands_payload_ignores_unknown_command_keys(): void {
-        $registry = task_registry_factory::get_default();
+        $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
@@ -1202,7 +1202,7 @@ final class integration_agent_framework_test extends TestCase {
 
         $commands = $method->invoke($interpreter, [
             'commands' => [[
-                'task' => 'mod_booking.create_option',
+                'skill' => 'mod_booking.create_option',
                 'version' => 1,
                 'command_id' => 'cmd_1',
                 'commandid' => 'cmd_legacy',
@@ -1215,7 +1215,7 @@ final class integration_agent_framework_test extends TestCase {
             ]],
         ], 'Portishead');
 
-        $this->assertSame('mod_booking.create_option', (string)($commands[0]['task'] ?? ''));
+        $this->assertSame('mod_booking.create_option', (string)($commands[0]['skill'] ?? ''));
         $this->assertSame('Portishead 1', (string)($commands[0]['input']['text'] ?? ''));
         $this->assertSame(8, (int)($commands[0]['input']['maxanswers'] ?? 0));
         $this->assertArrayNotHasKey('command_id', $commands[0]['input']);
@@ -1248,11 +1248,11 @@ final class integration_agent_framework_test extends TestCase {
             'phase_trace' => [
                 'discovery' => ['response_type' => 'clarification'],
                 'selection' => ['response_type' => 'clarification'],
-                'parameter_construction' => ['response_type' => 'task_call'],
+                'parameter_construction' => ['response_type' => 'skill_call'],
             ],
             'results' => [
-                ['task' => 'core.get_current_user', 'status' => 'ok'],
-                ['task' => 'core.recreate_task_catalog', 'status' => 'error'],
+                ['skill' => 'core.get_current_user', 'status' => 'ok'],
+                ['skill' => 'core.recreate_skill_catalog', 'status' => 'error'],
             ],
         ]);
 
@@ -1285,7 +1285,7 @@ final class integration_agent_framework_test extends TestCase {
             'response_type' => 'confirmation_request',
             'message' => 'Original',
             'commands' => [
-                ['task' => 'core.recreate_task_catalog', 'version' => 1, 'input' => ['force' => true]],
+                ['skill' => 'core.recreate_skill_catalog', 'version' => 1, 'input' => ['force' => true]],
             ],
             'lang' => 'de',
         ];
@@ -1293,7 +1293,7 @@ final class integration_agent_framework_test extends TestCase {
             'response_type' => 'sufficient',
             'message' => 'Polished output.',
             'commands' => [
-                ['task' => 'core.get_current_user', 'version' => 1, 'input' => []],
+                ['skill' => 'core.get_current_user', 'version' => 1, 'input' => []],
             ],
             'lang' => 'de',
         ];
@@ -1315,7 +1315,7 @@ final class integration_agent_framework_test extends TestCase {
             'results' => [
                 [
                     'status' => 'executed',
-                    'task' => 'mod_booking.create_option',
+                    'skill' => 'mod_booking.create_option',
                     'detail' => 'Booking option created (title="Agent Fire 2", id=1429, link=https://example.invalid).',
                 ],
             ],
@@ -1424,8 +1424,8 @@ final class integration_agent_framework_test extends TestCase {
             'commands' => [],
             'issue_codes' => [],
             'results' => [
-                ['status' => 'executed', 'task' => 'mod_booking.create_option'],
-                ['status' => 'error', 'task' => 'mod_booking.update_option_trainer'],
+                ['status' => 'executed', 'skill' => 'mod_booking.create_option'],
+                ['status' => 'error', 'skill' => 'mod_booking.update_option_trainer'],
             ],
         ];
         $sync = [

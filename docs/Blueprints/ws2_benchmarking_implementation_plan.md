@@ -37,7 +37,7 @@ Einen Eintrag pro Benchmark-Lauf (eine Run = ein vollständiges Durchlaufen alle
 | model_id | VARCHAR(80) | e.g. "claude-sonnet-4-6" |
 | model_version | VARCHAR(40) | Provider-version hash if available |
 | prompt_profile | VARCHAR(80) | Prompt variant name (e.g. "plain_text_catalog_v1") |
-| task_set | VARCHAR(80) | Scenario set name (e.g. "core_booking_v1") |
+| skill_set | VARCHAR(80) | Scenario set name (e.g. "core_booking_v1") |
 | total_scenarios | INT | Number of scenarios executed |
 | passed | INT | Scenarios where expected outcome matched |
 | failed | INT | Scenarios where outcome diverged |
@@ -66,8 +66,8 @@ Ein Eintrag pro Szenario pro Run.
 | passed | TINYINT(1) | 1 = outcome matched golden label |
 | response_type_expected | VARCHAR(40) | Expected response_type |
 | response_type_actual | VARCHAR(40) | Actual response_type |
-| task_selected | VARCHAR(120) | Task selected by selector |
-| task_expected | VARCHAR(120) | Expected task |
+| skill_selected | VARCHAR(120) | Task selected by selector |
+| skill_expected | VARCHAR(120) | Expected task |
 | json_valid | TINYINT(1) | Selector/constructor output was valid JSON |
 | contract_compliant | TINYINT(1) | Output passed contract validation |
 | planned_steps_present | TINYINT(1) | planned_steps field present for multi-step scenarios |
@@ -101,7 +101,7 @@ Aggregierte Metriken pro Run (für schnelle Trend-Abfragen ohne JSON-Parsing).
 |--------|-----|-------------|
 | id | INT PK | Auto-increment |
 | run_id | INT FK | → benchmark_runs.id |
-| metric_key | VARCHAR(80) | e.g. "task_hit_rate", "json_validity_rate", "p95_duration_ms" |
+| metric_key | VARCHAR(80) | e.g. "skill_hit_rate", "json_validity_rate", "p95_duration_ms" |
 | metric_value | DECIMAL(10,4) | Numeric value |
 | metric_unit | VARCHAR(20) | "percent", "ms", "count", "tokens" |
 | scenario_class | VARCHAR(40) | NULL = global, or filtered by class |
@@ -239,7 +239,7 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
   - Liest letzten Benchmark-Run aus DB
   - Vergleicht gegen pinned Baseline
   - Exit 0 wenn kein kritischer Rückgang, Exit 1 sonst
-  - Konfigurierbare Schwellwerte: `task_hit_rate < 90%`, `json_validity < 95%`, `success_rate < 85%`
+  - Konfigurierbare Schwellwerte: `skill_hit_rate < 90%`, `json_validity < 95%`, `success_rate < 85%`
 
 - [x] **E2** CI-Konfiguration (GitHub Actions / Gitlab CI):
   ```yaml
@@ -260,7 +260,7 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
 
 | Metrik | Definition | Zielwert |
 |--------|-----------|---------|
-| `task_hit_rate` | task_selected == task_expected / total | ≥ 90% |
+| `skill_hit_rate` | skill_selected == skill_expected / total | ≥ 90% |
 | `json_validity_rate` | json_valid = 1 / total | ≥ 99% |
 | `contract_compliance_rate` | contract_compliant = 1 / total | ≥ 98% |
 | `response_type_accuracy` | response_type_actual == expected / total | ≥ 95% |

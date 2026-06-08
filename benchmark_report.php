@@ -81,7 +81,7 @@ $trendruns = $DB->get_records_sql(
     'SELECT m.id, r.id AS run_id, r.timecreated, m.metric_key, m.metric_value
        FROM {local_wbagent_benchmark_runs} r
        JOIN {local_wbagent_benchmark_metrics} m ON m.run_id = r.id
-      WHERE m.metric_key IN (\'e2e_success_rate\', \'task_hit_rate\', \'json_validity_rate\')
+      WHERE m.metric_key IN (\'e2e_success_rate\', \'skill_hit_rate\', \'json_validity_rate\')
         AND m.scenario_class IS NULL
       ORDER BY r.timecreated ASC'
 );
@@ -98,12 +98,12 @@ foreach ($trendruns as $t) {
     $runmetrics[$rid][$t->metric_key] = (float)$t->metric_value;
 }
 
-$chartdata = ['labels' => [], 'success' => [], 'taskhit' => [], 'jsonok' => []];
+$chartdata = ['labels' => [], 'success' => [], 'skillhit' => [], 'jsonok' => []];
 foreach ($runorder as $rid) {
     $m = $runmetrics[$rid];
     $chartdata['labels'][]  = date('d.m H:i', $m['timecreated']);
     $chartdata['success'][] = $m['e2e_success_rate'] ?? null;
-    $chartdata['taskhit'][] = $m['task_hit_rate']    ?? null;
+    $chartdata['skillhit'][] = $m['skill_hit_rate']    ?? null;
     $chartdata['jsonok'][]  = $m['json_validity_rate'] ?? null;
 }
 
@@ -123,7 +123,7 @@ if (!empty($chartdata['labels'])) {
         $sset->set_color('#2d6a4f');
         $chart->add_series($sset);
 
-        $tset = new \core\chart_series(get_string('benchmark_task_hit', 'bookingextension_agent') . ' %', array_pad($chartdata['taskhit'], $nruns, null));
+        $tset = new \core\chart_series(get_string('benchmark_skill_hit', 'bookingextension_agent') . ' %', array_pad($chartdata['skillhit'], $nruns, null));
         $tset->set_color('#457b9d');
         $chart->add_series($tset);
 
@@ -154,7 +154,7 @@ if (!empty($chartdata['labels'])) {
     $table->head = [
         get_string('benchmark_run', 'bookingextension_agent'),
         get_string('benchmark_success', 'bookingextension_agent'),
-        get_string('benchmark_task_hit', 'bookingextension_agent'),
+        get_string('benchmark_skill_hit', 'bookingextension_agent'),
         get_string('benchmark_json_valid', 'bookingextension_agent')
     ];
     $table->attributes['class'] = 'table table-sm table-bordered';
@@ -163,7 +163,7 @@ if (!empty($chartdata['labels'])) {
 
     foreach ($chartdata['labels'] as $idx => $lbl) {
         $suc = $chartdata['success'][$idx];
-        $tsk = $chartdata['taskhit'][$idx];
+        $tsk = $chartdata['skillhit'][$idx];
         $jsn = $chartdata['jsonok'][$idx];
         $sucfmt = $suc !== null ? $suc . '%' : '—';
         $tskfmt = $tsk !== null ? $tsk . '%' : '—';
@@ -228,7 +228,7 @@ foreach ($runs as $run) {
         $run->id,
         htmlspecialchars($run->label) . $baseline . $regression,
         htmlspecialchars($run->model_id),
-        htmlspecialchars($run->task_set),
+        htmlspecialchars($run->skill_set),
         html_writer::span("{$rate}%", "badge badge-{$color}"),
         "{$run->passed}/{$run->total_scenarios}",
         number_format($run->duration_ms / 1000, 1) . 's',

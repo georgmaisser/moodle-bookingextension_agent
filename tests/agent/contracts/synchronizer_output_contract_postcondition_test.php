@@ -133,7 +133,7 @@ final class synchronizer_output_contract_postcondition_test extends TestCase {
         ];
         $sync = [
             'message'  => 'Okay.',
-            'commands' => [['task' => 'mod_booking.create_option']],
+            'commands' => [['skill' => 'mod_booking.create_option']],
         ];
 
         $result = $contract->merge($source, $sync);

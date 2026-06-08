@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Retrieval service for task-catalog embeddings.
+ * Retrieval service for skill-catalog embeddings.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -26,14 +26,14 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\embeddings;
 
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\skill_registry_factory;
 
 /**
  * Performs vector similarity search and builds planner-ready catalog subsets.
  */
 class embeddings_retrieval_service {
     /**
-     * Search top-k task rows by cosine similarity.
+     * Search top-k skill rows by cosine similarity.
      *
      * @param array<int,float|int> $queryvector
      * @param array<int,array<string,string>> $catalogrows
@@ -72,7 +72,7 @@ class embeddings_retrieval_service {
     }
 
     /**
-     * Build planner-task contracts from retrieved CSV rows.
+     * Build planner-skill contracts from retrieved CSV rows.
      *
      * @param array<int,array<string,string>> $toprows
      * @param array<int,array<string,mixed>> $livecontracts
@@ -80,26 +80,26 @@ class embeddings_retrieval_service {
      */
     public function build_planner_catalog_subset(array $toprows, array $livecontracts = []): array {
         $subset = [];
-        $contractsbytask = $this->build_live_contract_lookup($livecontracts);
-        $taskregistry = null;
+        $contractsbyskill = $this->build_live_contract_lookup($livecontracts);
+        $skillregistry = null;
         try {
-            $taskregistry = task_registry_factory::get_default();
+            $skillregistry = skill_registry_factory::get_default();
         } catch (\Throwable $e) {
-            $taskregistry = null;
+            $skillregistry = null;
         }
 
         foreach ($toprows as $row) {
-            $task = trim((string)($row['task'] ?? ''));
-            if ($task === '') {
+            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            if ($skill === '') {
                 continue;
             }
 
-            if (isset($contractsbytask[$task])) {
-                $contract = $contractsbytask[$task];
-                if (empty($contract['properties']) && $taskregistry !== null) {
-                    $livetask = $taskregistry->get_task($task);
-                    if ($livetask !== null) {
-                        $schema = (array)$livetask->get_schema();
+            if (isset($contractsbyskill[$skill])) {
+                $contract = $contractsbyskill[$skill];
+                if (empty($contract['properties']) && $skillregistry !== null) {
+                    $liveskill = $skillregistry->get_skill($skill);
+                    if ($liveskill !== null) {
+                        $schema = (array)$liveskill->get_schema();
                         $contract['properties'] = $this->compact_properties_for_planner((array)($schema['properties'] ?? []));
                     }
                 }
@@ -108,16 +108,16 @@ class embeddings_retrieval_service {
             }
 
             $compactproperties = [];
-            if ($taskregistry !== null) {
-                $livetask = $taskregistry->get_task($task);
-                if ($livetask !== null) {
-                    $schema = (array)$livetask->get_schema();
+            if ($skillregistry !== null) {
+                $liveskill = $skillregistry->get_skill($skill);
+                if ($liveskill !== null) {
+                    $schema = (array)$liveskill->get_schema();
                     $compactproperties = $this->compact_properties_for_planner((array)($schema['properties'] ?? []));
                 }
             }
 
             $subset[] = [
-                'task' => $task,
+                'skill' => $skill,
                 'intent' => (string)($row['intent'] ?? ''),
                 'readonly' => ((string)($row['readonly'] ?? '0') === '1'),
                 'description' => (string)($row['description'] ?? ''),
@@ -132,35 +132,35 @@ class embeddings_retrieval_service {
     }
 
     /**
-     * Build a task-name keyed lookup of live prompt contracts.
+     * Build a skill-name keyed lookup of live prompt contracts.
      *
      * @param array<int,array<string,mixed>> $livecontracts
      * @return array<string,array<string,mixed>>
      */
     private function build_live_contract_lookup(array $livecontracts): array {
-        $contractsbytask = [];
-        $taskregistry = null;
+        $contractsbyskill = [];
+        $skillregistry = null;
         try {
-            $taskregistry = task_registry_factory::get_default();
+            $skillregistry = skill_registry_factory::get_default();
         } catch (\Throwable $e) {
-            $taskregistry = null;
+            $skillregistry = null;
         }
 
-        $register = function (array $contract) use (&$contractsbytask, $taskregistry): void {
-            $taskname = trim((string)($contract['task'] ?? ''));
-            if ($taskname === '') {
+        $register = function (array $contract) use (&$contractsbyskill, $skillregistry): void {
+            $skillname = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            if ($skillname === '') {
                 return;
             }
 
-            if (!isset($contract['properties']) && $taskregistry !== null) {
-                $task = $taskregistry->get_task($taskname);
-                if ($task !== null) {
-                    $schema = (array)$task->get_schema();
+            if (!isset($contract['properties']) && $skillregistry !== null) {
+                $skill = $skillregistry->get_skill($skillname);
+                if ($skill !== null) {
+                    $schema = (array)$skill->get_schema();
                     $contract['properties'] = $this->compact_properties_for_planner((array)($schema['properties'] ?? []));
                 }
             }
 
-            $contractsbytask[$taskname] = $contract;
+            $contractsbyskill[$skillname] = $contract;
         };
 
         foreach ($livecontracts as $contract) {
@@ -169,22 +169,22 @@ class embeddings_retrieval_service {
             }
         }
 
-        if (!empty($contractsbytask)) {
-            return $contractsbytask;
+        if (!empty($contractsbyskill)) {
+            return $contractsbyskill;
         }
 
         try {
-            $registry = task_registry_factory::get_default();
+            $registry = skill_registry_factory::get_default();
             foreach ($registry->get_all_prompt_contracts() as $contract) {
                 if (is_array($contract)) {
                     $register($contract);
                 }
             }
         } catch (\Throwable $e) {
-            return $contractsbytask;
+            return $contractsbyskill;
         }
 
-        return $contractsbytask;
+        return $contractsbyskill;
     }
 
     /**

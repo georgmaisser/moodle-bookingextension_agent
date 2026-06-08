@@ -35,11 +35,11 @@ use core_external\external_value;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\services\confirm_run_service;
 
 /**
- * Confirm a proposed AI run and execute directly or via async task.
+ * Confirm a proposed AI run and execute directly or via async skill.
  *
  * This class is intentionally a thin WS adapter:
  * - validates auth/context/input
@@ -108,7 +108,7 @@ class ai_confirm_run extends external_api {
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
         $store = new conversation_store();
-        $registry = task_registry::make_default();
+        $registry = skill_registry::make_default();
         $service = new confirm_run_service($registry, $store, $authz);
 
         $payload = $service->confirm(

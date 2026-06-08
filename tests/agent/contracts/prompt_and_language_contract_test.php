@@ -17,18 +17,18 @@
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
-use bookingextension_agent\local\wbagent\interfaces\task_interface;
-use bookingextension_agent\local\wbagent\interfaces\task_provider_interface;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\interfaces\skill_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
 use bookingextension_agent\local\wbagent\services\language_policy_service;
-use bookingextension_agent\local\wbagent\services\task_prompt_contract;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\services\skill_prompt_contract;
+use bookingextension_agent\local\wbagent\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for explicit prompt contracts and language policy.
  *
- * @covers \bookingextension_agent\local\wbagent\task_registry
+ * @covers \bookingextension_agent\local\wbagent\skill_registry
  * @covers \bookingextension_agent\local\wbagent\services\language_policy_service
  *
  * @package    bookingextension_agent
@@ -37,15 +37,15 @@ use PHPUnit\Framework\TestCase;
  */
 final class prompt_and_language_contract_test extends TestCase {
     /**
-     * Ensure prompt contracts are explicit and no longer inferred from task naming conventions.
+     * Ensure prompt contracts are explicit and no longer inferred from skill naming conventions.
      */
     public function test_prompt_contracts_do_not_use_name_based_heuristics(): void {
-        $registry = new task_registry();
+        $registry = new skill_registry();
 
-        $task = $this->createMock(task_interface::class);
-        $task->method('get_name')->willReturn('dummy.create_dummy');
-        $task->method('get_schema')->willReturn([
-            'description' => 'Dummy task for explicit prompt-contract tests.',
+        $skill = $this->createMock(skill_interface::class);
+        $skill->method('get_name')->willReturn('dummy.create_dummy');
+        $skill->method('get_schema')->willReturn([
+            'description' => 'Dummy skill for explicit prompt-contract tests.',
             'readonly' => false,
             'version' => 1,
             'properties' => [
@@ -56,10 +56,10 @@ final class prompt_and_language_contract_test extends TestCase {
             ],
             'required' => [],
         ]);
-        $task->method('is_read_only')->willReturn(false);
-        $task->method('get_risk_class')->willReturn(task_risk_class::R2);
-        $task->method('get_example_input')->willReturn([]);
-        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([
+        $skill->method('is_read_only')->willReturn(false);
+        $skill->method('get_risk_class')->willReturn(skill_risk_class::R2);
+        $skill->method('get_example_input')->willReturn([]);
+        $skill->method('get_prompt_contract')->willReturn(new skill_prompt_contract([
             'intent' => '',
             'anchors' => [],
             'minimal_input' => [],
@@ -68,12 +68,12 @@ final class prompt_and_language_contract_test extends TestCase {
             'version' => 1,
             'capabilities' => [],
             'context_scopes' => ['module'],
-            'risk_class' => task_risk_class::R2,
+            'risk_class' => skill_risk_class::R2,
         ]));
 
-        $provider = $this->createMock(task_provider_interface::class);
+        $provider = $this->createMock(skill_provider_interface::class);
         $provider->method('get_component')->willReturn('local_dummy');
-        $provider->method('get_tasks')->willReturn([$task]);
+        $provider->method('get_skills')->willReturn([$skill]);
         $provider->method('get_contextual_prompt_packs')->willReturn([]);
         $provider->method('get_issue_code_provider')->willReturn(null);
         $provider->method('get_prompt_guidance')->willReturn([]);
@@ -83,11 +83,11 @@ final class prompt_and_language_contract_test extends TestCase {
 
         $this->assertCount(1, $contracts);
         $contract = $contracts[0];
-        $this->assertSame('dummy.create_dummy', $contract['task']);
-        $this->assertSame('task', $contract['intent']);
+        $this->assertSame('dummy.create_dummy', $contract['skill']);
+        $this->assertSame('skill', $contract['intent']);
         $this->assertSame([], $contract['minimal_input']);
         $this->assertSame([], $contract['anchors']);
-        $this->assertSame(task_risk_class::R2, $contract['risk_class']);
+        $this->assertSame(skill_risk_class::R2, $contract['risk_class']);
     }
 
     /**
@@ -130,7 +130,7 @@ final class prompt_and_language_contract_test extends TestCase {
             'ai_fallback_confirmation_request',
             $service->fallback_string_id_for_response_type('confirmation_request')
         );
-        $this->assertSame('ai_fallback_task_call', $service->fallback_string_id_for_response_type('task_call'));
+        $this->assertSame('ai_fallback_skill_call', $service->fallback_string_id_for_response_type('skill_call'));
         $this->assertSame('ai_fallback_summary', $service->fallback_string_id_for_response_type('clarification'));
         $this->assertSame('ai_preflight_retry_hint', $service->preflight_retry_hint_string_id());
     }

@@ -18,7 +18,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\benchmark\scenarios;
 use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
 
-/** "mach weiter" after event creation -> next downstream task, not create again. @package bookingextension_agent */
+/** "mach weiter" after event creation -> next downstream skill, not create again. @package bookingextension_agent */
 class short_confirm_weiter extends abstract_benchmark_scenario {
     public function get_key(): string {
         return 'short_confirm_weiter';
@@ -27,7 +27,7 @@ class short_confirm_weiter extends abstract_benchmark_scenario {
         return 'multistep';
     }
     public function get_description(): string {
-        return '"mach weiter" selects next pending task (not create_option again)';
+        return '"mach weiter" selects next pending skill (not create_option again)';
     }
     public function get_user_message(): string {
         return 'mach weiter';
@@ -41,14 +41,14 @@ class short_confirm_weiter extends abstract_benchmark_scenario {
     }
 
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'skill_call';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return 'mod_booking.book_users';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"mod_booking.book_users","input":{}}],'
+        return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.book_users","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Book User1 for EventA","used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 }

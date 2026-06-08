@@ -41,8 +41,8 @@ interface agent_interpreter {
      *
      * Returns a structured result with one of these response_type values:
      *  - 'clarification'        – LLM needs more information from the user.
-     *  - 'confirmation_request' – LLM proposes one or more task_call commands for user confirmation.
-     *  - 'task_call'            – Validated, ready-to-execute commands (set after confirmation).
+     *  - 'confirmation_request' – LLM proposes one or more skill_call commands for user confirmation.
+     *  - 'skill_call'            – Validated, ready-to-execute commands (set after confirmation).
      *  - 'error'                – Unrecoverable parse or schema error.
      *
      * @param string $rawresponse      Raw text output from the LLM.
@@ -52,7 +52,7 @@ interface agent_interpreter {
      * @return array [
      *     'response_type' => string,
      *     'message'       => string,          // Human-readable message for the UI.
-     *     'commands'      => array,           // Only set for task_call / confirmation_request.
+     *     'commands'      => array,           // Only set for skill_call / confirmation_request.
      *     'ambiguities'   => string[],        // Questions to ask the user.
      *     'errors'        => string[],        // Validation error strings.
      * ]

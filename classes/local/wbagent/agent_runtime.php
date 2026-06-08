@@ -29,7 +29,7 @@ namespace bookingextension_agent\local\wbagent;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\finalization_classifier;
@@ -51,7 +51,7 @@ class agent_runtime {
 
     /** Allowed final response_type values for persisted assistant messages. */
     private const ALLOWED_FINAL_RESPONSE_TYPES = [
-        'task_call',
+        'skill_call',
         'confirmation_request',
         'confirm_pending',
         'clarification',
@@ -78,8 +78,8 @@ class agent_runtime {
         return runtime_feature_flags::snapshot();
     }
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var orchestrator */
     private orchestrator $orchestrator;
@@ -117,13 +117,13 @@ class agent_runtime {
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param orchestrator $orchestrator
      * @param conversation_store $store
      * @param authorization_service $authz
      */
     public function __construct(
-        task_registry $registry,
+        skill_registry $registry,
         orchestrator $orchestrator,
         conversation_store $store,
         authorization_service $authz
@@ -512,13 +512,13 @@ class agent_runtime {
         }
 
         $riskclass = trim((string)($result['risk_class'] ?? ''));
-        if ($riskclass === task_risk_class::R3) {
+        if ($riskclass === skill_risk_class::R3) {
             return true;
         }
 
         $queueriskclasses = (array)($result['queue_risk_classes'] ?? []);
         foreach ($queueriskclasses as $queueriskclass) {
-            if (trim((string)$queueriskclass) === task_risk_class::R3) {
+            if (trim((string)$queueriskclass) === skill_risk_class::R3) {
                 return true;
             }
         }
@@ -528,7 +528,7 @@ class agent_runtime {
             if (!is_array($command)) {
                 continue;
             }
-            if (trim((string)($command['risk_class'] ?? '')) === task_risk_class::R3) {
+            if (trim((string)($command['risk_class'] ?? '')) === skill_risk_class::R3) {
                 return true;
             }
         }
@@ -580,8 +580,8 @@ class agent_runtime {
 
         if ($issuecode === 'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED') {
             return 'RETRY_HINT: Selection must emit exactly one direct command object in commands[]. '
-                . 'Do not wrap task inside helper keys like current/next/action. '
-                . 'Use canonical selector shape only, for example commands=[{"task":"<task>","input":{}}].';
+                . 'Do not wrap skill inside helper keys like current/next/action. '
+                . 'Use canonical selector shape only, for example commands=[{"skill":"<skill>","input":{}}].';
         }
 
         return 'RETRY_HINT: Previous planner output violated the contract. Retry once with strict JSON contract compliance.';
@@ -612,7 +612,7 @@ class agent_runtime {
             'ambiguities' => [],
             'ambiguity_options' => [],
             'errors' => [],
-            'attempted_tasks' => (array)($result['attempted_tasks'] ?? []),
+            'attempted_skills' => (array)($result['attempted_skills'] ?? []),
             'issue_codes' => array_values(array_unique(array_merge(
                 (array)($result['issue_codes'] ?? []),
                 ['BUDGET_EXCEEDED']
@@ -654,14 +654,14 @@ class agent_runtime {
         }
 
         $commands = $result['commands'] ?? [];
-        if (is_array($commands) && isset($commands['task']) && !array_is_list($commands)) {
+        if (is_array($commands) && isset($commands['skill']) && !array_is_list($commands)) {
             $commands = [$commands];
         }
         if (!is_array($commands)) {
             $commands = [];
         }
 
-        if (in_array($responsetype, ['task_call', 'confirmation_request'], true) && empty($commands)) {
+        if (in_array($responsetype, ['skill_call', 'confirmation_request'], true) && empty($commands)) {
             $result['response_type'] = 'clarification';
             $result['commands'] = [];
             $result['issue_codes'] = array_values(array_unique(array_merge(
@@ -690,8 +690,8 @@ class agent_runtime {
         if (!isset($result['errors']) || !is_array($result['errors'])) {
             $result['errors'] = [];
         }
-        if (!isset($result['attempted_tasks']) || !is_array($result['attempted_tasks'])) {
-            $result['attempted_tasks'] = [];
+        if (!isset($result['attempted_skills']) || !is_array($result['attempted_skills'])) {
+            $result['attempted_skills'] = [];
         }
         if (!isset($result['issue_codes']) || !is_array($result['issue_codes'])) {
             $result['issue_codes'] = [];
@@ -760,12 +760,12 @@ class agent_runtime {
 
         if ($responsetype === 'error') {
             $message = localized_string_service::get(
-                'ai_agent_malformed_taskcall_clarification',
+                'ai_agent_malformed_skillcall_clarification',
                 'bookingextension_agent',
                 null,
                 $lang
             );
-            if ($message !== '' && $message !== 'ai_agent_malformed_taskcall_clarification') {
+            if ($message !== '' && $message !== 'ai_agent_malformed_skillcall_clarification') {
                 return $message;
             }
             return 'I could not complete this step reliably. Please try again in one short sentence.';

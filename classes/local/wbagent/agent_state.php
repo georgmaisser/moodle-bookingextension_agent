@@ -81,7 +81,7 @@ final class agent_state {
      *
      * @var array<string,array<string,mixed>>
      */
-    private array $selectedtaskcache = [];
+    private array $selectedskillcache = [];
 
     /**
      * Per-run parameter-construction cache keyed by fingerprint.
@@ -237,8 +237,8 @@ final class agent_state {
      * @param string $cachekey
      * @return array<string,mixed>|null
      */
-    public function get_selection_task_cache(string $cachekey): ?array {
-        return $this->get_cache_entry($this->selectedtaskcache, $cachekey);
+    public function get_selection_skill_cache(string $cachekey): ?array {
+        return $this->get_cache_entry($this->selectedskillcache, $cachekey);
     }
 
     /**
@@ -248,8 +248,8 @@ final class agent_state {
      * @param array<string,mixed> $payload
      * @return void
      */
-    public function set_selection_task_cache(string $cachekey, array $payload): void {
-        $this->set_cache_entry($this->selectedtaskcache, $cachekey, $payload);
+    public function set_selection_skill_cache(string $cachekey, array $payload): void {
+        $this->set_cache_entry($this->selectedskillcache, $cachekey, $payload);
     }
 
     /**
@@ -310,7 +310,7 @@ final class agent_state {
     /**
      * Extract command signatures from all completed steps.
      *
-     * Returns an array of signature strings (task|inputhash) that have been
+     * Returns an array of signature strings (skill|inputhash) that have been
      * executed in prior steps. Used for loop-guard detection to prevent
      * redundant same-signature re-calls when observations already exist.
      *
@@ -327,8 +327,8 @@ final class agent_state {
                     continue;
                 }
 
-                $taskname = trim((string)($command['task'] ?? ''));
-                if ($taskname === '') {
+                $skillname = trim((string)($command['skill'] ?? ''));
+                if ($skillname === '') {
                     continue;
                 }
 
@@ -343,7 +343,7 @@ final class agent_state {
                     $normalized,
                     JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
                 );
-                $signature = $taskname . '|' . (is_string($encoded) ? $encoded : '{}');
+                $signature = $skillname . '|' . (is_string($encoded) ? $encoded : '{}');
                 $signatures[] = $signature;
             }
         }

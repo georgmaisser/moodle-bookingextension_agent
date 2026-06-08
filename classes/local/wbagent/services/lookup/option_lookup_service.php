@@ -27,7 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\lookup;
 
 use context_module;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Provides read-only lookup operations for booking options.
@@ -37,8 +37,8 @@ use bookingextension_agent\local\wbagent\task_registry;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class option_lookup_service {
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var int */
     private int $userid;
@@ -46,11 +46,11 @@ class option_lookup_service {
     /**
      * Constructor.
      *
-     * @param task_registry|null $registry
+     * @param skill_registry|null $registry
      * @param int $userid
      */
-    public function __construct(?task_registry $registry = null, int $userid = 0) {
-        $this->registry = $registry ?? task_registry::make_default();
+    public function __construct(?skill_registry $registry = null, int $userid = 0) {
+        $this->registry = $registry ?? skill_registry::make_default();
         $this->userid = max(0, $userid);
     }
 
@@ -64,19 +64,19 @@ class option_lookup_service {
      * @return array
      */
     public function search_options(int $cmid, string $query, int $limit = 10, string $when = ''): array {
-        $task = $this->registry->get_task('mod_booking.search_options');
-        if ($task === null) {
+        $skill = $this->registry->get_skill('mod_booking.search_options');
+        if ($skill === null) {
             return [];
         }
 
         $input = ['query' => $query, 'limit' => $limit, 'when' => $when];
-        $structural = $task->check_structure($input);
+        $structural = $skill->check_structure($input);
         if (!($structural['valid'] ?? false)) {
             return [];
         }
 
         $contextid = (int)context_module::instance($cmid, MUST_EXIST)->id;
-        $result = $task->execute($input, $contextid, $this->userid);
+        $result = $skill->execute($input, $contextid, $this->userid);
         return is_array($result) ? $result : [];
     }
 
@@ -92,13 +92,13 @@ class option_lookup_service {
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function resolve_single_option(int $cmid, string $query, string $when = ''): array {
-        $task = $this->registry->get_task('mod_booking.update_option');
-        if ($task === null) {
-            return ['valid' => false, 'errors' => ['Task mod_booking.update_option is not registered.'], 'ambiguities' => []];
+        $skill = $this->registry->get_skill('mod_booking.update_option');
+        if ($skill === null) {
+            return ['valid' => false, 'errors' => ['Skill mod_booking.update_option is not registered.'], 'ambiguities' => []];
         }
 
         $input = ['optionquery' => $query, 'optionwhen' => $when];
-        $structural = $task->check_structure($input);
+        $structural = $skill->check_structure($input);
         return [
             'valid' => (bool)($structural['valid'] ?? false),
             'errors' => array_values(array_map('strval', (array)($structural['errors'] ?? []))),

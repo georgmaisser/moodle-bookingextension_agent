@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wbagent\benchmark\scenarios;
 use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
 
 /**
- * Scenario: R0 read-only task - no confirmation required.
+ * Scenario: R0 read-only skill - no confirmation required.
  * @package bookingextension_agent
  */
 class get_current_user_readonly extends abstract_benchmark_scenario {
@@ -36,22 +36,22 @@ class get_current_user_readonly extends abstract_benchmark_scenario {
         return 'Wer bin ich? Zeig mir mein Profil.';
     }
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'skill_call';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return 'core.get_current_user';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"core.get_current_user","input":{}}],'
+        return '{"response_type":"skill_call","commands":[{"skill":"core.get_current_user","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Show user profile",'
             . '"used_triggers":["core.get_current_user_request"],"lang":"de","user_lang":"de"}';
     }
     public function assert_additional(array $result): array {
         return [
             [
-                'label'  => 'R0 task: response_type is task_call (not confirmation_request)',
-                'passed' => ($result['response_type'] ?? '') === 'task_call',
+                'label'  => 'R0 skill: response_type is skill_call (not confirmation_request)',
+                'passed' => ($result['response_type'] ?? '') === 'skill_call',
                 'detail' => 'response_type: ' . ($result['response_type'] ?? ''),
             ],
         ];

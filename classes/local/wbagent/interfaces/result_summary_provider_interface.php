@@ -19,8 +19,8 @@ namespace bookingextension_agent\local\wbagent\interfaces;
 /**
  * Optional provider interface for result summary contributors.
  *
- * Components can implement this interface on their task_provider to register
- * task/domain-specific summary contributors for result payload summarization.
+ * Components can implement this interface on their skill_provider to register
+ * skill/domain-specific summary contributors for result payload summarization.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

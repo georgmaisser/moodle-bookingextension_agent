@@ -30,11 +30,11 @@ use PHPUnit\Framework\TestCase;
  */
 final class spawn_contract_service_test extends TestCase {
     /**
-     * Verify that produced outputs are normalized with parent/task aliases.
+     * Verify that produced outputs are normalized with parent/skill aliases.
      */
-    public function test_normalize_task_result_adds_output_aliases(): void {
+    public function test_normalize_skill_result_adds_output_aliases(): void {
         $service = new spawn_contract_service();
-        $normalized = $service->normalize_task_result('booking.create', [
+        $normalized = $service->normalize_skill_result('booking.create', [
             'produced_outputs' => [
                 'courseid' => 77,
             ],
@@ -88,11 +88,11 @@ final class spawn_contract_service_test extends TestCase {
         $commands = $service->normalize_spawn_commands([
             'invalid-string-entry',
             [
-                'task' => '',
+                'skill' => '',
                 'input' => ['x' => 1],
             ],
             [
-                'task' => 'booking.child',
+                'skill' => 'booking.child',
                 'version' => 2,
                 'input' => ['x' => 1],
                 'output_bindings' => ['courseid' => 'parent.courseid'],
@@ -101,7 +101,7 @@ final class spawn_contract_service_test extends TestCase {
         ]);
 
         $this->assertCount(1, $commands);
-        $this->assertSame('booking.child', (string)$commands[0]['task']);
+        $this->assertSame('booking.child', (string)$commands[0]['skill']);
         $this->assertSame(2, (int)$commands[0]['version']);
         $this->assertSame(['x' => 1], (array)$commands[0]['input']);
         $this->assertSame(['courseid' => 'parent.courseid'], (array)$commands[0]['output_bindings']);

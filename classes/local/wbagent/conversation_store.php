@@ -183,15 +183,15 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int    $threadid
      * @param int    $stepnum   1-based step counter.
-     * @param string $label     Short human-readable label ("Step 1: provider.task_name").
-     * @param string $task      Raw task name for frontend icon selection.
+     * @param string $label     Short human-readable label ("Step 1: provider.skill_name").
+     * @param string $skill     Raw skill name for frontend icon selection.
      * @return int New message id.
      */
-    public function add_step_message(int $threadid, int $stepnum, string $label, string $task = ''): int {
+    public function add_step_message(int $threadid, int $stepnum, string $label, string $skill = ''): int {
         return $this->add_message($threadid, 'step', $label, [
             'stepnum' => $stepnum,
             'label'   => $label,
-            'task'    => $task,
+            'skill'   => $skill,
         ]);
     }
 

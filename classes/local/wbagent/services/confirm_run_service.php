@@ -28,7 +28,7 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use core\task\manager as task_manager;
 use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -37,7 +37,7 @@ use bookingextension_agent\local\wbagent\executor;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\task\execute_ai_run_adhoc;
 
@@ -48,8 +48,8 @@ class confirm_run_service {
     /** Thread metadata key for aggregated option previews across one confirm chain. */
     private const CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY = '_confirm_preview_option_ids';
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -69,11 +69,11 @@ class confirm_run_service {
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param conversation_store $store
      * @param authorization_service $authz
      */
-    public function __construct(task_registry $registry, conversation_store $store, authorization_service $authz) {
+    public function __construct(skill_registry $registry, conversation_store $store, authorization_service $authz) {
         $this->registry = $registry;
         $this->store = $store;
         $this->authz = $authz;
@@ -273,7 +273,7 @@ class confirm_run_service {
                 'autoconfirm' => 0,
                 'commands' => $commandsforrun,
                 'results' => [],
-                'attempted_tasks' => [],
+                'attempted_skills' => [],
                 'issue_codes' => [],
                 'errors' => [],
                 'pending_confirmation_code' => '',
@@ -476,7 +476,7 @@ class confirm_run_service {
                     'message' => (string)($feedback['message'] ?? ''),
                     'commands' => [],
                     'results' => $results,
-                    'attempted_tasks' => $this->extract_attempted_tasks_from_commands($commandsforrun),
+                    'attempted_skills' => $this->extract_attempted_skills_from_commands($commandsforrun),
                     'issue_codes' => [],
                     'errors' => [],
                     'pending_confirmation_code' => '',
@@ -524,11 +524,11 @@ class confirm_run_service {
                 $finalresponsetype = (string)($finalresult['response_type'] ?? '');
                 if ($finalresponsetype === 'sufficient' && !$usedterminalfinalizer) {
                     // Synchronizer output (already in $finalresult['message']) takes priority.
-                    // Task execution feedback is fallback only when the Synchronizer produced no message.
+                    // Skill execution feedback is fallback only when the Synchronizer produced no message.
                     $finalresult['message'] = $finalresult['message'] ?: (string)($feedback['message'] ?? '');
                 } else if ($finalresponsetype === 'error' && !is_array($pendingintent)) {
                     $finalresult['response_type'] = 'sufficient';
-                    // Synchronizer output takes priority; task feedback is fallback only.
+                    // Synchronizer output takes priority; skill feedback is fallback only.
                     $finalresult['message'] = $finalresult['message'] ?: (string)($feedback['message'] ?? '');
                     $finalresult['issue_codes'] = [];
                     $finalresult['errors'] = [];
@@ -562,7 +562,7 @@ class confirm_run_service {
                 ),
                 'commands' => (array)($finalresult['commands'] ?? []),
                 'results' => (array)($finalresult['results'] ?? []),
-                'attempted_tasks' => (array)($finalresult['attempted_tasks'] ?? []),
+                'attempted_skills' => (array)($finalresult['attempted_skills'] ?? []),
                 'issue_codes' => $issuecodes,
                 'errors' => $errors,
                 'pending_confirmation_code' => (string)($finalresult['pending_confirmation_code'] ?? ''),
@@ -659,7 +659,7 @@ class confirm_run_service {
                 'autoconfirm' => 0,
                 'commands' => [],
                 'results' => $feedbackresults,
-                'attempted_tasks' => [],
+                'attempted_skills' => [],
                 'issue_codes' => [],
                 'errors' => [],
                 'pending_confirmation_code' => '',
@@ -700,7 +700,7 @@ class confirm_run_service {
             'autoconfirm' => 0,
             'commands' => [],
             'results' => [],
-            'attempted_tasks' => [],
+            'attempted_skills' => [],
             'issue_codes' => $issuecodes,
             'errors' => $errors,
             'pending_confirmation_code' => '',
@@ -788,10 +788,10 @@ class confirm_run_service {
     ): array {
         $item = $queuesvc->get_queue_item($threadid, $queueitemid);
         $retrycount = is_array($item) ? max(0, (int)($item['retry_count'] ?? 0)) : 0;
-        $riskclass = is_array($item) ? $this->normalize_risk_class((string)($item['risk_class'] ?? '')) : task_risk_class::R3;
+        $riskclass = is_array($item) ? $this->normalize_risk_class((string)($item['risk_class'] ?? '')) : skill_risk_class::R3;
 
-        // R3 tasks are idempotency-critical; retry after execution is forbidden.
-        if ($riskclass === task_risk_class::R3) {
+        // R3 skills are idempotency-critical; retry after execution is forbidden.
+        if ($riskclass === skill_risk_class::R3) {
             $budget = attempt_budget_dto::from_queue_item([
                 'preflight_retry_count' => $retrycount,
                 'retry_count' => $retrycount,
@@ -854,11 +854,11 @@ class confirm_run_service {
      */
     private function normalize_risk_class(string $riskclass): string {
         $riskclass = trim($riskclass);
-        if (task_risk_class::is_valid($riskclass)) {
+        if (skill_risk_class::is_valid($riskclass)) {
             return $riskclass;
         }
 
-        return task_risk_class::R3;
+        return skill_risk_class::R3;
     }
 
     /**
@@ -868,7 +868,7 @@ class confirm_run_service {
      * @param int $threadid
      * @param string $queueitemid
      * @param array<string,mixed> $retrymeta
-     * @return array{queue_item_id:string,taskname:string,task_version:int,retry_after_ms:int,contextid:int,reason_code:string}
+     * @return array{queue_item_id:string,skillname:string,skill_version:int,retry_after_ms:int,contextid:int,reason_code:string}
      */
     private function build_queue_audit_context(
         queue_manager $queuesvc,
@@ -882,8 +882,8 @@ class confirm_run_service {
         return [
             'queue_item_id' => $queueitemid,
             'contextid' => max(0, (int)($item['contextid'] ?? 0)),
-            'taskname' => trim((string)($item['task'] ?? '')),
-            'task_version' => max(0, (int)($item['version'] ?? 0)),
+            'skillname' => trim((string)($item['skill'] ?? '')),
+            'skill_version' => max(0, (int)($item['version'] ?? 0)),
             'retry_after_ms' => max(0, (int)($retrymeta['retry_after_ms'] ?? ($item['retry_after_ms'] ?? 0))),
             'reason_code' => trim((string)($item['reason_code'] ?? '')),
         ];
@@ -939,25 +939,25 @@ class confirm_run_service {
     }
 
     /**
-     * Extract attempted task names from commands.
+     * Extract attempted skill names from commands.
      *
      * @param array $commands
      * @return array<int,string>
      */
-    private function extract_attempted_tasks_from_commands(array $commands): array {
-        $tasks = [];
+    private function extract_attempted_skills_from_commands(array $commands): array {
+        $skills = [];
         foreach ($commands as $command) {
             if (!is_array($command)) {
                 continue;
             }
 
-            $task = trim((string)($command['task'] ?? ''));
-            if ($task !== '') {
-                $tasks[] = $task;
+            $skill = trim((string)($command['skill'] ?? ''));
+            if ($skill !== '') {
+                $skills[] = $skill;
             }
         }
 
-        return array_values(array_unique($tasks));
+        return array_values(array_unique($skills));
     }
 
     /**

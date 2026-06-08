@@ -19,7 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\dto;
 
 /**
- * DTO for constructed and structurally validated task parameters.
+ * DTO for constructed and structurally validated skill parameters.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

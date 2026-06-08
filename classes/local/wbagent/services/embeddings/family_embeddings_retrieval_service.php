@@ -18,13 +18,13 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\embeddings;
 
-use bookingextension_agent\local\wbagent\contracts\task_family_contract;
+use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
 
 /**
- * Family-level ranking helper for task-catalog embeddings.
+ * Family-level ranking helper for skill-catalog embeddings.
  *
- * Aggregates task-row similarities into deterministic family scores and can
- * boost task rows by those family scores.
+ * Aggregates skill-row similarities into deterministic family scores and can
+ * boost skill rows by those family scores.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -32,7 +32,7 @@ use bookingextension_agent\local\wbagent\contracts\task_family_contract;
  */
 class family_embeddings_retrieval_service {
     /**
-     * Compute family semantic scores from task-catalog rows.
+     * Compute family semantic scores from skill-catalog rows.
      *
      * @param array<int,string> $families
      * @param array<int,float|int> $queryvector
@@ -42,8 +42,8 @@ class family_embeddings_retrieval_service {
     public function score_families(array $families, array $queryvector, array $catalogrows): array {
         $requested = [];
         foreach ($families as $family) {
-            $family = task_family_contract::normalize_family((string)$family);
-            if ($family !== task_family_contract::DEFAULT_FAMILY) {
+            $family = skill_family_contract::normalize_family((string)$family);
+            if ($family !== skill_family_contract::DEFAULT_FAMILY) {
                 $requested[$family] = true;
             }
         }
@@ -54,12 +54,12 @@ class family_embeddings_retrieval_service {
 
         $scores = [];
         foreach ($catalogrows as $row) {
-            $task = trim((string)($row['task'] ?? ''));
-            if ($task === '') {
+            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            if ($skill === '') {
                 continue;
             }
 
-            $family = task_family_contract::from_task_name($task);
+            $family = skill_family_contract::from_skill_name($skill);
             if (!isset($requested[$family])) {
                 continue;
             }
@@ -85,28 +85,28 @@ class family_embeddings_retrieval_service {
     }
 
     /**
-     * Boost task rows with family scores and re-sort them deterministically.
+     * Boost skill rows with family scores and re-sort them deterministically.
      *
      * @param array<int,array<string,mixed>> $toprows
      * @param array<string,float> $familyscores
-     * @param float $taskweight
+     * @param float $skillweight
      * @param float $familyweight
      * @return array<int,array<string,mixed>>
      */
-    public function boost_task_rows(
+    public function boost_skill_rows(
         array $toprows,
         array $familyscores,
-        float $taskweight = 0.7,
+        float $skillweight = 0.7,
         float $familyweight = 0.3
     ): array {
         if (empty($toprows)) {
             return [];
         }
 
-        $taskweight = max(0.0, min(1.0, $taskweight));
+        $skillweight = max(0.0, min(1.0, $skillweight));
         $familyweight = max(0.0, min(1.0, $familyweight));
-        if (($taskweight + $familyweight) <= 0.0) {
-            $taskweight = 1.0;
+        if (($skillweight + $familyweight) <= 0.0) {
+            $skillweight = 1.0;
             $familyweight = 0.0;
         }
 
@@ -116,11 +116,11 @@ class family_embeddings_retrieval_service {
                 continue;
             }
 
-            $task = trim((string)($row['task'] ?? ''));
-            $family = task_family_contract::from_task_name($task);
-            $taskscore = (float)($row['score'] ?? 0.0);
+            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $family = skill_family_contract::from_skill_name($skill);
+            $skillscore = (float)($row['score'] ?? 0.0);
             $familyscore = (float)($familyscores[$family] ?? 0.0);
-            $combined = ($taskweight * $taskscore) + ($familyweight * $familyscore);
+            $combined = ($skillweight * $skillscore) + ($familyweight * $familyscore);
 
             $row['family'] = $family;
             $row['family_score'] = $familyscore;
@@ -139,7 +139,7 @@ class family_embeddings_retrieval_service {
                 return $familycmp;
             }
 
-            return strcmp((string)($a['task'] ?? ''), (string)($b['task'] ?? ''));
+            return strcmp((string)($a['skill'] ?? $a['skill'] ?? ''), (string)($b['skill'] ?? $b['skill'] ?? ''));
         });
 
         return array_values($boosted);

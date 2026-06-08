@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CLI helper to rebuild the task-catalog embeddings fixture CSV for tests.
+ * CLI helper to rebuild the skill-catalog embeddings fixture CSV for tests.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -33,28 +33,28 @@ use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_catalog_builder_service;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
 use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\skill_registry_factory;
 use core\di;
 use core_ai\manager as ai_manager;
 
 $help = <<<EOF
-Rebuild test fixture CSV for task-catalog embeddings.
+Rebuild test fixture CSV for skill-catalog embeddings.
 
 Usage:
   php mod/booking/bookingextension/agent/cli/rebuild_embeddings_fixture.php [options]
 
 Options:
   --embed            Generate embeddings for changed/new rows via provider action.
-  --force            With --embed: regenerate embeddings for all current tasks.
+  --force            With --embed: regenerate embeddings for all current skills.
   --model=MODEL      Embedding model override.
   --dimensions=N     Embedding dimensions override.
-    --output=PATH      Output CSV path (default: tests/agent/fixtures/task_catalog_embeddings.csv).
+    --output=PATH      Output CSV path (default: tests/agent/fixtures/skill_catalog_embeddings.csv).
   --help             Show this help.
 
 Default behavior (without --embed):
-  - Rebuild catalog metadata + content_hash for all tasks.
+  - Rebuild catalog metadata + content_hash for all skills.
   - Reuse existing embedding_json when available.
-  - Keep stale embedding_json for changed tasks unless --embed is used.
+  - Keep stale embedding_json for changed skills unless --embed is used.
 EOF;
 
 [$options] = cli_get_params(
@@ -84,7 +84,7 @@ if ($force && !$doembed) {
 
 $outputpath = trim((string)$options['output']);
 if ($outputpath === '') {
-    $outputpath = dirname(__DIR__) . '/tests/agent/fixtures/task_catalog_embeddings.csv';
+    $outputpath = dirname(__DIR__) . '/tests/agent/fixtures/skill_catalog_embeddings.csv';
 }
 
 $resolver = new embeddings_action_config_resolver();
@@ -106,19 +106,19 @@ if ($dimensions < 1) {
     $dimensions = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
 }
 
-$registry = task_registry_factory::get_default();
+$registry = skill_registry_factory::get_default();
 $builder = new embeddings_catalog_builder_service();
 $rows = $builder->build_full_catalog_rows($registry, $model, $dimensions);
 if (empty($rows)) {
-    cli_error('No task rows generated from registry.');
+    cli_error('No skill rows generated from registry.');
 }
 
 $existingrows = read_fixture_rows($outputpath);
-$existingbytask = [];
+$existingbyskill = [];
 foreach ($existingrows as $row) {
-    $taskname = trim((string)($row['task'] ?? ''));
-    if ($taskname !== '') {
-        $existingbytask[$taskname] = $row;
+    $skillname = trim((string)($row['skill'] ?? ''));
+    if ($skillname !== '') {
+        $existingbyskill[$skillname] = $row;
     }
 }
 
@@ -151,16 +151,16 @@ if ($doembed) {
     }
 }
 
-$currenttasks = [];
+$currentskills = [];
 foreach ($rows as $idx => $row) {
-    $taskname = trim((string)($row['task'] ?? ''));
-    if ($taskname === '') {
+    $skillname = trim((string)($row['skill'] ?? ''));
+    if ($skillname === '') {
         continue;
     }
 
-    $currenttasks[] = $taskname;
+    $currentskills[] = $skillname;
     $contenthash = trim((string)($row['content_hash'] ?? ''));
-    $existing = $existingbytask[$taskname] ?? null;
+    $existing = $existingbyskill[$skillname] ?? null;
     $existinghash = trim((string)($existing['content_hash'] ?? ''));
     $existingembedding = trim((string)($existing['embedding_json'] ?? ''));
 
@@ -235,12 +235,12 @@ foreach ($rows as $idx => $row) {
     unset($rows[$idx]['_embedding_input']);
 }
 
-$currenttasks = array_values(array_unique($currenttasks));
-sort($currenttasks);
+$currentskills = array_values(array_unique($currentskills));
+sort($currentskills);
 
-$deletedtasks = array_values(array_diff(array_keys($existingbytask), $currenttasks));
-if (!empty($deletedtasks)) {
-    $statecounts['deleted'] = count($deletedtasks);
+$deletedskills = array_values(array_diff(array_keys($existingbyskill), $currentskills));
+if (!empty($deletedskills)) {
+    $statecounts['deleted'] = count($deletedskills);
 }
 
 foreach ($rows as $idx => $row) {
@@ -261,10 +261,10 @@ mtrace('embeddings: generated=' . $embeddedcount
     . ', stale_reused=' . $stalereusedcount
     . ', empty=' . $emptycount);
 
-if (!empty($deletedtasks)) {
-    mtrace('deleted tasks:');
-    foreach ($deletedtasks as $taskname) {
-        mtrace(' - ' . $taskname);
+if (!empty($deletedskills)) {
+    mtrace('deleted skills:');
+    foreach ($deletedskills as $skillname) {
+        mtrace(' - ' . $skillname);
     }
 }
 

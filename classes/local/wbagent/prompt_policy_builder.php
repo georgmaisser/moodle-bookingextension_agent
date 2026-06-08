@@ -58,7 +58,7 @@ class prompt_policy_builder {
         // 1. RESPONSE CONTRACT POLICY (universal, always appended).
         $policies[] = self::build_response_contract_policy($normalizedphase);
 
-        // 2. TRIGGER POLICY (compact only; task catalog now carries task-specific examples and hints).
+        // 2. TRIGGER POLICY (compact only; skill catalog now carries skill-specific examples and hints).
         $policies[] = self::build_trigger_policy_compact();
         if ($normalizedphase === 'discovery') {
             $policies[] = self::build_routing_determinism_policy();
@@ -100,16 +100,16 @@ class prompt_policy_builder {
                 . "- Do NOT include planned_steps — this field belongs to the selector phase only.\n"
                 . "- message MUST be a non-empty user-facing sentence (never an empty string) "
                 . "EXCEPT for response_type=sufficient (omit message or leave empty).\n"
-                . "- Allowed response_type values: task_call, confirmation_request, "
+                . "- Allowed response_type values: skill_call, confirmation_request, "
                 . "confirm_pending, clarification, sufficient, error.\n"
-                . "- For task_call or confirmation_request, commands MUST contain one or more command objects.\n"
+                . "- For skill_call or confirmation_request, commands MUST contain one or more command objects.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
-                . "- This phase is constructor-only: build parameters for the selected task only.\n"
-                . "- Do not perform task discovery, task routing, or task switching in this phase.\n"
-                . "- Every command.task MUST match selected_task from phase handoff.\n"
-                . "- Canonical constructor command shape uses only command-level keys: task, version, parameters.\n"
+                . "- This phase is constructor-only: build parameters for the selected skill only.\n"
+                . "- Do not perform skill discovery, skill routing, or skill switching in this phase.\n"
+                . "- Every command.skill MUST match selected_skill from phase handoff.\n"
+                . "- Canonical constructor command shape uses only command-level keys: skill, version, parameters.\n"
                 . "- Do not emit non-canonical command-level keys such as params, command_id, id, or cid.\n"
-                . "- Canonical command example: {\"task\":\"<selected_task>\",\"version\":1,\"parameters\":{...}}\n"
+                . "- Canonical command example: {\"skill\":\"<selected_skill>\",\"version\":1,\"parameters\":{...}}\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
 
@@ -117,13 +117,13 @@ class prompt_policy_builder {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
             . "- Return valid JSON only (no markdown).\n"
             . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang, planned_steps.\n"
-            . "- Allowed response_type values: task_call, clarification, confirm_pending, sufficient, error.\n"
-            . "- For task_call, commands MUST contain exactly one command object that selects exactly one task and MUST NOT carry full parameter payloads.\n"
+            . "- Allowed response_type values: skill_call, clarification, confirm_pending, sufficient, error.\n"
+            . "- For skill_call, commands MUST contain exactly one command object that selects exactly one skill and MUST NOT carry full parameter payloads.\n"
             . "- Selection must not perform parameter construction; command input should be omitted or {}.\n"
             . "- For response_type=clarification, confirm_pending, or error, message MUST be a non-empty string.\n"
             . "- For response_type=sufficient, message may be omitted or empty.\n"
             . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
-            . "- This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.\n"
+            . "- This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.\n"
             . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
             . "- next_step_intent MUST always be a string (never null).\n"
             . "- planned_steps MUST always be a JSON array: [] for single-step, [{\"intent\":\"...\"},...] for multi-step.\n"
@@ -139,7 +139,7 @@ class prompt_policy_builder {
                 . "- For response_type=sufficient, message may be omitted or empty.\n"
                 . "- commands MUST always be [] in this phase.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
-            . "- Never emit task_call or confirmation_request in this phase.\n"
+            . "- Never emit skill_call or confirmation_request in this phase.\n"
                 . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
@@ -147,15 +147,15 @@ class prompt_policy_builder {
         return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
             . "- Return valid JSON only (no markdown code fences).\n"
             . "- Every response MUST include a top-level field 'response_type'.\n"
-            . "- For response_type=task_call, OMIT the top-level 'message' field entirely.\n"
+            . "- For response_type=skill_call, OMIT the top-level 'message' field entirely.\n"
             . "- For response_type=confirmation_request, clarification, confirm_pending, or error, "
             . "include a top-level string field 'message'.\n"
             . "- For response_type=confirmation_request, clarification, confirm_pending, or error, "
             . "the 'message' field MUST NOT be empty.\n"
-            . "- Allowed response_type values: task_call, confirmation_request, "
+            . "- Allowed response_type values: skill_call, confirmation_request, "
             . "confirm_pending, clarification, sufficient, error.\n"
             . "- Every response MUST include: commands, used_triggers.\n"
-            . "- For response_type=task_call or confirmation_request, include a non-empty commands array.\n"
+            . "- For response_type=skill_call or confirmation_request, include a non-empty commands array.\n"
             . "- For response_type=clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
             . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
             . "- Preserve JSON field types exactly: arrays must be arrays, numbers must be numbers, strings must be strings.\n"
@@ -172,13 +172,13 @@ class prompt_policy_builder {
      */
     private static function build_trigger_policy(string $triggerjson): string {
         return "NON-OPTIONAL TRIGGER POLICY:\n"
-            . "- Evaluate the latest user message against the task catalog and the current conversation state.\n"
+            . "- Evaluate the latest user message against the skill catalog and the current conversation state.\n"
             . "- Return a JSON array field 'used_triggers' with trigger ids that apply to the latest user message.\n"
             . "- Do NOT invent trigger ids. Use only ids from the catalog.\n"
             . "- If none apply, return 'used_triggers': [].\n"
-            . "- Task catalog entries may include example_input and message_triggers for grounding.\n"
+            . "- Skill catalog entries may include example_input and message_triggers for grounding.\n"
             . "- CRITICAL: NEVER include 'core.is_lookup_request' in used_triggers.\n"
-            . "- 'core.is_lookup_request' is server-managed from task readonly properties.\n"
+            . "- 'core.is_lookup_request' is server-managed from skill readonly properties.\n"
             . "- All other valid core triggers (e.g. core.is_confirmation_message) should be detected normally.\n"
             . "\nREQUIRED OUTPUT FIELD:\n"
             . "- Every response MUST include used_triggers as a JSON array (field required, may be empty).";
@@ -191,7 +191,7 @@ class prompt_policy_builder {
      */
     private static function build_trigger_policy_compact(): string {
         return "NON-OPTIONAL TRIGGER POLICY:\n"
-            . "- used_triggers carries only flow/state signals, not task semantics.\n"
+            . "- used_triggers carries only flow/state signals, not skill semantics.\n"
             . "- Include a trigger only when it is explicitly grounded in the latest user turn.\n"
             . "- Never include core.is_lookup_request (server-derived from readonly execution path).\n"
             . "- Return used_triggers as a JSON array (empty array if none apply).";
@@ -207,19 +207,19 @@ class prompt_policy_builder {
      */
     private static function build_routing_determinism_policy(): string {
         return "NON-OPTIONAL ROUTING DETERMINISM POLICY:\n"
-            . "- Route from task catalog evidence (readonly, minimal_input, anchors, message_triggers), not phrase lists.\n"
-            . "- Respect strict 2-call roles: discovery stays non-command, selection does task choice, construction does parameters.\n"
+            . "- Route from skill catalog evidence (readonly, minimal_input, anchors, message_triggers), not phrase lists.\n"
+            . "- Respect strict 2-call roles: discovery stays non-command, selection does skill choice, construction does parameters.\n"
             . "- Follow one decision order: completed outcome -> sufficient, explicit pending confirmation"
             . " -> confirm_pending, missing required fields -> clarification, mutating -> confirmation_request,"
-            . " read-only -> task_call.\n"
+            . " read-only -> skill_call.\n"
             . "\nMUTATION CLARIFICATION MINIMIZATION:\n"
             . "- Do not ask clarification for fields already explicitly provided by the user.\n"
-            . "- Reuse task-catalog examples and descriptions to map explicit user phrasing to task input fields.\n"
+            . "- Reuse skill-catalog examples and descriptions to map explicit user phrasing to skill input fields.\n"
             . "- Ask clarification only for truly missing required fields.\n"
             . "\nTRIGGER CONSISTENCY:\n"
             . "- Never include core.is_lookup_request in used_triggers; it is always server-managed.\n"
             . "- Add core.is_confirmation_message only for explicit confirmation intent.\n"
-            . "- Use used_triggers only for flow/state signals; do not encode task semantics there.\n"
+            . "- Use used_triggers only for flow/state signals; do not encode skill semantics there.\n"
             . "- Keep used_triggers as supporting structured evidence, never as decoration.";
     }
 
@@ -247,8 +247,8 @@ class prompt_policy_builder {
             . "- If the user asks HOW TO perform an action and the documentation context provides actionable steps, "
             . "answer with a clearly formatted numbered list (1., 2., 3.) in the user's language.\n"
             . "- Do not invent steps; only use steps supported by the available documentation context.\n"
-            . "- For documentation task inputs, prefer grounded candidate paths or topic hints over guessed root paths.\n"
-            . "- If no grounded document path is known yet, omit doc_path and use the task's search or candidate fields instead.";
+            . "- For documentation skill inputs, prefer grounded candidate paths or topic hints over guessed root paths.\n"
+            . "- If no grounded document path is known yet, omit doc_path and use the skill's search or candidate fields instead.";
     }
 
     /**
@@ -265,7 +265,7 @@ class prompt_policy_builder {
         $policy = "NON-OPTIONAL SUFFICIENCY POLICY:\n"
             . "- Use first-match priority: completed outcome evidence -> sufficient,"
             . " explicit pending confirmation -> confirm_pending,"
-            . " missing required fields -> clarification, mutating -> confirmation_request, read-only -> task_call.\n"
+            . " missing required fields -> clarification, mutating -> confirmation_request, read-only -> skill_call.\n"
             . "- Treat completed_commands and completed_observations as authoritative execution evidence.\n"
             . "- Do not re-emit a command when the same outcome is already completed.\n"
             . "- Prefer finishing with sufficient instead of repeating equivalent tool calls.";

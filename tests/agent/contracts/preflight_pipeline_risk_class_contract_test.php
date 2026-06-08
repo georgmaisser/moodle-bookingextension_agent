@@ -19,11 +19,11 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
-use bookingextension_agent\local\wbagent\interfaces\task_interface;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\services\preflight_pipeline;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -41,18 +41,18 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
      */
     public function test_resolve_batch_risk_class_picks_the_highest_risk_command(): void {
         $service = $this->build_pipeline_service([
-            'demo.read' => task_risk_class::R0,
-            'demo.write' => task_risk_class::R2,
-            'demo.external' => task_risk_class::R3,
+            'demo.read' => skill_risk_class::R0,
+            'demo.write' => skill_risk_class::R2,
+            'demo.external' => skill_risk_class::R3,
         ]);
 
         $riskclass = $this->invoke_private_method($service, 'resolve_batch_risk_class', [[
-            ['task' => 'demo.read', 'input' => []],
-            ['task' => 'demo.write', 'input' => []],
-            ['task' => 'demo.external', 'input' => []],
+            ['skill' => 'demo.read', 'input' => []],
+            ['skill' => 'demo.write', 'input' => []],
+            ['skill' => 'demo.external', 'input' => []],
         ]]);
 
-        $this->assertSame(task_risk_class::R3, $riskclass);
+        $this->assertSame(skill_risk_class::R3, $riskclass);
     }
 
     /**
@@ -60,33 +60,33 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
      */
     public function test_resolve_command_risk_class_falls_back_to_registry_risk_class(): void {
         $service = $this->build_pipeline_service([
-            'demo.write' => task_risk_class::R2,
+            'demo.write' => skill_risk_class::R2,
         ]);
 
         $riskclass = $this->invoke_private_method($service, 'resolve_command_risk_class', [[
-            'task' => 'demo.write',
+            'skill' => 'demo.write',
             'input' => [],
         ]]);
 
-        $this->assertSame(task_risk_class::R2, $riskclass);
+        $this->assertSame(skill_risk_class::R2, $riskclass);
     }
 
     /**
-     * Build a pipeline service with a task registry mock that returns risk-class aware tasks.
+     * Build a pipeline service with a skill registry mock that returns risk-class aware skills.
      */
-    private function build_pipeline_service(array $taskriskmap): preflight_pipeline {
-        $registry = $this->getMockBuilder(task_registry::class)
+    private function build_pipeline_service(array $skillriskmap): preflight_pipeline {
+        $registry = $this->getMockBuilder(skill_registry::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['get_task', 'get_task_contract'])
+            ->onlyMethods(['get_skill', 'get_skill_contract'])
             ->getMock();
 
-        $registry->method('get_task')->willReturnCallback(
-            static function (string $taskname) use ($taskriskmap): ?task_interface {
-                if (!array_key_exists($taskname, $taskriskmap)) {
+        $registry->method('get_skill')->willReturnCallback(
+            static function (string $skillname) use ($skillriskmap): ?skill_interface {
+                if (!array_key_exists($skillname, $skillriskmap)) {
                     return null;
                 }
 
-                $task = new class ($taskname, $taskriskmap[$taskname]) implements task_interface {
+                $skill = new class ($skillname, $skillriskmap[$skillname]) implements skill_interface {
                     private string $name;
                     private string $riskclass;
 
@@ -107,8 +107,8 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
                         return [];
                     }
 
-                    public function get_prompt_contract(): \bookingextension_agent\local\wbagent\services\task_prompt_contract {
-                        return new \bookingextension_agent\local\wbagent\services\task_prompt_contract([
+                    public function get_prompt_contract(): \bookingextension_agent\local\wbagent\services\skill_prompt_contract {
+                        return new \bookingextension_agent\local\wbagent\services\skill_prompt_contract([
                             'intent' => 'demo',
                             'anchors' => [],
                             'minimal_input' => [],
@@ -138,17 +138,17 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
                     }
 
                     public function is_read_only(): bool {
-                        return $this->riskclass === task_risk_class::R0;
+                        return $this->riskclass === skill_risk_class::R0;
                     }
                 };
 
-                return $task;
+                return $skill;
             }
         );
 
-        $registry->method('get_task_contract')->willReturnCallback(
-            static function (string $taskname): ?array {
-                return ['task' => $taskname, 'version' => 1];
+        $registry->method('get_skill_contract')->willReturnCallback(
+            static function (string $skillname): ?array {
+                return ['skill' => $skillname, 'version' => 1];
             }
         );
 

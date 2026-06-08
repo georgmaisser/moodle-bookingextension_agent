@@ -26,28 +26,28 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\queue;
 
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\queue_identity_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\services\queue_status_policy;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Shadow queue manager for queue status tracking.
  */
 class queue_manager {
     /** Metadata key for queue items. */
-    private const META_QUEUE_ITEMS = '_task_queue_items';
+    private const META_QUEUE_ITEMS = '_skill_queue_items';
 
     /** Metadata key for queue sequence. */
-    private const META_QUEUE_SEQ = '_task_queue_seq';
+    private const META_QUEUE_SEQ = '_skill_queue_seq';
 
     /** @var conversation_store */
     private conversation_store $store;
 
-    /** @var task_registry|null */
-    private ?task_registry $registry;
+    /** @var skill_registry|null */
+    private ?skill_registry $registry;
 
     /** @var int Default TTL for blocked confirmations in seconds. */
     private const DEFAULT_BLOCKED_TTL_SECONDS = 900;
@@ -75,7 +75,7 @@ class queue_manager {
      *
      * @param conversation_store $store
      */
-    public function __construct(conversation_store $store, ?task_registry $registry = null) {
+    public function __construct(conversation_store $store, ?skill_registry $registry = null) {
         $this->store = $store;
         $this->registry = $registry;
     }
@@ -118,7 +118,7 @@ class queue_manager {
                 'contextid' => $contextid,
                 'run_id' => $runid,
                 'step_id' => $stepid,
-                'task' => trim((string)($command['task'] ?? '')),
+                'skill' => trim((string)($command['skill'] ?? $command['skill'] ?? '')),
                 'input' => is_array($command['input'] ?? null) ? (array)$command['input'] : [],
                 'prepared_input' => null,
                 'guard_token' => '',
@@ -149,9 +149,9 @@ class queue_manager {
         $seq = $this->next_sequence($threadid);
         $now = time();
 
-        $task = trim((string)($command['task'] ?? ''));
+        $skill = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
         $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-        $signaturedetails = $this->build_input_signature_details($task, $input);
+        $signaturedetails = $this->build_input_signature_details($skill, $input);
         $signature = (string)($signaturedetails['signature'] ?? '');
         $signaturemode = (string)($signaturedetails['mode'] ?? 'raw_input');
         $signaturepayload = is_array($signaturedetails['payload'] ?? null) ? (array)$signaturedetails['payload'] : [];
@@ -177,7 +177,7 @@ class queue_manager {
             'contextid' => $contextid,
             'run_id' => $runid,
             'step_id' => $stepid,
-            'task' => $task,
+            'skill' => $skill,
             'version' => max(1, (int)($command['version'] ?? 1)),
             'input' => $input,
             'prepared_input' => null,
@@ -323,9 +323,9 @@ class queue_manager {
                 continue;
             }
             $item['prepared_input'] = $preparedinput;
-            $taskname = trim((string)($item['task'] ?? ''));
-            $item['guard_token'] = $taskname !== ''
-                ? preflight_execution_gate::build_guard_token($taskname, $contextid, $preparedinput)
+            $skillname = trim((string)($item['skill'] ?? ''));
+            $item['guard_token'] = $skillname !== ''
+                ? preflight_execution_gate::build_guard_token($skillname, $contextid, $preparedinput)
                 : '';
             $item['updated_at'] = $now;
             break;
@@ -604,10 +604,10 @@ class queue_manager {
     }
 
     /**
-     * Enqueue a planned placeholder for a future multi-step task.
+     * Enqueue a planned placeholder for a future multi-step skill.
      *
-     * Placeholders carry an intent string only — no real task name or parameters.
-     * They are consumed (marked succeeded) when a real task is enqueued in their place.
+     * Placeholders carry an intent string only — no real skill name or parameters.
+     * They are consumed (marked succeeded) when a real skill is enqueued in their place.
      *
      * @param int $threadid
      * @param int $runid
@@ -627,7 +627,7 @@ class queue_manager {
             'contextid' => $contextid,
             'run_id' => $runid,
             'step_id' => $stepid,
-            'task' => '__placeholder__',
+            'skill' => '__placeholder__',
             'version' => 1,
             'input' => ['intent' => trim($intent)],
             'prepared_input' => null,
@@ -678,7 +678,7 @@ class queue_manager {
     /**
      * Consume (mark as succeeded) the oldest planned placeholder.
      *
-     * Called when a real task is enqueued to take the placeholder's place.
+     * Called when a real skill is enqueued to take the placeholder's place.
      *
      * @param int $threadid
      * @return bool True if a placeholder was consumed, false if none found.
@@ -720,40 +720,40 @@ class queue_manager {
     /**
      * Build deterministic input signature.
      *
-     * @param string $task
+     * @param string $skill
      * @param array $input
      * @return string
      */
-    public function build_input_signature(string $task, array $input): string {
-        $details = $this->build_input_signature_details($task, $input);
+    public function build_input_signature(string $skill, array $input): string {
+        $details = $this->build_input_signature_details($skill, $input);
         return (string)($details['signature'] ?? '');
     }
 
     /**
      * Build deterministic input signature plus debug metadata.
      *
-     * @param string $task
+     * @param string $skill
      * @param array $input
      * @return array{signature:string,mode:string,payload:array<string,mixed>}
      */
-    private function build_input_signature_details(string $task, array $input): array {
+    private function build_input_signature_details(string $skill, array $input): array {
         $signaturepayload = $input;
         $mode = 'raw_input';
 
         if ($this->registry !== null) {
-            $taskinstance = $this->registry->get_task($task);
-            if ($taskinstance instanceof queue_identity_provider_interface) {
+            $skillinstance = $this->registry->get_skill($skill);
+            if ($skillinstance instanceof queue_identity_provider_interface) {
                 try {
-                    $businessidentity = $taskinstance->build_queue_business_identity($input);
+                    $businessidentity = $skillinstance->build_queue_business_identity($input);
                     if (!empty($businessidentity)) {
-                        $mode = 'task_business';
+                        $mode = 'skill_business';
                         $signaturepayload = [
-                            '__identity_mode' => 'task_business',
+                            '__identity_mode' => 'skill_business',
                             'identity' => $businessidentity,
                         ];
                     }
                 } catch (\Throwable $e) {
-                    // Fallback to raw input signature if task-provided identity fails.
+                    // Fallback to raw input signature if skill-provided identity fails.
                     $mode = 'raw_input';
                     $signaturepayload = $input;
                 }
@@ -763,7 +763,7 @@ class queue_manager {
         $normalized = $this->normalize_for_signature($signaturepayload);
         $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         return [
-            'signature' => hash('sha256', $task . ':' . (string)$json),
+            'signature' => hash('sha256', $skill . ':' . (string)$json),
             'mode' => $mode,
             'payload' => is_array($normalized) ? $normalized : ['value' => $normalized],
         ];
@@ -851,11 +851,11 @@ class queue_manager {
         }
 
         $riskclass = $this->normalize_risk_class($riskclass);
-        if ($riskclass === task_risk_class::R2) {
+        if ($riskclass === skill_risk_class::R2) {
             return 300;
         }
 
-        if (in_array($riskclass, [task_risk_class::R1, task_risk_class::R3], true)) {
+        if (in_array($riskclass, [skill_risk_class::R1, skill_risk_class::R3], true)) {
             return self::DEFAULT_BLOCKED_TTL_SECONDS;
         }
 
@@ -871,11 +871,11 @@ class queue_manager {
      */
     private function normalize_risk_class(string $riskclass): string {
         $riskclass = trim($riskclass);
-        if (task_risk_class::is_valid($riskclass)) {
+        if (skill_risk_class::is_valid($riskclass)) {
             return $riskclass;
         }
 
-        return task_risk_class::R3;
+        return skill_risk_class::R3;
     }
 
     /**

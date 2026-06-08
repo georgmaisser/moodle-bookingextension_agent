@@ -17,8 +17,8 @@
 /**
  * Real-LLM regression test for core.list_actions output ordering.
  *
- * The task output should be grouped as:
- * provider -> readonly/write -> capability/task entries.
+ * The skill output should be grouped as:
+ * provider -> readonly/write -> capability/skill entries.
  *
  * @package   bookingextension_agent
  * @category  test
@@ -36,7 +36,7 @@ use bookingextension_agent\external\ai_confirm_run;
 use bookingextension_agent\external\ai_send_message;
 
 /**
- * Real-LLM test for the list-actions task.
+ * Real-LLM test for the list-actions skill.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -70,7 +70,7 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
         $store->allow_confirmation_for_thread((int)$this->teacher->id, $contextid, $threadid);
 
         $prompt = 'List the booking agent actions. Present them grouped by provider, then readonly/write, then capability. '
-            . 'Show the actual task names and no repair flow.';
+            . 'Show the actual skill names and no repair flow.';
 
         $_POST['sesskey'] = sesskey();
         $response = ai_send_message::execute($contextid, $prompt, (int)$threadid);
@@ -84,16 +84,16 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
             'Unexpected initial response type: ' . $responsetype . "\n" . $this->payload_text($response)
         );
 
-        $taskresult = $this->make_executor()->execute_commands(
-            [['task' => 'core.list_actions', 'version' => 1, 'input' => []]],
+        $skillresult = $this->make_executor()->execute_commands(
+            [['skill' => 'core.list_actions', 'version' => 1, 'input' => []]],
             $contextid,
             (int)$this->teacher->id,
             hash('sha256', 'core.list_actions:' . uniqid('', true)),
             0
         )[0];
-        $this->assertSame('executed', (string)($taskresult['status'] ?? ''));
+        $this->assertSame('executed', (string)($skillresult['status'] ?? ''));
 
-        $actions = (array)($taskresult['actions'] ?? []);
+        $actions = (array)($skillresult['actions'] ?? []);
         $this->assertNotEmpty($actions, 'Expected structured actions in the list-actions result.');
 
         $firstprovider = (string)($actions[0]['provider'] ?? '');
@@ -116,7 +116,7 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
             }
         }
 
-        $capabilities = (array)($taskresult['capabilities'] ?? []);
+        $capabilities = (array)($skillresult['capabilities'] ?? []);
         $this->assertNotEmpty($capabilities, 'Expected structured capability groups in the result.');
         $this->assertContains(
             (string)($capabilities[0]['provider'] ?? ''),
@@ -126,7 +126,7 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
         $this->assertArrayHasKey('readonly', (array)($capabilities[0]['groups'] ?? []));
         $this->assertArrayHasKey('write', (array)($capabilities[0]['groups'] ?? []));
 
-        $usermessage = (string)($taskresult['usermessage'] ?? '');
+        $usermessage = (string)($skillresult['usermessage'] ?? '');
         $readonlypos = strpos($usermessage, 'readonly:');
         $writepos = strpos($usermessage, 'write:');
         $this->assertNotFalse($readonlypos, 'Expected readonly group in the user message.');

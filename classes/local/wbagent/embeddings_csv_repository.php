@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * CSV repository for task-catalog embeddings.
+ * CSV repository for skill-catalog embeddings.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,12 +27,12 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 /**
- * Handles storage and retrieval of task-catalog embeddings in CSV format.
+ * Handles storage and retrieval of skill-catalog embeddings in CSV format.
  */
 class embeddings_csv_repository {
     /** Ordered CSV header columns. */
     public const HEADERS = [
-        'task',
+        'skill',
         'intent',
         'readonly',
         'description',
@@ -52,7 +52,7 @@ class embeddings_csv_repository {
      */
     public function get_csv_path(): string {
         $dir = make_temp_directory('bookingextension_agent/wbagent');
-        return $dir . '/task_catalog_embeddings.csv';
+        return $dir . '/skill_catalog_embeddings.csv';
     }
 
     /**
@@ -116,7 +116,7 @@ class embeddings_csv_repository {
                 }
             }
 
-            if (trim((string)$row['task']) === '' || trim((string)$row['content_hash']) === '') {
+            if (trim((string)$row['skill']) === '' || trim((string)$row['content_hash']) === '') {
                 return false;
             }
         }

@@ -20,7 +20,7 @@ use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\services\synchronizer_output_contract;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use PHPUnit\Framework\TestCase;
 
@@ -120,7 +120,7 @@ final class runtime_finalization_contract_test extends TestCase {
             [
                 'response_type' => 'sufficient',
                 'message' => 'done',
-                'commands' => [['task' => 'booking.list_options', 'input' => []]],
+                'commands' => [['skill' => 'booking.list_options', 'input' => []]],
                 'issue_codes' => [],
             ],
             123,
@@ -136,7 +136,7 @@ final class runtime_finalization_contract_test extends TestCase {
      * @return agent_runtime
      */
     private function build_runtime(): agent_runtime {
-        $registry = $this->createMock(task_registry::class);
+        $registry = $this->createMock(skill_registry::class);
         $orchestrator = $this->createMock(orchestrator::class);
         $store = $this->createMock(conversation_store::class);
         $authz = $this->createMock(authorization_service::class);

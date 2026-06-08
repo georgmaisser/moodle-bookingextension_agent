@@ -32,10 +32,10 @@ use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
- * Dispatches interpreter-validated commands to the appropriate task.
+ * Dispatches interpreter-validated commands to the appropriate skill.
  *
  * Commands reaching execute_commands() are expected to carry prepared_input
- * plus a deterministic guard_token for mutating tasks, both produced during
+ * plus a deterministic guard_token for mutating skills, both produced during
  * decision-service preflight. The executor therefore performs only lightweight
  * structural checks plus guard verification and does not re-run DB validation.
  *
@@ -52,8 +52,8 @@ class executor implements agent_executor {
         'recall_memory' => ['query'],
     ];
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -64,12 +64,12 @@ class executor implements agent_executor {
     /**
      * Constructor.
      *
-     * @param task_registry         $registry
+     * @param skill_registry         $registry
      * @param conversation_store    $store
      * @param authorization_service $authz
      */
     public function __construct(
-        task_registry $registry,
+        skill_registry $registry,
         conversation_store $store,
         authorization_service $authz
     ) {
@@ -82,7 +82,7 @@ class executor implements agent_executor {
          * Execute a list of validated commands.
          *
          * Commands are expected to carry prepared_input (resolved IDs, normalised values)
-         * and, for mutating tasks, a guard_token produced during decision-service
+         * and, for mutating skills, a guard_token produced during decision-service
          * preflight. The executor MUST NOT repeat DB-resolution logic.
          *
          * @param array  $commands
@@ -105,7 +105,7 @@ class executor implements agent_executor {
         // Re-check authorization (always re-verify in adhoc context).
         $this->authz->require_use_capability($userid, $contextid);
         $this->authz->require_valid_context($contextid);
-        $evaluator = new task_executability_evaluator($this->registry, $this->authz);
+        $evaluator = new skill_executability_evaluator($this->registry, $this->authz);
 
         // Idempotency guard.
         if ($this->store->run_exists_other_than($idempotencykey, $runid)) {
@@ -123,8 +123,8 @@ class executor implements agent_executor {
         $threadid = (int)($run->threadid ?? 0);
         $anonymizer = new privacy_anonymizer($this->store);
         foreach ($commands as $cmd) {
-            $taskname = $cmd['task'] ?? '';
-            $input    = $cmd['input'] ?? [];
+            $skillname = $cmd['skill'] ?? '';
+            $input     = $cmd['input'] ?? [];
             if ($threadid > 0 && is_array($input)) {
                 // Safety-net deanonymization: any remaining ANON tokens not resolved
                 // earlier are resolved here (e.g. commands arriving via adhoc tasks
@@ -132,22 +132,22 @@ class executor implements agent_executor {
                 $input = $anonymizer->deanonymize_command_input($threadid, $input);
             }
 
-            $task = $this->registry->get_task($taskname);
-            if (!$task) {
+            $skill = $this->registry->get_skill($skillname);
+            if (!$skill) {
                 $results[] = [
                     'status' => 'error',
-                    'detail' => get_string('agent_executor_task_not_registered', 'bookingextension_agent', $taskname),
+                    'detail' => get_string('agent_executor_skill_not_registered', 'bookingextension_agent', $skillname),
                     'resultid' => null,
                 ];
                 continue;
             }
 
-            $evaluation = $evaluator->evaluate_task((string)$taskname, $userid, $contextid);
+            $evaluation = $evaluator->evaluate_skill((string)$skillname, $userid, $contextid);
             if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
-                $denyreason = trim((string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED));
+                $denyreason = trim((string)($evaluation['deny_reason'] ?? skill_contract_validator::DENY_NOT_REGISTERED));
                 $results[] = [
                     'status' => 'error',
-                    'detail' => 'Task denied by governance gate (' . $denyreason . '): ' . (string)$taskname,
+                    'detail' => 'Skill denied by governance gate (' . $denyreason . '): ' . (string)$skillname,
                     'resultid' => null,
                     'deny_reason' => $denyreason,
                     'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
@@ -157,7 +157,7 @@ class executor implements agent_executor {
 
             // Lightweight structural guard only — no DB access.
             // Deep validation already happened in decision-service preflight.
-            $structural = $task->check_structure($input);
+            $structural = $skill->check_structure($input);
             if (!($structural['valid'] ?? true)) {
                 $detail = implode('; ', (array)($structural['errors'] ?? []));
                 $entry = [
@@ -172,7 +172,7 @@ class executor implements agent_executor {
                 continue;
             }
 
-            if (!$task->is_read_only()) {
+            if (!$skill->is_read_only()) {
                 $guardtoken = trim((string)($cmd['guard_token'] ?? ''));
                 if ($guardtoken === '') {
                     $results[] = [
@@ -180,34 +180,34 @@ class executor implements agent_executor {
                         'detail' => 'Execution guard missing for mutating command.',
                         'issue_codes' => ['EXECUTION_GUARD_MISSING'],
                         'resultid' => null,
-                        'task' => $taskname,
+                        'skill' => $skillname,
                     ];
                     continue;
                 }
 
-                if (!preflight_execution_gate::verify_guard_token($guardtoken, (string)$taskname, $contextid, $input)) {
+                if (!preflight_execution_gate::verify_guard_token($guardtoken, (string)$skillname, $contextid, $input)) {
                     $results[] = [
                         'status' => 'error',
                         'detail' => 'Execution guard mismatch for mutating command.',
                         'issue_codes' => ['EXECUTION_GUARD_MISMATCH'],
                         'resultid' => null,
-                        'task' => $taskname,
+                        'skill' => $skillname,
                     ];
                     continue;
                 }
             }
 
-            $result = $task->execute($input, $contextid, $userid);
-            if (is_array($result) && !isset($result['task'])) {
-                $result['task'] = $taskname;
+            $result = $skill->execute($input, $contextid, $userid);
+            if (is_array($result) && !isset($result['skill'])) {
+                $result['skill'] = $skillname;
             }
             if (is_array($result) && !isset($result['executed_input']) && is_array($input)) {
                 // Keep normalized executed input in loop results so follow-up planner turns
                 // can deterministically avoid repeating already completed commands.
-                $result['executed_input'] = $this->build_safe_executed_input($taskname, $input);
+                $result['executed_input'] = $this->build_safe_executed_input($skillname, $input);
             }
             if (!empty($result['previewoptionids']) && is_array($result['previewoptionids'])) {
-                $previewmemory = $this->registry->get_preview_option_memory_for_task((string)$taskname);
+                $previewmemory = $this->registry->get_preview_option_memory_for_skill((string)$skillname);
                 if ($previewmemory !== null) {
                     $previewmemory->remember_last_preview_options_for_execute(
                         $userid,
@@ -225,28 +225,28 @@ class executor implements agent_executor {
     /**
      * Build a result-safe echo of the executed input.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @param array $input
      * @return array
      */
-    private function build_safe_executed_input(string $taskname, array $input): array {
-        $task = $this->registry->get_task($taskname);
+    private function build_safe_executed_input(string $skillname, array $input): array {
+        $skill = $this->registry->get_skill($skillname);
         $allowedkeys = [];
-        if ($task !== null) {
-            $schema = $task->get_schema();
+        if ($skill !== null) {
+            $schema = $skill->get_schema();
             $allowedkeys = array_fill_keys(array_keys((array)($schema['properties'] ?? [])), true);
         }
 
         $safe = [];
         foreach ($input as $key => $value) {
-            if (!is_string($key) || ($task !== null && !isset($allowedkeys[$key]))) {
+            if (!is_string($key) || ($skill !== null && !isset($allowedkeys[$key]))) {
                 continue;
             }
             $safe[$key] = $value;
         }
 
-        $tasksuffix = trim((string)(explode('.', $taskname, 2)[1] ?? $taskname));
-        foreach (self::SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS[$tasksuffix] ?? [] as $fieldname) {
+        $skillsuffix = trim((string)(explode('.', $skillname, 2)[1] ?? $skillname));
+        foreach (self::SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS[$skillsuffix] ?? [] as $fieldname) {
             unset($safe[$fieldname]);
         }
 

@@ -27,7 +27,7 @@ Anteil fehlgeschlagener Postconditions pro Task.
 
 ```sql
 SELECT
-  JSON_UNQUOTE(JSON_EXTRACT(structuredjson, '$.attempted_tasks[0]')) AS task,
+  JSON_UNQUOTE(JSON_EXTRACT(structuredjson, '$.attempted_skills[0]')) AS task,
   COUNT(*) AS total,
   SUM(JSON_UNQUOTE(JSON_EXTRACT(structuredjson, '$.postcondition_status')) = 'failed') AS pc_fails,
   ROUND(100 * SUM(JSON_UNQUOTE(JSON_EXTRACT(structuredjson, '$.postcondition_status')) = 'failed') / COUNT(*), 2) AS fail_rate_pct

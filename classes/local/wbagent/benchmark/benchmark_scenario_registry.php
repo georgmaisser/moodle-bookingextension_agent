@@ -28,7 +28,7 @@ use bookingextension_agent\local\wbagent\benchmark\scenarios\clarification_missi
 use bookingextension_agent\local\wbagent\benchmark\scenarios\confirmation_request_r1;
 use bookingextension_agent\local\wbagent\benchmark\scenarios\duplicate_prevention;
 use bookingextension_agent\local\wbagent\benchmark\scenarios\readonly_diagnose;
-use bookingextension_agent\local\wbagent\benchmark\scenarios\task_not_in_catalog;
+use bookingextension_agent\local\wbagent\benchmark\scenarios\skill_not_in_catalog;
 use bookingextension_agent\local\wbagent\benchmark\scenarios\auto_confirm_session;
 use bookingextension_agent\local\wbagent\benchmark\scenarios\retry_preflight_recovery;
 use bookingextension_agent\local\wbagent\benchmark\scenarios\budget_exceeded;
@@ -55,7 +55,7 @@ class benchmark_scenario_registry {
             confirmation_request_r1::class,
             duplicate_prevention::class,
             readonly_diagnose::class,
-            task_not_in_catalog::class,
+            skill_not_in_catalog::class,
             auto_confirm_session::class,
             retry_preflight_recovery::class,
             budget_exceeded::class,

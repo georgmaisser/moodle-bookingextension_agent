@@ -30,7 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
 /**
- * Real provider regression test for the user-search task.
+ * Real provider regression test for the user-search skill.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -61,7 +61,7 @@ final class search_users_real_llm_test extends abstract_agent_testcase {
         $prompt = 'Bitte suche nach dem Benutzer mit der E-Mail "' . $student->email . '".';
 
         $response = $this->chat($prompt, $threadid, $store, $runtime);
-        if (!$this->has_task_evidence($response, 'core.search_users')) {
+        if (!$this->has_skill_evidence($response, 'core.search_users')) {
             $response = $this->chat(
                 'Suche bitte nur nach der E-Mail "' . $student->email . '".',
                 $threadid,
@@ -79,7 +79,7 @@ final class search_users_real_llm_test extends abstract_agent_testcase {
             || str_contains($responsetext, 'anon_user_');
 
         $this->assertTrue(
-            $this->has_task_evidence($response, 'core.search_users') || $hasdirectanswer,
+            $this->has_skill_evidence($response, 'core.search_users') || $hasdirectanswer,
             'Expected core.search_users evidence from real LLM response. Payload: ' . $this->payload_text($response)
         );
 
@@ -140,14 +140,14 @@ final class search_users_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Check whether the LLM response references the expected task.
+     * Check whether the LLM response references the expected skill.
      *
      * @param array<string,mixed> $payload
-     * @param string $taskname
+     * @param string $skillname
      * @return bool
      */
-    private function has_task_evidence(array $payload, string $taskname): bool {
-        return $this->extract_command($payload, $taskname) !== null
-            || $this->extract_task_result($payload, $taskname) !== null;
+    private function has_skill_evidence(array $payload, string $skillname): bool {
+        return $this->extract_command($payload, $skillname) !== null
+            || $this->extract_skill_result($payload, $skillname) !== null;
     }
 }

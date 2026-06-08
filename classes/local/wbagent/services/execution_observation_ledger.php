@@ -30,12 +30,12 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 
 /**
- * Stores canonical task observations from all execution sources.
+ * Stores canonical skill observations from all execution sources.
  */
 /**
  * Semantic definition:
  *   completed_observations = authoritative observed domain outcome.
- *   Each entry represents what the system VERIFIED happened after task execution
+ *   Each entry represents what the system VERIFIED happened after skill execution
  *   (e.g. "Trainer persisted in DB", "Booking option created with id=42").
  *   Observations are the highest-trust evidence tier for final synthesis.
  *   Source-of-truth hierarchy: observations > completed_commands > assistant narrative.
@@ -97,7 +97,7 @@ class execution_observation_ledger {
             }
 
             $command = is_array($commands[$idx] ?? null) ? (array)$commands[$idx] : [];
-            $task = trim((string)($entry['task'] ?? $command['task'] ?? ''));
+            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? $command['skill'] ?? $command['skill'] ?? ''));
             $input = [];
             if (is_array($entry['executed_input'] ?? null)) {
                 $input = (array)$entry['executed_input'];
@@ -116,7 +116,7 @@ class execution_observation_ledger {
                 'run_id' => $runid,
                 'queue_item_id' => $queueitemid,
                 'source' => $source,
-                'task' => $task,
+                'skill' => $skill,
                 'status' => $status,
                 'input' => $this->normalize_input($input),
                 'observation_canonical' => $observationcanonical,
@@ -185,7 +185,7 @@ class execution_observation_ledger {
             }
 
             $row = [
-                'task' => trim((string)($entry['task'] ?? '')),
+                'skill' => trim((string)($entry['skill'] ?? $entry['skill'] ?? '')),
                 'status' => trim((string)($entry['status'] ?? '')),
                 'observation' => $observation,
             ];
@@ -275,16 +275,16 @@ class execution_observation_ledger {
      * @return string
      */
     private function build_signature(array $entry): string {
-        $task = trim((string)($entry['task'] ?? ''));
+        $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
         $observation = trim((string)($entry['observation_canonical'] ?? ''));
-        if ($task === '' || $observation === '') {
+        if ($skill === '' || $observation === '') {
             return '';
         }
 
         $parts = [
             (string)($entry['run_id'] ?? 0),
             (string)($entry['queue_item_id'] ?? ''),
-            $task,
+            $skill,
             trim((string)($entry['status'] ?? '')),
             $observation,
             json_encode((array)($entry['input'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',

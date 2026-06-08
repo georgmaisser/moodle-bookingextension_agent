@@ -32,11 +32,11 @@ use PHPUnit\Framework\TestCase;
  */
 final class reference_scenarios_contract_test extends TestCase {
     /**
-     * Scenario A: ideal readonly task result remains deterministic without spawn.
+     * Scenario A: ideal readonly skill result remains deterministic without spawn.
      */
     public function test_scenario_a_readonly_result_contract(): void {
         $service = new spawn_contract_service();
-        $result = $service->normalize_task_result('booking.readonly_lookup', [
+        $result = $service->normalize_skill_result('booking.readonly_lookup', [
             'status' => 'executed',
             'results' => [
                 ['id' => 1, 'name' => 'Option A'],
@@ -54,7 +54,7 @@ final class reference_scenarios_contract_test extends TestCase {
     public function test_scenario_b_multistep_command_schema_contract(): void {
         $validator = new preflight_schema_validator();
         $validation = $validator->validate([
-            'task' => 'booking.readonly_lookup',
+            'skill' => 'booking.readonly_lookup',
             'version' => 1,
             'input' => ['query' => 'Yoga'],
             'depends_on' => ['step-0'],
@@ -70,12 +70,12 @@ final class reference_scenarios_contract_test extends TestCase {
     public function test_scenario_c_spawn_output_binding_contract(): void {
         $service = new spawn_contract_service();
 
-        $parent = $service->normalize_task_result('booking.create_parent', [
+        $parent = $service->normalize_skill_result('booking.create_parent', [
             'produced_outputs' => [
                 'created_course_id' => 42,
             ],
             'spawn_commands' => [[
-                'task' => 'booking.child_followup',
+                'skill' => 'booking.child_followup',
                 'version' => 1,
                 'input' => ['label' => 'Follow-up'],
                 'output_bindings' => ['courseid' => 'parent.created_course_id'],

@@ -23,7 +23,7 @@ use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
  *
  * When the user confirms ("ja") after the agent proposed pending multi-step work,
  * the correct selector response is confirm_pending (user acknowledged, execute pending queue).
- * The selector does NOT jump directly to task_call here; the pipeline resolves the pending item.
+ * The selector does NOT jump directly to skill_call here; the pipeline resolves the pending item.
  *
  * @package bookingextension_agent
  */
@@ -52,7 +52,7 @@ class short_confirm_ja extends abstract_benchmark_scenario {
     public function get_expected_response_type(): string {
         return 'confirm_pending';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return '';
     }
 

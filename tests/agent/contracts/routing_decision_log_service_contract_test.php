@@ -76,11 +76,11 @@ final class routing_decision_log_service_contract_test extends TestCase {
             runtime_feature_flags::STAGED_DISCOVERY_ENABLED => true,
         ], [
             'promptcontracts' => [
-                ['task' => 'mod_booking.create_option', 'family' => 'mod_booking.options', 'namespace' => 'mod_booking'],
-                ['task' => 'core.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
+                ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options', 'namespace' => 'mod_booking'],
+                ['skill' => 'core.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
             ],
             'contextprior' => ['namespace_hint' => 'mod_booking'],
-            'recent_task_names' => ['mod_booking.create_option'],
+            'recent_skill_names' => ['mod_booking.create_option'],
         ]);
 
         $this->assertFalse($shadow['live_routing_affected']);

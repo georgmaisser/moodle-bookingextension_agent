@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Readiness and scheduling service for task-catalog embeddings.
+ * Readiness and scheduling service for skill-catalog embeddings.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,7 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\embeddings;
 
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use core\task\manager as task_manager;
 
 /**
@@ -35,7 +35,7 @@ use core\task\manager as task_manager;
  */
 class embeddings_readiness_service {
     /** Fully qualified class name of the rebuild adhoc task. */
-    private const REBUILD_TASK_CLASS = '\\bookingextension_agent\\task\\rebuild_task_catalog_embeddings_adhoc';
+    private const REBUILD_TASK_CLASS = '\\bookingextension_agent\\task\\rebuild_skill_catalog_embeddings_adhoc';
 
     /**
      * Check if wunderbyte embeddings action can be used.
@@ -49,12 +49,12 @@ class embeddings_readiness_service {
     /**
      * Compute current catalog status.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param string $model
      * @param int $dimensions
      * @return array<string,mixed>
      */
-    public function get_catalog_status(task_registry $registry, string $model, int $dimensions): array {
+    public function get_catalog_status(skill_registry $registry, string $model, int $dimensions): array {
         $repo = new embeddings_csv_repository();
         $builder = new embeddings_catalog_builder_service();
 
@@ -68,17 +68,17 @@ class embeddings_readiness_service {
         }
 
         $expected = $builder->build_full_catalog_rows($registry, $model, $dimensions);
-        $bytask = [];
+        $byskill = [];
         foreach ($rows as $row) {
-            $task = (string)($row['task'] ?? '');
-            if ($task !== '') {
-                $bytask[$task] = $row;
+            $skill = (string)($row['skill'] ?? '');
+            if ($skill !== '') {
+                $byskill[$skill] = $row;
             }
         }
 
         foreach ($expected as $row) {
-            $task = (string)($row['task'] ?? '');
-            $current = $bytask[$task] ?? null;
+            $skill = (string)($row['skill'] ?? '');
+            $current = $byskill[$skill] ?? null;
             if ($current === null) {
                 return ['status' => 'stale', 'ready' => false];
             }

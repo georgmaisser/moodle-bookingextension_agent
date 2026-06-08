@@ -51,7 +51,7 @@ final class consistency_gate_regression_test extends TestCase {
             'response_type' => 'sufficient',
             'commands'      => [],
             'issue_codes'   => [],
-            'results'       => [['status' => 'succeeded', 'task' => 'mod_booking.create_option']],
+            'results'       => [['status' => 'succeeded', 'skill' => 'mod_booking.create_option']],
         ];
         $sync = ['message' => 'Veranstaltung erfolgreich erstellt.'];
 
@@ -71,7 +71,7 @@ final class consistency_gate_regression_test extends TestCase {
             'response_type' => 'sufficient',
             'commands'      => [],
             'issue_codes'   => [],
-            'results'       => [['status' => 'succeeded', 'task' => 'mod_booking.update_option_trainer']],
+            'results'       => [['status' => 'succeeded', 'skill' => 'mod_booking.update_option_trainer']],
             'postcondition_status' => 'passed',
         ];
         $sync = ['message' => 'Trainer erfolgreich gesetzt.'];
@@ -91,7 +91,7 @@ final class consistency_gate_regression_test extends TestCase {
             'response_type' => 'sufficient',
             'commands'      => [],
             'issue_codes'   => [],
-            'results'       => [['status' => 'succeeded', 'task' => 'mod_booking.book_users']],
+            'results'       => [['status' => 'succeeded', 'skill' => 'mod_booking.book_users']],
         ];
         $sync = ['message' => 'Teilnehmer erfolgreich gebucht.'];
 

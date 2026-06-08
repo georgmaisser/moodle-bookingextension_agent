@@ -126,29 +126,29 @@ class preflight_execution_gate {
     /**
      * Build a deterministic guard token for prepared mutating input.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @param int $contextid
      * @param array<string,mixed> $preparedinput
      * @return string
      */
-    public static function build_guard_token(string $taskname, int $contextid, array $preparedinput): string {
+    public static function build_guard_token(string $skillname, int $contextid, array $preparedinput): string {
         $normalized = self::normalize_for_guard($preparedinput);
         $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        return hash('sha256', trim($taskname) . ':' . max(0, $contextid) . ':' . (string)$json);
+        return hash('sha256', trim($skillname) . ':' . max(0, $contextid) . ':' . (string)$json);
     }
 
     /**
-     * Verify that a guard token still matches task, context and prepared input.
+     * Verify that a guard token still matches skill, context and prepared input.
      *
      * @param string $guardtoken
-     * @param string $taskname
+     * @param string $skillname
      * @param int $contextid
      * @param array<string,mixed> $preparedinput
      * @return bool
      */
     public static function verify_guard_token(
         string $guardtoken,
-        string $taskname,
+        string $skillname,
         int $contextid,
         array $preparedinput
     ): bool {
@@ -157,7 +157,7 @@ class preflight_execution_gate {
             return false;
         }
 
-        return hash_equals($guardtoken, self::build_guard_token($taskname, $contextid, $preparedinput));
+        return hash_equals($guardtoken, self::build_guard_token($skillname, $contextid, $preparedinput));
     }
 
     /**

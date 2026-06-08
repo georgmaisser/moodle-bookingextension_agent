@@ -35,7 +35,7 @@ class family_signal_ranker {
     /** @var float Bonus when namespace_hint matches family namespace. */
     private float $namespacehintweight;
 
-    /** @var float Bonus when recent task namespaces match. */
+    /** @var float Bonus when recent skill namespaces match. */
     private float $recencynamespaceweight;
 
     /**
@@ -55,20 +55,20 @@ class family_signal_ranker {
      *
      * @param array<int,string> $families
      * @param array<string,mixed> $contextprior
-     * @param array<int,string> $recenttasknames
+     * @param array<int,string> $recentskillnames
      * @return array<string,float>
      */
-    public function score_families(array $families, array $contextprior, array $recenttasknames = []): array {
+    public function score_families(array $families, array $contextprior, array $recentskillnames = []): array {
         $scores = [];
         $namespacehint = trim((string)($contextprior['namespace_hint'] ?? ''));
 
         $recentnamespaces = [];
-        foreach ($recenttasknames as $taskname) {
-            $dot = strpos((string)$taskname, '.');
+        foreach ($recentskillnames as $skillname) {
+            $dot = strpos((string)$skillname, '.');
             if ($dot === false || $dot <= 0) {
                 continue;
             }
-            $recentnamespaces[] = substr((string)$taskname, 0, $dot);
+            $recentnamespaces[] = substr((string)$skillname, 0, $dot);
         }
 
         foreach ($families as $family) {

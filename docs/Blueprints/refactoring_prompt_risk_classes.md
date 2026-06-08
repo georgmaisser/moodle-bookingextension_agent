@@ -27,8 +27,8 @@ Das neue System führt vier Klassen ein, die quer durch alle Schichten wirken:
 
 Arbeite die Risikoklassen in den bestehenden Mermaid-Flowchart ein. Der Flowchart soll nach diesem Update zeigen:
 
-1. **Wo die Klasse deklariert wird** — `task_interface` und `task_prompt_contract`
-2. **Wo die Klasse gelesen und durchgesetzt wird** — `task_contract_validator`, `preflight_pipeline`, `queue_manager`, `agent_decision_service`, `synchronizer`
+1. **Wo die Klasse deklariert wird** — `task_interface` und `skill_prompt_contract`
+2. **Wo die Klasse gelesen und durchgesetzt wird** — `skill_contract_validator`, `preflight_pipeline`, `queue_manager`, `agent_decision_service`, `synchronizer`
 3. **Welche Pfade sich je nach Klasse unterscheiden** — insbesondere Confirmation-Pflicht, Session-Allow-TTL, Retry-Erlaubnis, Synchronizer-Verhalten
 
 ### Konkrete Flowchart-Änderungen
@@ -41,10 +41,10 @@ get_risk_class(): task_risk_class
 // R0 | R1 | R2 | R3
 ```
 
-Ergänze in `task_prompt_contract DTO`:
+Ergänze in `skill_prompt_contract DTO`:
 ```
 risk_class: task_risk_class
-// deklarativ, validiert durch task_contract_validator
+// deklarativ, validiert durch skill_contract_validator
 ```
 
 Neuer Node `task_risk_class`:
@@ -56,7 +56,7 @@ R2: broad_write
 R3: irreversible_or_external
 ```
 
-#### B — task_contract_validator
+#### B — skill_contract_validator
 
 Erweitere den bestehenden Node um:
 ```
@@ -70,7 +70,7 @@ Die Klasse wird hier strukturell verifiziert, nicht nur durchgereicht. Das verhi
 
 #### C — agent_decision_service
 
-Ergänze in `D_PROMOTE` (mutating task_call → confirmation_request):
+Ergänze in `D_PROMOTE` (mutating skill_call → confirmation_request):
 ```
 D_PROMOTE
 + risk_class gating:
@@ -161,7 +161,7 @@ Füge folgende neue Legend-Einträge hinzu:
 ```
 LG_RISK["Risk class contract
 task declares R0–R3 in task_interface
-validated by task_contract_validator
+validated by skill_contract_validator
 enforced in preflight, queue, decision service, synchronizer"]
 
 LG_RISK_CONF["Confirmation gating by risk class
@@ -189,9 +189,9 @@ Diese Schritte werden erst nach Review und Abnahme des aktualisierten Flowcharts
 **Schritt 2 — Interface + DTO**
 - `task_risk_class` als Enum/Konstante einführen
 - `task_interface::get_risk_class()` deklarieren
-- `task_prompt_contract` um `risk_class` erweitern
+- `skill_prompt_contract` um `risk_class` erweitern
 
-**Schritt 3 — task_contract_validator**
+**Schritt 3 — skill_contract_validator**
 - `verify_risk_class_declaration()` implementieren
 - R0/R3-Invarianten prüfen (is_read_only match, scope-Deklaration)
 - Fehlende Klassen-Deklaration = deny (keine stillen Defaults)
@@ -220,7 +220,7 @@ Diese Schritte werden erst nach Review und Abnahme des aktualisierten Flowcharts
 - Booking-Tasks einzeln prüfen (insbesondere R2/R3-Kandidaten)
 
 **Schritt 9 — Tests**
-- Unit: task_contract_validator Risikoklassen-Checks
+- Unit: skill_contract_validator Risikoklassen-Checks
 - Integration: Confirmation-Gating je Klasse
 - Integration: Synchronizer-Rollback bei semantic drift
 - E2E: R3-Task durch kompletten Pfad (kein session-allow, kein retry, irreversibility_notice)
@@ -247,10 +247,10 @@ Geprüft gegen die aktuelle Codebasis des bookingextension_agent-Frameworks. Zei
 | Komponente | Datei | Status |
 |---|---|---|
 | `task_interface` | `interfaces/task_interface.php` | vorhanden, `get_risk_class()` ergänzt |
-| `task_prompt_contract` DTO | `services/task_prompt_contract.php` | vorhanden, `risk_class` ergänzt |
+| `skill_prompt_contract` DTO | `services/skill_prompt_contract.php` | vorhanden, `risk_class` ergänzt |
 | `base_task` | `base_task.php` | vorhanden, kennt `readonly` + `risk_class` |
-| `task_contract_validator` | `task_contract_validator.php` | vorhanden, prüft readonly/alias + risk_class-Invarianten |
-| `task_registry` / `build_prompt_contract` | `task_registry.php` | vorhanden, transportiert `readonly` + `risk_class` |
+| `skill_contract_validator` | `skill_contract_validator.php` | vorhanden, prüft readonly/alias + risk_class-Invarianten |
+| `skill_registry` / `build_prompt_contract` | `skill_registry.php` | vorhanden, transportiert `readonly` + `risk_class` |
 | `preflight_pipeline` L1→L2→L3 | `services/preflight_pipeline.php` | vorhanden, Layer-Aktivierung **noch** nicht risikoabhängig |
 | `preflight_contract_validator` (L1) | `services/preflight_contract_validator.php` | vorhanden |
 | `preflight_domain_check_runner` (L2) | `services/preflight_domain_check_runner.php` | vorhanden |
@@ -296,13 +296,13 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 - [x] `__construct(bool $readonly, string $riskclass)` Signatur anpassen
 - [x] `get_risk_class(): string` implementieren
 
-**Datei:** `classes/local/wbagent/services/task_prompt_contract.php`
+**Datei:** `classes/local/wbagent/services/skill_prompt_contract.php`
 - [x] `risk_class` in `to_array()` ergänzen
 - [x] Validierung: leerer risk_class-Wert → normalisiert auf `''` (der Validator prüft Vollständigkeit, nicht hier)
 
 ### Phase 2 — Governance-Validator
 
-**Datei:** `classes/local/wbagent/task_contract_validator.php`
+**Datei:** `classes/local/wbagent/skill_contract_validator.php`
 - [x] `build_task_metadata()` um `risk_class` aus `$task->get_risk_class()` erweitern
 - [x] `validate_task_metadata()` um Pflichtfeld-Prüfung für `risk_class` erweitern (leer → Fehler)
 - [x] `verify_risk_class_consistency()` implementieren:
@@ -311,7 +311,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
   - [x] R2/R3 ohne `context_scopes`-Deklaration im Prompt-Contract → Warnung (kein hard deny, aber Diagnostic)
   - [x] Unbekannter Wert (nicht R0–R3) → Fehler
 
-**Datei:** `classes/local/wbagent/task_registry.php`
+**Datei:** `classes/local/wbagent/skill_registry.php`
 - [x] `build_prompt_contract()` um `risk_class` aus `task->get_risk_class()` ergänzen
 - [x] `get_task_contracts()` transportiert `risk_class` in Metadaten
 
@@ -321,7 +321,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 - [x] `split_commands_by_mutability()` zu `split_commands_by_risk_class()` erweitern; Rückgabe enthält vier Gruppen (`r0`, `r1`, `r2`, `r3`)
 - [x] `has_mutating_commands()` bleibt erhalten, liest künftig aus risk_class (nicht aus is_read_only)
-- [x] `D_PROMOTE`-Logik (task_call → confirmation_request) um risk_class-Gate erweitern:
+- [x] `D_PROMOTE`-Logik (skill_call → confirmation_request) um risk_class-Gate erweitern:
   - [x] R0: niemals promoten
   - [x] R1: session-allow wird geprüft; bei aktivem allow → direkte Ausführung, TTL 900s
   - [x] R2: session-allow wird **ignoriert**; immer Confirmation erzwingen
@@ -406,7 +406,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 | `core.search_users` | `search_users_task` | `core/tasks/search_users_task.php` | R0 | true | - [x] |
 | `core.search_courses` | `search_courses_task` | `core/tasks/search_courses_task.php` | R0 | true | - [x] |
 | `core.recall_memory` | `recall_memory_task` | `core/tasks/recall_memory_task.php` | R0 | true | - [x] |
-| `core.recreate_task_catalog` | `recreate_task_catalog_task` | `core/tasks/recreate_task_catalog_task.php` | R2 | false | - [x] |
+| `core.recreate_skill_catalog` | `recreate_skill_catalog_task` | `core/tasks/recreate_skill_catalog_task.php` | R2 | false | - [x] |
 
 #### mod_booking Tasks
 
@@ -444,7 +444,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 #### local_shopping_cart
 
-- [ ] Kein `task_provider` in diesem Workspace gefunden (Stand 2026-06-01). Bei zukünftiger Integration: Task-Migration hier ergänzen.
+- [ ] Kein `skill_provider` in diesem Workspace gefunden (Stand 2026-06-01). Bei zukünftiger Integration: Task-Migration hier ergänzen.
 
 ### Phase 10 — Tests
 
@@ -478,7 +478,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 **E2E-Tests**
 
-- [x] Neue Datei `tests/agent/r3_task_e2e_test.php`:
+- [x] Neue Datei `tests/agent/r3_skill_e2e_test.php`:
   - [x] R3-Task über Queue blocked → manuelles Confirm → Execution; Invariante: kein `retry_waiting` nach Confirm-Execution
 
 ---
@@ -499,6 +499,6 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 5. **Synchronizer als eigenständiges Objekt**: Das Dokument beschreibt einen `Synchronizer`; in der Realität ist dies `agent_runtime::apply_synchronizer_message_polish`. Bei der Implementierung kein separates Synchronizer-Objekt einführen, sondern an der bestehenden Methode bleiben.
 
 -- Antwort: Absolut an der bestehenden Methode bleiben! Nichts neu einführen.
-6. **Backward-Compatibility bei task_contract_validator**: Tasks ohne risk_class müssen nach Migration sofort fehlschlagen (hart), oder soll es eine Grace-Period mit Diagnostic-Warnings geben?
+6. **Backward-Compatibility bei skill_contract_validator**: Tasks ohne risk_class müssen nach Migration sofort fehlschlagen (hart), oder soll es eine Grace-Period mit Diagnostic-Warnings geben?
 
 -- Antwort: Hart fehlschlagen. Es soll keine Backwards Compatibility geben!

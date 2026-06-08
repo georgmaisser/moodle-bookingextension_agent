@@ -22,7 +22,7 @@ use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -45,12 +45,12 @@ final class planner_context_continuity_contract_test extends TestCase {
             'phase_trace' => [
                 'discovery' => ['phase' => 'discovery', 'response_type' => 'clarification'],
                 'selection' => ['phase' => 'selection', 'response_type' => 'clarification'],
-                'parameter_construction' => ['phase' => 'parameter_construction', 'response_type' => 'task_call'],
+                'parameter_construction' => ['phase' => 'parameter_construction', 'response_type' => 'skill_call'],
             ],
-            'parameter_construction' => ['response_type' => 'task_call'],
+            'parameter_construction' => ['response_type' => 'skill_call'],
         ];
         $source = [
-            'response_type' => 'task_call',
+            'response_type' => 'skill_call',
             'phase_trace' => $plannerresult['phase_trace'],
             'planner_result' => $plannerresult,
         ];
@@ -88,7 +88,7 @@ final class planner_context_continuity_contract_test extends TestCase {
      * @return agent_runtime
      */
     private function build_runtime(): agent_runtime {
-        $registry = $this->createMock(task_registry::class);
+        $registry = $this->createMock(skill_registry::class);
         $orchestrator = $this->createMock(orchestrator::class);
         $store = $this->createMock(conversation_store::class);
         $authz = $this->createMock(authorization_service::class);

@@ -18,23 +18,23 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\tests;
 
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use bookingextension_agent\local\wbagent\contracts\task_family_contract;
-use bookingextension_agent\local\wbagent\interfaces\task_interface;
+use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
+use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\services\discovery\context_prior_builder;
 use bookingextension_agent\local\wbagent\services\discovery\core_family_set;
 use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
-use bookingextension_agent\local\wbagent\services\task_prompt_contract;
-use bookingextension_agent\local\wbagent\task_contract_validator;
+use bookingextension_agent\local\wbagent\services\skill_prompt_contract;
+use bookingextension_agent\local\wbagent\skill_contract_validator;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for phase-1 family discovery foundation.
  *
- * @covers \bookingextension_agent\local\wbagent\contracts\task_family_contract
- * @covers \bookingextension_agent\local\wbagent\services\task_prompt_contract
- * @covers \bookingextension_agent\local\wbagent\task_contract_validator
+ * @covers \bookingextension_agent\local\wbagent\contracts\skill_family_contract
+ * @covers \bookingextension_agent\local\wbagent\services\skill_prompt_contract
+ * @covers \bookingextension_agent\local\wbagent\skill_contract_validator
  * @covers \bookingextension_agent\local\wbagent\services\discovery\family_registry_service
  * @covers \bookingextension_agent\local\wbagent\services\discovery\core_family_set
  * @covers \bookingextension_agent\local\wbagent\services\discovery\context_prior_builder
@@ -45,19 +45,19 @@ use PHPUnit\Framework\TestCase;
  */
 final class phase1_discovery_foundation_contract_test extends TestCase {
     /**
-     * Family contract must derive deterministic fallback families from task names.
+     * Family contract must derive deterministic fallback families from skill names.
      */
-    public function test_task_family_contract_derives_family_from_task_name(): void {
-        $this->assertSame('mod_booking.general', task_family_contract::from_task_name('mod_booking.create_option'));
-        $this->assertSame('core.general', task_family_contract::from_task_name('core.recall_memory'));
-        $this->assertSame('core.general', task_family_contract::from_task_name('not_namespaced'));
+    public function test_skill_family_contract_derives_family_from_skill_name(): void {
+        $this->assertSame('mod_booking.general', skill_family_contract::from_skill_name('mod_booking.create_option'));
+        $this->assertSame('core.general', skill_family_contract::from_skill_name('core.recall_memory'));
+        $this->assertSame('core.general', skill_family_contract::from_skill_name('not_namespaced'));
     }
 
     /**
      * Prompt contract must include normalized family metadata.
      */
-    public function test_task_prompt_contract_normalizes_family(): void {
-        $contract = new task_prompt_contract([
+    public function test_skill_prompt_contract_normalizes_family(): void {
+        $contract = new skill_prompt_contract([
             'intent' => 'search',
             'namespace' => 'entities',
             'family' => 'Entities.Lookup',
@@ -66,7 +66,7 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
         $payload = $contract->to_array();
         $this->assertSame('entities.lookup', $payload['family']);
 
-        $fallback = new task_prompt_contract([
+        $fallback = new skill_prompt_contract([
             'intent' => 'search',
             'namespace' => 'demo',
         ]);
@@ -77,14 +77,14 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
     /**
      * Validator metadata must include valid family contract output.
      */
-    public function test_task_contract_validator_metadata_contains_family(): void {
-        $task = $this->createMock(task_interface::class);
-        $task->method('get_name')->willReturn('demo.lookup');
-        $task->method('get_schema')->willReturn(['version' => 1, 'governance' => []]);
-        $task->method('is_read_only')->willReturn(true);
-        $task->method('get_risk_class')->willReturn(task_risk_class::R0);
-        $task->method('get_example_input')->willReturn([]);
-        $task->method('get_prompt_contract')->willReturn(new task_prompt_contract([
+    public function test_skill_contract_validator_metadata_contains_family(): void {
+        $skill = $this->createMock(skill_interface::class);
+        $skill->method('get_name')->willReturn('demo.lookup');
+        $skill->method('get_schema')->willReturn(['version' => 1, 'governance' => []]);
+        $skill->method('is_read_only')->willReturn(true);
+        $skill->method('get_risk_class')->willReturn(skill_risk_class::R0);
+        $skill->method('get_example_input')->willReturn([]);
+        $skill->method('get_prompt_contract')->willReturn(new skill_prompt_contract([
             'intent' => 'lookup',
             'anchors' => [],
             'minimal_input' => [],
@@ -93,14 +93,14 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
             'version' => 1,
             'capabilities' => [],
             'context_scopes' => ['module'],
-            'risk_class' => task_risk_class::R0,
+            'risk_class' => skill_risk_class::R0,
         ]));
 
-        $meta = task_contract_validator::build_task_metadata($task, 'local_demo');
+        $meta = skill_contract_validator::build_skill_metadata($skill, 'local_demo');
         $this->assertSame('demo.general', $meta['family']);
-        $this->assertSame(task_risk_class::R0, $meta['risk_class']);
+        $this->assertSame(skill_risk_class::R0, $meta['risk_class']);
 
-        $validation = task_contract_validator::validate_task_metadata($meta);
+        $validation = skill_contract_validator::validate_skill_metadata($meta);
         $this->assertTrue($validation['valid']);
     }
 
@@ -109,10 +109,10 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
      */
     public function test_family_registry_discovers_context_and_core_families(): void {
         $contracts = [
-            ['task' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
-            ['task' => 'mod_booking.create_slotbooking_option', 'family' => 'mod_booking.options'],
-            ['task' => 'core.recall_memory', 'family' => 'core.general'],
-            ['task' => 'local_entities.lookup', 'family' => 'local_entities.general'],
+            ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
+            ['skill' => 'mod_booking.create_slotbooking_option', 'family' => 'mod_booking.options'],
+            ['skill' => 'core.recall_memory', 'family' => 'core.general'],
+            ['skill' => 'local_entities.lookup', 'family' => 'local_entities.general'],
         ];
 
         $contextprior = (new context_prior_builder())->build(42, ['namespace_hint' => 'mod_booking', 'userid' => 12]);

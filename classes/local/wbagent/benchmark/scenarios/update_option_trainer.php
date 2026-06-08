@@ -33,14 +33,14 @@ class update_option_trainer extends abstract_benchmark_scenario {
         return 'Setze Max Mustermann als Trainer fuer die Veranstaltung "Sommerkurs 2026".';
     }
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'skill_call';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return 'mod_booking.update_option_trainer';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"mod_booking.update_option_trainer","input":{}}],'
+        return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.update_option_trainer","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Assign trainer","used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 }

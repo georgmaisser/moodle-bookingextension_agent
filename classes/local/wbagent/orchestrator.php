@@ -31,12 +31,12 @@ use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core\di;
 use core_text;
-use bookingextension_agent\local\wbagent\contracts\task_family_contract;
+use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
-use bookingextension_agent\local\wbagent\services\catalog\adaptive_task_catalog_service;
+use bookingextension_agent\local\wbagent\services\catalog\adaptive_skill_catalog_service;
 use bookingextension_agent\local\wbagent\services\discovery\family_ranker;
 use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
 use bookingextension_agent\local\wbagent\services\discovery\family_signal_ranker;
@@ -83,16 +83,16 @@ class orchestrator {
     /** Parameter construction planner phase identifier. */
     public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
 
-    /** Default model for task-catalog embeddings. */
+    /** Default model for skill-catalog embeddings. */
     public const EMBEDDINGS_DEFAULT_MODEL = 'text-embedding-3-small';
 
     /** Default embedding dimensions. */
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
-    /** Default number of best matching tasks to inject for first planner step. */
+    /** Default number of best matching skills to inject for first planner step. */
     public const EMBEDDINGS_DEFAULT_TOP_K = 8;
 
-    /** Debounce window (seconds) for scheduling embeddings rebuild task. */
+    /** Debounce window (seconds) for scheduling embeddings rebuild skill. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 100;
 
     /** Wunderbyte planner action class name. */
@@ -110,8 +110,8 @@ class orchestrator {
         return runtime_feature_flags::snapshot();
     }
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var interpreter */
     private agent_interpreter $interpreter;
@@ -140,12 +140,12 @@ class orchestrator {
     /**
      * Constructor.
      *
-     * @param task_registry      $registry
+     * @param skill_registry      $registry
      * @param agent_interpreter  $interpreter
      * @param conversation_store $store
      */
     public function __construct(
-        task_registry $registry,
+        skill_registry $registry,
         agent_interpreter $interpreter,
         conversation_store $store
     ) {
@@ -335,7 +335,7 @@ class orchestrator {
     ): array {
         $context = context_module::instance($cmid);
         $manager = di::get(ai_manager::class);
-        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
+        $evaluator = new skill_executability_evaluator($this->registry, new authorization_service());
         $discoverystate = $this->run_discovery_phase(
             $threadid,
             $cmid,
@@ -358,7 +358,7 @@ class orchestrator {
         );
 
         $selectionresponsetype = trim((string)($selectionstate['response_type'] ?? ''));
-        if ($selectionresponsetype !== 'task_call') {
+        if ($selectionresponsetype !== 'skill_call') {
             $constructionstate = [
                 'phase' => self::PHASE_PARAMETER_CONSTRUCTION,
                 'response_type' => $selectionresponsetype,
@@ -517,7 +517,7 @@ class orchestrator {
      * @param agent_state|null $agentstate
      * @param context_module $context
      * @param ai_manager $manager
-     * @param task_executability_evaluator $evaluator
+     * @param skill_executability_evaluator $evaluator
      * @return array<string,mixed>
      */
     private function run_discovery_phase(
@@ -528,7 +528,7 @@ class orchestrator {
         ?agent_state $agentstate,
         context_module $context,
         ai_manager $manager,
-        task_executability_evaluator $evaluator
+        skill_executability_evaluator $evaluator
     ): array {
         $contextid = (int)$context->id;
 
@@ -544,15 +544,15 @@ class orchestrator {
             static fn($msg): bool => (string)($msg->role ?? '') !== 'step'
         ));
 
-        $recenttaskhistory = $this->extract_recent_task_names_from_messages($messages);
+        $recentskillhistory = $this->extract_recent_skill_names_from_messages($messages);
         $isfirstassistantturn = $this->is_first_assistant_turn($messages);
         $promptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
-        $adaptivecatalogresult = adaptive_task_catalog_service::get_adaptive_catalog(
+        $adaptivecatalogresult = adaptive_skill_catalog_service::get_adaptive_catalog(
             $promptcontracts,
-            $recenttaskhistory,
+            $recentskillhistory,
             orchestrator_routing_service::PHASE_DISCOVERY
         );
-        $adaptivecatalog = $adaptivecatalogresult['active_tasks'];
+        $adaptivecatalog = $adaptivecatalogresult['active_skills'];
 
         $hasanyobservations = !empty($observations);
         $haseffectiveobservations = $hasanyobservations
@@ -560,12 +560,12 @@ class orchestrator {
         $plannertracehistory = $this->normalize_planner_trace_history(
             $this->store->get_thread_metadata_value($threadid, 'planner_trace_history')
         );
-        // Keep task catalog available in every loop iteration so follow-up
+        // Keep skill catalog available in every loop iteration so follow-up
         // selection rounds (B, C, ...) never run with an empty catalog.
-        $shouldincludetaskcatalog = true;
+        $shouldincludeskillcatalog = true;
 
         $runtimecatalog = [];
-        $unavailabletaskcatalog = [];
+        $unavailableskillcatalog = [];
         $catalogselectionmode = 'none';
         $embeddingstatus = 'off';
         $embeddingrebuildqueued = false;
@@ -578,7 +578,7 @@ class orchestrator {
         $status = [];
         $llm = new llm_call_service($this->store);
 
-        if ($shouldincludetaskcatalog) {
+        if ($shouldincludeskillcatalog) {
             $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
             $runtimecatalog = $this->slim_prompt_catalog_for_planner($allpromptcontracts);
             $catalogselectionmode = 'slim_all';
@@ -604,7 +604,7 @@ class orchestrator {
                     $querytext = $querytext . ' ' . $pendingstepintent;
                 }
                 // Also augment with all remaining planned placeholder intents so the embedding
-                // retrieval surfaces the right tasks for each pending step, not just the next one.
+                // retrieval surfaces the right skills for each pending step, not just the next one.
                 $plannedintents = (new queue_manager($this->store, $this->registry))
                     ->get_planned_placeholder_intents($threadid);
                 foreach ($plannedintents as $plannedintent) {
@@ -631,7 +631,7 @@ class orchestrator {
                         $runtimecatalog = $this->sanitize_runtime_catalog_for_prompt(
                             (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog)
                         );
-                        $unavailabletaskcatalog = (array)($cachedcatalog['unavailabletaskcatalog'] ?? $unavailabletaskcatalog);
+                        $unavailableskillcatalog = (array)($cachedcatalog['unavailableskillcatalog'] ?? $unavailableskillcatalog);
                         $catalogselectionmode = (string)($cachedcatalog['catalogselectionmode'] ?? 'embed_topk_cache');
                         $embeddingstatus = 'cached_' . trim((string)($cachedcatalog['embeddingstatus'] ?? 'applied'));
                         $embeddingrebuildqueued = !empty($cachedcatalog['embeddingrebuildqueued']);
@@ -684,7 +684,7 @@ class orchestrator {
                                         $signalscores = (new family_signal_ranker())->score_families(
                                             $families,
                                             $familycontextprior,
-                                            $recenttaskhistory
+                                            $recentskillhistory
                                         );
                                         $semanticscores = (new family_embeddings_retrieval_service())->score_families(
                                             $families,
@@ -707,7 +707,7 @@ class orchestrator {
 
                                         if (!empty($familyscores)) {
                                             $toprows = (new family_embeddings_retrieval_service())
-                                                ->boost_task_rows($toprows, $familyscores);
+                                                ->boost_skill_rows($toprows, $familyscores);
                                             $embeddingstatus = 'family_boosted';
                                         }
                                     }
@@ -733,7 +733,7 @@ class orchestrator {
                     if ($cachekey !== '' && $agentstate !== null) {
                         $agentstate->set_discovery_family_cache($cachekey, [
                             'runtimecatalog' => $runtimecatalog,
-                            'unavailabletaskcatalog' => $unavailabletaskcatalog,
+                            'unavailableskillcatalog' => $unavailableskillcatalog,
                             'catalogselectionmode' => $catalogselectionmode,
                             'embeddingstatus' => $embeddingstatus,
                             'embeddingrebuildqueued' => $embeddingrebuildqueued,
@@ -757,7 +757,7 @@ class orchestrator {
                     $signalscores = (new family_signal_ranker())->score_families(
                         $families,
                         $familycontextprior,
-                        $recenttaskhistory
+                        $recentskillhistory
                     );
 
                     $semanticscores = [];
@@ -789,7 +789,7 @@ class orchestrator {
                     $discoveryconfidencescore = $stageresult['confidence_score'] ?? null;
                     $discoveryescalationreason = (string)($stageresult['escalation_reason'] ?? 'none');
                     $selectedfamilies = array_values(array_filter(array_map(
-                        static fn($family): string => task_family_contract::normalize_family((string)$family),
+                        static fn($family): string => skill_family_contract::normalize_family((string)$family),
                         (array)($stageresult['selected_families'] ?? [])
                     )));
 
@@ -815,7 +815,7 @@ class orchestrator {
             $adaptivecatalog,
             $runtimecatalog,
             $isfirstassistantturn,
-            $shouldincludetaskcatalog
+            $shouldincludeskillcatalog
         );
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
@@ -824,7 +824,7 @@ class orchestrator {
             $isfirstassistantturn,
             $hasanyobservations,
             $runtimecatalog,
-            $unavailabletaskcatalog,
+            $unavailableskillcatalog,
             $messages
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
@@ -882,16 +882,16 @@ class orchestrator {
             'routing' => $routing,
             'actionclass' => $actionclass,
             'messages' => $messages,
-            'recenttaskhistory' => $recenttaskhistory,
+            'recentskillhistory' => $recentskillhistory,
             'isfirstassistantturn' => $isfirstassistantturn,
             'promptcontracts' => $promptcontracts,
             'adaptivecatalog' => $adaptivecatalog,
             'hasanyobservations' => $hasanyobservations,
             'haseffectiveobservations' => $haseffectiveobservations,
             'plannertracehistory' => $plannertracehistory,
-            'shouldincludetaskcatalog' => $shouldincludetaskcatalog,
+            'shouldincludeskillcatalog' => $shouldincludeskillcatalog,
             'runtimecatalog' => $runtimecatalog,
-            'unavailabletaskcatalog' => $unavailabletaskcatalog,
+            'unavailableskillcatalog' => $unavailableskillcatalog,
             'catalogselectionmode' => $catalogselectionmode,
             'embeddingstatus' => $embeddingstatus,
             'embeddingrebuildqueued' => $embeddingrebuildqueued,
@@ -941,7 +941,7 @@ class orchestrator {
         $messages = (array)($discoverystate['messages'] ?? []);
         $promptcontracts = (array)($discoverystate['promptcontracts'] ?? []);
         $runtimecatalog = (array)($discoverystate['runtimecatalog'] ?? []);
-        $unavailabletaskcatalog = (array)($discoverystate['unavailabletaskcatalog'] ?? []);
+        $unavailableskillcatalog = (array)($discoverystate['unavailableskillcatalog'] ?? []);
         $plannertracehistory = (array)($discoverystate['plannertracehistory'] ?? []);
         $catalogselectionmode = (string)($discoverystate['catalogselectionmode'] ?? 'none');
         $embeddingstatus = (string)($discoverystate['embeddingstatus'] ?? 'off');
@@ -949,7 +949,7 @@ class orchestrator {
         $hasanyobservations = !empty($discoverystate['hasanyobservations']);
         $haseffectiveobservations = !empty($discoverystate['haseffectiveobservations']);
         $isfirstassistantturn = !empty($discoverystate['isfirstassistantturn']);
-        $shouldincludetaskcatalog = !empty($discoverystate['shouldincludetaskcatalog']);
+        $shouldincludeskillcatalog = !empty($discoverystate['shouldincludeskillcatalog']);
         $adaptivecatalog = (array)($discoverystate['adaptivecatalog'] ?? []);
         $discoverystage = (string)($discoverystate['discovery_stage'] ?? 'none');
         $discoveryconfidencescore = $discoverystate['discovery_confidence_score'] ?? null;
@@ -965,7 +965,7 @@ class orchestrator {
             $adaptivecatalog,
             $runtimecatalog,
             $isfirstassistantturn,
-            $shouldincludetaskcatalog
+            $shouldincludeskillcatalog
         );
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
@@ -974,7 +974,7 @@ class orchestrator {
             $isfirstassistantturn,
             $hasanyobservations,
             $runtimecatalog,
-            $unavailabletaskcatalog,
+            $unavailableskillcatalog,
             $messages
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
@@ -1057,7 +1057,7 @@ class orchestrator {
                 [
                     'promptcontracts' => $promptcontracts,
                     'contextprior' => $contextprior,
-                    'recent_task_names' => (array)($discoverystate['recenttaskhistory'] ?? []),
+                    'recent_skill_names' => (array)($discoverystate['recentskillhistory'] ?? []),
                 ]
             );
         } catch (\Throwable $e) {
@@ -1072,13 +1072,13 @@ class orchestrator {
             }
         }
 
-        $selectedtask = $this->extract_selected_task_from_selection_phase_output($phaseoutput);
+        $selectedskill = $this->extract_selected_skill_from_selection_phase_output($phaseoutput);
 
         return [
             'prompt' => $prompt,
             'debugsource' => $debugsource,
             'lastusermessage' => $lastusermessage,
-            'selected_task' => $selectedtask,
+            'selected_skill' => $selectedskill,
             'phase' => self::PHASE_SELECTION,
             'phase_output' => $phaseoutput,
             'response_type' => (string)($phaseoutput['response_type'] ?? ''),
@@ -1090,19 +1090,19 @@ class orchestrator {
     }
 
     /**
-     * Normalize selection output to an explicit single-task selector handoff.
+     * Normalize selection output to an explicit single-skill selector handoff.
      *
      * This strips accidental parameter payloads from selection commands and keeps
-     * only the selected task identity for constructor handoff.
+     * only the selected skill identity for constructor handoff.
      *
      * @param array<string,mixed> $phaseoutput
      * @return array<string,mixed>
      */
     private function normalize_selection_phase_output_for_handoff(array $phaseoutput): array {
         $responsetype = trim((string)($phaseoutput['response_type'] ?? ''));
-        if ($responsetype !== 'task_call') {
-            if (!isset($phaseoutput['selected_task'])) {
-                $phaseoutput['selected_task'] = '';
+        if ($responsetype !== 'skill_call') {
+            if (!isset($phaseoutput['selected_skill'])) {
+                $phaseoutput['selected_skill'] = '';
             }
             return $phaseoutput;
         }
@@ -1116,21 +1116,21 @@ class orchestrator {
         }
 
         $command = is_array($commands[0]) ? $commands[0] : [];
-        $selectedtask = trim((string)($phaseoutput['selected_task'] ?? ''));
-        if ($selectedtask === '') {
-            $selectedtask = trim((string)($command['task'] ?? ''));
+        $selectedskill = trim((string)($phaseoutput['selected_skill'] ?? ''));
+        if ($selectedskill === '') {
+            $selectedskill = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
         }
-        if ($selectedtask === '') {
+        if ($selectedskill === '') {
             return $this->build_selection_contract_error_result(
-                'CONTRACT_SELECTION_TASK_MISSING',
-                'CONTRACT_VIOLATION: selection phase task_call did not provide a selected task.'
+                'CONTRACT_SELECTION_SKILL_MISSING',
+                'CONTRACT_VIOLATION: selection phase skill_call did not provide a selected skill.'
             );
         }
 
         $version = max(1, (int)($command['version'] ?? 1));
-        $phaseoutput['selected_task'] = $selectedtask;
+        $phaseoutput['selected_skill'] = $selectedskill;
         $phaseoutput['commands'] = [[
-            'task' => $selectedtask,
+            'skill' => $selectedskill,
             'version' => $version,
             'input' => [],
         ]];
@@ -1172,19 +1172,19 @@ class orchestrator {
         $plannertracehistory = (array)($discoverystate['plannertracehistory'] ?? []);
         $isfirstassistantturn = !empty($discoverystate['isfirstassistantturn']);
         $haseffectiveobservations = !empty($discoverystate['haseffectiveobservations']);
-        $shouldincludetaskcatalog = !empty($discoverystate['shouldincludetaskcatalog']);
+        $shouldincludeskillcatalog = !empty($discoverystate['shouldincludeskillcatalog']);
         $catalogselectionmode = (string)($discoverystate['catalogselectionmode'] ?? 'none');
         $embeddingstatus = (string)($discoverystate['embeddingstatus'] ?? 'off');
         $embeddingrebuildqueued = !empty($discoverystate['embeddingrebuildqueued']);
-        $unavailabletaskcatalog = (array)($discoverystate['unavailabletaskcatalog'] ?? []);
-        $selectedtask = trim((string)($selectionstate['selected_task'] ?? ''));
+        $unavailableskillcatalog = (array)($discoverystate['unavailableskillcatalog'] ?? []);
+        $selectedskill = trim((string)($selectionstate['selected_skill'] ?? ''));
 
-        if ($selectedtask === '') {
+        if ($selectedskill === '') {
             return $this->build_selector_handoff_error_result();
         }
 
-        $constructionruntimecatalog = $this->build_construction_runtime_catalog_for_selected_task(
-            $selectedtask,
+        $constructionruntimecatalog = $this->build_construction_runtime_catalog_for_selected_skill(
+            $selectedskill,
             $runtimecatalog,
             $adaptivecatalog
         );
@@ -1205,7 +1205,7 @@ class orchestrator {
             $adaptivecatalog,
             $constructionruntimecatalog,
             $isfirstassistantturn,
-            $shouldincludetaskcatalog
+            $shouldincludeskillcatalog
         );
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
@@ -1214,7 +1214,7 @@ class orchestrator {
             $isfirstassistantturn,
             !empty($constructionobservations),
             $constructionruntimecatalog,
-            $unavailabletaskcatalog,
+            $unavailableskillcatalog,
             $messages
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
@@ -1261,7 +1261,7 @@ class orchestrator {
         }
 
         $lastusermessage = (string)($selectionstate['lastusermessage'] ?? '');
-        $constructionallowedtasks = [$selectedtask];
+        $constructionallowedskills = [$selectedskill];
         $interpreted = $this->interpreter->interpret_phase_output(
             $rawtext,
             self::PHASE_PARAMETER_CONSTRUCTION,
@@ -1269,7 +1269,7 @@ class orchestrator {
                 'contextid' => $contextid,
                 'userid' => $userid,
                 'lastusermessage' => $lastusermessage,
-                'allowed_tasks' => $constructionallowedtasks,
+                'allowed_skills' => $constructionallowedskills,
             ]
         );
         if (is_array($interpreted)) {
@@ -1280,15 +1280,15 @@ class orchestrator {
     }
 
     /**
-     * Restrict construction runtime catalog to the selector-chosen task only.
+     * Restrict construction runtime catalog to the selector-chosen skill only.
      *
-     * @param string $selectedtask
+     * @param string $selectedskill
      * @param array<int,array<string,mixed>> $runtimecatalog
      * @param array<int,array<string,mixed>> $adaptivecatalog
      * @return array<int,array<string,mixed>>
      */
-    private function build_construction_runtime_catalog_for_selected_task(
-        string $selectedtask,
+    private function build_construction_runtime_catalog_for_selected_skill(
+        string $selectedskill,
         array $runtimecatalog,
         array $adaptivecatalog
     ): array {
@@ -1298,10 +1298,10 @@ class orchestrator {
             if (!is_array($entry)) {
                 continue;
             }
-            if (trim((string)($entry['task'] ?? '')) !== $selectedtask) {
+            if (trim((string)($entry['skill'] ?? $entry['skill'] ?? '')) !== $selectedskill) {
                 continue;
             }
-            $filtered[] = $this->enrich_construction_catalog_entry($selectedtask, $entry);
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
         }
 
         if (!empty($filtered)) {
@@ -1312,29 +1312,29 @@ class orchestrator {
             if (!is_array($entry)) {
                 continue;
             }
-            if (trim((string)($entry['task'] ?? '')) !== $selectedtask) {
+            if (trim((string)($entry['skill'] ?? $entry['skill'] ?? '')) !== $selectedskill) {
                 continue;
             }
-            $filtered[] = $this->enrich_construction_catalog_entry($selectedtask, $entry);
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
         }
 
         return array_values($filtered);
     }
 
     /**
-     * Attach concrete parameter examples for the selected construction task.
+     * Attach concrete parameter examples for the selected construction skill.
      *
-     * @param string $selectedtask
+     * @param string $selectedskill
      * @param array<string,mixed> $entry
      * @return array<string,mixed>
      */
-    private function enrich_construction_catalog_entry(string $selectedtask, array $entry): array {
-        $task = $this->registry->get_task($selectedtask);
-        if ($task === null) {
+    private function enrich_construction_catalog_entry(string $selectedskill, array $entry): array {
+        $skill = $this->registry->get_skill($selectedskill);
+        if ($skill === null) {
             return $entry;
         }
 
-        $exampleparameters = (array)$task->get_example_input();
+        $exampleparameters = (array)$skill->get_example_input();
         if (!empty($exampleparameters)) {
             $entry['example_parameters'] = $exampleparameters;
         }
@@ -1343,50 +1343,50 @@ class orchestrator {
     }
 
     /**
-     * Build construction-phase task allow-list from discovery-ranked catalogs.
+     * Build construction-phase skill allow-list from discovery-ranked catalogs.
      *
      * @param array<int,array<string,mixed>> $runtimecatalog
      * @param array<int,array<string,mixed>> $adaptivecatalog
      * @return array<int,string>
      */
-    private function build_construction_allowed_tasks(array $runtimecatalog, array $adaptivecatalog): array {
-        $tasks = [];
+    private function build_construction_allowed_skills(array $runtimecatalog, array $adaptivecatalog): array {
+        $skills = [];
 
         foreach ($runtimecatalog as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
-            $task = trim((string)($entry['task'] ?? ''));
-            if ($task !== '') {
-                $tasks[] = $task;
+            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skill !== '') {
+                $skills[] = $skill;
             }
         }
 
-        if (!empty($tasks)) {
-            return array_values(array_unique($tasks));
+        if (!empty($skills)) {
+            return array_values(array_unique($skills));
         }
 
         foreach ($adaptivecatalog as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
-            $task = trim((string)($entry['task'] ?? ''));
-            if ($task !== '') {
-                $tasks[] = $task;
+            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skill !== '') {
+                $skills[] = $skill;
             }
         }
 
-        return array_values(array_unique($tasks));
+        return array_values(array_unique($skills));
     }
 
     /**
-     * Extract an explicitly selected task from selection-phase output.
+     * Extract an explicitly selected skill from selection-phase output.
      *
      * @param array<string,mixed> $phaseoutput
      * @return string
      */
-    private function extract_selected_task_from_selection_phase_output(array $phaseoutput): string {
-        return trim((string)($phaseoutput['selected_task'] ?? ''));
+    private function extract_selected_skill_from_selection_phase_output(array $phaseoutput): string {
+        return trim((string)($phaseoutput['selected_skill'] ?? ''));
     }
 
     /**
@@ -1401,7 +1401,7 @@ class orchestrator {
             'response_type' => 'error',
             'message' => get_string('ai_provider_error', 'bookingextension_agent'),
             'commands' => [],
-            'selected_task' => '',
+            'selected_skill' => '',
             'ambiguities' => [],
             'errors' => [$error],
             'issue_codes' => [$issuecode],
@@ -1409,7 +1409,7 @@ class orchestrator {
     }
 
     /**
-     * Build a standardized selector-handoff error when construction lacks selected_task.
+     * Build a standardized selector-handoff error when construction lacks selected_skill.
      *
      * @return array<string,mixed>
      */
@@ -1419,8 +1419,8 @@ class orchestrator {
             'message' => get_string('ai_provider_error', 'bookingextension_agent'),
             'commands' => [],
             'ambiguities' => [],
-            'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_task for construction.'],
-            'issue_codes' => ['CONTRACT_SELECTION_TASK_MISSING'],
+            'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_skill for construction.'],
+            'issue_codes' => ['CONTRACT_SELECTION_SKILL_MISSING'],
         ];
     }
 
@@ -1481,7 +1481,7 @@ class orchestrator {
             'phase' => self::PHASE_SELECTION,
             'response_type' => (string)($selectionstate['response_type'] ?? ''),
             'message' => (string)($selectionstate['message'] ?? ''),
-            'selected_task' => (string)($selectionstate['selected_task'] ?? ''),
+            'selected_skill' => (string)($selectionstate['selected_skill'] ?? ''),
             'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
             'errors' => (array)($selectionstate['errors'] ?? []),
         ];
@@ -1520,22 +1520,22 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
       -> response_type=sufficient, commands=[].
   2) explicit confirmation of an already pending action
       -> response_type=confirm_pending, commands=[].
-  3) missing required input for the selected task
+  3) missing required input for the selected skill
       -> response_type=clarification, commands=[].
   4) grounded mutating intent
-      -> response_type=task_call (selector) or confirmation_request (constructor), commands non-empty.
+      -> response_type=skill_call (selector) or confirmation_request (constructor), commands non-empty.
   5) grounded read-only intent
-      -> response_type=task_call, commands non-empty.
+      -> response_type=skill_call, commands non-empty.
   6) multi-step request, first turn, no [PENDING PLANNED STEPS] in context
-      -> select the first task + set planned_steps=[{intent of step 2},{intent of step 3},...].
-- Use only exact task names from the TASK CATALOG. Never invent aliases.
-- If a matching task appears in UNAVAILABLE TASKS, mention that it exists but is currently not executable.
-- Do not emit unavailable tasks in commands.
-- Never re-emit an already completed action signature (same task + normalized input intent).
+      -> select the first skill + set planned_steps=[{intent of step 2},{intent of step 3},...].
+- Use only exact skill names from the SKILL CATALOG. Never invent aliases.
+- If a matching skill appears in UNAVAILABLE SKILLS, mention that it exists but is currently not executable.
+- Do not emit unavailable skills in commands.
+- Never re-emit an already completed action signature (same skill + normalized input intent).
 
-TASK CONTRACT FIRST (highest priority):
-- Follow task-level routing hints from the TASK CATALOG (WHEN, REQUIRED, OPTIONAL, TRIGGERS).
-- Keep global routing generic; do not hardcode special behavior for individual task names.
+SKILL CONTRACT FIRST (highest priority):
+- Follow skill-level routing hints from the SKILL CATALOG (WHEN, REQUIRED, OPTIONAL, TRIGGERS).
+- Keep global routing generic; do not hardcode special behavior for individual skill names.
 
 PROMPT;
         }
@@ -1548,14 +1548,14 @@ ACTION-SPECIFIC GUIDANCE:
 - Base your answer on the latest user message, observations, and assistant state.
 - Be concise, precise, and helpful.
 - Do not propose extra tool calls if the available context already answers the request.
-- Use only exact task names from the TASK CATALOG below.
+- Use only exact skill names from the SKILL CATALOG below.
 - Never invent aliases or category names such as docs.search or documentation.query.
 - If observations already contain sufficient information, MUST return
     response_type="sufficient" with commands=[] and NO message field.
 - If information is still missing for a mutating action, ask one focused clarification question.
 - For documented read-only questions, if observations are still insufficient,
-    you MAY return one documentation task_call from the task catalog to retrieve more relevant information.
-- If you need another documentation task_call, prefer grounded candidate paths or topic hints over guessed root doc_path values.
+    you MAY return one documentation skill_call from the skill catalog to retrieve more relevant information.
+- If you need another documentation skill_call, prefer grounded candidate paths or topic hints over guessed root doc_path values.
 - If observations already include concrete domain-specific configuration fields or labels,
     answer directly and do NOT ask the user to reconfirm intent.
 
@@ -1569,9 +1569,9 @@ PROMPT;
             return <<<'PROMPT'
 You are an expert that composes polished, helpful answers for the "{{bookingname}}" context.
 
-SYNTHESIS TASK:
+SYNTHESIS SKILL:
 - Retrieved information is provided in the OBSERVATION blocks. Your job is to write a high-quality final answer.
-- Do NOT call any tools or issue task_calls.
+- Do NOT call any tools or issue skill_calls.
 - Always return response_type="sufficient" with commands=[].
 - OUTPUT FORMAT IS STRICT: return exactly one JSON object and nothing else.
 - The first non-whitespace character MUST be "{" and the last non-whitespace character MUST be "}".
@@ -1597,9 +1597,9 @@ PROMPT;
 You are an AI agent for the "{{bookingname}}" context.
 
 ACTION-SPECIFIC GUIDANCE:
-- Use only the provided task catalog and schema.
+- Use only the provided skill catalog and schema.
 - Do not invent domain-specific identifiers or unsupported actions.
-- For read-only intents, prefer direct task_call handling.
+- For read-only intents, prefer direct skill_call handling.
 - For mutating intents, ask only for missing required data before confirmation.
 PROMPT;
     }
@@ -1614,15 +1614,15 @@ PROMPT;
     }
 
     /**
-     * Build the state-based system prompt with compact task metadata embedded.
+     * Build the state-based system prompt with compact skill metadata embedded.
      *
      * @param  int    $cmid
      * @param  string $actionclass
      * @param  bool   $hasobservations
-     * @param  array  $adaptivecatalog Optional adaptive task catalog (reduced by recency/tier). If null, uses full catalog.
-     * @param  array  $systemtaskcatalog Optional exact task catalog to embed into SYSTEM placeholders.
+     * @param  array  $adaptivecatalog Optional adaptive skill catalog (reduced by recency/tier). If null, uses full catalog.
+     * @param  array  $systemskillcatalog Optional exact skill catalog to embed into SYSTEM placeholders.
      * @param  bool   $isfirstassistantturn True when no assistant message exists yet in this thread.
-     * @param  bool   $includetaskcatalog If true, embed task catalog placeholder in SYSTEM block.
+     * @param  bool   $includeskillcatalog If true, embed skill catalog placeholder in SYSTEM block.
      * @return string System prompt text.
      */
     private function build_system_prompt(
@@ -1633,9 +1633,9 @@ PROMPT;
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
         ?array $adaptivecatalog = null,
-        array $systemtaskcatalog = [],
+        array $systemskillcatalog = [],
         bool $isfirstassistantturn = false,
-        bool $includetaskcatalog = false
+        bool $includeskillcatalog = false
     ): string {
         return $this->promptbundlebuilder->build_system_prompt(
             $cmid,
@@ -1645,33 +1645,33 @@ PROMPT;
             $actionclass,
             $hasobservations,
             $adaptivecatalog,
-            $systemtaskcatalog,
+            $systemskillcatalog,
             $isfirstassistantturn,
-            $includetaskcatalog
+            $includeskillcatalog
         );
     }
 
     /**
-     * Reduce task catalog entries to planner-facing routing metadata only.
+     * Reduce skill catalog entries to planner-facing routing metadata only.
      *
-     * @param array $taskcatalog
+     * @param array $skillcatalog
      * @return array
      */
-    private function slim_prompt_catalog_for_planner(array $taskcatalog): array {
+    private function slim_prompt_catalog_for_planner(array $skillcatalog): array {
         $slimcatalog = [];
 
-        foreach ($taskcatalog as $entry) {
+        foreach ($skillcatalog as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
 
-            $taskname = (string)($entry['task'] ?? '');
-            if ($taskname === '') {
+            $skillname = (string)($entry['skill'] ?? $entry['skill'] ?? '');
+            if ($skillname === '') {
                 continue;
             }
 
             $newentry = [
-                'task' => $taskname,
+                'skill' => $skillname,
                 'readonly' => (bool)($entry['readonly'] ?? false),
                 'intent' => (string)($entry['intent'] ?? ''),
                 'minimal_input' => (array)($entry['minimal_input'] ?? []),
@@ -1704,8 +1704,8 @@ PROMPT;
                 continue;
             }
 
-            $task = trim((string)($entry['task'] ?? ''));
-            if ($task === '') {
+            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skill === '') {
                 continue;
             }
 
@@ -1722,7 +1722,7 @@ PROMPT;
                 : $this->decode_catalog_json_array((string)($entry['message_triggers_json'] ?? '[]'));
 
             $row = [
-                'task' => $task,
+                'skill' => $skill,
                 'readonly' => !empty($entry['readonly']) && (string)$entry['readonly'] !== '0',
                 'intent' => trim((string)($entry['intent'] ?? '')),
                 'minimal_input' => $minimalinput,
@@ -1753,15 +1753,15 @@ PROMPT;
     }
 
     /**
-     * Keep task descriptions compact for planner routing.
+     * Keep skill descriptions compact for planner routing.
      *
      * @param string $description
      * @return string
      */
     /**
-     * Render the task catalog as compact plain text instead of JSON.
+     * Render the skill catalog as compact plain text instead of JSON.
      *
-     * Each task gets a heading line plus WHEN / REQUIRED / OPTIONAL / TRIGGERS lines.
+     * Each skill gets a heading line plus WHEN / REQUIRED / OPTIONAL / TRIGGERS lines.
      * This is ~75% more token-efficient than JSON and easier for the LLM to scan.
      *
      * @param array $catalog
@@ -1775,15 +1775,15 @@ PROMPT;
                 continue;
             }
 
-            $taskname = trim((string)($entry['task'] ?? ''));
-            if ($taskname === '') {
+            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
 
             $readonly = !empty($entry['readonly']) && (string)($entry['readonly']) !== '0';
             $mutability = $readonly ? 'readonly' : 'mutating';
             $lines = [];
-            $lines[] = "## {$taskname} [{$mutability}]";
+            $lines[] = "## {$skillname} [{$mutability}]";
 
             $description = trim(preg_replace('/\s+/', ' ', (string)($entry['description'] ?? '')) ?? '');
             if ($description !== '') {
@@ -1875,7 +1875,7 @@ PROMPT;
             return [];
         }
 
-        // Keep enough fields so slotbooking/selflearning task variants do not
+        // Keep enough fields so slotbooking/selflearning skill variants do not
         // lose critical execution hints (e.g. slot_day_* or duration fields).
         return array_slice($keys, 0, 12);
     }
@@ -1922,41 +1922,41 @@ PROMPT;
     }
 
     /**
-     * Extract task names from recent messages for recency boosting.
+     * Extract skill names from recent messages for recency boosting.
      *
-     * Scans assistant responses for attempted/executed task calls (from message metadata).
+     * Scans assistant responses for attempted/executed skill calls (from message metadata).
      *
      * @param \stdClass[] $messages
-     * @return array<string> Task names in reverse chronological order (most recent first).
+     * @return array<string> Skill names in reverse chronological order (most recent first).
      */
-    private function extract_recent_task_names_from_messages(array $messages): array {
-        $tasknames = [];
+    private function extract_recent_skill_names_from_messages(array $messages): array {
+        $skillnames = [];
         for ($i = count($messages) - 1; $i >= 0; --$i) {
             $msg = $messages[$i];
             if ((string)($msg->role ?? '') === 'assistant' && isset($msg->structuredjson)) {
                 $meta = (array)json_decode((string)($msg->structuredjson ?? ''), true);
-                // Extract task names from attempted_tasks or commands.
-                $attemptedtasks = (array)($meta['attempted_tasks'] ?? []);
-                if (!empty($attemptedtasks)) {
-                    foreach ($attemptedtasks as $taskname) {
-                        if (!in_array($taskname, $tasknames, true)) {
-                            $tasknames[] = (string)$taskname;
+                // Extract skill names from attempted_skills or commands.
+                $attemptedskills = (array)($meta['attempted_skills'] ?? []);
+                if (!empty($attemptedskills)) {
+                    foreach ($attemptedskills as $skillname) {
+                        if (!in_array($skillname, $skillnames, true)) {
+                            $skillnames[] = (string)$skillname;
                         }
                     }
                 }
-                // Also check commands if no attempted_tasks (fallback).
+                // Also check commands if no attempted_skills (fallback).
                 $commands = (array)($meta['commands'] ?? []);
                 foreach ($commands as $cmd) {
-                    if (is_array($cmd) && isset($cmd['task'])) {
-                        $taskname = (string)($cmd['task'] ?? '');
-                        if ($taskname !== '' && !in_array($taskname, $tasknames, true)) {
-                            $tasknames[] = $taskname;
+                    if (is_array($cmd) && (isset($cmd['skill']) || isset($cmd['skill']))) {
+                        $skillname = (string)($cmd['skill'] ?? $cmd['skill'] ?? '');
+                        if ($skillname !== '' && !in_array($skillname, $skillnames, true)) {
+                            $skillnames[] = $skillname;
                         }
                     }
                 }
             }
         }
-        return $tasknames;
+        return $skillnames;
     }
 
     /**
@@ -2055,7 +2055,7 @@ PROMPT;
      * @param string $phase
      * @param bool $isfirstassistantturn
      * @param bool $hasobservations
-     * @param array $taskcatalog
+     * @param array $skillcatalog
      * @return string
      */
     private function build_runtime_context_block(
@@ -2064,8 +2064,8 @@ PROMPT;
         string $phase = self::PHASE_DISCOVERY,
         bool $isfirstassistantturn = false,
         bool $hasobservations = false,
-        array $taskcatalog = [],
-        array $unavailabletaskcatalog = [],
+        array $skillcatalog = [],
+        array $unavailableskillcatalog = [],
         array $messages = []
     ): string {
         $timezonename = (string)(get_config('core', 'timezone') ?? '');
@@ -2098,22 +2098,22 @@ PROMPT;
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
         }
 
-        if (!empty($taskcatalog)) {
+        if (!empty($skillcatalog)) {
             if ($phase === self::PHASE_PARAMETER_CONSTRUCTION) {
                 // Construction phase needs full parameter details — keep JSON so the constructor
-                // can read types, descriptions and validation hints for the single selected task.
-                $this->append_json_object_section($lines, 'TASK CATALOG:', $taskcatalog);
+                // can read types, descriptions and validation hints for the single selected skill.
+                $this->append_json_object_section($lines, 'SKILL CATALOG:', $skillcatalog);
             } else {
                 $lines[] = '';
-                $lines[] = 'TASK CATALOG:';
-                $lines[] = $this->render_catalog_as_text($taskcatalog);
+                $lines[] = 'SKILL CATALOG:';
+                $lines[] = $this->render_catalog_as_text($skillcatalog);
             }
         }
 
-        if (!empty($unavailabletaskcatalog)) {
+        if (!empty($unavailableskillcatalog)) {
             $lines[] = '';
-            $lines[] = 'UNAVAILABLE TASKS (exist but not currently executable):';
-            $lines[] = $this->render_catalog_as_text($unavailabletaskcatalog);
+            $lines[] = 'UNAVAILABLE SKILLS (exist but not currently executable):';
+            $lines[] = $this->render_catalog_as_text($unavailableskillcatalog);
         }
 
         $privacy = new privacy_anonymizer($this->store);
@@ -2191,7 +2191,7 @@ PROMPT;
     }
 
     /**
-     * Keep only catalog entries whose task family is in selected discovery families.
+     * Keep only catalog entries whose skill family is in selected discovery families.
      *
      * @param array<int,array<string,mixed>> $catalog
      * @param array<int,string> $selectedfamilies
@@ -2204,8 +2204,8 @@ PROMPT;
 
         $allow = [];
         foreach ($selectedfamilies as $family) {
-            $normalized = task_family_contract::normalize_family((string)$family);
-            if ($normalized !== task_family_contract::DEFAULT_FAMILY) {
+            $normalized = skill_family_contract::normalize_family((string)$family);
+            if ($normalized !== skill_family_contract::DEFAULT_FAMILY) {
                 $allow[$normalized] = true;
             }
         }
@@ -2220,12 +2220,12 @@ PROMPT;
                 continue;
             }
 
-            $taskname = trim((string)($entry['task'] ?? ''));
-            if ($taskname === '') {
+            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
 
-            $family = task_family_contract::from_task_name($taskname);
+            $family = skill_family_contract::from_skill_name($skillname);
             if (!isset($allow[$family])) {
                 continue;
             }
@@ -2243,15 +2243,15 @@ PROMPT;
      * @return string
      */
     private function availability_from_deny_reason(string $reason): string {
-        if ($reason === task_contract_validator::DENY_MISSING_CAPABILITY) {
+        if ($reason === skill_contract_validator::DENY_MISSING_CAPABILITY) {
             return 'not_active_for_you';
         }
 
-        if ($reason === task_contract_validator::DENY_CONTEXT_INVALID) {
+        if ($reason === skill_contract_validator::DENY_CONTEXT_INVALID) {
             return 'invalid_context';
         }
 
-        if ($reason === task_contract_validator::DENY_RUNTIME_DISABLED) {
+        if ($reason === skill_contract_validator::DENY_RUNTIME_DISABLED) {
             return 'runtime_disabled';
         }
 
@@ -2259,24 +2259,24 @@ PROMPT;
     }
 
     /**
-     * Keep only valid unavailable-task catalog entries.
+     * Keep only valid unavailable-skill catalog entries.
      *
      * @param array<int,mixed> $catalog
      * @return array<int,array<string,string>>
      */
-    private function sanitize_unavailable_task_catalog(array $catalog): array {
+    private function sanitize_unavailable_skill_catalog(array $catalog): array {
         return array_values(array_filter($catalog, static function ($entry): bool {
-            return is_array($entry) && trim((string)($entry['task'] ?? '')) !== '';
+            return is_array($entry) && trim((string)($entry['skill'] ?? $entry['skill'] ?? '')) !== '';
         }));
     }
 
     /**
-     * Build task-description lookup map from prompt contracts.
+     * Build skill-description lookup map from prompt contracts.
      *
      * @param array<int,array<string,mixed>> $promptcontracts
      * @return array<string,string>
      */
-    private function build_task_description_index(array $promptcontracts): array {
+    private function build_skill_description_index(array $promptcontracts): array {
         $index = [];
 
         foreach ($promptcontracts as $contract) {
@@ -2284,12 +2284,12 @@ PROMPT;
                 continue;
             }
 
-            $taskname = trim((string)($contract['task'] ?? ''));
-            if ($taskname === '') {
+            $skillname = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
 
-            $index[$taskname] = trim((string)($contract['description'] ?? ''));
+            $index[$skillname] = trim((string)($contract['description'] ?? ''));
         }
 
         return $index;
@@ -2325,23 +2325,23 @@ PROMPT;
     }
 
     /**
-     * Augment a primary planner catalog with a small number of recent executable tasks.
+     * Augment a primary planner catalog with a small number of recent executable skills.
      *
      * @param array<int,array<string,mixed>> $primarycatalog
-     * @param array<int,string> $recenttaskhistory
+     * @param array<int,string> $recentskillhistory
      * @param array<int,array<string,mixed>> $fallbackcatalog
      * @param array<string,array<string,mixed>> $evaluations
      * @param int $maxadditions
      * @return array<int,array<string,mixed>>
      */
-    private function augment_catalog_with_recent_executable_tasks(
+    private function augment_catalog_with_recent_executable_skills(
         array $primarycatalog,
-        array $recenttaskhistory,
+        array $recentskillhistory,
         array $fallbackcatalog,
         array $evaluations,
         int $maxadditions = 1
     ): array {
-        if ($maxadditions <= 0 || empty($recenttaskhistory) || empty($fallbackcatalog)) {
+        if ($maxadditions <= 0 || empty($recentskillhistory) || empty($fallbackcatalog)) {
             return $primarycatalog;
         }
 
@@ -2350,9 +2350,9 @@ PROMPT;
             if (!is_array($entry)) {
                 continue;
             }
-            $taskname = trim((string)($entry['task'] ?? ''));
-            if ($taskname !== '') {
-                $existing[$taskname] = true;
+            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skillname !== '') {
+                $existing[$skillname] = true;
             }
         }
 
@@ -2361,31 +2361,31 @@ PROMPT;
             if (!is_array($entry)) {
                 continue;
             }
-            $taskname = trim((string)($entry['task'] ?? ''));
-            if ($taskname !== '') {
-                $fallbackindex[$taskname] = $entry;
+            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skillname !== '') {
+                $fallbackindex[$skillname] = $entry;
             }
         }
 
         $result = $primarycatalog;
         $added = 0;
-        foreach ($recenttaskhistory as $taskname) {
-            $taskname = trim((string)$taskname);
-            if ($taskname === '' || isset($existing[$taskname])) {
+        foreach ($recentskillhistory as $skillname) {
+            $skillname = trim((string)$skillname);
+            if ($skillname === '' || isset($existing[$skillname])) {
                 continue;
             }
 
-            $executablestate = trim((string)($evaluations[$taskname]['executable_state'] ?? ''));
+            $executablestate = trim((string)($evaluations[$skillname]['executable_state'] ?? ''));
             if ($executablestate === 'deny') {
                 continue;
             }
 
-            if (!isset($fallbackindex[$taskname])) {
+            if (!isset($fallbackindex[$skillname])) {
                 continue;
             }
 
-            $result[] = $fallbackindex[$taskname];
-            $existing[$taskname] = true;
+            $result[] = $fallbackindex[$skillname];
+            $existing[$skillname] = true;
             $added++;
             if ($added >= $maxadditions) {
                 break;

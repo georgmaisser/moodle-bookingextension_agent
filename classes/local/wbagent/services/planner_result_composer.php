@@ -68,7 +68,7 @@ class planner_result_composer {
             'response_type' => (string)($state['response_type'] ?? ''),
             'message' => (string)($state['message'] ?? ''),
             'phase' => (string)($state['phase'] ?? ''),
-            'selected_task' => (string)($state['selected_task'] ?? ''),
+            'selected_skill' => (string)($state['selected_skill'] ?? ''),
             'catalogselectionmode' => (string)($state['catalogselectionmode'] ?? ''),
             'embeddingstatus' => (string)($state['embeddingstatus'] ?? ''),
             'issue_codes' => (array)($state['issue_codes'] ?? []),

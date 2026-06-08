@@ -40,7 +40,7 @@ use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Send a user message to the AI agent and receive the AI's response.
@@ -128,7 +128,7 @@ class ai_send_message extends external_api {
         }
 
         $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
-        $registry = task_registry::make_default();
+        $registry = skill_registry::make_default();
         $store = new conversation_store();
         $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
 
@@ -322,8 +322,8 @@ class ai_send_message extends external_api {
             return is_array($result['commands'] ?? null) ? (array)$result['commands'] : [];
         }
 
-        $task = trim((string)($item['task'] ?? ''));
-        if ($task === '') {
+        $skill = trim((string)($item['skill'] ?? $item['skill'] ?? ''));
+        if ($skill === '') {
             return [];
         }
 
@@ -331,7 +331,7 @@ class ai_send_message extends external_api {
             ? (array)$item['prepared_input']
             : (is_array($item['input'] ?? null) ? (array)$item['input'] : []);
         $command = [
-            'task' => $task,
+            'skill' => $skill,
             'version' => max(1, (int)($item['version'] ?? 1)),
             'input' => $input,
         ];
@@ -350,14 +350,14 @@ class ai_send_message extends external_api {
     /**
      * Resolve all preview option ids for WS responses as a JSON-encoded array.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param int $cmid
      * @param int $userid
      * @param array $results
      * @return string JSON-encoded int array
      */
     private static function resolve_preview_option_ids_json_for_response(
-        task_registry $registry,
+        skill_registry $registry,
         int $cmid,
         int $userid,
         array $results
@@ -398,14 +398,14 @@ class ai_send_message extends external_api {
     /**
      * Resolve preview option id for WS responses.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param int $cmid
      * @param int $userid
      * @param array $results
      * @return int
      */
     private static function resolve_preview_option_id_for_response(
-        task_registry $registry,
+        skill_registry $registry,
         int $cmid,
         int $userid,
         array $results
@@ -484,7 +484,7 @@ class ai_send_message extends external_api {
                 'JSON-encoded structured ambiguity options for clickable frontend suggestions.'
             ),
             'errorsjson'    => new external_value(PARAM_RAW, 'JSON-encoded technical validation errors.'),
-            'issuecodesjson' => new external_value(PARAM_RAW, 'JSON-encoded issue codes from task validation.'),
+            'issuecodesjson' => new external_value(PARAM_RAW, 'JSON-encoded issue codes from skill validation.'),
             'phasetracejson' => new external_value(
                 PARAM_RAW,
                 'JSON-encoded split-pipeline phase trace (discovery/selection/parameter_construction).',

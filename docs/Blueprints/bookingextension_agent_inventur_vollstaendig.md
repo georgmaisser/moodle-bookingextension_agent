@@ -104,7 +104,7 @@
 ./classes/local/wbagent/core/tasks/get_current_user_task.php
 ./classes/local/wbagent/core/tasks/list_actions_task.php
 ./classes/local/wbagent/core/tasks/recall_memory_task.php
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php
 ./classes/local/wbagent/core/tasks/search_courses_task.php
 ./classes/local/wbagent/core/tasks/search_users_task.php
 ./classes/local/wbagent/dto/bulk_update_options_input_dto.php
@@ -128,7 +128,7 @@
 ./classes/local/wbagent/interfaces/task_input_normalizer_interface.php
 ./classes/local/wbagent/interfaces/task_input_normalizer_provider_interface.php
 ./classes/local/wbagent/interfaces/task_interface.php
-./classes/local/wbagent/interfaces/task_provider_interface.php
+./classes/local/wbagent/interfaces/skill_provider_interface.php
 ./classes/local/wbagent/interfaces/task_result_summary_provider_interface.php
 ./classes/local/wbagent/interfaces/task_trigger_provider_interface.php
 ./classes/local/wbagent/interpreter.php
@@ -157,7 +157,7 @@
 ./classes/local/wbagent/services/execution_observation_ledger.php
 ./classes/local/wbagent/services/finalization_classifier.php
 ./classes/local/wbagent/services/finalization_template_service.php
-./classes/local/wbagent/services/governance/task_governance_service.php
+./classes/local/wbagent/services/governance/skill_governance_service.php
 ./classes/local/wbagent/services/language_policy_service.php
 ./classes/local/wbagent/services/llm/llm_call_service.php
 ./classes/local/wbagent/services/localized_string_service.php
@@ -186,22 +186,22 @@
 ./classes/local/wbagent/services/security/authorization_service.php
 ./classes/local/wbagent/services/shared_json_payload_extractor.php
 ./classes/local/wbagent/services/spawn_contract_service.php
-./classes/local/wbagent/services/task_prompt_contract.php
-./classes/local/wbagent/services/task_version_policy.php
+./classes/local/wbagent/services/skill_prompt_contract.php
+./classes/local/wbagent/services/skill_version_policy.php
 ./classes/local/wbagent/services/trigger_result_util.php
 ./classes/local/wbagent/summarizer/basic_collection_result_summary_contributor.php
 ./classes/local/wbagent/summarizer/diagnosis_result_summary_contributor.php
 ./classes/local/wbagent/summarizer/docs_result_summary_contributor.php
 ./classes/local/wbagent/summarizer/single_object_result_summary_contributor.php
-./classes/local/wbagent/task_contract_validator.php
-./classes/local/wbagent/task_discovery.php
-./classes/local/wbagent/task_executability_evaluator.php
-./classes/local/wbagent/task_provider.php
-./classes/local/wbagent/task_registry.php
-./classes/local/wbagent/task_registry_factory.php
+./classes/local/wbagent/skill_contract_validator.php
+./classes/local/wbagent/skill_discovery.php
+./classes/local/wbagent/skill_executability_evaluator.php
+./classes/local/wbagent/skill_provider.php
+./classes/local/wbagent/skill_registry.php
+./classes/local/wbagent/skill_registry_factory.php
 ./classes/local/wbagent/wunderbyte_trial_endpoint.py
 ./classes/task/execute_ai_run_adhoc.php
-./classes/task/rebuild_task_catalog_embeddings_adhoc.php
+./classes/task/rebuild_skill_catalog_embeddings_adhoc.php
 ./cli/rebuild_embeddings_fixture.php
 ./db/access.php
 ./db/caches.php
@@ -227,13 +227,13 @@
 ./styles.css
 ./templates/aiinstructions.mustache
 ./tests/agent/abstract_agent_testcase.php
-./tests/agent/abstract_llm_task_matrix_testcase.php
+./tests/agent/abstract_llm_skill_matrix_testcase.php
 ./tests/agent/contracts/ai_confirm_run_contract_test.php
 ./tests/agent/contracts/attempt_budget_dto_contract_test.php
 ./tests/agent/contracts/finalization_classifier_contract_test.php
 ./tests/agent/contracts/finalization_template_service_contract_test.php
 ./tests/agent/contracts/integration_agent_framework_test.php
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php
 ./tests/agent/contracts/pending_intent_and_queue_transition_contract_test.php
 ./tests/agent/contracts/preflight_audit_logger_contract_test.php
 ./tests/agent/contracts/preflight_contract_validator_contract_test.php
@@ -243,10 +243,10 @@
 ./tests/agent/contracts/reference_scenarios_contract_test.php
 ./tests/agent/contracts/runtime_finalization_contract_test.php
 ./tests/agent/contracts/spawn_contract_service_test.php
-./tests/agent/contracts/task_contract_validator_contract_test.php
-./tests/agent/fixtures/task_catalog_embeddings.csv
-./tests/agent/llm_task_matrix_scenario_provider.php
-./tests/agent/real_llm_multistep/all_tasks_real_llm_test.php
+./tests/agent/contracts/skill_contract_validator_contract_test.php
+./tests/agent/fixtures/skill_catalog_embeddings.csv
+./tests/agent/llm_skill_matrix_scenario_provider.php
+./tests/agent/real_llm_multistep/all_skills_real_llm_test.php
 ./tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php
 ./tests/agent/real_llm_multistep/get_current_user_real_llm_test.php
 ./tests/agent/real_llm_multistep/lecture_autoconfirm_real_llm_test.php
@@ -465,12 +465,12 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/core/tasks/recall_memory_task.php:280	bookingextension_agent\local\wbagent\core\tasks\recall_memory_task	resolve_date_window
 ./classes/local/wbagent/core/tasks/recall_memory_task.php:329	bookingextension_agent\local\wbagent\core\tasks\recall_memory_task	resolve_user_timezone
 ./classes/local/wbagent/core/tasks/recall_memory_task.php:359	bookingextension_agent\local\wbagent\core\tasks\recall_memory_task	build_memory_observation_text
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php:37	bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task	__construct
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php:46	bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task	get_name
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php:55	bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task	get_schema
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php:93	bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task	get_message_triggers
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php:112	bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task	check_structure
-./classes/local/wbagent/core/tasks/recreate_task_catalog_task.php:137	bookingextension_agent\local\wbagent\core\tasks\recreate_task_catalog_task	execute
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php:37	bookingextension_agent\local\wbagent\core\tasks\recreate_skill_catalog_task	__construct
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php:46	bookingextension_agent\local\wbagent\core\tasks\recreate_skill_catalog_task	get_name
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php:55	bookingextension_agent\local\wbagent\core\tasks\recreate_skill_catalog_task	get_schema
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php:93	bookingextension_agent\local\wbagent\core\tasks\recreate_skill_catalog_task	get_message_triggers
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php:112	bookingextension_agent\local\wbagent\core\tasks\recreate_skill_catalog_task	check_structure
+./classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php:137	bookingextension_agent\local\wbagent\core\tasks\recreate_skill_catalog_task	execute
 ./classes/local/wbagent/core/tasks/search_courses_task.php:35	bookingextension_agent\local\wbagent\core\tasks\search_courses_task	__construct
 ./classes/local/wbagent/core/tasks/search_courses_task.php:44	bookingextension_agent\local\wbagent\core\tasks\search_courses_task	get_name
 ./classes/local/wbagent/core/tasks/search_courses_task.php:53	bookingextension_agent\local\wbagent\core\tasks\search_courses_task	get_schema
@@ -561,11 +561,11 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/interfaces/task_interface.php:96	bookingextension_agent\local\wbagent\interfaces\task_interface	preflight
 ./classes/local/wbagent/interfaces/task_interface.php:110	bookingextension_agent\local\wbagent\interfaces\task_interface	execute
 ./classes/local/wbagent/interfaces/task_interface.php:117	bookingextension_agent\local\wbagent\interfaces\task_interface	is_read_only
-./classes/local/wbagent/interfaces/task_provider_interface.php:32	bookingextension_agent\local\wbagent\interfaces\task_provider_interface	get_component
-./classes/local/wbagent/interfaces/task_provider_interface.php:39	bookingextension_agent\local\wbagent\interfaces\task_provider_interface	get_tasks
-./classes/local/wbagent/interfaces/task_provider_interface.php:46	bookingextension_agent\local\wbagent\interfaces\task_provider_interface	get_contextual_prompt_packs
-./classes/local/wbagent/interfaces/task_provider_interface.php:56	bookingextension_agent\local\wbagent\interfaces\task_provider_interface	get_issue_code_provider
-./classes/local/wbagent/interfaces/task_provider_interface.php:66	bookingextension_agent\local\wbagent\interfaces\task_provider_interface	get_prompt_guidance
+./classes/local/wbagent/interfaces/skill_provider_interface.php:32	bookingextension_agent\local\wbagent\interfaces\skill_provider_interface	get_component
+./classes/local/wbagent/interfaces/skill_provider_interface.php:39	bookingextension_agent\local\wbagent\interfaces\skill_provider_interface	get_tasks
+./classes/local/wbagent/interfaces/skill_provider_interface.php:46	bookingextension_agent\local\wbagent\interfaces\skill_provider_interface	get_contextual_prompt_packs
+./classes/local/wbagent/interfaces/skill_provider_interface.php:56	bookingextension_agent\local\wbagent\interfaces\skill_provider_interface	get_issue_code_provider
+./classes/local/wbagent/interfaces/skill_provider_interface.php:66	bookingextension_agent\local\wbagent\interfaces\skill_provider_interface	get_prompt_guidance
 ./classes/local/wbagent/interfaces/task_result_summary_provider_interface.php:39	bookingextension_agent\local\wbagent\interfaces\task_result_summary_provider_interface	summarize_task_result
 ./classes/local/wbagent/interfaces/task_trigger_provider_interface.php:36	bookingextension_agent\local\wbagent\interfaces\task_trigger_provider_interface	get_message_triggers
 ./classes/local/wbagent/interpreter.php:76	bookingextension_agent\local\wbagent\interpreter	__construct
@@ -714,7 +714,7 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/result_payload_summarizer.php:367	(global)	compact_text
 ./classes/local/wbagent/result_payload_summarizer.php:389	(global)	summarize_with_contributors
 ./classes/local/wbagent/result_payload_summarizer.php:415	(global)	build_summary_context
-./classes/local/wbagent/result_payload_summarizer.php:441	(global)	summarize_with_task_provider
+./classes/local/wbagent/result_payload_summarizer.php:441	(global)	summarize_with_skill_provider
 ./classes/local/wbagent/services/assistant_state_guidance_service.php:41	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	__construct
 ./classes/local/wbagent/services/assistant_state_guidance_service.php:51	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	build_assistant_state_blocks
 ./classes/local/wbagent/services/assistant_state_guidance_service.php:83	bookingextension_agent\local\wbagent\services\assistant_state_guidance_service	build_contextual_guidance
@@ -751,7 +751,7 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/services/confirm_run_service.php:834	bookingextension_agent\local\wbagent\services\confirm_run_service	build_queue_audit_context
 ./classes/local/wbagent/services/confirm_run_service.php:859	bookingextension_agent\local\wbagent\services\confirm_run_service	should_continue_with_runtime_loop
 ./classes/local/wbagent/services/confirm_run_service.php:882	bookingextension_agent\local\wbagent\services\confirm_run_service	find_next_mutating_queue_item
-./classes/local/wbagent/services/confirm_run_service.php:908	bookingextension_agent\local\wbagent\services\confirm_run_service	extract_attempted_tasks_from_commands
+./classes/local/wbagent/services/confirm_run_service.php:908	bookingextension_agent\local\wbagent\services\confirm_run_service	extract_attempted_skills_from_commands
 ./classes/local/wbagent/services/confirm_run_service.php:933	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_pending_queue_item_id
 ./classes/local/wbagent/services/confirm_run_service.php:971	bookingextension_agent\local\wbagent\services\confirm_run_service	resolve_commands_for_run
 ./classes/local/wbagent/services/confirm_run_service.php:992	bookingextension_agent\local\wbagent\services\confirm_run_service	mark_dependents_skipped
@@ -816,7 +816,7 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/services/finalization_classifier.php:173	bookingextension_agent\local\wbagent\services\finalization_classifier	contains_any
 ./classes/local/wbagent/services/finalization_template_service.php:67	bookingextension_agent\local\wbagent\services\finalization_template_service	resolve_message
 ./classes/local/wbagent/services/finalization_template_service.php:88	bookingextension_agent\local\wbagent\services\finalization_template_service	normalize_issue_codes
-./classes/local/wbagent/services/governance/task_governance_service.php:54	bookingextension_agent\local\wbagent\services\governance\task_governance_service	sync_enableall_toggles
+./classes/local/wbagent/services/governance/skill_governance_service.php:54	bookingextension_agent\local\wbagent\services\governance\skill_governance_service	sync_enableall_toggles
 ./classes/local/wbagent/services/language_policy_service.php:47	bookingextension_agent\local\wbagent\services\language_policy_service	normalize_iso_language
 ./classes/local/wbagent/services/language_policy_service.php:60	bookingextension_agent\local\wbagent\services\language_policy_service	resolve_output_language
 ./classes/local/wbagent/services/language_policy_service.php:84	bookingextension_agent\local\wbagent\services\language_policy_service	fallback_string_id_for_response_type
@@ -939,11 +939,11 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/services/spawn_contract_service.php:86	bookingextension_agent\local\wbagent\services\spawn_contract_service	normalize_spawn_commands
 ./classes/local/wbagent/services/spawn_contract_service.php:127	bookingextension_agent\local\wbagent\services\spawn_contract_service	normalize_produced_outputs
 ./classes/local/wbagent/services/spawn_contract_service.php:152	bookingextension_agent\local\wbagent\services\spawn_contract_service	normalize_binding_reference
-./classes/local/wbagent/services/task_prompt_contract.php:35	bookingextension_agent\local\wbagent\services\task_prompt_contract	__construct
-./classes/local/wbagent/services/task_prompt_contract.php:44	bookingextension_agent\local\wbagent\services\task_prompt_contract	to_array
-./classes/local/wbagent/services/task_prompt_contract.php:63	bookingextension_agent\local\wbagent\services\task_prompt_contract	normalize_string_list
-./classes/local/wbagent/services/task_version_policy.php:51	bookingextension_agent\local\wbagent\services\task_version_policy	evaluate
-./classes/local/wbagent/services/task_version_policy.php:88	bookingextension_agent\local\wbagent\services\task_version_policy	is_deprecated
+./classes/local/wbagent/services/skill_prompt_contract.php:35	bookingextension_agent\local\wbagent\services\skill_prompt_contract	__construct
+./classes/local/wbagent/services/skill_prompt_contract.php:44	bookingextension_agent\local\wbagent\services\skill_prompt_contract	to_array
+./classes/local/wbagent/services/skill_prompt_contract.php:63	bookingextension_agent\local\wbagent\services\skill_prompt_contract	normalize_string_list
+./classes/local/wbagent/services/skill_version_policy.php:51	bookingextension_agent\local\wbagent\services\skill_version_policy	evaluate
+./classes/local/wbagent/services/skill_version_policy.php:88	bookingextension_agent\local\wbagent\services\skill_version_policy	is_deprecated
 ./classes/local/wbagent/services/trigger_result_util.php:38	bookingextension_agent\local\wbagent\services\trigger_result_util	has_trigger
 ./classes/local/wbagent/summarizer/basic_collection_result_summary_contributor.php:42	bookingextension_agent\local\wbagent\summarizer\basic_collection_result_summary_contributor	supports
 ./classes/local/wbagent/summarizer/basic_collection_result_summary_contributor.php:53	bookingextension_agent\local\wbagent\summarizer\basic_collection_result_summary_contributor	summarize
@@ -953,84 +953,84 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./classes/local/wbagent/summarizer/docs_result_summary_contributor.php:53	bookingextension_agent\local\wbagent\summarizer\docs_result_summary_contributor	summarize
 ./classes/local/wbagent/summarizer/single_object_result_summary_contributor.php:45	bookingextension_agent\local\wbagent\summarizer\single_object_result_summary_contributor	supports
 ./classes/local/wbagent/summarizer/single_object_result_summary_contributor.php:66	bookingextension_agent\local\wbagent\summarizer\single_object_result_summary_contributor	summarize
-./classes/local/wbagent/task_contract_validator.php:70	bookingextension_agent\local\wbagent\task_contract_validator	build_task_metadata
-./classes/local/wbagent/task_contract_validator.php:100	bookingextension_agent\local\wbagent\task_contract_validator	build_task_capability_name
-./classes/local/wbagent/task_contract_validator.php:122	bookingextension_agent\local\wbagent\task_contract_validator	validate_task_metadata
-./classes/local/wbagent/task_contract_validator.php:192	bookingextension_agent\local\wbagent\task_contract_validator	validate_registry_contracts
-./classes/local/wbagent/task_contract_validator.php:228	bookingextension_agent\local\wbagent\task_contract_validator	get_deny_reason_priority
-./classes/local/wbagent/task_contract_validator.php:244	bookingextension_agent\local\wbagent\task_contract_validator	extract_task_namespace
-./classes/local/wbagent/task_contract_validator.php:260	bookingextension_agent\local\wbagent\task_contract_validator	is_namespaced_task_name
-./classes/local/wbagent/task_contract_validator.php:272	bookingextension_agent\local\wbagent\task_contract_validator	component_may_register_namespace
-./classes/local/wbagent/task_discovery.php:44	bookingextension_agent\local\wbagent\task_discovery	get_task_instances
-./classes/local/wbagent/task_discovery.php:89	bookingextension_agent\local\wbagent\task_discovery	get_trigger_provider_instances
-./classes/local/wbagent/task_discovery.php:109	bookingextension_agent\local\wbagent\task_discovery	get_last_diagnostics
-./classes/local/wbagent/task_discovery.php:119	bookingextension_agent\local\wbagent\task_discovery	find_candidate_classes
-./classes/local/wbagent/task_discovery.php:173	bookingextension_agent\local\wbagent\task_discovery	get_task_directories
-./classes/local/wbagent/task_discovery.php:198	bookingextension_agent\local\wbagent\task_discovery	instantiate_if_supported
-./classes/local/wbagent/task_discovery.php:226	bookingextension_agent\local\wbagent\task_discovery	ensure_class_loaded
-./classes/local/wbagent/task_discovery.php:265	bookingextension_agent\local\wbagent\task_discovery	add_diagnostic
-./classes/local/wbagent/task_discovery.php:280	bookingextension_agent\local\wbagent\task_discovery	compare_task_classes
-./classes/local/wbagent/task_discovery.php:297	bookingextension_agent\local\wbagent\task_discovery	get_namespace_priority
-./classes/local/wbagent/task_executability_evaluator.php:48	bookingextension_agent\local\wbagent\task_executability_evaluator	__construct
-./classes/local/wbagent/task_executability_evaluator.php:61	bookingextension_agent\local\wbagent\task_executability_evaluator	evaluate_task
-./classes/local/wbagent/task_executability_evaluator.php:115	bookingextension_agent\local\wbagent\task_executability_evaluator	evaluate_all_tasks
-./classes/local/wbagent/task_executability_evaluator.php:133	bookingextension_agent\local\wbagent\task_executability_evaluator	get_executable_task_names
-./classes/local/wbagent/task_executability_evaluator.php:153	bookingextension_agent\local\wbagent\task_executability_evaluator	deny_result
-./classes/local/wbagent/task_executability_evaluator.php:170	bookingextension_agent\local\wbagent\task_executability_evaluator	has_required_capabilities
-./classes/local/wbagent/task_executability_evaluator.php:200	bookingextension_agent\local\wbagent\task_executability_evaluator	is_valid_context
-./classes/local/wbagent/task_provider.php:42	bookingextension_agent\local\wbagent\task_provider	get_component
-./classes/local/wbagent/task_provider.php:51	bookingextension_agent\local\wbagent\task_provider	get_tasks
-./classes/local/wbagent/task_provider.php:63	bookingextension_agent\local\wbagent\task_provider	get_discovery_diagnostics
-./classes/local/wbagent/task_provider.php:72	bookingextension_agent\local\wbagent\task_provider	get_contextual_prompt_packs
-./classes/local/wbagent/task_provider.php:103	bookingextension_agent\local\wbagent\task_provider	get_issue_code_provider
-./classes/local/wbagent/task_provider.php:116	bookingextension_agent\local\wbagent\task_provider	get_prompt_guidance
-./classes/local/wbagent/task_provider.php:127	bookingextension_agent\local\wbagent\task_provider	get_result_summary_contributors
-./classes/local/wbagent/task_registry.php:75	bookingextension_agent\local\wbagent\task_registry	register
-./classes/local/wbagent/task_registry.php:203	bookingextension_agent\local\wbagent\task_registry	get_task
-./classes/local/wbagent/task_registry.php:213	bookingextension_agent\local\wbagent\task_registry	get_provider_for_task
-./classes/local/wbagent/task_registry.php:224	bookingextension_agent\local\wbagent\task_registry	normalize_task_input
-./classes/local/wbagent/task_registry.php:244	bookingextension_agent\local\wbagent\task_registry	get_preview_option_memory_for_task
-./classes/local/wbagent/task_registry.php:258	bookingextension_agent\local\wbagent\task_registry	get_preview_option_memory_helpers
-./classes/local/wbagent/task_registry.php:279	bookingextension_agent\local\wbagent\task_registry	get_task_names
-./classes/local/wbagent/task_registry.php:292	bookingextension_agent\local\wbagent\task_registry	get_task_names_for_context
-./classes/local/wbagent/task_registry.php:310	bookingextension_agent\local\wbagent\task_registry	get_tasks
-./classes/local/wbagent/task_registry.php:320	bookingextension_agent\local\wbagent\task_registry	get_task_contract
-./classes/local/wbagent/task_registry.php:329	bookingextension_agent\local\wbagent\task_registry	get_task_contracts
-./classes/local/wbagent/task_registry.php:338	bookingextension_agent\local\wbagent\task_registry	get_contract_diagnostics
-./classes/local/wbagent/task_registry.php:347	bookingextension_agent\local\wbagent\task_registry	get_result_summary_contributors
-./classes/local/wbagent/task_registry.php:357	bookingextension_agent\local\wbagent\task_registry	is_read_only_task
-./classes/local/wbagent/task_registry.php:368	bookingextension_agent\local\wbagent\task_registry	is_task_active
-./classes/local/wbagent/task_registry.php:394	bookingextension_agent\local\wbagent\task_registry	get_task_toggle_setting_name
-./classes/local/wbagent/task_registry.php:410	bookingextension_agent\local\wbagent\task_registry	get_task_capabilities
-./classes/local/wbagent/task_registry.php:424	bookingextension_agent\local\wbagent\task_registry	get_all_schemas
-./classes/local/wbagent/task_registry.php:441	bookingextension_agent\local\wbagent\task_registry	get_all_schemas_for_context
-./classes/local/wbagent/task_registry.php:471	bookingextension_agent\local\wbagent\task_registry	explain_task_schema_for_context
-./classes/local/wbagent/task_registry.php:499	bookingextension_agent\local\wbagent\task_registry	get_all_prompt_contracts
-./classes/local/wbagent/task_registry.php:516	bookingextension_agent\local\wbagent\task_registry	get_prompt_contracts_for_context
-./classes/local/wbagent/task_registry.php:549	bookingextension_agent\local\wbagent\task_registry	build_prompt_contract
-./classes/local/wbagent/task_registry.php:616	bookingextension_agent\local\wbagent\task_registry	get_contextual_prompt_packs
-./classes/local/wbagent/task_registry.php:643	bookingextension_agent\local\wbagent\task_registry	get_message_triggers
-./classes/local/wbagent/task_registry.php:654	bookingextension_agent\local\wbagent\task_registry	get_trigger_id_to_task_name_map
-./classes/local/wbagent/task_registry.php:665	bookingextension_agent\local\wbagent\task_registry	make_default
-./classes/local/wbagent/task_registry.php:728	bookingextension_agent\local\wbagent\task_registry	register_discovered_tasks_without_provider
-./classes/local/wbagent/task_registry.php:761	bookingextension_agent\local\wbagent\task_provider_interface	__construct
-./classes/local/wbagent/task_registry.php:772	bookingextension_agent\local\wbagent\task_provider_interface	get_component
-./classes/local/wbagent/task_registry.php:781	bookingextension_agent\local\wbagent\task_provider_interface	get_tasks
-./classes/local/wbagent/task_registry.php:790	bookingextension_agent\local\wbagent\task_provider_interface	get_contextual_prompt_packs
-./classes/local/wbagent/task_registry.php:799	bookingextension_agent\local\wbagent\task_provider_interface	get_issue_code_provider
-./classes/local/wbagent/task_registry.php:808	bookingextension_agent\local\wbagent\task_provider_interface	get_prompt_guidance
-./classes/local/wbagent/task_registry.php:817	bookingextension_agent\local\wbagent\task_provider_interface	get_discovery_diagnostics
-./classes/local/wbagent/task_registry.php:841	bookingextension_agent\local\wbagent\task_registry	normalize_provider_component_name
-./classes/local/wbagent/task_registry.php:856	bookingextension_agent\local\wbagent\task_registry	append_provider_discovery_diagnostics
-./classes/local/wbagent/task_registry.php:882	bookingextension_agent\local\wbagent\task_registry	add_contract_diagnostic
-./classes/local/wbagent/task_registry.php:896	bookingextension_agent\local\wbagent\task_registry	fail_on_contract_diagnostics_when_strict
-./classes/local/wbagent/task_registry.php:916	bookingextension_agent\local\wbagent\task_registry	is_governance_strict_mode_enabled
-./classes/local/wbagent/task_registry_factory.php:44	bookingextension_agent\local\wbagent\task_registry_factory	get_default
-./classes/local/wbagent/task_registry_factory.php:65	bookingextension_agent\local\wbagent\task_registry_factory	get_last_build_warning
-./classes/local/wbagent/task_registry_factory.php:76	bookingextension_agent\local\wbagent\task_registry_factory	reset
+./classes/local/wbagent/skill_contract_validator.php:70	bookingextension_agent\local\wbagent\skill_contract_validator	build_task_metadata
+./classes/local/wbagent/skill_contract_validator.php:100	bookingextension_agent\local\wbagent\skill_contract_validator	build_task_capability_name
+./classes/local/wbagent/skill_contract_validator.php:122	bookingextension_agent\local\wbagent\skill_contract_validator	validate_task_metadata
+./classes/local/wbagent/skill_contract_validator.php:192	bookingextension_agent\local\wbagent\skill_contract_validator	validate_registry_contracts
+./classes/local/wbagent/skill_contract_validator.php:228	bookingextension_agent\local\wbagent\skill_contract_validator	get_deny_reason_priority
+./classes/local/wbagent/skill_contract_validator.php:244	bookingextension_agent\local\wbagent\skill_contract_validator	extract_task_namespace
+./classes/local/wbagent/skill_contract_validator.php:260	bookingextension_agent\local\wbagent\skill_contract_validator	is_namespaced_task_name
+./classes/local/wbagent/skill_contract_validator.php:272	bookingextension_agent\local\wbagent\skill_contract_validator	component_may_register_namespace
+./classes/local/wbagent/skill_discovery.php:44	bookingextension_agent\local\wbagent\skill_discovery	get_task_instances
+./classes/local/wbagent/skill_discovery.php:89	bookingextension_agent\local\wbagent\skill_discovery	get_trigger_provider_instances
+./classes/local/wbagent/skill_discovery.php:109	bookingextension_agent\local\wbagent\skill_discovery	get_last_diagnostics
+./classes/local/wbagent/skill_discovery.php:119	bookingextension_agent\local\wbagent\skill_discovery	find_candidate_classes
+./classes/local/wbagent/skill_discovery.php:173	bookingextension_agent\local\wbagent\skill_discovery	get_task_directories
+./classes/local/wbagent/skill_discovery.php:198	bookingextension_agent\local\wbagent\skill_discovery	instantiate_if_supported
+./classes/local/wbagent/skill_discovery.php:226	bookingextension_agent\local\wbagent\skill_discovery	ensure_class_loaded
+./classes/local/wbagent/skill_discovery.php:265	bookingextension_agent\local\wbagent\skill_discovery	add_diagnostic
+./classes/local/wbagent/skill_discovery.php:280	bookingextension_agent\local\wbagent\skill_discovery	compare_task_classes
+./classes/local/wbagent/skill_discovery.php:297	bookingextension_agent\local\wbagent\skill_discovery	get_namespace_priority
+./classes/local/wbagent/skill_executability_evaluator.php:48	bookingextension_agent\local\wbagent\skill_executability_evaluator	__construct
+./classes/local/wbagent/skill_executability_evaluator.php:61	bookingextension_agent\local\wbagent\skill_executability_evaluator	evaluate_task
+./classes/local/wbagent/skill_executability_evaluator.php:115	bookingextension_agent\local\wbagent\skill_executability_evaluator	evaluate_all_tasks
+./classes/local/wbagent/skill_executability_evaluator.php:133	bookingextension_agent\local\wbagent\skill_executability_evaluator	get_executable_task_names
+./classes/local/wbagent/skill_executability_evaluator.php:153	bookingextension_agent\local\wbagent\skill_executability_evaluator	deny_result
+./classes/local/wbagent/skill_executability_evaluator.php:170	bookingextension_agent\local\wbagent\skill_executability_evaluator	has_required_capabilities
+./classes/local/wbagent/skill_executability_evaluator.php:200	bookingextension_agent\local\wbagent\skill_executability_evaluator	is_valid_context
+./classes/local/wbagent/skill_provider.php:42	bookingextension_agent\local\wbagent\skill_provider	get_component
+./classes/local/wbagent/skill_provider.php:51	bookingextension_agent\local\wbagent\skill_provider	get_tasks
+./classes/local/wbagent/skill_provider.php:63	bookingextension_agent\local\wbagent\skill_provider	get_discovery_diagnostics
+./classes/local/wbagent/skill_provider.php:72	bookingextension_agent\local\wbagent\skill_provider	get_contextual_prompt_packs
+./classes/local/wbagent/skill_provider.php:103	bookingextension_agent\local\wbagent\skill_provider	get_issue_code_provider
+./classes/local/wbagent/skill_provider.php:116	bookingextension_agent\local\wbagent\skill_provider	get_prompt_guidance
+./classes/local/wbagent/skill_provider.php:127	bookingextension_agent\local\wbagent\skill_provider	get_result_summary_contributors
+./classes/local/wbagent/skill_registry.php:75	bookingextension_agent\local\wbagent\skill_registry	register
+./classes/local/wbagent/skill_registry.php:203	bookingextension_agent\local\wbagent\skill_registry	get_task
+./classes/local/wbagent/skill_registry.php:213	bookingextension_agent\local\wbagent\skill_registry	get_provider_for_task
+./classes/local/wbagent/skill_registry.php:224	bookingextension_agent\local\wbagent\skill_registry	normalize_task_input
+./classes/local/wbagent/skill_registry.php:244	bookingextension_agent\local\wbagent\skill_registry	get_preview_option_memory_for_task
+./classes/local/wbagent/skill_registry.php:258	bookingextension_agent\local\wbagent\skill_registry	get_preview_option_memory_helpers
+./classes/local/wbagent/skill_registry.php:279	bookingextension_agent\local\wbagent\skill_registry	get_task_names
+./classes/local/wbagent/skill_registry.php:292	bookingextension_agent\local\wbagent\skill_registry	get_task_names_for_context
+./classes/local/wbagent/skill_registry.php:310	bookingextension_agent\local\wbagent\skill_registry	get_tasks
+./classes/local/wbagent/skill_registry.php:320	bookingextension_agent\local\wbagent\skill_registry	get_task_contract
+./classes/local/wbagent/skill_registry.php:329	bookingextension_agent\local\wbagent\skill_registry	get_task_contracts
+./classes/local/wbagent/skill_registry.php:338	bookingextension_agent\local\wbagent\skill_registry	get_contract_diagnostics
+./classes/local/wbagent/skill_registry.php:347	bookingextension_agent\local\wbagent\skill_registry	get_result_summary_contributors
+./classes/local/wbagent/skill_registry.php:357	bookingextension_agent\local\wbagent\skill_registry	is_read_only_task
+./classes/local/wbagent/skill_registry.php:368	bookingextension_agent\local\wbagent\skill_registry	is_task_active
+./classes/local/wbagent/skill_registry.php:394	bookingextension_agent\local\wbagent\skill_registry	get_skill_toggle_setting_name
+./classes/local/wbagent/skill_registry.php:410	bookingextension_agent\local\wbagent\skill_registry	get_task_capabilities
+./classes/local/wbagent/skill_registry.php:424	bookingextension_agent\local\wbagent\skill_registry	get_all_schemas
+./classes/local/wbagent/skill_registry.php:441	bookingextension_agent\local\wbagent\skill_registry	get_all_schemas_for_context
+./classes/local/wbagent/skill_registry.php:471	bookingextension_agent\local\wbagent\skill_registry	explain_task_schema_for_context
+./classes/local/wbagent/skill_registry.php:499	bookingextension_agent\local\wbagent\skill_registry	get_all_prompt_contracts
+./classes/local/wbagent/skill_registry.php:516	bookingextension_agent\local\wbagent\skill_registry	get_prompt_contracts_for_context
+./classes/local/wbagent/skill_registry.php:549	bookingextension_agent\local\wbagent\skill_registry	build_prompt_contract
+./classes/local/wbagent/skill_registry.php:616	bookingextension_agent\local\wbagent\skill_registry	get_contextual_prompt_packs
+./classes/local/wbagent/skill_registry.php:643	bookingextension_agent\local\wbagent\skill_registry	get_message_triggers
+./classes/local/wbagent/skill_registry.php:654	bookingextension_agent\local\wbagent\skill_registry	get_trigger_id_to_task_name_map
+./classes/local/wbagent/skill_registry.php:665	bookingextension_agent\local\wbagent\skill_registry	make_default
+./classes/local/wbagent/skill_registry.php:728	bookingextension_agent\local\wbagent\skill_registry	register_discovered_tasks_without_provider
+./classes/local/wbagent/skill_registry.php:761	bookingextension_agent\local\wbagent\skill_provider_interface	__construct
+./classes/local/wbagent/skill_registry.php:772	bookingextension_agent\local\wbagent\skill_provider_interface	get_component
+./classes/local/wbagent/skill_registry.php:781	bookingextension_agent\local\wbagent\skill_provider_interface	get_tasks
+./classes/local/wbagent/skill_registry.php:790	bookingextension_agent\local\wbagent\skill_provider_interface	get_contextual_prompt_packs
+./classes/local/wbagent/skill_registry.php:799	bookingextension_agent\local\wbagent\skill_provider_interface	get_issue_code_provider
+./classes/local/wbagent/skill_registry.php:808	bookingextension_agent\local\wbagent\skill_provider_interface	get_prompt_guidance
+./classes/local/wbagent/skill_registry.php:817	bookingextension_agent\local\wbagent\skill_provider_interface	get_discovery_diagnostics
+./classes/local/wbagent/skill_registry.php:841	bookingextension_agent\local\wbagent\skill_registry	normalize_provider_component_name
+./classes/local/wbagent/skill_registry.php:856	bookingextension_agent\local\wbagent\skill_registry	append_provider_discovery_diagnostics
+./classes/local/wbagent/skill_registry.php:882	bookingextension_agent\local\wbagent\skill_registry	add_contract_diagnostic
+./classes/local/wbagent/skill_registry.php:896	bookingextension_agent\local\wbagent\skill_registry	fail_on_contract_diagnostics_when_strict
+./classes/local/wbagent/skill_registry.php:916	bookingextension_agent\local\wbagent\skill_registry	is_governance_strict_mode_enabled
+./classes/local/wbagent/skill_registry_factory.php:44	bookingextension_agent\local\wbagent\skill_registry_factory	get_default
+./classes/local/wbagent/skill_registry_factory.php:65	bookingextension_agent\local\wbagent\skill_registry_factory	get_last_build_warning
+./classes/local/wbagent/skill_registry_factory.php:76	bookingextension_agent\local\wbagent\skill_registry_factory	reset
 ./classes/task/execute_ai_run_adhoc.php:57	bookingextension_agent\task\execute_ai_run_adhoc	get_name
 ./classes/task/execute_ai_run_adhoc.php:66	bookingextension_agent\task\execute_ai_run_adhoc	execute
-./classes/task/rebuild_task_catalog_embeddings_adhoc.php:47	bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc	execute
+./classes/task/rebuild_skill_catalog_embeddings_adhoc.php:47	bookingextension_agent\task\rebuild_skill_catalog_embeddings_adhoc	execute
 ./cli/rebuild_embeddings_fixture.php:277	(global)	read_fixture_rows
 ./cli/rebuild_embeddings_fixture.php:312	(global)	write_fixture_rows
 ./db/upgrade.php:32	(global)	xmldb_bookingextension_agent_ensure_ai_messages_userid
@@ -1062,34 +1062,34 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./tests/agent/abstract_agent_testcase.php:820	bookingextension_agent\abstract_agent_testcase	execute_all_commands
 ./tests/agent/abstract_agent_testcase.php:849	bookingextension_agent\abstract_agent_testcase	assert_generate_text_logged_for_thread
 ./tests/agent/abstract_agent_testcase.php:875	bookingextension_agent\abstract_agent_testcase	tearDown
-./tests/agent/abstract_llm_task_matrix_testcase.php:51	bookingextension_agent\abstract_llm_task_matrix_testcase	setUp
-./tests/agent/abstract_llm_task_matrix_testcase.php:65	bookingextension_agent\abstract_llm_task_matrix_testcase	task_matrix_scenarios
-./tests/agent/abstract_llm_task_matrix_testcase.php:75	bookingextension_agent\abstract_llm_task_matrix_testcase	assert_llm_task_scenario_success
-./tests/agent/abstract_llm_task_matrix_testcase.php:231	bookingextension_agent\abstract_llm_task_matrix_testcase	grant_local_entities_capabilities_to_editingteacher
-./tests/agent/abstract_llm_task_matrix_testcase.php:252	bookingextension_agent\abstract_llm_task_matrix_testcase	grant_optional_capability_to_editingteacher
-./tests/agent/abstract_llm_task_matrix_testcase.php:277	bookingextension_agent\abstract_llm_task_matrix_testcase	assert_task_is_executable_or_skip
-./tests/agent/abstract_llm_task_matrix_testcase.php:315	bookingextension_agent\abstract_llm_task_matrix_testcase	sync_capability_definition_from_component
-./tests/agent/abstract_llm_task_matrix_testcase.php:336	bookingextension_agent\abstract_llm_task_matrix_testcase	prepare_scenario_runtime
-./tests/agent/abstract_llm_task_matrix_testcase.php:380	bookingextension_agent\abstract_llm_task_matrix_testcase	default_scenario_replacements
-./tests/agent/abstract_llm_task_matrix_testcase.php:405	bookingextension_agent\abstract_llm_task_matrix_testcase	prepare_recall_memory_scenario
-./tests/agent/abstract_llm_task_matrix_testcase.php:440	bookingextension_agent\abstract_llm_task_matrix_testcase	prepare_entity_scenario
-./tests/agent/abstract_llm_task_matrix_testcase.php:479	bookingextension_agent\abstract_llm_task_matrix_testcase	prepare_update_option_scenario
-./tests/agent/abstract_llm_task_matrix_testcase.php:521	bookingextension_agent\abstract_llm_task_matrix_testcase	prepare_booking_rules_service_scenario
-./tests/agent/abstract_llm_task_matrix_testcase.php:549	bookingextension_agent\abstract_llm_task_matrix_testcase	prepare_booking_rule_update_scenario
-./tests/agent/abstract_llm_task_matrix_testcase.php:621	bookingextension_agent\abstract_llm_task_matrix_testcase	assert_scenario_assertions
-./tests/agent/abstract_llm_task_matrix_testcase.php:728	bookingextension_agent\abstract_llm_task_matrix_testcase	payload_text
-./tests/agent/abstract_llm_task_matrix_testcase.php:756	bookingextension_agent\abstract_llm_task_matrix_testcase	payload_field_value
-./tests/agent/abstract_llm_task_matrix_testcase.php:790	bookingextension_agent\abstract_llm_task_matrix_testcase	payload_field_count
-./tests/agent/abstract_llm_task_matrix_testcase.php:809	bookingextension_agent\abstract_llm_task_matrix_testcase	payload_step_count
-./tests/agent/abstract_llm_task_matrix_testcase.php:828	bookingextension_agent\abstract_llm_task_matrix_testcase	get_latest_debug_source
-./tests/agent/abstract_llm_task_matrix_testcase.php:851	bookingextension_agent\abstract_llm_task_matrix_testcase	thread_has_debug_source_fragment
-./tests/agent/abstract_llm_task_matrix_testcase.php:881	bookingextension_agent\abstract_llm_task_matrix_testcase	render_assertion_value
-./tests/agent/abstract_llm_task_matrix_testcase.php:891	bookingextension_agent\abstract_llm_task_matrix_testcase	stringify_assertion_value
-./tests/agent/abstract_llm_task_matrix_testcase.php:907	bookingextension_agent\abstract_llm_task_matrix_testcase	resolve_task_result_payload
-./tests/agent/abstract_llm_task_matrix_testcase.php:994	bookingextension_agent\abstract_llm_task_matrix_testcase	render_scenario_template
-./tests/agent/abstract_llm_task_matrix_testcase.php:1009	bookingextension_agent\abstract_llm_task_matrix_testcase	first_loop_has_expected_tool_call
-./tests/agent/abstract_llm_task_matrix_testcase.php:1058	bookingextension_agent\abstract_llm_task_matrix_testcase	find_task_result_entry
-./tests/agent/abstract_llm_task_matrix_testcase.php:1114	bookingextension_agent\abstract_llm_task_matrix_testcase	task_result_candidate_names
+./tests/agent/abstract_llm_skill_matrix_testcase.php:51	bookingextension_agent\abstract_llm_skill_matrix_testcase	setUp
+./tests/agent/abstract_llm_skill_matrix_testcase.php:65	bookingextension_agent\abstract_llm_skill_matrix_testcase	task_matrix_scenarios
+./tests/agent/abstract_llm_skill_matrix_testcase.php:75	bookingextension_agent\abstract_llm_skill_matrix_testcase	assert_llm_task_scenario_success
+./tests/agent/abstract_llm_skill_matrix_testcase.php:231	bookingextension_agent\abstract_llm_skill_matrix_testcase	grant_local_entities_capabilities_to_editingteacher
+./tests/agent/abstract_llm_skill_matrix_testcase.php:252	bookingextension_agent\abstract_llm_skill_matrix_testcase	grant_optional_capability_to_editingteacher
+./tests/agent/abstract_llm_skill_matrix_testcase.php:277	bookingextension_agent\abstract_llm_skill_matrix_testcase	assert_task_is_executable_or_skip
+./tests/agent/abstract_llm_skill_matrix_testcase.php:315	bookingextension_agent\abstract_llm_skill_matrix_testcase	sync_capability_definition_from_component
+./tests/agent/abstract_llm_skill_matrix_testcase.php:336	bookingextension_agent\abstract_llm_skill_matrix_testcase	prepare_scenario_runtime
+./tests/agent/abstract_llm_skill_matrix_testcase.php:380	bookingextension_agent\abstract_llm_skill_matrix_testcase	default_scenario_replacements
+./tests/agent/abstract_llm_skill_matrix_testcase.php:405	bookingextension_agent\abstract_llm_skill_matrix_testcase	prepare_recall_memory_scenario
+./tests/agent/abstract_llm_skill_matrix_testcase.php:440	bookingextension_agent\abstract_llm_skill_matrix_testcase	prepare_entity_scenario
+./tests/agent/abstract_llm_skill_matrix_testcase.php:479	bookingextension_agent\abstract_llm_skill_matrix_testcase	prepare_update_option_scenario
+./tests/agent/abstract_llm_skill_matrix_testcase.php:521	bookingextension_agent\abstract_llm_skill_matrix_testcase	prepare_booking_rules_service_scenario
+./tests/agent/abstract_llm_skill_matrix_testcase.php:549	bookingextension_agent\abstract_llm_skill_matrix_testcase	prepare_booking_rule_update_scenario
+./tests/agent/abstract_llm_skill_matrix_testcase.php:621	bookingextension_agent\abstract_llm_skill_matrix_testcase	assert_scenario_assertions
+./tests/agent/abstract_llm_skill_matrix_testcase.php:728	bookingextension_agent\abstract_llm_skill_matrix_testcase	payload_text
+./tests/agent/abstract_llm_skill_matrix_testcase.php:756	bookingextension_agent\abstract_llm_skill_matrix_testcase	payload_field_value
+./tests/agent/abstract_llm_skill_matrix_testcase.php:790	bookingextension_agent\abstract_llm_skill_matrix_testcase	payload_field_count
+./tests/agent/abstract_llm_skill_matrix_testcase.php:809	bookingextension_agent\abstract_llm_skill_matrix_testcase	payload_step_count
+./tests/agent/abstract_llm_skill_matrix_testcase.php:828	bookingextension_agent\abstract_llm_skill_matrix_testcase	get_latest_debug_source
+./tests/agent/abstract_llm_skill_matrix_testcase.php:851	bookingextension_agent\abstract_llm_skill_matrix_testcase	thread_has_debug_source_fragment
+./tests/agent/abstract_llm_skill_matrix_testcase.php:881	bookingextension_agent\abstract_llm_skill_matrix_testcase	render_assertion_value
+./tests/agent/abstract_llm_skill_matrix_testcase.php:891	bookingextension_agent\abstract_llm_skill_matrix_testcase	stringify_assertion_value
+./tests/agent/abstract_llm_skill_matrix_testcase.php:907	bookingextension_agent\abstract_llm_skill_matrix_testcase	resolve_task_result_payload
+./tests/agent/abstract_llm_skill_matrix_testcase.php:994	bookingextension_agent\abstract_llm_skill_matrix_testcase	render_scenario_template
+./tests/agent/abstract_llm_skill_matrix_testcase.php:1009	bookingextension_agent\abstract_llm_skill_matrix_testcase	first_loop_has_expected_tool_call
+./tests/agent/abstract_llm_skill_matrix_testcase.php:1058	bookingextension_agent\abstract_llm_skill_matrix_testcase	find_task_result_entry
+./tests/agent/abstract_llm_skill_matrix_testcase.php:1114	bookingextension_agent\abstract_llm_skill_matrix_testcase	task_result_candidate_names
 ./tests/agent/contracts/ai_confirm_run_contract_test.php:43	bookingextension_agent\ai_confirm_run_contract_test	test_terminal_confirm_success_triggers_finalizer_when_no_follow_up_queue_item_exists
 ./tests/agent/contracts/ai_confirm_run_contract_test.php:144	bookingextension_agent\ai_confirm_run_contract_test	test_follow_up_pending_intent_forces_confirmation_request
 ./tests/agent/contracts/attempt_budget_dto_contract_test.php:35	bookingextension_agent\local\wbagent\tests\attempt_budget_dto_contract_test	test_from_loop_exports_stable_payload
@@ -1108,12 +1108,12 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./tests/agent/contracts/finalization_template_service_contract_test.php:48	bookingextension_agent\local\wbagent\tests\finalization_template_service_contract_test	test_resolves_message_from_error_class
 ./tests/agent/contracts/finalization_template_service_contract_test.php:62	bookingextension_agent\local\wbagent\tests\finalization_template_service_contract_test	test_issue_code_precedence_over_error_class
 ./tests/agent/contracts/finalization_template_service_contract_test.php:76	bookingextension_agent\local\wbagent\tests\finalization_template_service_contract_test	test_returns_empty_message_for_unknown_values
-./tests/agent/contracts/integration_agent_framework_test.php:39	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_registry_discovers_booking_tasks
-./tests/agent/contracts/integration_agent_framework_test.php:57	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_provider_interface_supports_issue_code_provider
-./tests/agent/contracts/integration_agent_framework_test.php:78	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_provider_interface_supports_prompt_guidance
+./tests/agent/contracts/integration_agent_framework_test.php:39	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_skill_registry_discovers_booking_tasks
+./tests/agent/contracts/integration_agent_framework_test.php:57	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_skill_provider_interface_supports_issue_code_provider
+./tests/agent/contracts/integration_agent_framework_test.php:78	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_skill_provider_interface_supports_prompt_guidance
 ./tests/agent/contracts/integration_agent_framework_test.php:95	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_issue_code_provider_injected_into_agent_runtime
 ./tests/agent/contracts/integration_agent_framework_test.php:113	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_schema_includes_prompt_meta
-./tests/agent/contracts/integration_agent_framework_test.php:138	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_registry_prioritizes_prompt_meta
+./tests/agent/contracts/integration_agent_framework_test.php:138	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_skill_registry_prioritizes_prompt_meta
 ./tests/agent/contracts/integration_agent_framework_test.php:156	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_prompt_contracts_use_required_minimals_and_explicit_examples
 ./tests/agent/contracts/integration_agent_framework_test.php:184	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_slim_catalog_keeps_examples_separate_from_minimals
 ./tests/agent/contracts/integration_agent_framework_test.php:215	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_embedding_subset_keeps_full_descriptions
@@ -1122,20 +1122,20 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./tests/agent/contracts/integration_agent_framework_test.php:305	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_action_specific_prompts_generic
 ./tests/agent/contracts/integration_agent_framework_test.php:350	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_discovered_tasks_implement_task_interface
 ./tests/agent/contracts/integration_agent_framework_test.php:366	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_multi_provider_discovery
-./tests/agent/contracts/integration_agent_framework_test.php:395	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_discovery_scans_all_wbagent_task_namespaces
-./tests/agent/contracts/integration_agent_framework_test.php:413	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_discovery_deduplicates_same_task_name
+./tests/agent/contracts/integration_agent_framework_test.php:395	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_skill_discovery_scans_all_wbagent_task_namespaces
+./tests/agent/contracts/integration_agent_framework_test.php:413	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_skill_discovery_deduplicates_same_task_name
 ./tests/agent/contracts/integration_agent_framework_test.php:425	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_trigger_provider_discovery_ignores_non_trigger_classes
 ./tests/agent/contracts/integration_agent_framework_test.php:440	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_tasks_no_language_specific_logic
 ./tests/agent/contracts/integration_agent_framework_test.php:461	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_task_schema_required_fields
 ./tests/agent/contracts/integration_agent_framework_test.php:478	bookingextension_agent\local\wbagent\tests\integration_agent_framework_test	test_backward_compatibility_constants
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:42	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	test_registry_discovers_canonical_mod_booking_option_tasks
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:61	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	test_create_option_defaults_to_type_zero
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:89	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	test_create_option_emits_rich_observation_summary
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:124	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	test_update_option_sets_type_one_for_selflearning_input
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:164	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	test_create_slotbooking_option_requires_slot_fields
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:196	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	test_slotbooking_prompt_contracts_are_explicit
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:219	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	create_booking_test_context
-./tests/agent/contracts/mod_booking_option_tasks_contract_test.php:245	bookingextension_agent\local\wbagent\tests\mod_booking_option_tasks_contract_test	grant_booking_option_task_capabilities
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:42	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	test_registry_discovers_canonical_mod_booking_option_tasks
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:61	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	test_create_option_defaults_to_type_zero
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:89	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	test_create_option_emits_rich_observation_summary
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:124	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	test_update_option_sets_type_one_for_selflearning_input
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:164	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	test_create_slotbooking_option_requires_slot_fields
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:196	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	test_slotbooking_prompt_contracts_are_explicit
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:219	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	create_booking_test_context
+./tests/agent/contracts/mod_booking_option_skills_contract_test.php:245	bookingextension_agent\local\wbagent\tests\mod_booking_option_skills_contract_test	grant_booking_option_task_capabilities
 ./tests/agent/contracts/pending_intent_and_queue_transition_contract_test.php:39	bookingextension_agent\local\wbagent\tests\pending_intent_and_queue_transition_contract_test	test_pending_intent_service_set_returns_confirmation_code
 ./tests/agent/contracts/pending_intent_and_queue_transition_contract_test.php:63	bookingextension_agent\local\wbagent\tests\pending_intent_and_queue_transition_contract_test	test_queue_transition_service_retry_waiting_transition
 ./tests/agent/contracts/preflight_audit_logger_contract_test.php:36	bookingextension_agent\local\wbagent\tests\preflight_audit_logger_contract_test	test_summarize_reason_codes_groups_counts
@@ -1166,19 +1166,19 @@ Format: `datei:zeile<TAB>kontext<TAB>methode`
 ./tests/agent/contracts/spawn_contract_service_test.php:53	bookingextension_agent\local\wbagent\tests\spawn_contract_service_test	test_apply_output_bindings_resolves_parent_aliases
 ./tests/agent/contracts/spawn_contract_service_test.php:70	bookingextension_agent\local\wbagent\tests\spawn_contract_service_test	test_apply_output_bindings_reports_missing_reference
 ./tests/agent/contracts/spawn_contract_service_test.php:86	bookingextension_agent\local\wbagent\tests\spawn_contract_service_test	test_normalize_spawn_commands_filters_invalid_entries
-./tests/agent/contracts/task_contract_validator_contract_test.php:39	bookingextension_agent\local\wbagent\tests\task_contract_validator_contract_test	test_namespaced_task_name_format
-./tests/agent/contracts/task_contract_validator_contract_test.php:49	bookingextension_agent\local\wbagent\tests\task_contract_validator_contract_test	test_reserved_namespace_ownership
-./tests/agent/contracts/task_contract_validator_contract_test.php:60	bookingextension_agent\local\wbagent\tests\task_contract_validator_contract_test	test_validate_registry_contracts_rejects_alias_version_mismatch
-./tests/agent/contracts/task_contract_validator_contract_test.php:94	bookingextension_agent\local\wbagent\tests\task_contract_validator_contract_test	test_registry_rejects_reserved_namespace_for_third_party_provider
-./tests/agent/contracts/task_contract_validator_contract_test.php:124	bookingextension_agent\local\wbagent\tests\task_contract_validator_contract_test	test_demo_task_onboards_via_provider_registration_only
-./tests/agent/contracts/task_contract_validator_contract_test.php:171	bookingextension_agent\local\wbagent\tests\task_contract_validator_contract_test	test_failing_provider_does_not_block_other_registered_tasks
-./tests/agent/llm_task_matrix_scenario_provider.php:39	bookingextension_agent\llm_task_matrix_scenario_provider	provide_registered_task_scenarios
-./tests/agent/llm_task_matrix_scenario_provider.php:64	bookingextension_agent\llm_task_matrix_scenario_provider	get_missing_registered_task_scenarios
-./tests/agent/llm_task_matrix_scenario_provider.php:84	bookingextension_agent\llm_task_matrix_scenario_provider	get_scenario_definitions
-./tests/agent/real_llm_multistep/all_tasks_real_llm_test.php:45	bookingextension_agent\all_tasks_real_llm_test	setUp
-./tests/agent/real_llm_multistep/all_tasks_real_llm_test.php:57	bookingextension_agent\all_tasks_real_llm_test	real_task_matrix_scenarios
-./tests/agent/real_llm_multistep/all_tasks_real_llm_test.php:61	bookingextension_agent\all_tasks_real_llm_test	test_task_matrix_covers_all_registered_tasks
-./tests/agent/real_llm_multistep/all_tasks_real_llm_test.php:71	bookingextension_agent\all_tasks_real_llm_test	test_all_registered_tasks_can_complete_via_real_llm
+./tests/agent/contracts/skill_contract_validator_contract_test.php:39	bookingextension_agent\local\wbagent\tests\skill_contract_validator_contract_test	test_namespaced_task_name_format
+./tests/agent/contracts/skill_contract_validator_contract_test.php:49	bookingextension_agent\local\wbagent\tests\skill_contract_validator_contract_test	test_reserved_namespace_ownership
+./tests/agent/contracts/skill_contract_validator_contract_test.php:60	bookingextension_agent\local\wbagent\tests\skill_contract_validator_contract_test	test_validate_registry_contracts_rejects_alias_version_mismatch
+./tests/agent/contracts/skill_contract_validator_contract_test.php:94	bookingextension_agent\local\wbagent\tests\skill_contract_validator_contract_test	test_registry_rejects_reserved_namespace_for_third_party_provider
+./tests/agent/contracts/skill_contract_validator_contract_test.php:124	bookingextension_agent\local\wbagent\tests\skill_contract_validator_contract_test	test_demo_task_onboards_via_provider_registration_only
+./tests/agent/contracts/skill_contract_validator_contract_test.php:171	bookingextension_agent\local\wbagent\tests\skill_contract_validator_contract_test	test_failing_provider_does_not_block_other_registered_tasks
+./tests/agent/llm_skill_matrix_scenario_provider.php:39	bookingextension_agent\llm_skill_matrix_scenario_provider	provide_registered_task_scenarios
+./tests/agent/llm_skill_matrix_scenario_provider.php:64	bookingextension_agent\llm_skill_matrix_scenario_provider	get_missing_registered_task_scenarios
+./tests/agent/llm_skill_matrix_scenario_provider.php:84	bookingextension_agent\llm_skill_matrix_scenario_provider	get_scenario_definitions
+./tests/agent/real_llm_multistep/all_skills_real_llm_test.php:45	bookingextension_agent\all_skills_real_llm_test	setUp
+./tests/agent/real_llm_multistep/all_skills_real_llm_test.php:57	bookingextension_agent\all_skills_real_llm_test	real_task_matrix_scenarios
+./tests/agent/real_llm_multistep/all_skills_real_llm_test.php:61	bookingextension_agent\all_skills_real_llm_test	test_task_matrix_covers_all_registered_tasks
+./tests/agent/real_llm_multistep/all_skills_real_llm_test.php:71	bookingextension_agent\all_skills_real_llm_test	test_all_registered_tasks_can_complete_via_real_llm
 ./tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php:48	bookingextension_agent\confirmation_flow_real_llm_test	setUp
 ./tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php:56	bookingextension_agent\confirmation_flow_real_llm_test	test_multistep_create_assign_teacher_and_make_visible
 ./tests/agent/real_llm_multistep/confirmation_flow_real_llm_test.php:226	bookingextension_agent\confirmation_flow_real_llm_test	is_task_available

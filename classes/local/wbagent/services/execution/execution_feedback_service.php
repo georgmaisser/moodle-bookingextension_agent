@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Build user-facing execution feedback after task execution.
+ * Build user-facing execution feedback after skill execution.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -28,8 +28,8 @@ namespace bookingextension_agent\local\wbagent\services\execution;
 
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
-use bookingextension_agent\local\wbagent\task_registry;
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wbagent\skill_registry_factory;
 use bookingextension_agent\local\wbagent\services\localized_string_service;
 
 /**
@@ -39,18 +39,18 @@ class execution_feedback_service {
     /** @var conversation_store */
     private conversation_store $store;
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /**
      * Constructor.
      *
      * @param conversation_store $store
-     * @param task_registry|null $registry
+     * @param skill_registry|null $registry
      */
-    public function __construct(conversation_store $store, ?task_registry $registry = null) {
+    public function __construct(conversation_store $store, ?skill_registry $registry = null) {
         $this->store = $store;
-        $this->registry = $registry ?? task_registry_factory::get_default();
+        $this->registry = $registry ?? skill_registry_factory::get_default();
     }
 
     /**
@@ -111,8 +111,8 @@ class execution_feedback_service {
                 }
             }
 
-            if (isset($result['task']) && is_string($result['task']) && trim($result['task']) !== '') {
-                $entry['task'] = trim($result['task']);
+            if (isset($result['skill']) && is_string($result['skill']) && trim($result['skill']) !== '') {
+                $entry['skill'] = trim($result['skill']);
             }
 
             // Keep executor-provided input payload for planner runtime memory.
@@ -123,7 +123,7 @@ class execution_feedback_service {
                 $entry['executed_input'] = $result['input'];
             }
 
-            // Only pass task-authored user text through directly when no explicit output language
+            // Only pass skill-authored user text through directly when no explicit output language
             // was requested (legacy/internal paths). Otherwise, frontend should use the normalized
             // top-level completion message to preserve language consistency.
             if (
@@ -249,7 +249,7 @@ class execution_feedback_service {
     }
 
     /**
-     * Collapse raw task details into a safe client detail string.
+     * Collapse raw skill details into a safe client detail string.
      *
      * @param array $result
      * @param string $outputlang
@@ -259,7 +259,7 @@ class execution_feedback_service {
         // Diagnosis result: use localized string with option name when available.
         $category = result_payload_summarizer::detect_result_category($result);
 
-        // Docs result: pass task-authored usermessage through regardless of outputlang,
+        // Docs result: pass skill-authored usermessage through regardless of outputlang,
         // because the content is doc text that must always reach the caller unchanged.
         if ($category === 'docs') {
             $usermessage = trim((string)($result['usermessage'] ?? ''));
@@ -278,7 +278,7 @@ class execution_feedback_service {
             return $this->localized('ai_result_detail_diagnosis_generic', null, $outputlang);
         }
 
-        // Pass through task-authored user message when no output-language override is active.
+        // Pass through skill-authored user message when no output-language override is active.
         $usermessage = trim((string)($result['usermessage'] ?? ''));
         if ($usermessage !== '' && $outputlang === '') {
             return $usermessage;
@@ -399,7 +399,7 @@ class execution_feedback_service {
     }
 
     /**
-     * Extract a primary link value from a task result entry.
+     * Extract a primary link value from a skill result entry.
      *
      * @param array $result
      * @return string

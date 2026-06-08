@@ -101,7 +101,7 @@ class synchronizer_input_builder {
     }
 
     /**
-     * Keep only minimal phase telemetry and exclude task-discovery payloads.
+     * Keep only minimal phase telemetry and exclude skill-discovery payloads.
      *
      * @param array $snapshot
      * @return array
@@ -128,7 +128,7 @@ class synchronizer_input_builder {
         }
 
         $statuscounts = [];
-        $tasks = [];
+        $skills = [];
         foreach ($results as $row) {
             if (!is_array($row)) {
                 continue;
@@ -140,20 +140,20 @@ class synchronizer_input_builder {
             }
             $statuscounts[$status] = (int)($statuscounts[$status] ?? 0) + 1;
 
-            $task = trim((string)($row['task'] ?? ''));
-            if ($task !== '') {
-                $tasks[] = $task;
+            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            if ($skill !== '') {
+                $skills[] = $skill;
             }
         }
 
-        if (empty($statuscounts) && empty($tasks)) {
+        if (empty($statuscounts) && empty($skills)) {
             return '';
         }
 
         $payload = [
             'result_count' => count($results),
             'status_counts' => $statuscounts,
-            'tasks' => array_values(array_unique($tasks)),
+            'skills' => array_values(array_unique($skills)),
         ];
 
         $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -178,7 +178,7 @@ class synchronizer_input_builder {
 
         $responsetype = trim((string)($result['response_type'] ?? ''));
         $issuecodes = $this->normalize_issue_codes((array)($result['issue_codes'] ?? []));
-        $attemptedtasks = $this->normalize_nonempty_string_list((array)($result['attempted_tasks'] ?? []));
+        $attemptedskills = $this->normalize_nonempty_string_list((array)($result['attempted_skills'] ?? []));
 
         $lines = ['FINAL_SOURCE_RESULT'];
         if ($responsetype !== '') {
@@ -187,8 +187,8 @@ class synchronizer_input_builder {
         if (!empty($issuecodes)) {
             $lines[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 8));
         }
-        if (!empty($attemptedtasks)) {
-            $lines[] = 'attempted_tasks=' . implode(',', array_slice($attemptedtasks, 0, 8));
+        if (!empty($attemptedskills)) {
+            $lines[] = 'attempted_skills=' . implode(',', array_slice($attemptedskills, 0, 8));
         }
 
         $normalizedmessage = trim(preg_replace('/\s+/', ' ', $message) ?? $message);

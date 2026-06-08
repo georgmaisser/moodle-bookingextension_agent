@@ -19,7 +19,7 @@ Date: 2026-06-03
 
 ### Harte Handoff-Bindung
 
-- [x] Explizite Regel: Jeder command.task muss exakt selected_task entsprechen.
+- [x] Explizite Regel: Jeder command.task muss exakt selected_skill entsprechen.
 - [x] Explizite Regel: Kein Task-Wechsel und keine zusaetzlichen Tasks in der Constructor-Phase.
 
 ### Canonical Command-Envelope
@@ -35,7 +35,7 @@ Date: 2026-06-03
 
 ### Prompt-Reduktion im Constructor
 
-- [x] Full-Schema fuer Constructor auf selected_task begrenzen (kein globales Full-Schema aller Tasks).
+- [x] Full-Schema fuer Constructor auf selected_skill begrenzen (kein globales Full-Schema aller Tasks).
 - [x] Docs-Answer-Policy im Constructor entfernen oder nur fuer Docs-Tasks aktivieren.
 - [x] Ueberlappende Regeln zwischen SYSTEM und OUTPUT_CONTRACT konsolidieren, damit keine Doppelvorgaben bleiben.
 
@@ -48,7 +48,7 @@ Hinweis: Pro Task abhaken, sobald ein konkretes, valides Beispiel fuer den Param
 - [x] core.get_current_user
 - [x] core.list_actions
 - [x] core.recall_memory
-- [x] core.recreate_task_catalog
+- [x] core.recreate_skill_catalog
 - [x] core.search_courses
 - [x] core.search_users
 

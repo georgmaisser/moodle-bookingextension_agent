@@ -56,7 +56,7 @@ Vorlage:
 ### Checkpoints
 
 - [x] Entscheidungseintritt fuer response_type = confirmation_request dokumentieren.
-- [x] Entscheidungseintritt fuer response_type = task_call mutating dokumentieren.
+- [x] Entscheidungseintritt fuer response_type = skill_call mutating dokumentieren.
 - [x] Nachweisen, ob beide denselben Preflight-Pfad und dieselbe Statusableitung verwenden.
 - [x] Pruefen, ob Confirmation als Preflight-Ergebnis (soft_block/blocked_confirmation) modellierbar ist.
 - [x] Migrationsskizze fuer einen gemeinsamen Mutationspfad notieren.
@@ -74,7 +74,7 @@ Vorlage:
 - Q4 Sonderfall-Risiko hoch: [x] Ja [ ] Nein
 - Q5 Vereinfachbar ohne Funktionsverlust: [x] Ja [ ] Nein
 - Refactoring-Kandidat: [x] Ja [ ] Nein
-- Notizen: Reale Route ist bereits teilweise zusammengefuehrt. Mutierende task_call werden auf confirmation_request gehoben (agent_decision_service::process), dann einheitlich ueber handle_preflight verarbeitet. confirm_pending fuehrt ebenfalls in confirmation_request mit erneuter Preflight-Validierung. Der semantische Split bleibt jedoch in Prompt-Contract + Response-Type-Modell bestehen (orchestrator + initial_system_prompt). Vereinfachung moeglich: mutating task_call als ein Hauptpfad mit confirmation als Queue/Preflight-Zustand.
+- Notizen: Reale Route ist bereits teilweise zusammengefuehrt. Mutierende skill_call werden auf confirmation_request gehoben (agent_decision_service::process), dann einheitlich ueber handle_preflight verarbeitet. confirm_pending fuehrt ebenfalls in confirmation_request mit erneuter Preflight-Validierung. Der semantische Split bleibt jedoch in Prompt-Contract + Response-Type-Modell bestehen (orchestrator + initial_system_prompt). Vereinfachung moeglich: mutating skill_call als ein Hauptpfad mit confirmation als Queue/Preflight-Zustand.
 
 ---
 
@@ -106,7 +106,7 @@ Vorlage:
 - Q4 Sonderfall-Risiko hoch: [ ] Ja [x] Nein
 - Q5 Vereinfachbar ohne Funktionsverlust: [x] Ja [ ] Nein
 - Refactoring-Kandidat: [ ] Ja [x] Nein
-- Notizen: Das Flowchart ist hier veraltet. Im Code gibt es keine explizite D_DUPL->D_AMBIG->D_MUT_GUARD-Kette mehr. Die zentrale Reihenfolge ist: response_type normalisieren, mutating task_call nach confirmation_request heben, split in readonly/mutating, readonly direkt ausfuehren, mutating preflighten. Lookup-Mutation-Guard ist als einzelner Schutz vorhanden (core.is_lookup_request + mutating commands).
+- Notizen: Das Flowchart ist hier veraltet. Im Code gibt es keine explizite D_DUPL->D_AMBIG->D_MUT_GUARD-Kette mehr. Die zentrale Reihenfolge ist: response_type normalisieren, mutating skill_call nach confirmation_request heben, split in readonly/mutating, readonly direkt ausfuehren, mutating preflighten. Lookup-Mutation-Guard ist als einzelner Schutz vorhanden (core.is_lookup_request + mutating commands).
 
 ---
 
@@ -261,7 +261,7 @@ Vorlage:
 - Q4 Sonderfall-Risiko hoch: [x] Ja [ ] Nein
 - Q5 Vereinfachbar ohne Funktionsverlust: [x] Ja [ ] Nein
 - Refactoring-Kandidat: [x] Ja [ ] Nein
-- Notizen: Interpreter ist stark gemischt: parse/sanitize, response-healing, command-normalisierung, stage-3 check_structure, Datumsnormalisierung, task_input_normalizer-Delegation ueber task_registry. Die Hook-Schnittstelle ist da, aber die Transformationsgrenzen sind fuer neue Entwickler schwer sofort nachvollziehbar.
+- Notizen: Interpreter ist stark gemischt: parse/sanitize, response-healing, command-normalisierung, stage-3 check_structure, Datumsnormalisierung, task_input_normalizer-Delegation ueber skill_registry. Die Hook-Schnittstelle ist da, aber die Transformationsgrenzen sind fuer neue Entwickler schwer sofort nachvollziehbar.
 
 ---
 

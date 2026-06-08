@@ -26,10 +26,10 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent;
 
-use bookingextension_agent\local\wbagent\interfaces\task_result_summary_provider_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_result_summary_provider_interface;
 
 /**
- * Converts raw task result payloads into human-readable summary strings.
+ * Converts raw skill result payloads into human-readable summary strings.
  *
  * Two output modes are provided:
  *  - for_observation(): concise LLM-ready text for the agent observation loop.
@@ -58,7 +58,7 @@ class result_payload_summarizer {
      * what the tools returned.  It must be concise, deterministic, and never
      * contain raw DB ids or sensitive fields.
      *
-     * @param  array  $results  Raw task result payloads from execute_commands().
+     * @param  array  $results  Raw skill result payloads from execute_commands().
      * @param  int    $step     1-based loop step number used as a prefix label.
      * @return string
      */
@@ -71,7 +71,7 @@ class result_payload_summarizer {
                 continue;
             }
 
-            // Observation_full: task-provided verbatim content that must not be truncated.
+            // Observation_full: skill-provided verbatim content that must not be truncated.
             // Use it directly so list-type results (rules, notifications, etc.) are never cut.
             $full = isset($entry['observation_full']) ? trim((string)$entry['observation_full']) : '';
             if ($full !== '') {
@@ -121,7 +121,7 @@ class result_payload_summarizer {
      * — "Found 2 booking option(s): A, B." — so it can be inserted as a state fact by
      * any caller that needs it (orchestrator state blocks, loop summaries, etc.).
      *
-     * @param  array  $entry  A single raw task result payload.
+     * @param  array  $entry  A single raw skill result payload.
      * @return string         Empty string when nothing meaningful is available.
      */
     public static function describe_result_for_state(array $entry): string {
@@ -143,7 +143,7 @@ class result_payload_summarizer {
      *  'capabilities' — entry contains a capabilities array
      *  'generic'      — none of the above
      *
-     * @param  array $entry  A single raw task result payload.
+     * @param  array $entry  A single raw skill result payload.
      * @return string        Category identifier.
      */
     public static function detect_result_category(array $entry): string {
@@ -192,10 +192,10 @@ class result_payload_summarizer {
         $category = self::detect_result_category($entry);
         $context = self::build_summary_context($entry, $category, $step, $mode);
 
-        // Highest-priority escape hatch: task-authored summary method.
-        $tasksummary = self::summarize_with_task_provider($entry, $context);
-        if ($tasksummary !== '') {
-            return self::compact_text($tasksummary, self::MAX_SUMMARY_FRAGMENT_CHARS);
+        // Highest-priority escape hatch: skill-authored summary method.
+        $skillsummary = self::summarize_with_skill_provider($entry, $context);
+        if ($skillsummary !== '') {
+            return self::compact_text($skillsummary, self::MAX_SUMMARY_FRAGMENT_CHARS);
         }
 
         $contributed = self::summarize_with_contributors($category, $entry, $step);
@@ -209,7 +209,7 @@ class result_payload_summarizer {
                 $actcount = count($entry['actions'] ?? []);
                 $acttitles = array_slice(
                     array_filter(array_map(
-                        static fn($a): string => trim((string)($a['label'] ?? $a['task'] ?? '')),
+                        static fn($a): string => trim((string)($a['label'] ?? $a['skill'] ?? '')),
                         (array)($entry['actions'] ?? [])
                     )),
                     0,
@@ -318,7 +318,7 @@ class result_payload_summarizer {
                             $keylist = implode(', ', $keys);
                             $detailsummary .= ' Custom field values NOT loaded (only keys known): '
                                 . implode(', ', $labels) . '.'
-                                . " To retrieve a custom field value, call the corresponding details task again"
+                                . " To retrieve a custom field value, call the corresponding details skill again"
                                 . " with include_customfields=true and customfield_keys=[{$keylist}].";
                         }
                     }
@@ -349,7 +349,7 @@ class result_payload_summarizer {
                 return $diagnosticsummary . '.';
 
             default:
-                // Fallback: use task-authored user message or detail string.
+                // Fallback: use skill-authored user message or detail string.
                 return self::compact_text(
                     trim((string)($entry['usermessage'] ?? $entry['detail'] ?? '')),
                     self::MAX_SUMMARY_FRAGMENT_CHARS
@@ -379,7 +379,7 @@ class result_payload_summarizer {
     }
 
     /**
-     * Try task/domain-specific summary contributors first.
+     * Try skill/domain-specific summary contributors first.
      *
      * @param string $category
      * @param array $entry
@@ -387,7 +387,7 @@ class result_payload_summarizer {
      * @return string
      */
     private static function summarize_with_contributors(string $category, array $entry, int $step): string {
-        $contributors = task_registry_factory::get_default()->get_result_summary_contributors();
+        $contributors = skill_registry_factory::get_default()->get_result_summary_contributors();
 
         foreach ($contributors as $contributor) {
             if (!$contributor->supports($category, $entry)) {
@@ -404,7 +404,7 @@ class result_payload_summarizer {
     }
 
     /**
-     * Build normalized summary context for task-level summarizers.
+     * Build normalized summary context for skill-level summarizers.
      *
      * @param array $entry
      * @param string $category
@@ -413,10 +413,10 @@ class result_payload_summarizer {
      * @return array<string,mixed>
      */
     private static function build_summary_context(array $entry, string $category, int $step, string $mode): array {
-        $taskname = trim((string)($entry['task'] ?? ''));
+        $skillname = trim((string)($entry['skill'] ?? ''));
         $component = trim((string)($entry['result_component'] ?? ''));
-        if ($component === '' && $taskname !== '' && strpos($taskname, '.') !== false) {
-            $prefix = explode('.', $taskname)[0] ?? '';
+        if ($component === '' && $skillname !== '' && strpos($skillname, '.') !== false) {
+            $prefix = explode('.', $skillname)[0] ?? '';
             if ($prefix !== '') {
                 $component = $prefix === 'booking' ? 'bookingextension_agent' : $prefix;
             }
@@ -425,31 +425,31 @@ class result_payload_summarizer {
         return [
             'mode' => $mode,
             'step' => $step,
-            'task' => $taskname,
+            'skill' => $skillname,
             'component' => $component,
             'category' => $category,
         ];
     }
 
     /**
-     * Try task-authored summary providers first.
+     * Try skill-authored summary providers first.
      *
      * @param array $entry
      * @param array<string,mixed> $context
      * @return string
      */
-    private static function summarize_with_task_provider(array $entry, array $context): string {
-        $taskname = trim((string)($context['task'] ?? ''));
-        if ($taskname === '') {
+    private static function summarize_with_skill_provider(array $entry, array $context): string {
+        $skillname = trim((string)($context['skill'] ?? $context['skill'] ?? ''));
+        if ($skillname === '') {
             return '';
         }
 
-        $task = task_registry_factory::get_default()->get_task($taskname);
-        if (!$task instanceof task_result_summary_provider_interface) {
+        $skill = skill_registry_factory::get_default()->get_skill($skillname);
+        if (!$skill instanceof skill_result_summary_provider_interface) {
             return '';
         }
 
-        $summary = trim($task->summarize_task_result($entry, $context));
+        $summary = trim($skill->summarize_skill_result($entry, $context));
         return $summary;
     }
 }

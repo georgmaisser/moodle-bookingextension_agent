@@ -31,7 +31,7 @@ use bookingextension_agent\local\wbagent\services\security\authorization_service
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\services\execution\execution_feedback_service;
 use bookingextension_agent\local\wbagent\executor;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Executes a confirmed AI run: re-validates, enforces idempotency, dispatches commands.
@@ -78,7 +78,7 @@ class execute_ai_run_adhoc extends adhoc_task {
 
         $store   = new conversation_store();
         $authz   = new authorization_service();
-        $registry = task_registry::make_default();
+        $registry = skill_registry::make_default();
         $exec    = new executor($registry, $store, $authz);
 
         $run = $store->get_run($runid);

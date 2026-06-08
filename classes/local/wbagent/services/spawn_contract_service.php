@@ -27,14 +27,14 @@ namespace bookingextension_agent\local\wbagent\services;
  */
 class spawn_contract_service {
     /**
-     * Normalize task result for spawn contract keys.
+     * Normalize skill result for spawn contract keys.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @param array<string,mixed> $result
      * @return array<string,mixed>
      */
-    public function normalize_task_result(string $taskname, array $result): array {
-        $result['produced_outputs'] = $this->normalize_produced_outputs($taskname, $result);
+    public function normalize_skill_result(string $skillname, array $result): array {
+        $result['produced_outputs'] = $this->normalize_produced_outputs($skillname, $result);
         $result['spawn_commands'] = $this->normalize_spawn_commands((array)($result['spawn_commands'] ?? []));
         return $result;
     }
@@ -91,8 +91,8 @@ class spawn_contract_service {
                 continue;
             }
 
-            $task = trim((string)($entry['task'] ?? ''));
-            if ($task === '') {
+            $skill = trim((string)($entry['skill'] ?? ''));
+            if ($skill === '') {
                 continue;
             }
 
@@ -106,7 +106,7 @@ class spawn_contract_service {
             )));
 
             $normalized[] = [
-                'task' => $task,
+                'skill' => $skill,
                 'version' => max(1, (int)($entry['version'] ?? 1)),
                 'input' => $input,
                 'output_bindings' => $outputbindings,
@@ -120,11 +120,11 @@ class spawn_contract_service {
     /**
      * Build available output map for binding resolution.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @param array<string,mixed> $result
      * @return array<string,mixed>
      */
-    private function normalize_produced_outputs(string $taskname, array $result): array {
+    private function normalize_produced_outputs(string $skillname, array $result): array {
         $raw = is_array($result['produced_outputs'] ?? null) ? (array)$result['produced_outputs'] : [];
         $outputs = [];
 
@@ -135,8 +135,8 @@ class spawn_contract_service {
             }
             $outputs[$name] = $value;
             $outputs['parent.' . $name] = $value;
-            if ($taskname !== '') {
-                $outputs[$taskname . '.' . $name] = $value;
+            if ($skillname !== '') {
+                $outputs[$skillname . '.' . $name] = $value;
             }
         }
 

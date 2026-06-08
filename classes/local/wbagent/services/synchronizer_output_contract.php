@@ -23,7 +23,7 @@ use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 /**
  * Enforces the synchronizer output contract.
  *
- * completed_observations = authoritative observed domain outcome after task execution.
+ * completed_observations = authoritative observed domain outcome after skill execution.
  * completed_commands     = executed command intent (secondary; no domain verification).
  *
  * Gate enforcement respects CONSISTENCY_GATE_MODE:
@@ -164,7 +164,7 @@ class synchronizer_output_contract {
     }
 
     /**
-     * Extract option ids from free text using common task output patterns.
+     * Extract option ids from free text using common skill output patterns.
      *
      * @param string $text
      * @return array<int,int>

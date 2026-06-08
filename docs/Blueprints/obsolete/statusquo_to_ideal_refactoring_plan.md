@@ -31,7 +31,7 @@ Dieses Dokument definiert den konkreten Migrationspfad vom aktuellen Zustand zur
 3. Gestufte Erweiterung:
    Stage A (Context+Core) -> Stage B (Adjacent) -> Stage C (Global Slim, harte Grenze)
 4. Danach erst Task-Ebene:
-   lazy_task_loader -> task_selector -> parameter_constructor -> parameter_contract_validator
+   lazy_skill_loader -> skill_selector -> parameter_constructor -> parameter_contract_validator
 5. Finalisierung getrennt:
    finalization_classifier -> synchronizer_template_only oder synchronizer_llm_polish
 
@@ -95,12 +95,12 @@ Hinweis zur Einordnung:
 
 ### D. Selection und Parameter Construction
 
-- Neu: classes/local/wbagent/services/selection/lazy_task_loader.php
-- Neu: classes/local/wbagent/services/selection/task_selector.php
-- Neu: classes/local/wbagent/services/selection/task_selection_overlap_policy.php
+- Neu: classes/local/wbagent/services/selection/lazy_skill_loader.php
+- Neu: classes/local/wbagent/services/selection/skill_selector.php
+- Neu: classes/local/wbagent/services/selection/skill_selection_overlap_policy.php
 - Neu: classes/local/wbagent/services/construction/parameter_constructor.php
 - Neu: classes/local/wbagent/services/construction/parameter_contract_validator.php
-- Neu: classes/local/wbagent/dto/task_selection_result.php
+- Neu: classes/local/wbagent/dto/skill_selection_result.php
 - Neu: classes/local/wbagent/dto/parameter_construction_result.php
 - Refactor: classes/local/wbagent/interpreter.php
   Ziel: phasenbasierte Interpretation und Normierung
@@ -122,15 +122,15 @@ Hinweis zur Einordnung:
 - Behalten/Refactor: classes/local/wbagent/services/preflight_pipeline.php
 - Behalten: classes/local/wbagent/queue/queue_manager.php
 - Behalten: classes/local/wbagent/executor.php
-- Behalten: classes/local/wbagent/task_executability_evaluator.php
+- Behalten: classes/local/wbagent/skill_executability_evaluator.php
 - Neu (optional, empfohlen): classes/local/wbagent/services/preflight/preflight_result_mapper.php
   Aufgabe: einheitliche Fehler- und Retry-Mappings
 
 ### G. Task Layer und Contracts
 
-- Behalten: classes/local/wbagent/task_registry.php
-- Behalten: classes/local/wbagent/task_registry_factory.php
-- Behalten: classes/local/wbagent/task_contract_validator.php
+- Behalten: classes/local/wbagent/skill_registry.php
+- Behalten: classes/local/wbagent/skill_registry_factory.php
+- Behalten: classes/local/wbagent/skill_contract_validator.php
 - Behalten: classes/local/wbagent/task_interface.php
 - Behalten: classes/local/wbagent/base_task.php
 - Behalten: classes/local/wbagent/booking_task_base.php
@@ -212,9 +212,9 @@ Ergebnisstand (2026-06-01):
 
 ## Phase 3: Selection und Parameter Construction trennen
 
-- [x] lazy_task_loader implementieren
-- [x] task_selector implementieren
-- [x] task_selection_overlap_policy implementieren
+- [x] lazy_skill_loader implementieren
+- [x] skill_selector implementieren
+- [x] skill_selection_overlap_policy implementieren
 - [x] parameter_constructor implementieren
 - [x] parameter_contract_validator implementieren
 - [x] interpreter auf Phasenmodell umstellen
@@ -226,7 +226,7 @@ Ergebnisstand (2026-06-01):
 
 - `phase3_selection_construction_contract_test.php`: 3/3 Tests gruen
 - `integration_agent_framework_test.php` (Smoke): 20/20 Tests gruen
-- Interpreter nutzt jetzt task_selector -> lazy_task_loader -> parameter_constructor -> parameter_contract_validator
+- Interpreter nutzt jetzt skill_selector -> lazy_skill_loader -> parameter_constructor -> parameter_contract_validator
 
 ## Phase 4 Vorbereitung: Family-Level Embeddings sauber andocken
 
@@ -348,7 +348,7 @@ Ergebnisstand (2026-06-01):
 ## Teststrategie pro Phase
 
 - [ ] Unit-Tests fuer alle neuen Discovery-Policies
-- [ ] Unit-Tests fuer task_selector und parameter_contract_validator
+- [ ] Unit-Tests fuer skill_selector und parameter_contract_validator
 - [ ] Unit-Tests fuer finalization_classifier und synchronizer_output_contract
 - [ ] Integrations-Tests fuer Runtime-Loop mit Queue/Preflight/Executor
 - [ ] Regression-Tests fuer Klarstellungsdialoge ueber mehrere Turns
@@ -464,9 +464,9 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Family-Zuordnung maschinenlesbar pro Task-Contract machen.
 - Zielklassen:
-  classes/local/wbagent/task_contract_validator.php
-  classes/local/wbagent/task_registry.php
-  classes/local/wbagent/task_registry_factory.php
+  classes/local/wbagent/skill_contract_validator.php
+  classes/local/wbagent/skill_registry.php
+  classes/local/wbagent/skill_registry_factory.php
 - Neue Artefakte:
   classes/local/wbagent/contracts/task_family_contract.php
 - Abnahme:

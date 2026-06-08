@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Index service for family-level task catalog embeddings.
+ * Index service for family-level skill catalog embeddings.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -29,26 +29,26 @@ namespace bookingextension_agent\local\wbagent\services\embeddings;
 use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
 use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use context_system;
 
 /**
- * Rebuilds and persists the task-catalog embeddings index.
+ * Rebuilds and persists the skill-catalog embeddings index.
  */
 class family_embeddings_index_service {
     /**
      * Rebuild the embeddings CSV from the current registry.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param string|null $model
      * @param int|null $dimensions
      * @param bool $forcefullregen
      * @return array<string,mixed>
      */
     public function rebuild_catalog(
-        task_registry $registry,
+        skill_registry $registry,
         ?string $model = null,
         ?int $dimensions = null,
         bool $forcefullregen = false
@@ -90,58 +90,58 @@ class family_embeddings_index_service {
         }
 
         $existingrows = $repo->read_rows();
-        $existingbytask = [];
+        $existingbyskill = [];
         if ($repo->is_valid_schema($existingrows)) {
             foreach ($existingrows as $existingrow) {
-                $taskname = trim((string)($existingrow['task'] ?? ''));
-                if ($taskname !== '') {
-                    $existingbytask[$taskname] = $existingrow;
+                $skillname = trim((string)($existingrow['skill'] ?? $existingrow['skill'] ?? ''));
+                if ($skillname !== '') {
+                    $existingbyskill[$skillname] = $existingrow;
                 }
             }
         }
 
-        $currenttasknames = [];
-        $taskstates = [];
+        $currentskillnames = [];
+        $skillstates = [];
         foreach ($rows as $idx => $row) {
-            $taskname = trim((string)($row['task'] ?? ''));
-            if ($taskname === '') {
+            $skillname = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            if ($skillname === '') {
                 continue;
             }
 
-            $currenttasknames[] = $taskname;
-            if (!isset($existingbytask[$taskname])) {
-                $taskstates[$taskname] = 'created';
+            $currentskillnames[] = $skillname;
+            if (!isset($existingbyskill[$skillname])) {
+                $skillstates[$skillname] = 'created';
             } else if ($forcefullregen) {
-                $taskstates[$taskname] = 'updated';
+                $skillstates[$skillname] = 'updated';
             } else if (
-                trim((string)($existingbytask[$taskname]['content_hash'] ?? ''))
+                trim((string)($existingbyskill[$skillname]['content_hash'] ?? ''))
                 === trim((string)($row['content_hash'] ?? ''))
             ) {
-                $taskstates[$taskname] = 'untouched';
+                $skillstates[$skillname] = 'untouched';
             } else {
-                $taskstates[$taskname] = 'updated';
+                $skillstates[$skillname] = 'updated';
             }
         }
 
-        $currenttasknames = array_values(array_unique($currenttasknames));
-        sort($currenttasknames);
-        $removedtasks = array_values(array_diff(array_keys($existingbytask), $currenttasknames));
-        sort($removedtasks);
-        foreach ($removedtasks as $taskname) {
-            $taskstates[$taskname] = 'deleted';
+        $currentskillnames = array_values(array_unique($currentskillnames));
+        sort($currentskillnames);
+        $removedskills = array_values(array_diff(array_keys($existingbyskill), $currentskillnames));
+        sort($removedskills);
+        foreach ($removedskills as $skillname) {
+            $skillstates[$skillname] = 'deleted';
         }
 
         $context = context_system::instance();
         $admin = get_admin();
         $userid = !empty($admin->id) ? (int)$admin->id : 2;
-        $embeddedtasks = [];
-        $reusedtasks = [];
+        $embeddedskills = [];
+        $reusedskills = [];
         $llm = new llm_call_service(new conversation_store());
 
         foreach ($rows as $idx => $row) {
-            $taskname = trim((string)($row['task'] ?? ''));
+            $skillname = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
             $contenthash = trim((string)($row['content_hash'] ?? ''));
-            $existingrow = ($taskname !== '' && isset($existingbytask[$taskname])) ? $existingbytask[$taskname] : null;
+            $existingrow = ($skillname !== '' && isset($existingbyskill[$skillname])) ? $existingbyskill[$skillname] : null;
 
             if (
                 !$forcefullregen
@@ -150,8 +150,8 @@ class family_embeddings_index_service {
                 && trim((string)($existingrow['embedding_json'] ?? '')) !== ''
             ) {
                 $rows[$idx]['embedding_json'] = (string)$existingrow['embedding_json'];
-                if ($taskname !== '') {
-                    $reusedtasks[] = $taskname;
+                if ($skillname !== '') {
+                    $reusedskills[] = $skillname;
                 }
                 unset($rows[$idx]['_embedding_input']);
                 continue;
@@ -181,8 +181,8 @@ class family_embeddings_index_service {
             }
 
             $rows[$idx]['embedding_json'] = json_encode($embedding, JSON_UNESCAPED_UNICODE);
-            if ($taskname !== '') {
-                $embeddedtasks[] = $taskname;
+            if ($skillname !== '') {
+                $embeddedskills[] = $skillname;
             }
             unset($rows[$idx]['_embedding_input']);
         }
@@ -193,20 +193,20 @@ class family_embeddings_index_service {
 
         $repo->write_rows($rows);
 
-        $embeddedtasks = array_values(array_unique($embeddedtasks));
-        sort($embeddedtasks);
-        $reusedtasks = array_values(array_unique($reusedtasks));
-        sort($reusedtasks);
+        $embeddedskills = array_values(array_unique($embeddedskills));
+        sort($embeddedskills);
+        $reusedskills = array_values(array_unique($reusedskills));
+        sort($reusedskills);
 
         return [
             'status' => 'written',
             'model' => $resolvedmodel,
             'dimensions' => $resolveddimensions,
             'written' => count($rows),
-            'embedded' => count($embeddedtasks),
-            'reused' => count($reusedtasks),
-            'deleted' => count($removedtasks),
-            'taskstates' => $taskstates,
+            'embedded' => count($embeddedskills),
+            'reused' => count($reusedskills),
+            'deleted' => count($removedskills),
+            'skillstates' => $skillstates,
         ];
     }
 }

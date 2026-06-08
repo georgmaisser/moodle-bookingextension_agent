@@ -33,7 +33,7 @@ use core_text;
 /**
  * Semantic definition:
  *   completed_commands = executed command intent (secondary evidence tier).
- *   Each entry represents what the system ATTEMPTED to execute (task name + input),
+ *   Each entry represents what the system ATTEMPTED to execute (skill name + input),
  *   reconstructed from message history and queue state.
  *   Commands confirm intent was dispatched but do NOT verify domain outcome.
  *   Use completed_observations as authoritative source; commands only for reconstruction
@@ -54,7 +54,7 @@ class completed_command_history_service {
     }
 
     /**
-     * Extract recently completed commands (task + executed input) from assistant state.
+     * Extract recently completed commands (skill + executed input) from assistant state.
      *
      * @param array $messages
      * @return array<int,array<string,mixed>>
@@ -110,13 +110,13 @@ class completed_command_history_service {
                 continue;
             }
 
-            $task = trim((string)($entry['task'] ?? ''));
-            if ($task === '') {
+            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            if ($skill === '') {
                 continue;
             }
 
             $input = (array)($entry['input'] ?? $entry['executed_input'] ?? []);
-            $compact = ['task' => $task];
+            $compact = ['skill' => $skill];
             $normalizedinput = $this->normalize_input($input);
             if (!empty($normalizedinput)) {
                 $compact['input'] = $normalizedinput;
@@ -165,10 +165,10 @@ class completed_command_history_service {
                 continue;
             }
 
-            $task = trim((string)($item['task'] ?? ''));
+            $skill = trim((string)($item['skill'] ?? $item['skill'] ?? ''));
             // Placeholders are planning artifacts only — they were never executed.
             // Excluding them prevents the synchronizer from reporting unexecuted steps as done.
-            if ($task === '' || $task === '__placeholder__') {
+            if ($skill === '' || $skill === '__placeholder__') {
                 continue;
             }
 
@@ -179,7 +179,7 @@ class completed_command_history_service {
                 $input = (array)$item['prepared_input'];
             }
 
-            $compact = ['task' => $task];
+            $compact = ['skill' => $skill];
             $normalizedinput = $this->normalize_input($input);
             if (!empty($normalizedinput)) {
                 $compact['input'] = $normalizedinput;
@@ -212,8 +212,8 @@ class completed_command_history_service {
      * @return string
      */
     private function build_signature(array $command): string {
-        $task = trim((string)($command['task'] ?? ''));
-        if ($task === '') {
+        $skill = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        if ($skill === '') {
             return '';
         }
 
@@ -228,7 +228,7 @@ class completed_command_history_service {
             $json = '{}';
         }
 
-        return hash('sha256', $task . '|' . $json);
+        return hash('sha256', $skill . '|' . $json);
     }
 
     /**

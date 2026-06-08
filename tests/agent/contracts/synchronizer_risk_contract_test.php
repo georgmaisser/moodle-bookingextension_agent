@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\tests;
 
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\finalization_classifier;
 use PHPUnit\Framework\TestCase;
 
@@ -40,7 +40,7 @@ final class synchronizer_risk_contract_test extends TestCase {
 
         $this->assertTrue($classifier->requires_irreversibility_notice([
             'response_type' => 'sufficient',
-            'risk_class' => task_risk_class::R3,
+            'risk_class' => skill_risk_class::R3,
         ]));
         $this->assertFalse($classifier->requires_irreversibility_notice([
             'response_type' => 'sufficient',
@@ -55,7 +55,7 @@ final class synchronizer_risk_contract_test extends TestCase {
 
         $this->assertTrue($classifier->requires_affected_scope_summary([
             'response_type' => 'sufficient',
-            'risk_class' => task_risk_class::R2,
+            'risk_class' => skill_risk_class::R2,
         ]));
         $this->assertFalse($classifier->requires_affected_scope_summary([
             'response_type' => 'sufficient',

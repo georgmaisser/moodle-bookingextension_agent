@@ -30,7 +30,7 @@ class benchmark_metrics_calculator {
      * Critical metric thresholds. Regression = actual < threshold.
      */
     private const CRITICAL_THRESHOLDS = [
-        'task_hit_rate'         => 90.0,
+        'skill_hit_rate'         => 90.0,
         'json_validity_rate'    => 99.0,
         'contract_compliance_rate' => 98.0,
         'response_type_accuracy' => 95.0,
@@ -54,7 +54,7 @@ class benchmark_metrics_calculator {
         $jsonvalid   = 0;
         $compliant   = 0;
         $rtaccurate  = 0;
-        $taskhit     = 0;
+        $skillhit     = 0;
         $plannedhit  = 0;
         $multistep   = 0;
         $multistepok = 0;
@@ -79,10 +79,10 @@ class benchmark_metrics_calculator {
             if ($exprt !== '' && $exprt === $actrt) {
                 $rtaccurate++;
             }
-            $exptask = trim((string)($s['task_expected'] ?? ''));
-            $acttask = trim((string)($s['task_selected'] ?? ''));
-            if ($exptask !== '' && $exptask === $acttask) {
-                $taskhit++;
+            $expskill = trim((string)($s['skill_expected'] ?? ''));
+            $actskill = trim((string)($s['skill_selected'] ?? ''));
+            if ($expskill !== '' && $expskill === $actskill) {
+                $skillhit++;
             }
             if (($s['scenario_class'] ?? '') === 'multistep') {
                 $multistep++;
@@ -106,7 +106,7 @@ class benchmark_metrics_calculator {
         $p50ms = $this->percentile($durations, 50);
         $p95ms = $this->percentile($durations, 95);
 
-        $taskbase    = array_sum(array_map(fn($s) => (string)($s['task_expected'] ?? '') !== '' ? 1 : 0, $scenarios));
+        $skillbase    = array_sum(array_map(fn($s) => (string)($s['skill_expected'] ?? '') !== '' ? 1 : 0, $scenarios));
         $rtbase      = array_sum(array_map(fn($s) => (string)($s['response_type_expected'] ?? '') !== '' ? 1 : 0, $scenarios));
 
         $metrics = [
@@ -114,7 +114,7 @@ class benchmark_metrics_calculator {
             ['metric_key' => 'json_validity_rate', 'metric_value' => $this->pct($jsonvalid, $total), 'metric_unit' => 'percent'],
             ['metric_key' => 'contract_compliance_rate', 'metric_value' => $this->pct($compliant, $total), 'metric_unit' => 'percent'],
             ['metric_key' => 'response_type_accuracy', 'metric_value' => $this->pct($rtaccurate, max(1, $rtbase)), 'metric_unit' => 'percent'],
-            ['metric_key' => 'task_hit_rate', 'metric_value' => $this->pct($taskhit, max(1, $taskbase)), 'metric_unit' => 'percent'],
+            ['metric_key' => 'skill_hit_rate', 'metric_value' => $this->pct($skillhit, max(1, $skillbase)), 'metric_unit' => 'percent'],
             ['metric_key' => 'planned_steps_coverage', 'metric_value' => $this->pct($plannedhit, max(1, $multistep)), 'metric_unit' => 'percent'],
             ['metric_key' => 'multistep_completion_rate', 'metric_value' => $this->pct($multistepok, max(1, $multistep)), 'metric_unit' => 'percent'],
             ['metric_key' => 'clarification_rate', 'metric_value' => $this->pct($clarif, $total), 'metric_unit' => 'percent'],
@@ -179,7 +179,7 @@ class benchmark_metrics_calculator {
     public function get_thresholds(): array {
         $thresholds = self::CRITICAL_THRESHOLDS;
         $configmap = [
-            'task_hit_rate'          => 'benchmark_threshold_task_hit_rate',
+            'skill_hit_rate'          => 'benchmark_threshold_skill_hit_rate',
             'json_validity_rate'     => 'benchmark_threshold_json_validity',
             'e2e_success_rate'       => 'benchmark_threshold_e2e_success',
         ];

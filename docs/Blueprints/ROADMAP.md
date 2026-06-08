@@ -16,7 +16,7 @@ Ziel: Einfuehrung eines deklarativen Risikoklassen-Systems (R0-R3) ueber den ges
 
 Deliverables:
 - task_risk_class als verpflichtende Deklaration in Task-Interface und Prompt-Contract.
-- Validierung in task_contract_validator (keine stillen Defaults).
+- Validierung in skill_contract_validator (keine stillen Defaults).
 - Durchsetzung in decision, preflight, queue und synchronizer.
 - Klassenbasierte Regeln fuer confirmation, TTL und retry.
 
@@ -159,7 +159,7 @@ Definition of Done:
 - Benchmark-Abdeckung fuer >= 80% der priorisierten Kern-Workflows.
 
 ## 7) Risiken und Gegenmassnahmen
-- Risiko: zu viele Sonderfaelle in Task-Logik. Gegenmassnahme: agentic-first Architektur, task contracts strikt halten.
+- Risiko: zu viele Sonderfaelle in Task-Logik. Gegenmassnahme: agentic-first Architektur, skill contracts strikt halten.
 - Risiko: UX-Verbesserungen ohne robuste Guardrails. Gegenmassnahme: Risk-Class Gates zuerst (WS1 vor breitem UI-Rollout).
 - Risiko: Regressionen bei Refactoring. Gegenmassnahme: Golden Scenarios, Contract-Tests, schrittweises Rollout.
 - Risiko: Metriken sind nicht stabil vergleichbar (Szenario-/Daten-Drift). Gegenmassnahme: feste Benchmark-Sets, versionierte Seeds, Baseline-Freeze pro Release-Zyklus.

@@ -89,8 +89,8 @@ class language_policy_service {
         if ($responsetype === 'confirmation_request') {
             return 'ai_fallback_confirmation_request';
         }
-        if ($responsetype === 'task_call') {
-            return 'ai_fallback_task_call';
+        if ($responsetype === 'skill_call') {
+            return 'ai_fallback_skill_call';
         }
 
         return 'ai_fallback_summary';

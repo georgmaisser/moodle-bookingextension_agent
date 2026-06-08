@@ -149,14 +149,14 @@ class routing_decision_log_service {
         if ($familyenabled && $stagedenabled) {
             $promptcontracts = (array)($discoverycontext['promptcontracts'] ?? []);
             $contextprior = (array)($discoverycontext['contextprior'] ?? []);
-            $recenttasknames = (array)($discoverycontext['recent_task_names'] ?? []);
+            $recentskillnames = (array)($discoverycontext['recent_skill_names'] ?? []);
 
             $discovery = (new family_registry_service())->discover($promptcontracts, $contextprior)->to_array();
             $families = (array)($discovery['families'] ?? []);
             $contextfamilies = (array)($discovery['context_families'] ?? []);
             $corefamilies = (array)($discovery['core_families'] ?? []);
 
-            $signalscores = (new family_signal_ranker())->score_families($families, $contextprior, $recenttasknames);
+            $signalscores = (new family_signal_ranker())->score_families($families, $contextprior, $recentskillnames);
             $ranked = (new family_ranker())->rank($families, $signalscores, []);
             $staged = (new discovery_stage_controller())->resolve($ranked, $contextfamilies, $corefamilies);
 

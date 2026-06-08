@@ -26,8 +26,8 @@ namespace bookingextension_agent\local\wbagent;
 
 use bookingextension_agent\local\wbagent\services\construction\parameter_constructor;
 use bookingextension_agent\local\wbagent\services\construction\parameter_contract_validator;
-use bookingextension_agent\local\wbagent\services\selection\lazy_task_loader;
-use bookingextension_agent\local\wbagent\services\selection\task_selector;
+use bookingextension_agent\local\wbagent\services\selection\lazy_skill_loader;
+use bookingextension_agent\local\wbagent\services\selection\skill_selector;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
@@ -37,12 +37,12 @@ use bookingextension_agent\local\wbagent\services\security\authorization_service
  * Pipeline stages:
  *  1. JSON/structure parsing
  *  2. Response-type classification (allow-list)
- *  3. Structural validation for task_call / confirmation_request (check_structure() — pure, no DB)
+ *  3. Structural validation for skill_call / confirmation_request (check_structure() — pure, no DB)
  *  4. Normalisation (dates, IDs)
  *  5. Emission of structurally-valid command objects for routing
  *
  * Deep validation (DB lookups, entity resolution, conflict detection) is NOT
- * performed here.  It is delegated to agent_decision_service via task->preflight()
+ * performed here.  It is delegated to agent_decision_service via skill->preflight()
  * during the routing phase.
  *
  * @package    bookingextension_agent
@@ -54,7 +54,7 @@ class interpreter implements agent_interpreter {
     private const ALLOWED_RESPONSE_TYPES = [
         'clarification',
         'confirmation_request',
-        'task_call',
+        'skill_call',
         'error',
         'confirm_pending',
         'sufficient',
@@ -66,8 +66,8 @@ class interpreter implements agent_interpreter {
     /** Planner phases that must not emit command-bearing outputs. */
     private const NON_COMMAND_PHASES = ['discovery'];
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var string Last parse issue code for hard contract gate handling. */
     private string $lastparseissuecode = '';
@@ -78,9 +78,9 @@ class interpreter implements agent_interpreter {
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      */
-    public function __construct(task_registry $registry) {
+    public function __construct(skill_registry $registry) {
         $this->registry = $registry;
     }
 
@@ -113,7 +113,7 @@ class interpreter implements agent_interpreter {
         // Stage 2: Classify response type.
         $responsetype = $parsed['response_type'] ?? null;
         if (!in_array($responsetype, self::ALLOWED_RESPONSE_TYPES, true)) {
-            $normalized = $this->normalize_task_like_response($parsed, $lastusermessage);
+            $normalized = $this->normalize_skill_like_response($parsed, $lastusermessage);
             if ($normalized !== null) {
                 $parsed = $normalized;
                 $responsetype = $parsed['response_type'];
@@ -130,7 +130,7 @@ class interpreter implements agent_interpreter {
         $nextstepintent = $this->safe_string($parsed['next_step_intent'] ?? '');
         if (
             $nextstepintent !== ''
-            && in_array((string)$responsetype, ['task_call', 'confirmation_request'], true)
+            && in_array((string)$responsetype, ['skill_call', 'confirmation_request'], true)
             && $this->looks_like_completed_action_intent($nextstepintent)
         ) {
             $nextstepintent = '';
@@ -221,7 +221,7 @@ class interpreter implements agent_interpreter {
             return $this->error_result('Response type requires at least one command but none were provided.');
         }
 
-        [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedtasks, $issuecodes, $confirmablecommands] =
+        [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedskills, $issuecodes, $confirmablecommands] =
             $this->validate_commands($commands, $contextid, $userid, $lastusermessage);
 
         // Stage 5: Any ambiguity from backend validation stops execution and forces clarification.
@@ -243,7 +243,7 @@ class interpreter implements agent_interpreter {
                     'ambiguities'   => [],
                     'ambiguity_options' => $ambiguityoptions,
                     'errors'        => $errors,
-                    'attempted_tasks' => $attemptedtasks,
+                    'attempted_skills' => $attemptedskills,
                     'issue_codes'   => $issuecodes,
                 ], $nextstepintent);
             }
@@ -256,7 +256,7 @@ class interpreter implements agent_interpreter {
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
                 'errors'        => $errors,
-                'attempted_tasks' => $attemptedtasks,
+                'attempted_skills' => $attemptedskills,
                 'issue_codes'   => $issuecodes,
             ], $nextstepintent);
         }
@@ -266,7 +266,7 @@ class interpreter implements agent_interpreter {
                 return $this->with_optional_next_step_intent([
                     'response_type' => 'confirmation_request',
                     'lang'          => $lang,
-                    // For backend-driven confirmable issues, prefer task-validator wording
+                    // For backend-driven confirmable issues, prefer skill-validator wording
                     // over generic LLM confirmation text so the user sees the real reason.
                     'message'       => $this->confirmation_message_from_ambiguities($ambiguities),
                     'used_triggers' => $usedtriggers,
@@ -274,7 +274,7 @@ class interpreter implements agent_interpreter {
                     'ambiguities'   => [],
                     'ambiguity_options' => $ambiguityoptions,
                     'errors'        => [],
-                    'attempted_tasks' => $attemptedtasks,
+                    'attempted_skills' => $attemptedskills,
                     'issue_codes'   => $issuecodes,
                 ], $nextstepintent);
             }
@@ -288,7 +288,7 @@ class interpreter implements agent_interpreter {
                 'ambiguities'   => $ambiguities,
                 'ambiguity_options' => $ambiguityoptions,
                 'errors'        => [],
-                'attempted_tasks' => $attemptedtasks,
+                'attempted_skills' => $attemptedskills,
                 'issue_codes'   => $issuecodes,
             ], $nextstepintent);
         }
@@ -302,7 +302,7 @@ class interpreter implements agent_interpreter {
             'ambiguities'   => [],
             'ambiguity_options' => [],
             'errors'        => [],
-            'attempted_tasks' => $attemptedtasks,
+            'attempted_skills' => $attemptedskills,
             'issue_codes'   => $issuecodes,
         ], $nextstepintent);
     }
@@ -335,7 +335,7 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Interpret the selection phase as a command-bearing selector call without executing the task.
+     * Interpret the selection phase as a command-bearing selector call without executing the skill.
      *
      * @param string $rawresponse
      * @param int $contextid
@@ -366,8 +366,8 @@ class interpreter implements agent_interpreter {
         }
 
         $responsetype = $this->safe_string($parsed['response_type'] ?? '');
-        if (!in_array($responsetype, ['task_call', 'clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
-            $normalized = $this->normalize_task_like_response($parsed, $lastusermessage);
+        if (!in_array($responsetype, ['skill_call', 'clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
+            $normalized = $this->normalize_skill_like_response($parsed, $lastusermessage);
             if ($normalized !== null) {
                 $parsed = $normalized;
                 $responsetype = $this->safe_string($parsed['response_type'] ?? '');
@@ -406,7 +406,7 @@ class interpreter implements agent_interpreter {
                 'message' => $this->strip_command_prefix($message),
                 'used_triggers' => $this->extract_used_triggers($parsed),
                 'commands' => [],
-                'selected_task' => '',
+                'selected_skill' => '',
                 'ambiguities' => [],
                 'ambiguity_options' => [],
                 'errors' => $responsetype === 'error' && $message !== '' ? [$message] : [],
@@ -417,16 +417,16 @@ class interpreter implements agent_interpreter {
         $commands = $this->normalize_commands_payload($parsed, $lastusermessage);
         if (count($commands) !== 1) {
             return $this->error_result_with_issue_code(
-                'Selection phase must emit exactly one task command.',
+                'Selection phase must emit exactly one skill command.',
                 'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED'
             );
         }
 
-        $selectedtask = $this->safe_string($commands[0]['task'] ?? '');
-        if ($selectedtask === '') {
+        $selectedskill = $this->safe_string($commands[0]['skill'] ?? '');
+        if ($selectedskill === '') {
             return $this->error_result_with_issue_code(
-                'Selection phase command is missing a task name.',
-                'CONTRACT_SELECTION_TASK_MISSING'
+                'Selection phase command is missing a skill name.',
+                'CONTRACT_SELECTION_SKILL_MISSING'
             );
         }
 
@@ -443,13 +443,13 @@ class interpreter implements agent_interpreter {
         }
 
         return [
-            'response_type' => 'task_call',
+            'response_type' => 'skill_call',
             'lang' => $lang,
             'user_lang' => $userlang,
             'message' => $this->strip_command_prefix($this->safe_string($parsed['message'] ?? '')),
             'used_triggers' => $this->extract_used_triggers($parsed),
             'commands' => $commands,
-            'selected_task' => $selectedtask,
+            'selected_skill' => $selectedskill,
             'planned_steps' => $plannedsteps,
             'ambiguities' => [],
             'ambiguity_options' => [],
@@ -462,7 +462,7 @@ class interpreter implements agent_interpreter {
      * Enforce explicit response contracts per planner phase.
      *
      * Discovery must not return command-bearing outputs. Selection is a
-     * command-bearing selector call that must stay single-task.
+     * command-bearing selector call that must stay single-skill.
      *
      * @param array $result
      * @param string $phase
@@ -476,7 +476,7 @@ class interpreter implements agent_interpreter {
         }
 
         if (in_array($phase, self::NON_COMMAND_PHASES, true)) {
-            if (in_array($responsetype, ['task_call', 'confirmation_request'], true)) {
+            if (in_array($responsetype, ['skill_call', 'confirmation_request'], true)) {
                 return $this->error_result_with_issue_code(
                     'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit command-bearing response_type.',
                     'CONTRACT_PHASE_RESPONSE_TYPE'
@@ -493,7 +493,7 @@ class interpreter implements agent_interpreter {
         }
 
         if ($phase === 'parameter_construction') {
-            if (in_array($responsetype, ['task_call', 'confirmation_request'], true)) {
+            if (in_array($responsetype, ['skill_call', 'confirmation_request'], true)) {
                 $commands = $result['commands'] ?? [];
                 if (!is_array($commands)) {
                     $commands = [];
@@ -506,26 +506,26 @@ class interpreter implements agent_interpreter {
                     );
                 }
 
-                $allowedtasks = array_values(array_filter(array_map(
-                    fn($task): string => trim((string)$task),
-                    (array)($context['allowed_tasks'] ?? [])
+                $allowedskills = array_values(array_filter(array_map(
+                    fn($skill): string => trim((string)$skill),
+                    (array)($context['allowed_skills'] ?? [])
                 )));
 
-                if (!empty($allowedtasks)) {
+                if (!empty($allowedskills)) {
                     foreach ($commands as $command) {
                         if (!is_array($command)) {
                             return $this->error_result_with_issue_code(
-                                'CONTRACT_VIOLATION: phase "' . $phase . '" command payload is invalid.',
-                                'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                                'CONTRACT_VIOLATION: phase "' . $phase . '' . '" command payload is invalid.',
+                                'CONTRACT_PHASE_SKILL_NOT_ALLOWED'
                             );
                         }
 
-                        $task = trim((string)($command['task'] ?? ''));
-                        if ($task === '' || !in_array($task, $allowedtasks, true)) {
+                        $skill = trim((string)($command['skill'] ?? ''));
+                        if ($skill === '' || !in_array($skill, $allowedskills, true)) {
                             return $this->error_result_with_issue_code(
                                 'CONTRACT_VIOLATION: phase "' . $phase
-                                    . '" command task is outside discovery-ranked allow-list.',
-                                'CONTRACT_PHASE_TASK_NOT_ALLOWED'
+                                    . '" command skill is outside discovery-ranked allow-list.',
+                                'CONTRACT_PHASE_SKILL_NOT_ALLOWED'
                             );
                         }
                     }
@@ -534,7 +534,7 @@ class interpreter implements agent_interpreter {
         }
 
         if ($phase === 'selection') {
-            if ($responsetype === 'task_call') {
+            if ($responsetype === 'skill_call') {
                 $commands = $result['commands'] ?? [];
                 if (!is_array($commands)) {
                     $commands = [];
@@ -547,20 +547,20 @@ class interpreter implements agent_interpreter {
                     );
                 }
 
-                $selectedtask = trim((string)($result['selected_task'] ?? ''));
-                if ($selectedtask === '') {
+                $selectedskill = trim((string)($result['selected_skill'] ?? ''));
+                if ($selectedskill === '') {
                     return $this->error_result_with_issue_code(
-                        'CONTRACT_VIOLATION: phase "' . $phase . '" must provide selected_task for handoff.',
-                        'CONTRACT_SELECTION_TASK_MISSING'
+                        'CONTRACT_VIOLATION: phase "' . $phase . '" must provide selected_skill for handoff.',
+                        'CONTRACT_SELECTION_SKILL_MISSING'
                     );
                 }
 
-                $commandtask = trim((string)($commands[0]['task'] ?? ''));
-                if ($commandtask === '' || $commandtask !== $selectedtask) {
+                $commandskill = trim((string)($commands[0]['skill'] ?? ''));
+                if ($commandskill === '' || $commandskill !== $selectedskill) {
                     return $this->error_result_with_issue_code(
                         'CONTRACT_VIOLATION: phase "' . $phase
-                            . '" selector command task must match selected_task.',
-                        'CONTRACT_SELECTION_TASK_MISMATCH'
+                            . '" selector command skill must match selected_skill.',
+                        'CONTRACT_SELECTION_SKILL_MISMATCH'
                     );
                 }
             }
@@ -573,9 +573,9 @@ class interpreter implements agent_interpreter {
      * Normalize command payload shapes to a canonical list of command objects.
      *
      * Accepts:
-     * - Commands as list: [{task,version,input|parameters}, ...]
-     * - Commands as single object: {task,version,input|parameters}
-     * - Top-level task/version/input fields when commands is missing
+     * - Commands as list: [{skill,version,input|parameters}, ...]
+     * - Commands as single object: {skill,version,input|parameters}
+     * - Top-level skill/version/input fields when commands is missing
      *
      * @param array $parsed
      * @param string $lastusermessage
@@ -584,7 +584,7 @@ class interpreter implements agent_interpreter {
     private function normalize_commands_payload(array $parsed, string $lastusermessage = ''): array {
         $commands = $parsed['commands'] ?? null;
 
-        if (is_array($commands) && isset($commands['task']) && !array_is_list($commands)) {
+        if (is_array($commands) && isset($commands['skill']) && !array_is_list($commands)) {
             $commands = [$commands];
         }
 
@@ -595,8 +595,8 @@ class interpreter implements agent_interpreter {
                     continue;
                 }
 
-                $taskname = $this->safe_string($command['task'] ?? '');
-                if ($taskname === '') {
+                $skillname = $this->safe_string($command['skill'] ?? $command['skill'] ?? '');
+                if ($skillname === '') {
                     continue;
                 }
 
@@ -607,7 +607,7 @@ class interpreter implements agent_interpreter {
                 $input = $this->prune_empty_input_values($input);
 
                 $normalized[] = [
-                    'task' => $taskname,
+                    'skill' => $skillname,
                     'version' => max(1, (int)($command['version'] ?? 1)),
                     'input' => $input,
                 ];
@@ -616,13 +616,13 @@ class interpreter implements agent_interpreter {
             return $normalized;
         }
 
-        // Fallback: top-level task/version/input fields.
-        $taskname = $this->safe_string($parsed['task'] ?? '');
-        if ($taskname !== '') {
+        // Fallback: top-level skill/version/input fields.
+        $skillname = $this->safe_string($parsed['skill'] ?? $parsed['skill'] ?? '');
+        if ($skillname !== '') {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
             $input = $this->prune_empty_input_values($input);
             return [[
-                'task' => $taskname,
+                'skill' => $skillname,
                 'version' => max(1, (int)($parsed['version'] ?? 1)),
                 'input' => $input,
             ]];
@@ -712,28 +712,28 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * Normalize common task-like malformed outputs into canonical task_call payload.
+     * Normalize common skill-like malformed outputs into canonical skill_call payload.
      *
      * @param array  $parsed
      * @param string $lastusermessage  Latest user message text, used as question-field fallback.
      * @return array|null
      */
-    private function normalize_task_like_response(array $parsed, string $lastusermessage = ''): ?array {
-        $allowedtasks = $this->registry->get_task_names();
+    private function normalize_skill_like_response(array $parsed, string $lastusermessage = ''): ?array {
+        $allowedskills = $this->registry->get_skill_names();
         $nextstepintent = $this->safe_string($parsed['next_step_intent'] ?? '');
         $modeluserlang = $this->safe_string($parsed['user_lang'] ?? $parsed['userlang'] ?? '');
 
         $responsetype = (string)($parsed['response_type'] ?? '');
-        $responsereferencedtask = $this->safe_string($responsetype);
-        if ($responsereferencedtask !== '' && in_array($responsereferencedtask, $allowedtasks, true)) {
+        $responsereferencedskill = $this->safe_string($responsetype);
+        if ($responsereferencedskill !== '' && in_array($responsereferencedskill, $allowedskills, true)) {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
             return [
-                'response_type' => 'task_call',
+                'response_type' => 'skill_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
                 'next_step_intent' => $nextstepintent,
                 'commands' => [
                     [
-                        'task' => $responsereferencedtask,
+                        'skill' => $responsereferencedskill,
                         'version' => (int)($parsed['version'] ?? 1),
                         'input' => $input,
                     ],
@@ -741,17 +741,17 @@ class interpreter implements agent_interpreter {
             ];
         }
 
-        $task = (string)($parsed['task'] ?? '');
-        $resolvedtask = $this->safe_string($task);
-        if ($resolvedtask !== '') {
+        $skill = (string)($parsed['skill'] ?? $parsed['skill'] ?? '');
+        $resolvedskill = $this->safe_string($skill);
+        if ($resolvedskill !== '') {
             $input = $this->extract_command_input($parsed);
             return [
-                'response_type' => 'task_call',
+                'response_type' => 'skill_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
                 'next_step_intent' => $nextstepintent,
                 'commands' => [
                     [
-                        'task' => $resolvedtask,
+                        'skill' => $resolvedskill,
                         'version' => (int)($parsed['version'] ?? 1),
                         'input' => $input,
                     ],
@@ -766,20 +766,20 @@ class interpreter implements agent_interpreter {
                 if (!is_array($command)) {
                     continue;
                 }
-                $commandtask = $this->safe_string($command['task'] ?? '');
-                if ($commandtask === '') {
+                $commandskill = $this->safe_string($command['skill'] ?? $command['skill'] ?? '');
+                if ($commandskill === '') {
                     continue;
                 }
                 $commandinput = $this->extract_command_input($command);
                 $normalizedcommands[] = [
-                    'task' => $commandtask,
+                    'skill' => $commandskill,
                     'version' => (int)($command['version'] ?? 1),
                     'input' => $commandinput,
                 ];
             }
             if (!empty($normalizedcommands)) {
                 return [
-                    'response_type' => 'task_call',
+                    'response_type' => 'skill_call',
                     'lang' => $this->safe_string($parsed['lang'] ?? ''),
                     'used_triggers' => $this->extract_used_triggers($parsed),
                     'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
@@ -789,7 +789,7 @@ class interpreter implements agent_interpreter {
             }
         }
 
-        // Fallback: LLM produced a message without any task-call signal.
+        // Fallback: LLM produced a message without any skill-call signal.
         // Heal it to clarification so the synthesis path can proceed rather than
         // triggering an unnecessary recovery loop iteration.
         $fallbackmessage = $this->safe_string($parsed['message'] ?? '');
@@ -929,24 +929,24 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * If a task expects a 'question' field and it is missing/empty, fill it from lastusermessage.
+     * If a skill expects a 'question' field and it is missing/empty, fill it from lastusermessage.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @param array  $input
      * @param string $lastusermessage
      * @return array
      */
-    private function hydrate_question_field(string $taskname, array $input, string $lastusermessage): array {
+    private function hydrate_question_field(string $skillname, array $input, string $lastusermessage): array {
         if ($lastusermessage === '' || trim((string)($input['question'] ?? '')) !== '') {
             return $input;
         }
 
-        $task = $this->registry->get_task($taskname);
-        if ($task === null) {
+        $skill = $this->registry->get_skill($skillname);
+        if ($skill === null) {
             return $input;
         }
 
-        $schema = $task->get_schema();
+        $schema = $skill->get_schema();
         $props  = $schema['properties'] ?? [];
         if (isset($props['question'])) {
             $input['question'] = $lastusermessage;
@@ -1059,14 +1059,14 @@ class interpreter implements agent_interpreter {
      * Validate all commands using structural (pure) checks only.
      *
      * This method MUST NOT:
-     *  - call task->check_structure()
+     *  - call skill->check_structure()
      *  - perform any DB lookups
      *  - resolve entity IDs
      *
      * Deep validation (DB lookups, entity resolution, conflict detection) is
-     * delegated to agent_decision_service via task->preflight().
+     * delegated to agent_decision_service via skill->preflight().
      *
-     * Returns [validated, errors, ambiguities, ambiguityoptions, attemptedtasks, issuecodes, confirmablecommands].
+     * Returns [validated, errors, ambiguities, ambiguityoptions, attemptedskills, issuecodes, confirmablecommands].
      */
     private function validate_commands(array $commands, int $contextid, int $userid, string $lastusermessage = ''): array {
         $validated = [];
@@ -1074,14 +1074,14 @@ class interpreter implements agent_interpreter {
         $errors = [];
         $ambiguities = [];
         $ambiguityoptions = [];
-        $attemptedtasks = [];
+        $attemptedskills = [];
         $issuecodes = [];
         $confirmablecommands = [];
         $commandnumber = 0;
 
-        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
-        $allowedtasks = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
-        $selector = new task_selector(new lazy_task_loader($this->registry));
+        $evaluator = new skill_executability_evaluator($this->registry, new authorization_service());
+        $allowedskills = $this->registry->get_skill_names_for_context($evaluator, $userid, $contextid);
+        $selector = new skill_selector(new lazy_skill_loader($this->registry));
         $constructor = new parameter_constructor($this->registry);
         $validator = new parameter_contract_validator();
         $seencommandsigs = [];
@@ -1092,28 +1092,28 @@ class interpreter implements agent_interpreter {
 
             $rawinput = $this->extract_command_input((array)$cmd);
 
-            // Deduplicate: skip exact duplicate commands (same task + same input).
-            $cmdsig = md5(json_encode(['task' => $cmd['task'] ?? '', 'input' => $rawinput]));
+            // Deduplicate: skip exact duplicate commands (same skill + same input).
+            $cmdsig = md5(json_encode(['skill' => $cmd['skill'] ?? $cmd['skill'] ?? '', 'input' => $rawinput]));
             if (isset($seencommandsigs[$cmdsig])) {
                 continue;
             }
             $seencommandsigs[$cmdsig] = true;
 
-            $selection = $selector->select((array)$cmd, $allowedtasks, $label);
-            if ($selection->taskname !== '') {
-                $attemptedtasks[] = $selection->taskname;
+            $selection = $selector->select((array)$cmd, $allowedskills, $label);
+            if ($selection->skillname !== '') {
+                $attemptedskills[] = $selection->skillname;
             }
-            if (!$selection->valid || $selection->task === null) {
-                if ($selection->taskname !== '') {
-                    $evaluation = $evaluator->evaluate_task($selection->taskname, $userid, $contextid);
-                    $denyreason = (string)($evaluation['deny_reason'] ?? task_contract_validator::DENY_NOT_REGISTERED);
-                    $errors[] = "$label: task '" . $selection->taskname . "' denied by governance gate (" . $denyreason . ").";
-                    $issuecodes[] = 'TASK_DENIED';
+            if (!$selection->valid || $selection->skill === null) {
+                if ($selection->skillname !== '') {
+                    $evaluation = $evaluator->evaluate_skill($selection->skillname, $userid, $contextid);
+                    $denyreason = (string)($evaluation['deny_reason'] ?? skill_contract_validator::DENY_NOT_REGISTERED);
+                    $errors[] = "$label: skill '" . $selection->skillname . "' denied by governance gate (" . $denyreason . ").";
+                    $issuecodes[] = 'SKILL_DENIED';
                 } else {
                     foreach ($selection->errors as $error) {
                         $errors[] = $error;
                     }
-                    $issuecodes[] = 'TASK_DENIED';
+                    $issuecodes[] = 'SKILL_DENIED';
                 }
                 continue;
             }
@@ -1123,8 +1123,8 @@ class interpreter implements agent_interpreter {
                 continue;
             }
 
-            $constructed = $constructor->build($selection->taskname, $rawinput, $lastusermessage);
-            $structural = $validator->validate($selection->task, $constructed->input, $label);
+            $constructed = $constructor->build($selection->skillname, $rawinput, $lastusermessage);
+            $structural = $validator->validate($selection->skill, $constructed->input, $label);
             if (!$structural->valid) {
                 foreach ($structural->errors as $error) {
                     $errors[] = $error;
@@ -1135,15 +1135,15 @@ class interpreter implements agent_interpreter {
                 continue;
             }
 
-            // Stage 7: Deduplicate identical commands (same task + input) and emit.
-            $commandsig = $selection->taskname . '|' . json_encode($structural->input, JSON_UNESCAPED_UNICODE);
+            // Stage 7: Deduplicate identical commands (same skill + input) and emit.
+            $commandsig = $selection->skillname . '|' . json_encode($structural->input, JSON_UNESCAPED_UNICODE);
             if (isset($seencommandsigs[$commandsig])) {
                 continue;
             }
             $seencommandsigs[$commandsig] = true;
 
             $validated[] = [
-                'task'    => $selection->taskname,
+                'skill'   => $selection->skillname,
                 'version' => $selection->version,
                 'input'   => $structural->input,
                 '_structural_validated' => true,
@@ -1155,21 +1155,21 @@ class interpreter implements agent_interpreter {
             $errors,
             $ambiguities,
             $ambiguityoptions,
-            array_values(array_unique($attemptedtasks)),
+            array_values(array_unique($attemptedskills)),
             array_values(array_unique($issuecodes)),
             $confirmablecommands,
         ];
     }
 
     /**
-     * Normalize task-provided structured ambiguity options for frontend consumption.
+     * Normalize skill-provided structured ambiguity options for frontend consumption.
      *
      * @param array $options
      * @param string $label
-     * @param string $taskname
+     * @param string $skillname
      * @return array
      */
-    private function normalize_ambiguity_options(array $options, string $label, string $taskname): array {
+    private function normalize_ambiguity_options(array $options, string $label, string $skillname): array {
         $normalized = [];
         foreach ($options as $index => $option) {
             if (!is_array($option)) {
@@ -1184,14 +1184,14 @@ class interpreter implements agent_interpreter {
             }
 
             if ($id === '') {
-                $id = strtolower($taskname) . ':' . ($index + 1);
+                $id = strtolower($skillname) . ':' . ($index + 1);
             }
 
             $normalized[] = [
                 'id' => $id,
                 'label' => $optionlabel,
                 'query' => $query,
-                'task' => $taskname,
+                'skill' => $skillname,
                 'command_label' => $label,
                 'path' => trim((string)($option['path'] ?? '')),
                 'title' => trim((string)($option['title'] ?? '')),

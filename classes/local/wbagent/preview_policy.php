@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Policy class defining which tasks support option preview rendering.
+ * Policy class defining which skills support option preview rendering.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,10 +27,10 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 /**
- * Defines which agent tasks support visual preview rendering.
+ * Defines which agent skills support visual preview rendering.
  *
- * Only create/update option tasks produce meaningful option row previews.
- * All other tasks (entities.create_entity, etc.)
+ * Only create/update option skills produce meaningful option row previews.
+ * All other skills (entities.create_entity, etc.)
  * are treated as a silent no-op — no HTML is rendered and no error is returned.
  *
  * @package    bookingextension_agent
@@ -38,8 +38,8 @@ namespace bookingextension_agent\local\wbagent;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preview_policy {
-    /** @var string[] Task-name suffixes that support visual preview rendering. */
-    private const PREVIEW_ENABLED_TASK_SUFFIXES = [
+    /** @var string[] Skill-name suffixes that support visual preview rendering. */
+    private const PREVIEW_ENABLED_SKILL_SUFFIXES = [
         'create_option',
         'create_slotbooking_option',
         'create_selflearning_option',
@@ -47,14 +47,14 @@ class preview_policy {
     ];
 
     /**
-     * Whether a given task supports preview rendering.
+     * Whether a given skill supports preview rendering.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @return bool
      */
-    public static function supports_preview(string $taskname): bool {
-        $suffix = trim((string)(explode('.', $taskname, 2)[1] ?? $taskname));
-        return in_array($suffix, self::PREVIEW_ENABLED_TASK_SUFFIXES, true);
+    public static function supports_preview(string $skillname): bool {
+        $suffix = trim((string)(explode('.', $skillname, 2)[1] ?? $skillname));
+        return in_array($suffix, self::PREVIEW_ENABLED_SKILL_SUFFIXES, true);
     }
 
     /**
@@ -66,7 +66,7 @@ class preview_policy {
     public static function filter_previewable_commands(array $commands): array {
         return array_values(array_filter(
             $commands,
-            static fn(array $cmd): bool => self::supports_preview((string)($cmd['task'] ?? ''))
+            static fn(array $cmd): bool => self::supports_preview((string)($cmd['skill'] ?? $cmd['skill'] ?? ''))
         ));
     }
 
@@ -78,7 +78,7 @@ class preview_policy {
      */
     public static function has_previewable_command(array $commands): bool {
         foreach ($commands as $cmd) {
-            if (self::supports_preview((string)($cmd['task'] ?? ''))) {
+            if (self::supports_preview((string)($cmd['skill'] ?? $cmd['skill'] ?? ''))) {
                 return true;
             }
         }

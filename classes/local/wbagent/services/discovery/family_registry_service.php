@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\discovery;
 
-use bookingextension_agent\local\wbagent\contracts\task_family_contract;
+use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
 use bookingextension_agent\local\wbagent\dto\discovery_result;
 
 /**
@@ -55,8 +55,8 @@ class family_registry_service {
                 continue;
             }
 
-            $taskname = trim((string)($contract['task'] ?? ''));
-            $family = task_family_contract::resolve_from_prompt_contract($contract, $taskname);
+            $skillname = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            $family = skill_family_contract::resolve_from_prompt_contract($contract, $skillname);
             $allfamilies[] = $family;
         }
 

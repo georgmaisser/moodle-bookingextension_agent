@@ -39,7 +39,7 @@ use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use mod_booking\singleton_service;
 use stdClass;
 
@@ -127,15 +127,15 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $this->gen = $this->getDataGenerator()->get_plugin_generator('mod_booking');
 
-        // Test baseline: keep governance task gates open unless a test overrides it explicitly.
-        set_config('aitaskenableall', 1, 'bookingextension_agent');
+        // Test baseline: keep governance skill gates open unless a test overrides it explicitly.
+        set_config('aiskillenableall', 1, 'bookingextension_agent');
 
         $this->maybe_register_live_ai_provider();
         $this->maybe_load_embeddings_fixture();
     }
 
     /**
-     * Ensure editingteacher can run all bookingextension/agent test tasks in this module context.
+     * Ensure editingteacher can run all bookingextension/agent test skills in this module context.
      *
      * @return void
      */
@@ -170,7 +170,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         foreach (array_keys($modbookingcapabilities) as $capability) {
             $capability = (string)$capability;
-            if (!str_starts_with($capability, 'mod/booking:task_mod_booking_')) {
+            if (!str_starts_with($capability, 'mod/booking:skill_mod_booking_')) {
                 continue;
             }
             assign_capability($capability, CAP_ALLOW, $roleid, (int)$systemcontext->id, true);
@@ -469,13 +469,13 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return void
      */
     protected function maybe_load_embeddings_fixture(): void {
-        $fixturepath = __DIR__ . '/fixtures/task_catalog_embeddings.csv';
+        $fixturepath = __DIR__ . '/fixtures/skill_catalog_embeddings.csv';
         if (!file_exists($fixturepath)) {
             return; // Fixture not available.
         }
 
         $runtimedir = make_temp_directory('bookingextension_agent/wbagent');
-        $runtimepath = $runtimedir . '/task_catalog_embeddings.csv';
+        $runtimepath = $runtimedir . '/skill_catalog_embeddings.csv';
 
         if (!copy($fixturepath, $runtimepath)) {
             throw new \Exception('Failed to copy embeddings fixture to runtime directory');
@@ -493,9 +493,9 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return stdClass Option record (with ->id).
      */
     protected function create_option(string $name, array $extra = []): stdClass {
-        $taskname = 'mod_booking.create_option';
+        $skillname = 'mod_booking.create_option';
 
-        $result = $this->exec_command($taskname, array_merge(
+        $result = $this->exec_command($skillname, array_merge(
             [
                 'text'            => $name,
                 'maxanswers'      => 10,
@@ -522,7 +522,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return executor
      */
     protected function make_executor(): executor {
-        $registry = task_registry::make_default();
+        $registry = skill_registry::make_default();
         $store    = new conversation_store();
         $authz    = new authorization_service();
         return new executor($registry, $store, $authz);
@@ -534,14 +534,14 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * Sets the current user to $userid before calling (required for capability
      * checks that use the global $USER inside Moodle helper functions).
      *
-     * @param string   $taskname   e.g. 'mod_booking.create_option'
+     * @param string   $skillname   e.g. 'mod_booking.create_option'
      * @param array    $input      Command input fields.
      * @param int|null $cmid       Defaults to the shared booking instance cmid.
      * @param int|null $userid     Defaults to the teacher user.
      * @return array Single result entry from the executor.
      */
     protected function exec_command(
-        string $taskname,
+        string $skillname,
         array $input,
         ?int $cmid = null,
         ?int $userid = null
@@ -554,14 +554,14 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $contextid = (int)\context_module::instance($cmid)->id;
         $store   = new conversation_store();
         $thread  = $store->get_or_create_thread($userid, $contextid, (int)$this->booking->id);
-        $key     = hash('sha256', $taskname . ':' . $userid . ':' . uniqid('', true));
+        $key     = hash('sha256', $skillname . ':' . $userid . ':' . uniqid('', true));
         $runid   = $store->create_run($thread->id, $userid, $contextid, $key, []);
 
         $exec    = $this->make_executor();
-        $task    = task_registry::make_default()->get_task($taskname);
-        $command = ['task' => $taskname, 'version' => 1, 'input' => $input];
-        if ($task && !$task->is_read_only()) {
-            $command['guard_token'] = preflight_execution_gate::build_guard_token($taskname, $contextid, $input);
+        $skill    = skill_registry::make_default()->get_skill($skillname);
+        $command = ['skill' => $skillname, 'version' => 1, 'input' => $input];
+        if ($skill && !$skill->is_read_only()) {
+            $command['guard_token'] = preflight_execution_gate::build_guard_token($skillname, $contextid, $input);
         }
         $results = $exec->execute_commands(
             [$command],
@@ -596,7 +596,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // Real-LLM runtime helpers (used by per-task real-LLM test classes).
+    // Real-LLM runtime helpers (used by per-skill real-LLM test classes).
 
     /**
      * Skip the current test unless the real-LLM environment is fully configured.
@@ -633,7 +633,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      */
     protected function build_runtime(): array {
         $store    = new conversation_store();
-        $registry = task_registry::make_default();
+        $registry = skill_registry::make_default();
         $orc      = new orchestrator($registry, new interpreter($registry), $store);
         $authz    = new authorization_service();
         $runtime  = new agent_runtime($registry, $orc, $store, $authz);
@@ -757,15 +757,15 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     }
 
     /**
-     * Extract the first command of a given task name from an AgentRuntime result.
+     * Extract the first command of a given skill name from an AgentRuntime result.
      *
      * @param array  $result   AgentRuntime result.
-     * @param string $taskname e.g. 'mod_booking.create_option'.
+     * @param string $skillname e.g. 'mod_booking.create_option'.
      * @return array|null
      */
-    protected function extract_command(array $result, string $taskname): ?array {
+    protected function extract_command(array $result, string $skillname): ?array {
         foreach ((array)($result['commands'] ?? []) as $cmd) {
-            if (is_array($cmd) && (string)($cmd['task'] ?? '') === $taskname) {
+            if (is_array($cmd) && (string)($cmd['skill'] ?? $cmd['skill'] ?? '') === $skillname) {
                 return $cmd;
             }
         }
@@ -773,15 +773,15 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     }
 
     /**
-     * Extract the first execution-result entry by task name (execution_result responses).
+     * Extract the first execution-result entry by skill name (execution_result responses).
      *
      * @param array  $result   AgentRuntime result.
-     * @param string $taskname e.g. 'booking.diagnose_booking_issue'.
+     * @param string $skillname e.g. 'booking.diagnose_booking_issue'.
      * @return array|null
      */
-    protected function extract_task_result(array $result, string $taskname): ?array {
+    protected function extract_skill_result(array $result, string $skillname): ?array {
         foreach ((array)($result['results'] ?? []) as $entry) {
-            if (is_array($entry) && (string)($entry['task'] ?? '') === $taskname) {
+            if (is_array($entry) && (string)($entry['skill'] ?? $entry['skill'] ?? '') === $skillname) {
                 return $entry;
             }
         }
@@ -791,7 +791,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     /**
      * Execute a single confirmed command via the executor and return the first result.
      *
-     * @param array $command Command array (must have 'task' and 'input' keys; 'version' defaults to 1).
+     * @param array $command Command array (must have 'skill' and 'input' keys; 'version' defaults to 1).
      * @return array Executor result for this command.
      */
     protected function execute_command(array $command): array {

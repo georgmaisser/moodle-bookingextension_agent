@@ -33,14 +33,14 @@ class book_users_single extends abstract_benchmark_scenario {
         return 'Buche Anna Berger fuer den Kurs "Erste Hilfe Grundkurs".';
     }
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'skill_call';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return 'mod_booking.book_users';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"mod_booking.book_users","input":{}}],'
+        return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.book_users","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Book Anna Berger","used_triggers":["mod_booking.book_users_for_option"],'
             . '"lang":"de","user_lang":"de"}';
     }

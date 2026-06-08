@@ -131,9 +131,9 @@ class ai_render_command_preview extends external_api {
         $OUTPUT->header();
         $PAGE->start_collecting_javascript_requirements();
 
-        // Preview policy: if commands are provided but none are on the previewable-task allowlist,
+        // Preview policy: if commands are provided but none are on the previewable-skill allowlist,
         // return a silent no-op (empty HTML, no error).  This prevents spurious output for
-        // tasks like entities.create_entity that produce no booking-option row.
+        // skills like entities.create_entity that produce no booking-option row.
         if (trim((string)$params['commands']) !== '') {
             $decodedcmds = json_decode((string)$params['commands'], true);
             if (is_array($decodedcmds) && !empty($decodedcmds)) {
@@ -227,13 +227,13 @@ class ai_render_command_preview extends external_api {
                 ];
             }
 
-            $task = (string)($first['task'] ?? '');
+            $skill = (string)($first['skill'] ?? '');
             $input = $first['input'] ?? [];
             if (!is_array($input)) {
                 $input = [];
             }
 
-            if ($task !== 'booking.create_option' && $task !== 'booking.update_option') {
+            if ($skill !== 'booking.create_option' && $skill !== 'booking.update_option') {
                 return [
                     'success' => true,
                     'html' => '',
@@ -242,7 +242,7 @@ class ai_render_command_preview extends external_api {
                 ];
             }
 
-            if ($task === 'booking.update_option') {
+            if ($skill === 'booking.update_option') {
                 $resolvedoptionid = (int)($input['optionid'] ?? 0);
                 if ($resolvedoptionid <= 0 && !empty($input['optionquery'])) {
                     $query = trim((string)$input['optionquery']);
@@ -265,7 +265,7 @@ class ai_render_command_preview extends external_api {
                         }
                     }
                 }
-            } else if ($task === 'booking.create_option') {
+            } else if ($skill === 'booking.create_option') {
                 $title = trim((string)($input['text'] ?? ''));
                 if ($title !== '') {
                     $records = $DB->get_records_select(

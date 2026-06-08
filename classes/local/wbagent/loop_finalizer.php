@@ -38,7 +38,7 @@ class loop_finalizer {
      * @param array $result
      * @param agent_state $state
      * @param int $maxloopsteps
-     * @param callable $extractsteptasknames fn(array $commands, array $results): array
+     * @param callable $extractstepskillnames fn(array $commands, array $results): array
      * @param callable $localizedstring fn(string $identifier, string $component, ?object $a, string $lang): string
      * @param callable $buildlooprepeatsummary fn(array $results, string $currentmessage): string
      * @return array|null
@@ -47,11 +47,11 @@ class loop_finalizer {
         array $result,
         agent_state $state,
         int $maxloopsteps,
-        callable $extractsteptasknames,
+        callable $extractstepskillnames,
         callable $localizedstring,
         callable $buildlooprepeatsummary
     ): ?array {
-        if (!$this->should_finalize_after_execution_result($result, $state, $extractsteptasknames)) {
+        if (!$this->should_finalize_after_execution_result($result, $state, $extractstepskillnames)) {
             return null;
         }
 
@@ -59,7 +59,7 @@ class loop_finalizer {
             $result,
             $state,
             $maxloopsteps,
-            $extractsteptasknames,
+            $extractstepskillnames,
             $localizedstring,
             $buildlooprepeatsummary
         );
@@ -70,13 +70,13 @@ class loop_finalizer {
      *
      * @param array $result
      * @param agent_state $state
-     * @param callable $extractsteptasknames
+     * @param callable $extractstepskillnames
      * @return bool
      */
     private function should_finalize_after_execution_result(
         array $result,
         agent_state $state,
-        callable $extractsteptasknames
+        callable $extractstepskillnames
     ): bool {
         if ((string)($result['response_type'] ?? '') !== 'execution_result') {
             return false;
@@ -88,7 +88,7 @@ class loop_finalizer {
         }
 
         $commands = (array)($result['commands'] ?? []);
-        $extractsteptasknames($commands, $results);
+        $extractstepskillnames($commands, $results);
 
         if ($state->step_count() < 2) {
             return false;
@@ -123,7 +123,7 @@ class loop_finalizer {
      * @param array $result
      * @param agent_state $state
      * @param int $maxloopsteps
-     * @param callable $extractsteptasknames
+     * @param callable $extractstepskillnames
      * @param callable $localizedstring
      * @param callable $buildlooprepeatsummary
      * @return array
@@ -132,7 +132,7 @@ class loop_finalizer {
         array $result,
         agent_state $state,
         int $maxloopsteps,
-        callable $extractsteptasknames,
+        callable $extractstepskillnames,
         callable $localizedstring,
         callable $buildlooprepeatsummary
     ): array {
@@ -151,7 +151,7 @@ class loop_finalizer {
             }
         }
 
-        $attemptedtasks = $extractsteptasknames((array)($result['commands'] ?? []), $results);
+        $attemptedskills = $extractstepskillnames((array)($result['commands'] ?? []), $results);
 
         return [
             'response_type'             => 'clarification',
@@ -160,7 +160,7 @@ class loop_finalizer {
             'ambiguities'               => [],
             'ambiguity_options'         => [],
             'errors'                    => [],
-            'attempted_tasks'           => $attemptedtasks,
+            'attempted_skills'           => $attemptedskills,
             'issue_codes'               => array_values(array_unique(array_merge(
                 (array)($result['issue_codes'] ?? []),
                 ['LOOP_EARLY_SUFFICIENT_CONTEXT']

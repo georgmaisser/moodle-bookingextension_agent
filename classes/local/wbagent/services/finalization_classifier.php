@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 
 /**
  * Deterministic classifier for runtime finalization strategy.
@@ -41,7 +41,7 @@ class finalization_classifier {
     private const DIRECT_RESPONSE_TYPES = [
         'confirmation_request',
         'confirm_pending',
-        'task_call',
+        'skill_call',
     ];
 
     /** @var string[] */
@@ -54,7 +54,7 @@ class finalization_classifier {
         'CONTRACT_PHASE_RESPONSE_TYPE',
         'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED',
         'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED',
-        'CONTRACT_PHASE_TASK_NOT_ALLOWED',
+        'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
     ];
 
     /** @var string[] */
@@ -65,7 +65,7 @@ class finalization_classifier {
         'PERMISSION_ERROR',
         'VALIDATION_ERROR',
         'CONTEXT_INVALID',
-        'CONTRACT_SELECTION_TASK_MISSING',
+        'CONTRACT_SELECTION_SKILL_MISSING',
         // Synchronizer consistency gate rejections are terminal — never retry via llm_polish.
         'SYNC_FACT_CONFLICT_REJECTED',
         'SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED',
@@ -121,7 +121,7 @@ class finalization_classifier {
         }
 
         if ($responsetype === 'sufficient' || $responsetype === 'clarification') {
-            if (in_array($riskclass, [task_risk_class::R2, task_risk_class::R3], true)) {
+            if (in_array($riskclass, [skill_risk_class::R2, skill_risk_class::R3], true)) {
                 return self::STRATEGY_LLM_POLISH;
             }
 
@@ -147,7 +147,7 @@ class finalization_classifier {
             return false;
         }
 
-        return $this->resolve_explicit_risk_class($result) === task_risk_class::R3;
+        return $this->resolve_explicit_risk_class($result) === skill_risk_class::R3;
     }
 
     /**
@@ -161,7 +161,7 @@ class finalization_classifier {
             return false;
         }
 
-        return $this->resolve_explicit_risk_class($result) === task_risk_class::R2;
+        return $this->resolve_explicit_risk_class($result) === skill_risk_class::R2;
     }
 
     /**
@@ -175,7 +175,7 @@ class finalization_classifier {
      */
     private function resolve_explicit_risk_class(array $result): string {
         $riskclass = trim((string)($result['risk_class'] ?? ''));
-        if (task_risk_class::is_valid($riskclass)) {
+        if (skill_risk_class::is_valid($riskclass)) {
             return $riskclass;
         }
 
@@ -199,7 +199,7 @@ class finalization_classifier {
         }
 
         // Accept both list and single-associative command payloads.
-        if (!array_is_list($commands) && isset($commands['task'])) {
+        if (!array_is_list($commands) && isset($commands['skill'])) {
             return true;
         }
 
@@ -254,7 +254,7 @@ class finalization_classifier {
      */
     private function resolve_risk_class(array $result): string {
         $riskclass = trim((string)($result['risk_class'] ?? ''));
-        if (task_risk_class::is_valid($riskclass)) {
+        if (skill_risk_class::is_valid($riskclass)) {
             return $riskclass;
         }
 
@@ -262,11 +262,11 @@ class finalization_classifier {
         if (is_array($commands)) {
             $firstcommand = array_is_list($commands) ? (array)($commands[0] ?? []) : $commands;
             $riskclass = trim((string)($firstcommand['risk_class'] ?? ''));
-            if (task_risk_class::is_valid($riskclass)) {
+            if (skill_risk_class::is_valid($riskclass)) {
                 return $riskclass;
             }
         }
 
-        return task_risk_class::R3;
+        return skill_risk_class::R3;
     }
 }

@@ -17,7 +17,7 @@
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\services\pending_intent_service;
 use bookingextension_agent\local\wbagent\services\queue_transition_service;
@@ -74,7 +74,7 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
             ->willReturn([
                 'queue_item_id' => 'q12_1',
                 'mutability' => 'mutating',
-                'risk_class' => task_risk_class::R2,
+                'risk_class' => skill_risk_class::R2,
                 'status' => 'ready',
                 'retry_count' => 0,
             ]);
@@ -123,7 +123,7 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
             ->willReturn([
                 'queue_item_id' => 'q12_1',
                 'mutability' => 'mutating',
-                'risk_class' => task_risk_class::R3,
+                'risk_class' => skill_risk_class::R3,
                 'status' => 'ready',
                 'retry_count' => 0,
             ]);
@@ -136,7 +136,7 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
                 queue_status_policy::failed_status(),
                 ['TRANSIENT_IO', 'R3_NO_RETRY'],
                 'preflight_retry_forbidden',
-                'Retry is forbidden for irreversible_or_external tasks.',
+                'Retry is forbidden for irreversible_or_external skills.',
                 $this->callback(static function (array $extra): bool {
                     return (string)($extra['reason_code'] ?? '') === 'R3_NO_RETRY';
                 })
@@ -170,7 +170,7 @@ final class pending_intent_and_queue_transition_contract_test extends TestCase {
             ->willReturn([
                 'queue_item_id' => 'q12_2',
                 'mutability' => 'mutating',
-                'risk_class' => task_risk_class::R3,
+                'risk_class' => skill_risk_class::R3,
                 'status' => 'blocked_confirmation',
                 'retry_count' => 0,
             ]);

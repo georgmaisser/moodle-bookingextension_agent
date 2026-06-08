@@ -67,9 +67,9 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
 
         [$store, $runtime, $threadid] = $this->build_runtime();
 
-        if (!$this->is_task_available('mod_booking.create_option')) {
+        if (!$this->is_skill_available('mod_booking.create_option')) {
             $this->enforcegeneratetextassertion = false;
-            $this->fail('booking.create_option is not available in the current task catalog.');
+            $this->fail('booking.create_option is not available in the current skill catalog.');
         }
 
         $title = 'Multistep Real LLM ' . uniqid('', true);
@@ -218,13 +218,13 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
-     * Check if a task currently exists in the registry.
+     * Check if a skill currently exists in the registry.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @return bool
      */
-    private function is_task_available(string $taskname): bool {
-        $registry = \bookingextension_agent\local\wbagent\task_registry_factory::get_default();
-        return $registry->get_task($taskname) !== null;
+    private function is_skill_available(string $skillname): bool {
+        $registry = \bookingextension_agent\local\wbagent\skill_registry_factory::get_default();
+        return $registry->get_skill($skillname) !== null;
     }
 }

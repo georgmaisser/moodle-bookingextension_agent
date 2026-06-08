@@ -19,40 +19,40 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\construction;
 
 use bookingextension_agent\local\wbagent\dto\parameter_construction_result;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
- * Build normalized parameter payloads after concrete task selection.
+ * Build normalized parameter payloads after concrete skill selection.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class parameter_constructor {
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      */
-    public function __construct(task_registry $registry) {
+    public function __construct(skill_registry $registry) {
         $this->registry = $registry;
     }
 
     /**
-     * Build canonical input for one selected task.
+     * Build canonical input for one selected skill.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @param array<string,mixed> $rawinput
      * @param string $lastusermessage
      * @return parameter_construction_result
      */
-    public function build(string $taskname, array $rawinput, string $lastusermessage = ''): parameter_construction_result {
+    public function build(string $skillname, array $rawinput, string $lastusermessage = ''): parameter_construction_result {
         $input = $this->normalize_self_user_references($rawinput);
-        $input = $this->canonicalize_command_input($taskname, $input);
-        $input = $this->hydrate_question_field($taskname, $input, $lastusermessage);
+        $input = $this->canonicalize_command_input($skillname, $input);
+        $input = $this->hydrate_question_field($skillname, $input, $lastusermessage);
         $input = $this->prune_empty_input_values($input);
 
         if (array_key_exists('coursestarttime', $input)) {
@@ -103,10 +103,10 @@ class parameter_constructor {
     }
 
     /**
-     * Canonicalize task input through registry-owned normalizers.
+     * Canonicalize skill input through registry-owned normalizers.
      */
-    private function canonicalize_command_input(string $taskname, array $input): array {
-        $input = $this->registry->normalize_task_input($taskname, $input);
+    private function canonicalize_command_input(string $skillname, array $input): array {
+        $input = $this->registry->normalize_skill_input($skillname, $input);
 
         if (isset($input['search_queries']) && is_string($input['search_queries'])) {
             $parts = array_values(array_filter(array_map('trim', explode(',', $input['search_queries']))));
@@ -125,17 +125,17 @@ class parameter_constructor {
     /**
      * Hydrate a missing question field from the last user message.
      */
-    private function hydrate_question_field(string $taskname, array $input, string $lastusermessage): array {
+    private function hydrate_question_field(string $skillname, array $input, string $lastusermessage): array {
         if ($lastusermessage === '' || trim((string)($input['question'] ?? '')) !== '') {
             return $input;
         }
 
-        $task = $this->registry->get_task($taskname);
-        if ($task === null) {
+        $skill = $this->registry->get_skill($skillname);
+        if ($skill === null) {
             return $input;
         }
 
-        $schema = $task->get_schema();
+        $schema = $skill->get_schema();
         $props = $schema['properties'] ?? [];
         if (isset($props['question'])) {
             $input['question'] = $lastusermessage;

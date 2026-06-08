@@ -53,7 +53,7 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 ### classes/local/wbagent/agent_state.php
 - [x] Cache-Struktur phase-aware machen (discovery/selection/construction)
-- [x] Cache in family_cache/selected_task_cache/params_cache trennen
+- [x] Cache in family_cache/selected_skill_cache/params_cache trennen
 - [x] Alten monolithischen planner_catalog_cache payload entfernen
 
 ### classes/local/wbagent/conversation_store.php
@@ -126,12 +126,12 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 ## 2.4 Selection und Construction
 
-### classes/local/wbagent/services/selection/lazy_task_loader.php
+### classes/local/wbagent/services/selection/lazy_skill_loader.php
 - [x] Nur Tasks aus gerankten Families laden
 - [x] Erst schlanke Contracts, volles Schema nur on-demand laden
 - [x] Globales Voll-Laden aller Task-Schemata entfernen
 
-### classes/local/wbagent/services/selection/task_selector.php
+### classes/local/wbagent/services/selection/skill_selector.php
 - [x] Als eigene Selection-Phase nutzen
 - [x] Genau eine selektierte Task + version liefern
 - [x] Implizite Task-Normalisierung ausserhalb des Selectors entfernen
@@ -256,7 +256,7 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] Kern-Orchestrierung vorhanden und analysiert: orchestrator.php, interpreter.php, agent_runtime.php
 - [x] Discovery/Family-Bausteine vorhanden und analysiert: family_registry_service, family_signal_ranker, family_ranker, context_prior_builder, discovery_stage_controller/policies
 - [x] Dualer Embeddings-Pfad vorhanden und analysiert: embeddings_readiness_service + family_embeddings_retrieval_service
-- [x] Getrennter Selection/Construction-Baustein vorhanden und analysiert: task_selector + parameter_constructor + parameter_contract_validator
+- [x] Getrennter Selection/Construction-Baustein vorhanden und analysiert: skill_selector + parameter_constructor + parameter_contract_validator
 - [x] planner_trace_history im Ist-Code nachgewiesen
 
 ### 7.2 Noch nicht im Zielzuschnitt nachgewiesen (vor Start einplanen)
@@ -277,9 +277,9 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 	- Re-Run 2026-06-02 nach Entry-Telemetrie-Expose (`ai_send_message.phasetracejson`): Tests 127, Assertions 892, Failures 0, Deprecations 30
 	- Re-Run 2026-06-02 nach Runtime-Heuristik-Entfernung (`agent_runtime.run_internal` ohne step-type Umschaltlogik): Tests 127, Assertions 892, Failures 0, Deprecations 30
 	- Re-Run 2026-06-02 nach loop_step phase_trace-Persistenz (`phase_trace_loop_history`): Tests 127, Assertions 892, Failures 0, Deprecations 30
-	- Re-Run 2026-06-02 nach agent_state Cache-Split (family/selected_task/params): Tests 127, Assertions 892, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach agent_state Cache-Split (family/selected_skill/params): Tests 127, Assertions 892, Failures 0, Deprecations 30
 	- Re-Run 2026-06-02 nach Legacy-Phase-Trace-Normalisierung (step-type -> phase keys): Tests 128, Assertions 899, Failures 0, Deprecations 30
-	- Re-Run 2026-06-02 nach Decision-Legacy-Cleanup (kein retroaktives task_call->confirm_pending Rewriting): Tests 128, Assertions 899, Failures 0, Deprecations 30
+	- Re-Run 2026-06-02 nach Decision-Legacy-Cleanup (kein retroaktives skill_call->confirm_pending Rewriting): Tests 128, Assertions 899, Failures 0, Deprecations 30
 	- Re-Run 2026-06-02 nach Prompt-Katalog-Sanitizing (embedding_json aus runtimecatalog entfernt): Tests 129, Assertions 904, Failures 0, Deprecations 30
 	- Re-Run 2026-06-02 nach Whitelist-Sanitizing fuer Planner-Katalog (nur task/intent/readonly/description/minimal_input/message_triggers/example_input): Tests 129, Assertions 918, Failures 0, Deprecations 30
 	- Re-Run 2026-06-02 nach Entfernung externer step_type-Steuerung (phase-feste Profile in orchestrator): Tests 129, Assertions 918, Failures 0, Deprecations 30

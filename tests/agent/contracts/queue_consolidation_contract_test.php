@@ -59,7 +59,7 @@ final class queue_consolidation_contract_test extends TestCase {
      */
     public function test_queue_command_mapper_prefers_prepared_input_and_preserves_metadata(): void {
         $command = queue_command_mapper::from_queue_item([
-            'task' => 'booking.create_option',
+            'skill' => 'booking.create_option',
             'version' => 3,
             'input' => ['title' => 'raw'],
             'prepared_input' => ['title' => 'prepared'],
@@ -68,7 +68,7 @@ final class queue_consolidation_contract_test extends TestCase {
         ], true);
 
         $this->assertIsArray($command);
-        $this->assertSame('booking.create_option', $command['task']);
+        $this->assertSame('booking.create_option', $command['skill']);
         $this->assertSame(3, $command['version']);
         $this->assertSame(['title' => 'prepared'], $command['input']);
         $this->assertSame('guard-123', $command['guard_token']);
@@ -80,12 +80,12 @@ final class queue_consolidation_contract_test extends TestCase {
      */
     public function test_queue_command_mapper_filters_invalid_items_and_falls_back_to_raw_input(): void {
         $commands = queue_command_mapper::from_queue_items([
-            ['task' => '', 'input' => ['x' => 1]],
-            ['task' => 'booking.update_option', 'version' => 1, 'input' => ['x' => 2]],
+            ['skill' => '', 'input' => ['x' => 1]],
+            ['skill' => 'booking.update_option', 'version' => 1, 'input' => ['x' => 2]],
         ]);
 
         $this->assertCount(1, $commands);
-        $this->assertSame('booking.update_option', $commands[0]['task']);
+        $this->assertSame('booking.update_option', $commands[0]['skill']);
         $this->assertSame(['x' => 2], $commands[0]['input']);
         $this->assertArrayNotHasKey('guard_token', $commands[0]);
     }

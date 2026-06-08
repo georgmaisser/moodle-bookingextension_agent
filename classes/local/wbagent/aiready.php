@@ -134,8 +134,8 @@ class aiready {
                 $haswunderbyteprovider = $hasnativewunderbyteprovider || $haslegacywunderbyteprovider;
 
                 // Use shared factory fallback so readiness checks stay available
-                // even when strict task-governance blocks full registry boot.
-                $registry = task_registry_factory::get_default();
+                // even when strict skill-governance blocks full registry boot.
+                $registry = skill_registry_factory::get_default();
                 $store = new conversation_store();
                 $interp = new interpreter($registry);
                 $orchestrator = new orchestrator($registry, $interp, $store);

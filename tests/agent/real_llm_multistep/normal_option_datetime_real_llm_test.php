@@ -32,7 +32,7 @@ require_once(__DIR__ . '/../abstract_agent_testcase.php');
 use bookingextension_agent\external\ai_send_message;
 
 /**
- * Ensures single-event date/time prompts use normal option task (type 0).
+ * Ensures single-event date/time prompts use normal option skill (type 0).
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -55,8 +55,8 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
 
         $this->setUser($this->teacher);
 
-        if (!$this->is_task_available('mod_booking.create_option')) {
-            $this->fail('mod_booking.create_option is not available in the current task catalog.');
+        if (!$this->is_skill_available('mod_booking.create_option')) {
+            $this->fail('mod_booking.create_option is not available in the current skill catalog.');
         }
 
         // Keep test deterministic when rerun.
@@ -111,7 +111,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         );
 
         $normalcommand = $this->extract_command_from_payload($response, 'mod_booking.create_option');
-        $normalresult = $this->extract_task_result($response, 'mod_booking.create_option');
+        $normalresult = $this->extract_skill_result($response, 'mod_booking.create_option');
         $slotcommand = $this->extract_command_from_payload($response, 'mod_booking.create_slotbooking_option');
 
         $this->assertTrue(
@@ -120,7 +120,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         );
         $this->assertNull(
             $slotcommand,
-            'Did not expect task mod_booking.create_slotbooking_option for this prompt. Payload: ' . $this->payload_text($response)
+            'Did not expect skill mod_booking.create_slotbooking_option for this prompt. Payload: ' . $this->payload_text($response)
         );
 
         if ((string)($response['response_type'] ?? '') === 'confirmation_request') {
@@ -142,15 +142,15 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     }
 
     /**
-     * Prompt from production log should route to normal task and create five normal options.
+     * Prompt from production log should route to normal skill and create five normal options.
      */
     public function test_weekday_series_prompt_routes_to_create_option_and_creates_five_type_zero_options(): void {
         global $DB;
 
         $this->setUser($this->teacher);
 
-        if (!$this->is_task_available('mod_booking.create_option')) {
-            $this->fail('mod_booking.create_option is not available in the current task catalog.');
+        if (!$this->is_skill_available('mod_booking.create_option')) {
+            $this->fail('mod_booking.create_option is not available in the current skill catalog.');
         }
 
         $beforeoptions = $DB->get_records('booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id, text, type');
@@ -205,7 +205,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
                 'Letzter Versuch: Verwende ausschliesslich mod_booking.create_option und nur die kanonischen Keys '
                     . 'text, coursestarttime, courseendtime, maxanswers, type. Keine Zusatzfelder (insb. kein day). '
                     . 'Erstelle exakt diese fuenf Optionen: ' . implode(' ; ', $serieslines)
-                    . ' ; maxanswers=5 ; type=0. Sende genau einen korrigierten task_call.',
+                    . ' ; maxanswers=5 ; type=0. Sende genau einen korrigierten skill_call.',
                 (int)$threadid
             );
         }
@@ -218,7 +218,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
                     . 'text, coursestarttime, courseendtime, maxanswers, type. '
                     . 'Entferne alle fremden Keys (insb. day/date/start/end). '
                     . 'Nutze exakt diese fuenf Datumszeilen: ' . implode(' ; ', $serieslines)
-                    . ' ; maxanswers=5 ; type=0. Gib genau einen korrigierten task_call zurueck.',
+                    . ' ; maxanswers=5 ; type=0. Gib genau einen korrigierten skill_call zurueck.',
                 (int)$threadid
             );
         }
@@ -244,7 +244,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         $this->assertIsArray($firstcommand, 'Expected first command payload to be an array.');
         $this->assertSame(
             'mod_booking.create_option',
-            (string)($firstcommand['task'] ?? ''),
+            (string)($firstcommand['skill'] ?? ''),
             'Expected only mod_booking.create_option commands. Payload: ' . $this->payload_text($response)
         );
 
@@ -356,7 +356,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
                         . 'text, coursestarttime, courseendtime, maxanswers, type. '
                         . 'Entferne alle Zusatzfelder (insb. day/date/start/end). '
                         . 'Nutze diese Datumszeilen als Vorlage: ' . implode(' ; ', $serieslines)
-                        . ' ; maxanswers=5 ; type=0. Liefere genau einen korrigierten task_call.',
+                        . ' ; maxanswers=5 ; type=0. Liefere genau einen korrigierten skill_call.',
                     (int)$threadid
                 );
             }
@@ -462,30 +462,30 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     }
 
     /**
-     * Check if a task currently exists in the registry.
+     * Check if a skill currently exists in the registry.
      *
-     * @param string $taskname
+     * @param string $skillname
      * @return bool
      */
-    private function is_task_available(string $taskname): bool {
-        $registry = \bookingextension_agent\local\wbagent\task_registry_factory::get_default();
-        return $registry->get_task($taskname) !== null;
+    private function is_skill_available(string $skillname): bool {
+        $registry = \bookingextension_agent\local\wbagent\skill_registry_factory::get_default();
+        return $registry->get_skill($skillname) !== null;
     }
 
     /**
-     * Extract first command by task name from endpoint payload.
+     * Extract first command by skill name from endpoint payload.
      *
      * @param array<string,mixed> $payload
-     * @param string $taskname
+     * @param string $skillname
      * @return array<string,mixed>|null
      */
-    private function extract_command_from_payload(array $payload, string $taskname): ?array {
+    private function extract_command_from_payload(array $payload, string $skillname): ?array {
         $commands = $this->decode_commands_from_payload($payload);
         foreach ($commands as $command) {
             if (!is_array($command)) {
                 continue;
             }
-            if ((string)($command['task'] ?? '') === $taskname) {
+            if ((string)($command['skill'] ?? '') === $skillname) {
                 return $command;
             }
         }

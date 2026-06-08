@@ -55,7 +55,7 @@ Die Inventur schlägt vor: `booking_resolution_service`, `booking_datetime_servi
 
 ```
 mod_booking/classes/local/wbagent/booking/
-├── booking_task_provider.php              (bleibt — dünner Provider-Entry)
+├── booking_skill_provider.php              (bleibt — dünner Provider-Entry)
 ├── booking_task_support.php                (bleibt — schrumpft auf Registry/Execute-Delegation)
 ├── support/
 │   ├── booking_resolution_service.php       (NEU: alle resolve_*/search_*_candidates_*)

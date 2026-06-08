@@ -77,7 +77,7 @@ class benchmark_seed_data {
      */
     public static function completed_create_option(string $title, int $optionid): array {
         return [
-            'task'   => 'mod_booking.create_option',
+            'skill'  => 'mod_booking.create_option',
             'status' => 'executed',
             'input'  => ['text' => $title, 'maxanswers' => 9],
             'result' => "Booking option created (title=\"{$title}\", id={$optionid})",

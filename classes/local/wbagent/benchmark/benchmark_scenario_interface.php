@@ -65,9 +65,9 @@ interface benchmark_scenario_interface {
     public function get_expected_response_type(): string;
 
     /**
-     * Expected task name selected by the selector. Empty string = any task acceptable.
+     * Expected skill name selected by the selector. Empty string = any skill acceptable.
      */
-    public function get_expected_task(): string;
+    public function get_expected_skill(): string;
 
     /**
      * Whether planned_steps[] is expected in the selector output.
@@ -86,7 +86,7 @@ interface benchmark_scenario_interface {
     public function get_stub_selector_response(): string;
 
     /**
-     * Additional assertions beyond response_type and task.
+     * Additional assertions beyond response_type and skill.
      * Return array of ['label' => '...', 'passed' => bool, 'detail' => '...'].
      *
      * @param array $result Normalized selector result

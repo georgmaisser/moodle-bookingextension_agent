@@ -19,10 +19,10 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\construction;
 
 use bookingextension_agent\local\wbagent\dto\parameter_construction_result;
-use bookingextension_agent\local\wbagent\interfaces\task_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 
 /**
- * Structural parameter contract validator for one selected task.
+ * Structural parameter contract validator for one selected skill.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -30,15 +30,15 @@ use bookingextension_agent\local\wbagent\interfaces\task_interface;
  */
 class parameter_contract_validator {
     /**
-     * Validate canonical input against task structural contract.
+     * Validate canonical input against skill structural contract.
      *
-     * @param task_interface $task
+     * @param skill_interface $skill
      * @param array<string,mixed> $input
      * @param string $label
      * @return parameter_construction_result
      */
-    public function validate(task_interface $task, array $input, string $label): parameter_construction_result {
-        $structural = $task->check_structure($input);
+    public function validate(skill_interface $skill, array $input, string $label): parameter_construction_result {
+        $structural = $skill->check_structure($input);
         if (($structural['valid'] ?? true) === true) {
             return new parameter_construction_result($input, true, [], []);
         }

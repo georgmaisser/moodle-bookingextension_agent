@@ -75,7 +75,7 @@ const runCollectedJavascript = (javascript) => {
 };
 
 /** @type {Array<string>} */
-const READ_ONLY_TASKS = [
+const READ_ONLY_SKILLS = [
     'booking.search_options',
     'booking.search_users',
     'booking.search_courses',
@@ -100,8 +100,8 @@ const shouldAutoExecuteReadOnly = (commands) => {
     }
 
     return commands.every((cmd) => {
-        const task = String((cmd && cmd.task) || '');
-        return READ_ONLY_TASKS.includes(task);
+        const skill = String((cmd && cmd.skill) || '');
+        return READ_ONLY_SKILLS.includes(skill);
     });
 };
 
@@ -125,7 +125,7 @@ const renderMessageDebugMeta = (meta) => {
         'loop_step',
         'loop_max_steps',
         'llm_commands_json',
-        'attempted_tasks',
+        'attempted_skills',
         'issue_codes',
         'pending_confirmation_code',
         'errors',
@@ -171,7 +171,7 @@ const renderMessageDebugJson = (meta) => {
     }
 
     return '<details class="booking-ai-debug-json">'
-        + '<summary>LLM Task JSON</summary>'
+        + '<summary>LLM Skill JSON</summary>'
         + `<pre>${escapeHtml(pretty)}</pre>`
         + '</details>';
 };
@@ -323,7 +323,7 @@ const parseCommandPayload = (raw) => {
         if (Array.isArray(parsed)) {
             return parsed;
         }
-        if (parsed && typeof parsed === 'object' && parsed.task) {
+        if (parsed && typeof parsed === 'object' && parsed.skill) {
             return [parsed];
         }
         return [];
@@ -978,7 +978,7 @@ const renderAssistantMessageHtml = (content) => {
 };
 
 /**
- * Extract the first doc URL from structured task results (docs array).
+ * Extract the first doc URL from structured skill results (docs array).
  *
  * @param {Array} results
  * @returns {string}
@@ -1215,7 +1215,7 @@ const buildFriendlyRunMessage = (status, message, results = []) => {
 };
 
 /**
- * Build a task-authored debug bubble for developer mode.
+ * Build a skill-authored debug bubble for developer mode.
  *
  * @param {string} status
  * @param {string} message
@@ -1243,7 +1243,7 @@ const buildDebugRunHtml = (status, message, results = []) => {
             + '</div>';
     }
 
-    // No task-authored debug payload available.
+    // No skill-authored debug payload available.
     // Avoid duplicating the already rendered assistant message in debug mode.
     return '';
 };
@@ -1339,7 +1339,7 @@ const handleAgentCommandResponse = (resp, source, responseType, cmds, messageTex
         return;
     }
 
-    if (responseType === 'task_call' && shouldAutoExecuteReadOnly(cmds)) {
+    if (responseType === 'skill_call' && shouldAutoExecuteReadOnly(cmds)) {
         pendingCommands = cmds;
         confirmRun(sessionAutoConfirmEnabled);
         return;
@@ -1397,7 +1397,7 @@ const showConfirmPanel = (message, commands) => {
     if (debugModeEnabled) {
         let previewHtml = `${preview.innerHTML}<ul>`;
         commands.forEach((cmd) => {
-            previewHtml += `<li><strong>${escapeHtml(cmd.task)}</strong>: ${escapeHtml(JSON.stringify(cmd.input))}`;
+            previewHtml += `<li><strong>${escapeHtml(cmd.skill)}</strong>: ${escapeHtml(JSON.stringify(cmd.input))}`;
             previewHtml += '</li>';
         });
         previewHtml += '</ul>';
@@ -1458,18 +1458,18 @@ const renderOptionPreviewsInline = (contextid, optionIds) => {
 };
 
 /**
- * Build task-authored side preview HTML when provided by results.
+ * Build skill-authored side preview HTML when provided by results.
  *
  * @param {Array} results
  * @returns {string}
  */
-const buildTaskPreviewHtml = (results = []) => {
+const buildSkillPreviewHtml = (results = []) => {
     const entries = Array.isArray(results) ? results : [];
     if (entries.length === 0) {
         return '';
     }
 
-    // Preferred path: task explicitly requests a user-profile preview.
+    // Preferred path: skill explicitly requests a user-profile preview.
     for (const result of entries) {
         const previewMode = String((result && result.previewmode) || '').trim();
         if (previewMode === 'user_profile') {
@@ -1578,9 +1578,9 @@ const showRunStatus = (status, message, results = []) => {
         });
     }
 
-    const taskPreviewHtml = buildTaskPreviewHtml(results);
-    if (taskPreviewHtml && (status === 'completed' || status === 'failed')) {
-        setSidePreviewHtml(taskPreviewHtml);
+    const skillPreviewHtml = buildSkillPreviewHtml(results);
+    if (skillPreviewHtml && (status === 'completed' || status === 'failed')) {
+        setSidePreviewHtml(skillPreviewHtml);
         return;
     }
 
@@ -1610,7 +1610,7 @@ const showRunStatus = (status, message, results = []) => {
             const actions = Array.isArray(result.actions) ? result.actions : [];
             if (actions.length > 0) {
                 return actions.map((action) => {
-                    const label = escapeHtml(String(action.label || action.task || '-'));
+                    const label = escapeHtml(String(action.label || action.skill || '-'));
                     return `<li>${label}</li>`;
                 }).join('');
             }
@@ -1685,7 +1685,7 @@ const extractPreviewOptionIds = (results) => {
  * Collect all preview option ids from a WS response.
  *
  * Prefers the dedicated previewoptionidsjson field (populated server-side from
- * the full task result), then merges with extractPreviewOptionIds(results) as
+ * the full skill result), then merges with extractPreviewOptionIds(results) as
  * a fallback, and finally falls back to the scalar previewoptionid.
  *
  * @param {Object} resp     WS response object.
@@ -2157,7 +2157,7 @@ const sendMessage = (message) => {
             showRunStatus(resp.status || 'completed', resp.displaymessage || resp.message || '', results);
 
             resumeStepPolling();
-        } else if (resp.response_type === 'confirmation_request' || resp.response_type === 'task_call') {
+        } else if (resp.response_type === 'confirmation_request' || resp.response_type === 'skill_call') {
             try {
                 handleConfirmationResponse(resp, 'ai_send_message');
             } catch (e) {
@@ -2240,9 +2240,9 @@ const confirmRun = (allowSession = false) => {
             // Steps are ephemeral loading indicators. Clear them and stop polling when response arrives.
             stopStepPolling();
             clearStepBubbles();
-            // After confirmation, resume polling only if agent loop continues (execution_result, task_call).
+            // After confirmation, resume polling only if agent loop continues (execution_result, skill_call).
             // For final responses (sufficient, error) or clarification, polling already stopped above.
-            if (responseType === 'execution_result' || responseType === 'task_call') {
+            if (responseType === 'execution_result' || responseType === 'skill_call') {
                 appendStepBubble(stepExecutingLabel, 0);
                 resumeStepPolling();
             }

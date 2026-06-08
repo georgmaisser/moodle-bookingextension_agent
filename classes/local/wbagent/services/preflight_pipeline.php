@@ -21,10 +21,10 @@ namespace bookingextension_agent\local\wbagent\services;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\interfaces\external_dependency_checker_interface;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Unified preflight pipeline for mutating command batches.
@@ -34,8 +34,8 @@ use bookingextension_agent\local\wbagent\task_registry;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preflight_pipeline {
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -58,12 +58,12 @@ class preflight_pipeline {
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param conversation_store $store
      * @param external_dependency_checker_interface|null $externaldependencychecker
      */
     public function __construct(
-        task_registry $registry,
+        skill_registry $registry,
         conversation_store $store,
         ?external_dependency_checker_interface $externaldependencychecker = null
     ) {
@@ -83,12 +83,12 @@ class preflight_pipeline {
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issues:array<int,array<string,mixed>>}
+     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_skills:array<int,string>,issues:array<int,array<string,mixed>>}
      */
     public function run(array $commands, int $threadid, int $contextid, int $userid): array {
         $preparedcommands = [];
         $errors = [];
-        $attemptedtasks = [];
+        $attemptedskills = [];
         $issuecodes = [];
         $issues = [];
         $layer1issuecodes = [];
@@ -113,13 +113,13 @@ class preflight_pipeline {
                 continue;
             }
 
-            $taskname = trim((string)($command['task'] ?? ''));
-            if ($taskname === '') {
-                $errors[] = $label . ': missing task.';
+            $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            if ($skillname === '') {
+                $errors[] = $label . ': missing skill.';
                 $issuecodes[] = 'SCHEMA_ERROR';
                 continue;
             }
-            $attemptedtasks[] = $taskname;
+            $attemptedskills[] = $skillname;
 
             $skipcontractschema = !empty($command['_structural_validated']);
             if (!$skipcontractschema) {
@@ -142,8 +142,8 @@ class preflight_pipeline {
 
                     $this->auditlogger->append($threadid, 0, [
                         'contextid' => $contextid,
-                        'taskname' => $taskname,
-                        'task_version' => max(1, (int)($command['version'] ?? 1)),
+                        'skillname' => $skillname,
+                        'skill_version' => max(1, (int)($command['version'] ?? 1)),
                         'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
                         'status' => $result->status,
                         'reason_code' => 'PREFLIGHT_SCHEMA_INVALID',
@@ -158,7 +158,7 @@ class preflight_pipeline {
                         false,
                         $preparedcommands,
                         array_values(array_unique(array_merge($errors, (array)($schemavalidation['errors'] ?? [])))),
-                        $attemptedtasks,
+                        $attemptedskills,
                         array_values(array_unique(array_merge($issuecodes, (array)($result->issuecodes ?? [])))),
                         $issues,
                         $result
@@ -166,10 +166,10 @@ class preflight_pipeline {
                 }
             }
 
-            $task = $this->registry->get_task($taskname);
-            if ($task === null) {
-                $errors[] = $label . ': task ' . $taskname . ' is not registered.';
-                $issuecodes[] = preflight_contract_validator::ISSUE_TASK_NOT_REGISTERED;
+            $skill = $this->registry->get_skill($skillname);
+            if ($skill === null) {
+                $errors[] = $label . ': skill ' . $skillname . ' is not registered.';
+                $issuecodes[] = preflight_contract_validator::ISSUE_SKILL_NOT_REGISTERED;
                 continue;
             }
 
@@ -178,7 +178,7 @@ class preflight_pipeline {
                 $input = $anonymizer->deanonymize_command_input_for_active_user($contextid, $userid, $input);
             }
 
-            $preflightresult = $task->preflight($input, $contextid, $userid);
+            $preflightresult = $skill->preflight($input, $contextid, $userid);
             foreach ($preflightresult->issuecodes as $code) {
                 if ($code !== '') {
                     $issuecodes[] = $code;
@@ -196,8 +196,8 @@ class preflight_pipeline {
                 continue;
             }
 
-            $taskriskclass = $this->resolve_command_risk_class($command);
-            if ($taskriskclass === task_risk_class::R3) {
+            $skillriskclass = $this->resolve_command_risk_class($command);
+            if ($skillriskclass === skill_risk_class::R3) {
                 $externalresult = $this->externaldependencychecker->check($command, $contextid, $userid);
                 foreach ($externalresult->issuecodes as $code) {
                     if ($code !== '') {
@@ -242,7 +242,7 @@ class preflight_pipeline {
         $errorclass = preflight_error_classifier::infer_from_issue_codes($combinedissuecodes);
         $result = $domainresult;
         if (
-            in_array($batchriskclass, [task_risk_class::R2, task_risk_class::R3], true)
+            in_array($batchriskclass, [skill_risk_class::R2, skill_risk_class::R3], true)
             && preflight_error_classifier::is_retryable_error_class($errorclass)
         ) {
             $result = $this->executiongate->evaluate($errorclass, 0, $combinedissuecodes);
@@ -285,7 +285,7 @@ class preflight_pipeline {
             $valid,
             $preparedcommands,
             array_values(array_unique($errors)),
-            $attemptedtasks,
+            $attemptedskills,
             array_values(array_unique(array_merge($combinedissuecodes, (array)$result->issuecodes))),
             $issues,
             $result
@@ -299,14 +299,14 @@ class preflight_pipeline {
      * @return string
      */
     private function resolve_batch_risk_class(array $commands): string {
-        $highest = task_risk_class::R0;
+        $highest = skill_risk_class::R0;
         foreach ($commands as $command) {
             if (!is_array($command)) {
                 continue;
             }
-            $taskriskclass = $this->resolve_command_risk_class($command);
-            if ($this->risk_class_rank($taskriskclass) > $this->risk_class_rank($highest)) {
-                $highest = $taskriskclass;
+            $skillriskclass = $this->resolve_command_risk_class($command);
+            if ($this->risk_class_rank($skillriskclass) > $this->risk_class_rank($highest)) {
+                $highest = $skillriskclass;
             }
         }
 
@@ -321,22 +321,22 @@ class preflight_pipeline {
      */
     private function resolve_command_risk_class(array $command): string {
         $riskclass = trim((string)($command['risk_class'] ?? ''));
-        if (task_risk_class::is_valid($riskclass)) {
+        if (skill_risk_class::is_valid($riskclass)) {
             return $riskclass;
         }
 
-        $taskname = trim((string)($command['task'] ?? ''));
-        if ($taskname !== '') {
-            $task = $this->registry->get_task($taskname);
-            if ($task !== null) {
-                $taskriskclass = trim($task->get_risk_class());
-                if (task_risk_class::is_valid($taskriskclass)) {
-                    return $taskriskclass;
+        $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        if ($skillname !== '') {
+            $skill = $this->registry->get_skill($skillname);
+            if ($skill !== null) {
+                $skillriskclass = trim($skill->get_risk_class());
+                if (skill_risk_class::is_valid($skillriskclass)) {
+                    return $skillriskclass;
                 }
             }
         }
 
-        return task_risk_class::R3;
+        return skill_risk_class::R3;
     }
 
     /**
@@ -347,9 +347,9 @@ class preflight_pipeline {
      */
     private function risk_class_rank(string $riskclass): int {
         return match ($riskclass) {
-            task_risk_class::R0 => 0,
-            task_risk_class::R1 => 1,
-            task_risk_class::R2 => 2,
+            skill_risk_class::R0 => 0,
+            skill_risk_class::R1 => 1,
+            skill_risk_class::R2 => 2,
             default => 3,
         };
     }
@@ -360,17 +360,17 @@ class preflight_pipeline {
      * @param bool $valid
      * @param array<int,array<string,mixed>> $preparedcommands
      * @param array<int,string> $errors
-     * @param array<int,string> $attemptedtasks
+     * @param array<int,string> $attemptedskills
      * @param array<int,string> $issuecodes
      * @param array<int,array<string,mixed>> $issues
      * @param preflight_result_v2 $result
-     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_tasks:array<int,string>,issues:array<int,array<string,mixed>>}
+     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_skills:array<int,string>,issues:array<int,array<string,mixed>>}
      */
     private function build_output(
         bool $valid,
         array $preparedcommands,
         array $errors,
-        array $attemptedtasks,
+        array $attemptedskills,
         array $issuecodes,
         array $issues,
         preflight_result_v2 $result
@@ -384,27 +384,27 @@ class preflight_pipeline {
         return array_merge($v2result, [
             'prepared_commands' => $preparedcommands,
             'errors' => array_values(array_unique(array_map('strval', $errors))),
-            'attempted_tasks' => array_values(array_unique(array_map('strval', $attemptedtasks))),
+            'attempted_skills' => array_values(array_unique(array_map('strval', $attemptedskills))),
             'issue_codes' => array_values(array_unique(array_map('strval', $issuecodes))),
             'issues' => array_values(array_filter($issues, static fn($issue): bool => is_array($issue))),
         ]);
     }
 
     /**
-     * Return unambiguous task audit fields for single-command preflight runs.
+     * Return unambiguous skill audit fields for single-command preflight runs.
      *
      * @param array<int,array<string,mixed>> $commands
-     * @return array{taskname:string,task_version:int}
+     * @return array{skillname:string,skill_version:int}
      */
     private function build_audit_command_context(array $commands): array {
         if (count($commands) !== 1 || !is_array($commands[0] ?? null)) {
-            return ['taskname' => '', 'task_version' => 0];
+            return ['skillname' => '', 'skill_version' => 0];
         }
 
         $command = (array)$commands[0];
         return [
-            'taskname' => trim((string)($command['task'] ?? '')),
-            'task_version' => max(1, (int)($command['version'] ?? 1)),
+            'skillname' => trim((string)($command['skill'] ?? $command['skill'] ?? '')),
+            'skill_version' => max(1, (int)($command['version'] ?? 1)),
         ];
     }
 

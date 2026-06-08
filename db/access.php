@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Capabilities for bookingextension_agent tasks.
+ * Capabilities for bookingextension_agent skills.
  *
  * @package    bookingextension_agent
  * @category   access
@@ -33,7 +33,7 @@ $capabilities = [
             'editingteacher' => CAP_ALLOW,
         ],
     ],
-    'bookingextension/agent:debugtaskselection' => [
+    'bookingextension/agent:debugskillselection' => [
         'captype' => 'write',
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => [
@@ -42,7 +42,7 @@ $capabilities = [
     ],
 ];
 
-$teachertasks = [
+$teacherskills = [
     'examples_multistep_example',
     'examples_readonly_example',
     'examples_spawn_child_example',
@@ -68,7 +68,7 @@ $teachertasks = [
     'booking_diagnose_booking_issue',
     'booking_diagnose_cancellation_issue',
     'booking_explain_docs_topic',
-    'booking_explain_task_schema',
+    'booking_explain_skill_schema',
     'core_get_current_user',
     'booking_get_option_details',
     'core_list_actions',
@@ -80,7 +80,7 @@ $teachertasks = [
     'booking_update_option',
 ];
 
-$managertasks = [
+$managerskills = [
     'booking_analyze_rules',
     'booking_configure_booking_instance',
     'booking_core_create_calendar_event',
@@ -105,12 +105,12 @@ $managertasks = [
     'booking_update_rule_from_template',
 ];
 
-$adminonlytasks = [
+$adminonlyskills = [
     'booking_create_user',
-    'core_recreate_task_catalog',
+    'core_recreate_skill_catalog',
 ];
 
-$buildtaskcapability = static function (string $tasksuffix, string $role): array {
+$buildskillcapability = static function (string $skillsuffix, string $role): array {
     $definition = [
         'riskbitmask' => RISK_DATALOSS | RISK_XSS,
         'captype' => 'write',
@@ -131,19 +131,19 @@ $buildtaskcapability = static function (string $tasksuffix, string $role): array
             'manager' => CAP_ALLOW,
         ];
     }
-    return ['bookingextension/agent:task_' . $tasksuffix => $definition];
+    return ['bookingextension/agent:skill_' . $skillsuffix => $definition];
 };
 
-foreach ($teachertasks as $tasksuffix) {
-    $capabilities += $buildtaskcapability($tasksuffix, 'teacher');
+foreach ($teacherskills as $skillsuffix) {
+    $capabilities += $buildskillcapability($skillsuffix, 'teacher');
 }
 
-foreach ($managertasks as $tasksuffix) {
-    $capabilities += $buildtaskcapability($tasksuffix, 'manager');
+foreach ($managerskills as $skillsuffix) {
+    $capabilities += $buildskillcapability($skillsuffix, 'manager');
 }
 
-foreach ($adminonlytasks as $tasksuffix) {
-    $capabilities += $buildtaskcapability($tasksuffix, 'admin');
+foreach ($adminonlyskills as $skillsuffix) {
+    $capabilities += $buildskillcapability($skillsuffix, 'admin');
 }
 
 // Benchmark capabilities.

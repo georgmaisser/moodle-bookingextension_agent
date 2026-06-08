@@ -45,7 +45,7 @@ final class message_persistence_contract_test extends TestCase {
         $expectedphasetrace = [
             'discovery' => ['phase' => 'discovery', 'response_type' => 'clarification'],
             'selection' => ['phase' => 'selection', 'response_type' => 'clarification'],
-            'parameter_construction' => ['phase' => 'parameter_construction', 'response_type' => 'task_call'],
+            'parameter_construction' => ['phase' => 'parameter_construction', 'response_type' => 'skill_call'],
         ];
 
         $store->expects($this->once())
@@ -72,7 +72,7 @@ final class message_persistence_contract_test extends TestCase {
 
         $svc = new message_persistence_service($store);
         $svc->persist_assistant_message(123, [
-            'response_type' => 'task_call',
+            'response_type' => 'skill_call',
             'message' => 'done',
             'phase_trace' => $expectedphasetrace,
             'planner_result' => [

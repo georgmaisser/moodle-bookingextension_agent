@@ -41,6 +41,7 @@ flowchart TD
         CS13["consume_pending_intent(threadid, userid, contextid)"]
         CS14["set/get user_input_lang metadata\n(authoritative turn language)"]
         CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start"]
+        CS16["add_step_message(threadid, stepnum, label, skill)"]
     end
 
     %% =========================================================
@@ -50,7 +51,7 @@ flowchart TD
         RUN["run(threadid, contextid, userid)\ncontext entry"]
         RUNLOOP["run_loop(threadid, contextid, userid, maxsteps=0)\nMAX_LOOP_STEPS = 6"]
         LOOP_INIT["agent_state::make(limit)"]
-        LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\nclear_step_messages()"]
+        LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\nclear_step_messages()\n+ add_step_message(next_step_intent)"]
         RUNINT["run_internal(threadid, contextid, userid, observations, state)\n→ normalized result"]
         EXEC_GATE{"response_type == execution_result?"}
         OBS_ACCUM["observation_builder + result_payload_summarizer\nprivacy_anonymizer::anonymize_value_for_llm()\nbuild_preflight_retry_observation() on RECOVERABLE_INPUT_ERROR\nstate.add_observation(observation)"]
@@ -64,7 +65,7 @@ flowchart TD
         FCLASS["finalization_classifier\ninputs: response_type + has_commands\n+ issue_codes + error_class\n+ structural_failure flag"]
         CONF_TERM["confirm terminalization gate\n(successful confirmed execution\n+ no next mutating queue item\n+ no planned placeholder items)"]
         CONF_FOLLOW["confirm follow-up gate\n(error/retry/next mutating item\nOR planned placeholder items present\n-> continue runtime loop)"]
-        DIRECT_FINAL["direct finalization\nstructured / risky / non-message paths\n(task_call / confirmation_request / schema_error / dependency_cycle)"]
+        DIRECT_FINAL["direct finalization\nstructured / risky / non-message paths\n(skill_call / confirmation_request / schema_error / dependency_cycle)"]
         ENFORCE["enforce_final_response_contract(result, threadid)"]
         MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
     end
@@ -73,32 +74,32 @@ flowchart TD
     %% ORCHESTRATOR
     %% =========================================================
     subgraph ORCH["planner orchestrator — Explicit Planner Contract"]
-        ORC["process(threadid, contextid, userid, observations)\nstrict phase pipeline: discovery -> selection -> parameter_construction\nno step_type shortcuts and no combined task-choice + parameter-generation step"]
+        ORC["process(threadid, contextid, userid, observations)\nstrict phase pipeline: discovery -> selection -> parameter_construction\nno step_type shortcuts and no combined skill-choice + parameter-generation step"]
         PPB["phase_prompt_bundle_builder::build()\nseparate prompts/profiles:\nselector.md | constructor.md"]
         OR_LANG["planner language contract\nall phase JSON follows latest user message\n(no de/en token lists in routing)"]
         DISC_CTX["context_prior_builder\nsignals: current cm/course/page type/user state\nused as ranking prior, never hard filter"]
-        FREG["family_registry_service\nDomain/Context -> Task Family map\nthird-party extensible contracts"]
+        FREG["family_registry_service\nDomain/Context -> Skill Family map\nthird-party extensible contracts"]
         CORESET["core_family_set\nalways-on family baseline\n(core.* + platform safety families)"]
         EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
-        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users: always-include downstream tasks\n(ALWAYS_INCLUDE_TASK_NAMES in adaptive_task_catalog_service)"]
-        FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete tasks)\nonly on wunderbyte+embeddings-ready path"]
+        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users: always-include downstream skills\n(ALWAYS_INCLUDE_SKILL_NAMES in adaptive_skill_catalog_service)"]
+        FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete skills)\nonly on wunderbyte+embeddings-ready path"]
         FSIG["family_signal_ranker\nlanguage-agnostic signals:\nintent_code + trigger_id + context_prior + recency\n(no lexical keyword dependency)"]
         DISC_A["discovery stage A (default)\ncontext families + core families only\nslim family cards with hard budget"]
         DISC_A_OK{"coverage/confidence\nsufficient?"}
         DISC_B["discovery stage B\nadd adjacent domain families\nkeep bounded expansion budget"]
         DISC_B_OK{"coverage/confidence\nsufficient?"}
-        DISC_C["discovery stage C (last resort)\nglobal slim family fallback\nstrict hard budget, never full task dump"]
+        DISC_C["discovery stage C (last resort)\nglobal slim family fallback\nstrict hard budget, never full skill dump"]
         FRANK["family_ranker\nscore = semantic_similarity(optional) + signal_score + context_prior\n+ optional recency_bias\nkeeps low-score tail for recall safety"]
-        TASKLOAD["lazy_task_loader\nload concrete tasks only for ranked families\nload minimal task contracts first\nload full schema only on demand"]
-        TSEL["task_selector\nselect concrete task inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nplanned_steps[] REQUIRED in every selector output:\n  → [] for single-step or when [PENDING PLANNED STEPS] in context\n  → [{intent:...},...] for multi-step first turn (future steps only)\nnext_step_intent REQUIRED: always string, never null"]
-        PCON["parameter_constructor\nbuild parameters only after concrete task selection\nsingle-task schema focus (50+ properties supported)"]
+        SKILLLOAD["lazy_skill_loader\nload concrete skills only for ranked families\nload minimal skill contracts first\nload full schema only on demand"]
+        TSEL["skill_selector\nselect concrete skill inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nplanned_steps[] REQUIRED in every selector output:\n  → [] for single-step or when [PENDING PLANNED STEPS] in context\n  → [{intent:...},...] for multi-step first turn (future steps only)\nnext_step_intent REQUIRED: always string, never null"]
+        PCON["parameter_constructor\nbuild parameters only after concrete skill selection\nsingle-skill schema focus (50+ properties supported)"]
         PVAL["parameter_contract_validator\ncheck structure + schema + ambiguity rules\nemit clarification / recoverable_input_error when needed"]
         ORCSVC["orchestrator_routing_service\nresolve model/action per phase\nselection(selector) -> construction(constructor-only)\nphase fallback chain applies independently"]
-        SPLLM["llm_call_service::invoke(..., source=planner_selection, action_class=selector_pick_task)\nPhase 1 call"]
+        SPLLM["llm_call_service::invoke(..., source=planner_selection, action_class=selector_pick_skill)\nPhase 1 call"]
         SINT["interpreter::interpret_phase_output(raw, selection, context)\nparse + contract + normalization"]
-        SELTASK["selected_task handoff\nexactly one task\nfrom selector to constructor"]
+        SELSKILL["selected_skill handoff\nexactly one skill\nfrom selector to constructor"]
         CPLLM["llm_call_service::invoke(..., source=planner_construction, action_class=constructor_build_params)\nPhase 2 call"]
-        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization\ncommand envelope: use only task/version/input|parameters\nignore unknown command-level keys"]
+        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization\ncommand envelope: use only skill/version/input|parameters\nignore unknown command-level keys"]
         PCOMP["planner_result_composer\ncompose unified planner result\npersist planner_trace_history + phase_trace"]
         RESP_TYPE{"parsed\nresponse_type"}
     end
@@ -109,7 +110,7 @@ flowchart TD
     subgraph SYNC["synchronizer — Final User-Facing Contract"]
         SYNC_RUN["synchronize(threadid, contextid, userid,\nplanner_result, observations, state)\nLLM polish only for humanizable states\n(sufficient / clarification / safe domain error)\nNEVER suggest manual steps when next_step_intent\nor planned_steps indicate pending agent actions"]
         SYNC_TEMPLATE["synchronize_template_only(threadid, contextid, userid,\nterminal_result, state)\nno LLM call\nfor budget_exceeded / hard_block_with_user_message"]
-        SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n+ confirm path: execution feedback as observation context\n→ no task discovery / no command mutation"]
+        SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n+ confirm path: execution feedback as observation context\n→ no skill discovery / no command mutation"]
         SYNC_PPB["synchronizer_prompt_builder::build()\nseparate synchronizer prompt/profile\n(synchronizer_profile.md)"]
         SYNC_LANG["synchronizer language contract\nfinal reply follows latest user message\nmessage quality > routing detail"]
         SYNC_GATE["message-bearing terminal state?\n  R0 sufficient    → SYNC_RUN (optional, no LLM needed)\n  R1/R2 sufficient → SYNC_RUN (LLM polish)\n  R3 sufficient    → SYNC_RUN (LLM + irreversibility notice)\n  clarification    → DIRECT_FINAL (structure protection)\n  confirmation_request → DIRECT_FINAL or SYNC_RUN with rollback-guard\n  error / budget_exceeded → SYNC_RUN (humanize, template-only for hard errors)\n  structural failures → DIRECT_FINAL"]
@@ -130,7 +131,7 @@ flowchart TD
         D_PENDING_OUT["→ clarification pending-resolution required"]
         D_LOOKUP_GUARD{"core.is_lookup_request\n+ mutating commands?"}
         D_LOOKUP_OUT["→ clarification lookup-blocked-mutation"]
-        D_PROMOTE["mutating task_call\n→ confirmation_request\nrisk_class gating:\n  R1 → session-allow ok (TTL 900s)\n  R2 → session-allow ignored, always explicit\n  R3 → always manual, no session-allow"]
+        D_PROMOTE["mutating skill_call\n→ confirmation_request\nrisk_class gating:\n  R1 → session-allow ok (TTL 900s)\n  R2 → session-allow ignored, always explicit\n  R3 → always manual, no session-allow"]
         D_SAFE_CTX["safety_context DTO\ninput: parsed intent + trigger signals\noutput: issue_codes + route hints\n+ pending policy"]
         D_ROUTE{"response_type"}
         D_CONFIRM_PENDING["confirm_pending →\nhandle_confirm_pending()\n(re-preflight pending mutation)"]
@@ -153,7 +154,7 @@ flowchart TD
         L1_FAIL["hard_block\nblockinglayer: schema\nISSUE: SCHEMA_ERROR\n/ SCHEMA_UNAVAILABLE"]
 
         subgraph L2["Layer 2 — Domain Prepare"]
-            PF_L2P["task::preflight(input, contextid, userid)\n— DB-dependent prepare + validation\n— late-bound dependency outputs allowed\n→ preflight_result_v2"]
+            PF_L2P["skill::preflight(input, contextid, userid)\n— DB-dependent prepare + validation\n— late-bound dependency outputs allowed\n→ preflight_result_v2"]
             PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, PROVIDER_CONFIRMABLE_*"]
         end
         L2_STATUS{"preflight\nstatus?"}
@@ -186,7 +187,7 @@ flowchart TD
         Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
         Q_READY["status: ready"]
         Q_BLOCKED["status: blocked_confirmation\nR1: blocked_expires_at = now + 900s\nR2: blocked_expires_at = now + 300s\nR3: blocked_expires_at = now + 900s\nmanually only, no auto-consume"]
-        Q_PLANNED["status: planned (placeholder)\nintent string only — no task name, no parameters yet\ncreated by selector on first turn of multi-step request\nconsumed (→ succeeded) when real task is enqueued\ntriggers CONF_FOLLOW while present\nchecked via has_planned_placeholders()"]
+        Q_PLANNED["status: planned (placeholder)\nintent string only — no skill name, no parameters yet\ncreated by selector on first turn of multi-step request\nconsumed (→ succeeded) when real skill is enqueued\ntriggers CONF_FOLLOW while present\nchecked via has_planned_placeholders()"]
         Q_RETRY["status: retry_waiting\nnext_retry_at = now + retry_after_ms\nbackoff_ms persisted\nR3: no execution retry, direct FAIL_OUT on transient error"]
         Q_RTRACE["retry metadata on queue item\nretry_layer + retry_origin + retry_reason\nretry_attempt + retry_hint_category\nretry_layers (max 2 distinct layers per error_class)"]
         Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_TIMEOUT)"]
@@ -200,10 +201,10 @@ flowchart TD
     subgraph EXEC["Execution Layer (executor.php)"]
         EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
-        EXC_EVAL["task_executability_evaluator\n::evaluate_task(taskname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
+        EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
         EXC_GUARD["execution_guard::verify(\n  prepared_input, execution_guard_token,\n  contextid, userid)\nno second full preflight"]
         EXC_GUARD_OK{"guard\npass?"}
-        EXC_RUN["task::execute(prepared_input, contextid, userid)\n→ result payload"]
+        EXC_RUN["skill::execute(prepared_input, contextid, userid)\n→ result payload"]
         EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
         EXC_SPAWN["spawn_handler (contract path)\nspawn_commands schema/normalization present\nruntime enqueue path currently optional"]
@@ -211,18 +212,18 @@ flowchart TD
     end
 
     %% =========================================================
-    %% TASK LAYER
+    %% SKILL LAYER
     %% =========================================================
-    subgraph TASKS["Task Layer"]
-        TR["task_registry\nregister(provider)\nget_task(name)\nis_read_only_task()\nis_task_active()\nget_task_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()"]
-        TRFAC["task_registry_factory\n→ provider-first wiring of task_provider_interface\n  implementations (auto-discovery)\n→ if no provider exists: direct task discovery\n  under classes/local/wbagent/*/tasks\n→ if provider exists: no additional fallback scan"]
-        TI["task_interface\nget_name() · get_schema()\nget_prompt_contract()\nget_risk_class(): task_risk_class\ncheck_structure(input)\npreflight(input,contextid,userid): preflight_result_v2\nexecute(prepared_input,contextid,userid): array\nis_read_only(): bool"]
-        TPC["task_prompt_contract DTO\nintent · anchors · minimal_input · example_input\nnamespace · version · capabilities · context scopes\nrisk_class: task_risk_class\nvalidated by task_contract_validator"]
-        TRC["task_risk_class (enum/DTO)\nR0: read_only\nR1: scoped_write\nR2: broad_write\nR3: irreversible_or_external"]
-        BT["base_task (abstract)\ncheck_structure() → pass\npreflight() → pass (override for DB checks)\nexecute() → abstract\nget_risk_class() → default/override contract"]
-        BTASK["booking_task_base\n→ focused task set only\nnew tasks must declare explicit prompt contract"]
-        CTASK["core_task_base\n→ focused task set only\nnew tasks must declare explicit prompt contract"]
-        TCV["task_contract_validator\n::build_task_metadata(task, component)\nnamespace · version · capabilities · active flag\nrisk_class included in metadata\n+ verify_risk_class_declaration()\n  R0 must match is_read_only()\n  R2/R3 require explicit scope declaration\n  mismatch → deny / not activatable"]
+    subgraph SKILLS["Skill Layer"]
+        TR["skill_registry\nregister(provider)\nget_skill(name)\nis_read_only_skill()\nis_skill_active()\nget_skill_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()"]
+        TRFAC["skill_registry_factory\n→ provider-first wiring of skill_provider_interface\n  implementations (auto-discovery)\n→ if no provider exists: direct skill discovery\n  under classes/local/wbagent/*/skills\n→ if provider exists: no additional fallback scan"]
+        TI["skill_interface\nget_name() · get_schema()\nget_prompt_contract()\nget_risk_class(): skill_risk_class\ncheck_structure(input)\npreflight(input,contextid,userid): preflight_result_v2\nexecute(prepared_input,contextid,userid): array\nis_read_only(): bool"]
+        TPC["skill_prompt_contract DTO\nintent · anchors · minimal_input · example_input\nnamespace · version · capabilities · context scopes\nrisk_class: skill_risk_class\nvalidated by skill_contract_validator"]
+        TRC["skill_risk_class (enum/DTO)\nR0: read_only\nR1: scoped_write\nR2: broad_write\nR3: irreversible_or_external"]
+        BT["base_skill (abstract)\ncheck_structure() → pass\npreflight() → pass (override for DB checks)\nexecute() → abstract\nget_risk_class() → default/override contract"]
+        BSKILL["booking_skill_base\n→ focused skill set only\nnew skills must declare explicit prompt contract"]
+        CSKILL["core_skill_base\n→ focused skill set only\nnew skills must declare explicit prompt contract"]
+        TCV["skill_contract_validator\n::build_skill_metadata(skill, component)\nnamespace · version · capabilities · active flag\nrisk_class included in metadata\n+ verify_risk_class_declaration()\n  R0 must match is_read_only()\n  R2/R3 require explicit scope declaration\n  mismatch → deny / not activatable"]
     end
 
     %% =========================================================
@@ -230,10 +231,10 @@ flowchart TD
     %% =========================================================
     subgraph SUPPORT["Support Services"]
         ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_for_display()"]
-        EMBS["family_embeddings_retrieval_service\nused in discovery phase for family ranking\nnot for direct task-level top-k selection"]
+        EMBS["family_embeddings_retrieval_service\nused in discovery phase for family ranking\nnot for direct skill-level top-k selection"]
         LANG["language_policy_service\nsource priority: latest user message\n→ model-declared user_lang\n→ technical fallback\nformats all framework-generated replies"]
-        MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→task routing)"]
-        DNORM["domain_normalizer_hook\nprovider-supplied normalization\n(no framework task heuristics)"]
+        MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→skill routing)"]
+        DNORM["domain_normalizer_hook\nprovider-supplied normalization\n(no framework skill heuristics)"]
         AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
         ISCP["domain_issue_code_provider\nimplements issue_code_provider_interface\nprovider defines confirmable and domain-specific issue groups"]
         BIRS["domain_issue_code_resolver\n(provider-side helper/module)"]
@@ -245,7 +246,7 @@ flowchart TD
     subgraph OUTCOMES["Observation Builder Outputs → Loop Continuation"]
         OB_OUT["observation_builder::build_observation()\n+ result_payload_summarizer::for_observation()\n→ compact observation string"]
         REPLAN["Next loop step with accumulated observations\n(next planner turn restarts at discovery phase)"]
-        FINAL_OUT["final normalized response persisted\n(clarification / confirmation_request / sufficient / error / task_call)"]
+        FINAL_OUT["final normalized response persisted\n(clarification / confirmation_request / sufficient / error / skill_call)"]
         SKIP_OUT["logical_skip observation\n(non-failure dependency skip)"]
         IDEM_OUT["idempotent_skip terminal\n(already executed)"]
         FAIL_OUT["failed — terminal\n(hard_block / budget_exceeded\n/ retry_exhausted / dep_cycle)"]
@@ -265,6 +266,7 @@ flowchart TD
     ACR --> AZ3
     ACD --> AZ3
     APO --> AZ3
+    APO -.->|"fetch steps lock-free"| CS16
     APREVIEW --> AZ3
     ACR -->|"allow_session=true"| CS11
     ACR -->|"executionmode=adhoc\nqueue_adhoc_task"| ADHOC
@@ -284,6 +286,7 @@ flowchart TD
     LOOP_INIT --> LOOP_STEP
     LOOP_STEP --> CS9
     LOOP_STEP --> RUNINT
+    LOOP_STEP -.->|"write next_step_intent"| CS16
 
     %% run_internal → orchestrator staged pipeline
     RUNINT --> ORC
@@ -308,16 +311,16 @@ flowchart TD
     DISC_B_OK -->|yes| FRANK
     DISC_B_OK -->|no| DISC_C
     DISC_C --> FRANK
-    FRANK --> TASKLOAD
-    TASKLOAD --> TSEL
+    FRANK --> SKILLLOAD
+    SKILLLOAD --> TSEL
     OR_LANG --> LANG
     ORC --> ORCSVC
     PPB --> SPLLM
     ORCSVC --> SPLLM
     TSEL --> SPLLM
     SPLLM -->|raw selection output| SINT
-    SINT --> SELTASK
-    SELTASK --> PCON
+    SINT --> SELSKILL
+    SELSKILL --> PCON
     PPB --> CPLLM
     ORCSVC --> CPLLM
     PCON --> CPLLM
@@ -345,7 +348,7 @@ flowchart TD
     D_PROMOTE --> D_ROUTE
 
     D_ROUTE -->|confirm_pending| D_CONFIRM_PENDING
-    D_ROUTE -->|task_call / confirmation_request| D_CMD_ROUTE
+    D_ROUTE -->|skill_call / confirmation_request| D_CMD_ROUTE
     D_ROUTE -->|clarification / sufficient / error| D_STORE_PENDING
 
     D_CONFIRM_PENDING --> D_STORE_PENDING
@@ -405,7 +408,7 @@ flowchart TD
     Q_RUNNING -->|slot free| EXC
 
     %% Blocked confirmation TTL
-    Q_PLANNED -->|"real task enqueued → consume_next_placeholder()"| Q_UPDST
+    Q_PLANNED -->|"real skill enqueued → consume_next_placeholder()"| Q_UPDST
     Q_PLANNED -.->|"has_planned_placeholders() → true"| CONF_FOLLOW
     Q_BLOCKED -->|"TTL check: fail_expired_blocked_items()"| Q_FAIL_TTL
     Q_FAIL_TTL --> FAIL_OUT
@@ -496,15 +499,15 @@ flowchart TD
     ENFORCE --> MPS
     MPS -->|"add_message(assistant)"| CS2
 
-    %% Task layer wiring
+    %% Skill layer wiring
     TRFAC --> TR
     TR --> TI
     TI --> TPC
     TI --> TRC
     TPC --> TRC
     TR --> BT
-    BT --> BTASK
-    BT --> CTASK
+    BT --> BSKILL
+    BT --> CSKILL
     TCV --> TR
     TRC --> TCV
     EXC_EVAL --> TR
@@ -536,24 +539,24 @@ flowchart TD
         LG_AUTO["Auto-confirm\nconfirmation_request + session allowlist\nkeyed by user + contextid\n→ ai_confirm_run without manual click"]
         LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
         LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]
-        LG_3P["Third-party onboarding\nprovider + task contract only\nno framework rewiring"]
+        LG_3P["Third-party onboarding\nprovider + skill contract only\nno framework rewiring"]
         LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
-        LG_PLAN["Planner contract\nstrict split: deterministic discovery -> selection -> parameter_construction\nexactly two planner LLM calls and two planner phase outputs\nDiscovery defaults to context + core families (Stage A)\nif low confidence: Stage B adjacent families -> Stage C global slim fallback\nDual discovery path is mandatory:\n- with aiprovider_wunderbyte + embeddings ready: semantic family retrieval is active, weighted by context_prior + signals\n- without embeddings/provider: deterministic family derivation from Moodle context + core families + signals remains active\nSelector always receives deterministic, budgeted family-scoped task candidates in both paths\nFamily-level retrieval first, concrete task later (lazy loading)\nMoodle context acts as ranking prior, not hard filter\nno joint task-choice + parameter generation in one step\n(no domain-specific or option-id heuristics)\nplanner decides, but does not polish the final reply"]
-        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / task_call / structural failures\nR3 sufficient requires irreversibility_notice\nR2 sufficient requires affected_scope_summary\nsemantic drift → rollback to planner output\nSynchronizer output may refine message only; must not mutate execution semantics"]
-        LG_RISK["Risk class contract\ntask declares R0–R3 in task_interface\nvalidated by task_contract_validator\nenforced in preflight, queue, decision service, synchronizer"]
+        LG_PLAN["Planner contract\nstrict split: deterministic discovery -> selection -> parameter_construction\nexactly two planner LLM calls and two planner phase outputs\nDiscovery defaults to context + core families (Stage A)\nif low confidence: Stage B adjacent families -> Stage C global slim fallback\nDual discovery path is mandatory:\n- with aiprovider_wunderbyte + embeddings ready: semantic family retrieval is active, weighted by context_prior + signals\n- without embeddings/provider: deterministic family derivation from Moodle context + core families + signals remains active\nSelector always receives deterministic, budgeted family-scoped skill candidates in both paths\nFamily-level retrieval first, concrete skill later (lazy loading)\nMoodle context acts as ranking prior, not hard filter\nno joint skill-choice + parameter generation in one step\n(no domain-specific or option-id heuristics)\nplanner decides, but does not polish the final reply"]
+        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / skill_call / structural failures\nR3 sufficient requires irreversibility_notice\nR2 sufficient requires affected_scope_summary\nsemantic drift → rollback to planner output\nSynchronizer output may refine message only; must not mutate execution semantics"]
+        LG_RISK["Risk class contract\nskill declares R0–R3 in skill_interface\nvalidated by skill_contract_validator\nenforced in preflight, queue, decision service, synchronizer"]
         LG_RISK_CONF["Confirmation gating by risk class\nR0: never\nR1: session-allow ok (900s TTL)\nR2: always explicit (300s TTL)\nR3: always manual, no session-allow"]
         LG_RISK_RETRY["Retry policy by risk class\nR0/R1/R2: retry allowed per backoff\nR3: no execution retry (idempotency critical)"]
         LG_RISK_SYNC["Synchronizer contract by risk class\nR3: irreversibility_notice required\nR2: affected_scope_summary required\nrollback to planner output on semantic drift"]
         LG_CLASS["Deterministic finalization classifier\nno LLM routing by intuition\nclassification must be testable from normalized result metadata only"]
-        LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, task_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
+        LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, skill_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
         LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
-        LG_ADHOC["Adhoc execution mode\nconfirmed run can be queued\nand executed async via worker task"]
-        LG_CAP["Task release gates\nruntime + active + context + capability"]
+        LG_ADHOC["Adhoc execution mode\nconfirmed run can be queued\nand executed async via worker skill"]
+        LG_CAP["Skill release gates\nruntime + active + context + capability"]
         LG_RETRY["Retry lifecycle + global budget view\npreflight retry_hint + queue retry_waiting\n+ execution retry + loop budget\n+ planner contract retry hints inside loop\n  (CONTRACT_PARSE_ERROR, CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED)\ncategory policy: TECHNICAL/DOMAIN/EXTERNAL_DEPENDENCY\nlayer collision guard + provider circuit-breaker"]
         LG_IDEM["Idempotency split\nqueue: signature reuse\nexecutor: already executed skip"]
         LG_COMPLEX["Complex workflow capable\nspawn/dependency chains, artifact refs, late preflight\nacross domains"]
         LG_TERMINAL["Terminal outcomes\nfailed / budget_exceeded / success\n(non-failure skip shown separately)"]
-        LG_DET["Deterministic staged routing only\nno direct task-level top-k as single strategy\nno full task dump to planner (budgeted staged expansion only)\nno shadow-only discovery decisions in final target path\nno removal of no-embeddings fallback path"]
+        LG_DET["Deterministic staged routing only\nno direct skill-level top-k as single strategy\nno full skill dump to planner (budgeted staged expansion only)\nno shadow-only discovery decisions in final target path\nno removal of no-embeddings fallback path"]
     end
 
     %% =========================================================

@@ -28,7 +28,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  * Interface for the agent executor.
  *
  * The executor receives a list of interpreter-validated commands and
- * dispatches each one to the appropriate task provider.  It enforces
+ * dispatches each one to the appropriate skill provider.  It enforces
  * idempotency and produces a structured result per command.
  *
  * @package    bookingextension_agent
@@ -42,7 +42,7 @@ interface agent_executor {
      * Partial success is allowed – the executor will attempt every command
      * and report individual outcomes.  No rollback is performed.
      *
-     * @param array  $commands  Validated command objects, each with 'task', 'version', 'input'.
+     * @param array  $commands  Validated command objects, each with 'skill', 'version', 'input'.
      * @param int    $contextid Moodle context id for context scoping.
      * @param int    $userid    User id performing the actions.
      * @param string $idempotencykey Unique key that prevents re-execution of the same run.

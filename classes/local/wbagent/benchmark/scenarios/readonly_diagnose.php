@@ -33,14 +33,14 @@ class readonly_diagnose extends abstract_benchmark_scenario {
         return 'Warum kann Max Mustermann sich nicht fuer den Kurs "Erste Hilfe" buchen?';
     }
     public function get_expected_response_type(): string {
-        return 'task_call';
+        return 'skill_call';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return 'mod_booking.diagnose_booking_issue';
     }
 
     public function get_stub_selector_response(): string {
-        return '{"response_type":"task_call","commands":[{"task":"mod_booking.diagnose_booking_issue","input":{}}],'
+        return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.diagnose_booking_issue","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Diagnose booking issue","used_triggers":["mod_booking.diagnose_booking_issue_self_help"],'
             . '"lang":"de","user_lang":"de"}';
     }

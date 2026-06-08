@@ -19,11 +19,11 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\tests;
 
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\task_risk_class;
-use bookingextension_agent\local\wbagent\interfaces\task_interface;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -37,18 +37,18 @@ use PHPUnit\Framework\TestCase;
  */
 final class decision_service_risk_gating_test extends TestCase {
     /**
-     * Risk resolution must fall back to the task registry when the command omits risk_class.
+     * Risk resolution must fall back to the skill registry when the command omits risk_class.
      */
-    public function test_resolve_command_risk_class_falls_back_to_registry_task_value(): void {
+    public function test_resolve_command_risk_class_falls_back_to_registry_skill_value(): void {
         $service = $this->build_service([
-            'demo.write' => task_risk_class::R2,
+            'demo.write' => skill_risk_class::R2,
         ]);
 
         $riskclass = $this->invoke_private_method($service, 'resolve_command_risk_class', [
-            ['task' => 'demo.write', 'input' => []],
+            ['skill' => 'demo.write', 'input' => []],
         ]);
 
-        $this->assertSame(task_risk_class::R2, $riskclass);
+        $this->assertSame(skill_risk_class::R2, $riskclass);
     }
 
     /**
@@ -56,44 +56,44 @@ final class decision_service_risk_gating_test extends TestCase {
      */
     public function test_split_commands_by_risk_class_injects_resolved_risk_classes(): void {
         $service = $this->build_service([
-            'demo.read' => task_risk_class::R0,
-            'demo.write' => task_risk_class::R2,
-            'demo.external' => task_risk_class::R3,
+            'demo.read' => skill_risk_class::R0,
+            'demo.write' => skill_risk_class::R2,
+            'demo.external' => skill_risk_class::R3,
         ]);
 
         $groups = $this->invoke_private_method($service, 'split_commands_by_risk_class', [[
-            ['task' => 'demo.read', 'input' => []],
-            ['task' => 'demo.write', 'input' => []],
-            ['task' => 'demo.external', 'input' => []],
+            ['skill' => 'demo.read', 'input' => []],
+            ['skill' => 'demo.write', 'input' => []],
+            ['skill' => 'demo.external', 'input' => []],
         ]]);
 
         $this->assertCount(1, $groups['r0']);
         $this->assertCount(1, $groups['r2']);
         $this->assertCount(1, $groups['r3']);
-        $this->assertSame(task_risk_class::R0, $groups['r0'][0]['risk_class']);
-        $this->assertSame(task_risk_class::R2, $groups['r2'][0]['risk_class']);
-        $this->assertSame(task_risk_class::R3, $groups['r3'][0]['risk_class']);
+        $this->assertSame(skill_risk_class::R0, $groups['r0'][0]['risk_class']);
+        $this->assertSame(skill_risk_class::R2, $groups['r2'][0]['risk_class']);
+        $this->assertSame(skill_risk_class::R3, $groups['r3'][0]['risk_class']);
     }
 
     /**
-     * Build a decision service with a task registry mock that returns risk-class aware tasks.
+     * Build a decision service with a skill registry mock that returns risk-class aware skills.
      *
-     * @param array<string,string> $taskriskmap
+     * @param array<string,string> $skillriskmap
      * @return agent_decision_service
      */
-    private function build_service(array $taskriskmap): agent_decision_service {
-        $registry = $this->getMockBuilder(task_registry::class)
+    private function build_service(array $skillriskmap): agent_decision_service {
+        $registry = $this->getMockBuilder(skill_registry::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['get_task'])
+            ->onlyMethods(['get_skill'])
             ->getMock();
 
-        $registry->method('get_task')->willReturnCallback(
-            static function (string $taskname) use ($taskriskmap): ?task_interface {
-                if (!array_key_exists($taskname, $taskriskmap)) {
+        $registry->method('get_skill')->willReturnCallback(
+            static function (string $skillname) use ($skillriskmap): ?skill_interface {
+                if (!array_key_exists($skillname, $skillriskmap)) {
                     return null;
                 }
 
-                $task = new class ($taskname, $taskriskmap[$taskname]) implements task_interface {
+                $skill = new class ($skillname, $skillriskmap[$skillname]) implements skill_interface {
                     private string $name;
                     private string $riskclass;
 
@@ -114,8 +114,8 @@ final class decision_service_risk_gating_test extends TestCase {
                         return [];
                     }
 
-                    public function get_prompt_contract(): \bookingextension_agent\local\wbagent\services\task_prompt_contract {
-                        return new \bookingextension_agent\local\wbagent\services\task_prompt_contract([
+                    public function get_prompt_contract(): \bookingextension_agent\local\wbagent\services\skill_prompt_contract {
+                        return new \bookingextension_agent\local\wbagent\services\skill_prompt_contract([
                             'intent' => 'demo',
                             'anchors' => [],
                             'minimal_input' => [],
@@ -145,11 +145,11 @@ final class decision_service_risk_gating_test extends TestCase {
                     }
 
                     public function is_read_only(): bool {
-                        return $this->riskclass === task_risk_class::R0;
+                        return $this->riskclass === skill_risk_class::R0;
                     }
                 };
 
-                return $task;
+                return $skill;
             }
         );
 

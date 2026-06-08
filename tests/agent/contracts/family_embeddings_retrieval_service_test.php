@@ -30,23 +30,23 @@ use advanced_testcase;
  */
 final class family_embeddings_retrieval_service_test extends advanced_testcase {
     /**
-     * Verifies that family scores can re-rank task rows.
+     * Verifies that family scores can re-rank skill rows.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service::boost_task_rows
+     * @covers \bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service::boost_skill_rows
      */
-    public function test_boost_task_rows_uses_family_scores(): void {
+    public function test_boost_skill_rows_uses_family_scores(): void {
         $service = new family_embeddings_retrieval_service();
 
-        $rows = $service->boost_task_rows([
-            ['task' => 'mod_booking.create_option', 'score' => '0.20'],
-            ['task' => 'mod_booking.list_options', 'score' => '0.10'],
-            ['task' => 'core.get_current_user', 'score' => '0.50'],
+        $rows = $service->boost_skill_rows([
+            ['skill' => 'mod_booking.create_option', 'score' => '0.20'],
+            ['skill' => 'mod_booking.list_options', 'score' => '0.10'],
+            ['skill' => 'core.get_current_user', 'score' => '0.50'],
         ], [
             'mod_booking.general' => 0.90,
             'core.general' => 0.10,
         ]);
 
-        $this->assertSame('mod_booking.create_option', $rows[0]['task']);
+        $this->assertSame('mod_booking.create_option', $rows[0]['skill']);
         $this->assertSame('mod_booking.general', $rows[0]['family']);
         $this->assertSame(0.41, round((float)$rows[0]['score'], 2));
         $families = array_values(array_unique(array_map(static fn(array $row): string => (string)$row['family'], $rows)));
@@ -66,8 +66,8 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
             'mod_booking.general',
             'local_entities.general',
         ], [1.0, 0.0], [
-            ['task' => 'mod_booking.create_option', 'embedding_json' => json_encode([1.0, 0.0])],
-            ['task' => 'forum_reply', 'embedding_json' => json_encode([0.0, 1.0])],
+            ['skill' => 'mod_booking.create_option', 'embedding_json' => json_encode([1.0, 0.0])],
+            ['skill' => 'forum_reply', 'embedding_json' => json_encode([0.0, 1.0])],
         ]);
 
         $this->assertArrayHasKey('mod_booking.general', $scores);

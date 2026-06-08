@@ -26,8 +26,8 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use core_ai\aiactions\generate_text;
 use bookingextension_agent\local\wbagent\prompt_policy_builder;
-use bookingextension_agent\local\wbagent\task_executability_evaluator;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_executability_evaluator;
+use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
@@ -42,8 +42,8 @@ class phase_prompt_bundle_builder {
     /** Wunderbyte planner action class name. */
     private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
 
-    /** @var task_registry */
-    private task_registry $registry;
+    /** @var skill_registry */
+    private skill_registry $registry;
 
     /** @var orchestrator_prompt_profile_service */
     private orchestrator_prompt_profile_service $promptprofilesvc;
@@ -51,26 +51,26 @@ class phase_prompt_bundle_builder {
     /**
      * Constructor.
      *
-     * @param task_registry $registry
+     * @param skill_registry $registry
      * @param orchestrator_prompt_profile_service $promptprofilesvc
      */
-    public function __construct(task_registry $registry, orchestrator_prompt_profile_service $promptprofilesvc) {
+    public function __construct(skill_registry $registry, orchestrator_prompt_profile_service $promptprofilesvc) {
         $this->registry = $registry;
         $this->promptprofilesvc = $promptprofilesvc;
     }
 
     /**
-     * Build the state-based system prompt with compact task metadata embedded.
+     * Build the state-based system prompt with compact skill metadata embedded.
      *
      * @param  int    $cmid
      * @param  int    $userid
      * @param  int    $contextid
      * @param  string $actionclass
      * @param  bool   $hasobservations
-     * @param  array  $adaptivecatalog Optional adaptive task catalog (reduced by recency/tier). If null, uses full catalog.
-     * @param  array  $systemtaskcatalog Optional exact task catalog to embed into SYSTEM placeholders.
+     * @param  array  $adaptivecatalog Optional adaptive skill catalog (reduced by recency/tier). If null, uses full catalog.
+     * @param  array  $systemskillcatalog Optional exact skill catalog to embed into SYSTEM placeholders.
      * @param  bool   $isfirstassistantturn True when no assistant message exists yet in this thread.
-     * @param  bool   $includetaskcatalog If true, embed task catalog placeholder in SYSTEM block.
+     * @param  bool   $includeskillcatalog If true, embed skill catalog placeholder in SYSTEM block.
      * @return string System prompt text.
      */
     public function build_system_prompt(
@@ -81,13 +81,13 @@ class phase_prompt_bundle_builder {
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
         ?array $adaptivecatalog = null,
-        array $systemtaskcatalog = [],
+        array $systemskillcatalog = [],
         bool $isfirstassistantturn = false,
-        bool $includetaskcatalog = false
+        bool $includeskillcatalog = false
     ): string {
-        $evaluator = new task_executability_evaluator($this->registry, new authorization_service());
-        $tasknames = $this->registry->get_task_names_for_context($evaluator, $userid, $contextid);
-        $tasklist = implode(', ', $tasknames);
+        $evaluator = new skill_executability_evaluator($this->registry, new authorization_service());
+        $skillnames = $this->registry->get_skill_names_for_context($evaluator, $userid, $contextid);
+        $skilllist = implode(', ', $skillnames);
         $phaseconfigkey = $this->promptprofilesvc->get_planner_initial_prompt_config_key_for_phase($phase);
         $configuredtemplate = $this->promptprofilesvc->normalize_config_prompt_template(
             (string)(get_config('bookingextension_agent', $phaseconfigkey) ?? ''),
@@ -145,9 +145,9 @@ class phase_prompt_bundle_builder {
             '{{bookingname}}' => '[SYSTEM_RUNTIME.booking_name]',
             '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
             '{{nowiso}}' => '[SYSTEM_RUNTIME.now_iso]',
-            '{{tasklist}}' => $tasklist,
+            '{{skilllist}}' => $skilllist,
             '{{schemajson}}' => '[]',
-            '{{taskcatalogjson}}' => '[]',
+            '{{skillcatalogjson}}' => '[]',
             '{{fullschemajson}}' => '{}',
         ]);
 
@@ -183,14 +183,14 @@ You are an AI parameter constructor for the "{{bookingname}}" context.
 
 CONSTRUCTOR ROLE (STRICT):
 - This call is constructor-only.
-- selected_task is already chosen by selection phase.
-- Do NOT perform task discovery, task routing, or task switching.
-- Build parameters only for selected_task.
-- If selected_task cannot be fulfilled with grounded input, return clarification with commands=[].
+- selected_skill is already chosen by selection phase.
+- Do NOT perform skill discovery, skill routing, or skill switching.
+- Build parameters only for selected_skill.
+- If selected_skill cannot be fulfilled with grounded input, return clarification with commands=[].
 
-TASK CONTRACT FIRST (highest priority):
-- Follow task-level contracts from TASK CATALOG (minimal_input, example_input, example_parameters).
-- Use canonical parameter keys from the selected task contract.
+SKILL CONTRACT FIRST (highest priority):
+- Follow skill-level contracts from SKILL CATALOG (minimal_input, example_input, example_parameters).
+- Use canonical parameter keys from the selected skill contract.
 
 PROMPT;
     }
@@ -245,7 +245,7 @@ PROMPT;
         ) {
             $lines = ['The following future steps are already planned as placeholders in the queue.'];
             $lines[] = 'Do NOT include planned_steps in your response — placeholders already exist.';
-            $lines[] = 'Select the real task for the next pending step below:';
+            $lines[] = 'Select the real skill for the next pending step below:';
             foreach ($plannedstepintents as $i => $intent) {
                 $lines[] = ($i + 1) . '. ' . $intent;
             }
@@ -277,37 +277,37 @@ PROMPT;
 
         if ($normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
             $lines[] = 'Apply constructor semantics only; do not perform routing in this phase.';
-            $lines[] = 'Allowed response_type: task_call, confirmation_request, confirm_pending, clarification, sufficient, error.';
-            $lines[] = 'For task_call/confirmation_request: commands must contain one or more command objects.';
+            $lines[] = 'Allowed response_type: skill_call, confirmation_request, confirm_pending, clarification, sufficient, error.';
+            $lines[] = 'For skill_call/confirmation_request: commands must contain one or more command objects.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
-            $lines[] = 'For mutating intents, do not use task_call; '
+            $lines[] = 'For mutating intents, do not use skill_call; '
                 . 'use confirmation_request unless already completed -> sufficient.';
-            $lines[] = 'Constructor-only phase: do not discover/switch tasks. Build parameters for selected_task only.';
-            $lines[] = 'Each command.task must equal selected_task from phase_handoff.selection.';
-            $lines[] = 'Use canonical command envelope keys only: task, version, parameters.';
+            $lines[] = 'Constructor-only phase: do not discover/switch skills. Build parameters for selected_skill only.';
+            $lines[] = 'Each command.skill must equal selected_skill from phase_handoff.selection.';
+            $lines[] = 'Use canonical command envelope keys only: skill, version, parameters.';
             $lines[] = 'Do not emit non-canonical command-level keys: params, command_id, id, cid.';
             $lines[] = 'Do NOT include planned_steps — selector phase only.';
             $lines[] = 'next_step_intent MUST be a string (never null; use "" if no follow-up).';
-            $lines[] = 'Canonical example: {"task":"<selected_task>","version":1,"parameters":{...}}';
+            $lines[] = 'Canonical example: {"skill":"<selected_skill>","version":1,"parameters":{...}}';
         } else {
             $lines[] = 'Apply routing semantics from [SYSTEM] decision order; do not override them here.';
-            $lines[] = 'Allowed response_type: task_call, clarification, confirm_pending, sufficient, error.';
-            $lines[] = 'For task_call: commands must contain exactly one command object that selects exactly one task; '
+            $lines[] = 'Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.';
+            $lines[] = 'For skill_call: commands must contain exactly one command object that selects exactly one skill; '
                 . 'do not include full parameter payloads.';
-            $lines[] = 'Each element in commands[] must be a direct command object with task at top level. '
+            $lines[] = 'Each element in commands[] must be a direct command object with skill at top level. '
                 . 'Do not wrap commands in helper objects like current, next, action, command, or step.';
             $lines[] = 'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
-            $lines[] = 'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.';
+            $lines[] = 'This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.';
             $lines[] = 'planned_steps REQUIRED: always include as a top-level array.';
             $lines[] = '  - Single-step request or [PENDING PLANNED STEPS] already in context: planned_steps=[].';
             $lines[] = '  - Multi-step request (multiple sequential mutations) on first turn: '
                 . 'planned_steps=[{"intent":"..."},{"intent":"..."}] listing ALL future steps beyond the current one.';
             $lines[] = 'next_step_intent REQUIRED: always a string (never null).';
-            $lines[] = 'Valid example: {"response_type":"task_call","commands":[{"task":"mod_booking.create_option","input":{}}],'
+            $lines[] = 'Valid example: {"response_type":"skill_call","commands":[{"skill":"mod_booking.create_option","input":{}}],'
                 . '"planned_steps":[{"intent":"Set trainer"},{"intent":"Book user"}],"next_step_intent":"Create event 2"}';
-            $lines[] = 'Invalid example: {"response_type":"task_call","commands":['
-                . '{"current":{"task":"mod_booking.create_option"}}]}';
+            $lines[] = 'Invalid example: {"response_type":"skill_call","commands":['
+                . '{"current":{"skill":"mod_booking.create_option"}}]}';
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
@@ -315,7 +315,7 @@ PROMPT;
             $lines[] = 'Do NOT ask permission or phrase messages as questions. '
                 . 'Instead: write a short statement announcing what will be executed.';
             $lines[] = 'Treat recent ASSISTANT/ASSISTANT_STATE execution evidence as authoritative. '
-                . 'Never re-emit an already-executed action (same task+input signature).';
+                . 'Never re-emit an already-executed action (same skill+input signature).';
             $lines[] = 'If action already executed: report completion or skip to next unexecuted action.';
             $lines[] = 'Next unexecuted mutation → response_type="confirmation_request".';
         }

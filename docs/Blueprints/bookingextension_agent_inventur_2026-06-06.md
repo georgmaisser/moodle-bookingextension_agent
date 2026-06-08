@@ -55,8 +55,8 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 | `family_signal_ranker` | `services/discovery/family_signal_ranker.php` | ✅ |
 | Discovery Stages A/B/C | `services/discovery/discovery_stage_controller.php` | ✅ |
 | `family_ranker` | `services/discovery/family_ranker.php` | ✅ |
-| `lazy_task_loader` | `services/selection/lazy_task_loader.php` | ✅ |
-| `task_selector` | `services/selection/task_selector.php` | ✅ |
+| `lazy_skill_loader` | `services/selection/lazy_skill_loader.php` | ✅ |
+| `skill_selector` | `services/selection/skill_selector.php` | ✅ |
 | `parameter_constructor` | `services/construction/parameter_constructor.php` | ✅ |
 | `parameter_contract_validator` | `services/construction/parameter_contract_validator.php` | ✅ |
 | `orchestrator_routing_service` | `services/orchestrator_routing_service.php` | ✅ |
@@ -68,14 +68,14 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 | `preflight_audit_logger` | `services/preflight_audit_logger.php` | ✅ |
 | `queue_manager` | `queue/queue_manager.php` | ✅ |
 | `executor::execute_commands()` | `executor.php` | ✅ |
-| `task_executability_evaluator` | `task_executability_evaluator.php` | ✅ |
-| `task_registry` | `task_registry.php` | ✅ |
-| `task_registry_factory` | `task_registry_factory.php` | ✅ |
+| `skill_executability_evaluator` | `skill_executability_evaluator.php` | ✅ |
+| `skill_registry` | `skill_registry.php` | ✅ |
+| `skill_registry_factory` | `skill_registry_factory.php` | ✅ |
 | `task_interface` | `interfaces/task_interface.php` | ✅ |
-| `task_prompt_contract` (DTO) | `services/task_prompt_contract.php` | ✅ |
+| `skill_prompt_contract` (DTO) | `services/skill_prompt_contract.php` | ✅ |
 | `task_risk_class` (enum/DTO) | `dto/task_risk_class.php` | ✅ |
 | `base_task` | `base_task.php` | ✅ |
-| `task_contract_validator` | `task_contract_validator.php` | ✅ |
+| `skill_contract_validator` | `skill_contract_validator.php` | ✅ |
 | `finalization_classifier` | `services/finalization_classifier.php` | ✅ |
 | `synchronizer_input_builder` | `services/synchronizer_input_builder.php` | ✅ |
 | `synchronizer_output_contract` | `services/synchronizer_output_contract.php` | ✅ |
@@ -123,7 +123,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 ### `benchmark_run_detail.php` ⚠️
 **Zweck:** Detail-Ansicht eines einzelnen Benchmark-Runs
 
-### `task_selection_debug.php` ⚠️
+### `skill_selection_debug.php` ⚠️
 **Zweck:** Debug-Seite fuer Task-Selektion (zeigt Scoring/Ranking-Details)
 **Anmerkung:** Dev-Tool, nicht im Blueprint. Via settings.php als admin_externalpage registriert.
 
@@ -249,9 +249,9 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Methoden:** `get_name()` ✅, `execute()` ✅ (Holt Queue-Item, ruft executor::execute_commands() auf)
 **Anmerkung:** `ADHOC` aus Blueprint. Korrekt.
 
-### `classes/task/rebuild_task_catalog_embeddings_adhoc.php` ✅
+### `classes/task/rebuild_skill_catalog_embeddings_adhoc.php` ✅
 **Zweck:** Adhoc-Task: Rebuildet Task-Catalog-Embeddings
-**Klasse:** `bookingextension_agent\task\rebuild_task_catalog_embeddings_adhoc`
+**Klasse:** `bookingextension_agent\task\rebuild_skill_catalog_embeddings_adhoc`
 **Methoden:** `execute()` ✅ (family_embeddings_index_service::rebuild_catalog())
 **Anmerkung:** Abhaengig von aiprovider_wunderbyte. Korrekt.
 
@@ -407,9 +407,9 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Klasse:** `bookingextension_agent\local\wbagent\base_task` (abstract)
 **Methoden:** `is_read_only()` ✅, `get_risk_class()` ✅, `check_structure()` ✅, `preflight()` ✅, `get_example_input()` ✅, `execute()` ✅ (abstract)
 
-### `task_registry.php` ✅
+### `skill_registry.php` ✅
 **Zweck:** Zentrales Registry fuer alle Tasks, Schema-Aggregation, Provider-Wiring
-**Klasse:** `bookingextension_agent\local\wbagent\task_registry`
+**Klasse:** `bookingextension_agent\local\wbagent\skill_registry`
 **Methoden:**
 - `register()` ✅, `get_task()` ✅, `get_provider_for_task()` ✅
 - `normalize_task_input()` ✅, `get_preview_option_memory_for_task()` ✅
@@ -417,7 +417,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 - `get_task_contract()` ✅, `get_task_contracts()` ✅, `get_contract_diagnostics()` ✅
 - `get_result_summary_contributors()` ✅
 - `is_read_only_task()` ✅, `is_task_active()` ✅
-- `get_task_toggle_setting_name()` ✅ (static)
+- `get_skill_toggle_setting_name()` ✅ (static)
 - `get_task_capabilities()` ✅
 - `get_all_schemas()` ✅, `get_all_schemas_for_context()` ✅
 - `explain_task_schema_for_context()` ✅
@@ -429,26 +429,26 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 - `register_discovered_tasks_without_provider()` ✅ (private static) — Fallback
 **Anmerkung:** TR aus Blueprint. 927 Zeilen. Provider-First mit Fallback-Discovery korrekt.
 
-### `task_registry_factory.php` ✅
-**Zweck:** Factory: Erstellt task_registry Instanz (Singleton-Pattern)
+### `skill_registry_factory.php` ✅
+**Zweck:** Factory: Erstellt skill_registry Instanz (Singleton-Pattern)
 **Methoden:** `get_default()` ✅ (static)
 
-### `task_contract_validator.php` ✅
+### `skill_contract_validator.php` ✅
 **Zweck:** Validiert Task-Metadata, Risk-Class-Deklaration, Namespace-Regeln
 **Methoden:**
 - `build_task_metadata()` ✅, `validate_task_metadata()` ✅, `validate_registry_contracts()` ✅
 - `extract_task_namespace()` ✅, `component_may_register_namespace()` ✅
 - `verify_risk_class_declaration()` ✅ + private Helfer ✅
 
-### `task_discovery.php` ✅
+### `skill_discovery.php` ✅
 **Zweck:** Auto-Discovers Task-Klassen in local/wbagent ohne Provider
 **Methoden:** `get_task_instances()` ✅ (static), `get_last_diagnostics()` ✅ (static)
 
-### `task_executability_evaluator.php` ✅
+### `skill_executability_evaluator.php` ✅
 **Zweck:** Prueft Runtime-Executability eines Tasks (active + registered + context + capability)
 **Methoden:** `evaluate_task()` ✅, `get_executable_task_names()` ✅
 
-### `task_provider.php` ✅
+### `skill_provider.php` ✅
 **Zweck:** Default-Provider fuer core-Tasks des bookingextension_agent
 **Methoden:** `get_component()` ✅, `get_tasks()` ✅, `get_discovery_diagnostics()` ✅, `get_contextual_prompt_packs()` ✅, `get_issue_code_provider()` ✅, `get_prompt_guidance()` ✅, `get_task_input_normalizer()` ✅, `get_preview_option_memory()` ✅
 
@@ -515,7 +515,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Zweck:** Core-Interface fuer alle Tasks
 **Methoden (Interface):** `get_name()`, `get_schema()`, `get_prompt_contract()`, `get_risk_class()`, `check_structure()`, `preflight()`, `execute()`, `is_read_only()` — alle ✅
 
-### `task_provider_interface.php` ✅
+### `skill_provider_interface.php` ✅
 **Zweck:** Interface fuer Task-Provider (3rd-party extensibility)
 **Methoden:** `get_component()`, `get_tasks()`, `get_contextual_prompt_packs()` ✅
 
@@ -576,7 +576,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 ### `discovery_result.php` ✅
 **Zweck:** DTO fuer Discovery-Phase-Output
 
-### `task_selection_result.php` ✅
+### `skill_selection_result.php` ✅
 **Zweck:** DTO fuer Task-Selektion-Ergebnis
 
 ### `parameter_construction_result.php` ✅
@@ -635,7 +635,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 ### `recall_memory_task.php` ✅
 **Zweck:** R0 readonly — Abrufen von Thread-Memory/History
 
-### `recreate_task_catalog_task.php` ✅
+### `recreate_skill_catalog_task.php` ✅
 **Zweck:** R1 — Rebuildet den Task-Catalog (Embedding-Rebuild)
 
 ### `search_courses_task.php` ✅
@@ -745,15 +745,15 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Zweck:** Semantic Family-Level Retrieval (FEMB aus Blueprint)
 **Methoden:** `score_families()` ✅, `boost_task_rows()` ✅
 
-### `services/selection/lazy_task_loader.php` ✅
+### `services/selection/lazy_skill_loader.php` ✅
 **Zweck:** Laedt Tasks on-demand nach Family-Selektion (TASKLOAD aus Blueprint)
 **Methoden:** `load_task()` ✅
 
-### `services/selection/task_selector.php` ✅
+### `services/selection/skill_selector.php` ✅
 **Zweck:** Selektiert konkreten Task aus Candidate-Set (TSEL aus Blueprint)
 **Methoden:** `select()` ✅
 
-### `services/selection/task_selection_overlap_policy.php` ✅
+### `services/selection/skill_selection_overlap_policy.php` ✅
 **Zweck:** Loest Overlap-Situationen bei semantisch aehnlichen Tasks
 **Methoden:** `resolve()` ✅
 
@@ -791,7 +791,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Zweck:** Option-Suche und Resolving fuer Agent-Tasks
 **Methoden:** `search_options()` ✅, `resolve_single_option()` ✅
 
-### `services/governance/task_governance_service.php` ✅
+### `services/governance/skill_governance_service.php` ✅
 **Zweck:** Sync alle Task-Enable-All-Toggle-Einstellungen
 **Methoden:** `sync_enableall_toggles()` ✅ (static)
 
@@ -799,8 +799,8 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Zweck:** Persistiert Routing-Entscheidungen fuer Telemetrie
 **Methoden:** `persist_thread_routing_decision()` ✅
 
-### `services/debug/task_selection_debug_service.php` ✅
-**Zweck:** Debug-Service fuer Task-Selektion (fuer task_selection_debug.php)
+### `services/debug/skill_selection_debug_service.php` ✅
+**Zweck:** Debug-Service fuer Task-Selektion (fuer skill_selection_debug.php)
 
 ### `services/catalog/adaptive_task_catalog_service.php` ✅
 **Zweck:** Adaptiver Task-Catalog mit Always-Include-Logik (EMB_QUERY Downstream)
@@ -910,11 +910,11 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 **Zweck:** Baut Prompt-Bundle pro Phase (selector.md / constructor.md) (PPB aus Blueprint)
 **Methoden:** `build()` ✅
 
-### `services/task_prompt_contract.php` ✅
+### `services/skill_prompt_contract.php` ✅
 **Zweck:** DTO fuer Task-Prompt-Contract (TPC aus Blueprint)
 **Methoden:** `to_array()` ✅
 
-### `services/task_version_policy.php` ✅
+### `services/skill_version_policy.php` ✅
 **Zweck:** Policy fuer Task-Versioning
 
 ### `services/pending_intent_service.php` ✅
@@ -1004,22 +1004,22 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 ### `tests/agent/abstract_agent_testcase.php` ✅
 **Zweck:** Basis-Testklasse mit Mock-Setup fuer Agent-Tests (32 KB)
 
-### `tests/agent/abstract_llm_task_matrix_testcase.php` ✅
+### `tests/agent/abstract_llm_skill_matrix_testcase.php` ✅
 **Zweck:** Abstrakte Basis fuer LLM-Matrix-Tests (42 KB)
 
-### `tests/agent/llm_task_matrix_scenario_provider.php` ✅
+### `tests/agent/llm_skill_matrix_scenario_provider.php` ✅
 **Zweck:** Scenario-Provider fuer Matrix-Tests (28 KB)
 
-### `tests/agent/r3_task_e2e_test.php` ✅
+### `tests/agent/r3_skill_e2e_test.php` ✅
 **Zweck:** E2E-Test fuer R3-Tasks (irreversible)
 
 ### `tests/agent/contracts/` (36 Test-Files) ✅
 **Zweck:** Contract-Tests fuer alle Kernkomponenten
-**Abdeckt:** finalization_classifier, decision_service, preflight_pipeline, queue, synchronizer, orchestrator, task_contract_validator, integration, etc.
+**Abdeckt:** finalization_classifier, decision_service, preflight_pipeline, queue, synchronizer, orchestrator, skill_contract_validator, integration, etc.
 
 ### `tests/agent/real_llm_multistep/` (7 Test-Files) ✅
 **Zweck:** Real-LLM-Tests (require live provider)
-- `all_tasks_real_llm_test.php` ✅
+- `all_skills_real_llm_test.php` ✅
 - `confirmation_flow_real_llm_test.php` ✅
 - `get_current_user_real_llm_test.php` ✅
 - `lecture_autoconfirm_real_llm_test.php` ✅
@@ -1027,21 +1027,21 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 - `normal_option_datetime_real_llm_test.php` ✅
 - `search_users_real_llm_test.php` ✅
 
-### `tests/agent/fixtures/task_catalog_embeddings.csv` ✅
+### `tests/agent/fixtures/skill_catalog_embeddings.csv` ✅
 **Zweck:** Embedding-Daten fuer Tests (789 KB)
 
 ---
 
 ## mod_booking wbagent Tasks: `mod_booking/classes/local/wbagent/`
 
-### `task_provider.php` ✅
+### `skill_provider.php` ✅
 **Zweck:** Provider fuer mod_booking — registriert alle booking Tasks
-**Klasse:** `mod_booking\local\wbagent\task_provider`
+**Klasse:** `mod_booking\local\wbagent\skill_provider`
 **Methoden:** `get_component()` ✅, `get_tasks()` ✅, `get_discovery_diagnostics()` ✅, `get_contextual_prompt_packs()` ✅, `get_issue_code_provider()` ✅, `get_prompt_guidance()` ✅, `get_task_input_normalizer()` ✅, `get_preview_option_memory()` ✅
 
-### `booking/booking_task_provider.php` ✅
+### `booking/booking_skill_provider.php` ✅
 **Zweck:** Extends booking_task_support — eigentlicher Provider-Einstiegspunkt
-**Klasse:** `mod_booking\local\wbagent\booking\booking_task_provider`
+**Klasse:** `mod_booking\local\wbagent\booking\booking_skill_provider`
 **Anmerkung:** Duenne Klasse die auf booking_task_support aufbaut.
 
 ### `booking/booking_task_support.php` ⚠️

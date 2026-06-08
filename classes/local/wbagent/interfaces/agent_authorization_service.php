@@ -28,7 +28,7 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  * Interface for agent authorization checks.
  *
  * All capability and context checks must go through this service so that
- * the same rules are applied in the web-service layer, the async task, and
+ * the same rules are applied in the web-service layer, the async skill, and
  * any future extraction into a standalone plugin.
  *
  * @package    bookingextension_agent

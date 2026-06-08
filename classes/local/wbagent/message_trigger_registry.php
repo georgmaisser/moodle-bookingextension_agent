@@ -39,7 +39,7 @@ class message_trigger_registry {
 
     /** Allowed response_type values in runtime/decision routing. */
     private const KNOWN_RESPONSE_TYPES = [
-        'task_call',
+        'skill_call',
         'confirmation_request',
         'confirm_pending',
         'clarification',
@@ -48,8 +48,8 @@ class message_trigger_registry {
         'execution_result',
     ];
 
-    /** @var task_registry */
-    private task_registry $taskregistry;
+    /** @var skill_registry */
+    private skill_registry $skillregistry;
 
     /** Core flow triggers understood by the server runtime. */
     private const CORE_TRIGGERS = [
@@ -79,10 +79,10 @@ class message_trigger_registry {
     /**
      * Constructor.
      *
-     * @param task_registry $taskregistry
+     * @param skill_registry $skillregistry
      */
-    public function __construct(task_registry $taskregistry) {
-        $this->taskregistry = $taskregistry;
+    public function __construct(skill_registry $skillregistry) {
+        $this->skillregistry = $skillregistry;
     }
 
     /**

@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\task_registry;
-use bookingextension_agent\local\wbagent\task_registry_factory;
+use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wbagent\skill_registry_factory;
 use core_ai\aiactions\summarise_text;
 
 global $CFG;
@@ -221,28 +221,28 @@ $aisettingspage->add(
 
 $aisettingspage->add(
     new admin_setting_heading(
-        'bookingextension_agent_aitaskgovernance_heading',
-        get_string('aitaskgovernanceheading', 'bookingextension_agent'),
-        get_string('aitaskgovernanceheading_desc', 'bookingextension_agent')
+        'bookingextension_agent_aiskillgovernance_heading',
+        get_string('aiskillgovernanceheading', 'bookingextension_agent'),
+        get_string('aiskillgovernanceheading_desc', 'bookingextension_agent')
     )
 );
 
 try {
-    $registry = task_registry_factory::get_default();
-    $contracts = $registry->get_task_contracts();
+    $registry = skill_registry_factory::get_default();
+    $contracts = $registry->get_skill_contracts();
     ksort($contracts);
 
-    foreach ($contracts as $taskname => $meta) {
+    foreach ($contracts as $skillname => $meta) {
         $capabilities = (array)($meta['capabilities'] ?? []);
         $capabilitylabel = implode(', ', $capabilities);
         if ($capabilitylabel === '') {
             $capabilitylabel = '-';
         }
 
-        $settingkey = 'bookingextension_agent/' . task_registry::get_task_toggle_setting_name((string)$taskname);
-        $settingtitle = get_string('aitaskenabled_label', 'bookingextension_agent', (string)$taskname);
+        $settingkey = 'bookingextension_agent/' . skill_registry::get_skill_toggle_setting_name((string)$skillname);
+        $settingtitle = get_string('aiskillenabled_label', 'bookingextension_agent', (string)$skillname);
         $settingdesc = get_string(
-            'aitaskenabled_desc',
+            'aiskillenabled_desc',
             'bookingextension_agent',
             (object)[
                 'component' => (string)($meta['component'] ?? ''),
@@ -262,32 +262,32 @@ try {
 } catch (\Throwable $e) {
     $aisettingspage->add(
         new admin_setting_heading(
-            'bookingextension_agent_aitaskgovernance_unavailable',
-            get_string('aitaskgovernanceunavailable', 'bookingextension_agent'),
-            get_string('aitaskgovernanceunavailable_desc', 'bookingextension_agent')
+            'bookingextension_agent_aiskillgovernance_unavailable',
+            get_string('aiskillgovernanceunavailable', 'bookingextension_agent'),
+            get_string('aiskillgovernanceunavailable_desc', 'bookingextension_agent')
         )
     );
 }
 
-// Enable all is added last so Moodle processes individual task toggles first.
-// When this checkbox fires its callback, all per-task configs are already written
+// Enable all is added last so Moodle processes individual skill toggles first.
+// When this checkbox fires its callback, all per-skill configs are already written
 // to the DB and the sync can safely overwrite them with 1.
 $enableallsetting = new admin_setting_configcheckbox(
-    'bookingextension_agent/aitaskenableall',
-    get_string('aitaskenableall', 'bookingextension_agent'),
-    get_string('aitaskenableall_desc', 'bookingextension_agent'),
+    'bookingextension_agent/aiskillenableall',
+    get_string('aiskillenableall', 'bookingextension_agent'),
+    get_string('aiskillenableall_desc', 'bookingextension_agent'),
     0
 );
 $enableallsetting->set_updatedcallback(
-    '\\bookingextension_agent\\local\\wbagent\\task_governance_service::sync_enableall_toggles'
+    '\\bookingextension_agent\\local\\wbagent\\skill_governance_service::sync_enableall_toggles'
 );
 $aisettingspage->add($enableallsetting);
 
 $adminroot->add('modbookingfolder', new admin_externalpage(
-    'bookingextension_agent_taskselectiondebug',
-    get_string('taskselectiondebug', 'bookingextension_agent'),
-    new moodle_url('/mod/booking/bookingextension/agent/task_selection_debug.php'),
-    'bookingextension/agent:debugtaskselection'
+    'bookingextension_agent_skillselectiondebug',
+    get_string('skillselectiondebug', 'bookingextension_agent'),
+    new moodle_url('/mod/booking/bookingextension/agent/skill_selection_debug.php'),
+    'bookingextension/agent:debugskillselection'
 ));
 
 $adminroot->add('modbookingfolder', new admin_externalpage(
@@ -314,9 +314,9 @@ $benchmarkpage->add(new admin_setting_configtext(
 ));
 
 $benchmarkpage->add(new admin_setting_configtext(
-    'bookingextension_agent/benchmark_threshold_task_hit_rate',
-    get_string('benchmark_threshold_task_hit_rate', 'bookingextension_agent'),
-    get_string('benchmark_threshold_task_hit_rate_desc', 'bookingextension_agent'),
+    'bookingextension_agent/benchmark_threshold_skill_hit_rate',
+    get_string('benchmark_threshold_skill_hit_rate', 'bookingextension_agent'),
+    get_string('benchmark_threshold_skill_hit_rate_desc', 'bookingextension_agent'),
     '90',
     PARAM_FLOAT
 ));

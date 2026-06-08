@@ -60,10 +60,10 @@ class preflight_schema_validator {
             }
         }
 
-        if (array_key_exists('task', $command)) {
-            $task = trim((string)($command['task'] ?? ''));
-            if ($task === '') {
-                $errors[] = 'Field "task" must be a non-empty string.';
+        if (array_key_exists('skill', $command)) {
+            $skill = trim((string)($command['skill'] ?? ''));
+            if ($skill === '') {
+                $errors[] = 'Field "skill" must be a non-empty string.';
             }
         }
 
@@ -120,8 +120,8 @@ class preflight_schema_validator {
                         $errors[] = 'Field "spawn_commands[' . $idx . ']" must be an object.';
                         continue;
                     }
-                    if (trim((string)($spawncommand['task'] ?? '')) === '') {
-                        $errors[] = 'Field "spawn_commands[' . $idx . '].task" must be a non-empty string.';
+                    if (trim((string)($spawncommand['skill'] ?? '')) === '') {
+                        $errors[] = 'Field "spawn_commands[' . $idx . '].skill" must be a non-empty string.';
                     }
                     if (array_key_exists('input', $spawncommand) && !is_array($spawncommand['input'])) {
                         $errors[] = 'Field "spawn_commands[' . $idx . '].input" must be an object.';

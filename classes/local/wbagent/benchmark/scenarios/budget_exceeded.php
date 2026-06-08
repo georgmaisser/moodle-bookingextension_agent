@@ -19,8 +19,8 @@ namespace bookingextension_agent\local\wbagent\benchmark\scenarios;
 use bookingextension_agent\local\wbagent\benchmark\abstract_benchmark_scenario;
 
 /**
- * Scenario: extremely vague request that should produce clarification, not a hallucinated task.
- * Also covers: selector does not invent non-existent tasks when intent is unclear.
+ * Scenario: extremely vague request that should produce clarification, not a hallucinated skill.
+ * Also covers: selector does not invent non-existent skills when intent is unclear.
  * @package bookingextension_agent
  */
 class budget_exceeded extends abstract_benchmark_scenario {
@@ -31,7 +31,7 @@ class budget_exceeded extends abstract_benchmark_scenario {
         return 'clarification';
     }
     public function get_description(): string {
-        return 'Highly ambiguous request: selector must clarify, not hallucinate a task or loop';
+        return 'Highly ambiguous request: selector must clarify, not hallucinate a skill or loop';
     }
     public function get_user_message(): string {
         return 'Mach das mit den Sachen.';
@@ -39,7 +39,7 @@ class budget_exceeded extends abstract_benchmark_scenario {
     public function get_expected_response_type(): string {
         return 'clarification';
     }
-    public function get_expected_task(): string {
+    public function get_expected_skill(): string {
         return '';
     }
 

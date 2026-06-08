@@ -21,7 +21,7 @@ namespace bookingextension_agent\tests\agent\contracts;
 use advanced_testcase;
 use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
 use bookingextension_agent\local\wbagent\services\phase_prompt_bundle_builder;
-use bookingextension_agent\local\wbagent\task_registry;
+use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Contracts for phase-local output prompt constraints.
@@ -44,9 +44,9 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
             false,
         ]);
 
-        $this->assertStringContainsString('Allowed response_type: task_call, clarification, confirm_pending, sufficient, error.', $contract);
+        $this->assertStringContainsString('Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.', $contract);
         $this->assertStringContainsString(
-            'For task_call: commands must contain exactly one command object that selects exactly one task',
+            'For skill_call: commands must contain exactly one command object that selects exactly one skill',
             $contract
         );
         $this->assertStringContainsString(
@@ -54,7 +54,7 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
             $contract
         );
         $this->assertStringContainsString(
-            'This phase is a tool-selector call: it chooses exactly one task, and construction handles parameters.',
+            'This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.',
             $contract
         );
     }
@@ -70,7 +70,7 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
             false,
         ]);
 
-        $expected = 'For task_call/confirmation_request: '
+        $expected = 'For skill_call/confirmation_request: '
             . 'commands must contain one or more command objects.';
         $this->assertStringContainsString($expected, $contract);
     }
@@ -122,7 +122,7 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
      * @return phase_prompt_bundle_builder
      */
     private function build_builder(): phase_prompt_bundle_builder {
-        $registry = $this->createMock(task_registry::class);
+        $registry = $this->createMock(skill_registry::class);
         $profilesvc = new orchestrator_prompt_profile_service();
 
         return new phase_prompt_bundle_builder($registry, $profilesvc);
