@@ -106,12 +106,21 @@ $functions = [
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
+    'bookingextension_agent_ai_upload_attachment' => [
+        'classname'   => '\\bookingextension_agent\\external\\ai_upload_attachment',
+        'methodname'  => 'execute',
+        'description' => 'Upload a file attachment (image or PDF) for use in an AI agent conversation.',
+        'type'        => 'write',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
+        'ajax'        => 1,
+    ],
 ];
 
 $services = [
     'Booking AI Agent' => [
         'functions' => [
             'bookingextension_agent_ai_send_message',
+            'bookingextension_agent_ai_upload_attachment',
             'bookingextension_agent_ai_privacy_precheck',
             'bookingextension_agent_ai_confirm_run',
             'bookingextension_agent_ai_discard_pending',

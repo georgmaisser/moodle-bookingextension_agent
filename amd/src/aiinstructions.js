@@ -53,6 +53,9 @@ let activeStepBubbles = [];
 /** Set to true when the user clicks Stop to discard the pending LLM response. */
 let sendAborted = false;
 
+/** Attachments staged for the next sendMessage call. Each entry: {token, type, display_name}. */
+let pendingAttachments = [];
+
 /** @type {Array<string>} */
 const TRIAL_TOKEN_ISSUE_CODES = [
     'TRIAL_TOKEN_INVALID',
@@ -1856,6 +1859,151 @@ const refreshThreadDebugLogs = () => {
     });
 };
 
+// ---------------------------------------------------------------------------
+// Attachment handling
+// ---------------------------------------------------------------------------
+
+/**
+ * Render the attachment tray from the current pendingAttachments list.
+ */
+const renderAttachmentTray = () => {
+    const tray = document.getElementById('booking-ai-attachment-tray');
+    if (!tray) {
+        return;
+    }
+    if (pendingAttachments.length === 0) {
+        tray.innerHTML = '';
+        tray.classList.add('d-none');
+        return;
+    }
+    tray.classList.remove('d-none');
+    tray.innerHTML = pendingAttachments.map((att, idx) => {
+        const thumb = att.thumbnailHtml || '';
+        const name = String(att.displayName || '').replace(/</g, '&lt;');
+        const icon = att.attachment_type === 'pdf' ? '&#128196;' : '';
+        return `<span class="booking-ai-attachment-chip" data-idx="${idx}">
+            ${thumb || icon}
+            <span class="booking-ai-attachment-name">${name}</span>
+            <button type="button" class="booking-ai-attachment-remove" data-idx="${idx}"
+                    aria-label="Remove attachment" title="Remove">&#10005;</button>
+        </span>`;
+    }).join('');
+};
+
+/**
+ * Upload a single File via Moodle WS and add the resulting token to pendingAttachments.
+ *
+ * @param {File} file
+ */
+const uploadAttachment = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+        const dataUrl = String(reader.result || '');
+        Ajax.call([{
+            methodname: 'bookingextension_agent_ai_upload_attachment',
+            args: {
+                contextid: currentContextId,
+                filename: file.name,
+                mimetype: file.type,
+                filedata: dataUrl,
+            },
+        }])[0].then((resp) => {
+            if (!resp.success) {
+                Notification.addNotification({
+                    message: resp.message || 'Upload failed.',
+                    type: 'error',
+                });
+                return resp;
+            }
+            pendingAttachments.push({
+                token: resp.attachment_token,
+                type: resp.attachment_type,
+                displayName: resp.display_name,
+                thumbnailHtml: resp.thumbnail_html || '',
+            });
+            renderAttachmentTray();
+            return resp;
+        }).catch((err) => {
+            Notification.addNotification({message: 'File upload failed.', type: 'error'});
+            return err;
+        });
+    };
+    reader.readAsDataURL(file);
+};
+
+/**
+ * Process a FileList, filtering to allowed types.
+ *
+ * @param {FileList} fileList
+ */
+const handleFileList = (fileList) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+    Array.from(fileList).forEach((f) => {
+        if (allowed.includes(f.type)) {
+            uploadAttachment(f);
+        }
+    });
+};
+
+/**
+ * Wire up attachment button, hidden file input, drag-and-drop on the footer, tray remove buttons.
+ */
+const initAttachmentHandlers = () => {
+    const footer = document.getElementById('booking-ai-card-footer');
+    const attachBtn = document.getElementById('booking-ai-attach-btn');
+    const fileInput = document.getElementById('booking-ai-file-input');
+
+    if (!footer || !attachBtn || !fileInput) {
+        return;
+    }
+
+    // Paperclip button opens the file picker.
+    attachBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files && fileInput.files.length > 0) {
+            handleFileList(fileInput.files);
+            fileInput.value = '';
+        }
+    });
+
+    // Drag-and-drop on the card footer.
+    footer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        footer.classList.add('booking-ai-drop-active');
+    });
+    footer.addEventListener('dragleave', (e) => {
+        if (!footer.contains(e.relatedTarget)) {
+            footer.classList.remove('booking-ai-drop-active');
+        }
+    });
+    footer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        footer.classList.remove('booking-ai-drop-active');
+        if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+            handleFileList(e.dataTransfer.files);
+        }
+    });
+
+    // Remove chip buttons (event delegation on tray).
+    const tray = document.getElementById('booking-ai-attachment-tray');
+    if (tray) {
+        tray.addEventListener('click', (e) => {
+            const btn = e.target.closest('.booking-ai-attachment-remove');
+            if (!btn) {
+                return;
+            }
+            const idx = parseInt(btn.dataset.idx, 10);
+            if (!isNaN(idx) && idx >= 0 && idx < pendingAttachments.length) {
+                pendingAttachments.splice(idx, 1);
+                renderAttachmentTray();
+            }
+        });
+    }
+};
+
+// ---------------------------------------------------------------------------
+
 /**
  * Create a debug logs refresh button in the UI.
  */
@@ -1979,14 +2127,21 @@ const sendMessage = (message) => {
         startStepPolling(currentThreadId, currentContextId);
         appendStepBubble(stepPlanningLabel, 0);
 
+        const attachmentsPayload = JSON.stringify(
+            pendingAttachments.map((a) => ({token: a.token, type: a.type}))
+        );
+        pendingAttachments = [];
+        renderAttachmentTray();
+
         return Ajax.call([{
-        methodname: 'bookingextension_agent_ai_send_message',
-        args: {
-            contextid: currentContextId,
-            message: sanitizedMessage,
-            threadid: Number(currentThreadId || 0),
-        },
-    }])[0].then((resp) => {
+            methodname: 'bookingextension_agent_ai_send_message',
+            args: {
+                contextid: currentContextId,
+                message: sanitizedMessage,
+                threadid: Number(currentThreadId || 0),
+                attachments: attachmentsPayload,
+            },
+        }])[0].then((resp) => {
         // Stop step polling and remove ephemeral step bubbles before showing final answer.
         stopStepPolling();
         clearStepBubbles();
@@ -2808,6 +2963,7 @@ export const init = (config = null) => {
 
     initResizableLayout();
     initMobilePreviewSwitch();
+    initAttachmentHandlers();
 
     // Display welcome message based on booking statistics.
     displayWelcomeMessage(runtimeConfig.num_options || 0, runtimeConfig.num_booked || 0);

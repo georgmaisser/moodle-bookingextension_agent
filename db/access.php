@@ -78,7 +78,8 @@ $teacherskills = [
     'booking_search_options',
     'core_search_users',
     'booking_update_option',
-    'core_recreate_skill_catalog'
+    'core_recreate_skill_catalog',
+    'core_search_skills',
 ];
 
 $managerskills = [

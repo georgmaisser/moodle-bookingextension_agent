@@ -34,6 +34,7 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wbagent\services\attachment\attachment_processor;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interpreter;
 use bookingextension_agent\local\wbagent\orchestrator;
@@ -65,13 +66,19 @@ class ai_send_message extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'contextid'    => new external_value(PARAM_INT, 'Module context id of the booking instance.'),
-            'message' => new external_value(PARAM_RAW, 'User message text.'),
-            'threadid' => new external_value(
+            'contextid' => new external_value(PARAM_INT, 'Module context id of the booking instance.'),
+            'message'   => new external_value(PARAM_RAW, 'User message text.'),
+            'threadid'  => new external_value(
                 PARAM_INT,
                 'Optional thread id to pin this message to an existing active thread.',
                 VALUE_DEFAULT,
                 0
+            ),
+            'attachments' => new external_value(
+                PARAM_RAW,
+                'Optional JSON array of attachment tokens: [{"token":"tok_abc","type":"image"}, ...]',
+                VALUE_DEFAULT,
+                '[]'
             ),
         ]);
     }
@@ -84,18 +91,19 @@ class ai_send_message extends external_api {
      * @param int    $threadid
      * @return array
      */
-    public static function execute(int $contextid, string $message, int $threadid = 0): array {
+    public static function execute(int $contextid, string $message, int $threadid = 0, string $attachments = '[]'): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(
             self::execute_parameters(),
-            ['contextid' => $contextid, 'message' => $message, 'threadid' => $threadid]
+            ['contextid' => $contextid, 'message' => $message, 'threadid' => $threadid, 'attachments' => $attachments]
         );
-        $contextid = (int)$params['contextid'];
-        $message = trim($params['message']);
-        $threadid = (int)($params['threadid'] ?? 0);
+        $contextid   = (int)$params['contextid'];
+        $message     = trim($params['message']);
+        $threadid    = (int)($params['threadid'] ?? 0);
+        $attachments = (string)($params['attachments'] ?? '[]');
         $authz = new authorization_service();
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $contextid = (int)$context->id;
@@ -186,6 +194,12 @@ class ai_send_message extends external_api {
         // Privacy precheck before storing the user message.
         $precheck = $anonymizer->precheck_user_message($threadid, $message);
         $message = (string)($precheck['sanitizedmessage'] ?? $message);
+
+        // Augment message with any file attachments (images → token hint, PDFs → extracted text).
+        $attachmentlist = @json_decode($attachments, true);
+        if (is_array($attachmentlist) && count($attachmentlist) > 0) {
+            $message = (new attachment_processor())->augment_message($message, $attachmentlist, (int)$USER->id, $contextid);
+        }
 
         $store->add_message($threadid, 'user', $message);
 

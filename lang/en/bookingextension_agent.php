@@ -742,3 +742,14 @@ $string['benchmark_error'] = 'Error';
 $string['benchmark_uuid'] = 'UUID';
 $string['benchmark_regression'] = 'Regression';
 $string['benchmark_value'] = 'Value';
+
+// File attachment upload strings.
+$string['ai_upload_invalid_type'] = 'File type not supported. Please upload an image (JPEG, PNG, WebP, GIF) or a PDF.';
+$string['ai_upload_file_too_large'] = 'File is too large. Maximum size: {$a}.';
+$string['ai_upload_no_file'] = 'No file received. Please try again.';
+$string['ai_pdf_extraction_unavailable'] = 'PDF text extraction is not available on this server.';
+$string['ai_pdf_truncated'] = 'Document was truncated to the first ~{$a} characters.';
+$string['ai_attachment_token_invalid'] = 'The file reference is invalid or has expired. Please upload again.';
+$string['ai_attach_file'] = 'Attach file';
+$string['ai_attachment_remove'] = 'Remove attachment';
+$string['task_cleanup_attachment_temp_files'] = 'Clean up expired AI attachment temp files';

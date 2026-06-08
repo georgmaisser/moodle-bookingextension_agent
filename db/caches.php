@@ -50,4 +50,10 @@ $definitions = [
         'staticacceleration' => false,
         'ttl' => 600,
     ],
+    'attachment_tokens' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => false,
+        'ttl' => 1800,
+    ],
 ];

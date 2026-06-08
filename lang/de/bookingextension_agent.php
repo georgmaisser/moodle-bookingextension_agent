@@ -726,3 +726,14 @@ $string['benchmark_error'] = 'Fehler';
 $string['benchmark_uuid'] = 'UUID';
 $string['benchmark_regression'] = 'Regression';
 $string['benchmark_value'] = 'Wert';
+
+// Datei-Anhang Upload Strings.
+$string['ai_upload_invalid_type'] = 'Dateityp nicht unterstützt. Bitte ein Bild (JPEG, PNG, WebP, GIF) oder eine PDF-Datei hochladen.';
+$string['ai_upload_file_too_large'] = 'Datei zu groß. Maximale Größe: {$a}.';
+$string['ai_upload_no_file'] = 'Keine Datei empfangen. Bitte erneut versuchen.';
+$string['ai_pdf_extraction_unavailable'] = 'PDF-Textextraktion ist auf diesem Server nicht verfügbar.';
+$string['ai_pdf_truncated'] = 'Dokument wurde auf die ersten ~{$a} Zeichen gekürzt.';
+$string['ai_attachment_token_invalid'] = 'Der Datei-Verweis ist ungültig oder abgelaufen. Bitte Datei erneut hochladen.';
+$string['ai_attach_file'] = 'Datei anhängen';
+$string['ai_attachment_remove'] = 'Anhang entfernen';
+$string['task_cleanup_attachment_temp_files'] = 'Abgelaufene AI-Anhang-Temporärdateien aufräumen';

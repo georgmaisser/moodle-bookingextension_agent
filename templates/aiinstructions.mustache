@@ -89,14 +89,23 @@
             </button>
         </div>
 
-        <div class="card-footer">
+        <div class="card-footer booking-ai-card-footer-drop" id="booking-ai-card-footer">
+            <div id="booking-ai-attachment-tray" class="booking-ai-attachment-tray d-none"></div>
             <div class="input-group">
                 <textarea id="booking-ai-input"
                           class="form-control booking-ai-input"
                           rows="2"
                           placeholder="{{#str}}ai_input_placeholder, bookingextension_agent{{/str}}"
                           ></textarea>
-                <div class="input-group-append">
+                <div class="input-group-append d-flex align-items-stretch">
+                    <button id="booking-ai-attach-btn" type="button"
+                            class="btn btn-outline-secondary booking-ai-attach-btn"
+                            title="{{#str}}ai_attach_file, bookingextension_agent{{/str}}">
+                        <span aria-hidden="true">&#128206;</span>
+                    </button>
+                    <input type="file" id="booking-ai-file-input"
+                           class="d-none"
+                           accept="image/jpeg,image/png,image/webp,image/gif,application/pdf">
                     <button id="booking-ai-send" class="btn btn-primary">
                         {{#str}}ai_btn_send, bookingextension_agent{{/str}}
                     </button>

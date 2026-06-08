@@ -406,3 +406,83 @@
 .benchmark-chart-container::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.4);
 }
+
+/* -----------------------------------------------------------------------
+   Attachment tray & drop zone
+   ----------------------------------------------------------------------- */
+
+/* Attach button (paperclip) */
+#booking-ai-wrapper .booking-ai-attach-btn {
+    border-radius: 0;
+    border-right: none;
+    color: #6c757d;
+    font-size: 1.1rem;
+    padding: 0 0.6rem;
+    line-height: 1;
+}
+#booking-ai-wrapper .booking-ai-attach-btn:hover {
+    color: #495057;
+    background-color: #f1f3f5;
+}
+
+/* Attachment tray row shown above the input when attachments are pending */
+#booking-ai-wrapper .booking-ai-attachment-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.35rem 0.25rem 0.15rem;
+    min-height: 0;
+}
+
+/* Individual attachment chip */
+#booking-ai-wrapper .booking-ai-attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    border-radius: 0.3rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.8rem;
+    max-width: 180px;
+    overflow: hidden;
+}
+
+#booking-ai-wrapper .booking-ai-attachment-chip img.booking-ai-thumb {
+    width: auto;
+    height: 28px;
+    border-radius: 2px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+#booking-ai-wrapper .booking-ai-attachment-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+    color: #495057;
+}
+
+#booking-ai-wrapper .booking-ai-attachment-remove {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    line-height: 1;
+    font-size: 0.75rem;
+    color: #868e96;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+#booking-ai-wrapper .booking-ai-attachment-remove:hover {
+    color: #dc3545;
+}
+
+/* Drop-zone highlight when dragging over the footer */
+#booking-ai-wrapper .booking-ai-card-footer-drop {
+    transition: background-color 0.15s ease;
+}
+#booking-ai-wrapper .booking-ai-card-footer-drop.booking-ai-drop-active {
+    background-color: #e8f4fd;
+    border-top: 2px dashed #74b9ff;
+}
