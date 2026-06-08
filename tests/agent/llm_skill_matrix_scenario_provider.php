@@ -110,6 +110,22 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'core.search_skills' => [
+                'prompt' => 'Ich brauche eine bestimmte Aktion, die du wahrscheinlich nicht standardmäßig geladen hast. Suche in deinem Skill-Katalog nach einem Tool zum Herunterladen von Zertifikaten (download certificate).',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'core.recall_memory' => [
                 'prompt' => 'What did we talk about last time about "{{memory_token}}"?',
                 'setup' => 'prepare_recall_memory_scenario',

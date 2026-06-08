@@ -78,6 +78,7 @@ $teacherskills = [
     'booking_search_options',
     'core_search_users',
     'booking_update_option',
+    'core_recreate_skill_catalog'
 ];
 
 $managerskills = [
@@ -107,7 +108,6 @@ $managerskills = [
 
 $adminonlyskills = [
     'booking_create_user',
-    'core_recreate_skill_catalog',
 ];
 
 $buildskillcapability = static function (string $skillsuffix, string $role): array {

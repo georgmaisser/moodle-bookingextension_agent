@@ -79,7 +79,7 @@ flowchart TD
         OR_LANG["planner language contract\nall phase JSON follows latest user message\n(no de/en token lists in routing)"]
         DISC_CTX["context_prior_builder\nsignals: current cm/course/page type/user state\nused as ranking prior, never hard filter"]
         FREG["family_registry_service\nDomain/Context -> Skill Family map\nthird-party extensible contracts"]
-        CORESET["core_family_set\nalways-on family baseline\n(core.* + platform safety families)"]
+        CORESET["core_family_set\nalways-on family baseline\n(core.* including core.search_skills\n+ platform safety families)"]
         EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
         EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users: always-include downstream skills\n(ALWAYS_INCLUDE_SKILL_NAMES in adaptive_skill_catalog_service)"]
         FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete skills)\nonly on wunderbyte+embeddings-ready path"]
@@ -286,7 +286,8 @@ flowchart TD
     LOOP_INIT --> LOOP_STEP
     LOOP_STEP --> CS9
     LOOP_STEP --> RUNINT
-    LOOP_STEP -.->|"write next_step_intent"| CS16
+    RUNINT -->|contains next_step_intent| DB_WRITE_STEP["store->add_step_message(next_step_intent)"]
+    DB_WRITE_STEP -.->|read lock-free via poll| APO
 
     %% run_internal → orchestrator staged pipeline
     RUNINT --> ORC

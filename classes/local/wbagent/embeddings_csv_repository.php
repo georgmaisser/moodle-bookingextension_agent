@@ -51,6 +51,11 @@ class embeddings_csv_repository {
      * @return string
      */
     public function get_csv_path(): string {
+        if (defined('PHPUNIT_TEST') && PHPUNIT_TEST) {
+            global $CFG;
+            return $CFG->dirroot . '/mod/booking/bookingextension/agent/tests/agent/fixtures/skill_catalog_embeddings.csv';
+        }
+
         $dir = make_temp_directory('bookingextension_agent/wbagent');
         return $dir . '/skill_catalog_embeddings.csv';
     }
