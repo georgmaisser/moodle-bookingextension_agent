@@ -1121,7 +1121,7 @@ final class integration_agent_framework_test extends TestCase {
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
-        $this->assertGreaterThanOrEqual(2, substr_count($source, '->invoke('));
+        $this->assertGreaterThanOrEqual(2, substr_count($source, '->invoke_for_context('));
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_SELECTION', $source);
         $this->assertStringContainsString('orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION', $source);
     }
