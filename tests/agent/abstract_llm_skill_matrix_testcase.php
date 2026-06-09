@@ -55,6 +55,9 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         $this->grant_local_entities_capabilities_to_editingteacher();
         $this->grant_optional_capability_to_editingteacher('moodle/site:config');
         $this->grant_optional_capability_to_editingteacher('mod/booking:updatebooking');
+        // Pro-level capability not in the editingteacher archetype by default; required by
+        // Gate 2 for the rule skills (create/update_rule_from_template).
+        $this->grant_optional_capability_to_editingteacher('mod/booking:editbookingrules');
     }
 
     /**
