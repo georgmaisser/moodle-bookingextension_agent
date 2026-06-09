@@ -219,6 +219,24 @@ class executor implements agent_executor {
                     $userid
                 );
             }
+            // Resolve the skill's preview here, on the RAW result, while its bespoke fields
+            // (doc_path, previewoptionids, …) are still present. The result is a self-contained data
+            // block {type, html, js_module, payload} that travels downstream as the single source of
+            // truth for previews — so result sanitization never has to whitelist per-skill fields and
+            // preview_passthrough no longer re-derives anything. Best-effort: never break execution.
+            if (is_array($result) && method_exists($skill, 'get_result_preview')) {
+                try {
+                    $preview = $skill->get_result_preview($result, $contextid, $userid);
+                    if (is_array($preview) && trim((string)($preview['type'] ?? '')) !== '') {
+                        $result['preview'] = $preview;
+                    }
+                } catch (\Throwable $e) {
+                    debugging(
+                        'wbagent: get_result_preview failed for ' . $skillname . ': ' . $e->getMessage(),
+                        DEBUG_DEVELOPER
+                    );
+                }
+            }
             $results[] = $result;
         }
 

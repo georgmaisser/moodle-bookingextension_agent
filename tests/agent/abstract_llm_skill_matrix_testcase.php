@@ -197,7 +197,10 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
                 $allowdirectanswer = (bool)($scenario['allow_direct_answer'] ?? false);
                 $allowclarificationresponse = (bool)($scenario['allow_clarification_response'] ?? false);
                 $responsetype = (string)($result['response_type'] ?? '');
-                $issuecodes = (string)($result['issue_codes'] ?? '');
+                $issuecodes = $result['issue_codes'] ?? [];
+                $hasrecoverable = is_array($issuecodes)
+                    ? in_array('RECOVERABLE_INPUT_ERROR', $issuecodes, true)
+                    : strpos((string)$issuecodes, 'RECOVERABLE_INPUT_ERROR') !== false;
                 $hastoolcallevidence = $this->first_loop_has_expected_tool_call($result, $skillname);
                 if (
                     in_array($responsetype, ['sufficient', 'execution_result'], true)
@@ -208,7 +211,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
                 } else if (
                     $allowclarificationresponse
                     && $responsetype === 'clarification'
-                    && strpos($issuecodes, 'RECOVERABLE_INPUT_ERROR') !== false
+                    && $hasrecoverable
                 ) {
                     $finalresult = $result;
                 } else {

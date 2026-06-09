@@ -174,6 +174,13 @@ class execution_feedback_service {
                 $entry['previewdata'] = $result['previewdata'];
             }
 
+            // Self-contained preview block ({type, html, js_module, payload}) precomputed by the
+            // executor. This is the ONE preview-related field that must survive sanitization; the
+            // bespoke per-skill fields it was rendered from (doc_path, etc.) deliberately do not.
+            if (isset($result['preview']) && is_array($result['preview'])) {
+                $entry['preview'] = $result['preview'];
+            }
+
             if (!empty($result['previewoptionids']) && is_array($result['previewoptionids'])) {
                 $entry['previewoptionids'] = array_values(array_map('intval', $result['previewoptionids']));
             }

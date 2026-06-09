@@ -294,10 +294,7 @@ class ai_send_message extends external_api {
             'runid'                 => (int)($result['runid'] ?? 0),
             'resultsjson'           => json_encode($result['results'] ?? []),
             'previewjson'           => preview_passthrough::resolve_preview_json(
-                $registry,
                 (array)($result['results'] ?? []),
-                $contextid,
-                (int)$USER->id,
                 $threadid,
                 '_confirm_previews',
                 (array)($result['loop_results'] ?? [])

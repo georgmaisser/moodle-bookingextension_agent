@@ -27,16 +27,12 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\skill_registry;
 
 /**
  * Resolves the user-facing preview for a webservice response purely from skill-provided data.
  *
- * A skill that wants a preview simply exposes a method:
- *
- *   public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array
- *
- * returning a plain data block (no framework types):
+ * A skill that wants a preview exposes get_result_preview(), which the executor invokes on the raw
+ * result and attaches to the result as a self-contained data block under the 'preview' key:
  *
  *   [
  *     'type'      => 'booking_option',  // free, skill-defined string (for client dispatch)
@@ -45,36 +41,29 @@ use bookingextension_agent\local\wbagent\skill_registry;
  *     'payload'   => [ … ],              // optional data handed to the js_module
  *   ]
  *
- * The engine never inspects the type and never renders anything — it just forwards the block and,
- * across a multi-step confirm chain, concatenates HTML of the same type. This keeps the framework
- * free of any per-skill/domain preview knowledge (no booking_option/user_profile/… branches) and
- * lets a skill output whatever HTML/JS it wants, produced entirely inside its own plugin.
+ * This service never calls into skills and never renders anything: it only collects the precomputed
+ * 'preview' blocks from the results and, across a multi-step confirm chain, concatenates HTML of the
+ * same type. Because the block is computed before result sanitization (in the executor), previews no
+ * longer depend on any per-skill result field surviving the sanitizer's whitelist.
  */
 class preview_passthrough {
-    /** Optional method a skill may expose to provide its preview as data. */
-    public const PREVIEW_METHOD = 'get_result_preview';
 
     /**
      * Resolve the preview JSON for a webservice response from executed skill results.
      *
-     * @param skill_registry $registry
-     * @param array<int,mixed> $results Executed skill results.
-     * @param int $contextid
-     * @param int $userid
+     * @param array<int,mixed> $results Executed skill results (each may carry a precomputed 'preview').
      * @param int $threadid
      * @param string $metadatakey Thread-metadata key used to accumulate previews across a chain.
+     * @param array<int,mixed> $loopresults Per-step loop results (each entry: {..., results: [...]}).
      * @return string JSON-encoded preview block, or '' when there is none.
      */
     public static function resolve_preview_json(
-        skill_registry $registry,
         array $results,
-        int $contextid,
-        int $userid,
         int $threadid,
         string $metadatakey = '_confirm_previews',
         array $loopresults = []
     ): string {
-        $preview = self::extract_first_preview($registry, $results, $loopresults, $contextid, $userid);
+        $preview = self::extract_first_preview($results, $loopresults);
 
         $store = new conversation_store();
         $stored = $store->get_thread_metadata_value($threadid, $metadatakey);
@@ -96,28 +85,19 @@ class preview_passthrough {
     }
 
     /**
-     * Return the first valid skill-provided preview block, or null.
+     * Return the first precomputed preview block, or null.
      *
      * Scans the terminal top-level results first (e.g. a confirmed mutation), then the loop-step
-     * results (read skills such as get_option_details/search_options execute as internal loop steps,
-     * so their result lives in loop_results, not in the terminal `results`). Most recent loop step
-     * wins.
+     * results (read skills such as get_option_details/search_options/explain_docs execute as internal
+     * loop steps, so their result lives in loop_results, not in the terminal `results`). Most recent
+     * loop step wins.
      *
-     * @param skill_registry $registry
      * @param array<int,mixed> $results Terminal top-level results.
      * @param array<int,mixed> $loopresults Per-step loop results (each entry: {..., results: [...]}).
-     * @param int $contextid
-     * @param int $userid
      * @return array<string,mixed>|null
      */
-    private static function extract_first_preview(
-        skill_registry $registry,
-        array $results,
-        array $loopresults,
-        int $contextid,
-        int $userid
-    ): ?array {
-        $preview = self::first_preview_in_entries($registry, $results, $contextid, $userid);
+    private static function extract_first_preview(array $results, array $loopresults): ?array {
+        $preview = self::first_preview_in_entries($results);
         if ($preview !== null) {
             return $preview;
         }
@@ -128,12 +108,7 @@ class preview_passthrough {
             if (!is_array($step)) {
                 continue;
             }
-            $preview = self::first_preview_in_entries(
-                $registry,
-                (array)($step['results'] ?? []),
-                $contextid,
-                $userid
-            );
+            $preview = self::first_preview_in_entries((array)($step['results'] ?? []));
             if ($preview !== null) {
                 return $preview;
             }
@@ -143,41 +118,22 @@ class preview_passthrough {
     }
 
     /**
-     * Return the first valid skill-provided preview block within a flat list of result entries.
+     * Return the first precomputed preview block within a flat list of result entries.
      *
-     * @param skill_registry $registry
+     * Each entry may carry a self-contained 'preview' block attached by the executor at execution
+     * time. This service does not call into skills; it only forwards the precomputed data.
+     *
      * @param array<int,mixed> $entries
-     * @param int $contextid
-     * @param int $userid
      * @return array<string,mixed>|null
      */
-    private static function first_preview_in_entries(
-        skill_registry $registry,
-        array $entries,
-        int $contextid,
-        int $userid
-    ): ?array {
+    private static function first_preview_in_entries(array $entries): ?array {
         foreach ($entries as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
-            $skillname = trim((string)($entry['skill'] ?? ''));
-            if ($skillname === '') {
-                continue;
-            }
-            $skill = $registry->get_skill($skillname);
-            if ($skill === null || !method_exists($skill, self::PREVIEW_METHOD)) {
-                continue;
-            }
-
-            try {
-                $candidate = $skill->{self::PREVIEW_METHOD}($entry, $contextid, $userid);
-            } catch (\Throwable $e) {
-                continue;
-            }
-
-            if (is_array($candidate) && trim((string)($candidate['type'] ?? '')) !== '') {
-                return $candidate;
+            $preview = $entry['preview'] ?? null;
+            if (is_array($preview) && trim((string)($preview['type'] ?? '')) !== '') {
+                return $preview;
             }
         }
 

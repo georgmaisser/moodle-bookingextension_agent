@@ -774,12 +774,11 @@ class confirm_run_service {
         int $contextid,
         int $userid
     ): string {
-        // Generic, domain-agnostic passthrough of skill-provided preview blocks.
+        // Generic, domain-agnostic passthrough of skill-provided preview blocks (precomputed by the
+        // executor on the raw results; $contextid/$userid are no longer needed here).
+        unset($contextid, $userid);
         return preview_passthrough::resolve_preview_json(
-            $this->registry,
             $results,
-            $contextid,
-            $userid,
             $threadid,
             '_confirm_previews'
         );
