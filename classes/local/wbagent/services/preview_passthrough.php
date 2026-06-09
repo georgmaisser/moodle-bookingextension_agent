@@ -71,9 +71,10 @@ class preview_passthrough {
         int $contextid,
         int $userid,
         int $threadid,
-        string $metadatakey = '_confirm_previews'
+        string $metadatakey = '_confirm_previews',
+        array $loopresults = []
     ): string {
-        $preview = self::extract_first_preview($registry, $results, $contextid, $userid);
+        $preview = self::extract_first_preview($registry, $results, $loopresults, $contextid, $userid);
 
         $store = new conversation_store();
         $stored = $store->get_thread_metadata_value($threadid, $metadatakey);
@@ -95,10 +96,16 @@ class preview_passthrough {
     }
 
     /**
-     * Return the first valid skill-provided preview block from the results, or null.
+     * Return the first valid skill-provided preview block, or null.
+     *
+     * Scans the terminal top-level results first (e.g. a confirmed mutation), then the loop-step
+     * results (read skills such as get_option_details/search_options execute as internal loop steps,
+     * so their result lives in loop_results, not in the terminal `results`). Most recent loop step
+     * wins.
      *
      * @param skill_registry $registry
-     * @param array<int,mixed> $results
+     * @param array<int,mixed> $results Terminal top-level results.
+     * @param array<int,mixed> $loopresults Per-step loop results (each entry: {..., results: [...]}).
      * @param int $contextid
      * @param int $userid
      * @return array<string,mixed>|null
@@ -106,10 +113,51 @@ class preview_passthrough {
     private static function extract_first_preview(
         skill_registry $registry,
         array $results,
+        array $loopresults,
         int $contextid,
         int $userid
     ): ?array {
-        foreach ($results as $entry) {
+        $preview = self::first_preview_in_entries($registry, $results, $contextid, $userid);
+        if ($preview !== null) {
+            return $preview;
+        }
+
+        // Most recent loop step first.
+        for ($i = count($loopresults) - 1; $i >= 0; $i--) {
+            $step = $loopresults[$i];
+            if (!is_array($step)) {
+                continue;
+            }
+            $preview = self::first_preview_in_entries(
+                $registry,
+                (array)($step['results'] ?? []),
+                $contextid,
+                $userid
+            );
+            if ($preview !== null) {
+                return $preview;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Return the first valid skill-provided preview block within a flat list of result entries.
+     *
+     * @param skill_registry $registry
+     * @param array<int,mixed> $entries
+     * @param int $contextid
+     * @param int $userid
+     * @return array<string,mixed>|null
+     */
+    private static function first_preview_in_entries(
+        skill_registry $registry,
+        array $entries,
+        int $contextid,
+        int $userid
+    ): ?array {
+        foreach ($entries as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -157,6 +205,25 @@ class preview_passthrough {
         $newhtml = isset($preview['html']) && is_string($preview['html']) ? $preview['html'] : '';
         if ($oldhtml !== '' && $newhtml !== '' && strpos($newhtml, $oldhtml) === false) {
             $preview['html'] = $oldhtml . $newhtml;
+        }
+
+        // Merge payloads (especially list of optionids) across the confirm chain.
+        $oldpayload = isset($accumulated['payload']) && is_array($accumulated['payload']) ? $accumulated['payload'] : [];
+        $newpayload = isset($preview['payload']) && is_array($preview['payload']) ? $preview['payload'] : [];
+        if (!empty($oldpayload) && !empty($newpayload)) {
+            $mergedpayload = $newpayload;
+            foreach ($oldpayload as $key => $oldval) {
+                if (isset($newpayload[$key])) {
+                    if (is_array($oldval) && is_array($newpayload[$key])) {
+                        $mergedpayload[$key] = array_values(array_unique(array_merge($oldval, $newpayload[$key])));
+                    }
+                } else {
+                    $mergedpayload[$key] = $oldval;
+                }
+            }
+            $preview['payload'] = $mergedpayload;
+        } else if (!empty($oldpayload)) {
+            $preview['payload'] = $oldpayload;
         }
 
         return $preview;

@@ -169,8 +169,8 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
                 . $datestr . 'T10:00:00", courseendtime="' . $datestr . 'T12:00:00"';
         }
 
-        $prompt = 'Erstelle fuer uebernaechste Woche Buchungsmoeglichkeit mit dem Titel "Sport x", '
-            . 'durchnummeriert, fuer hoechstens fuenf Personen. immer von 10 bis 12h, an jedem Wochentag.';
+        $prompt = 'Erstelle fuer uebernaechste Woche fuenf einzelne normale Buchungsoptionen mit dem Titel "Sport x", '
+            . 'durchnummeriert (Sport 1 bis Sport 5), fuer hoechstens fuenf Personen. Diese sollen an jedem Wochentag (Mo-Fr) jeweils von 10 bis 12h stattfinden.';
 
         $_POST['sesskey'] = sesskey();
         $response = ai_send_message::execute($contextid, $prompt, (int)$threadid);

@@ -298,7 +298,9 @@ class ai_send_message extends external_api {
                 (array)($result['results'] ?? []),
                 $contextid,
                 (int)$USER->id,
-                $threadid
+                $threadid,
+                '_confirm_previews',
+                (array)($result['loop_results'] ?? [])
             ),
         ];
     }

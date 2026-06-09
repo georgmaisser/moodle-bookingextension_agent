@@ -433,7 +433,7 @@ class confirm_run_service {
                 ]
             );
 
-            $previewjson = $this->resolve_and_accumulate_preview_json($threadid, $results);
+            $previewjson = $this->resolve_and_accumulate_preview_json($threadid, $results, $contextid, $userid);
             $nextmutatingqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
             $shouldcontinue = $this->should_continue_with_runtime_loop($rawresults)
                 || is_array($nextmutatingqueueitem)
