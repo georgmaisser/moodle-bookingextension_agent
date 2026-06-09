@@ -80,6 +80,7 @@ $teacherskills = [
     'booking_update_option',
     'core_recreate_skill_catalog',
     'core_search_skills',
+    'core_generate_questions',
 ];
 
 $managerskills = [
