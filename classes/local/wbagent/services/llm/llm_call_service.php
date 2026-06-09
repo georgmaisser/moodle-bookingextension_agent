@@ -127,6 +127,75 @@ class llm_call_service {
     }
 
     /**
+     * Invoke a core_ai action class by context id (context-level-agnostic).
+     *
+     * Mirrors invoke() but resolves the context directly from a context id instead of a
+     * course-module id, so the agent can run at course/system level, not only inside a
+     * module. The debug log records the real context id.
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param string $source
+     * @param string $prompt
+     * @param string $actionclass
+     * @return array{success:bool,rawcontent:string,errormessage:string,errorcode:int,errorname:string}
+     */
+    public function invoke_for_context(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        string $source,
+        string $prompt,
+        string $actionclass = generate_text::class
+    ): array {
+        $rawcontent = '';
+        $errormessage = '';
+        $errorcode = 0;
+        $errorname = '';
+        $success = false;
+
+        try {
+            $context = context::instance_by_id($contextid, MUST_EXIST);
+            $manager = di::get(ai_manager::class);
+
+            $action = $this->build_prompt_action($actionclass, (int)$context->id, $userid, $prompt);
+
+            $response = $manager->process_action($action);
+            $rawcontent = (string)($response->get_response_data()['generatedcontent'] ?? '');
+            $success = (bool)$response->get_success();
+            $errormessage = (string)($response->get_errormessage() ?? '');
+            $errorcode = (int)$response->get_errorcode();
+            $errorname = (string)$response->get_error();
+        } catch (\Throwable $e) {
+            $success = false;
+            $errormessage = $e->getMessage();
+            $errorcode = (int)$e->getCode();
+            $errorname = '';
+        }
+
+        llm_debug_logger::log_exchange_always(
+            $this->store,
+            $threadid,
+            (int)$contextid,
+            $userid,
+            $source,
+            $prompt,
+            $rawcontent,
+            $success,
+            $errormessage
+        );
+
+        return [
+            'success' => $success,
+            'rawcontent' => $rawcontent,
+            'errormessage' => $errormessage,
+            'errorcode' => $errorcode,
+            'errorname' => $errorname,
+        ];
+    }
+
+    /**
      * Invoke wunderbyte embeddings action with guaranteed debug logging.
      *
      * @param int $threadid
