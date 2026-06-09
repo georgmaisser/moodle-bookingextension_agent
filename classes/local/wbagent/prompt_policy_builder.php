@@ -116,9 +116,11 @@ class prompt_policy_builder {
         if ($phase === 'selection') {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
             . "- Return valid JSON only (no markdown).\n"
-            . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang, planned_steps.\n"
+            . "- Always include top-level keys: response_type, message, used_triggers, "
+            . "next_step_intent, lang, user_lang, planned_steps.\n"
             . "- Allowed response_type values: skill_call, clarification, confirm_pending, sufficient, error.\n"
-            . "- For skill_call, commands MUST contain exactly one command object that selects exactly one skill and MUST NOT carry full parameter payloads.\n"
+            . "- For skill_call, commands MUST contain exactly one command object that "
+            . "selects exactly one skill and MUST NOT carry full parameter payloads.\n"
             . "- Selection must not perform parameter construction; command input should be omitted or {}.\n"
             . "- For response_type=clarification, confirm_pending, or error, message MUST be a non-empty string.\n"
             . "- For response_type=sufficient, message may be omitted or empty.\n"
@@ -134,12 +136,12 @@ class prompt_policy_builder {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
                 . "- Return valid JSON only (no markdown).\n"
                 . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
-            . "- Allowed response_type values: clarification, confirm_pending, sufficient, error.\n"
+                . "- Allowed response_type values: clarification, confirm_pending, sufficient, error.\n"
                 . "- For response_type=clarification, confirm_pending, or error, message MUST be a non-empty string.\n"
                 . "- For response_type=sufficient, message may be omitted or empty.\n"
                 . "- commands MUST always be [] in this phase.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
-            . "- Never emit skill_call or confirmation_request in this phase.\n"
+                . "- Never emit skill_call or confirmation_request in this phase.\n"
                 . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
@@ -208,7 +210,8 @@ class prompt_policy_builder {
     private static function build_routing_determinism_policy(): string {
         return "NON-OPTIONAL ROUTING DETERMINISM POLICY:\n"
             . "- Route from skill catalog evidence (readonly, minimal_input, anchors, message_triggers), not phrase lists.\n"
-            . "- Respect strict 2-call roles: discovery stays non-command, selection does skill choice, construction does parameters.\n"
+            . "- Respect strict 2-call roles: discovery stays non-command, "
+            . "selection does skill choice, construction does parameters.\n"
             . "- Follow one decision order: completed outcome -> sufficient, explicit pending confirmation"
             . " -> confirm_pending, missing required fields -> clarification, mutating -> confirmation_request,"
             . " read-only -> skill_call.\n"

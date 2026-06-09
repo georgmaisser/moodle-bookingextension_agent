@@ -317,17 +317,21 @@ class search_users_skill extends core_skill_base implements
             return null;
         }
 
-        $rows = \html_writer::tag('tr',
-            \html_writer::tag('th', s('Name')) . \html_writer::tag('th', s('Email')) . \html_writer::tag('th', s('ID')));
+        $rows = \html_writer::tag(
+            'tr',
+            \html_writer::tag('th', s('Name')) . \html_writer::tag('th', s('Email')) . \html_writer::tag('th', s('ID'))
+        );
         foreach ($users as $user) {
             if (!is_array($user)) {
                 continue;
             }
             $name = (string)($user['fullname'] ?? $user['username'] ?? '');
-            $rows .= \html_writer::tag('tr',
+            $rows .= \html_writer::tag(
+                'tr',
                 \html_writer::tag('td', s($name))
                 . \html_writer::tag('td', s((string)($user['email'] ?? '')))
-                . \html_writer::tag('td', s((string)($user['id'] ?? ''))));
+                . \html_writer::tag('td', s((string)($user['id'] ?? '')))
+            );
         }
 
         $html = \html_writer::tag('table', $rows, ['class' => 'table table-sm booking-ai-preview-user-search']);

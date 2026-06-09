@@ -30,10 +30,18 @@ use core\task\scheduled_task;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class cleanup_old_benchmark_runs_task extends scheduled_task {
+    /**
+     * Get the name of this scheduled task.
+     *
+     * @return string
+     */
     public function get_name(): string {
         return 'Clean up old benchmark runs';
     }
 
+    /**
+     * Execute the task.
+     */
     public function execute(): void {
         $days = (int)(get_config('bookingextension_agent', 'benchmark_retention_days') ?: 365);
         $writer = new benchmark_db_writer();

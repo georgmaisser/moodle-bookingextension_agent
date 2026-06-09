@@ -48,6 +48,9 @@ class confirm_run_service {
     /** Thread metadata key for aggregated option previews across one confirm chain. */
     private const CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY = '_confirm_preview_option_ids';
 
+    /** Thread metadata key: signatures of mutating commands that failed non-retryably (repeat guard). */
+    private const FAILED_COMMAND_SIGNATURES_KEY = '_failed_command_signatures';
+
     /** @var skill_registry */
     private skill_registry $registry;
 
@@ -206,6 +209,38 @@ class confirm_run_service {
                 [],
                 $activequeueitemid
             );
+        }
+
+        // Repeat guard: do not re-execute a command that already failed non-retryably in this thread
+        // (e.g. an optionquery that matches nothing). Surface a clarification and let the planner/user
+        // correct instead of silently failing the identical action again.
+        $faileddetail = $this->get_failed_command_detail($threadid, $commandsforrun[0] ?? []);
+        if ($faileddetail !== null) {
+            $this->queuetransitionsvc->to_skipped(
+                $queuesvc,
+                $threadid,
+                $activequeueitemid,
+                'REPEATED_FAILED_COMMAND',
+                ['REPEATED_FAILED_COMMAND'],
+                'domain_error',
+                'Identical command already failed earlier in this thread.'
+            );
+            return [
+                'success' => true,
+                'runid' => 0,
+                'threadid' => $threadid,
+                'response_type' => 'clarification',
+                'message' => $faileddetail,
+                'autoconfirm' => 0,
+                'commands' => [],
+                'results' => [],
+                'attempted_skills' => [],
+                'issue_codes' => ['REPEATED_FAILED_COMMAND'],
+                'errors' => [],
+                'pending_confirmation_code' => '',
+                'queueitemid' => '',
+                ...$this->build_preview_response_fields($threadid, [], $contextid, $userid),
+            ];
         }
 
         $this->queuetransitionsvc->to_ready(
@@ -377,6 +412,13 @@ class confirm_run_service {
                         'domain_error',
                         trim((string)($primary['detail'] ?? ''))
                     );
+                    // Remember this non-retryable failure so the repeat guard can short-circuit an
+                    // identical re-issue instead of looping (see top of confirm()).
+                    $this->record_failed_command(
+                        $threadid,
+                        $commandsforrun[0] ?? [],
+                        trim((string)($primary['detail'] ?? ''))
+                    );
                 }
 
                 $auditlogger->append($threadid, (int)$runid, array_merge(
@@ -530,7 +572,11 @@ class confirm_run_service {
             $responsetype = (string)($finalresult['response_type'] ?? 'sufficient');
             $issuecodes = $this->normalize_string_list($finalresult['issue_codes'] ?? []);
             $errors = $this->normalize_string_list($finalresult['errors'] ?? []);
-            $autoconfirmblocked = !empty($issuecodes) || !empty($errors);
+            // Never auto-confirm a follow-up when the execution in THIS confirm just failed — even if
+            // the re-planned proposal looks "clean" (empty issue_codes/errors). Otherwise a domain
+            // failure (e.g. "no matching options") that the planner keeps re-issuing turns into an
+            // infinite frontend<->backend auto-confirm ping-pong. The user must explicitly confirm.
+            $autoconfirmblocked = $failed || !empty($issuecodes) || !empty($errors);
 
             $responsequeueitemid = '';
             if (is_array($pendingintent)) {
@@ -728,6 +774,62 @@ class confirm_run_service {
             $threadid,
             '_confirm_previews'
         );
+    }
+
+    /**
+     * Deterministic signature of a mutating command (skill + normalized input).
+     *
+     * @param array<string,mixed> $command
+     * @return string
+     */
+    private static function command_signature(array $command): string {
+        $skill = trim((string)($command['skill'] ?? ''));
+        $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+        // Ignore presentation-only keys so the signature reflects the actual intent.
+        unset($input['outputlang']);
+        ksort($input);
+        return sha1($skill . '|' . json_encode($input));
+    }
+
+    /**
+     * Record a non-retryable command failure so an identical re-issue can be short-circuited.
+     *
+     * @param int $threadid
+     * @param array<string,mixed> $command
+     * @param string $detail Human-readable failure detail (shown to the user on repeat).
+     * @return void
+     */
+    private function record_failed_command(int $threadid, array $command, string $detail): void {
+        $skill = trim((string)($command['skill'] ?? ''));
+        if ($skill === '') {
+            return;
+        }
+        $signature = self::command_signature($command);
+        $stored = $this->store->get_thread_metadata_value($threadid, self::FAILED_COMMAND_SIGNATURES_KEY);
+        $map = is_array($stored) ? $stored : [];
+        $map[$signature] = (string)substr(trim($detail), 0, 600);
+        if (count($map) > 20) {
+            $map = array_slice($map, -20, null, true);
+        }
+        $this->store->set_thread_metadata_value($threadid, self::FAILED_COMMAND_SIGNATURES_KEY, $map);
+    }
+
+    /**
+     * Return the recorded failure detail when this exact command already failed non-retryably,
+     * or null when it has not.
+     *
+     * @param int $threadid
+     * @param array<string,mixed> $command
+     * @return string|null
+     */
+    private function get_failed_command_detail(int $threadid, array $command): ?string {
+        if (trim((string)($command['skill'] ?? '')) === '') {
+            return null;
+        }
+        $stored = $this->store->get_thread_metadata_value($threadid, self::FAILED_COMMAND_SIGNATURES_KEY);
+        $map = is_array($stored) ? $stored : [];
+        $signature = self::command_signature($command);
+        return isset($map[$signature]) ? (string)$map[$signature] : null;
     }
 
     /**

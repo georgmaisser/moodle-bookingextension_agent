@@ -308,6 +308,11 @@ PROMPT;
                 . '"planned_steps":[{"intent":"Set trainer"},{"intent":"Book user"}],"next_step_intent":"Create event 2"}';
             $lines[] = 'Invalid example: {"response_type":"skill_call","commands":['
                 . '{"current":{"skill":"mod_booking.create_option"}}]}';
+            $lines[] = 'If NONE of the skills in the SKILL CATALOG can fulfill the request, do NOT answer that no '
+                . 'capability exists. Instead select core.search_skills to search the full tool registry: '
+                . '{"response_type":"skill_call","commands":[{"skill":"core.search_skills","input":{}}],'
+                . '"planned_steps":[],"next_step_intent":"Search for a skill that can <capability>"}. '
+                . 'Do this at most once per request; if the follow-up still finds nothing, return clarification or error.';
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {

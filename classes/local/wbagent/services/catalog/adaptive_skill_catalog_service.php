@@ -61,6 +61,9 @@ class adaptive_skill_catalog_service {
     private const ALWAYS_INCLUDE_SKILL_NAMES = [
         'mod_booking.update_option_trainer',
         'mod_booking.book_users',
+        // Universal dynamic-discovery fallback: always offer the tool-search skill so the planner can
+        // retrieve a matching capability when nothing in the shown catalog fits (instead of erroring).
+        'core.search_skills',
     ];
 
         /**

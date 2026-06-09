@@ -69,7 +69,7 @@ class ai_poll_thread extends external_api {
         global $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), [
-            'contextid'  => $contextid, 
+            'contextid'  => $contextid,
             'threadid'   => $threadid,
             'lastseenid' => $lastseenid,
         ]);

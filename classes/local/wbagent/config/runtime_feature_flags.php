@@ -67,9 +67,19 @@ class runtime_feature_flags {
         self::POSTCONDITION_ENFORCEMENT_MODE,
     ];
 
-    /** Valid enforcement mode values (observe → warn → enforce). */
+    /**
+     * Observe mode (log only).
+     */
     public const ENFORCEMENT_MODE_OBSERVE  = 'observe';
+
+    /**
+     * Warn mode (log + soft message).
+     */
     public const ENFORCEMENT_MODE_WARN     = 'warn';
+
+    /**
+     * Enforce mode (block success).
+     */
     public const ENFORCEMENT_MODE_ENFORCE  = 'enforce';
 
     /**

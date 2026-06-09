@@ -16,8 +16,6 @@
 
 namespace bookingextension_agent\local\wbagent;
 
-require_once(__DIR__ . '/summarizer/single_object_result_summary_contributor.php');
-
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;

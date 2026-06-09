@@ -128,7 +128,9 @@ foreach ([['A', $runa], ['B', $runb]] as [$tag, $r]) {
     $cardcontent = '';
     $cardcontent .= get_string('benchmark_model', 'bookingextension_agent') . ': ' . htmlspecialchars($r->model_id) . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' . htmlspecialchars($r->skill_set) . html_writer::empty_tag('br');
-    $cardcontent .= get_string('benchmark_success', 'bookingextension_agent') . ': ' . $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')' . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_success', 'bookingextension_agent') . ': ' .
+        $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')' .
+        html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_date', 'bookingextension_agent') . ': ' . userdate($r->timecreated, '%d.%m.%Y %H:%M');
 
     echo html_writer::div(html_writer::tag('small', $cardcontent), 'card-body p-2');
@@ -230,8 +232,18 @@ if (!empty($diffs)) {
     $table->data = [];
 
     foreach ($diffs as $k) {
-        $pa = isset($bykeya[$k]) ? ($bykeya[$k]->passed ? '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') : '❌ ' . get_string('benchmark_failed', 'bookingextension_agent')) : '—';
-        $pb = isset($bykeyb[$k]) ? ($bykeyb[$k]->passed ? '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') : '❌ ' . get_string('benchmark_failed', 'bookingextension_agent')) : '—';
+        $pa = '—';
+        if (isset($bykeya[$k])) {
+            $pa = $bykeya[$k]->passed ?
+                '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') :
+                '❌ ' . get_string('benchmark_failed', 'bookingextension_agent');
+        }
+        $pb = '—';
+        if (isset($bykeyb[$k])) {
+            $pb = $bykeyb[$k]->passed ?
+                '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') :
+                '❌ ' . get_string('benchmark_failed', 'bookingextension_agent');
+        }
 
         $rowclass = (strpos($pa, 'fail') !== false || strpos($pb, 'fail') !== false) ? 'table-warning' : '';
 

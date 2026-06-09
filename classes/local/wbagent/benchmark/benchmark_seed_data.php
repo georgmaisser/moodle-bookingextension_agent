@@ -30,27 +30,74 @@ namespace bookingextension_agent\local\wbagent\benchmark;
  */
 class benchmark_seed_data {
     // Fixed booking option IDs used across scenarios.
+    /**
+     * Booking option ID A.
+     */
     public const OPTION_ID_A = 1001;
+
+    /**
+     * Booking option ID B.
+     */
     public const OPTION_ID_B = 1002;
+
+    /**
+     * Booking option ID Trainer.
+     */
     public const OPTION_ID_TRAINER = 1003;
 
-    // Fixed user IDs (anonymized).
+    /**
+     * User ID Trainer.
+     */
     public const USER_ID_TRAINER = 2001;
+
+    /**
+     * User ID Participant.
+     */
     public const USER_ID_PARTICIPANT = 2002;
+
+    /**
+     * User ID Admin.
+     */
     public const USER_ID_ADMIN = 2003;
 
-    // Fixed context/cmid.
+    /**
+     * Course module ID.
+     */
     public const CMID = 25;
+
+    /**
+     * Context ID.
+     */
     public const CONTEXT_ID = 6168;
+
+    /**
+     * Booking ID.
+     */
     public const BOOKING_ID = 12;
 
-    // Fixed thread ID for replay scenarios.
+    /**
+     * Thread ID.
+     */
     public const THREAD_ID = 9001;
 
-    // Reproducible timestamps (anchored to 2026-06-09T10:00:00 Europe/Vienna).
+    /**
+     * Option start time Tuesday.
+     */
     public const OPTION_STARTTIME_TUE = 1780992000;
+
+    /**
+     * Option end time Tuesday.
+     */
     public const OPTION_ENDTIME_TUE   = 1780999200;
+
+    /**
+     * Option start time Wednesday.
+     */
     public const OPTION_STARTTIME_WED = 1781078400;
+
+    /**
+     * Option end time Wednesday.
+     */
     public const OPTION_ENDTIME_WED   = 1781085600;
 
     /**

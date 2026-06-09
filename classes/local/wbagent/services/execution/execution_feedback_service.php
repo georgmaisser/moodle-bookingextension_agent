@@ -88,6 +88,13 @@ class execution_feedback_service {
         ];
     }
 
+    /**
+     * Sanitize execution results to return to the client.
+     *
+     * @param array  $results    Raw execution results.
+     * @param string $outputlang Target language for message localizations.
+     * @return array Sanitized results.
+     */
     private function sanitize_results_for_client(array $results, string $outputlang = ''): array {
         $sanitized = [];
         foreach ($results as $result) {

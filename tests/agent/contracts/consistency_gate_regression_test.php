@@ -106,6 +106,8 @@ final class consistency_gate_regression_test extends TestCase {
     // -----------------------------------------------------------------------
 
     /**
+     * Test retry issue codes route to template only strategy.
+     *
      * @dataProvider retry_issue_codes_provider
      */
     public function test_retry_issue_code_routes_to_template_only(string $issuecode): void {
@@ -121,6 +123,8 @@ final class consistency_gate_regression_test extends TestCase {
     }
 
     /**
+     * Data provider for retry issue codes.
+     *
      * @return array<string,array<string>>
      */
     public static function retry_issue_codes_provider(): array {

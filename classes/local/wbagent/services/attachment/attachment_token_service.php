@@ -30,9 +30,14 @@ namespace bookingextension_agent\local\wbagent\services\attachment;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class attachment_token_service {
-
-    /** Cache definition name (matches db/caches.php). */
+    /**
+     * Cache component name (matches db/caches.php).
+     */
     private const CACHE_COMPONENT = 'bookingextension_agent';
+
+    /**
+     * Cache area name (matches db/caches.php).
+     */
     private const CACHE_AREA = 'attachment_tokens';
 
     /**

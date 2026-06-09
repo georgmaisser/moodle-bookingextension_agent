@@ -60,12 +60,14 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'If none of the provided skills match the user\'s request, use this tool with a descriptive query to search the tool registry for additional capabilities.',
+            'description' => 'If none of the provided skills match the user\'s request, ' .
+                'use this tool with a descriptive query to search the tool registry for additional capabilities.',
             'readonly' => true,
             'properties' => [
                 'query' => [
                     'type' => 'string',
-                    'description' => 'A short, descriptive search term or user intent to find the right tool (e.g. "download certificate" or "delete user").',
+                    'description' => 'A short, descriptive search term or user intent to find the ' .
+                        'right tool (e.g. "download certificate" or "delete user").',
                     'required' => true,
                 ],
             ],
@@ -138,7 +140,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
 
         $registry = skill_registry_factory::get_default();
         $readiness = new embeddings_readiness_service();
-        
+
         if (!$readiness->is_wunderbyte_embeddings_available()) {
             return [
                 'status' => 'failed',
@@ -162,7 +164,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
 
         $store = new conversation_store();
         $llm = new llm_call_service($store);
-        
+
         $embeddingcall = $llm->invoke_embeddings_for_context(
             0, // threadid 0 indicates internal retrieval lookup without thread context
             $contextid,
@@ -200,15 +202,35 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
                     'schema' => $skill->get_schema(),
                 ];
             } catch (\Exception $e) {
-                // Ignore missing skills
+                // Ignore missing skills.
+                unset($e);
             }
         }
+
+        // Surface the discovered skills as an authoritative observation so the next planner turn can
+        // select one of them — they are registered/allowed skills even if they were not in the slim
+        // catalog shown initially.
+        $lines = [];
+        foreach ($discovered as $entry) {
+            $name = trim((string)($entry['skill'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $desc = trim((string)($entry['schema']['description'] ?? ''));
+            $lines[] = '- ' . $name . ($desc !== '' ? ': ' . $desc : '');
+        }
+        $observationfull = empty($lines)
+            ? 'Skill search for "' . $query . '" found no matching skills. '
+                . 'Tell the user this capability is not available, or ask for clarification.'
+            : 'Skill search for "' . $query . '" found these capabilities. Select one of them in your next '
+                . 'step (they are valid, registered skills):' . "\n" . implode("\n", $lines);
 
         return [
             'status' => 'executed',
             'message' => 'Successfully discovered relevant skills.',
             'query' => $query,
             'discovered_skills' => $discovered,
+            'observation_full' => $observationfull,
         ];
     }
 }

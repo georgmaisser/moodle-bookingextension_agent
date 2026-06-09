@@ -171,7 +171,14 @@ echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', '
 
 echo html_writer::start_div('fitem');
 echo html_writer::tag('label', get_string('skillselectiondebug_collisionlimit', 'bookingextension_agent'), ['for' => 'id_collisionlimit']);
-echo html_writer::empty_tag('input', ['type' => 'number', 'id' => 'id_collisionlimit', 'name' => 'collisionlimit', 'value' => (string)$collisionlimit, 'min' => '1', 'max' => '500']);
+echo html_writer::empty_tag('input', [
+    'type' => 'number',
+    'id' => 'id_collisionlimit',
+    'name' => 'collisionlimit',
+    'value' => (string)$collisionlimit,
+    'min' => '1',
+    'max' => '500',
+]);
 echo html_writer::end_div();
 
 echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-secondary', 'value' => get_string('skillselectiondebug_runcollisions', 'bookingextension_agent')]);

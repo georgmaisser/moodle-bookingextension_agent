@@ -70,10 +70,10 @@ if (data_submitted() && confirm_sesskey()) {
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     } else {
         // Save individual toggles.
-        $skills_posted = optional_param_array('skills', [], PARAM_RAW);
+        $skillsposted = optional_param_array('skills', [], PARAM_RAW);
         foreach ($contracts as $skillname => $meta) {
             $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
-            $value = isset($skills_posted[$skillname]) ? '1' : '0';
+            $value = isset($skillsposted[$skillname]) ? '1' : '0';
             set_config($settingname, $value, 'bookingextension_agent');
         }
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
@@ -83,31 +83,31 @@ if (data_submitted() && confirm_sesskey()) {
 // Fetch Collision analyzer results.
 $collisionanalyzer = new \bookingextension_agent\local\wbagent\services\debug\skill_selection_debug_service();
 $collisionresult = $collisionanalyzer->analyze_collisions(250);
-$has_embeddings = !empty($collisionresult['has_embeddings']);
-$skill_collisions = [];
-$high_collision_count = 0;
+$hasembeddings = !empty($collisionresult['has_embeddings']);
+$skillcollisions = [];
+$highcollisioncount = 0;
 
-if ($has_embeddings && !empty($collisionresult['pairs'])) {
+if ($hasembeddings && !empty($collisionresult['pairs'])) {
     foreach ($collisionresult['pairs'] as $pair) {
         $risk = $pair['risk'] ?? 'ok';
         if ($risk === 'high' || $risk === 'warning') {
-            $skill_collisions[$pair['skill_a']][] = [
+            $skillcollisions[$pair['skill_a']][] = [
                 'other' => $pair['skill_b'],
                 'similarity' => $pair['similarity'],
                 'risk' => $risk,
             ];
-            $skill_collisions[$pair['skill_b']][] = [
+            $skillcollisions[$pair['skill_b']][] = [
                 'other' => $pair['skill_a'],
                 'similarity' => $pair['similarity'],
                 'risk' => $risk,
             ];
             if ($risk === 'high') {
-                $high_collision_count++;
+                $highcollisioncount++;
             }
         }
     }
-    // High collision count represents pairs, so divide by 2 for unique pair counts
-    $high_collision_count = (int)ceil($high_collision_count / 2);
+    // High collision count represents pairs, so divide by 2 for unique pair counts.
+    $highcollisioncount = (int)ceil($highcollisioncount / 2);
 }
 
 // Set up Moodle Page.
@@ -123,9 +123,9 @@ echo $OUTPUT->heading(get_string('skillgovernance', 'bookingextension_agent'), 2
 echo html_writer::tag('p', get_string('aiskillgovernanceheading_desc', 'bookingextension_agent'));
 
 // Top Actions Bar & Status Warnings.
-if ($high_collision_count > 0) {
+if ($highcollisioncount > 0) {
     echo $OUTPUT->notification(
-        'Warning: There are ' . $high_collision_count . ' high-similarity embedding collision pair(s) detected. This may cause prompt selection confusion in the planner.',
+        'Warning: There are ' . $highcollisioncount . ' high-similarity embedding collision pair(s) detected. This may cause prompt selection confusion in the planner.',
         'warning'
     );
 }
@@ -191,7 +191,7 @@ foreach ($contracts as $skillname => $meta) {
     $skill = $registry->get_skill((string)$skillname);
     $provider = $registry->get_provider_for_skill((string)$skillname);
     $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
-    $isactive = get_config('bookingextension_agent', $settingname) !== '0'; // default true/active
+    $isactive = get_config('bookingextension_agent', $settingname) !== '0'; // Default true/active.
 
     $capabilities = (array)($meta['capabilities'] ?? []);
     $capabilitylabel = implode('<br/>', array_map('s', $capabilities));
@@ -202,22 +202,22 @@ foreach ($contracts as $skillname => $meta) {
     $component = s((string)($meta['component'] ?? ''));
 
     // Collision badge.
-    $collisions_html = '<span class="badge badge-success">Clear</span>';
-    $collision_list = $skill_collisions[$skillname] ?? [];
-    if (!empty($collision_list)) {
-        $highest_risk = 'warning';
-        $collision_details = [];
-        foreach ($collision_list as $col) {
+    $collisionshtml = '<span class="badge badge-success">Clear</span>';
+    $collisionlist = $skillcollisions[$skillname] ?? [];
+    if (!empty($collisionlist)) {
+        $highestrisk = 'warning';
+        $collisiondetails = [];
+        foreach ($collisionlist as $col) {
             if ($col['risk'] === 'high') {
-                $highest_risk = 'danger';
+                $highestrisk = 'danger';
             }
             $percent = round($col['similarity'] * 100);
-            $collision_details[] = s($col['other']) . ' (' . $percent . '%)';
+            $collisiondetails[] = s($col['other']) . ' (' . $percent . '%)';
         }
-        $tooltip = implode(', ', $collision_details);
-        $badge_class = $highest_risk === 'danger' ? 'badge-danger' : 'badge-warning';
-        $collisions_html = '<span class="badge ' . $badge_class . '" title="' . $tooltip . '" style="cursor: help;">'
-            . count($collision_list) . ' Collision(s)</span>';
+        $tooltip = implode(', ', $collisiondetails);
+        $badgeclass = $highestrisk === 'danger' ? 'badge-danger' : 'badge-warning';
+        $collisionshtml = '<span class="badge ' . $badgeclass . '" title="' . $tooltip . '" style="cursor: help;">'
+            . count($collisionlist) . ' Collision(s)</span>';
     }
 
     // Row class for search filtering.
@@ -248,7 +248,7 @@ foreach ($contracts as $skillname => $meta) {
     echo html_writer::tag('td', $capabilitylabel);
 
     // Collisions.
-    echo html_writer::tag('td', $collisions_html);
+    echo html_writer::tag('td', $collisionshtml);
 
     // Actions button.
     echo html_writer::start_tag('td', ['style' => 'text-align: center;']);
@@ -282,50 +282,50 @@ foreach ($contracts as $skillname => $meta) {
     $bodycontent .= html_writer::tag('p', $description ?: '<span class="text-muted">No description.</span>');
 
     // Example Input.
-    $example_html = '<span class="text-muted">No example input.</span>';
+    $examplehtml = '<span class="text-muted">No example input.</span>';
     if ($skill) {
         try {
             $example = $skill->get_example_input();
             if (!empty($example)) {
-                $example_html = html_writer::tag('pre', s(json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+                $examplehtml = html_writer::tag('pre', s(json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
             }
         } catch (\Throwable $e) {
-            $example_html = '<span class="text-danger">Error loading example: ' . s($e->getMessage()) . '</span>';
+            $examplehtml = '<span class="text-danger">Error loading example: ' . s($e->getMessage()) . '</span>';
         }
     }
     $bodycontent .= html_writer::tag('h6', 'Example Parameter Input', ['class' => 'mt-3']);
-    $bodycontent .= $example_html;
+    $bodycontent .= $examplehtml;
 
     // Message Triggers.
-    $triggers_html = '<span class="text-muted">No message triggers.</span>';
+    $triggershtml = '<span class="text-muted">No message triggers.</span>';
     if ($skill instanceof \bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface) {
         try {
             $triggers = $skill->get_message_triggers();
             if (!empty($triggers)) {
-                $trigger_items = [];
+                $triggeritems = [];
                 foreach ($triggers as $trigger) {
                     $desc = s((string)($trigger['description'] ?? ''));
                     $examples = (array)($trigger['examples'] ?? []);
-                    $ex_label = !empty($examples) ? ' (e.g. "' . implode('", "', array_map('s', $examples)) . '")' : '';
-                    $trigger_items[] = html_writer::tag('li', '<strong>' . s((string)($trigger['id'] ?? '')) . '</strong>: ' . $desc . $ex_label);
+                    $exlabel = !empty($examples) ? ' (e.g. "' . implode('", "', array_map('s', $examples)) . '")' : '';
+                    $triggeritems[] = html_writer::tag('li', '<strong>' . s((string)($trigger['id'] ?? '')) . '</strong>: ' . $desc . $exlabel);
                 }
-                $triggers_html = html_writer::tag('ul', implode('', $trigger_items), ['class' => 'mb-0 pl-3']);
+                $triggershtml = html_writer::tag('ul', implode('', $triggeritems), ['class' => 'mb-0 pl-3']);
             }
         } catch (\Throwable $e) {
-            $triggers_html = '<span class="text-danger">Error loading triggers: ' . s($e->getMessage()) . '</span>';
+            $triggershtml = '<span class="text-danger">Error loading triggers: ' . s($e->getMessage()) . '</span>';
         }
     }
     $bodycontent .= html_writer::tag('h6', 'Message Triggers', ['class' => 'mt-3']);
-    $bodycontent .= $triggers_html;
+    $bodycontent .= $triggershtml;
 
     // Guidance / Prompt Packs.
-    $guidance_html = '<span class="text-muted">No contextual guidance.</span>';
+    $guidancehtml = '<span class="text-muted">No contextual guidance.</span>';
     $packs = [];
     if ($skill && method_exists($skill, 'get_contextual_prompt_packs')) {
         try {
             $packs = $skill->get_contextual_prompt_packs();
         } catch (\Throwable $e) {
-            // Ignore error.
+            unset($e);
         }
     }
     if (empty($packs) && $provider && method_exists($provider, 'get_contextual_prompt_packs')) {
@@ -337,26 +337,26 @@ foreach ($contracts as $skillname => $meta) {
                 }
             }
         } catch (\Throwable $e) {
-            // Ignore error.
+            unset($e);
         }
     }
 
     if (!empty($packs)) {
-        $guidance_items = [];
+        $guidanceitems = [];
         foreach ($packs as $pack) {
             $lines = (array)($pack['guidance'] ?? []);
             foreach ($lines as $line) {
-                $guidance_items[] = html_writer::tag('li', s((string)$line));
+                $guidanceitems[] = html_writer::tag('li', s((string)$line));
             }
         }
-        if (!empty($guidance_items)) {
-            $guidance_html = html_writer::tag('ul', implode('', $guidance_items), ['class' => 'mb-0 pl-3']);
+        if (!empty($guidanceitems)) {
+            $guidancehtml = html_writer::tag('ul', implode('', $guidanceitems), ['class' => 'mb-0 pl-3']);
         }
     }
     $bodycontent .= html_writer::tag('h6', 'Contextual Guidance (Prompts)', ['class' => 'mt-3']);
-    $bodycontent .= $guidance_html;
+    $bodycontent .= $guidancehtml;
 
-    // Output collapsible structure matching htmlcomponents.php
+    // Output collapsible structure matching htmlcomponents.php.
     echo html_writer::div(
         html_writer::div(
             $bodycontent,
@@ -392,16 +392,16 @@ document.addEventListener('DOMContentLoaded', function() {
     searchInput.addEventListener('input', function() {
         var query = searchInput.value.toLowerCase().trim();
         var rows = document.querySelectorAll('#skills-governance-table tbody .skill-row');
-        
+
         rows.forEach(function(row) {
             var skillname = row.getAttribute('data-skillname').toLowerCase();
             var component = row.getAttribute('data-component').toLowerCase();
             var capabilities = row.getAttribute('data-capabilities').toLowerCase();
-            
-            var match = skillname.indexOf(query) !== -1 || 
-                        component.indexOf(query) !== -1 || 
+
+            var match = skillname.indexOf(query) !== -1 ||
+                        component.indexOf(query) !== -1 ||
                         capabilities.indexOf(query) !== -1;
-                        
+
             var nextRow = row.nextElementSibling;
             if (match) {
                 row.style.display = '';

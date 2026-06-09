@@ -47,7 +47,6 @@ use bookingextension_agent\local\wbagent\services\attachment\attachment_token_se
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class ai_upload_attachment extends external_api {
-
     /** Allowed MIME types. */
     private const ALLOWED_MIMES = [
         'image/jpeg',
@@ -136,7 +135,7 @@ class ai_upload_attachment extends external_api {
         $isimage = str_starts_with($actualmime, 'image/');
         $maxbytes = $isimage
             ? (int)(get_config('bookingextension_agent', 'max_image_upload_bytes') ?: self::DEFAULT_MAX_IMAGE_BYTES)
-            : (int)(get_config('bookingextension_agent', 'max_pdf_upload_bytes')   ?: self::DEFAULT_MAX_PDF_BYTES);
+            : (int)(get_config('bookingextension_agent', 'max_pdf_upload_bytes') ?: self::DEFAULT_MAX_PDF_BYTES);
 
         if ($size > $maxbytes) {
             return self::error_response(
@@ -190,10 +189,7 @@ class ai_upload_attachment extends external_api {
             'message'          => new external_value(PARAM_TEXT, 'Error message when success is false.', VALUE_OPTIONAL, ''),
         ]);
     }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
+    // Private helpers.
 
     /**
      * Build a normalised error response.
@@ -279,7 +275,6 @@ class ai_upload_attachment extends external_api {
             $b64     = base64_encode($raw);
             $safealt = htmlspecialchars($alt, ENT_QUOTES, 'UTF-8');
             return '<img src="data:image/png;base64,' . $b64 . '" class="booking-ai-thumb" alt="' . $safealt . '">';
-
         } catch (\Throwable $e) {
             return '';
         }

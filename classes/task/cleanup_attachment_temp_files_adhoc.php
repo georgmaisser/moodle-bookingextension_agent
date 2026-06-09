@@ -29,7 +29,6 @@ use bookingextension_agent\local\wbagent\services\attachment\attachment_token_se
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class cleanup_attachment_temp_files_adhoc extends \core\task\scheduled_task {
-
     /**
      * Return human-readable task name.
      *

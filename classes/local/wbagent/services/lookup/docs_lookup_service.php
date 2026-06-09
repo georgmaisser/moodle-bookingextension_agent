@@ -563,10 +563,12 @@ class docs_lookup_service {
         }
 
         // Exact basename match with full question.
-        if ($questioncompact !== '' && mb_strpos(
-            preg_replace('/[^\p{L}\p{N}]+/u', '', $basename) ?? '',
-            $questioncompact
-        ) !== false) {
+        if (
+            $questioncompact !== '' && mb_strpos(
+                preg_replace('/[^\p{L}\p{N}]+/u', '', $basename) ?? '',
+                $questioncompact
+            ) !== false
+        ) {
             $score += 50;
         }
 

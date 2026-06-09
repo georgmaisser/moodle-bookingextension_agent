@@ -87,7 +87,9 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
                 }
 
                 $skill = new class ($skillname, $skillriskmap[$skillname]) implements skill_interface {
+                    /** @var string The name of the skill. */
                     private string $name;
+                    /** @var string The risk class of the skill. */
                     private string $riskclass;
 
                     public function __construct(string $name, string $riskclass) {

@@ -194,10 +194,24 @@ class benchmark_metrics_calculator {
         return $thresholds;
     }
 
+    /**
+     * Calculate percentage.
+     *
+     * @param int $num   Numerator.
+     * @param int $denom Denominator.
+     * @return float
+     */
     private function pct(int $num, int $denom): float {
         return $denom > 0 ? round($num / $denom * 100, 2) : 0.0;
     }
 
+    /**
+     * Calculate percentile.
+     *
+     * @param array $sorted Sorted numeric values.
+     * @param int   $pct    Percentile value (e.g. 95).
+     * @return float
+     */
     private function percentile(array $sorted, int $pct): float {
         if (empty($sorted)) {
             return 0.0;

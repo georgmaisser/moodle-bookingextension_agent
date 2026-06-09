@@ -26,22 +26,48 @@ namespace bookingextension_agent\local\wbagent\benchmark;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 abstract class abstract_benchmark_scenario implements benchmark_scenario_interface {
+    /**
+     * Get prior messages for the scenario.
+     *
+     * @return array
+     */
     public function get_prior_messages(): array {
         return [];
     }
 
+    /**
+     * Whether the scenario expects planned steps.
+     *
+     * @return bool
+     */
     public function expects_planned_steps(): bool {
         return false;
     }
 
+    /**
+     * Whether the scenario requires a live LLM execution.
+     *
+     * @return bool
+     */
     public function requires_live_llm(): bool {
         return false;
     }
 
+    /**
+     * Get stub selector response.
+     *
+     * @return string
+     */
     public function get_stub_selector_response(): string {
         return '';
     }
 
+    /**
+     * Perform additional assertions on results.
+     *
+     * @param array $result Results to assert.
+     * @return array Validation errors/issues if any.
+     */
     public function assert_additional(array $result): array {
         return [];
     }

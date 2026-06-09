@@ -111,7 +111,8 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'core.search_skills' => [
-                'prompt' => 'Ich brauche eine bestimmte Aktion, die du wahrscheinlich nicht standardmäßig geladen hast. Suche in deinem Skill-Katalog nach einem Tool zum Herunterladen von Zertifikaten (download certificate).',
+                'prompt' => 'Ich brauche eine bestimmte Aktion, die du wahrscheinlich nicht standardmäßig geladen hast. ' .
+                    'Suche in deinem Skill-Katalog nach einem Tool zum Herunterladen von Zertifikaten (download certificate).',
                 'assertions' => [
                     [
                         'target' => 'final',

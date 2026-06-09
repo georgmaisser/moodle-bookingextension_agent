@@ -37,7 +37,6 @@ namespace bookingextension_agent\local\wbagent\services\attachment;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class attachment_processor {
-
     /**
      * Augment a user message with content from attachments.
      *
@@ -88,7 +87,6 @@ class attachment_processor {
                         . "[Could not be processed: " . $e->getMessage() . "]\n--- END DOCUMENT ---";
                 }
                 $tokensvc->invalidate($token);
-
             } else if ($type === 'image') {
                 // Prepend a compact text hint. Token stays alive for skill resolution.
                 $prefixes[] = "[Attachment: {$filename} — Attachment-Token: {$token}]";

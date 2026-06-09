@@ -29,7 +29,6 @@ use core_text;
 use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
 use bookingextension_agent\local\wbagent\interfaces\result_summary_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
-
 use bookingextension_agent\local\wbagent\interfaces\summarizer\result_summary_contributor_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_input_normalizer_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
@@ -191,7 +190,6 @@ class skill_registry {
             $this->skills[$skillname] = $skill;
             $this->skillcontracts[$skillname] = $metadata;
             $this->skillproviders[$skillname] = $provider;
-
         }
 
         $registryerrors = skill_contract_validator::validate_registry_contracts($this->skillcontracts);

@@ -283,6 +283,13 @@ class synchronizer_output_contract {
         return $merged;
     }
 
+    /**
+     * Add an issue code to the payload if not already present.
+     *
+     * @param array  $payload   The payload array.
+     * @param string $issuecode The issue code to add.
+     * @return array The updated payload.
+     */
     private function with_issue_code(array $payload, string $issuecode): array {
         $code = trim($issuecode);
         if ($code === '') {

@@ -198,8 +198,10 @@ class get_current_user_skill extends core_skill_base implements
             if (!isset($user[$key]) || (string)$user[$key] === '') {
                 continue;
             }
-            $rows .= \html_writer::tag('tr',
-                \html_writer::tag('th', s($label)) . \html_writer::tag('td', s((string)$user[$key])));
+            $rows .= \html_writer::tag(
+                'tr',
+                \html_writer::tag('th', s($label)) . \html_writer::tag('td', s((string)$user[$key]))
+            );
         }
         if ($rows === '') {
             return null;

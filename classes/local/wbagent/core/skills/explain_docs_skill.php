@@ -273,7 +273,10 @@ class explain_docs_skill extends core_skill_base implements
             $doc = $svc->read_doc_by_path($candidate, $linestart, $linecount);
             if ($doc !== null) {
                 return $this->build_doc_result(
-                    $doc, $svc, $outputlang, $question,
+                    $doc,
+                    $svc,
+                    $outputlang,
+                    $question,
                     $debugbase . "\nmode=candidate_path candidate=" . $candidate
                 );
             }
@@ -289,7 +292,10 @@ class explain_docs_skill extends core_skill_base implements
             $doc = $svc->read_doc_by_path((string)($best['path'] ?? ''), $linestart, $linecount);
             if ($doc !== null) {
                 return $this->build_doc_result(
-                    $doc, $svc, $outputlang, $question,
+                    $doc,
+                    $svc,
+                    $outputlang,
+                    $question,
                     $debugbase . "\nmode=semantic score=" . $score
                 );
             }
@@ -309,7 +315,10 @@ class explain_docs_skill extends core_skill_base implements
             $doc = $svc->read_doc_by_path((string)($best['path'] ?? ''), $linestart, $linecount);
             if ($doc !== null) {
                 return $this->build_doc_result(
-                    $doc, $svc, $outputlang, $question,
+                    $doc,
+                    $svc,
+                    $outputlang,
+                    $question,
                     $debugbase . "\nmode=lexical score=" . (int)($best['score'] ?? 0)
                 );
             }
@@ -319,7 +328,10 @@ class explain_docs_skill extends core_skill_base implements
         $rootdoc = $svc->read_root_doc($linestart, $linecount);
         if ($rootdoc !== null) {
             return $this->build_doc_result(
-                $rootdoc, $svc, $outputlang, $question,
+                $rootdoc,
+                $svc,
+                $outputlang,
+                $question,
                 $debugbase . "\nmode=root_fallback"
             );
         }
@@ -370,8 +382,14 @@ class explain_docs_skill extends core_skill_base implements
         $docurl = $this->build_doc_url($path);
 
         $observation = $this->build_observation_full(
-            $path, $title, $content, $docurl,
-            $linestart, $totallines, $hasmore, $nextlinestart
+            $path,
+            $title,
+            $content,
+            $docurl,
+            $linestart,
+            $totallines,
+            $hasmore,
+            $nextlinestart
         );
 
         $usermessage = $summary !== '' ? $summary : $title;

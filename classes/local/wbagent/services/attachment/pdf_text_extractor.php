@@ -31,9 +31,8 @@ namespace bookingextension_agent\local\wbagent\services\attachment;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class pdf_text_extractor {
-
     /** Maximum characters of extracted text to keep. ~3750 tokens. */
-    const MAX_CHARS = 15000;
+    public const MAX_CHARS = 15000;
 
     /**
      * Whether at least one extraction method is available.
@@ -98,7 +97,7 @@ class pdf_text_extractor {
         $output = [];
         $ret = 0;
         @exec('pdftotext -v 2>&1', $output, $ret);
-        // pdftotext returns 0 or 99 on version print; just check the command exists.
+        // Pdftotext returns 0 or 99 on version print; just check the command exists.
         return $ret !== 127;
     }
 

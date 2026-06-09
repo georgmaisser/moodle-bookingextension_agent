@@ -1898,7 +1898,7 @@ PROMPT;
             // OPTIONAL: additional example_input fields not in minimal.
             $examplekeys = array_filter(array_map('strval', array_keys((array)($entry['example_input'] ?? []))));
             if (empty($examplekeys)) {
-                // example_input may be a list of strings, not a map.
+                // Example_input may be a list of strings, not a map.
                 $examplekeys = array_filter(array_map('strval', (array)($entry['example_input'] ?? [])));
             }
             $optionalkeys = array_diff(array_values($examplekeys), array_values($minimal));
@@ -1914,7 +1914,8 @@ PROMPT;
                 }
                 $id = trim((string)($trigger['id'] ?? ''));
                 if ($id !== '') {
-                    // Strip module prefix for brevity (e.g. "mod_booking.create_option_canonical_fallback" → "create_option_canonical_fallback").
+                    // Strip module prefix for brevity.
+                    // (e.g. "mod_booking.create_option_canonical_fallback" → "create_option_canonical_fallback").
                     $shortid = (string)preg_replace('/^[a-z_]+\./', '', $id);
                     $triggerids[] = $shortid;
                 }
@@ -1929,6 +1930,12 @@ PROMPT;
         return implode("\n\n", $blocks);
     }
 
+    /**
+     * Compact the skill catalog description to a shorter length.
+     *
+     * @param string $description The raw description.
+     * @return string The compacted description.
+     */
     private function compact_catalog_description(string $description): string {
         $normalized = trim(preg_replace('/\s+/', ' ', $description) ?? $description);
         if ($normalized === '') {
