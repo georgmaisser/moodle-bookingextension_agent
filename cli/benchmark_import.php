@@ -39,7 +39,10 @@ require_once($CFG->libdir . '/clilib.php');
 );
 
 if ($options['help'] || !$options['file']) {
-    cli_writeln("Import a benchmark run from a JSON export file.\n  --file=/path/to/run.json\n  --label=override-label  (optional)");
+    cli_writeln(
+        "Import a benchmark run from a JSON export file.\n  " .
+        "--file=/path/to/run.json\n  --label=override-label  (optional)"
+    );
     exit(0);
 }
 

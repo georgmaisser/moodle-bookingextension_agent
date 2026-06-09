@@ -96,7 +96,11 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function create_option(create_option_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        return mutation_result_dto::error(get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.create_option'));
+        return mutation_result_dto::error(get_string(
+            'agent_booking_unknown_skill',
+            'bookingextension_agent',
+            'booking.create_option'
+        ));
     }
 
     /**
@@ -108,7 +112,11 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function update_option(update_option_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        return mutation_result_dto::error(get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.update_option'));
+        return mutation_result_dto::error(get_string(
+            'agent_booking_unknown_skill',
+            'bookingextension_agent',
+            'booking.update_option'
+        ));
     }
 
     /**
@@ -120,6 +128,10 @@ class option_mutation_service {
      * @return mutation_result_dto
      */
     public function bulk_update_options(bulk_update_options_input_dto $dto, int $cmid, int $userid): mutation_result_dto {
-        return mutation_result_dto::error(get_string('agent_booking_unknown_skill', 'bookingextension_agent', 'booking.bulk_update_options'));
+        return mutation_result_dto::error(get_string(
+            'agent_booking_unknown_skill',
+            'bookingextension_agent',
+            'booking.bulk_update_options'
+        ));
     }
 }

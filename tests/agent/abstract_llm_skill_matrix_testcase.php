@@ -678,7 +678,8 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
                     $this->assertSame(
                         (int)$value,
                         $this->payload_field_count($payload, $field),
-                        'Scenario assertion failed for field_count_equals on ' . $field . ' in ' . (string)($scenario['skill'] ?? '')
+                        'Scenario assertion failed for field_count_equals on ' . $field . ' in ' .
+                        (string)($scenario['skill'] ?? '')
                     );
                     break;
 

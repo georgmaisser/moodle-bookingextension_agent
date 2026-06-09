@@ -90,7 +90,9 @@ class preflight_contract_validator {
             return [
                 'valid' => false,
                 'error_class' => trim((string)($versionresult['error_class'] ?? 'schema_error')),
-                'issue_codes' => array_values(array_unique(array_filter(array_map('strval', (array)($versionresult['issue_codes'] ?? []))))),
+                'issue_codes' => array_values(array_unique(array_filter(
+                    array_map('strval', (array)($versionresult['issue_codes'] ?? []))
+                ))),
                 'errors' => array_values(array_unique(array_filter(array_map('strval', (array)($versionresult['errors'] ?? []))))),
             ];
         }

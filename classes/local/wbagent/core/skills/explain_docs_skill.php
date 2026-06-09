@@ -350,7 +350,7 @@ class explain_docs_skill extends core_skill_base implements
 
     // -------------------------------------------------------------------------
     // Private helpers
-    // -------------------------------------------------------------------------
+    // Separator.
 
     /**
      * Build a structured result payload from a doc read result.

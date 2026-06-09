@@ -92,23 +92,49 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
                     /** @var string The risk class of the skill. */
                     private string $riskclass;
 
+                    /**
+                     * Constructor.
+                     *
+                     * @param string $name
+                     * @param string $riskclass
+                     */
                     public function __construct(string $name, string $riskclass) {
                         $this->name = $name;
                         $this->riskclass = $riskclass;
                     }
 
+                    /**
+                     * Get name.
+                     *
+                     * @return string
+                     */
                     public function get_name(): string {
                         return $this->name;
                     }
 
+                    /**
+                     * Get schema.
+                     *
+                     * @return array
+                     */
                     public function get_schema(): array {
                         return ['version' => 1, 'properties' => []];
                     }
 
+                    /**
+                     * Get example input.
+                     *
+                     * @return array
+                     */
                     public function get_example_input(): array {
                         return [];
                     }
 
+                    /**
+                     * Get prompt contract.
+                     *
+                     * @return \bookingextension_agent\local\wbagent\services\skill_prompt_contract
+                     */
                     public function get_prompt_contract(): \bookingextension_agent\local\wbagent\services\skill_prompt_contract {
                         return new \bookingextension_agent\local\wbagent\services\skill_prompt_contract([
                             'intent' => 'demo',
@@ -123,22 +149,58 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
                         ]);
                     }
 
+                    /**
+                     * Get risk class.
+                     *
+                     * @return string
+                     */
                     public function get_risk_class(): string {
                         return $this->riskclass;
                     }
 
+                    /**
+                     * Check structure.
+                     *
+                     * @param array $input
+                     * @return array
+                     */
                     public function check_structure(array $input): array {
                         return ['valid' => true, 'errors' => []];
                     }
 
-                    public function preflight(array $input, int $contextid, int $userid): \bookingextension_agent\local\wbagent\services\preflight_result_v2 {
+                    /**
+                     * Preflight check.
+                     *
+                     * @param array $input
+                     * @param int $contextid
+                     * @param int $userid
+                     * @return \bookingextension_agent\local\wbagent\services\preflight_result_v2
+                     */
+                    public function preflight(
+                        array $input,
+                        int $contextid,
+                        int $userid
+                    ): \bookingextension_agent\local\wbagent\services\preflight_result_v2 {
                         return \bookingextension_agent\local\wbagent\services\preflight_result_v2::ok($input);
                     }
 
+                    /**
+                     * Execute skill.
+                     *
+                     * @param array $preparedinput
+                     * @param int $contextid
+                     * @param int $userid
+                     * @return array
+                     */
                     public function execute(array $preparedinput, int $contextid, int $userid): array {
                         return [];
                     }
 
+                    /**
+                     * Check if read only.
+                     *
+                     * @return bool
+                     */
                     public function is_read_only(): bool {
                         return $this->riskclass === skill_risk_class::R0;
                     }

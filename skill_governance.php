@@ -54,7 +54,12 @@ if (data_submitted() && confirm_sesskey()) {
         if (class_exists('\\bookingextension_agent\\task\\rebuild_skill_catalog_embeddings_adhoc')) {
             $task = new \bookingextension_agent\task\rebuild_skill_catalog_embeddings_adhoc();
             \core\task\manager::queue_adhoc_task($task, true);
-            redirect($PAGE->url, get_string('rebuild_skills_catalog_queued', 'bookingextension_agent'), null, \core\output\notification::NOTIFY_SUCCESS);
+            redirect(
+                $PAGE->url,
+                get_string('rebuild_skills_catalog_queued', 'bookingextension_agent'),
+                null,
+                \core\output\notification::NOTIFY_SUCCESS
+            );
         }
     } else if ($bulk === 'enableall') {
         foreach ($contracts as $skillname => $meta) {
@@ -124,10 +129,10 @@ echo html_writer::tag('p', get_string('aiskillgovernanceheading_desc', 'bookinge
 
 // Top Actions Bar & Status Warnings.
 if ($highcollisioncount > 0) {
-    echo $OUTPUT->notification(
-        'Warning: There are ' . $highcollisioncount . ' high-similarity embedding collision pair(s) detected. This may cause prompt selection confusion in the planner.',
-        'warning'
-    );
+        $message = 'Warning: There are ' . $highcollisioncount .
+            ' high-similarity embedding collision pair(s) detected. ' .
+            'This may cause prompt selection confusion in the planner.';
+        echo $OUTPUT->notification($message, 'warning');
 }
 
 echo html_writer::start_div('row mb-4 align-items-center');
@@ -161,8 +166,11 @@ echo html_writer::end_tag('form');
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $PAGE->url]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'rebuild']);
-echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-primary', 'value' => get_string('rebuild_skills_catalog', 'bookingextension_agent')]);
+echo html_writer::empty_tag('input', [
+    'type' => 'submit',
+    'class' => 'btn btn-primary',
+    'value' => get_string('rebuild_skills_catalog', 'bookingextension_agent'),
+]);
 echo html_writer::end_tag('form');
 
 echo html_writer::end_div();
@@ -287,7 +295,10 @@ foreach ($contracts as $skillname => $meta) {
         try {
             $example = $skill->get_example_input();
             if (!empty($example)) {
-                $examplehtml = html_writer::tag('pre', s(json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+                $examplehtml = html_writer::tag(
+                    'pre',
+                    s(json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES))
+                );
             }
         } catch (\Throwable $e) {
             $examplehtml = '<span class="text-danger">Error loading example: ' . s($e->getMessage()) . '</span>';
@@ -307,7 +318,10 @@ foreach ($contracts as $skillname => $meta) {
                     $desc = s((string)($trigger['description'] ?? ''));
                     $examples = (array)($trigger['examples'] ?? []);
                     $exlabel = !empty($examples) ? ' (e.g. "' . implode('", "', array_map('s', $examples)) . '")' : '';
-                    $triggeritems[] = html_writer::tag('li', '<strong>' . s((string)($trigger['id'] ?? '')) . '</strong>: ' . $desc . $exlabel);
+                    $triggeritems[] = html_writer::tag(
+                        'li',
+                        '<strong>' . s((string)($trigger['id'] ?? '')) . '</strong>: ' . $desc . $exlabel
+                    );
                 }
                 $triggershtml = html_writer::tag('ul', implode('', $triggeritems), ['class' => 'mb-0 pl-3']);
             }
@@ -332,7 +346,10 @@ foreach ($contracts as $skillname => $meta) {
         try {
             $allpacks = $provider->get_contextual_prompt_packs();
             foreach ($allpacks as $pack) {
-                if (isset($pack['id']) && (strpos($skillname, $pack['id']) !== false || strpos($pack['id'], $skillname) !== false)) {
+                if (
+                    isset($pack['id']) &&
+                    (strpos($skillname, $pack['id']) !== false || strpos($pack['id'], $skillname) !== false)
+                ) {
                     $packs[] = $pack;
                 }
             }
@@ -378,7 +395,11 @@ echo html_writer::end_tag('table');
 
 // Submit changes button.
 echo html_writer::start_div('mt-3 text-left');
-echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-primary btn-lg', 'value' => get_string('savechanges')]);
+echo html_writer::empty_tag('input', [
+    'type' => 'submit',
+    'class' => 'btn btn-primary btn-lg',
+    'value' => get_string('savechanges'),
+]);
 echo html_writer::end_div();
 
 echo html_writer::end_tag('form');

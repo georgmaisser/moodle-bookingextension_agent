@@ -208,7 +208,7 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
         // - 'sufficient'       : agent signalled completion normally
         // - 'execution_result' : agent executed and returned results directly (e.g. last batch item)
         // - dependency-waiting error: transient queue state, handled via continuation rounds below
-        // - alloptionscreated  : all 5 lectures already created — early exit before agent signalled done
+        // - alloptionscreated  : all 5 lectures already created — early exit before agent signalled done.
         $terminalresponsetype = (string)($response['response_type'] ?? '');
         $isvalidterminal = $alloptionscreated
             || $dependencywaitingterminal
@@ -250,7 +250,8 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
                     $_POST['sesskey'] = sesskey();
                     $discardsend = ai_send_message::execute(
                         $contextid,
-                        'Bitte verwerfe die ausstehende Aktion und fahre dann mit den restlichen Lecture-Optionen bis Lecture 5 fort.',
+                        'Bitte verwerfe die ausstehende Aktion und fahre dann mit den ' .
+                        'restlichen Lecture-Optionen bis Lecture 5 fort.',
                         (int)$threadid
                     );
                     $trace[] = $this->build_trace_line('send', 7 + $round, $discardsend);

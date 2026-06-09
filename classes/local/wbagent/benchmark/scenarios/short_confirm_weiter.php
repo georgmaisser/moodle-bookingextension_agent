@@ -79,7 +79,11 @@ class short_confirm_weiter extends abstract_benchmark_scenario {
     public function get_prior_messages(): array {
         return [
             ['role' => 'user', 'content' => 'Erstelle EventA und EventB, dann buche User1 fuer EventA.'],
-            ['role' => 'assistant', 'content' => "Beide Veranstaltungen wurden erstellt.\n\nNoch ausstehend: User1 fuer EventA buchen."],
+            [
+                'role' => 'assistant',
+                'content' => "Beide Veranstaltungen wurden erstellt.\n\n" .
+                    "Noch ausstehend: User1 fuer EventA buchen.",
+            ],
         ];
     }
 

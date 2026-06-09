@@ -63,7 +63,11 @@ class synchronizer_output_contract {
 
         if ($this->has_fact_conflict_with_source($source, $syncmessage)) {
             if ($mode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE) {
-                return $this->with_gate_telemetry($this->apply_sync_message($source, $syncmessage), 'observe', 'SYNC_FACT_CONFLICT_OBSERVED');
+                return $this->with_gate_telemetry(
+                    $this->apply_sync_message($source, $syncmessage),
+                    'observe',
+                    'SYNC_FACT_CONFLICT_OBSERVED'
+                );
             }
             $merged = $this->with_gate_telemetry($source, 'failed', 'SYNC_FACT_CONFLICT_REJECTED');
             return $this->with_issue_code($merged, 'SYNC_FACT_CONFLICT_REJECTED');
@@ -76,7 +80,11 @@ class synchronizer_output_contract {
                 str_contains($sourceconflictreason, 'POSTCONDITION')
                 && $postcondmode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE
             ) {
-                return $this->with_gate_telemetry($this->apply_sync_message($source, $syncmessage), 'observe', $sourceconflictreason);
+                return $this->with_gate_telemetry(
+                    $this->apply_sync_message($source, $syncmessage),
+                    'observe',
+                    $sourceconflictreason
+                );
             }
             return $this->with_issue_code(
                 $this->with_gate_telemetry($source, 'failed', $sourceconflictreason),

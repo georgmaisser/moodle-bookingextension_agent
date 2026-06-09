@@ -106,6 +106,7 @@ class confirm_run_service {
         if ($requestedqueueitemid === '') {
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 'Missing queue item id. Please confirm the latest assistant proposal.',
@@ -123,6 +124,7 @@ class confirm_run_service {
         if ($pendingintent === null) {
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 'No pending confirmation is available for this action. Please ask the assistant again.'
@@ -144,6 +146,7 @@ class confirm_run_service {
         if ($activequeueitemid === '') {
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 'Invalid or stale queue item id. Please confirm the latest assistant proposal.',
@@ -157,6 +160,7 @@ class confirm_run_service {
         if (!is_array($activeitem)) {
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 'No pending confirmation is available for this action. Please ask the assistant again.',
@@ -169,6 +173,7 @@ class confirm_run_service {
         if (!$queuesvc->dependencies_succeeded($threadid, $activeitem)) {
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 'Queue item is waiting for dependencies and cannot be picked up yet.',
@@ -188,6 +193,7 @@ class confirm_run_service {
 
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 implode(' ', $errors),
@@ -202,6 +208,7 @@ class confirm_run_service {
         if (empty($commandsforrun)) {
             return $this->build_error_payload(
                 $threadid,
+                $contextid,
                 $cmid,
                 $userid,
                 'No pending confirmation is available for this action. Please ask the assistant again.',
@@ -697,6 +704,7 @@ class confirm_run_service {
      * Build a normalized error payload.
      *
      * @param int $threadid
+     * @param int $contextid
      * @param int $cmid
      * @param int $userid
      * @param string $message
@@ -707,6 +715,7 @@ class confirm_run_service {
      */
     private function build_error_payload(
         int $threadid,
+        int $contextid,
         int $cmid,
         int $userid,
         string $message,

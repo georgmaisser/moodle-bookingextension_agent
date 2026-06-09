@@ -110,18 +110,66 @@ class benchmark_metrics_calculator {
         $rtbase      = array_sum(array_map(fn($s) => (string)($s['response_type_expected'] ?? '') !== '' ? 1 : 0, $scenarios));
 
         $metrics = [
-            ['metric_key' => 'e2e_success_rate', 'metric_value' => $this->pct($passed, $total), 'metric_unit' => 'percent'],
-            ['metric_key' => 'json_validity_rate', 'metric_value' => $this->pct($jsonvalid, $total), 'metric_unit' => 'percent'],
-            ['metric_key' => 'contract_compliance_rate', 'metric_value' => $this->pct($compliant, $total), 'metric_unit' => 'percent'],
-            ['metric_key' => 'response_type_accuracy', 'metric_value' => $this->pct($rtaccurate, max(1, $rtbase)), 'metric_unit' => 'percent'],
-            ['metric_key' => 'skill_hit_rate', 'metric_value' => $this->pct($skillhit, max(1, $skillbase)), 'metric_unit' => 'percent'],
-            ['metric_key' => 'planned_steps_coverage', 'metric_value' => $this->pct($plannedhit, max(1, $multistep)), 'metric_unit' => 'percent'],
-            ['metric_key' => 'multistep_completion_rate', 'metric_value' => $this->pct($multistepok, max(1, $multistep)), 'metric_unit' => 'percent'],
-            ['metric_key' => 'clarification_rate', 'metric_value' => $this->pct($clarif, $total), 'metric_unit' => 'percent'],
-            ['metric_key' => 'avg_tokens_per_scenario', 'metric_value' => $total > 0 ? round($totaltokens / $total, 1) : 0, 'metric_unit' => 'tokens'],
-            ['metric_key' => 'avg_step_count', 'metric_value' => $total > 0 ? round($totalsteps / $total, 2) : 0, 'metric_unit' => 'count'],
-            ['metric_key' => 'p50_duration_ms', 'metric_value' => $p50ms, 'metric_unit' => 'ms'],
-            ['metric_key' => 'p95_duration_ms', 'metric_value' => $p95ms, 'metric_unit' => 'ms'],
+            [
+                'metric_key' => 'e2e_success_rate',
+                'metric_value' => $this->pct($passed, $total),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'json_validity_rate',
+                'metric_value' => $this->pct($jsonvalid, $total),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'contract_compliance_rate',
+                'metric_value' => $this->pct($compliant, $total),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'response_type_accuracy',
+                'metric_value' => $this->pct($rtaccurate, max(1, $rtbase)),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'skill_hit_rate',
+                'metric_value' => $this->pct($skillhit, max(1, $skillbase)),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'planned_steps_coverage',
+                'metric_value' => $this->pct($plannedhit, max(1, $multistep)),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'multistep_completion_rate',
+                'metric_value' => $this->pct($multistepok, max(1, $multistep)),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'clarification_rate',
+                'metric_value' => $this->pct($clarif, $total),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'avg_tokens_per_scenario',
+                'metric_value' => $total > 0 ? round($totaltokens / $total, 1) : 0,
+                'metric_unit' => 'tokens',
+            ],
+            [
+                'metric_key' => 'avg_step_count',
+                'metric_value' => $total > 0 ? round($totalsteps / $total, 2) : 0,
+                'metric_unit' => 'count',
+            ],
+            [
+                'metric_key' => 'p50_duration_ms',
+                'metric_value' => $p50ms,
+                'metric_unit' => 'ms',
+            ],
+            [
+                'metric_key' => 'p95_duration_ms',
+                'metric_value' => $p95ms,
+                'metric_unit' => 'ms',
+            ],
         ];
 
         foreach ($metrics as &$m) {

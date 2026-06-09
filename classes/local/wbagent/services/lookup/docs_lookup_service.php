@@ -89,7 +89,7 @@ class docs_lookup_service {
 
     // -------------------------------------------------------------------------
     // Public API
-    // -------------------------------------------------------------------------
+    // Separator.
 
     /**
      * Search using semantic embeddings (primary path, language-agnostic).
@@ -358,7 +358,7 @@ class docs_lookup_service {
 
     // -------------------------------------------------------------------------
     // Private helpers
-    // -------------------------------------------------------------------------
+    // Separator.
 
     /**
      * Perform a single-query lexical search over on-disk markdown files.

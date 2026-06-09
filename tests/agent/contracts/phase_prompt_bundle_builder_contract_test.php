@@ -43,8 +43,10 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
             orchestrator_prompt_profile_service::PHASE_SELECTION,
             false,
         ]);
-
-        $this->assertStringContainsString('Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.', $contract);
+        $this->assertStringContainsString(
+            'Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.',
+            $contract
+        );
         $this->assertStringContainsString(
             'For skill_call: commands must contain exactly one command object that selects exactly one skill',
             $contract

@@ -38,7 +38,7 @@ use PHPUnit\Framework\TestCase;
 final class synchronizer_output_contract_postcondition_test extends TestCase {
     // -----------------------------------------------------------------------
     // Postcondition enforcement
-    // -----------------------------------------------------------------------
+    // Separator.
 
     /**
      * Failed postcondition blocks merge and produces SYNC_SOURCE_POSTCONDITION_FAILED_REJECTED.
@@ -100,7 +100,7 @@ final class synchronizer_output_contract_postcondition_test extends TestCase {
 
     // -----------------------------------------------------------------------
     // Consistency gate issue_codes
-    // -----------------------------------------------------------------------
+    // Separator.
 
     /**
      * Source error response_type produces SYNC_SOURCE_RESPONSE_ERROR_REJECTED.
@@ -157,7 +157,7 @@ final class synchronizer_output_contract_postcondition_test extends TestCase {
 
     // -----------------------------------------------------------------------
     // Finalization classifier: SYNC_* codes → template_only (no retry loop)
-    // -----------------------------------------------------------------------
+    // Separator.
 
     /**
      * Test that sync issue codes route to template only strategy.

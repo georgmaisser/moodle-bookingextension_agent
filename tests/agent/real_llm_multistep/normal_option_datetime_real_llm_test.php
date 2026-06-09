@@ -125,7 +125,10 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
 
         if ((string)($response['response_type'] ?? '') === 'confirmation_request') {
             $confirm = $this->confirm_pending_result($response, (int)$threadid, $store, false);
-            $this->assertTrue((bool)($confirm['success'] ?? false), 'Confirmation failed. Payload: ' . $this->payload_text($confirm));
+            $this->assertTrue(
+                (bool)($confirm['success'] ?? false),
+                'Confirmation failed. Payload: ' . $this->payload_text($confirm)
+            );
             $this->assertContains(
                 (string)($confirm['response_type'] ?? ''),
                 ['sufficient', 'execution_result'],
@@ -170,7 +173,8 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
         }
 
         $prompt = 'Erstelle fuer uebernaechste Woche fuenf einzelne normale Buchungsoptionen mit dem Titel "Sport x", '
-            . 'durchnummeriert (Sport 1 bis Sport 5), fuer hoechstens fuenf Personen. Diese sollen an jedem Wochentag (Mo-Fr) jeweils von 10 bis 12h stattfinden.';
+            . 'durchnummeriert (Sport 1 bis Sport 5), fuer hoechstens fuenf Personen. '
+            . 'Diese sollen an jedem Wochentag (Mo-Fr) jeweils von 10 bis 12h stattfinden.';
 
         $_POST['sesskey'] = sesskey();
         $response = ai_send_message::execute($contextid, $prompt, (int)$threadid);

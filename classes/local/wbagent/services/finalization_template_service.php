@@ -41,7 +41,8 @@ class finalization_template_service {
         'CONTEXT_INVALID' =>
             'This request is not valid in the current context. Please open the target context and try again.',
         'CONTRACT_SELECTION_SKILL_MISSING' =>
-            'The request could not continue because no next skill was selected. Please repeat the action or provide the next concrete step.',
+            'The request could not continue because no next skill was selected. ' .
+            'Please repeat the action or provide the next concrete step.',
     ];
 
     /** @var array<string,string> */

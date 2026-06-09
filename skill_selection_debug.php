@@ -104,7 +104,14 @@ echo html_writer::end_div();
 
 echo html_writer::start_div('fitem');
 echo html_writer::tag('label', get_string('skillselectiondebug_topk', 'bookingextension_agent'), ['for' => 'id_topk']);
-echo html_writer::empty_tag('input', ['type' => 'number', 'id' => 'id_topk', 'name' => 'topk', 'value' => (string)$topk, 'min' => '1', 'max' => '50']);
+echo html_writer::empty_tag('input', [
+    'type' => 'number',
+    'id' => 'id_topk',
+    'name' => 'topk',
+    'value' => (string)$topk,
+    'min' => '1',
+    'max' => '50',
+]);
 echo html_writer::end_div();
 
 echo html_writer::start_div('fitem');
@@ -115,10 +122,18 @@ echo html_writer::empty_tag('input', [
     'value' => '1',
     'checked' => $includeunavailable ? 'checked' : null,
 ]);
-echo html_writer::tag('label', get_string('skillselectiondebug_includeunavailable', 'bookingextension_agent'), ['for' => 'id_includeunavailable']);
+echo html_writer::tag(
+    'label',
+    get_string('skillselectiondebug_includeunavailable', 'bookingextension_agent'),
+    ['for' => 'id_includeunavailable']
+);
 echo html_writer::end_div();
 
-echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-primary', 'value' => get_string('skillselectiondebug_runsimulation', 'bookingextension_agent')]);
+echo html_writer::empty_tag('input', [
+    'type' => 'submit',
+    'class' => 'btn btn-primary',
+    'value' => get_string('skillselectiondebug_runsimulation', 'bookingextension_agent'),
+]);
 echo html_writer::end_tag('form');
 
 if (is_array($simresult)) {
@@ -170,7 +185,11 @@ echo html_writer::start_tag('form', ['method' => 'post', 'action' => $collisionu
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
 
 echo html_writer::start_div('fitem');
-echo html_writer::tag('label', get_string('skillselectiondebug_collisionlimit', 'bookingextension_agent'), ['for' => 'id_collisionlimit']);
+echo html_writer::tag(
+    'label',
+    get_string('skillselectiondebug_collisionlimit', 'bookingextension_agent'),
+    ['for' => 'id_collisionlimit']
+);
 echo html_writer::empty_tag('input', [
     'type' => 'number',
     'id' => 'id_collisionlimit',
@@ -181,7 +200,11 @@ echo html_writer::empty_tag('input', [
 ]);
 echo html_writer::end_div();
 
-echo html_writer::empty_tag('input', ['type' => 'submit', 'class' => 'btn btn-secondary', 'value' => get_string('skillselectiondebug_runcollisions', 'bookingextension_agent')]);
+echo html_writer::empty_tag('input', [
+    'type' => 'submit',
+    'class' => 'btn btn-secondary',
+    'value' => get_string('skillselectiondebug_runcollisions', 'bookingextension_agent'),
+]);
 echo html_writer::end_tag('form');
 
 if (is_array($collisionresult)) {

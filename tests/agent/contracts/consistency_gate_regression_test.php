@@ -40,7 +40,7 @@ use PHPUnit\Framework\TestCase;
 final class consistency_gate_regression_test extends TestCase {
     // -----------------------------------------------------------------------
     // Normal flow: clean success passes gate
-    // -----------------------------------------------------------------------
+    // Separator.
 
     /**
      * Clean sufficient result with no issue_codes passes sync gate without modification.
@@ -103,7 +103,7 @@ final class consistency_gate_regression_test extends TestCase {
 
     // -----------------------------------------------------------------------
     // Retry codes still route correctly
-    // -----------------------------------------------------------------------
+    // Separator.
 
     /**
      * Test retry issue codes route to template only strategy.
@@ -139,7 +139,7 @@ final class consistency_gate_regression_test extends TestCase {
 
     // -----------------------------------------------------------------------
     // Queue status policy: planned status is non-executable
-    // -----------------------------------------------------------------------
+    // Separator.
 
     /**
      * Planned placeholder status is not actionable-mutating (cannot be executed).

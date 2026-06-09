@@ -95,7 +95,10 @@ if (!$run->is_baseline) {
     echo html_writer::end_tag('form');
 } else {
     echo html_writer::div(
-        html_writer::span(get_string('benchmark_baseline_label', 'bookingextension_agent') . ': ' . htmlspecialchars($run->label), 'badge badge-primary float-right')
+        html_writer::span(
+            get_string('benchmark_baseline_label', 'bookingextension_agent') . ': ' . htmlspecialchars($run->label),
+            'badge badge-primary float-right'
+        )
     );
 }
 
@@ -115,8 +118,8 @@ foreach ($fields as $k => $v) {
     echo html_writer::tag('dd', htmlspecialchars((string)$v), ['class' => 'col-sm-9']);
 }
 echo html_writer::end_tag('dl');
-echo html_writer::end_div(); // card-body
-echo html_writer::end_div(); // card
+echo html_writer::end_div(); // Card-body.
+echo html_writer::end_div(); // Card.
 
 // Metric summary.
 echo html_writer::tag('h3', get_string('benchmark_metrics', 'bookingextension_agent'));
@@ -163,9 +166,13 @@ echo html_writer::start_tag('p');
 echo html_writer::link($PAGE->url, get_string('benchmark_filter_all', 'bookingextension_agent'), [
     'class' => 'btn btn-xs ' . ($filter === 'failed' ? 'btn-outline-secondary' : 'btn-secondary'),
 ]) . ' ';
-echo html_writer::link(new moodle_url($PAGE->url, ['filter' => 'failed']), get_string('benchmark_filter_failed', 'bookingextension_agent'), [
-    'class' => 'btn btn-xs ' . ($filter === 'failed' ? 'btn-danger' : 'btn-outline-danger'),
-]);
+echo html_writer::link(
+    new moodle_url($PAGE->url, ['filter' => 'failed']),
+    get_string('benchmark_filter_failed', 'bookingextension_agent'),
+    [
+        'class' => 'btn btn-xs ' . ($filter === 'failed' ? 'btn-danger' : 'btn-outline-danger'),
+    ]
+);
 echo html_writer::end_tag('p');
 
 $table = new html_table();

@@ -166,7 +166,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
         $llm = new llm_call_service($store);
 
         $embeddingcall = $llm->invoke_embeddings_for_context(
-            0, // threadid 0 indicates internal retrieval lookup without thread context
+            0, // Thread ID 0 indicates internal retrieval lookup without thread context.
             $contextid,
             $userid,
             'core.search_skills',
@@ -186,7 +186,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
         $toprows = $retrieval->search_top_k(
             (array)$embeddingcall['embedding'],
             $status['rows'],
-            5 // top-k 5 is enough to inject into the next RAG iteration
+            5 // Top-k 5 is enough to inject into the next RAG iteration.
         );
 
         $discovered = [];

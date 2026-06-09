@@ -52,7 +52,10 @@ if ($runbid <= 0) {
 }
 
 $PAGE->set_context(context_system::instance());
-$PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/benchmark_compare.php', ['run_a' => $runaid, 'run_b' => $runbid]));
+$PAGE->set_url(new moodle_url(
+    '/mod/booking/bookingextension/agent/benchmark_compare.php',
+    ['run_a' => $runaid, 'run_b' => $runbid]
+));
 $PAGE->set_title(get_string('benchmark_compare_title', 'bookingextension_agent'));
 $PAGE->set_heading(get_string('benchmark_compare_heading', 'bookingextension_agent', (object)[
     'runa' => $runaid,
@@ -65,7 +68,9 @@ echo $OUTPUT->header();
 $calc = new benchmark_metrics_calculator();
 
 // Run selector dropdown (using Moodle's single_select component).
-$allruns = $DB->get_records_sql('SELECT id, label, timecreated FROM {local_wbagent_benchmark_runs} ORDER BY timecreated DESC LIMIT 50');
+$allruns = $DB->get_records_sql(
+    'SELECT id, label, timecreated FROM {local_wbagent_benchmark_runs} ORDER BY timecreated DESC LIMIT 50'
+);
 $options = [];
 foreach ($allruns as $r) {
     $options[$r->id] = '#' . $r->id . ' ' . $r->label . ' (' . userdate($r->timecreated, '%d.%m') . ')';
@@ -126,18 +131,20 @@ foreach ([['A', $runa], ['B', $runb]] as [$tag, $r]) {
     );
 
     $cardcontent = '';
-    $cardcontent .= get_string('benchmark_model', 'bookingextension_agent') . ': ' . htmlspecialchars($r->model_id) . html_writer::empty_tag('br');
-    $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' . htmlspecialchars($r->skill_set) . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_model', 'bookingextension_agent') . ': ' .
+        htmlspecialchars($r->model_id) . html_writer::empty_tag('br');
+    $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' .
+        htmlspecialchars($r->skill_set) . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_success', 'bookingextension_agent') . ': ' .
         $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')' .
         html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_date', 'bookingextension_agent') . ': ' . userdate($r->timecreated, '%d.%m.%Y %H:%M');
 
     echo html_writer::div(html_writer::tag('small', $cardcontent), 'card-body p-2');
-    echo html_writer::end_div(); // card
-    echo html_writer::end_div(); // col-md-6
+    echo html_writer::end_div(); // Card.
+    echo html_writer::end_div(); // Col-md-6.
 }
-echo html_writer::end_div(); // row
+echo html_writer::end_div(); // Row.
 
 // Delta table.
 echo html_writer::tag('h3', get_string('benchmark_metric_delta', 'bookingextension_agent'));
@@ -259,7 +266,11 @@ if (!empty($diffs)) {
     }
     echo html_writer::table($table);
 } else {
-    echo html_writer::tag('p', get_string('benchmark_no_scenario_differences', 'bookingextension_agent'), ['class' => 'text-muted']);
+    echo html_writer::tag(
+        'p',
+        get_string('benchmark_no_scenario_differences', 'bookingextension_agent'),
+        ['class' => 'text-muted']
+    );
 }
 
 echo $OUTPUT->footer();

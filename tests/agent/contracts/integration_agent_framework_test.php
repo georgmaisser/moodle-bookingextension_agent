@@ -345,7 +345,8 @@ final class integration_agent_framework_test extends TestCase {
     public function test_embedding_subset_keeps_full_descriptions(): void {
         $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
         $csvdescription = 'Persisted CSV description that should not win over live skill schema metadata.';
-        $livedescription = 'Live skill description from get_schema that must win when embed skill selection is mapped back to skills.';
+        $livedescription = 'Live skill description from get_schema that must win ' .
+            'when embed skill selection is mapped back to skills.';
 
         $subset = $retrieval->build_planner_catalog_subset([
             [
@@ -555,7 +556,9 @@ final class integration_agent_framework_test extends TestCase {
      * Test that trigger-provider discovery ignores non-trigger classes without failing.
      */
     public function test_trigger_provider_discovery_ignores_non_trigger_classes(): void {
-        $providers = \bookingextension_agent\local\wbagent\skill_discovery::get_trigger_provider_instances('bookingextension_agent');
+        $providers = \bookingextension_agent\local\wbagent\skill_discovery::get_trigger_provider_instances(
+            'bookingextension_agent'
+        );
 
         $this->assertNotEmpty($providers);
         foreach ($providers as $provider) {

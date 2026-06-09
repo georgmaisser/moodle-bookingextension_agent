@@ -277,7 +277,8 @@ PROMPT;
 
         if ($normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
             $lines[] = 'Apply constructor semantics only; do not perform routing in this phase.';
-            $lines[] = 'Allowed response_type: skill_call, confirmation_request, confirm_pending, clarification, sufficient, error.';
+            $lines[] = 'Allowed response_type: skill_call, confirmation_request, confirm_pending, ' .
+                'clarification, sufficient, error.';
             $lines[] = 'For skill_call/confirmation_request: commands must contain one or more command objects.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
             $lines[] = 'For mutating intents, do not use skill_call; '

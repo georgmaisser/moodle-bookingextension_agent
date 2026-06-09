@@ -151,7 +151,8 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'core.recreate_skill_catalog' => [
-                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion core.recreate_skill_catalog aus und plane den Neuaufbau des Skill-Katalogs.',
+                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion core.recreate_skill_catalog aus ' .
+                    'und plane den Neuaufbau des Skill-Katalogs.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -286,7 +287,8 @@ final class llm_skill_matrix_scenario_provider {
             ],
             'examples.multistep_example' => [
                 'prompt' => 'Ich brauche Hilfe bei folgendem Vorhaben: "{{example_objective}}". '
-                    . 'Bitte gehe dabei in diesen Schritten vor: "{{example_step_one}}", "{{example_step_two}}" und "{{example_step_three}}".',
+                    . 'Bitte gehe dabei in diesen Schritten vor: '
+                    . '"{{example_step_one}}", "{{example_step_two}}" und "{{example_step_three}}".',
                 'assertions' => [
                     [
                         'target' => 'chat',
@@ -475,7 +477,8 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.configure_booking_instance' => [
-                'prompt' => 'Which booking settings can I configure in this activity? Please list the available fields and current values.',
+                'prompt' => 'Which booking settings can I configure in this activity? ' .
+                    'Please list the available fields and current values.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -680,7 +683,8 @@ final class llm_skill_matrix_scenario_provider {
             ],
             'mod_booking.update_option_trainer' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Use mod_booking.update_option_trainer to assign teacheremail {{teacher_email}} to optionid {{existing_option_id}}.',
+                'prompt' => 'Use mod_booking.update_option_trainer to assign teacheremail ' .
+                    '{{teacher_email}} to optionid {{existing_option_id}}.',
                 'assertions' => [
                     [
                         'target' => 'final',

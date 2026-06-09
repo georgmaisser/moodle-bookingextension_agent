@@ -119,15 +119,24 @@ if (!empty($chartdata['labels'])) {
         $chart = new \core\chart_line();
         $chart->set_smooth(true);
 
-        $sset = new \core\chart_series(get_string('benchmark_success', 'bookingextension_agent') . ' %', array_pad($chartdata['success'], $nruns, null));
+        $sset = new \core\chart_series(
+            get_string('benchmark_success', 'bookingextension_agent') . ' %',
+            array_pad($chartdata['success'], $nruns, null)
+        );
         $sset->set_color('#2d6a4f');
         $chart->add_series($sset);
 
-        $tset = new \core\chart_series(get_string('benchmark_skill_hit', 'bookingextension_agent') . ' %', array_pad($chartdata['skillhit'], $nruns, null));
+        $tset = new \core\chart_series(
+            get_string('benchmark_skill_hit', 'bookingextension_agent') . ' %',
+            array_pad($chartdata['skillhit'], $nruns, null)
+        );
         $tset->set_color('#457b9d');
         $chart->add_series($tset);
 
-        $jset = new \core\chart_series(get_string('benchmark_json_valid', 'bookingextension_agent') . ' %', array_pad($chartdata['jsonok'], $nruns, null));
+        $jset = new \core\chart_series(
+            get_string('benchmark_json_valid', 'bookingextension_agent') . ' %',
+            array_pad($chartdata['jsonok'], $nruns, null)
+        );
         $jset->set_color('#e9c46a');
         $chart->add_series($jset);
 
@@ -206,14 +215,28 @@ $table->data = [];
 foreach ($runs as $run) {
     $rate    = (float)$run->success_rate;
     $color   = $rate >= 95 ? 'success' : ($rate >= 85 ? 'warning' : 'danger');
-    $baseline = $run->is_baseline ? ' ' . html_writer::span(get_string('benchmark_baseline_label', 'bookingextension_agent'), 'badge badge-primary') : '';
-    $regression = $run->regression_detected ? ' ' . html_writer::span(get_string('benchmark_regression', 'bookingextension_agent'), 'badge badge-danger') : '';
+    $baseline = $run->is_baseline ? ' ' . html_writer::span(
+        get_string('benchmark_baseline_label', 'bookingextension_agent'),
+        'badge badge-primary'
+    ) : '';
+    $regression = $run->regression_detected ? ' ' . html_writer::span(
+        get_string('benchmark_regression', 'bookingextension_agent'),
+        'badge badge-danger'
+    ) : '';
 
     $detailurl  = new moodle_url('/mod/booking/bookingextension/agent/benchmark_run_detail.php', ['id' => $run->id]);
     $compareurl = new moodle_url('/mod/booking/bookingextension/agent/benchmark_compare.php', ['run_a' => $run->id]);
 
-    $actions = html_writer::link($detailurl, get_string('benchmark_detail', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-secondary']) . ' ';
-    $actions .= html_writer::link($compareurl, get_string('benchmark_compare', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-info']);
+    $actions = html_writer::link(
+        $detailurl,
+        get_string('benchmark_detail', 'bookingextension_agent'),
+        ['class' => 'btn btn-xs btn-secondary']
+    ) . ' ';
+    $actions .= html_writer::link(
+        $compareurl,
+        get_string('benchmark_compare', 'bookingextension_agent'),
+        ['class' => 'btn btn-xs btn-info']
+    );
 
     if (!$run->is_baseline) {
         $pinurl = new moodle_url($PAGE->url, [
@@ -221,7 +244,11 @@ foreach ($runs as $run) {
             'runid' => $run->id,
             'sesskey' => sesskey(),
         ]);
-        $actions .= ' ' . html_writer::link($pinurl, get_string('benchmark_pin_baseline', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-warning']);
+        $actions .= ' ' . html_writer::link(
+            $pinurl,
+            get_string('benchmark_pin_baseline', 'bookingextension_agent'),
+            ['class' => 'btn btn-xs btn-warning']
+        );
     }
 
     $table->data[] = [
