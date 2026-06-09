@@ -25,6 +25,7 @@
 namespace bookingextension_agent\local\wbagent;
 
 use context_module;
+use core\context;
 use core_ai\manager as ai_manager;
 use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
@@ -165,7 +166,7 @@ class orchestrator {
     /**
      * Check whether a Moodle core_ai provider is configured and available.
      *
-     * @param int $cmid   Course-module id.
+     * @param int $contextid   Course-module id.
      * @param int $userid User id.
      * @return bool
      */
@@ -175,10 +176,10 @@ class orchestrator {
      * This is the single source of truth for availability checks used by both
      * readiness UI and runtime message processing.
      *
-     * @param int $cmid Course-module id.
+     * @param int $contextid Course-module id.
      * @return array<string,mixed>
      */
-    public function get_runtime_provider_status(int $cmid): array {
+    public function get_runtime_provider_status(int $contextid): array {
         $default = [
             'providerconfigured' => false,
             'provideractive' => false,
@@ -198,7 +199,7 @@ class orchestrator {
         }
 
         try {
-            $context = context_module::instance($cmid);
+            $context = context::instance_by_id($contextid, MUST_EXIST);
             $manager = di::get(ai_manager::class);
 
             $providerinstances = (array)$manager->get_provider_instances();
@@ -337,7 +338,7 @@ class orchestrator {
      * Process a user message: call the LLM and interpret the response.
      *
      * @param  int      $threadid     Thread id.
-     * @param  int      $cmid         Course-module id.
+     * @param  int      $contextid         Course-module id.
      * @param  int      $userid       User id.
      * @param  string[] $observations Optional structured observation strings from prior internal loop steps.
      *                                Injected into the prompt so the LLM can reason about tool results
@@ -347,17 +348,17 @@ class orchestrator {
      */
     public function process(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations = [],
         ?agent_state $agentstate = null
     ): array {
-        $context = context_module::instance($cmid);
+        $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
         $evaluator = new skill_executability_evaluator($this->registry, new authorization_service());
         $discoverystate = $this->run_discovery_phase(
             $threadid,
-            $cmid,
+            $contextid,
             $userid,
             $observations,
             $agentstate,
@@ -368,7 +369,7 @@ class orchestrator {
 
         $selectionstate = $this->run_selection_phase(
             $threadid,
-            $cmid,
+            $contextid,
             $userid,
             $observations,
             $discoverystate,
@@ -405,7 +406,7 @@ class orchestrator {
         } else {
             $constructionstate = $this->run_construction_phase(
                 $threadid,
-                $cmid,
+                $contextid,
                 $userid,
                 $observations,
                 $discoverystate,
@@ -428,18 +429,18 @@ class orchestrator {
      * final reply polishing does not reuse planner step routing.
      *
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array<int,string> $observations
      * @return array<string,mixed>
      */
     public function process_synchronizer(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations = []
     ): array {
-        $context = context_module::instance($cmid);
+        $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
         $messages = array_values(array_filter(
             $this->store->get_messages($threadid),
@@ -455,7 +456,7 @@ class orchestrator {
         $systemprompt = $this->synchronizerpromptbuilder->build_system_prompt($actionclass);
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
-            $cmid,
+            $contextid,
             self::PHASE_SELECTION,
             $isfirstassistantturn,
             !empty($observations),
@@ -486,7 +487,7 @@ class orchestrator {
             . '|fb=' . ($routingfallback ? '1' : '0')
             . '|ob=' . count($observations);
 
-        $call = $llm->invoke($threadid, $cmid, $userid, $debugsource, $prompt, $actionclass);
+        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
         if (empty($call['success'])) {
             return $this->build_provider_error_result($call);
@@ -543,7 +544,7 @@ class orchestrator {
      * Discovery phase: collect routing, context, and runtime catalog state.
      *
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $observations
      * @param agent_state|null $agentstate
@@ -554,7 +555,7 @@ class orchestrator {
      */
     private function run_discovery_phase(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations,
         ?agent_state $agentstate,
@@ -684,9 +685,9 @@ class orchestrator {
                         );
 
                         if (!empty($status['ready']) && !empty($status['rows']) && is_array($status['rows']) && $querytext !== '') {
-                            $embeddingcall = $llm->invoke_embeddings(
+                            $embeddingcall = $llm->invoke_embeddings_for_context(
                                 $threadid,
-                                $cmid,
+                                $contextid,
                                 $userid,
                                 'orc|p=disc|st=tcp|ac=emb|rt=wb',
                                 $querytext,
@@ -846,7 +847,7 @@ class orchestrator {
         }
 
         $systemprompt = $this->build_system_prompt(
-            $cmid,
+            $contextid,
             $userid,
             $contextid,
             self::PHASE_DISCOVERY,
@@ -859,7 +860,7 @@ class orchestrator {
         );
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
-            $cmid,
+            $contextid,
             self::PHASE_DISCOVERY,
             $isfirstassistantturn,
             $hasanyobservations,
@@ -954,7 +955,7 @@ class orchestrator {
      * Selection phase: build prompt, telemetry, and debug-source payload.
      *
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $observations
      * @param array<string,mixed> $discoverystate
@@ -964,7 +965,7 @@ class orchestrator {
      */
     private function run_selection_phase(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations,
         array $discoverystate,
@@ -996,7 +997,7 @@ class orchestrator {
         $discoveryescalationreason = (string)($discoverystate['discovery_escalation_reason'] ?? 'none');
 
         $systemprompt = $this->build_system_prompt(
-            $cmid,
+            $contextid,
             $userid,
             $contextid,
             self::PHASE_SELECTION,
@@ -1009,7 +1010,7 @@ class orchestrator {
         );
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
-            $cmid,
+            $contextid,
             self::PHASE_SELECTION,
             $isfirstassistantturn,
             $hasanyobservations,
@@ -1054,7 +1055,7 @@ class orchestrator {
 
         $llm = new llm_call_service($this->store);
         $phaseoutput = [];
-        $call = $llm->invoke($threadid, $cmid, $userid, $debugsource, $prompt, $actionclass);
+        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
         if (empty($call['success'])) {
             $phaseoutput = $this->build_provider_error_result($call);
@@ -1182,7 +1183,7 @@ class orchestrator {
      * Construction phase: execute planner call and interpret response.
      *
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array<string,mixed> $discoverystate
      * @param array<string,mixed> $selectionstate
@@ -1190,14 +1191,14 @@ class orchestrator {
      */
     private function run_construction_phase(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations,
         array $discoverystate,
         array $selectionstate
     ): array {
         $llm = new llm_call_service($this->store);
-        $context = context_module::instance($cmid);
+        $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
         $routing = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
             $manager,
@@ -1236,7 +1237,7 @@ class orchestrator {
         );
 
         $systemprompt = $this->build_system_prompt(
-            $cmid,
+            $contextid,
             $userid,
             $contextid,
             self::PHASE_PARAMETER_CONSTRUCTION,
@@ -1249,7 +1250,7 @@ class orchestrator {
         );
         $runtimecontext = $this->build_runtime_context_block(
             $threadid,
-            $cmid,
+            $contextid,
             self::PHASE_PARAMETER_CONSTRUCTION,
             $isfirstassistantturn,
             !empty($constructionobservations),
@@ -1289,7 +1290,7 @@ class orchestrator {
             false
         );
 
-        $call = $llm->invoke($threadid, $cmid, $userid, $debugsource, $prompt, $actionclass);
+        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
 
         if (empty($call['success'])) {
@@ -1715,7 +1716,7 @@ PROMPT;
     /**
      * Build the state-based system prompt with compact skill metadata embedded.
      *
-     * @param  int    $cmid
+     * @param  int    $contextid
      * @param  string $actionclass
      * @param  bool   $hasobservations
      * @param  array  $adaptivecatalog Optional adaptive skill catalog (reduced by recency/tier). If null, uses full catalog.
@@ -1725,7 +1726,7 @@ PROMPT;
      * @return string System prompt text.
      */
     private function build_system_prompt(
-        int $cmid,
+        int $contextid,
         int $userid,
         int $contextid,
         string $phase = self::PHASE_DISCOVERY,
@@ -1737,7 +1738,7 @@ PROMPT;
         bool $includeskillcatalog = false
     ): string {
         return $this->promptbundlebuilder->build_system_prompt(
-            $cmid,
+            $contextid,
             $userid,
             $contextid,
             $phase,
@@ -2241,7 +2242,7 @@ PROMPT;
      * Keeping per-request values out of the static [SYSTEM] block improves
      * prompt-prefix stability for upstream prompt caching.
      *
-     * @param int $cmid
+     * @param int $contextid
      * @param string $phase
      * @param bool $isfirstassistantturn
      * @param bool $hasobservations
@@ -2250,7 +2251,7 @@ PROMPT;
      */
     private function build_runtime_context_block(
         int $threadid,
-        int $cmid,
+        int $contextid,
         string $phase = self::PHASE_DISCOVERY,
         bool $isfirstassistantturn = false,
         bool $hasobservations = false,
@@ -2270,7 +2271,10 @@ PROMPT;
             $tz = new \DateTimeZone($timezonename);
         }
 
-        $cm = get_coursemodule_from_id('booking', $cmid);
+        $blockcontext = context::instance_by_id($contextid, IGNORE_MISSING);
+        $cm = ($blockcontext instanceof context_module)
+            ? get_coursemodule_from_id('booking', (int)$blockcontext->instanceid, 0, false, IGNORE_MISSING)
+            : false;
         $bookingname = $cm ? format_string($cm->name) : 'this booking instance';
         $nowiso = (new \DateTime('now', $tz))->format(\DateTimeInterface::ATOM);
 

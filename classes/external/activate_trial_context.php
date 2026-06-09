@@ -94,7 +94,7 @@ class activate_trial_context extends external_api {
         $registry = skill_registry::make_default();
         $store = new conversation_store();
         $status = (new orchestrator($registry, new interpreter($registry), $store))
-            ->get_runtime_provider_status($cmid);
+            ->get_runtime_provider_status($contextid);
 
         if (empty($status['provideractive'])) {
             return [

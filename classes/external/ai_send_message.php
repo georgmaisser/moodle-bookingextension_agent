@@ -161,7 +161,7 @@ class ai_send_message extends external_api {
         $store = new conversation_store();
         $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
 
-        $runtimeproviderstatus = $orchestrator->get_runtime_provider_status($cmid);
+        $runtimeproviderstatus = $orchestrator->get_runtime_provider_status($contextid);
         if (empty($runtimeproviderstatus['runtimeavailable'])) {
             $reason = $runtimeproviderstatus['failurereason'] ?? '';
             $errormessage = get_string('ai_provider_not_configured', 'bookingextension_agent');

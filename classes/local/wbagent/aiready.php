@@ -139,7 +139,9 @@ class aiready {
                 $store = new conversation_store();
                 $interp = new interpreter($registry);
                 $orchestrator = new orchestrator($registry, $interp, $store);
-                $runtimeproviderstatus = $orchestrator->get_runtime_provider_status($this->cmid);
+                $runtimeproviderstatus = $orchestrator->get_runtime_provider_status(
+                    (int)context_module::instance($this->cmid)->id
+                );
 
                 $provideractive = (bool)($runtimeproviderstatus['provideractive'] ?? false);
 

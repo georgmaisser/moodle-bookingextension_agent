@@ -151,8 +151,7 @@ class agent_runtime {
      * @return array
      */
     public function run(int $threadid, int $contextid, int $userid): array {
-        $cmid = $this->resolve_cmid_from_contextid($contextid);
-        $result = $this->run_internal($threadid, $cmid, $userid, [], null);
+        $result = $this->run_internal($threadid, $contextid, $userid, [], null);
         return $this->finalize_and_persist_result($threadid, $result);
     }
 
@@ -166,13 +165,12 @@ class agent_runtime {
      * @return array
      */
     public function run_loop(int $threadid, int $contextid, int $userid, int $maxsteps = 0): array {
-        $cmid = $this->resolve_cmid_from_contextid($contextid);
         $limit = ($maxsteps > 0) ? $maxsteps : self::MAX_LOOP_STEPS;
         $state = agent_state::make($limit);
         $frameworkretrycounts = [];
 
         for ($step = 0; $step < $limit; $step++) {
-            $result = $this->run_internal($threadid, $cmid, $userid, $state->get_observations(), $state);
+            $result = $this->run_internal($threadid, $contextid, $userid, $state->get_observations(), $state);
             $result['loop_step'] = $step + 1;
             $result['loop_max_steps'] = $limit;
             $result['attempt_budget'] = attempt_budget_dto::from_loop($step + 1, $limit)->to_array();
@@ -355,14 +353,13 @@ class agent_runtime {
             return $result;
         }
 
-        $cmid = $this->resolve_cmid_from_contextid($contextid);
         $observations = $this->synchronizerinputbuilder->build_observations($result, $state);
 
         try {
             $syncresult = $this->synchronizerroutingsvc->call_synchronizer_step(
                 $this->orchestrator,
                 $threadid,
-                $cmid,
+                $contextid,
                 $userid,
                 $observations
             );
@@ -841,7 +838,7 @@ class agent_runtime {
      * Execute one internal agent step: plan + decide, with NO persistence.
      *
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $observations
      * @param agent_state|null $state
@@ -849,7 +846,7 @@ class agent_runtime {
      */
     private function run_internal(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations,
         ?agent_state $state = null
@@ -858,7 +855,7 @@ class agent_runtime {
 
         $result = $this->call_orchestrator_step(
             $threadid,
-            $cmid,
+            $contextid,
             $userid,
             $observations,
             $state
@@ -873,6 +870,11 @@ class agent_runtime {
         $rawresponsetype = trim((string)($result['response_type'] ?? ''));
         $result['response_type'] = $triggerregistry->normalize_response_type($rawresponsetype);
 
+        // The decision service still operates on a course-module id (rewired in P2b).
+        // Bridge: derive it from the context id. For a booking module this is the exact
+        // cmid as before; non-module contexts throw here until the decision/executor path
+        // is context-agnostic.
+        $cmid = $this->resolve_cmid_from_contextid($contextid);
         $result = $this->decisionsvc->process(
             $result,
             $threadid,
@@ -945,7 +947,7 @@ class agent_runtime {
      * Execute a single orchestrator planning step.
      *
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $observations
      * @param agent_state|null $state
@@ -953,14 +955,14 @@ class agent_runtime {
      */
     private function call_orchestrator_step(
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations,
         ?agent_state $state = null
     ): array {
         return $this->orchestrator->process(
             $threadid,
-            $cmid,
+            $contextid,
             $userid,
             $observations,
             $state

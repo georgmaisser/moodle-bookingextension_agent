@@ -33,7 +33,7 @@ class synchronizer_routing_service {
      *
      * @param orchestrator $orchestrator
      * @param int $threadid
-     * @param int $cmid
+     * @param int $contextid
      * @param int $userid
      * @param array $observations
      * @return array
@@ -41,13 +41,13 @@ class synchronizer_routing_service {
     public function call_synchronizer_step(
         orchestrator $orchestrator,
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         array $observations
     ): array {
         return $orchestrator->process_synchronizer(
             $threadid,
-            $cmid,
+            $contextid,
             $userid,
             $observations
         );
