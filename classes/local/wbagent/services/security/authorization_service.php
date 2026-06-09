@@ -25,7 +25,6 @@
 namespace bookingextension_agent\local\wbagent\services\security;
 
 use context;
-use context_module;
 use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\interfaces\agent_authorization_service;
 use moodle_exception;
@@ -58,19 +57,20 @@ class authorization_service implements agent_authorization_service {
     }
 
     /**
-     * Resolve and validate a booking module context by context id.
+     * Resolve and validate the agent context by id.
+     *
+     * Context-level-agnostic: accepts a module, course or system context (no longer
+     * hard-requires a booking module). A booking module context still validates exactly
+     * as before, so existing behaviour is unchanged.
      *
      * @param int $contextid
-     * @return context_module
+     * @return context
      */
-    private function require_booking_module_context(int $contextid): context_module {
+    private function resolve_valid_context(int $contextid): context {
         $context = context::instance_by_id($contextid, MUST_EXIST);
-        if (!($context instanceof context_module)) {
+        $allowedlevels = [CONTEXT_MODULE, CONTEXT_COURSE, CONTEXT_SYSTEM];
+        if (!in_array((int)$context->contextlevel, $allowedlevels, true)) {
             throw new moodle_exception('invalidcontext');
-        }
-        $cm = get_coursemodule_from_id('booking', (int)$context->instanceid);
-        if (!$cm) {
-            throw new moodle_exception('invalidcoursemodule', 'bookingextension_agent');
         }
         return $context;
     }
@@ -83,7 +83,7 @@ class authorization_service implements agent_authorization_service {
      * @return void
      */
     public function require_use_capability(int $userid, int $contextid): void {
-        $context = $this->require_booking_module_context($contextid);
+        $context = $this->resolve_valid_context($contextid);
         if (!self::is_agent_extension_installed()) {
             throw new required_capability_exception($context, 'bookingextension/agent:useaiinstructions', 'nopermissions', '');
         }
@@ -105,7 +105,7 @@ class authorization_service implements agent_authorization_service {
         }
 
         try {
-            $context = $this->require_booking_module_context($contextid);
+            $context = $this->resolve_valid_context($contextid);
             return has_capability('bookingextension/agent:useaiinstructions', $context, $userid);
         } catch (\Throwable $e) {
             return false;
@@ -113,13 +113,13 @@ class authorization_service implements agent_authorization_service {
     }
 
     /**
-     * Assert that the context belongs to an active booking module.
+     * Assert that the context is a valid agent context (module, course or system).
      *
      * @param int $contextid
      * @return void
      */
     public function require_valid_context(int $contextid): void {
-        $this->require_booking_module_context($contextid);
+        $this->resolve_valid_context($contextid);
     }
 
     /**
