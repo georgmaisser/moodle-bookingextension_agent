@@ -52,8 +52,13 @@ write it, …) and returns a `preflight_result_v2`. `preflight_domain_check_runn
 then classifies the issue codes:
 
 - **hard block**: `PERMISSION_ERROR`, `VALIDATION_ERROR`, `SCHEMA_ERROR`, any `MISSING_*`;
-- **soft block** (→ confirmation needed): `DOMAIN_CONFLICT`,
-  `DUPLICATE_TITLE_CONFIRM_REQUIRED`, `DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED`.
+- **soft block** (→ confirmation needed): `DOMAIN_CONFLICT` (the engine-generic confirmable
+  code) plus the **provider-supplied** confirmable codes from
+  `issue_code_provider_interface::get_prevalidation_confirmable_issue_codes()` — for the
+  booking provider, `DUPLICATE_TITLE_CONFIRM_REQUIRED` /
+  `DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED`. The runner holds no booking-specific codes of its
+  own (it injects the provider, defaulting to `booking_issue_code_provider`, mirroring
+  `agent_decision_service`).
 
 Late-bound dependency outputs are allowed here, so a command that depends on a prior step's
 artifact can still prepare. The prepared input it returns is what the executor will run
@@ -126,6 +131,9 @@ metadata under `_preflight_audit_log`. See
 > L3 constants 500/200/4/4000; retryable categories TECHNICAL + EXTERNAL_DEPENDENCY;
 > circuit-breaker auth/quota → hard_block.
 
-> **⚠ Soft-block code names.** The diagram's `PROVIDER_CONFIRMABLE_*` soft-block label maps
-> in code to the concrete `DUPLICATE_TITLE_*` / `DOMAIN_CONFLICT` codes provided by the
-> domain issue-code provider. *Naming note.*
+> **✓ Soft-block codes — leak inverted.** The diagram's generic `PROVIDER_CONFIRMABLE_*` is
+> now literally accurate: `preflight_domain_check_runner` no longer hardcodes the
+> booking-specific `DUPLICATE_TITLE_*` codes — it injects `issue_code_provider_interface` and
+> reads `get_prevalidation_confirmable_issue_codes()`, keeping only the engine-generic
+> `DOMAIN_CONFLICT` itself. This removed a domain leak into the engine (one of the "5 leaks").
+> Behaviour-neutral; covered by `preflight_layers_contract_test`.

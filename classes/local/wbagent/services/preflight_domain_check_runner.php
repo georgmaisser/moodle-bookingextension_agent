@@ -18,6 +18,9 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
+use bookingextension_agent\local\wbagent\booking_issue_code_provider;
+use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
+
 /**
  * Layer-2 domain preflight checks (read-only).
  *
@@ -28,6 +31,20 @@ namespace bookingextension_agent\local\wbagent\services;
 class preflight_domain_check_runner {
     /** @var int Shared timeout in milliseconds. */
     private const SHARED_TIMEOUT_MS = 500;
+
+    /** @var issue_code_provider_interface Supplies the domain-specific confirmable issue codes. */
+    private issue_code_provider_interface $issuecodeprovider;
+
+    /**
+     * Constructor.
+     *
+     * @param issue_code_provider_interface|null $issuecodeprovider Domain issue-code provider.
+     *        Defaults to the booking provider (same fallback pattern as agent_decision_service),
+     *        so the engine carries no booking-specific issue-code knowledge of its own.
+     */
+    public function __construct(?issue_code_provider_interface $issuecodeprovider = null) {
+        $this->issuecodeprovider = $issuecodeprovider ?? new booking_issue_code_provider();
+    }
 
     /**
      * Evaluate domain-level issue codes and classify the result.
@@ -55,11 +72,16 @@ class preflight_domain_check_runner {
             'VALIDATION_ERROR',
             'SCHEMA_ERROR',
         ];
-        $softblockcodes = [
-            'DOMAIN_CONFLICT',
-            'DUPLICATE_TITLE_CONFIRM_REQUIRED',
-            'DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED',
-        ];
+        // DOMAIN_CONFLICT is the engine-generic confirmable (soft-block) code; the
+        // domain-specific confirmable codes (e.g. DUPLICATE_TITLE_*) come from the issue-code
+        // provider, so this engine layer holds no booking-specific knowledge of its own.
+        $softblockcodes = array_values(array_unique(array_merge(
+            ['DOMAIN_CONFLICT'],
+            array_map(
+                static fn($code): string => strtoupper(trim((string)$code)),
+                $this->issuecodeprovider->get_prevalidation_confirmable_issue_codes()
+            )
+        )));
         foreach ($normalizedcodes as $code) {
             $normalizedcode = strtoupper(trim($code));
             if ($normalizedcode === '') {

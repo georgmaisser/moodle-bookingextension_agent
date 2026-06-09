@@ -59,12 +59,15 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   service that does not exist. Previews are generated in-loop by `preview_passthrough` and
   returned as `previewjson` on `ai_send_message` / `ai_confirm_run`. Matches the
   preview-as-data-contract refactor. *Proposed: remove/relabel `APREVIEW`.* ❓ confirm.
-- ✏ **Autoconfirm probe name (`CS12`).** Diagram: `is_confirmation_allowed_for_session`.
-  Code calls `is_confirmation_allowed_for_thread` (wrapper that ignores threadid and
-  delegates to the session check). Functionally equivalent; label is narrower.
-- ✏ **Attachments pipeline missing.** `ai_send_message` has a 4th param `attachments`;
-  `ai_upload_attachment` + `attachment_processor` + PDF extraction are absent from the
-  diagram. *Candidate addition.*
+- ✅ **Autoconfirm probe name (`CS12`) — annotated (B5).** Not really a discrepancy: `CS12`
+  names the real session-check method; the entry caller just uses the
+  `is_confirmation_allowed_for_thread` wrapper (ignores threadid, delegates here). The node
+  now carries that annotation. No behavioural change.
+- ✅ **Attachments pipeline — added to `ENTRY` (B4).** Nodes `ASM_UPLOAD`
+  (`ai_upload_attachment` → token) and `ASM_ATTACH` (`attachment_processor::augment_message`,
+  PDF→text via pdftotext ▸ smalot/pdfparser fallback, 15k cap, no OCR) with edges into the
+  ASM flow; `ASM` node now lists the `attachments[]` param. Pure omission, no behavioural
+  change.
 
 ### Conversation store / runtime (ch. 03–04)
 
@@ -90,15 +93,18 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   `skill_call` selection — a clarification turn makes only one planner call.*
 - ✓ **`OR_LANG` — confirmed.** No de/en token lists; language follows the latest user
   message.
-- ✏ **`FSIG` signal components.** Diagram: `intent_code + trigger_id + context_prior +
-  recency`. Code (`family_signal_ranker`): base 0.20 + core 0.10 + namespace_hint 0.35 +
-  recency_namespace 0.20. No `intent_code`/`trigger_id` inputs. Same spirit, different
-  named components.
-- ✏ **`FRANK` scoring formula.** Diagram: additive `semantic + signal + context_prior +
-  recency_bias`. Code (`family_ranker`): weighted blend `0.7·signal + 0.3·semantic`
-  (or signal alone); context_prior/recency are folded into the signal score.
-- ✏ **`EMB_QUERY` ALWAYS_INCLUDE list.** Diagram lists `update_option_trainer + book_users`.
-  Code also force-includes `core.search_skills`.
+- ✅ **`FSIG` signal components — flowchart corrected (B1).** Node relabelled to the real
+  signals: base 0.20 + core 0.10 + namespace_hint 0.35 + recency_namespace 0.20. The
+  diagram's `intent_code`/`trigger_id` don't exist in `family_signal_ranker`: intent is
+  carried by the semantic path; trigger_id was dropped (consistent with "no trigger→skill
+  routing"). Not a bug — the diagram was ahead of a simplified implementation.
+- ✅ **`FRANK` scoring formula — flowchart corrected (B2).** Node relabelled to the real
+  weighted blend `0.7·signal + 0.3·semantic` (or signal alone; clamped [0,1]);
+  context_prior/recency are folded into the signal score, not additive terms. The 70/30
+  weighting is a deliberate knob (semantic caps at 30%). Not a bug — diagram imprecision.
+- ✅ **`EMB_QUERY` ALWAYS_INCLUDE list — flowchart corrected (B3).** Added `core.search_skills`
+  to the node (the always-reachable RAG fallback). Pure omission; the always-include behaviour
+  is by design.
 
 ### Decision / preflight / queue / executor (ch. 08–11)
 
@@ -116,9 +122,21 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   retryable categories TECHNICAL + EXTERNAL_DEPENDENCY; queue blocked TTLs R1=900/R2=300/R3=900;
   atomic single running item; idempotency split (queue signature / executor already-executed);
   R3 no retry; retry-layer cap of 2.
-- ✏ **Code-name nits:** `BLOCKED_CONFIRMATION_TIMEOUT` (diagram `BLOCKED_TIMEOUT`); soft-block
-  `DUPLICATE_TITLE_*` / `DOMAIN_CONFLICT` (diagram `PROVIDER_CONFIRMABLE_*`); unknown skill
-  defaults to R3 (unsafe default — not shown). *Annotations.*
+- ✅ **`Q_FAIL_TTL` code name — corrected (B6).** Node now uses the real issue code
+  `BLOCKED_CONFIRMATION_TIMEOUT` (was `BLOCKED_TIMEOUT`).
+- ✅ **`EXC_EVAL` sixth deny reason (B7.1).** Added `skill_version_unsupported`.
+- ✅ **`D_PROMOTE` unknown-skill default (B7.3).** Annotated: `resolve_command_risk_class()`
+  defaults an unknown skill to **R3** (fail-safe).
+- ✅ **`PF_L2D` soft-block codes + engine domain leak (B7.2) — code cleanup applied.**
+  `preflight_domain_check_runner` no longer hardcodes the booking-specific
+  `DUPLICATE_TITLE_*` codes: it now injects `issue_code_provider_interface` (default
+  `booking_issue_code_provider`, mirroring `agent_decision_service`) and sources confirmable
+  codes from `get_prevalidation_confirmable_issue_codes()`, keeping only the engine-generic
+  `DOMAIN_CONFLICT`. Removed a domain leak (one of the "5 leaks", see
+  `project_wbagent_local_plugin_extraction`). Behaviour-neutral; covered by
+  `preflight_layers_contract_test`. The `PF_L2D` node was updated accordingly.
+  **⚠ Needs verification in an environment with PHP:** run `preflight_layers_contract_test`
+  + the `duplicate_prevention` benchmark before merging.
 - ✅ **Session-allow TTL — resolved** (see the ch. 03 entry above): reduced to 900 s so the
   session allowance aligns with the queue/pending TTLs and `LG_AUTO`.
 

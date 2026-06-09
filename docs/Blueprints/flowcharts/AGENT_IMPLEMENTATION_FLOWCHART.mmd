@@ -5,7 +5,7 @@ flowchart TD
     %% ENTRY LAYER
     %% =========================================================
     subgraph ENTRY["External API Layer (classes/external/)"]
-        ASM["ai_send_message::execute()\ncontextid · message · threadid"]
+        ASM["ai_send_message::execute()\ncontextid · message · threadid · attachments[]"]
         ASM_GATE{"Readiness Gate\n(Auth / Subsystem / Provider / Context)"}
         ASM_FAIL["Return specific error JSON\n(e.g., error_ai_provider_inactive,\nerror_ai_course_disabled)"]
         ASM_ATTACH["attachment_processor::augment_message()\nPDF → text (pdftotext ▸ bundled smalot/pdfparser fallback)\nimage → token hint · 15k char cap · no OCR"]
@@ -41,7 +41,7 @@ flowchart TD
         CS9["clear_step_messages(threadid)"]
         CS10["run_exists_other_than(idem_key, runid)"]
         CS11["allow_confirmation_for_session(userid, contextid)\nscope: user + Moodle context"]
-        CS12["is_confirmation_allowed_for_session(userid, contextid)"]
+        CS12["is_confirmation_allowed_for_session(userid, contextid)\n(entry caller uses the is_confirmation_allowed_for_thread\nwrapper, which ignores threadid and delegates here)"]
         CS13["consume_pending_intent(threadid, userid, contextid)"]
         CS14["set/get user_input_lang metadata\n(authoritative turn language)"]
         CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start\n+ phase_trace_loop_history (per-loop-step trace,\ncapped at MAX_LOOP_STEPS) written by agent_runtime\nalongside canonical phase_trace / planner_trace_history"]
@@ -85,15 +85,15 @@ flowchart TD
         FREG["family_registry_service\nDomain/Context -> Skill Family map\nthird-party extensible contracts"]
         CORESET["core_family_set\nalways-on family baseline\n(core.* including core.search_skills\n+ platform safety families)"]
         EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
-        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users: always-include downstream skills\n(ALWAYS_INCLUDE_SKILL_NAMES in adaptive_skill_catalog_service)"]
+        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users + core.search_skills: always-include downstream skills\n(ALWAYS_INCLUDE_SKILL_NAMES in adaptive_skill_catalog_service)"]
         FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete skills)\nonly on wunderbyte+embeddings-ready path"]
-        FSIG["family_signal_ranker\nlanguage-agnostic signals:\nintent_code + trigger_id + context_prior + recency\n(no lexical keyword dependency)"]
+        FSIG["family_signal_ranker\nlanguage-agnostic signals:\nnamespace_hint(0.35) + recency_namespace(0.20)\n+ core_bonus(0.10) + base(0.20)\n(context_prior + recency folded in here;\nintent is carried by the semantic path, not a discrete signal;\nno lexical keyword dependency)"]
         DISC_A["discovery stage A (default)\ncontext families + core families only\nslim family cards with hard budget"]
         DISC_A_OK{"coverage/confidence\nsufficient?"}
         DISC_B["discovery stage B\nadd adjacent domain families\nkeep bounded expansion budget"]
         DISC_B_OK{"coverage/confidence\nsufficient?"}
         DISC_C["discovery stage C (last resort)\nglobal slim family fallback\nstrict hard budget, never full skill dump"]
-        FRANK["family_ranker\nscore = semantic_similarity(optional) + signal_score + context_prior\n+ optional recency_bias\nkeeps low-score tail for recall safety"]
+        FRANK["family_ranker\nscore = 0.7·signal + 0.3·semantic\n(signal alone when no embeddings)\ncontext_prior + recency already folded into signal\nweighted blend, clamped [0,1]\nkeeps low-score tail (max 2, min 0.15) for recall safety"]
         SKILLLOAD["lazy_skill_loader\nload concrete skills only for ranked families\nload minimal skill contracts first\nload full schema only on demand"]
         TSEL["skill_selector\nselect concrete skill inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nplanned_steps[] REQUIRED in every selector output:\n  → [] for single-step or when [PENDING PLANNED STEPS] in context\n  → [{intent:...},...] for multi-step first turn (future steps only)\nnext_step_intent REQUIRED: always string, never null"]
         PCON["parameter_constructor\nbuild parameters only after concrete skill selection\nsingle-skill schema focus (50+ properties supported)"]
@@ -135,7 +135,7 @@ flowchart TD
         D_PENDING_OUT["→ clarification pending-resolution required"]
         D_LOOKUP_GUARD{"core.is_lookup_request\n+ mutating commands?"}
         D_LOOKUP_OUT["→ clarification lookup-blocked-mutation"]
-        D_PROMOTE["mutating skill_call\n→ confirmation_request\nrisk_class gating:\n  R1 → session-allow ok (TTL 900s)\n  R2 → session-allow ignored, always explicit\n  R3 → always manual, no session-allow"]
+        D_PROMOTE["mutating skill_call\n→ confirmation_request\nrisk_class via resolve_command_risk_class()\n  (unknown skill → R3, fail-safe default)\nrisk_class gating:\n  R1 → session-allow ok (TTL 900s)\n  R2 → session-allow ignored, always explicit\n  R3 → always manual, no session-allow"]
         D_SAFE_CTX["safety_context DTO\ninput: parsed intent + trigger signals\noutput: issue_codes + route hints\n+ pending policy"]
         D_ROUTE{"response_type"}
         D_CONFIRM_PENDING["confirm_pending →\nhandle_confirm_pending()\n(re-preflight pending mutation)"]
@@ -159,7 +159,7 @@ flowchart TD
 
         subgraph L2["Layer 2 — Domain Prepare"]
             PF_L2P["skill::preflight(input, contextid, userid)\n— DB-dependent prepare + validation\n— late-bound dependency outputs allowed\n→ preflight_result_v2"]
-            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT, PROVIDER_CONFIRMABLE_*"]
+            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, SCHEMA_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT (engine-generic)\n  + provider confirmable codes via issue_code_provider\n  (e.g. DUPLICATE_TITLE_* from booking_issue_code_provider)"]
         end
         L2_STATUS{"preflight\nstatus?"}
 
@@ -194,7 +194,7 @@ flowchart TD
         Q_PLANNED["status: planned (placeholder)\nintent string only — no skill name, no parameters yet\ncreated by selector on first turn of multi-step request\nconsumed (→ succeeded) when real skill is enqueued\ntriggers CONF_FOLLOW while present\nchecked via has_planned_placeholders()"]
         Q_RETRY["status: retry_waiting\nnext_retry_at = now + retry_after_ms\nbackoff_ms persisted\nR3: no execution retry, direct FAIL_OUT on transient error"]
         Q_RTRACE["retry metadata on queue item\nretry_layer + retry_origin + retry_reason\nretry_attempt + retry_hint_category\nretry_layers (max 2 distinct layers per error_class)"]
-        Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_TIMEOUT)"]
+        Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_CONFIRMATION_TIMEOUT)"]
         Q_UPDST["update_status(threadid, queue_item_id,\n  status, issue_codes, error_class, msg)"]
         Q_SPAWN["spawn_commands[]\nplanned child commands with depends_on\n+ artifact reference bindings"]
     end
@@ -205,7 +205,7 @@ flowchart TD
     subgraph EXEC["Execution Layer (executor.php)"]
         EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
-        EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
+        EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled · skill_version_unsupported"]
         EXC_GUARD["preflight_execution_gate::verify_guard_token(\n  guard_token, skillname, contextid, prepared_input)\nhash_equals vs sha256(skill:context:prepared_input)\nno second full preflight"]
         EXC_GUARD_OK{"guard\npass?"}
         EXC_RUN["skill::execute(prepared_input, contextid, userid)\n→ result payload"]
