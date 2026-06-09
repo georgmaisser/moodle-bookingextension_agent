@@ -26,6 +26,7 @@ namespace bookingextension_agent\local\wbagent\services\security;
 
 use context;
 use context_module;
+use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\interfaces\agent_authorization_service;
 use moodle_exception;
 use required_capability_exception;
@@ -119,5 +120,40 @@ class authorization_service implements agent_authorization_service {
      */
     public function require_valid_context(int $contextid): void {
         $this->require_booking_module_context($contextid);
+    }
+
+    /**
+     * Validate a context against an allow-list of context levels and return it as an agent_context.
+     *
+     * Context-level-agnostic counterpart to require_valid_context(): it accepts any of the
+     * configured levels (module / course / system / ...) instead of hard-requiring a booking
+     * module. The booking-module path keeps using require_valid_context() until the runtime is
+     * fully consolidated; new context-agnostic call sites use this method.
+     *
+     * @param int $contextid
+     * @param int[] $allowedlevels Moodle CONTEXT_* level constants the agent may run at.
+     * @return agent_context
+     */
+    public function require_valid_context_for_levels(int $contextid, array $allowedlevels): agent_context {
+        $context = context::instance_by_id($contextid, MUST_EXIST);
+        if (!in_array((int)$context->contextlevel, array_map('intval', $allowedlevels), true)) {
+            throw new moodle_exception('invalidcontext');
+        }
+        return agent_context::from_context($context);
+    }
+
+    /**
+     * Assert that the user holds a native Moodle capability at the given (operating) context.
+     *
+     * Gate 2 for the runtime context switch — re-checks the user's own right at the resolved
+     * operating context. Pure authorization, never an escalation.
+     *
+     * @param int $userid
+     * @param \context $operatingcontext
+     * @param string $capability
+     * @return void
+     */
+    public function require_capability_at(int $userid, \context $operatingcontext, string $capability): void {
+        require_capability($capability, $operatingcontext, $userid);
     }
 }

@@ -65,4 +65,18 @@ interface agent_authorization_service {
      * @return void
      */
     public function require_valid_context(int $contextid): void;
+
+    /**
+     * Assert that the user holds a specific native Moodle capability at a given context.
+     *
+     * Used for the runtime context switch (Gate 2): re-check the user's own right at the
+     * resolved operating context. This is an authorization check, never an escalation.
+     * Throws \required_capability_exception on failure.
+     *
+     * @param int $userid
+     * @param \context $operatingcontext
+     * @param string $capability
+     * @return void
+     */
+    public function require_capability_at(int $userid, \context $operatingcontext, string $capability): void;
 }

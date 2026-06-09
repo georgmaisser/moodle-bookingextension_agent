@@ -77,6 +77,49 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
+     * Minimum Moodle context level this skill needs to operate (runtime context switch).
+     *
+     * Default CONTEXT_MODULE = behaves exactly as today. A skill that must act on a broader
+     * scope (e.g. a course question bank) overrides this with CONTEXT_COURSE / CONTEXT_SYSTEM;
+     * the executor then resolves the operating context via context_resolver before execution.
+     *
+     * @return int A Moodle CONTEXT_* level constant.
+     */
+    public function get_required_context_level(): int {
+        return CONTEXT_MODULE;
+    }
+
+    /**
+     * Native Moodle capabilities required for this skill's underlying core action (Gate 2).
+     *
+     * The agent must never grant a right the user does not natively have. Every mutating
+     * skill declares the native capability(ies) of the core action it performs (e.g.
+     * 'mod/booking:updatebooking', 'moodle/question:add'); preflight enforces them at the
+     * operating context via require_native_capabilities(). Default empty = read-only/none.
+     *
+     * @return string[]
+     */
+    public function get_required_native_capabilities(): array {
+        return [];
+    }
+
+    /**
+     * Enforce the skill's native Moodle capabilities at the given (operating) context.
+     *
+     * Call this from preflight()/execute() with the operating context so the user's own
+     * Moodle rights gate the action — independent of the agent skill capability.
+     *
+     * @param \context $operatingcontext
+     * @param int $userid
+     * @return void
+     */
+    protected function require_native_capabilities(\context $operatingcontext, int $userid): void {
+        foreach ($this->get_required_native_capabilities() as $capability) {
+            require_capability($capability, $operatingcontext, $userid);
+        }
+    }
+
+    /**
      * Default example input.
      *
      * Concrete skill families can override this to provide centralized example
