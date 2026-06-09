@@ -37,7 +37,8 @@ final class question_import_service_test extends advanced_testcase {
         $this->setAdminUser();
 
         $course = $this->getDataGenerator()->create_course();
-        $context = \context_course::instance($course->id);
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $course->id]);
+        $context = \context_module::instance($qbank->cmid);
 
         $gift = implode("\n", [
             '::Two plus two:: What is 2 + 2? {',
@@ -71,7 +72,8 @@ final class question_import_service_test extends advanced_testcase {
         $this->setAdminUser();
 
         $course = $this->getDataGenerator()->create_course();
-        $context = \context_course::instance($course->id);
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $course->id]);
+        $context = \context_module::instance($qbank->cmid);
 
         $gift = "// Just a comment, no questions in this document.\n";
 

@@ -37,10 +37,14 @@ use stdClass;
  */
 class question_import_service {
     /**
-     * Import GIFT-formatted questions into the default category of a context.
+     * Import GIFT-formatted questions into the default category of a module question bank.
+     *
+     * In Moodle 5.x question banks live in module contexts (e.g. a mod_qbank "Question bank"
+     * activity), so $context must be a CONTEXT_MODULE context — question_get_default_category()
+     * only creates default categories there.
      *
      * @param string   $gift    GIFT document text.
-     * @param context  $context Target context (e.g. the course context) whose question bank receives the questions.
+     * @param context  $context Target module (question-bank) context that receives the questions.
      * @param stdClass $course  Course record the import runs against.
      * @return array{success:bool,imported:int,questionids:int[],categoryid:int,errors:string}
      */
