@@ -1733,12 +1733,7 @@ PROMPT;
         bool $isfirstassistantturn = false,
         bool $includeskillcatalog = false
     ): string {
-        // The prompt bundle builder still takes a course-module id (rewired in a later
-        // step). Derive it from the context id; 0 for non-module contexts.
-        $promptcontext = context::instance_by_id($contextid, IGNORE_MISSING);
-        $cmid = ($promptcontext instanceof context_module) ? (int)$promptcontext->instanceid : 0;
         return $this->promptbundlebuilder->build_system_prompt(
-            $cmid,
             $userid,
             $contextid,
             $phase,

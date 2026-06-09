@@ -62,7 +62,6 @@ class phase_prompt_bundle_builder {
     /**
      * Build the state-based system prompt with compact skill metadata embedded.
      *
-     * @param  int    $cmid
      * @param  int    $userid
      * @param  int    $contextid
      * @param  string $actionclass
@@ -74,7 +73,6 @@ class phase_prompt_bundle_builder {
      * @return string System prompt text.
      */
     public function build_system_prompt(
-        int $cmid,
         int $userid,
         int $contextid,
         string $phase = orchestrator_prompt_profile_service::PHASE_SELECTION,
