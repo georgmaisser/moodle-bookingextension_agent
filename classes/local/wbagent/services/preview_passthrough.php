@@ -47,7 +47,6 @@ use bookingextension_agent\local\wbagent\conversation_store;
  * longer depend on any per-skill result field surviving the sanitizer's whitelist.
  */
 class preview_passthrough {
-
     /**
      * Resolve the preview JSON for a webservice response from executed skill results.
      *

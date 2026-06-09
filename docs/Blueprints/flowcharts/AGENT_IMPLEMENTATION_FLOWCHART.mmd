@@ -8,10 +8,12 @@ flowchart TD
         ASM["ai_send_message::execute()\ncontextid · message · threadid"]
         ASM_GATE{"Readiness Gate\n(Auth / Subsystem / Provider / Context)"}
         ASM_FAIL["Return specific error JSON\n(e.g., error_ai_provider_inactive,\nerror_ai_course_disabled)"]
+        ASM_ATTACH["attachment_processor::augment_message()\nPDF → text (pdftotext ▸ bundled smalot/pdfparser fallback)\nimage → token hint · 15k char cap · no OCR"]
+        ASM_UPLOAD["ai_upload_attachment::execute()\nfinfo MIME whitelist · size cap\nattachment_token_service::create()"]
         ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session"]
         ACD["ai_discard_pending::execute()\ncontextid · threadid"]
         APO["ai_poll_thread::execute()"]
-        APREVIEW["ai_render_command_preview::execute()"]
+        APREVIEW["command preview (preview_passthrough)\nNO standalone web service\nreturned as previewjson on\nai_send_message / ai_confirm_run"]
     end
 
     subgraph WORKER["Async Worker Layer (classes/task/)"]
@@ -53,7 +55,7 @@ flowchart TD
         RUN["run(threadid, contextid, userid)\ncontext entry"]
         RUNLOOP["run_loop(threadid, contextid, userid, maxsteps=0)\nMAX_LOOP_STEPS = 6"]
         LOOP_INIT["agent_state::make(limit)"]
-        LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\nclear_step_messages()\n+ add_step_message(next_step_intent)"]
+        LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\n(step messages: clear_step_messages() runs ONCE\nin ai_send_message before the loop;\nadd_step_message(next_step_intent) runs in\norchestrator::process per turn — NOT here)"]
         RUNINT["run_internal(threadid, contextid, userid, observations, state)\n→ normalized result"]
         EXEC_GATE{"response_type == execution_result?"}
         OBS_ACCUM["observation_builder + result_payload_summarizer\nprivacy_anonymizer::anonymize_value_for_llm()\nbuild_preflight_retry_observation() on RECOVERABLE_INPUT_ERROR\nstate.add_observation(observation)"]
@@ -168,7 +170,7 @@ flowchart TD
             PF_L3_EXT["PF_L3_EXT [R3 only]\nexternal_dependency_check\n→ webhook reachable?\n→ payment provider ready?\n→ hard_block when unavailable"]
         end
 
-        PRV2["preflight_result_v2 (single DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues · execution_guard_token"]
+        PRV2["preflight_result_v2 (single DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues\n(guard_token NOT on DTO — built from preparedinput,\nstored on the queue item)"]
         PAL["preflight_audit_logger::append()\n(if preflight_audit_enabled)\n→ conversation_store thread metadata"]
     end
 
@@ -204,7 +206,7 @@ flowchart TD
         EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
         EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled"]
-        EXC_GUARD["execution_guard::verify(\n  prepared_input, execution_guard_token,\n  contextid, userid)\nno second full preflight"]
+        EXC_GUARD["preflight_execution_gate::verify_guard_token(\n  guard_token, skillname, contextid, prepared_input)\nhash_equals vs sha256(skill:context:prepared_input)\nno second full preflight"]
         EXC_GUARD_OK{"guard\npass?"}
         EXC_RUN["skill::execute(prepared_input, contextid, userid)\n→ result payload"]
         EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions"]
@@ -264,7 +266,9 @@ flowchart TD
     ASM -->|"2. validate_parameters()"| AZ2
     ASM --> ASM_GATE
     ASM_GATE -->|"fail"| ASM_FAIL
-    ASM_GATE -->|"pass: add_message(user)"| CS2
+    ASM_GATE -->|"pass: privacy precheck + attachments[]"| ASM_ATTACH
+    ASM_UPLOAD -.->|"token (reused in attachments[])"| ASM_ATTACH
+    ASM_ATTACH -->|"add_message(user, augmented)"| CS2
     CS2 -->|"run_loop()"| RUNLOOP
     ASM -->|"response autoconfirm?"| CS12
     ACR --> AZ3

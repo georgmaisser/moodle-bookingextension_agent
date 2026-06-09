@@ -117,7 +117,7 @@ Nicht nur das Framework hängt an Booking — auch die **Skills hängen an der E
   - `skill_registry_factory` → `list_option_properties_skill`
   - `services\attachment\attachment_token_service` → `booking_skill_mutation_execute_service` *(aus dem Header-Bild-Feature)*
 
-**Konsequenz für die Auskopplung:** Skills dürfen die Engine nicht referenzieren. Lösung = stabiles **Contract-/SDK-Layer** (Interfaces + DTOs + `base_skill`), auf das Skills allein bauen, plus Inversion der 5 Leaks. Reines Umbenennen `bookingextension_agent`→`local_wbagent` in den Skills wäre **falsch**. Detail-Plan: siehe [Extraction-Plan §4](wbagent_local_plugin_extraction_plan_2026-06-08.md).
+**Konsequenz für die Auskopplung (revidiert 2026-06-09):** Kein separates SDK-Plugin. Die Skills leiten von `bookingextension_agent` ab (= die zuerst ausgelieferte Engine), denn das ist der einfachste Weg, mit Booking direkt in Bestandsinstallationen zu kommen. Die Skills dürfen nur an die **Contract-Surface** der Engine (Interfaces + DTOs + `base_skill`) hängen, **nicht** an deren Internas — die Inversion der 5 Leaks bleibt also sinnvoll, der Rest von Block (I) ist legitime Ableitung. Detail-Plan + offene Weiche „beide installiert": siehe [Extraction-Plan §4 und §10.8](wbagent_local_plugin_extraction_plan_2026-06-08.md).
 
 ---
 

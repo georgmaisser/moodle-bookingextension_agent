@@ -14,7 +14,7 @@
    - `bookingextension_agent` bleibt als **dünnes Booking-Subplugin** (nur die `bookingextension_interface`-Hooks: Option-Fields, Rules, col_actions, History) und **delegiert** an `local_wbagent`. Kein Engine-Code mehr.
    - Damit ist „wenn beide installiert sind, wird nur wbagent verwendet" **automatisch** erfüllt: es gibt nur eine Engine. Das ist der zentrale Gegenvorschlag zu „zwei vollständige Kopien synchron halten" (siehe §6/§7).
 2. **Search-Replace ist die richtige Basis NUR für die Engine**, deckt aber nur ~80 % ab. Die kritischen 20 % (Plugin-Typ, Subplugin-Interface, Tabellen-Ownership, Capability-Slash-Form, externe Consumer, AMD-Rebuild) müssen manuell erfolgen — Liste in §3.
-3. **Die Skills dürfen die Engine NICHT referenzieren** (Georgs Vorgabe). Search-Replace `bookingextension_agent`→`local_wbagent` ist für die **Skill-Provider** (mod_booking, local_entities) der **falsche** Ansatz — sie würden weiter auf die Engine zeigen, nur unter neuem Namen. Stattdessen: ein **stabiles Contract-/SDK-Layer** (Interfaces + DTOs), auf das die Skills allein bauen, plus **echte Entflechtung** der wenigen Engine-Internal-Leaks. Details in **§4 (neu)**.
+3. **Kein separates SDK-Plugin. Eine Engine, die Skills leiten von `bookingextension_agent` ab** (Stand 2026-06-09, Georgs Entscheidung). Da `bookingextension_agent` zuerst und mit Booking ausgeliefert wird, ist es die einzige Engine; alle Skills (mod_booking, local_entities) implementieren dessen Interfaces / extenden dessen `base_skill`. Die Discovery erledigt das „nur die jeweils vorhandenen Skills" automatisch: ein Provider, dessen Parent-Engine nicht installiert ist, lädt nicht. Die einzige Disziplin: die **Contract-Surface** (Interfaces + DTOs + `base_skill`) als saubere, self-contained Sub-Namespace *innerhalb* der Engine halten und die wenigen Engine-Internal-Leaks invertieren (Details §4) — kein eigenes Plugin, nur Hygiene, damit ein späteres Teilen der Typen mechanisch bleibt. Siehe auch §10.8 (offene Weiche „beide installiert").
 4. **Gleiche Tabellen für Parallelbetrieb ist machbar** (sie heißen bereits `local_wbagent_ai_*`), erfordert aber eine bewusste **Tabellen-Ownership-Lösung** (nur ein Plugin deklariert sie; Adopt-Guards via `db/install.php`) — §5.
 
 ---
@@ -91,9 +91,9 @@ Auf einer **Kopie** des Ordners nach `local/wbagent/`:
 
 ---
 
-## 4. Skills von der Engine entflechten — Contract-/SDK-Layer (KERNSTÜCK)
+## 4. Contract-Surface sauber halten (KERNSTÜCK) — kein SDK-Plugin
 
-**Vorgabe:** Die Skills (in `mod_booking`, `local_entities`, künftige Provider) dürfen **die Agent-Engine nicht referenzieren**. Reines Umbenennen `bookingextension_agent`→`local_wbagent` würde die Kopplung nur umlackieren.
+**Vorgabe (revidiert 2026-06-09):** Es gibt **kein separates SDK-Plugin**. Die Skills leiten von `bookingextension_agent` ab (= die zuerst ausgelieferte Engine). Was bleibt, ist eine reine **Hygiene-Aufgabe**: die Skills dürfen nur an die **stabile Contract-Surface** der Engine (Interfaces + DTOs + `base_skill`) hängen, **nicht** an deren Internas (Orchestrator, Executor, Stores, Services). Reines Umbenennen `bookingextension_agent`→`local_wbagent` ist kein Thema mehr — die Skills bleiben auf `bookingextension_agent`. Der Grund, die Contract-Surface trotzdem sauber zu schneiden: falls die Skill-Typen später geteilt werden müssen (siehe §10.8, Weg B), ist das dann mechanisch statt einer Entwirrung.
 
 ### 4.1 Bestandsaufnahme: was die Skills heute aus dem Framework ziehen
 Analyse der `use bookingextension_agent\…`-Imports in `mod/booking/classes/local/wbagent` (246 Treffer) + `local/entities` (5 Dateien) ergibt **zwei** klar trennbare Klassen von Abhängigkeiten:
@@ -126,13 +126,13 @@ Analyse der `use bookingextension_agent\…`-Imports in `mod/booking/classes/loc
 | `skill_registry_factory` | `list_option_properties_skill` | Ein Skill darf nicht in die Registry greifen; benötigte Infos via Contract/Input. |
 | `attachment\attachment_token_service` | `booking_skill_mutation_execute_service` | **Die Engine** löst das Attachment auf und übergibt dem Skill einen **Datei-Pfad/Handle** (z. B. via Input-Normalizer); der Skill kennt kein Token-Service. *(Anmerkung: diese Kopplung stammt aus dem zuletzt gebauten Header-Bild-Feature — sie ist hier der konkrete Beleg, warum die Entflechtung nötig ist.)* |
 
-### 4.2 Ziel: dediziertes Contract-Layer
-- **Empfohlen (faithful zu „Skills referenzieren den Agent nicht"):** ein **eigenes Contract-Paket** — entweder ein schlankes `local_wbagentsdk`-Plugin **oder** ein bewusst öffentliches, stabilisiertes Sub-Namespace `local_wbagent\contract\*`, das **nur Interfaces + DTOs + base_skill** enthält und **keine** Engine-Logik. Sowohl die Engine als auch alle Skill-Provider hängen an diesem Contract; **die Skills hängen nie an Engine-Services**.
-- Konkrete Maßnahmen:
-  1. `preflight_result_v2` und `skill_prompt_contract` aus `services\` nach `dto\`/`contract\` verschieben (es sind DTOs).
-  2. Alle `interfaces\*` + `dto\*` + `base_skill` als Contract-Surface deklarieren/dokumentieren (öffentliche API, semver-stabil).
-  3. Die 5 Engine-Leaks gemäß Tabelle 4.1-II auflösen (Inversion), **bevor** umbenannt wird.
-  4. Skills importieren danach ausschließlich aus dem Contract-Namespace.
+### 4.2 Ziel: saubere Contract-Surface *innerhalb* der Engine (kein eigenes Plugin)
+- Die Contract-Surface bleibt ein **Sub-Namespace innerhalb von `bookingextension_agent`** (z. B. `…\interfaces\*`, `…\dto\*`, `base_skill`). Kein `local_wbagentsdk`-Plugin. Skills hängen an dieser Surface, nicht an Engine-Services.
+- Konkrete Maßnahmen (reine Hygiene, kein Strukturbruch):
+  1. `preflight_result_v2` und `skill_prompt_contract` aus `services\` nach `dto\`/`contract\` verschieben (es sind DTOs, liegen falsch).
+  2. `interfaces\*` + `dto\*` + `base_skill` als Contract-Surface dokumentieren (das ist die Oberfläche, die ein evtl. späterer Schnitt erbt).
+  3. Die 5 Engine-Leaks gemäß Tabelle 4.1-II auflösen (Inversion) — das ist der eigentliche Wert dieses Abschnitts: Skills sollen nicht auf `privacy_anonymizer`, `conversation_store`, `attachment_token_service` etc. zugreifen.
+  4. Skills importieren danach nur noch aus der Contract-Surface (+ ihrem eigenen Provider-Plugin).
 
 ### 4.2a Previews: Daten-Contract statt Engine-Interface (weitere Entkopplung)
 Heute muss ein Skill für eine Vorschau **zwei Engine-Interfaces** implementieren (`skill_preview_renderer_interface::render(): string`, `skill_preview_provider_interface::get_preview_descriptor(): {type, renderer-FQCN, js_module, description}`). Der konkrete Booking-Renderer ruft sogar mod_booking-View-Internals (`booking_option_preview_renderer::render()` → `get_rendered_showonlyone_table`).
@@ -144,9 +144,8 @@ Heute muss ein Skill für eine Vorschau **zwei Engine-Interfaces** implementiere
 - **Netto:** Verhaltens-Interface-Kopplung → kleiner **Daten-Contract** `{html, js_module, payload}`. `skill_preview_renderer_interface` + `skill_preview_provider_interface` aus dem SDK entfernen.
 
 ### 4.3 Search-Replace-Konsequenz
-- **Engine** (künftiges `local_wbagent`): Search-Replace wie §2.
-- **Skill-Provider** (mod_booking, local_entities): **kein** pauschales `bookingextension_agent`→`local_wbagent`. Stattdessen Imports gezielt auf den **Contract-Namespace** umstellen und die Leaks entfernen.
-- **Übergangsbrücke (optional):** `class_alias(contract\X → alt)` nur für die Contract-Typen, damit Provider während der Umstellung nicht brechen. Für die **Leaks gibt es keine Alias-Lösung** — sie sind Design-Fehler, kein Namensthema.
+- **Für jetzt entfällt das Thema:** Skill-Provider bleiben auf `bookingextension_agent` — kein Rename, kein Alias. Es passiert gar kein Engine-Cut, solange nur `bookingextension_agent` ausgeliefert wird.
+- Die einzige Arbeit hier sind die **Leak-Inversionen** (§4.1-II) — sie sind Design-Fehler, kein Namensthema, und für eine spätere Wahl von Weg A oder B (§10.8) ohnehin sinnvoll.
 
 ---
 
@@ -246,6 +245,13 @@ Falls dennoch **zwei eigenständige Codebasen** gewünscht sind (z. B. der Booki
 5. **`bookingextension_interface`-Schnitt:** sauber trennen, damit die Engine kein Booking-Wissen mitnimmt (sonst war die Auskopplung umsonst).
 6. **3950 + 246 + N Treffer**: Search-Replace muss case-/wortgrenzen-bewusst sein; `bookingextension` (ohne `_agent`) **nicht** anfassen (das ist der mod_booking-Subplugin-Typ).
 7. **Skill-Entflechtung ist Voraussetzung, kein Nachgang (§4):** Solange Skills Engine-Services (privacy_anonymizer, conversation_store, attachment_token_service …) direkt aufrufen, ist die Auskopplung nicht „sauber" — sie würde die Engine wieder mitziehen. Phase 0 zuerst. Konkreter aktueller Beleg: das Header-Bild-Feature koppelt `booking_skill_mutation_execute_service` an `attachment_token_service` — exemplarisch zu invertieren.
+
+8. **Gewählte Richtung „beide Plugins installiert": reversibler Cutover (B+)** (Georg, 2026-06-09 — umzusetzen erst, wenn local_wbagent kommt, NICHT jetzt). Skill-Klassen sind an *einen* Engine-Namespace gebunden (`bookingextension_agent\…\skill_interface` ≠ `local_wbagent\…\skill_interface`, verschiedene PHP-Typen). Solange nur `bookingextension_agent` ausgeliefert wird, ist das irrelevant — bei „nur Extension" bzw. „nur local_wbagent" sind die jeweils anderen Skills schlicht nicht vorhanden (gewünschtes Verhalten). Relevant ist allein **beide gleichzeitig** (Upgrade-Pfad eines Booking-Kunden).
+   - **Mechanik (Georgs Wunsch):** local_wbagent wird *die* aktive Engine; `bookingextension_agent` stellt seine **Engine still** (Feature-Detection-Weiche: `class_exists('\local_wbagent\…\agent_runtime')` → delegieren, selbst keine Aktion) + einmalige **Daten-Migration** in local_wbagents getrennte Tables (§5). **Reversibel:** wird local_wbagent deinstalliert, fällt die Weiche zurück und `bookingextension_agent` „erwacht" wieder. Solange wbagent installiert ist, führt bookingextension keinerlei eigene Aktion aus.
+   - **Konsequenz (unausweichlich):** Wenn Booking inaktiv ist, muss local_wbagent die **Booking-Skills ausführen** (sonst verliert der Bestandskunde beim Install seine Booking-KI). Die Booking-Skills sind aber auf `bookingextension_agent`-Typen gebunden. Auflösung — zwei Optionen, Entscheidung fällt erst beim local_wbagent-Cut:
+     - **(empfohlen) Thin Bridge-Provider in `bookingextension_agent`:** stellt nur die *Engine* still, exponiert die Booking-Skills aber via Adapter, der `local_wbagent\…\skill_interface` implementiert und an den echten Booking-Skill forwardet. Lädt nur bei vorhandenem local_wbagent (optionale Kopplung). Wegen Codegen-Strukturgleichheit ~generischer Forwarder. SDK-frei, passt zu „bookingextension delegiert".
+     - **(Alternative) Geteilte Contract-Typen:** die Skill-Contract-Surface (Interfaces + DTOs + base_skill) in eine von beiden Engines unabhängige Komponente ziehen, sodass eine einzige Typdefinition existiert. Das ist faktisch das zuvor verworfene SDK-Paket — nur dann erforderlich, wenn die Bridge nicht reicht.
+   - **Jetzt zu tun:** nichts an der Auslieferung; nur die Contract-Surface sauber halten (§4.2), damit Bridge ODER geteilter Contract später mechanisch bleibt.
 
 ---
 
