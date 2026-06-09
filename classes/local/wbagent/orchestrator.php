@@ -849,7 +849,6 @@ class orchestrator {
         $systemprompt = $this->build_system_prompt(
             $contextid,
             $userid,
-            $contextid,
             self::PHASE_DISCOVERY,
             $actionclass,
             $haseffectiveobservations,
@@ -999,7 +998,6 @@ class orchestrator {
         $systemprompt = $this->build_system_prompt(
             $contextid,
             $userid,
-            $contextid,
             self::PHASE_SELECTION,
             $actionclass,
             $haseffectiveobservations,
@@ -1239,7 +1237,6 @@ class orchestrator {
         $systemprompt = $this->build_system_prompt(
             $contextid,
             $userid,
-            $contextid,
             self::PHASE_PARAMETER_CONSTRUCTION,
             $actionclass,
             $haseffectiveobservations || !empty($constructionobservations),
@@ -1728,7 +1725,6 @@ PROMPT;
     private function build_system_prompt(
         int $contextid,
         int $userid,
-        int $contextid,
         string $phase = self::PHASE_DISCOVERY,
         string $actionclass = generate_text::class,
         bool $hasobservations = false,
@@ -1737,8 +1733,12 @@ PROMPT;
         bool $isfirstassistantturn = false,
         bool $includeskillcatalog = false
     ): string {
+        // The prompt bundle builder still takes a course-module id (rewired in a later
+        // step). Derive it from the context id; 0 for non-module contexts.
+        $promptcontext = context::instance_by_id($contextid, IGNORE_MISSING);
+        $cmid = ($promptcontext instanceof context_module) ? (int)$promptcontext->instanceid : 0;
         return $this->promptbundlebuilder->build_system_prompt(
-            $contextid,
+            $cmid,
             $userid,
             $contextid,
             $phase,
