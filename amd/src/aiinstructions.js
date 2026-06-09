@@ -922,13 +922,17 @@ const showButtonFeedback = (button, label, cssClass) => {
 /**
  * Extract docs preview metadata from a link href.
  *
+ * Only the mod_booking docs web route is recognised here, mapping to the "mod_booking" corpus.
+ * Other corpora have no public route, so their previews are server-rendered and reached via
+ * data-corpusid attributes rather than parsed from an href.
+ *
  * @param {string} href
- * @returns {{docpath: string, fragment: string}}
+ * @returns {{docpath: string, corpusid: string, fragment: string}}
  */
 const getDocLinkMeta = (href) => {
     const raw = String(href || '').trim();
     if (raw === '') {
-        return {docpath: '', fragment: ''};
+        return {docpath: '', corpusid: '', fragment: ''};
     }
 
     let normalized = raw;
@@ -943,16 +947,12 @@ const getDocLinkMeta = (href) => {
     const queryIndex = withoutHash.indexOf('?');
     const withoutQuery = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
 
-    const match = withoutQuery.match(/^\/(?:public\/)?mod\/[a-z0-9_]+\/docs\/(.+)$/i);
+    const match = withoutQuery.match(/^\/(?:public\/)?mod\/booking\/docs\/(.+)$/i);
     if (match) {
-        return {docpath: match[1].trim(), fragment: fragment};
+        return {docpath: match[1].trim(), corpusid: 'mod_booking', fragment: fragment};
     }
 
-    if (/\.md$/i.test(withoutQuery) && !/^\//.test(withoutQuery)) {
-        return {docpath: withoutQuery.trim(), fragment};
-    }
-
-    return {docpath: '', fragment: ''};
+    return {docpath: '', corpusid: '', fragment: ''};
 };
 
 /**
@@ -967,11 +967,13 @@ const renderSmartLink = (href, label) => {
     const safeLabel = escapeHtml(label);
     const meta = getDocLinkMeta(href);
 
-    if (meta.docpath !== '') {
+    if (meta.docpath !== '' && meta.corpusid !== '') {
         const dataDocPath = escapeHtml(meta.docpath);
+        const dataCorpusId = escapeHtml(meta.corpusid);
         const dataDocFragment = escapeHtml(meta.fragment);
         return `<a href="${safeHref}" class="booking-doc-link"`
-            + ` data-docpath="${dataDocPath}" data-docfragment="${dataDocFragment}">`
+            + ` data-docpath="${dataDocPath}" data-corpusid="${dataCorpusId}"`
+            + ` data-docfragment="${dataDocFragment}">`
             + `${safeLabel}</a>`;
     }
 
@@ -1148,13 +1150,15 @@ const scrollPreviewToFragment = (fragment) => {
  *
  * Falls back to loadUrlInSidePreview() when the webservice call fails.
  *
- * @param {string} docpath  Relative path inside booking/docs, e.g. "booking_rules/README.md".
+ * @param {string} docpath  Relative path inside the corpus, e.g. "booking_rules/README.md".
+ * @param {string} corpusid Documentation corpus id, e.g. "mod_booking".
  * @param {string} fallbackUrl  Optional bare URL to use as iframe fallback.
  * @param {string} fragment Optional fragment id (without #) to scroll to after load.
  */
-const loadDocInPreview = (docpath, fallbackUrl = '', fragment = '') => {
+const loadDocInPreview = (docpath, corpusid, fallbackUrl = '', fragment = '') => {
     const safePath = String(docpath || '').trim();
-    if (safePath === '') {
+    const safeCorpus = String(corpusid || '').trim();
+    if (safePath === '' || safeCorpus === '') {
         if (fallbackUrl !== '') {
             loadUrlInSidePreview(fallbackUrl);
         }
@@ -1165,7 +1169,7 @@ const loadDocInPreview = (docpath, fallbackUrl = '', fragment = '') => {
 
     Ajax.call([{
         methodname: 'bookingextension_agent_ai_get_doc_content',
-        args: {contextid: currentContextId, path: safePath},
+        args: {contextid: currentContextId, corpus_id: safeCorpus, path: safePath},
     }])[0].then((resp) => {
         if (resp && resp.success && String(resp.html || '').trim() !== '') {
             const title = String(resp.title || '').trim();
@@ -2708,17 +2712,18 @@ const handleBodyClick = (event) => {
     if (anchor instanceof HTMLAnchorElement) {
         const href = String(anchor.getAttribute('href') || '').trim();
         const inlineDocPath = String(anchor.getAttribute('data-docpath') || '').trim();
+        const inlineDocCorpus = String(anchor.getAttribute('data-corpusid') || '').trim();
         const inlineDocFragment = String(anchor.getAttribute('data-docfragment') || '').trim();
-        if (inlineDocPath !== '') {
+        if (inlineDocPath !== '' && inlineDocCorpus !== '') {
             event.preventDefault();
-            loadDocInPreview(inlineDocPath, '', inlineDocFragment);
+            loadDocInPreview(inlineDocPath, inlineDocCorpus, '', inlineDocFragment);
             return;
         }
 
         const resolvedDocMeta = getDocLinkMeta(href);
-        if (resolvedDocMeta.docpath !== '') {
+        if (resolvedDocMeta.docpath !== '' && resolvedDocMeta.corpusid !== '') {
             event.preventDefault();
-            loadDocInPreview(resolvedDocMeta.docpath, '', resolvedDocMeta.fragment);
+            loadDocInPreview(resolvedDocMeta.docpath, resolvedDocMeta.corpusid, '', resolvedDocMeta.fragment);
             return;
         }
 

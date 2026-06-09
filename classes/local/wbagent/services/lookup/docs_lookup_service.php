@@ -52,39 +52,23 @@ class docs_lookup_service {
     /** Minimum cosine similarity score (0–1) to include a semantic result. */
     private const SEMANTIC_MIN_SCORE = 0.30;
 
-    /** @var string Absolute path to the primary docs root. */
-    private string $docsroot;
+    /** Relative path of the per-corpus root entry document. */
+    private const ROOT_DOC = 'README.md';
 
-    /** @var string Relative path of the root entry document. */
-    private string $rootdocpath;
-
-    /** @var string Corpus id for semantic search filtering. */
-    private string $corpusid;
+    /** @var docs_corpus_registry The corpus_id → absolute root authority. */
+    private docs_corpus_registry $registry;
 
     /**
      * Constructor.
      *
-     * @param string|null $docsroot  Absolute path to docs directory.
-     * @param string|null $rootdocpath  Relative path to root entry doc (default README.md).
-     * @param string|null $corpusid  Corpus identifier for index filtering.
+     * The service is corpus-agnostic: it searches across every registered corpus and resolves each
+     * hit's absolute root through the registry by the hit's own corpus_id. There is no single
+     * "primary root" baked into the instance.
+     *
+     * @param docs_corpus_registry|null $registry Corpus registry (defaults to the discovered set).
      */
-    public function __construct(
-        ?string $docsroot = null,
-        ?string $rootdocpath = null,
-        ?string $corpusid = null
-    ) {
-        if ($docsroot !== null && $docsroot !== '') {
-            $this->docsroot = rtrim($docsroot, '/\\');
-        } else {
-            $this->docsroot = $this->resolve_default_docsroot();
-        }
-
-        $this->rootdocpath = trim((string)($rootdocpath ?? 'README.md'));
-        if ($this->rootdocpath === '') {
-            $this->rootdocpath = 'README.md';
-        }
-
-        $this->corpusid = trim((string)($corpusid ?? docs_embeddings_index_service::DEFAULT_CORPUS_ID));
+    public function __construct(?docs_corpus_registry $registry = null) {
+        $this->registry = $registry ?? new docs_corpus_registry();
     }
 
     // -------------------------------------------------------------------------
@@ -117,8 +101,9 @@ class docs_lookup_service {
             return [];
         }
 
+        // Search across ALL corpora at once; each index row carries its own corpus_id.
         $repo = new docs_embeddings_csv_repository();
-        $rows = $repo->read_rows_for_corpus($this->corpusid);
+        $rows = $repo->read_rows();
         if (empty($rows)) {
             return [];
         }
@@ -168,13 +153,19 @@ class docs_lookup_service {
                 continue;
             }
 
+            $corpusid = trim((string)($hit['corpus_id'] ?? ''));
             $relpath = (string)($hit['chunk_path'] ?? '');
-            $doc = $this->load_doc_meta($relpath);
+            $root = $this->registry->resolve_root($corpusid);
+            if ($root === null) {
+                continue;
+            }
+            $doc = $this->load_doc_meta($root, $relpath);
             if ($doc === null) {
                 continue;
             }
 
             $results[] = array_merge($doc, [
+                'corpus_id' => $corpusid,
                 'score' => (int)round($score * 1000),
                 'search_method' => 'semantic',
             ]);
@@ -212,23 +203,25 @@ class docs_lookup_service {
                 if ($path === '') {
                     continue;
                 }
+                // Key by corpus + path so identically named files in different corpora never collide.
+                $key = (string)($doc['corpus_id'] ?? '') . '||' . $path;
 
-                if (!isset($merged[$path])) {
-                    $merged[$path] = $doc;
-                    $hitcounts[$path] = 1;
+                if (!isset($merged[$key])) {
+                    $merged[$key] = $doc;
+                    $hitcounts[$key] = 1;
                 } else {
-                    if ((int)($doc['score'] ?? 0) > (int)($merged[$path]['score'] ?? 0)) {
-                        $merged[$path] = $doc;
+                    if ((int)($doc['score'] ?? 0) > (int)($merged[$key]['score'] ?? 0)) {
+                        $merged[$key] = $doc;
                     }
-                    $hitcounts[$path]++;
+                    $hitcounts[$key]++;
                 }
             }
         }
 
         // Cross-query bonus: +15 per additional hit, capped at 2 extra = +30.
-        foreach ($merged as $path => $doc) {
-            $extrahits = min(2, ($hitcounts[$path] ?? 1) - 1);
-            $merged[$path]['score'] = (int)($merged[$path]['score'] ?? 0) + ($extrahits * 15);
+        foreach ($merged as $key => $doc) {
+            $extrahits = min(2, ($hitcounts[$key] ?? 1) - 1);
+            $merged[$key]['score'] = (int)($merged[$key]['score'] ?? 0) + ($extrahits * 15);
         }
 
         usort($merged, static function (array $a, array $b): int {
@@ -242,22 +235,30 @@ class docs_lookup_service {
     /**
      * Read a documentation file by its relative path with line windowing.
      *
-     * @param string $relpath   Relative path within docsroot.
+     * @param string $corpusid  Corpus the relpath belongs to (resolved to a root via the registry).
+     * @param string $relpath   Relative path within that corpus root.
      * @param int    $linestart First line to return (1-based).
      * @param int    $linecount Maximum lines to return.
-     * @return array<string,mixed>|null  Doc payload or null if file not found.
+     * @return array<string,mixed>|null  Doc payload (incl. corpus_id) or null if not found.
      */
     public function read_doc_by_path(
+        string $corpusid,
         string $relpath,
         int $linestart = 1,
         int $linecount = self::DEFAULT_LINE_COUNT
     ): ?array {
+        $corpusid = trim($corpusid);
+        $root = $this->registry->resolve_root($corpusid);
+        if ($root === null) {
+            return null;
+        }
+
         $relpath = $this->sanitize_rel_path($relpath);
         if ($relpath === '') {
             return null;
         }
 
-        $abspath = $this->docsroot . '/' . $relpath;
+        $abspath = $root . '/' . $relpath;
         if (!is_readable($abspath)) {
             return null;
         }
@@ -267,7 +268,32 @@ class docs_lookup_service {
             return null;
         }
 
-        return $this->build_windowed_doc($relpath, $content, $linestart, $linecount);
+        $doc = $this->build_windowed_doc($relpath, $content, $linestart, $linecount);
+        $doc['corpus_id'] = $corpusid;
+        return $doc;
+    }
+
+    /**
+     * Read a doc by relative path when the corpus is not known up front, trying each registered
+     * corpus in order (used for the planner's direct/candidate path without an explicit corpus_id).
+     *
+     * @param string $relpath
+     * @param int    $linestart
+     * @param int    $linecount
+     * @return array<string,mixed>|null
+     */
+    public function read_doc_any_corpus(
+        string $relpath,
+        int $linestart = 1,
+        int $linecount = self::DEFAULT_LINE_COUNT
+    ): ?array {
+        foreach (array_keys($this->registry->list()) as $corpusid) {
+            $doc = $this->read_doc_by_path((string)$corpusid, $relpath, $linestart, $linecount);
+            if ($doc !== null) {
+                return $doc;
+            }
+        }
+        return null;
     }
 
     /**
@@ -278,60 +304,11 @@ class docs_lookup_service {
      * @return array<string,mixed>|null
      */
     public function read_root_doc(int $linestart = 1, int $linecount = self::DEFAULT_LINE_COUNT): ?array {
-        return $this->read_doc_by_path($this->rootdocpath, $linestart, $linecount);
-    }
-
-    /**
-     * Return the configured root doc path.
-     *
-     * @return string
-     */
-    public function get_root_doc_path(): string {
-        return $this->rootdocpath;
-    }
-
-    /**
-     * Return a topic index derived from the root README link structure.
-     *
-     * Each entry has: topic_id (relative path), title (link text).
-     *
-     * @return array<int,array<string,string>>
-     */
-    public function get_master_toc_index(): array {
-        $rootpath = $this->docsroot . '/' . $this->rootdocpath;
-        if (!is_readable($rootpath)) {
-            return [];
+        $primary = $this->registry->primary();
+        if ($primary === null) {
+            return null;
         }
-
-        $content = @file_get_contents($rootpath);
-        if ($content === false || $content === '') {
-            return [];
-        }
-
-        $topics = [];
-        // Match markdown links: [Title](path) where path ends with .md or is a directory README.
-        if (preg_match_all('/\[([^\]]+)\]\(([^)]+\.md)\)/u', $content, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
-                $title = trim($match[1]);
-                $linkpath = trim($match[2]);
-                if ($title === '' || $linkpath === '' || strpos($linkpath, 'http') === 0) {
-                    continue;
-                }
-                // Resolve relative links from root doc's directory.
-                $rootdir = dirname($this->rootdocpath);
-                if ($rootdir === '.') {
-                    $resolved = $linkpath;
-                } else {
-                    $resolved = $rootdir . '/' . $linkpath;
-                }
-                $topics[] = [
-                    'topic_id' => $resolved,
-                    'title' => $title,
-                ];
-            }
-        }
-
-        return $topics;
+        return $this->read_doc_by_path($primary, self::ROOT_DOC, $linestart, $linecount);
     }
 
     /**
@@ -398,53 +375,57 @@ class docs_lookup_service {
      * @return array<int,array<string,mixed>>
      */
     private function load_docs(): array {
-        if (!is_dir($this->docsroot)) {
-            return [];
-        }
-
         $docs = [];
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($this->docsroot, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
-        );
 
-        foreach ($iterator as $fileinfo) {
-            if (!$fileinfo->isFile()) {
+        foreach ($this->registry->list() as $corpusid => $root) {
+            if (!is_dir($root)) {
                 continue;
             }
 
-            $abspath = $fileinfo->getPathname();
-            if (strpos(str_replace('\\', '/', $abspath), '/pix/') !== false) {
-                continue;
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($root, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $fileinfo) {
+                if (!$fileinfo->isFile()) {
+                    continue;
+                }
+
+                $abspath = $fileinfo->getPathname();
+                if (strpos(str_replace('\\', '/', $abspath), '/pix/') !== false) {
+                    continue;
+                }
+
+                if (strtolower($fileinfo->getExtension()) !== 'md') {
+                    continue;
+                }
+
+                $content = @file_get_contents($abspath);
+                if ($content === false) {
+                    continue;
+                }
+
+                $relpath = ltrim(substr($abspath, strlen($root)), '/\\');
+                $title = '';
+                if (preg_match('/^#\s+(.+)$/m', $content, $m)) {
+                    $title = trim($m[1]);
+                }
+
+                $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
+                $excerptlines = array_slice($lines, 0, 5);
+                $excerpt = implode(' ', array_map('trim', $excerptlines));
+
+                $docs[] = [
+                    'corpus_id' => (string)$corpusid,
+                    'path' => $relpath,
+                    'basename' => strtolower(basename($relpath, '.md')),
+                    'title' => $title,
+                    'excerpt' => $excerpt,
+                    'content' => $content,
+                    'score' => 0,
+                ];
             }
-
-            if (strtolower($fileinfo->getExtension()) !== 'md') {
-                continue;
-            }
-
-            $content = @file_get_contents($abspath);
-            if ($content === false) {
-                continue;
-            }
-
-            $relpath = ltrim(substr($abspath, strlen($this->docsroot)), '/\\');
-            $title = '';
-            if (preg_match('/^#\s+(.+)$/m', $content, $m)) {
-                $title = trim($m[1]);
-            }
-
-            $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
-            $excerptlines = array_slice($lines, 0, 5);
-            $excerpt = implode(' ', array_map('trim', $excerptlines));
-
-            $docs[] = [
-                'path' => $relpath,
-                'basename' => strtolower(basename($relpath, '.md')),
-                'title' => $title,
-                'excerpt' => $excerpt,
-                'content' => $content,
-                'score' => 0,
-            ];
         }
 
         return $docs;
@@ -453,16 +434,17 @@ class docs_lookup_service {
     /**
      * Load minimal metadata for a single doc path (for semantic result enrichment).
      *
+     * @param string $root    Absolute corpus root the relpath lives in.
      * @param string $relpath
      * @return array<string,mixed>|null
      */
-    private function load_doc_meta(string $relpath): ?array {
+    private function load_doc_meta(string $root, string $relpath): ?array {
         $relpath = $this->sanitize_rel_path($relpath);
         if ($relpath === '') {
             return null;
         }
 
-        $abspath = $this->docsroot . '/' . $relpath;
+        $abspath = rtrim($root, '/\\') . '/' . $relpath;
         if (!is_readable($abspath)) {
             return null;
         }
@@ -594,28 +576,6 @@ class docs_lookup_service {
         }
 
         return array_values(array_unique($tokens));
-    }
-
-    /**
-     * Resolve the default docsroot from plugin config or component autodetect.
-     *
-     * @return string
-     */
-    private function resolve_default_docsroot(): string {
-        $configured = trim((string)get_config('bookingextension_agent', 'aidocsroot'));
-        if ($configured !== '' && is_dir($configured)) {
-            return rtrim($configured, '/\\');
-        }
-
-        $modbookingdir = \core_component::get_component_directory('mod_booking');
-        if ($modbookingdir !== null) {
-            $fallback = $modbookingdir . '/docs';
-            if (is_dir($fallback)) {
-                return $fallback;
-            }
-        }
-
-        return '';
     }
 
     /**

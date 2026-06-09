@@ -184,34 +184,14 @@ class docs_embeddings_index_service {
     /**
      * Return registered corpus roots keyed by corpus_id.
      *
-     * Currently reads from plugin config. Extend this method to support multiple
-     * registered corpora once the corpus registry UI exists.
+     * Delegates to the docs_corpus_registry (the single corpus_id → root authority): all corpora
+     * declared by component docs_providers plus the admin-configured corpus. Every one of them is
+     * scanned and indexed (rows are tagged with their corpus_id).
      *
      * @return array<string,string>  corpus_id => absolute docs root path
      */
     public function get_registered_corpora(): array {
-        $corpora = [];
-
-        $configuredroot = trim((string)get_config('bookingextension_agent', 'aidocsroot'));
-        if ($configuredroot !== '' && is_dir($configuredroot)) {
-            $corpusid = trim((string)get_config('bookingextension_agent', 'aidocs_corpusid'));
-            if ($corpusid === '') {
-                $corpusid = self::DEFAULT_CORPUS_ID;
-            }
-            $corpora[$corpusid] = rtrim($configuredroot, '/\\');
-            return $corpora;
-        }
-
-        // Auto-detect mod_booking docs as fallback.
-        $modbookingdir = \core_component::get_component_directory('mod_booking');
-        if ($modbookingdir !== null) {
-            $defaultdocs = $modbookingdir . '/docs';
-            if (is_dir($defaultdocs)) {
-                $corpora[self::DEFAULT_CORPUS_ID] = $defaultdocs;
-            }
-        }
-
-        return $corpora;
+        return (new docs_corpus_registry())->list();
     }
 
     /**

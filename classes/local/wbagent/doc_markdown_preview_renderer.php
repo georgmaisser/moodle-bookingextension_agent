@@ -46,12 +46,13 @@ class doc_markdown_preview_renderer {
      */
     public function render(array $payload, int $contextid, int $userid): string {
         $path = $payload['path'] ?? $payload['docpath'] ?? '';
-        if ($path === '') {
+        $corpusid = trim((string)($payload['corpus_id'] ?? ''));
+        if ($path === '' || $corpusid === '') {
             return '';
         }
 
         try {
-            $result = ai_get_doc_content::execute($contextid, $path);
+            $result = ai_get_doc_content::execute($contextid, $corpusid, $path);
             if (!empty($result['success']) && !empty($result['html'])) {
                 return $result['html'];
             }

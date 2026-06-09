@@ -106,6 +106,14 @@ class explain_docs_skill extends core_skill_base implements
                     'maxItems' => 2,
                     'required' => false,
                 ],
+                'corpus_id' => [
+                    'type' => 'string',
+                    'description' => 'Optional: which documentation corpus to read from (e.g. "mod_booking"). '
+                        . 'Only relevant together with doc_path/doc_path_candidates; when omitted the '
+                        . 'file is searched across all corpora. Semantic search already returns the '
+                        . 'correct corpus on its own.',
+                    'required' => false,
+                ],
                 'doc_path' => [
                     'type' => 'string',
                     'description' => 'Optional: relative path to the exact documentation file '
@@ -197,6 +205,11 @@ class explain_docs_skill extends core_skill_base implements
                     '- If the observation includes doc URLs, always pass them verbatim to the user as '
                     . 'Markdown links in your message.',
                     '- If you already know the exact doc path from context, set input.doc_path to skip search.',
+                    '- When your reply reproduces a shortcode (anything in square brackets like '
+                    . '[bookingoptions ...] or a closing [/bookingoptions]), escape the OPENING bracket as the '
+                    . 'HTML entity &#91; so it reads &#91;bookingoptions ...]. The chat message is run through '
+                    . 'format_text, and an unescaped [ would make the shortcodes filter execute the tag instead of '
+                    . 'showing it literally. This does NOT apply to Markdown links [label](url) — leave those as-is.',
                 ],
             ],
         ];
@@ -235,6 +248,7 @@ class explain_docs_skill extends core_skill_base implements
         $question = trim((string)($input['question'] ?? ''));
         $outputlang = $this->get_output_language($input);
         $docpath = trim((string)($input['doc_path'] ?? ''));
+        $corpusid = trim((string)($input['corpus_id'] ?? ''));
         $candidates = array_values(array_filter(
             array_map('strval', (array)($input['doc_path_candidates'] ?? [])),
             static fn(string $v): bool => trim($v) !== ''
@@ -256,9 +270,11 @@ class explain_docs_skill extends core_skill_base implements
         $svc = $this->create_docs_lookup_service();
         $debugbase = $this->build_skill_debug_message(self::SKILL_NAME, $input);
 
-        // 1. Planner-supplied direct path.
+        // 1. Planner-supplied direct path (with explicit corpus when given, else search all corpora).
         if ($docpath !== '') {
-            $doc = $svc->read_doc_by_path($docpath, $linestart, $linecount);
+            $doc = $corpusid !== ''
+                ? $svc->read_doc_by_path($corpusid, $docpath, $linestart, $linecount)
+                : $svc->read_doc_any_corpus($docpath, $linestart, $linecount);
             if ($doc !== null) {
                 return $this->build_doc_result($doc, $svc, $outputlang, $question, $debugbase . "\nmode=direct_path");
             }
@@ -270,7 +286,9 @@ class explain_docs_skill extends core_skill_base implements
             if ($candidate === '') {
                 continue;
             }
-            $doc = $svc->read_doc_by_path($candidate, $linestart, $linecount);
+            $doc = $corpusid !== ''
+                ? $svc->read_doc_by_path($corpusid, $candidate, $linestart, $linecount)
+                : $svc->read_doc_any_corpus($candidate, $linestart, $linecount);
             if ($doc !== null) {
                 return $this->build_doc_result(
                     $doc,
@@ -289,7 +307,12 @@ class explain_docs_skill extends core_skill_base implements
         if (!empty($semanticresults)) {
             $best = $semanticresults[0];
             $score = (int)($best['score'] ?? 0);
-            $doc = $svc->read_doc_by_path((string)($best['path'] ?? ''), $linestart, $linecount);
+            $doc = $svc->read_doc_by_path(
+                (string)($best['corpus_id'] ?? ''),
+                (string)($best['path'] ?? ''),
+                $linestart,
+                $linecount
+            );
             if ($doc !== null) {
                 return $this->build_doc_result(
                     $doc,
@@ -312,7 +335,12 @@ class explain_docs_skill extends core_skill_base implements
 
         if (!empty($lexicalresults)) {
             $best = $lexicalresults[0];
-            $doc = $svc->read_doc_by_path((string)($best['path'] ?? ''), $linestart, $linecount);
+            $doc = $svc->read_doc_by_path(
+                (string)($best['corpus_id'] ?? ''),
+                (string)($best['path'] ?? ''),
+                $linestart,
+                $linecount
+            );
             if ($doc !== null) {
                 return $this->build_doc_result(
                     $doc,
@@ -370,6 +398,7 @@ class explain_docs_skill extends core_skill_base implements
         string $debugsuffix
     ): array {
         $path = (string)($doc['path'] ?? '');
+        $corpusid = (string)($doc['corpus_id'] ?? '');
         $title = (string)($doc['title'] ?? $path);
         $content = (string)($doc['content'] ?? '');
         $summary = $svc->build_summary($doc, $outputlang, $question);
@@ -379,7 +408,7 @@ class explain_docs_skill extends core_skill_base implements
         $totallines = (int)($doc['total_lines'] ?? 0);
         $linestart = (int)($doc['line_start'] ?? 1);
 
-        $docurl = $this->build_doc_url($path);
+        $docurl = $this->build_doc_url($corpusid, $path);
 
         $observation = $this->build_observation_full(
             $path,
@@ -399,6 +428,7 @@ class explain_docs_skill extends core_skill_base implements
             'detail' => $usermessage,
             'usermessage' => $usermessage,
             'resultid' => null,
+            'doc_corpus' => $corpusid,
             'doc_path' => $path,
             'doc_title' => $title,
             'doc_url' => $docurl,
@@ -457,13 +487,18 @@ class explain_docs_skill extends core_skill_base implements
     }
 
     /**
-     * Build a Moodle URL for a doc path.
+     * Build a public Moodle URL for a doc path.
      *
+     * Only the mod_booking corpus has a public web route (/mod/booking/docs/...). Other corpora
+     * have no clickable source URL (v1); their content is still fully shown in the side preview.
+     *
+     * @param string $corpusid
      * @param string $relpath
      * @return string
      */
-    private function build_doc_url(string $relpath): string {
-        if ($relpath === '') {
+    private function build_doc_url(string $corpusid, string $relpath): string {
+        // Only mod_booking exposes a docs web route today.
+        if ($relpath === '' || $corpusid !== 'mod_booking') {
             return '';
         }
 
@@ -503,21 +538,12 @@ class explain_docs_skill extends core_skill_base implements
     }
 
     /**
-     * Instantiate the docs lookup service from plugin config.
+     * Instantiate the registry-backed docs lookup service (searches across all corpora).
      *
      * @return docs_lookup_service
      */
     private function create_docs_lookup_service(): docs_lookup_service {
-        $docsroot = trim((string)get_config('bookingextension_agent', 'aidocsroot'));
-        $docsentry = trim((string)get_config('bookingextension_agent', 'aidocsentry'));
-        if ($docsentry === '') {
-            $docsentry = 'README.md';
-        }
-
-        return new docs_lookup_service(
-            $docsroot !== '' ? $docsroot : null,
-            $docsentry
-        );
+        return new docs_lookup_service();
     }
 
     /**
@@ -535,11 +561,16 @@ class explain_docs_skill extends core_skill_base implements
      */
     public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
         $path = trim((string)($resultentry['doc_path'] ?? $resultentry['path'] ?? ''));
-        if ($path === '') {
+        $corpusid = trim((string)($resultentry['doc_corpus'] ?? $resultentry['corpus_id'] ?? ''));
+        if ($path === '' || $corpusid === '') {
             return null;
         }
 
-        $html = (new doc_markdown_preview_renderer())->render(['path' => $path], $contextid, $userid);
+        $html = (new doc_markdown_preview_renderer())->render(
+            ['corpus_id' => $corpusid, 'path' => $path],
+            $contextid,
+            $userid
+        );
         if (trim($html) === '') {
             return null;
         }
@@ -547,7 +578,7 @@ class explain_docs_skill extends core_skill_base implements
         return [
             'type' => 'doc_markdown',
             'html' => $html,
-            'payload' => ['path' => $path],
+            'payload' => ['corpus_id' => $corpusid, 'path' => $path],
         ];
     }
 }

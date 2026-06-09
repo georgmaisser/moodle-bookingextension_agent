@@ -837,6 +837,14 @@ class orchestrator {
             }
         }
 
+        // Documentation questions must always be able to reach core.explain_docs, even when the
+        // embedding top-k discovery ranked domain skills above it (e.g. "explain the booking rules"
+        // pulls the rule skills). Force the doc skill into the candidate catalog for doc-intent
+        // queries so the selector can choose it instead of, say, analyze_rules.
+        if ($shouldincludeskillcatalog && isset($allpromptcontracts) && is_array($allpromptcontracts)) {
+            $runtimecatalog = $this->ensure_doc_skill_for_doc_intent($runtimecatalog, $allpromptcontracts, $messages);
+        }
+
         $systemprompt = $this->build_system_prompt(
             $cmid,
             $userid,
@@ -1779,6 +1787,90 @@ PROMPT;
         }
 
         return $slimcatalog;
+    }
+
+    /**
+     * Force core.explain_docs into the candidate catalog when the latest user message looks like a
+     * documentation/explanation question.
+     *
+     * Embedding top-k discovery ranks domain skills (e.g. analyze_rules, create_rule_from_template)
+     * above the generic doc skill for phrasings like "explain the booking rules", so the doc skill
+     * never reaches the selector. This guarantees it is offered for doc-intent queries; the selector
+     * still decides. No-op when it is already present, when intent does not look documentation-like,
+     * or when the doc skill is not registered.
+     *
+     * @param array<int,array<string,mixed>> $runtimecatalog Final (post-filter) candidate catalog.
+     * @param array<int,array<string,mixed>> $allcontracts   Full skill contracts (source of the row).
+     * @param array<int,object> $messages                    Conversation messages (latest user text).
+     * @return array<int,array<string,mixed>>
+     */
+    private function ensure_doc_skill_for_doc_intent(
+        array $runtimecatalog,
+        array $allcontracts,
+        array $messages
+    ): array {
+        $docskill = \bookingextension_agent\local\wbagent\core\skills\explain_docs_skill::SKILL_NAME;
+
+        foreach ($runtimecatalog as $row) {
+            if (trim((string)($row['skill'] ?? '')) === $docskill) {
+                return $runtimecatalog;
+            }
+        }
+
+        $usertext = '';
+        foreach (array_reverse($messages) as $msg) {
+            if (($msg->role ?? '') === 'user') {
+                $usertext = trim((string)($msg->content ?? ''));
+                break;
+            }
+        }
+        if ($usertext === '' || !$this->looks_like_documentation_intent($usertext)) {
+            return $runtimecatalog;
+        }
+
+        foreach ($allcontracts as $entry) {
+            if (!is_array($entry) || trim((string)($entry['skill'] ?? '')) !== $docskill) {
+                continue;
+            }
+            $sanitized = $this->sanitize_runtime_catalog_for_prompt([$entry]);
+            if (!empty($sanitized)) {
+                $runtimecatalog[] = $sanitized[0];
+            }
+            break;
+        }
+
+        return $runtimecatalog;
+    }
+
+    /**
+     * Heuristic: does the text read like a "explain / what is / how does / documentation" question?
+     *
+     * Language-agnostic-ish marker set (de + en) covering the common doc-intent phrasings. Kept
+     * deliberately small and high-precision; misses still fall back to core.search_skills.
+     *
+     * @param string $text
+     * @return bool
+     */
+    private function looks_like_documentation_intent(string $text): bool {
+        $haystack = \core_text::strtolower($text);
+
+        $markers = [
+            // German.
+            'erklär', 'erklar', 'was ist', 'was sind', 'wie funktion', 'wofür', 'wofur',
+            'informationen zu', 'informationen über', 'informationen ueber', 'doku', 'dokumentation',
+            'anleitung', 'beschreib',
+            // English.
+            'explain', 'what is', 'what are', 'how does', 'how do i', 'documentation', 'docs',
+            'guide', 'tell me about', 'what does',
+        ];
+
+        foreach ($markers as $marker) {
+            if (mb_strpos($haystack, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

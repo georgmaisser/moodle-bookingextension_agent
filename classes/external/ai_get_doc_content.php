@@ -33,6 +33,7 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
 use moodle_url;
 
 /**
@@ -54,7 +55,8 @@ class ai_get_doc_content extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'contextid' => new external_value(PARAM_INT, 'Module context id.'),
-            'path' => new external_value(PARAM_PATH, 'Relative path inside booking/docs, e.g. booking_rules/README.md'),
+            'corpus_id' => new external_value(PARAM_ALPHANUMEXT, 'Documentation corpus id, e.g. mod_booking.'),
+            'path' => new external_value(PARAM_PATH, 'Relative path inside the corpus, e.g. booking_rules/README.md'),
         ]);
     }
 
@@ -62,13 +64,17 @@ class ai_get_doc_content extends external_api {
      * Load and render a documentation markdown file.
      *
      * @param int    $contextid
-     * @param string $path  Relative path inside booking/docs.
+     * @param string $corpusid  Documentation corpus id (resolved to a root via the registry).
+     * @param string $path  Relative path inside the corpus.
      * @return array{success:bool, html:string, title:string, error:string}
      */
-    public static function execute(int $contextid, string $path): array {
+    public static function execute(int $contextid, string $corpusid, string $path): array {
         global $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['contextid' => $contextid, 'path' => $path]);
+        $params = self::validate_parameters(
+            self::execute_parameters(),
+            ['contextid' => $contextid, 'corpus_id' => $corpusid, 'path' => $path]
+        );
 
         $authz = new authorization_service();
         try {
@@ -84,12 +90,18 @@ class ai_get_doc_content extends external_api {
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
-        $docsroot = realpath(dirname(__DIR__, 2) . '/docs');
+        // Resolve the corpus root strictly via the registry (the only trusted corpus_id → root map).
+        $corpusroot = (new docs_corpus_registry())->resolve_root((string)$params['corpus_id']);
+        if ($corpusroot === null) {
+            return ['success' => false, 'html' => '', 'title' => '', 'error' => 'unknown documentation corpus'];
+        }
+
+        $docsroot = realpath($corpusroot);
         if ($docsroot === false || !is_dir($docsroot)) {
             return ['success' => false, 'html' => '', 'title' => '', 'error' => 'docs directory not found'];
         }
 
-        // Resolve the requested path strictly inside docs root — prevent any traversal.
+        // Resolve the requested path strictly inside this corpus root — prevent any traversal.
         $requested = realpath($docsroot . DIRECTORY_SEPARATOR . $params['path']);
         if (
             $requested === false
@@ -111,7 +123,12 @@ class ai_get_doc_content extends external_api {
         }
 
         $relativepath = ltrim(str_replace('\\', '/', substr($requested, strlen($docsroot))), '/');
-        $html = self::markdown_to_html($markdown, $relativepath, (int)$params['contextid']);
+        $html = self::markdown_to_html(
+            $markdown,
+            $relativepath,
+            (int)$params['contextid'],
+            (string)$params['corpus_id']
+        );
 
         return ['success' => true, 'html' => $html, 'title' => $title, 'error' => ''];
     }
@@ -150,9 +167,15 @@ class ai_get_doc_content extends external_api {
      * @param  string $markdown
      * @param  string $currentpath Relative path of the currently rendered markdown doc.
      * @param  int    $contextid
+     * @param  string $corpusid    Corpus the current doc belongs to (internal links stay corpus-local).
      * @return string  Safe HTML.
      */
-    private static function markdown_to_html(string $markdown, string $currentpath, int $contextid): string {
+    private static function markdown_to_html(
+        string $markdown,
+        string $currentpath,
+        int $contextid,
+        string $corpusid = ''
+    ): string {
         $basedir = trim(str_replace('\\', '/', dirname($currentpath)), '/.');
 
         // Normalise line endings.
@@ -200,7 +223,7 @@ class ai_get_doc_content extends external_api {
                     $tag = $isfirst ? 'th' : 'td';
                     $tablehtml .= '<tr>';
                     foreach ($cells as $cell) {
-                        $tablehtml .= "<{$tag}>" . self::inline_format($cell, $contextid, $basedir) . "</{$tag}>";
+                        $tablehtml .= "<{$tag}>" . self::inline_format($cell, $contextid, $basedir, $corpusid) . "</{$tag}>";
                     }
                     $tablehtml .= '</tr>' . "\n";
                     $isfirst = false;
@@ -213,7 +236,7 @@ class ai_get_doc_content extends external_api {
             // Headings.
             if (preg_match('/^(#{1,4})\s+(.+)$/', $line, $m)) {
                 $level   = strlen($m[1]);
-                $content = self::inline_format($m[2], $contextid, $basedir);
+                $content = self::inline_format($m[2], $contextid, $basedir, $corpusid);
                 $id      = 'doc-' . preg_replace('/[^a-z0-9]+/', '-', strtolower(strip_tags($content)));
                 $html   .= "<h{$level} id=\"{$id}\" class=\"booking-doc-h{$level}\">{$content}</h{$level}>\n";
                 $i++;
@@ -231,7 +254,7 @@ class ai_get_doc_content extends external_api {
             if (preg_match('/^(\s*)([-*])\s+(.+)$/', $line, $m)) {
                 $html .= "<ul class=\"booking-doc-list\">\n";
                 while ($i < $total && preg_match('/^(\s*)([-*])\s+(.+)$/', $lines[$i], $m)) {
-                    $html .= '<li>' . self::inline_format($m[3], $contextid, $basedir) . '</li>' . "\n";
+                    $html .= '<li>' . self::inline_format($m[3], $contextid, $basedir, $corpusid) . '</li>' . "\n";
                     $i++;
                 }
                 $html .= "</ul>\n";
@@ -242,7 +265,7 @@ class ai_get_doc_content extends external_api {
             if (preg_match('/^\d+\.\s+(.+)$/', $line, $m)) {
                 $html .= "<ol class=\"booking-doc-list\">\n";
                 while ($i < $total && preg_match('/^\d+\.\s+(.+)$/', $lines[$i], $m)) {
-                    $html .= '<li>' . self::inline_format($m[1], $contextid, $basedir) . '</li>' . "\n";
+                    $html .= '<li>' . self::inline_format($m[1], $contextid, $basedir, $corpusid) . '</li>' . "\n";
                     $i++;
                 }
                 $html .= "</ol>\n";
@@ -266,7 +289,7 @@ class ai_get_doc_content extends external_api {
                 $i++;
             }
             if ($para !== '') {
-                $html .= '<p class="booking-doc-p">' . self::inline_format($para, $contextid, $basedir) . "</p>\n";
+                $html .= '<p class="booking-doc-p">' . self::inline_format($para, $contextid, $basedir, $corpusid) . "</p>\n";
             }
         }
 
@@ -283,13 +306,19 @@ class ai_get_doc_content extends external_api {
      * @param  string $text
      * @param  int    $contextid
      * @param  string $basedir Relative docs directory of the current document.
+     * @param  string $corpusid Corpus of the current document (internal links stay in this corpus).
      * @return string HTML
      */
-    private static function inline_format(string $text, int $contextid, string $basedir = ''): string {
+    private static function inline_format(
+        string $text,
+        int $contextid,
+        string $basedir = '',
+        string $corpusid = ''
+    ): string {
         // Links [text](url) — must run before escaping.
         $text = preg_replace_callback(
             '/\[([^\]]+)\]\(([^)]+)\)/',
-            static function (array $m) use ($contextid, $basedir): string {
+            static function (array $m) use ($contextid, $basedir, $corpusid): string {
                 $label = htmlspecialchars(trim($m[1]), ENT_QUOTES, 'UTF-8');
                 $href  = trim($m[2]);
 
@@ -307,8 +336,12 @@ class ai_get_doc_content extends external_api {
                             . htmlspecialchars($resolved['fragment'], ENT_QUOTES, 'UTF-8') . '"';
                     }
 
+                    $corpusattr = $corpusid !== ''
+                        ? ' data-corpusid="' . htmlspecialchars($corpusid, ENT_QUOTES, 'UTF-8') . '"'
+                        : '';
+
                     return '<a href="#" class="booking-doc-link" data-docpath="' . $safepath . '"'
-                        . $fragmentattr . ' data-contextid="' . (int)$contextid . '">' . $label . '</a>';
+                        . $fragmentattr . $corpusattr . ' data-contextid="' . (int)$contextid . '">' . $label . '</a>';
                 }
 
                 // Keep non-doc relative links untouched (e.g. /mod/booking/view.php?id=...).
