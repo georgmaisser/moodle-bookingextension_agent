@@ -610,7 +610,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $endpoint = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
 
         if ($apikey === '' || $model === '') {
-            $this->fail('Real-LLM tests require BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL.');
+            $this->markTestSkipped('Real-LLM tests require BOOKING_TEST_AI_KEY + BOOKING_TEST_AI_MODEL.');
         }
 
         if ($endpoint === '') {
