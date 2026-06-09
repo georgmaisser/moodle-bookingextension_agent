@@ -114,7 +114,7 @@ This is the mechanism behind one-click / no-click confirmation.
 
 | Method | Behavior |
 |--------|----------|
-| `allow_confirmation_for_session(userid, contextid, expiresat=null)` | add `contextid` to the user's allowlist; **default TTL 12 h** (43200 s) |
+| `allow_confirmation_for_session(userid, contextid, expiresat=null)` | add `contextid` to the user's allowlist; **default TTL 900 s (15 min)** (`CONFIRMATION_SESSION_ALLOWLIST_TTL`) |
 | `is_confirmation_allowed_for_session(userid, contextid)` | is `contextid` allowed and unexpired? |
 | `allow_confirmation_for_thread` / `is_confirmation_allowed_for_thread` / `clear_confirmation_allowance` | backward-compatible wrappers that accept a `threadid` but **ignore it** |
 
@@ -127,12 +127,13 @@ Key facts:
 - The `_thread` variants exist only for call-site compatibility; they delegate to the
   session-scoped logic.
 
-> **⚠ Flowchart note — two different TTLs.** The flowchart's `LG_AUTO` / `LG_RISK_CONF`
-> describe an R1 session allowance with a **900 s** TTL. The store's
-> `allow_confirmation_for_session` default is **43200 s (12 h)**. The 900 s value in the
-> diagram matches the **pending-intent** TTL (§4) and the **queue `blocked_expires_at`**
-> windows ([ch. 10](10-shadow-queue.md)), not the session allowance. Whether the confirm
-> path passes an explicit shorter `expiresat` for R1 needs confirmation. *Open question.*
+> **✓ Flowchart note (resolved).** The session-allowance TTL is **900 s (15 min)**, matching
+> the flowchart's `LG_AUTO` / `LG_RISK_CONF` value and the pending-intent / queue
+> `blocked_expires_at` windows. (It was 12 h; reduced to 900 s so auto-confirm does not
+> outlive a working session.) The "confirm & execute for this session" button label is
+> rendered dynamically from this constant — see `aiready::export_for_template()`
+> (`session_confirm_minutes`) and the `ai_btn_confirm_session` string — so it always shows
+> the real value.
 
 ---
 

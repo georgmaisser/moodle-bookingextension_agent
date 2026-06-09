@@ -44,7 +44,7 @@ flowchart TD
         CS12["is_confirmation_allowed_for_session(userid, contextid)"]
         CS13["consume_pending_intent(threadid, userid, contextid)"]
         CS14["set/get user_input_lang metadata\n(authoritative turn language)"]
-        CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start"]
+        CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start\n+ phase_trace_loop_history (per-loop-step trace,\ncapped at MAX_LOOP_STEPS) written by agent_runtime\nalongside canonical phase_trace / planner_trace_history"]
         CS16["add_step_message(threadid, stepnum, label, skill)"]
     end
 

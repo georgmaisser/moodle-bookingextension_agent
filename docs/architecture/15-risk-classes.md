@@ -62,9 +62,10 @@ against code.
 | **Loop planner-retry** | allowed | allowed | allowed | **blocked** (R3 blocker) |
 
 Notes:
-- The **session allowance** itself (the user pref that enables auto-confirm) defaults to a
-  12-hour TTL and is keyed by `(userid, contextid)` — distinct from the per-item queue
-  `blocked_expires_at` TTLs above (see the [open question](../reference/flowchart-guide.md)).
+- The **session allowance** itself (the user pref that enables auto-confirm) has a **900 s
+  (15 min)** default TTL, keyed by `(userid, contextid)` — aligned with the R1 queue
+  `blocked_expires_at` window. The "confirm for this session" button shows this value
+  dynamically.
 - "manual-only" for R3 is enforced in `queue_transition_service` (R3 can never become
   `retry_waiting`), not by the TTL value.
 
@@ -89,6 +90,5 @@ Notes:
 > R3-no-retry, and the R3 irreversibility / R2 affected-scope reply requirements. Queue TTLs
 > R1=900/R2=300/R3=900 verified.
 
-> **❓ Open:** the R1 *session-allow* TTL shown as 900 s in `LG_AUTO`/`LG_RISK_CONF` is the
-> queue-blocked TTL; the session-allowance default is 12 h. Confirm intended value (see the
-> discrepancy log).
+> **✓ Resolved:** the R1 session-allow TTL is **900 s**, matching `LG_AUTO`/`LG_RISK_CONF`
+> (reduced from 12 h). The confirm-for-session button label is derived from the constant.

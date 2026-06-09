@@ -73,14 +73,14 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   Reality: `clear_step_messages()` runs once in `ai_send_message::execute()` *before* the
   loop; `add_step_message()` runs in `orchestrator::process()` (~line 389) once per
   `process()`. *Proposed: move these labels off `LOOP_STEP`.*
-- ❓ **Session-allow TTL.** `LG_AUTO`/`LG_RISK_CONF` show R1 session-allow TTL = 900 s.
-  `conversation_store::allow_confirmation_for_session` default is **43200 s (12 h)**; 900 s
-  matches the pending-intent and queue `blocked_expires_at` TTLs instead. Does the confirm
-  path pass an explicit shorter `expiresat` for R1, or is the diagram conflating two TTLs?
-- ❓ **`phase_trace_loop_history`.** `agent_runtime` writes this telemetry key; the store's
-  canonical keys are `phase_trace` / `planner_trace_history`. `CS15` lists only
-  `next_step_intent`. Is `phase_trace_loop_history` a third live key (yes — confirmed
-  written) worth adding to the diagram?
+- ✅ **Session-allow TTL — resolved by a code change (maintainer decision).**
+  `CONFIRMATION_SESSION_ALLOWLIST_TTL` reduced 43200 s → **900 s**, so the session allowance
+  now matches `LG_AUTO`/`LG_RISK_CONF` (900 s) and the queue/pending TTLs. The
+  "confirm for this session" button label is now rendered dynamically from the constant
+  (`aiready` → `session_confirm_minutes`, string `ai_btn_confirm_session`).
+- ✅ **`phase_trace_loop_history` — added to `CS15`.** `agent_runtime` writes this telemetry
+  key (capped at `MAX_LOOP_STEPS`) in addition to the store's canonical `phase_trace` /
+  `planner_trace_history`; the `CS15` node now documents it.
 
 ### Planner (ch. 05–07)
 
@@ -119,10 +119,8 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 - ✏ **Code-name nits:** `BLOCKED_CONFIRMATION_TIMEOUT` (diagram `BLOCKED_TIMEOUT`); soft-block
   `DUPLICATE_TITLE_*` / `DOMAIN_CONFLICT` (diagram `PROVIDER_CONFIRMABLE_*`); unknown skill
   defaults to R3 (unsafe default — not shown). *Annotations.*
-- ❓ **Session-allow TTL (carried over from ch. 03).** Queue `blocked_expires_at` TTLs are
-  confirmed (900/300/900). Separately, the **session allowance** default is 12 h
-  (`allow_confirmation_for_session`). `LG_AUTO` shows R1 session-allow = 900 s — likely a
-  conflation of the queue-blocked TTL with the session-allowance TTL. Confirm intended value.
+- ✅ **Session-allow TTL — resolved** (see the ch. 03 entry above): reduced to 900 s so the
+  session allowance aligns with the queue/pending TTLs and `LG_AUTO`.
 
 ### Reply contract / skill layer (ch. 12–16)
 
