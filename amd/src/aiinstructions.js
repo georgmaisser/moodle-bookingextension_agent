@@ -41,7 +41,6 @@ let forceNewThreadOnFirstMessage = true;
 let trialTokenInvalidMessageLabel = '';
 let bodyHandlersBound = false;
 const previewRenderers = {};
-const registeredJsModules = {};
 /** @type {HTMLElement|null} */
 let activePlanBubble = null;
 
@@ -598,49 +597,9 @@ export const registerPreviewRenderer = (type, renderFn) => {
     previewRenderers[type] = renderFn;
 };
 
-// Register core client-side renderers
-registerPreviewRenderer('user_profile', async (payload) => {
-    const fullname = escapeHtml(String(payload.fullname || '-'));
-    const email = escapeHtml(String(payload.email || '-'));
-    const userid = Number(payload.userid || 0);
-    const userIdText = userid > 0 ? String(userid) : '-';
-
-    return '<div class="booking-ai-run-status-inline card mb-0">'
-        + '<div class="card-body p-3">'
-        + '<h6 class="mb-2">User profile</h6>'
-        + `<div><strong>Name:</strong> ${fullname}</div>`
-        + `<div><strong>E-Mail:</strong> ${email}</div>`
-        + `<div><strong>User ID:</strong> ${escapeHtml(userIdText)}</div>`
-        + '</div></div>';
-});
-
-registerPreviewRenderer('user_search', async (payload) => {
-    const users = Array.isArray(payload.users) ? payload.users : [];
-    if (users.length === 0) {
-        return '<div class="p-3 text-muted small">No users found.</div>';
-    }
-
-    let rows = users.map((user) => {
-        const fullname = escapeHtml(String(user.fullname || '-'));
-        const email = escapeHtml(String(user.email || '-'));
-        const userid = Number(user.userid || 0);
-        return `<tr>
-            <td>${fullname}</td>
-            <td>${email}</td>
-            <td>${userid > 0 ? userid : '-'}</td>
-        </tr>`;
-    }).join('');
-
-    return '<div class="booking-ai-run-status-inline card mb-0">'
-        + '<div class="card-body p-3">'
-        + '<h6 class="mb-2">User search results</h6>'
-        + '<table class="table table-sm mb-0">'
-        + '<thead><tr><th>Name</th><th>E-Mail</th><th>User ID</th></tr></thead>'
-        + `<tbody>${rows}</tbody>`
-        + '</table>'
-        + '</div></div>';
-});
-
+// Register core client-side renderers.
+// Skill-result previews now arrive as ready-to-insert server HTML (previewDescriptor.html),
+// so the only client-side renderer that remains is the pre-execution proposed-command list.
 registerPreviewRenderer('command_list', async (payload) => {
     const commands = Array.isArray(payload.commands) ? payload.commands : [];
     if (commands.length === 0) {
@@ -666,13 +625,13 @@ export const dispatchSkillPreview = async (previewDescriptor, contextid) => {
         return;
     }
 
-    // 1. Direct HTML from server
-    if (previewDescriptor.html !== undefined) {
+    // 1. Direct server-rendered HTML produced by the skill (the common case).
+    if (previewDescriptor.html !== undefined && previewDescriptor.html !== null) {
         setSidePreviewHtml(previewDescriptor.html);
         return;
     }
 
-    // 2. Client-side handler already loaded
+    // 2. Client-side handler registered for this type (e.g. the pre-execution command_list).
     const renderer = previewRenderers[type];
     if (renderer) {
         try {
@@ -686,36 +645,26 @@ export const dispatchSkillPreview = async (previewDescriptor, contextid) => {
         return;
     }
 
-    // 3. Lazy-load JS AMD module if declared
-    const jsModule = registeredJsModules[type];
-    if (jsModule) {
-        return new Promise((resolve, reject) => {
-            require([jsModule], () => {
-                const loadedRenderer = previewRenderers[type];
-                if (loadedRenderer) {
-                    loadedRenderer(previewDescriptor.payload, contextid).then(resolve).catch(reject);
-                } else {
-                    resolve();
-                }
-            }, reject);
-        });
+    // 3. Skill-provided AMD module (carried per descriptor): lazy-load it and let it render.
+    const jsModule = String((previewDescriptor && previewDescriptor.js_module) || '').trim();
+    if (!jsModule) {
+        return;
     }
 
-    // 4. Fallback to generic server-side rendering Webservice
+    const mod = await new Promise((resolve) => {
+        require([jsModule], (loaded) => resolve(loaded), () => resolve(null));
+    });
+    const renderFn = (mod && typeof mod.render === 'function') ? mod.render : previewRenderers[type];
+    if (typeof renderFn !== 'function') {
+        return;
+    }
     try {
-        const resp = await Ajax.call([{
-            methodname: 'bookingextension_agent_ai_get_preview',
-            args: {
-                contextid,
-                type,
-                payload_json: JSON.stringify(previewDescriptor.payload || {}),
-            }
-        }])[0];
-        if (resp && resp.success && resp.html) {
-            setSidePreviewHtml(resp.html);
+        const html = await renderFn(previewDescriptor.payload, contextid);
+        if (html) {
+            setSidePreviewHtml(html);
         }
-    } catch (err) {
-        setSidePreviewHtml(`<div class="text-danger small">Error loading preview: ${escapeHtml(err.message || '')}</div>`);
+    } catch (e) {
+        // Ignore preview render errors.
     }
 };
 
@@ -1490,25 +1439,10 @@ const showConfirmPanel = (message, commands) => {
         ? `<div class="booking-ai-confirm-message mb-2">${messageHtml}</div>`
         : '';
 
-    // Dispatch the proposed commands preview.
-    const optionIds = [];
-    (commands || []).forEach((cmd) => {
-        if (cmd.skill && (cmd.skill.startsWith('mod_booking.') || cmd.skill.startsWith('booking.'))) {
-            const input = cmd.input || {};
-            if (input.optionid) {
-                optionIds.push(Number(input.optionid));
-            }
-            if (input.resolvedoptionid) {
-                optionIds.push(Number(input.resolvedoptionid));
-            }
-        }
-    });
-
-    if (optionIds.length > 0) {
-        dispatchSkillPreview({type: 'booking_option', payload: {optionids: optionIds}}, currentContextId);
-    } else {
-        dispatchSkillPreview({type: 'command_list', payload: {commands}}, currentContextId);
-    }
+    // Pre-execution preview: there is no executed result yet, so we show the proposed commands
+    // (client-rendered). Rich per-skill previews are produced server-side from the executed result
+    // and arrive as ready HTML via previewjson.
+    dispatchSkillPreview({type: 'command_list', payload: {commands}}, currentContextId);
 
     panel.classList.remove('d-none');
 };
@@ -2876,14 +2810,12 @@ const initCentralBodyHandlers = () => {
  */
 export const init = (jsModulesOrConfig = {}, config = null) => {
     let runtimeConfig = config;
-    let jsModules = jsModulesOrConfig;
 
+    // First argument is kept for template compatibility; it may be a runtime config object.
+    // Preview AMD modules are no longer pre-registered globally (skills carry their own per result).
     if (jsModulesOrConfig && jsModulesOrConfig.contextid !== undefined) {
         runtimeConfig = jsModulesOrConfig;
-        jsModules = {};
     }
-
-    Object.assign(registeredJsModules, jsModules || {});
 
     if (!runtimeConfig) {
         const wrapper = document.getElementById('booking-ai-wrapper');

@@ -206,15 +206,18 @@ class executor implements agent_executor {
                 // can deterministically avoid repeating already completed commands.
                 $result['executed_input'] = $this->build_safe_executed_input($skillname, $input);
             }
-            if (!empty($result['previewoptionids']) && is_array($result['previewoptionids'])) {
-                $previewmemory = $this->registry->get_preview_option_memory_for_skill((string)$skillname);
-                if ($previewmemory !== null) {
-                    $previewmemory->remember_last_preview_options_for_execute(
-                        $userid,
-                        $cmid,
-                        array_map('intval', $result['previewoptionids'])
-                    );
-                }
+            if (
+                !empty($result['previewoptionids'])
+                && is_array($result['previewoptionids'])
+                && method_exists($skill, 'remember_preview_options')
+            ) {
+                // The skill owns its domain-specific preview-option memory (duck-typed, optional).
+                // The executor stays generic and carries no booking knowledge.
+                $skill->remember_preview_options(
+                    array_map('intval', $result['previewoptionids']),
+                    $cmid,
+                    $userid
+                );
             }
             $results[] = $result;
         }
