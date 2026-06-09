@@ -42,8 +42,8 @@ class conversation_store implements agent_conversation_store {
     /** Preference key that stores session allowlist entries. */
     private const CONFIRMATION_SESSION_ALLOWLIST_KEY = 'bookingextension_agent_ai_confirmation_session_allowlist';
 
-    /** Default lifetime for a confirmation allowlist entry in seconds (12h). */
-    private const CONFIRMATION_SESSION_ALLOWLIST_TTL = 43200;
+    /** Default lifetime for a confirmation (auto-confirm) allowlist entry in seconds (15 min). */
+    public const CONFIRMATION_SESSION_ALLOWLIST_TTL = 900;
 
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.

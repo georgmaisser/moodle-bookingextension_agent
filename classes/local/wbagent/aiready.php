@@ -297,6 +297,8 @@ class aiready {
             'debug_mode' => $debugmode,
             'llm_debug_enabled' => $llmdebugenabled,
             'registered_js_modules_json' => json_encode($jsmodules),
+            // Auto-confirm session-allowance lifetime, shown on the "confirm for session" button label.
+            'session_confirm_minutes' => intdiv(conversation_store::CONFIRMATION_SESSION_ALLOWLIST_TTL, 60),
         ];
     }
 
