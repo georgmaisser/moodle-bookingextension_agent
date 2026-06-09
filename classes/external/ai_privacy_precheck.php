@@ -90,7 +90,6 @@ class ai_privacy_precheck extends external_api {
             $context = context_module::instance($contextid, MUST_EXIST);
         }
         $contextid = (int)$context->id;
-        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);

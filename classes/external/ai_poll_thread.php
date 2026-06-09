@@ -83,7 +83,6 @@ class ai_poll_thread extends external_api {
         } catch (\Throwable $e) {
             $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
         }
-        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);

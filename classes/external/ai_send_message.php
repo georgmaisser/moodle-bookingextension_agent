@@ -108,7 +108,6 @@ class ai_send_message extends external_api {
         $authz = new authorization_service();
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $contextid = (int)$context->id;
-        $cmid = (int)$context->instanceid;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
 
