@@ -1078,7 +1078,6 @@ class agent_decision_service {
                 $preparedcommands,
                 $queueitemids,
                 $contextid,
-                $contextid,
                 $userid,
                 $idempotencykey,
                 $runid,
