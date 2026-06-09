@@ -56,7 +56,7 @@ $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/benchmark_com
 $PAGE->set_title(get_string('benchmark_compare_title', 'bookingextension_agent'));
 $PAGE->set_heading(get_string('benchmark_compare_heading', 'bookingextension_agent', (object)[
     'runa' => $runaid,
-    'runb' => $runb ? '#' . $runb->id : get_string('benchmark_no_baseline', 'bookingextension_agent', 'no baseline')
+    'runb' => $runb ? '#' . $runb->id : get_string('benchmark_no_baseline', 'bookingextension_agent', 'no baseline'),
 ]));
 $PAGE->set_pagelayout('admin');
 
@@ -114,23 +114,23 @@ echo html_writer::start_div('row mb-3');
 foreach ([['A', $runa], ['B', $runb]] as [$tag, $r]) {
     echo html_writer::start_div('col-md-6');
     echo html_writer::start_div('card');
-    
+
     $runstr = get_string('benchmark_run_a', 'bookingextension_agent');
     if ($tag === 'B') {
         $runstr = get_string('benchmark_run_b', 'bookingextension_agent');
     }
-    
+
     echo html_writer::div(
         html_writer::tag('strong', $runstr) . ': #' . $r->id . ' ' . htmlspecialchars($r->label),
         'card-header'
     );
-    
+
     $cardcontent = '';
     $cardcontent .= get_string('benchmark_model', 'bookingextension_agent') . ': ' . htmlspecialchars($r->model_id) . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_set', 'bookingextension_agent') . ': ' . htmlspecialchars($r->skill_set) . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_success', 'bookingextension_agent') . ': ' . $r->success_rate . '% (' . $r->passed . '/' . $r->total_scenarios . ')' . html_writer::empty_tag('br');
     $cardcontent .= get_string('benchmark_date', 'bookingextension_agent') . ': ' . userdate($r->timecreated, '%d.%m.%Y %H:%M');
-    
+
     echo html_writer::div(html_writer::tag('small', $cardcontent), 'card-body p-2');
     echo html_writer::end_div(); // card
     echo html_writer::end_div(); // col-md-6
@@ -147,7 +147,7 @@ $table->head = [
     get_string('benchmark_run_b', 'bookingextension_agent'),
     get_string('benchmark_delta', 'bookingextension_agent'),
     get_string('benchmark_threshold', 'bookingextension_agent'),
-    get_string('benchmark_status', 'bookingextension_agent')
+    get_string('benchmark_status', 'bookingextension_agent'),
 ];
 $table->attributes['class'] = 'table table-bordered table-sm';
 $table->data = [];
@@ -182,19 +182,19 @@ foreach ($allkeys as $key) {
     } else if ($unit === 'tokens') {
         $unitstr = '';
     }
-    
+
     $threshstr = $thresh;
     if ($thresh !== '—') {
         $threshstr = "{$thresh}%";
     }
-    
+
     $row = new html_table_row([
         $key,
         "{$va}{$unitstr}",
         "{$vb}{$unitstr}",
         html_writer::tag('strong', "{$delta}" . ($unitstr === '%' ? '%' : '')),
         $threshstr,
-        $status
+        $status,
     ]);
     if ($rowclass) {
         $row->attributes['class'] = $rowclass;
@@ -219,26 +219,26 @@ $diffs = array_filter($allscenkeys, function ($k) use ($bykeya, $bykeyb) {
 
 if (!empty($diffs)) {
     echo html_writer::tag('h3', get_string('benchmark_scenario_differences', 'bookingextension_agent'));
-    
+
     $table = new html_table();
     $table->head = [
         get_string('benchmark_scenario', 'bookingextension_agent'),
         get_string('benchmark_run_a', 'bookingextension_agent'),
-        get_string('benchmark_run_b', 'bookingextension_agent')
+        get_string('benchmark_run_b', 'bookingextension_agent'),
     ];
     $table->attributes['class'] = 'table table-sm table-bordered';
     $table->data = [];
-    
+
     foreach ($diffs as $k) {
         $pa = isset($bykeya[$k]) ? ($bykeya[$k]->passed ? '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') : '❌ ' . get_string('benchmark_failed', 'bookingextension_agent')) : '—';
         $pb = isset($bykeyb[$k]) ? ($bykeyb[$k]->passed ? '✅ ' . get_string('benchmark_passed', 'bookingextension_agent') : '❌ ' . get_string('benchmark_failed', 'bookingextension_agent')) : '—';
-        
+
         $rowclass = (strpos($pa, 'fail') !== false || strpos($pb, 'fail') !== false) ? 'table-warning' : '';
-        
+
         $row = new html_table_row([
             html_writer::tag('small', $k),
             $pa,
-            $pb
+            $pb,
         ]);
         if ($rowclass) {
             $row->attributes['class'] = $rowclass;

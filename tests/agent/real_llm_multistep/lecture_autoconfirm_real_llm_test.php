@@ -157,7 +157,10 @@ final class lecture_autoconfirm_real_llm_test extends abstract_agent_testcase {
 
             // Early exit: once all 5 options are in the DB there is nothing left to confirm.
             $snapshotoptions = $DB->get_records(
-                'booking_options', ['bookingid' => (int)$this->booking->id], 'id ASC', 'id'
+                'booking_options',
+                ['bookingid' => (int)$this->booking->id],
+                'id ASC',
+                'id'
             );
             $newcount = 0;
             foreach ($snapshotoptions as $snapopt) {

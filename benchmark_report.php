@@ -103,7 +103,7 @@ foreach ($runorder as $rid) {
     $m = $runmetrics[$rid];
     $chartdata['labels'][]  = date('d.m H:i', $m['timecreated']);
     $chartdata['success'][] = $m['e2e_success_rate'] ?? null;
-    $chartdata['skillhit'][] = $m['skill_hit_rate']    ?? null;
+    $chartdata['skillhit'][] = $m['skill_hit_rate'] ?? null;
     $chartdata['jsonok'][]  = $m['json_validity_rate'] ?? null;
 }
 
@@ -155,7 +155,7 @@ if (!empty($chartdata['labels'])) {
         get_string('benchmark_run', 'bookingextension_agent'),
         get_string('benchmark_success', 'bookingextension_agent'),
         get_string('benchmark_skill_hit', 'bookingextension_agent'),
-        get_string('benchmark_json_valid', 'bookingextension_agent')
+        get_string('benchmark_json_valid', 'bookingextension_agent'),
     ];
     $table->attributes['class'] = 'table table-sm table-bordered';
     $table->attributes['style'] = 'font-size:0.85em';
@@ -174,7 +174,7 @@ if (!empty($chartdata['labels'])) {
             $lbl,
             $sucfmt,
             $tskfmt,
-            $jsnfmt
+            $jsnfmt,
         ]);
         if ($succlass) {
             $row->cells[1]->attributes['class'] = $succlass;
@@ -198,7 +198,7 @@ $table->head = [
     get_string('benchmark_env', 'bookingextension_agent'),
     get_string('benchmark_git', 'bookingextension_agent'),
     get_string('benchmark_date', 'bookingextension_agent'),
-    get_string('benchmark_actions', 'bookingextension_agent')
+    get_string('benchmark_actions', 'bookingextension_agent'),
 ];
 $table->attributes['class'] = 'table table-hover generaltable';
 $table->data = [];
@@ -214,12 +214,12 @@ foreach ($runs as $run) {
 
     $actions = html_writer::link($detailurl, get_string('benchmark_detail', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-secondary']) . ' ';
     $actions .= html_writer::link($compareurl, get_string('benchmark_compare', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-info']);
-    
+
     if (!$run->is_baseline) {
         $pinurl = new moodle_url($PAGE->url, [
             'action' => 'pinbaseline',
             'runid' => $run->id,
-            'sesskey' => sesskey()
+            'sesskey' => sesskey(),
         ]);
         $actions .= ' ' . html_writer::link($pinurl, get_string('benchmark_pin_baseline', 'bookingextension_agent'), ['class' => 'btn btn-xs btn-warning']);
     }
@@ -236,7 +236,7 @@ foreach ($runs as $run) {
         htmlspecialchars($run->environment),
         html_writer::tag('small', htmlspecialchars(substr($run->git_ref, 0, 8))),
         html_writer::tag('small', userdate($run->timecreated, '%d.%m %H:%M')),
-        $actions
+        $actions,
     ];
 }
 echo html_writer::table($table);
