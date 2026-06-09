@@ -417,7 +417,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         $token = 'matrix-memory-' . substr(sha1(uniqid('', true)), 0, 8);
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $store = new conversation_store();
-        $thread1 = $store->get_or_create_thread((int)$this->teacher->id, $contextid, (int)$this->booking->id);
+        $thread1 = $store->get_or_create_thread((int)$this->teacher->id, $contextid);
         $thread1id = (int)$thread1->id;
 
         $store->add_message($thread1id, 'user', 'Please remember the token ' . $token . '.');
@@ -425,7 +425,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
             'response_type' => 'sufficient',
         ]);
 
-        $thread2 = $store->create_fresh_thread((int)$this->teacher->id, $contextid, (int)$this->booking->id);
+        $thread2 = $store->create_fresh_thread((int)$this->teacher->id, $contextid);
         $thread2id = (int)$thread2->id;
 
         $registry = skill_registry::make_default();
@@ -469,8 +469,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         );
         $thread = $store->get_or_create_thread(
             (int)$this->teacher->id,
-            $this->booking_contextid(),
-            (int)$this->booking->id
+            $this->booking_contextid()
         );
 
         return [
@@ -512,8 +511,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         );
         $thread = $store->get_or_create_thread(
             (int)$this->teacher->id,
-            $this->booking_contextid(),
-            (int)$this->booking->id
+            $this->booking_contextid()
         );
 
         return [
@@ -608,8 +606,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         );
         $thread = $store->get_or_create_thread(
             (int)$this->teacher->id,
-            $this->booking_contextid(),
-            (int)$this->booking->id
+            $this->booking_contextid()
         );
 
         return [

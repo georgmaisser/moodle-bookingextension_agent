@@ -54,7 +54,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $userid = (int)$this->teacher->id;
         $store = new conversation_store();
-        $thread = $store->get_or_create_thread($userid, $contextid, (int)$this->booking->id);
+        $thread = $store->get_or_create_thread($userid, $contextid);
         $threadid = (int)$thread->id;
         $queuesvc = new queue_manager($store);
 
@@ -162,7 +162,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $userid = (int)$this->teacher->id;
         $store = new conversation_store();
-        $thread = $store->get_or_create_thread($userid, $contextid, (int)$this->booking->id);
+        $thread = $store->get_or_create_thread($userid, $contextid);
         $threadid = (int)$thread->id;
         $queuesvc = new queue_manager($store);
 

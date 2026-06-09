@@ -33,14 +33,13 @@ namespace bookingextension_agent\local\wbagent\interfaces;
  */
 interface agent_conversation_store {
     /**
-     * Get or create an active thread for the given user and booking context.
+     * Get or create an active thread for the given user and context.
      *
      * @param int $userid
      * @param int $contextid
-     * @param int $bookingid
      * @return \stdClass Thread record.
      */
-    public function get_or_create_thread(int $userid, int $contextid, int $bookingid): \stdClass;
+    public function get_or_create_thread(int $userid, int $contextid): \stdClass;
 
     /**
      * Append a message to the thread.

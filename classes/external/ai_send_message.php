@@ -156,7 +156,6 @@ class ai_send_message extends external_api {
             ];
         }
 
-        $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
         $registry = skill_registry::make_default();
         $store = new conversation_store();
         $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
@@ -222,7 +221,7 @@ class ai_send_message extends external_api {
         }
 
         if ($thread === null) {
-            $thread = $store->get_or_create_thread((int)$USER->id, $contextid, (int)$cm->instance);
+            $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
         }
         $threadid = (int)$thread->id;
         $anonymizer = new privacy_anonymizer($store);

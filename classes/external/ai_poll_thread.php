@@ -93,8 +93,7 @@ class ai_poll_thread extends external_api {
         if ($params['threadid'] > 0) {
             $tid = $params['threadid'];
         } else {
-            $cm     = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
-            $thread = $store->get_or_create_thread((int)$USER->id, (int)$params['contextid'], (int)$cm->instance);
+            $thread = $store->get_or_create_thread((int)$USER->id, (int)$params['contextid']);
             $tid    = $thread->id;
         }
 

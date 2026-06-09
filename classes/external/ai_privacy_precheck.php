@@ -109,12 +109,11 @@ class ai_privacy_precheck extends external_api {
             ];
         }
 
-        $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
         $store = new conversation_store();
         if ($forcenewthread === 1) {
-            $thread = $store->create_fresh_thread((int)$USER->id, $contextid, (int)$cm->instance);
+            $thread = $store->create_fresh_thread((int)$USER->id, $contextid);
         } else {
-            $thread = $store->get_or_create_thread((int)$USER->id, $contextid, (int)$cm->instance);
+            $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
         }
         $threadid = (int)$thread->id;
 

@@ -74,14 +74,13 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
-     * Get or create an active thread for the given user and booking context.
+     * Get or create an active thread for the given user and context.
      *
      * @param int $userid
      * @param int $contextid
-     * @param int $bookingid
      * @return stdClass Thread record.
      */
-    public function get_or_create_thread(int $userid, int $contextid, int $bookingid): stdClass {
+    public function get_or_create_thread(int $userid, int $contextid): stdClass {
         global $DB;
 
         $thread = $DB->get_record('local_wbagent_ai_threads', [
@@ -98,7 +97,6 @@ class conversation_store implements agent_conversation_store {
         $record = new stdClass();
         $record->userid = $userid;
         $record->contextid = $contextid;
-        $record->bookingid = $bookingid;
         $record->status = 'active';
         $record->metadatajson = null;
         $record->timecreated = $now;
@@ -113,10 +111,9 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int $userid
      * @param int $contextid
-     * @param int $bookingid
      * @return stdClass
      */
-    public function create_fresh_thread(int $userid, int $contextid, int $bookingid): stdClass {
+    public function create_fresh_thread(int $userid, int $contextid): stdClass {
         global $DB;
 
         $now = time();
@@ -137,7 +134,6 @@ class conversation_store implements agent_conversation_store {
         $record = new stdClass();
         $record->userid = $userid;
         $record->contextid = $contextid;
-        $record->bookingid = $bookingid;
         $record->status = 'active';
         $record->metadatajson = null;
         $record->timecreated = $now;

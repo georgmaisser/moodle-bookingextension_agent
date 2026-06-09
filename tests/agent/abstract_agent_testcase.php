@@ -553,7 +553,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $contextid = (int)\context_module::instance($cmid)->id;
         $store   = new conversation_store();
-        $thread  = $store->get_or_create_thread($userid, $contextid, (int)$this->booking->id);
+        $thread  = $store->get_or_create_thread($userid, $contextid);
         $key     = hash('sha256', $skillname . ':' . $userid . ':' . uniqid('', true));
         $runid   = $store->create_run($thread->id, $userid, $contextid, $key, []);
 
@@ -640,8 +640,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $contextid = $this->booking_contextid();
         $thread   = $store->create_fresh_thread(
             (int)$this->teacher->id,
-            $contextid,
-            (int)$this->booking->id
+            $contextid
         );
         $threadid = (int)$thread->id;
         $this->trackedllmthreadids[] = $threadid;
