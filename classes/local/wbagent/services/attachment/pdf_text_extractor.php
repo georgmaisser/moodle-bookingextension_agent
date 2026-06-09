@@ -23,7 +23,10 @@ namespace bookingextension_agent\local\wbagent\services\attachment;
  *
  * Strategy (in order):
  *   1. pdftotext (poppler-utils shell command) — fast, accurate.
- *   2. smalot/pdfparser (PHP library) — fallback if composer package available.
+ *   2. smalot/pdfparser (bundled pure-PHP library) — dependency-free fallback that
+ *      works on any server without a system binary or PHP exec(). The library is
+ *      vendored under thirdparty/pdfparser and loaded via a lazy PSR-4 autoloader
+ *      registered by this class (no Composer vendor/autoload.php is required).
  *   3. Throws moodle_exception if neither is available.
  *
  * @package    bookingextension_agent
@@ -33,6 +36,12 @@ namespace bookingextension_agent\local\wbagent\services\attachment;
 class pdf_text_extractor {
     /** Maximum characters of extracted text to keep. ~3750 tokens. */
     public const MAX_CHARS = 15000;
+
+    /** PSR-4 prefix of the bundled pure-PHP PDF library. */
+    private const PDFPARSER_NAMESPACE_PREFIX = 'Smalot\\PdfParser\\';
+
+    /** Whether the bundled pdfparser autoloader has already been registered. */
+    private static bool $pdfparserautoloaderregistered = false;
 
     /**
      * Whether at least one extraction method is available.
@@ -102,12 +111,46 @@ class pdf_text_extractor {
     }
 
     /**
-     * Whether smalot/pdfparser is available via Composer autoload.
+     * Whether the smalot/pdfparser library is available.
+     *
+     * Registers the bundled library's autoloader first, so this returns true on any
+     * server regardless of whether Composer is used.
      *
      * @return bool
      */
     private function has_pdfparser(): bool {
+        self::ensure_pdfparser_autoloader();
         return class_exists('\Smalot\PdfParser\Parser');
+    }
+
+    /**
+     * Register a lazy PSR-4 autoloader for the bundled pure-PHP PDF library.
+     *
+     * The library is vendored under thirdparty/pdfparser/src and declared in the
+     * plugin's thirdpartylibs.xml. It ships no Composer autoloader, so this maps the
+     * Smalot\PdfParser\ namespace onto the vendored src directory. Registered once,
+     * lazily, and only resolves classes under that prefix.
+     *
+     * @return void
+     */
+    private static function ensure_pdfparser_autoloader(): void {
+        if (self::$pdfparserautoloaderregistered) {
+            return;
+        }
+        self::$pdfparserautoloaderregistered = true;
+
+        $srcroot = dirname(__DIR__, 5) . '/thirdparty/pdfparser/src';
+
+        spl_autoload_register(static function (string $class) use ($srcroot): void {
+            if (strpos($class, self::PDFPARSER_NAMESPACE_PREFIX) !== 0) {
+                return;
+            }
+            $relative = substr($class, strlen(self::PDFPARSER_NAMESPACE_PREFIX));
+            $file = $srcroot . '/Smalot/PdfParser/' . str_replace('\\', '/', $relative) . '.php';
+            if (is_readable($file)) {
+                require_once($file);
+            }
+        });
     }
 
     /**
