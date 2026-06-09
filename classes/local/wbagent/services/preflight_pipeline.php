@@ -95,15 +95,9 @@ class preflight_pipeline {
         $anonymizer = new privacy_anonymizer($this->store);
         $startedat = microtime(true);
         $batchriskclass = $this->resolve_batch_risk_class($commands);
-        try {
-            $context = context::instance_by_id($contextid, MUST_EXIST);
-            if (!($context instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-        } catch (\Throwable $e) {
-            $context = context_module::instance($contextid, MUST_EXIST);
-        }
-        $cmid = (int)$context->instanceid;
+        $context = context::instance_by_id($contextid, MUST_EXIST);
+        // cmid is only needed by booking-style skills; 0 outside a module context.
+        $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
 
         foreach ($commands as $idx => $command) {
             $label = 'Command #' . ($idx + 1);

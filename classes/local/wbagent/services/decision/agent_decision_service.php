@@ -161,7 +161,7 @@ class agent_decision_service {
      *
      * @param  array  $result          Interpreter result from orchestrator::process().
      * @param  int    $threadid
-     * @param  int    $cmid
+     * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
      * @param  int    $previewoptionid Resolved preview option id (0 = none).
@@ -170,12 +170,12 @@ class agent_decision_service {
     public function process(
         array $result,
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         string $outputlang,
         int $previewoptionid
     ): array {
-        $contextid = (int)\context_module::instance($cmid)->id;
+        // Context id is provided directly by the caller (context-agnostic decision path).
         if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
             $expiredblocked = $this->queuesvc->fail_expired_blocked_items($threadid);
             if ($expiredblocked > 0) {
@@ -223,7 +223,7 @@ class agent_decision_service {
 
         // 2. Handle explicit user confirmation of pending intent.
         if ((string)($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRM_PENDING) {
-            return $this->handle_confirm_pending($result, $threadid, $cmid, $userid, $outputlang);
+            return $this->handle_confirm_pending($result, $threadid, $contextid, $userid, $outputlang);
         }
 
         // 3. Safety: block accidental mutation carry-over on lookup requests.
@@ -268,13 +268,13 @@ class agent_decision_service {
                 true
             )
         ) {
-            $result = $this->handle_command_routing($result, $threadid, $cmid, $userid, $outputlang);
+            $result = $this->handle_command_routing($result, $threadid, $contextid, $userid, $outputlang);
         }
 
         // 6. Run preflight on confirmation commands: resolve entities, detect conflicts,
         // update commands to carry prepared_input, route based on preflight result.
         if (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST && !empty($result['commands'])) {
-            $result = $this->handle_preflight($result, $threadid, $cmid, $userid, $outputlang);
+            $result = $this->handle_preflight($result, $threadid, $contextid, $userid, $outputlang);
         }
 
         // 7. Store / clear pending intent.
@@ -438,7 +438,7 @@ class agent_decision_service {
      *
      * @param  array  $result
      * @param  int    $threadid
-     * @param  int    $cmid
+     * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
      * @return array
@@ -446,11 +446,11 @@ class agent_decision_service {
     private function handle_confirm_pending(
         array $result,
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         string $outputlang
     ): array {
-        $contextid = (int)\context_module::instance($cmid)->id;
+        // Context id is provided directly by the caller (context-agnostic decision path).
         $modelmessage = trim((string)($result['message'] ?? ''));
         $normalizedmessage = core_text::strtolower($modelmessage);
         $isplaceholdermessage = in_array($normalizedmessage, ['executing', 'executing.', 'running', 'running.'], true);
@@ -554,7 +554,7 @@ class agent_decision_service {
      *
      * @param  array  $result
      * @param  int    $threadid
-     * @param  int    $cmid
+     * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
      * @return array
@@ -562,7 +562,7 @@ class agent_decision_service {
     private function handle_command_routing(
         array $result,
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         string $outputlang
     ): array {
@@ -661,7 +661,7 @@ class agent_decision_service {
                 $readonlycommands,
                 $readonlyqueueids,
                 $threadid,
-                $cmid,
+                $contextid,
                 $userid,
                 $outputlang,
                 $nextstepintent
@@ -748,7 +748,7 @@ class agent_decision_service {
      *
      * @param  array  $result
      * @param  int    $threadid
-     * @param  int    $cmid
+     * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
      * @return array
@@ -756,11 +756,11 @@ class agent_decision_service {
     private function handle_preflight(
         array $result,
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         string $outputlang
     ): array {
-        $contextid = (int)\context_module::instance($cmid)->id;
+        // Context id is provided directly by the caller (context-agnostic decision path).
         $commands = (array)($result['commands'] ?? []);
 
         $preflightresult = $this->with_output_language(
@@ -1025,7 +1025,7 @@ class agent_decision_service {
      *
      * @param  array  $commands
      * @param  int    $threadid
-     * @param  int    $cmid
+     * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
      * @return array
@@ -1034,12 +1034,12 @@ class agent_decision_service {
         array $commands,
         array $queueitemids,
         int $threadid,
-        int $cmid,
+        int $contextid,
         int $userid,
         string $outputlang,
         string $nextstepintent = ''
     ): array {
-        $contextid = (int)\context_module::instance($cmid)->id;
+        // Context id is provided directly by the caller (context-agnostic decision path).
         // Read-only auto-execution must use deanonymized inputs, otherwise person names
         // replaced during privacy precheck can degrade exact option/user lookups.
         $preparedcommands = $this->inject_output_language_into_commands($commands, $outputlang);
@@ -1077,7 +1077,7 @@ class agent_decision_service {
             $feedback = $this->with_output_language($outputlang, function () use (
                 $preparedcommands,
                 $queueitemids,
-                $cmid,
+                $contextid,
                 $contextid,
                 $userid,
                 $idempotencykey,
@@ -1096,7 +1096,7 @@ class agent_decision_service {
                 $feedbackservice = new execution_feedback_service($this->store, $this->registry);
                 $feedback = $feedbackservice->build_completion_feedback(
                     $threadid,
-                    $cmid,
+                    $contextid,
                     $userid,
                     $preparedcommands,
                     $rawresults,

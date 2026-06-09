@@ -251,24 +251,6 @@ class agent_runtime {
     }
 
     /**
-     * Resolve cmid from a module context id with strict validation.
-     *
-     * @param int $contextid
-     * @return int
-     */
-    private function resolve_cmid_from_contextid(int $contextid): int {
-        try {
-            $ctx = context::instance_by_id($contextid, MUST_EXIST);
-            if (!($ctx instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-            return (int)$ctx->instanceid;
-        } catch (\Throwable $e) {
-            return (int)context_module::instance($contextid, MUST_EXIST)->instanceid;
-        }
-    }
-
-    /**
      * Apply final contract checks, optionally attach loop state, then persist once.
      *
      * @param int $threadid
@@ -870,15 +852,10 @@ class agent_runtime {
         $rawresponsetype = trim((string)($result['response_type'] ?? ''));
         $result['response_type'] = $triggerregistry->normalize_response_type($rawresponsetype);
 
-        // The decision service still operates on a course-module id (rewired in P2b).
-        // Bridge: derive it from the context id. For a booking module this is the exact
-        // cmid as before; non-module contexts throw here until the decision/executor path
-        // is context-agnostic.
-        $cmid = $this->resolve_cmid_from_contextid($contextid);
         $result = $this->decisionsvc->process(
             $result,
             $threadid,
-            $cmid,
+            $contextid,
             $userid,
             $outputlang,
             0
