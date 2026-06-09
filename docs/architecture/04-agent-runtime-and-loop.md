@@ -208,13 +208,12 @@ message unconditionally.
 
 ## 9. Flowchart notes
 
-> **⚠ `LOOP_STEP` step-message attribution.** The node says the loop head runs
-> `clear_step_messages()` + `add_step_message(next_step_intent)`. Verified against code:
-> `clear_step_messages()` runs **once** in `ai_send_message::execute()` before the loop;
+> **✓ `LOOP_STEP` step-message attribution (corrected).** The node previously said the loop
+> head runs `clear_step_messages()` + `add_step_message(next_step_intent)`. Verified against
+> code: `clear_step_messages()` runs **once** in `ai_send_message::execute()` before the loop;
 > `add_step_message()` runs in **`orchestrator::process()`** (orchestrator.php ~line 389),
 > once per `process()` call, using the selector's `next_step_intent`. Neither is in
-> `agent_runtime::run_loop()`. *Candidate correction — move these labels from `LOOP_STEP`
-> to the entry node and the orchestrator.*
+> `agent_runtime::run_loop()`. The `LOOP_STEP` node now states this.
 
 > **✓ Two planner LLM calls confirmed.** The `LG_PLAN` invariant ("exactly two planner LLM
 > calls") holds: `orchestrator::process()` issues a planner chat call only in
@@ -224,10 +223,9 @@ message unconditionally.
 > non-`skill_call` selection (clarification/sufficient/error) construction is skipped, so a
 > turn can have **one** planner call — "two" is the maximum, not a fixed count.
 
-> **⚠ `phase_trace_loop_history` vs `phase_trace`.** `agent_runtime::persist_phase_trace_for_loop_step()`
+> **✓ `phase_trace_loop_history` (added to `CS15`).** `agent_runtime::persist_phase_trace_for_loop_step()`
 > writes a `phase_trace_loop_history` metadata array (capped at `MAX_LOOP_STEPS`), separate
 > from the store's canonical `phase_trace` / `planner_trace_history` keys (see
-> [ch. 03 §5](03-conversation-store.md)). The flowchart's `CS15` lists only
-> `next_step_intent`. *Candidate flowchart addition: the phase-trace telemetry keys.*
+> [ch. 03 §5](03-conversation-store.md)). The `CS15` node now lists all three telemetry keys.
 
 See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for the consolidated log.

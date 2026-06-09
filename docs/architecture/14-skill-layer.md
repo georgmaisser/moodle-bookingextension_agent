@@ -131,8 +131,8 @@ Releasability at run time is a separate evaluator (`skill_executability_evaluato
 > **✓ Confirmed:** provider-first wiring with no-fallback-when-provider-present;
 > `check_structure`/`preflight`/`execute` separation; risk-class validation
 > (R0↔readonly, R2/R3 require scopes → not activatable on mismatch); triggers inert at
-> registry level. The `skill_version_unsupported` deny reason is an addition beyond the
-> diagram's five `EXC_EVAL` reasons. *Candidate detail.*
+> registry level. The sixth deny reason `skill_version_unsupported` has been added to the
+> `EXC_EVAL` node.
 
 See also [skills catalog](../skills/README.md) and
 [developer-guides/writing-a-skill.md](../developer-guides/writing-a-skill.md).

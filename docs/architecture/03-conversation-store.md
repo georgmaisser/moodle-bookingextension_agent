@@ -96,12 +96,10 @@ A generic key/value store on the thread (`get_thread_metadata_value` /
 | `user_input_lang` / `last_output_lang` | language policy | authoritative turn language / last reply language |
 | `routing_embeddings_comparison` | telemetry | embedding-routing comparison data |
 
-> **⚠ Flowchart note.** The flowchart's `CS15` describes a single `next_step_intent`
-> metadata key and `agent_runtime` references a `phase_trace_loop_history` key
-> (`persist_phase_trace_for_loop_step`). In the store, the canonical keys are
-> `phase_trace` and `planner_trace_history`; whether `phase_trace_loop_history` is a third
-> live key or a rename needs confirmation. *Raised as an open question — see
-> [flowchart-guide](../reference/flowchart-guide.md).*
+> **✓ Flowchart note (resolved).** `phase_trace_loop_history` is a real third telemetry key
+> (written by `agent_runtime::persist_phase_trace_for_loop_step()`, capped at
+> `MAX_LOOP_STEPS`), distinct from the store's canonical `phase_trace` and
+> `planner_trace_history`. The `CS15` node now lists all three.
 
 Convenience writers `set_phase_trace()` (normalizes to the three canonical phase keys) and
 `set_planner_trace_history()` (drops empties) wrap the raw metadata API.
@@ -155,12 +153,10 @@ Ephemeral progress bubbles (role `step`), surfaced by `ai_poll_thread`.
   "thinking" placeholder) and then **inside `orchestrator::process()`** for each
   discovery/selection/construction phase, emitting the resolved `next_step_intent` label.
 
-> **⚠ Flowchart note.** The `LOOP_STEP` node attributes
-> `clear_step_messages() + add_step_message(next_step_intent)` to the agent loop head in
-> `agent_runtime::run_loop()`. Neither call is there: clearing happens once at the entry in
-> `ai_send_message`, and per-step writes happen in `orchestrator::process()`. *Candidate
-> flowchart correction — see [ch. 04](04-agent-runtime-and-loop.md) and the discrepancy
-> log.*
+> **✓ Flowchart note (corrected).** The `LOOP_STEP` node previously attributed
+> `clear_step_messages() + add_step_message(next_step_intent)` to the agent loop head. Neither
+> call is there: clearing happens once at the entry in `ai_send_message`, and per-step writes
+> happen in `orchestrator::process()`. The `LOOP_STEP` node now states this.
 
 ---
 

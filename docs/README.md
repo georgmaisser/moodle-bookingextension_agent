@@ -116,9 +116,10 @@ reference is the flowchart in
 
 - **Start with the [architecture overview](architecture/README.md).** It gives you the
   whole loop in one page and links into each subsystem chapter for depth.
-- **The flowchart is the source of truth for design.** Where this prose and the
-  flowchart disagree, the discrepancy is called out explicitly in the relevant chapter
-  (look for a *⚠ Flowchart note* callout) rather than silently resolved.
+- **The flowchart is the source of truth for design.** Each chapter ends with a *Flowchart
+  notes* section recording how its subsystem maps to the diagram — confirmations and any
+  corrections that were applied to it. The full code↔diagram history is in the
+  [discrepancy log](reference/flowchart-guide.md).
 - **Every chapter names the files it documents** so you can jump from prose to code.
 
 ---

@@ -108,6 +108,8 @@ carry an `affected_scope_summary` (absent → tag `SYNC_AFFECTED_SCOPE_SUMMARY_M
 > contract; prefer `generate_agent_reply` → `generate_text`; semantic-drift rollback to
 > planner output; R3 irreversibility / R2 affected-scope requirements.
 
-> Note: the concrete rejection codes (`SYNC_FACT_CONFLICT_REJECTED`,
-> `SYNC_RESPONSE_TYPE_ERROR_REJECTED`, `SYNC_CONTRACT_ISSUE_REJECTED`, …) are richer than the
-> diagram's "command-semantics drift → discard" summary. *Candidate detail for `SCONTRACT`.*
+> Note: the `SCONTRACT` node intentionally summarizes the rule as "command-semantics drift →
+> discard". The concrete rejection codes (`SYNC_FACT_CONFLICT_REJECTED`,
+> `SYNC_RESPONSE_TYPE_ERROR_REJECTED`, `SYNC_CONTRACT_ISSUE_REJECTED`, …) live here and in
+> [reference/issue-codes.md](../reference/issue-codes.md) — this is added detail, not a
+> diagram discrepancy.

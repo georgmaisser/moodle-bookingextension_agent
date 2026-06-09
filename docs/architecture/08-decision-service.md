@@ -110,7 +110,7 @@ consume, and that guard #2 reads.
 > the exact trigger names. Risk-routed command handling (R0 inline / R1 session-allow /
 > R2 forced / R3 manual) matches.
 
-> Note: the unsafe-default rule (unknown skill → R3) is a useful invariant not shown in the
-> diagram. *Candidate annotation.*
+> **✓ Unsafe-default rule (annotated).** `resolve_command_risk_class()` treats an unknown
+> skill as **R3** (fail-safe). The `D_PROMOTE` node now states this invariant.
 
 See [reference/flowchart-guide.md](../reference/flowchart-guide.md).

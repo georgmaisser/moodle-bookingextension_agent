@@ -106,7 +106,7 @@ the planned-placeholder mechanism instead.
 > idempotency by input signature; planned placeholders drive `CONF_FOLLOW`; R3 no retry;
 > retry-layer cap of 2.
 
-> **⚠ Code names.** `Q_FAIL_TTL` uses `BLOCKED_CONFIRMATION_TIMEOUT` (diagram:
-> `BLOCKED_TIMEOUT`). Minor. The DAG validation and blocked-TTL behaviors are both gated by
-> config flags (`queue_dag_validation_enabled`, `queue_blocked_ttl_enabled`) — worth noting
-> they can be disabled. *Annotation.*
+> **✓ Code name (corrected).** `Q_FAIL_TTL` now uses the real issue code
+> `BLOCKED_CONFIRMATION_TIMEOUT` (was `BLOCKED_TIMEOUT`). Note: DAG validation and blocked-TTL
+> are both gated by config flags (`queue_dag_validation_enabled`, `queue_blocked_ttl_enabled`)
+> and can be disabled.

@@ -52,6 +52,7 @@ command, in order — registry → runtime → active → capability → context
 | `DENY_INACTIVE` | `registry->is_skill_active()` is false |
 | `DENY_MISSING_CAPABILITY` | the user lacks the skill's per-skill capability ([ch. 02 §3](02-authorization-and-context.md)) |
 | `DENY_CONTEXT_INVALID` | the context is not valid for this skill |
+| `DENY_SKILL_VERSION_UNSUPPORTED` | the requested skill version is not supported (`skill_version_policy`) |
 
 A deny ends the command as `failed` — this is the last line of defense even though the
 decision service already routed by risk.
@@ -80,11 +81,12 @@ the prepared input is **byte-for-byte** the input that preflight approved — so
 can skip a second full preflight while still guaranteeing nothing was altered between
 confirmation and execution. A mismatch fails the command.
 
-> **⚠ Flowchart note.** `EXC_GUARD` names
+> **✓ Flowchart note (corrected).** `EXC_GUARD` previously named
 > `execution_guard::verify(prepared_input, execution_guard_token, contextid, userid)`. The
 > real method is `preflight_execution_gate::verify_guard_token(guardtoken, skillname,
 > contextid, prepared_input)` — class is `preflight_execution_gate`, there is no `userid`
-> parameter, and the skill name participates in the token. *Candidate correction.*
+> parameter, and the skill name participates in the token. The `EXC_GUARD` node now states
+> this.
 
 ---
 

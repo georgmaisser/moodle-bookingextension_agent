@@ -306,23 +306,22 @@ codes, is in [reference/issue-codes.md](../reference/issue-codes.md).
 
 ## 11. Flowchart notes
 
-> **⚠ `APREVIEW` node is stale.** The diagram lists
-> `ai_render_command_preview::execute()` as an entry point. No such web service exists.
-> Previews are generated in-loop by `preview_passthrough` and returned as `previewjson` on
-> the `ai_send_message` / `ai_confirm_run` responses. This matches the "preview as a
-> generic data passthrough" refactor (the dedicated preview endpoint/registry was removed).
-> *Proposed resolution: remove/relabel `APREVIEW`. Raised as an open question.*
+> **✓ `APREVIEW` node (corrected).** The node previously read
+> `ai_render_command_preview::execute()`, a web service that does not exist. The diagram now
+> describes the real mechanism: previews are generated in-loop by `preview_passthrough` and
+> returned as `previewjson` on the `ai_send_message` / `ai_confirm_run` responses (the
+> dedicated preview endpoint/registry was removed in the "preview as a generic data
+> passthrough" refactor).
 
-> **⚠ Autoconfirm method name.** The `ASM → CS12` edge and node `CS12` name the probe
-> `is_confirmation_allowed_for_session(userid, contextid)`. `ai_send_message` actually calls
-> `is_confirmation_allowed_for_thread(userid, contextid, threadid)`, a backward-compatible
-> wrapper that ignores `threadid` and delegates to the session check. Functionally
-> equivalent; the label is just narrower than the code. *Minor — note only.*
+> **✓ Autoconfirm method name (`CS12`, annotated).** `CS12` names the real session-check
+> `is_confirmation_allowed_for_session(userid, contextid)`; `ai_send_message` reaches it via
+> the `is_confirmation_allowed_for_thread(...)` wrapper (ignores `threadid`, delegates here).
+> The node now carries that annotation.
 
-> **⚠ Attachments parameter not shown.** `ai_send_message` takes a fourth parameter
-> `attachments` (JSON token array) that the `ASM` node omits. The whole attachment
-> pipeline (`ai_upload_attachment`, `attachment_processor`, PDF extraction) is absent from
-> the diagram. *Candidate flowchart addition.*
+> **✓ Attachments pipeline (added).** The `ASM` node now lists the fourth `attachments[]`
+> parameter, and the diagram includes `ASM_UPLOAD` (`ai_upload_attachment` → token) and
+> `ASM_ATTACH` (`attachment_processor::augment_message`, PDF→text via pdftotext ▸
+> smalot/pdfparser fallback).
 
 See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for the consolidated
 discrepancy log.

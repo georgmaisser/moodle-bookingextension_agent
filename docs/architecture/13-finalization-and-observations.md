@@ -116,4 +116,5 @@ around these.
 
 > **✓ Confirmed:** the `LG_MATRIX` precedence cascade matches the code rule-for-rule, with
 > the issue-code/error-class sets above. The code additionally routes the `CONTRACT_PHASE_*`
-> and `SYNC_*` codes (richer than the diagram's named subsets) — *candidate detail.*
+> and `SYNC_*` codes; `LG_MATRIX` lists representative subsets while the full catalog lives in
+> [reference/issue-codes.md](../reference/issue-codes.md) — added detail, not a discrepancy.

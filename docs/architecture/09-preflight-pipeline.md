@@ -108,11 +108,11 @@ that a webhook is reachable or a payment provider is ready, hard-blocking when i
 | `retryafterms` / `retrycount` / `durationms` | retry + timing |
 | `preparedinput` | the exact input the executor will run |
 
-> **⚠ Flowchart note.** The `PRV2` node lists `execution_guard_token` as a field of
-> `preflight_result_v2`. It is **not** on the DTO; the guard token is built from the
-> prepared input (`preflight_execution_gate::build_guard_token(skill, contextid,
+> **✓ Flowchart note (corrected).** The `PRV2` node previously listed `execution_guard_token`
+> as a field of `preflight_result_v2`. It is **not** on the DTO; the guard token is built from
+> the prepared input (`preflight_execution_gate::build_guard_token(skill, contextid,
 > prepared_input)`) and persisted on the **queue item**, then verified by the executor
-> (see [ch. 11](11-executor.md)). *Candidate correction.*
+> (see [ch. 11](11-executor.md)). The `PRV2` node now states this.
 
 ---
 

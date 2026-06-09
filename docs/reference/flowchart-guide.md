@@ -55,10 +55,10 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 
 ### Entry layer (ch. 01)
 
-- ✏ **`APREVIEW` is stale.** The node `ai_render_command_preview::execute()` names a web
-  service that does not exist. Previews are generated in-loop by `preview_passthrough` and
-  returned as `previewjson` on `ai_send_message` / `ai_confirm_run`. Matches the
-  preview-as-data-contract refactor. *Proposed: remove/relabel `APREVIEW`.* ❓ confirm.
+- ✅ **`APREVIEW` — corrected.** The node `ai_render_command_preview::execute()` named a web
+  service that does not exist. Relabelled: previews are generated in-loop by
+  `preview_passthrough` and returned as `previewjson` on `ai_send_message` / `ai_confirm_run`
+  (preview-as-data-contract refactor).
 - ✅ **Autoconfirm probe name (`CS12`) — annotated (B5).** Not really a discrepancy: `CS12`
   names the real session-check method; the entry caller just uses the
   `is_confirmation_allowed_for_thread` wrapper (ignores threadid, delegates here). The node
@@ -71,11 +71,11 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 
 ### Conversation store / runtime (ch. 03–04)
 
-- ✏ **`LOOP_STEP` step-message attribution.** Diagram puts
+- ✅ **`LOOP_STEP` step-message attribution — corrected.** The node previously put
   `clear_step_messages()` + `add_step_message(next_step_intent)` in the agent loop head.
   Reality: `clear_step_messages()` runs once in `ai_send_message::execute()` *before* the
   loop; `add_step_message()` runs in `orchestrator::process()` (~line 389) once per
-  `process()`. *Proposed: move these labels off `LOOP_STEP`.*
+  `process()`. The `LOOP_STEP` node now states this.
 - ✅ **Session-allow TTL — resolved by a code change (maintainer decision).**
   `CONFIRMATION_SESSION_ALLOWLIST_TTL` reduced 43200 s → **900 s**, so the session allowance
   now matches `LG_AUTO`/`LG_RISK_CONF` (900 s) and the queue/pending TTLs. The
@@ -108,15 +108,13 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 
 ### Decision / preflight / queue / executor (ch. 08–11)
 
-- ✏ **`EXC_GUARD` — `execution_guard::verify(...)`.** *Resolved (investigation).* There is no
-  `execution_guard` class. The real call is
-  `preflight_execution_gate::verify_guard_token(guardtoken, skillname, contextid,
-  prepared_input)` — a `hash_equals` against `sha256(skill:context:prepared_input)`. The
-  diagram's signature (class name, `userid` param, missing skillname) is wrong. *Proposed:
-  relabel `EXC_GUARD`.*
-- ✏ **`PRV2.execution_guard_token`.** The diagram lists `execution_guard_token` as a field of
-  `preflight_result_v2`. It is not on that DTO; the token is built from prepared_input and
-  persisted on the **queue item**. *Proposed: move the field to the queue node.*
+- ✅ **`EXC_GUARD` — corrected.** There is no `execution_guard` class. The node now names the
+  real call `preflight_execution_gate::verify_guard_token(guardtoken, skillname, contextid,
+  prepared_input)` — a `hash_equals` against `sha256(skill:context:prepared_input)` (the old
+  label's class name, `userid` param, and missing skillname were wrong).
+- ✅ **`PRV2.execution_guard_token` — corrected.** The node no longer lists
+  `execution_guard_token` as a `preflight_result_v2` field; it notes the token is built from
+  prepared_input and persisted on the **queue item**.
 - ✓ **Confirmed:** decision guard chain order (preview → pending → lookup → promotion);
   risk-routed command handling; preflight risk→layer gating; L3 constants 500/200/4/4000;
   retryable categories TECHNICAL + EXTERNAL_DEPENDENCY; queue blocked TTLs R1=900/R2=300/R3=900;
@@ -153,8 +151,8 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 - ✓ **`LG_RISK*` — confirmed.** Risk-class declaration validation (R0↔readonly, R2/R3 require
   context_scopes → not activatable on mismatch); R3 irreversibility / R2 affected-scope
   reply requirements; R3 no execution retry.
-- ✏ **`EXC_EVAL` deny reasons.** Code has a sixth reason `skill_version_unsupported` beyond
-  the five shown. *Candidate addition.*
+- ✅ **`EXC_EVAL` deny reasons — corrected (B7.1).** The sixth reason
+  `skill_version_unsupported` was added to the node (also listed in ch. 11).
 - ✓ **`MTRIG` — confirmed.** Registry triggers and trigger→skill map return `[]`; triggers
   are server-derived; no trigger→skill routing.
 
