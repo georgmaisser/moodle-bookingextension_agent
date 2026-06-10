@@ -2,7 +2,8 @@
 
 **Date:** 2026-06-09
 **Author:** Claude (review/correction of Antigravity draft 2026-06-08)
-**Status:** Planning — corrected; decisions locked; pending flowchart sign-off
+**Status:** Implemented (2026-06-10) — flowchart node added; code + tests landed.
+Operational follow-ups remaining: run plugin upgrade + rebuild skill embeddings (§8).
 **Supersedes:** `user_specific_memory_blueprint_2026-06-08.md`
 
 ---
@@ -221,15 +222,16 @@ free text makes a real provider mandatory.
 
 ## 10. Implementation Checklist
 
-- [ ] **DB:** `install.xml` + `upgrade.php` create `local_wbagent_user_memory`; bump `version.php`.
-- [ ] **Service:** `user_memory_service` (add/get_all/delete/find + limits + dedupe).
-- [ ] **Skills:** `core.remember`, `core.forget` (preview/confirm), `core.list_memories` in `core/skills/`; add to the `bookingextension/agent` `skill_provider`.
-- [ ] **Injection:** memory block in `build_runtime_context_block` (discovery-only, budget-capped).
-- [ ] **Privacy:** `classes/privacy/provider.php` (metadata + export + delete).
-- [ ] **Discoverability:** `family_embeddings_index_service::rebuild_catalog`; lang strings.
-- [ ] **Tests:** §9.
-- [ ] **Flowchart:** add a "user-memory injection" node to
-      `AGENT_IMPLEMENTATION_FLOWCHART.mmd` and clear it with Georg before coding.
+- [x] **DB:** `install.xml` + `upgrade.php` (step `2026061001`) create `local_wbagent_user_memory`; `version.php` bumped to `2026061001`. NOTE: the standalone `userid` index from the draft was dropped — the `userid_fk` foreign key already provides it, and a duplicate-field index makes `xmldb_table::addIndex()` throw.
+- [x] **Service:** `user_memory_service` (add/get_all/delete/find + limits + dedupe).
+- [x] **Skills:** `core.remember` (R1), `core.forget` (R2, preflight resolve → R2 confirm → delete-by-id), `core.list_memories` (R0) in `core/skills/`. Registration is automatic via directory auto-discovery — no `skill_provider` edit needed.
+- [x] **Injection:** memory block in `orchestrator::build_runtime_context_block` (discovery-only, owner resolved via `store->get_thread()`, budget-capped, empty when none).
+- [x] **Privacy:** `classes/privacy/provider.php` (metadata + export + delete, CONTEXT_USER).
+- [x] **Lang strings:** `agent_memory_*` + `privacy:metadata:*`.
+- [ ] **Discoverability (operational):** rebuild skill-catalog embeddings (run `core.recreate_skill_catalog` / `family_embeddings_index_service::rebuild_catalog`). Skills are discovered + selectable without it, but semantic retrieval needs the rebuild.
+- [x] **Tests:** §9 — `user_memory_service_test` (8) + `user_memory_skills_test` (10), all green.
+- [x] **Flowchart:** "User Memory" subgraph + wiring + `LG_MEM` legend added to
+      `AGENT_IMPLEMENTATION_FLOWCHART.mmd` (also corrected the stale `LG_DB` legend).
 
 ---
 

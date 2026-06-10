@@ -115,6 +115,68 @@ if ($hasembeddings && !empty($collisionresult['pairs'])) {
     $highcollisioncount = (int)ceil($highcollisioncount / 2);
 }
 
+// Real governance-gate evaluation (skill_executability_evaluator) for a chosen user + context.
+// Defaults: the current admin and the system context. Override to test a concrete teacher in a
+// concrete booking module (paste a user id and that module's context id).
+$evaluserid = optional_param('evaluserid', (int)$USER->id, PARAM_INT);
+$evalcontextid = optional_param('evalcontextid', (int)$context->id, PARAM_INT);
+
+$evaluator = new \bookingextension_agent\local\wbagent\skill_executability_evaluator(
+    $registry,
+    new \bookingextension_agent\local\wbagent\services\security\authorization_service()
+);
+
+$evaluations = [];
+foreach ($contracts as $skillname => $meta) {
+    $evaluations[(string)$skillname] = $evaluator->evaluate_skill((string)$skillname, $evaluserid, $evalcontextid);
+}
+
+// Resolve the evaluation context label and a readable user label for the header note.
+$evalcontextlabel = 'context #' . $evalcontextid;
+try {
+    $evalcontextlabel = context::instance_by_id($evalcontextid, MUST_EXIST)->get_context_name(false, true);
+} catch (\Throwable $e) {
+    unset($e);
+}
+$evaluserlabel = 'user #' . $evaluserid;
+if ($evaluser = \core_user::get_user($evaluserid, '*', IGNORE_MISSING)) {
+    $evaluserlabel = fullname($evaluser) . ' (#' . $evaluserid . ')';
+}
+
+// Map a deny reason + diagnostics to a precise, human-readable hint.
+$describedeny = static function (array $evaluation) use ($evalcontextid): string {
+    $reason = (string)($evaluation['deny_reason'] ?? '');
+    $diagnostics = (array)($evaluation['diagnostics'] ?? []);
+    switch ($reason) {
+        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_NOT_REGISTERED:
+            return get_string('skillgovernance_gate_deny_not_registered', 'bookingextension_agent');
+        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_RUNTIME_DISABLED:
+            return get_string('skillgovernance_gate_deny_runtime_disabled', 'bookingextension_agent');
+        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_INACTIVE:
+            return get_string('skillgovernance_gate_deny_inactive', 'bookingextension_agent');
+        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_CONTEXT_INVALID:
+            return get_string('skillgovernance_gate_deny_context_invalid', 'bookingextension_agent', $evalcontextid);
+        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_SKILL_VERSION_UNSUPPORTED:
+            return get_string('skillgovernance_gate_deny_version_unsupported', 'bookingextension_agent');
+        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_MISSING_CAPABILITY:
+            $caps = (array)($diagnostics['required_capabilities'] ?? []);
+            if (empty($caps)) {
+                return get_string('skillgovernance_gate_deny_no_capability', 'bookingextension_agent');
+            }
+            $parts = [];
+            foreach ($caps as $cap) {
+                $cap = (string)$cap;
+                $key = get_capability_info($cap)
+                    ? 'skillgovernance_gate_cap_user_lacks'
+                    : 'skillgovernance_gate_cap_not_defined';
+                $parts[] = get_string($key, 'bookingextension_agent', $cap);
+            }
+            return implode('; ', $parts) . '.';
+        default:
+            return $reason !== '' ? $reason : get_string('skillgovernance_gate_deny_generic', 'bookingextension_agent');
+    }
+};
+
 // Set up Moodle Page.
 $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/skill_governance.php'));
 $PAGE->set_context($context);
@@ -126,6 +188,43 @@ echo $OUTPUT->header();
 // Title and description.
 echo $OUTPUT->heading(get_string('skillgovernance', 'bookingextension_agent'), 2);
 echo html_writer::tag('p', get_string('aiskillgovernanceheading_desc', 'bookingextension_agent'));
+
+// Evaluation target selector (real governance gate). GET form so it is shareable/bookmarkable.
+echo html_writer::start_div('card card-body bg-light mb-3');
+echo html_writer::tag(
+    'p',
+    get_string('skillgovernance_gate_intro', 'bookingextension_agent', (object)[
+        'user' => s($evaluserlabel),
+        'context' => s($evalcontextlabel),
+    ]),
+    ['class' => 'mb-2 small text-muted']
+);
+echo html_writer::start_tag('form', ['method' => 'get', 'action' => $PAGE->url, 'class' => 'form-inline']);
+echo html_writer::tag('label', get_string('skillgovernance_gate_userid', 'bookingextension_agent'), ['for' => 'evaluserid', 'class' => 'mr-1']);
+echo html_writer::empty_tag('input', [
+    'type' => 'number',
+    'id' => 'evaluserid',
+    'name' => 'evaluserid',
+    'value' => $evaluserid,
+    'class' => 'form-control mr-3',
+    'style' => 'width: 120px;',
+]);
+echo html_writer::tag('label', get_string('skillgovernance_gate_contextid', 'bookingextension_agent'), ['for' => 'evalcontextid', 'class' => 'mr-1']);
+echo html_writer::empty_tag('input', [
+    'type' => 'number',
+    'id' => 'evalcontextid',
+    'name' => 'evalcontextid',
+    'value' => $evalcontextid,
+    'class' => 'form-control mr-3',
+    'style' => 'width: 120px;',
+]);
+echo html_writer::empty_tag('input', [
+    'type' => 'submit',
+    'class' => 'btn btn-outline-primary',
+    'value' => get_string('skillgovernance_gate_evaluate', 'bookingextension_agent'),
+]);
+echo html_writer::end_tag('form');
+echo html_writer::end_div();
 
 // Top Actions Bar & Status Warnings.
 if ($highcollisioncount > 0) {
@@ -184,6 +283,7 @@ echo html_writer::start_tag('table', ['class' => 'table table-hover align-middle
 echo html_writer::start_tag('thead');
 echo html_writer::start_tag('tr');
 echo html_writer::tag('th', 'Active', ['style' => 'width: 80px; text-align: center;']);
+echo html_writer::tag('th', get_string('skillgovernance_gate_status', 'bookingextension_agent'), ['style' => 'width: 220px;']);
 echo html_writer::tag('th', 'Skill Name / Component');
 echo html_writer::tag('th', 'Required Capabilities');
 echo html_writer::tag('th', 'Collision Status', ['style' => 'width: 200px;']);
@@ -246,6 +346,20 @@ foreach ($contracts as $skillname => $meta) {
     ]);
     echo html_writer::end_tag('td');
 
+    // Status (real governance gate result for the chosen user + context).
+    $evaluation = $evaluations[(string)$skillname] ?? ['executable_state' => 'deny', 'deny_reason' => ''];
+    $isexecutable = (string)($evaluation['executable_state'] ?? '') === 'allow';
+    if ($isexecutable) {
+        $statushtml = '<span class="badge badge-success">&#10003; '
+            . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>';
+    } else {
+        $hint = $describedeny($evaluation);
+        $statushtml = '<span class="badge badge-danger" title="' . s($hint) . '" style="cursor: help;">&#10007; '
+            . s(get_string('skillgovernance_gate_blocked', 'bookingextension_agent')) . '</span>'
+            . '<br/><small class="text-danger">' . s($hint) . '</small>';
+    }
+    echo html_writer::tag('td', $statushtml);
+
     // Skill Name / Component.
     echo html_writer::start_tag('td');
     echo html_writer::tag('strong', s((string)$skillname)) . '<br/>';
@@ -279,7 +393,7 @@ foreach ($contracts as $skillname => $meta) {
 
     // Collapsible Row.
     echo html_writer::start_tag('tr', ['class' => 'skill-detail-row', 'id' => 'detail-row-' . $rowindex]);
-    echo html_writer::start_tag('td', ['colspan' => 5, 'style' => 'padding: 0; border-top: none;']);
+    echo html_writer::start_tag('td', ['colspan' => 6, 'style' => 'padding: 0; border-top: none;']);
 
     // Build the collapsible inner content.
     $bodycontent = '';

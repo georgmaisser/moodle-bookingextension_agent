@@ -48,6 +48,7 @@ use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_r
 use bookingextension_agent\local\wbagent\services\assistant_state_guidance_service;
 use bookingextension_agent\local\wbagent\services\completed_command_history_service;
 use bookingextension_agent\local\wbagent\services\execution_observation_ledger;
+use bookingextension_agent\local\wbagent\services\user_memory_service;
 use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use bookingextension_agent\local\wbagent\services\discovery\context_prior_builder;
 use bookingextension_agent\local\wbagent\services\phase_prompt_bundle_builder;
@@ -2287,6 +2288,16 @@ PROMPT;
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
         }
 
+        // Inject user-stated memories at the selection phase. Discovery is deterministic
+        // (no LLM call), so a discovery-only block would never reach a model. PHASE_SELECTION
+        // is built both for the planner's selection LLM call AND by the synchronizer
+        // (process_synchronizer), so stored facts reach both planning and the final reply
+        // (e.g. "always address me as Dr X"). Construction is skill-parameter only — skipped
+        // to control tokens. Budget is guaranteed by user_memory_service (<= 4096 chars).
+        if ($phase === self::PHASE_SELECTION) {
+            $this->append_user_memory_section($lines, $threadid);
+        }
+
         if (!empty($skillcatalog)) {
             if ($phase === self::PHASE_PARAMETER_CONSTRUCTION) {
                 // Construction phase needs full parameter details — keep JSON so the constructor
@@ -2318,6 +2329,38 @@ PROMPT;
         $this->append_json_list_section($lines, 'completed_observations:', $completedobservations);
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Append the USER MEMORY block (user-stated facts) for the thread owner.
+     *
+     * Resolves the acting user from the thread owner so userid is never taken from
+     * model input. Emits nothing when the user has no stored memories.
+     *
+     * @param array<int,string> $lines
+     * @param int $threadid
+     * @return void
+     */
+    private function append_user_memory_section(array &$lines, int $threadid): void {
+        $thread = $this->store->get_thread($threadid);
+        $userid = (int)($thread->userid ?? 0);
+        if ($userid <= 0) {
+            return;
+        }
+
+        $records = (new user_memory_service())->get_all($userid);
+        if (empty($records)) {
+            return;
+        }
+
+        $lines[] = '';
+        $lines[] = 'USER MEMORY (facts the user asked you to remember; respect these when planning):';
+        foreach ($records as $record) {
+            $memory = trim((string)$record->memory);
+            if ($memory !== '') {
+                $lines[] = '- "' . $memory . '"';
+            }
+        }
     }
 
     /**

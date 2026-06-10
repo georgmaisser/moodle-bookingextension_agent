@@ -109,6 +109,19 @@ flowchart TD
     end
 
     %% =========================================================
+    %% USER MEMORY (user-stated facts/preferences)
+    %% =========================================================
+    subgraph USERMEM["User Memory — user-stated facts/preferences (global per user)"]
+        UM_TABLE["local_wbagent_user_memory\n(userid, memory, timecreated, timemodified)\nglobal per user — no contextid\ninstall.xml + upgrade.php (matches benchmark tables)"]
+        UM_SVC["user_memory_service\nadd / get_all / delete / find\nlimits: 15 facts · 500 chars/fact · 4096 total\nnormalize + case-insensitive dedupe\nskills never touch DB directly"]
+        UM_REMEMBER["core.remember (R1, scoped_write → auto-confirmable)\nstore a fact the user told the agent to remember\nNOT past conversation (= core.recall_memory)"]
+        UM_FORGET["core.forget (R2, broad_write → always explicit confirm)\nquery → find() candidates → confirm → delete-by-id\nzero match: inform · multi match: list ids, never silent multi-delete"]
+        UM_LIST["core.list_memories (R0, read_only)\nnumbered list + ids in observation_full\n(for a follow-up forget by id)"]
+        UM_INJECT["orchestrator::build_runtime_context_block\nUSER MEMORY block injected at PHASE_SELECTION\n(discovery is deterministic = no LLM call; construction skipped)\nPHASE_SELECTION is built for BOTH the planner selection call\nAND process_synchronizer → reaches planning + final reply\nresolves thread owner via store->get_thread(threadid)\nNOT in static SYSTEM prompt · budget-capped 4096 · empty when none"]
+        UM_PRIVACY["bookingextension_agent\\privacy\\provider\nmetadata + plugin\\provider @ CONTEXT_USER\nexport_user_data / delete_data_for_*"]
+    end
+
+    %% =========================================================
     %% SYNCHRONIZER
     %% =========================================================
     subgraph SYNC["synchronizer — Final User-Facing Contract"]
@@ -538,12 +551,29 @@ flowchart TD
     ISCP -.-> BIRS
     BIRS -.-> D_PREFLIGHT
 
+    %% User memory wiring
+    CSKILL --> UM_REMEMBER
+    CSKILL --> UM_FORGET
+    CSKILL --> UM_LIST
+    UM_REMEMBER --> UM_SVC
+    UM_FORGET --> UM_SVC
+    UM_LIST --> UM_SVC
+    UM_SVC --> UM_TABLE
+    UM_PRIVACY --> UM_TABLE
+    UM_LIST -.->|"ids in observation → forget by id"| UM_FORGET
+    UM_FORGET -.->|"R2: promoted to confirmation_request"| D_PROMOTE
+    ORC -->|"inject USER MEMORY at selection"| UM_INJECT
+    UM_SVC -.->|"get_all(userid) memory lines"| UM_INJECT
+    UM_INJECT -.->|"USER MEMORY lines into SYSTEM_RUNTIME (selection)"| PPB
+    UM_INJECT -.->|"same block in synchronizer runtime → final reply honors memory"| SYNC_CTX
+
     %% =========================================================
     %% LEGEND
     %% =========================================================
     subgraph LEGEND["Legend"]
         direction TB
-        LG_DB["DB rollout policy\nnew schema via install.xml only\nno migration / no upgrade.php"]
+        LG_DB["DB rollout policy\nnew schema via install.xml + matching upgrade.php step\n(guarded create_table; see benchmark + user_memory tables)"]
+        LG_MEM["User memory contract\nuser-stated facts/preferences, global per user\n(local_wbagent_user_memory, no contextid)\ncore.remember (R1, auto) · core.forget (R2, explicit confirm)\n· core.list_memories (R0)\ndistinct from core.recall_memory (= past conversation)\ninjected at PHASE_SELECTION (planner select + synchronizer), budget-capped 4096 chars\nlimits: 15 facts · 500/fact · 4096 total · dedupe\nprivacy provider @ CONTEXT_USER mandatory"]
         LG_CTX["Context authority\nRuntime uses Moodle contextid\nas the scope key"]
         LG_AUTO["Auto-confirm\nconfirmation_request + session allowlist\nkeyed by user + contextid\n→ ai_confirm_run without manual click"]
         LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
@@ -637,3 +667,11 @@ flowchart TD
     style LG_DET fill:#1d3557,color:#fff
     style EMB_QUERY fill:#457b9d,color:#fff
     style Q_PLANNED fill:#e9c46a,color:#000
+    style UM_TABLE fill:#264653,color:#fff
+    style UM_SVC fill:#1d3557,color:#fff
+    style UM_REMEMBER fill:#2d6a4f,color:#fff
+    style UM_FORGET fill:#e9c46a,color:#000
+    style UM_LIST fill:#457b9d,color:#fff
+    style UM_INJECT fill:#1d3557,color:#fff
+    style UM_PRIVACY fill:#264653,color:#fff
+    style LG_MEM fill:#1d3557,color:#fff

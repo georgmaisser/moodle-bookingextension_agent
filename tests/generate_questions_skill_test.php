@@ -137,6 +137,151 @@ final class generate_questions_skill_test extends advanced_testcase {
     }
 
     /**
+     * With more than one writable question-bank category, preflight asks where to create the questions.
+     */
+    public function test_preflight_asks_when_multiple_targets(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $this->add_writable_categories($course, 2);
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $result = (new generate_questions_skill())->preflight([], $contextid, (int)$USER->id)->to_array();
+
+        $this->assertSame('hard_block', $result['status']);
+        $this->assertContains('GENERATE_QUESTIONS_TARGET_AMBIGUOUS', $result['issue_codes']);
+    }
+
+    /**
+     * Choosing one of the offered categories lets preflight pass and threads the id into prepared input.
+     */
+    public function test_preflight_passes_with_chosen_target(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $categoryids = $this->add_writable_categories($course, 2);
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $chosen = (int)$categoryids[0];
+        $result = (new generate_questions_skill())->preflight(['target_categoryid' => $chosen], $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status']);
+        $this->assertSame($chosen, (int)$result->preparedinput['target_categoryid']);
+    }
+
+    /**
+     * Naming a category in plain text resolves to its id (the planner never knows the id).
+     */
+    public function test_preflight_resolves_target_by_name(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $categoryids = $this->add_writable_categories($course, 2);
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        // add_writable_categories names them "Agent category 0", "Agent category 1".
+        $result = (new generate_questions_skill())
+            ->preflight(['target_category' => 'Agent category 1'], $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status']);
+        $this->assertSame((int)$categoryids[1], (int)$result->preparedinput['target_categoryid']);
+    }
+
+    /**
+     * An unknown category name re-asks with the full list rather than failing silently.
+     */
+    public function test_preflight_unknown_name_reasks(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $this->add_writable_categories($course, 2);
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $result = (new generate_questions_skill())
+            ->preflight(['target_category' => 'Does not exist'], $contextid, (int)$USER->id)->to_array();
+
+        $this->assertSame('hard_block', $result['status']);
+        $this->assertContains('GENERATE_QUESTIONS_TARGET_AMBIGUOUS', $result['issue_codes']);
+    }
+
+    /**
+     * A target id that is not one of the writable categories is rejected with a fresh clarification.
+     */
+    public function test_preflight_rejects_unknown_target(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $this->add_writable_categories($course, 2);
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $result = (new generate_questions_skill())
+            ->preflight(['target_categoryid' => 99999999], $contextid, (int)$USER->id)->to_array();
+
+        $this->assertSame('hard_block', $result['status']);
+        $this->assertContains('GENERATE_QUESTIONS_TARGET_AMBIGUOUS', $result['issue_codes']);
+    }
+
+    /**
+     * Create a run (page module) context plus its course, and return [contextid, course].
+     *
+     * @return array{0:int,1:\stdClass}
+     */
+    private function make_run_context_with_course(): array {
+        $course = $this->getDataGenerator()->create_course();
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
+        return [(int)\context_module::instance($page->cmid)->id, $course];
+    }
+
+    /**
+     * Add a question bank module to the course with $count writable categories; return their ids.
+     *
+     * @param \stdClass $course
+     * @param int       $count
+     * @return int[]
+     */
+    private function add_writable_categories(\stdClass $course, int $count): array {
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $course->id]);
+        $bankcontext = \context_module::instance($qbank->cmid);
+        /** @var \core_question_generator $questiongenerator */
+        $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
+
+        $ids = [];
+        for ($i = 0; $i < $count; $i++) {
+            $category = $questiongenerator->create_question_category([
+                'contextid' => $bankcontext->id,
+                'name' => 'Agent category ' . $i,
+            ]);
+            $ids[] = (int)$category->id;
+        }
+        return $ids;
+    }
+
+    /**
      * No questions / no bank context => no preview block.
      */
     public function test_get_result_preview_returns_null_without_questions(): void {

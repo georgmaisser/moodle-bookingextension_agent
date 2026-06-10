@@ -1,0 +1,274 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace bookingextension_agent\local\wbagent\core\skills;
+
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wbagent\services\user_memory_service;
+
+/**
+ * Skill definition for core.forget — delete a stored user-stated memory.
+ *
+ * Always destructive (R2): the resolution is list → confirm → delete-by-id and
+ * always goes through explicit confirmation. A query that matches zero or several
+ * memories never deletes; it asks the user to clarify which id to forget.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class forget_skill extends core_skill_base implements skill_trigger_provider_interface {
+    /** Skill name constant. */
+    public const SKILL_NAME = 'core.forget';
+
+    /**
+     * Constructor — broad/destructive write, always explicit confirmation.
+     */
+    public function __construct() {
+        parent::__construct(false, skill_risk_class::R2);
+    }
+
+    /**
+     * Return skill name.
+     *
+     * @return string
+     */
+    public function get_name(): string {
+        return self::SKILL_NAME;
+    }
+
+    /**
+     * Return skill schema.
+     *
+     * @return array
+     */
+    public function get_schema(): array {
+        return [
+            'version' => 1,
+            'description' => 'Delete a previously stored user-stated memory/preference (e.g. "forget that I prefer '
+                . 'morning bookings"). Resolves by query or explicit id and always asks for confirmation before '
+                . 'deleting. This manages stored facts the user told the agent — it is NOT for previous '
+                . 'conversation. User isolation is strict; userid is never taken from input.',
+            'readonly' => $this->is_read_only(),
+            'fallback_confirm_string_key' => 'agent_memory_forget_confirm',
+            'fallback_skillcall_string_key' => 'agent_memory_forget_skillcall',
+            'properties' => [
+                'query' => [
+                    'type' => 'string',
+                    'description' => 'Search text to locate the memory to delete. Provide this OR id.',
+                    'required' => false,
+                ],
+                'id' => [
+                    'type' => 'integer',
+                    'description' => 'Exact id of the memory to delete (e.g. from core.list_memories). Provide this OR query.',
+                    'required' => false,
+                ],
+            ],
+            'prompt_meta' => [
+                'intent' => 'Delete one stored user memory, resolved by query or explicit id, always confirmed.',
+                'input_fields_for_prompt' => ['query'],
+                'anchor_fields' => ['query'],
+                'capabilities' => ['user_memory_delete'],
+                'context_scopes' => ['module'],
+            ],
+        ];
+    }
+
+    /**
+     * Return example input for planner contract rendering.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return [
+            'query' => 'Buchungen am Vormittag',
+        ];
+    }
+
+    /**
+     * Return skill-specific message triggers.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_message_triggers(): array {
+        return [
+            [
+                'id' => 'core.forget_request',
+                'description' => 'User asks the agent to forget/delete a previously stored fact or preference.',
+                'examples' => [
+                    'vergiss: Ich bevorzuge Buchungen am Vormittag',
+                    'forget that my employee id is 12345',
+                    'lösche die gespeicherte Einstellung zu Raum B',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Check skill input structure.
+     *
+     * @param array $input
+     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     */
+    public function check_structure(array $input): array {
+        $errors = [];
+        $query = trim((string)($input['query'] ?? ''));
+        $id = (int)($input['id'] ?? 0);
+        if ($query === '' && $id <= 0) {
+            $errors[] = get_string('agent_memory_forget_need_query', 'bookingextension_agent');
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+            'ambiguities' => [],
+            'issue_codes' => empty($errors) ? [] : ['RECOVERABLE_INPUT_ERROR'],
+        ];
+    }
+
+    /**
+     * Resolve the target memory and gate destructive execution.
+     *
+     * Zero or multiple matches return a clarification (never deletes). Exactly one
+     * match (or an owned explicit id) prepares the delete, which the decision
+     * service then promotes to an explicit confirmation (R2).
+     *
+     * @param array $input
+     * @param int $contextid
+     * @param int $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+        $structure = $this->check_structure($input);
+        if (!($structure['valid'] ?? false)) {
+            return preflight_result_v2::invalid($this->clarification_issues((array)($structure['errors'] ?? [])));
+        }
+
+        $service = new user_memory_service();
+        $id = (int)($input['id'] ?? 0);
+        $query = trim((string)($input['query'] ?? ''));
+
+        // Explicit id path: ownership-checked.
+        if ($id > 0) {
+            $owned = null;
+            foreach ($service->get_all($userid) as $record) {
+                if ((int)$record->id === $id) {
+                    $owned = $record;
+                    break;
+                }
+            }
+            if ($owned === null) {
+                return preflight_result_v2::invalid($this->clarification_issues([
+                    get_string('agent_memory_forget_id_not_found', 'bookingextension_agent', $id),
+                ]));
+            }
+
+            return preflight_result_v2::ok([
+                'id' => $id,
+                'memory' => (string)$owned->memory,
+            ]);
+        }
+
+        // Query path: find candidates and propose, never silent multi-delete.
+        $matches = $service->find($userid, $query);
+        if (empty($matches)) {
+            return preflight_result_v2::invalid($this->clarification_issues([
+                get_string('agent_memory_forget_no_match', 'bookingextension_agent', s($query)),
+            ]));
+        }
+
+        if (count($matches) > 1) {
+            return preflight_result_v2::invalid($this->clarification_issues([
+                get_string('agent_memory_forget_multi_match', 'bookingextension_agent', $this->format_candidates($matches)),
+            ]));
+        }
+
+        $match = reset($matches);
+        return preflight_result_v2::ok([
+            'id' => (int)$match->id,
+            'memory' => (string)$match->memory,
+        ]);
+    }
+
+    /**
+     * Execute the confirmed deletion.
+     *
+     * @param array $input prepared input from preflight (resolved id + memory)
+     * @param int $contextid
+     * @param int $userid
+     * @return array
+     */
+    public function execute(array $input, int $contextid, int $userid): array {
+        $service = new user_memory_service();
+        $id = (int)($input['id'] ?? 0);
+        $memory = (string)($input['memory'] ?? '');
+
+        $deleted = $service->delete($userid, $id);
+        if (!$deleted) {
+            return [
+                'status' => 'executed',
+                'detail' => get_string('agent_memory_forget_id_not_found', 'bookingextension_agent', $id),
+                'observation_full' => '[USER_MEMORY] forget failed: id=' . $id . ' not found for user.',
+            ];
+        }
+
+        return [
+            'status' => 'executed',
+            'detail' => get_string('agent_memory_forget_ok', 'bookingextension_agent', $memory),
+            'resultid' => $id,
+            'observation_full' => '[USER_MEMORY] forgot id=' . $id . ' :: ' . $memory,
+        ];
+    }
+
+    /**
+     * Wrap messages as needs_clarification issues so the decision service routes
+     * them to a clarification (not a terminal hard failure).
+     *
+     * @param array<int,string> $messages
+     * @return array<int,array<string,mixed>>
+     */
+    private function clarification_issues(array $messages): array {
+        $issues = [];
+        foreach ($messages as $message) {
+            $message = trim((string)$message);
+            if ($message === '') {
+                continue;
+            }
+            $issues[] = [
+                'code' => 'RECOVERABLE_INPUT_ERROR',
+                'severity' => 'needs_clarification',
+                'message' => $message,
+            ];
+        }
+        return $issues;
+    }
+
+    /**
+     * Render candidate memories (id + text) for a disambiguation clarification.
+     *
+     * @param array<int,\stdClass> $matches
+     * @return string
+     */
+    private function format_candidates(array $matches): string {
+        $parts = [];
+        foreach ($matches as $record) {
+            $parts[] = '(id=' . (int)$record->id . ') ' . (string)$record->memory;
+        }
+        return implode('; ', $parts);
+    }
+}
