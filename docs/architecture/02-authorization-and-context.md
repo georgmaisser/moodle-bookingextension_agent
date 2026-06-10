@@ -81,12 +81,46 @@ capabilities.
 | Capability | Type | Context | Default role |
 |------------|------|---------|--------------|
 | `bookingextension/agent:useaiinstructions` | write | `CONTEXT_MODULE` | `editingteacher` (allow) |
+| `bookingextension/agent:ignoreaiavailability` | read | `CONTEXT_COURSE` | `manager` (allow); site admins implicitly | 
 | `bookingextension/agent:debugskillselection` | write | `CONTEXT_SYSTEM` | `manager` (allow) |
 | `bookingextension/agent:viewbenchmarks` | read | `CONTEXT_SYSTEM` | `manager` (allow) |
 | `bookingextension/agent:managebenchmarks` | write | `CONTEXT_SYSTEM` | — (manual) |
 
 `…:useaiinstructions` is **the** gate: without it `can_use()` is false and the chat panel
-is inert.
+is inert. `…:ignoreaiavailability` belongs to the availability layer (§3a below).
+
+### 3a. The availability layer (`enableaitools` toggles + bypass)
+
+Distinct from permissions, the agent honours Moodle core's **AI availability toggles**:
+the per-course `enableaitools` field and the per-course-module `enableaitools` field.
+These express *"AI should not be used here"* — a steering instrument aimed at
+non-privileged users, not a rights system. The full design rationale and the staged
+rollout (admin → teacher → student) live in
+[`agent_permissions_concept_2026-06-10.md`](../Blueprints/agent_permissions_concept_2026-06-10.md).
+
+Enforcement is centralised in `orchestrator::get_runtime_provider_status()` and works
+like this for the **current user** (`$USER` — the status is always computed inside a
+user-facing request):
+
+1. `has_capability('bookingextension/agent:ignoreaiavailability', $context)` —
+   **bypass holders skip both toggles entirely.** Site admins pass implicitly
+   (`moodle/site:doanything`); managers hold it by default; an admin can grant it per
+   course/category to selected trusted teachers.
+2. Without the bypass, the **course toggle** is read via the enclosing course context
+   (`get_course_context(false)`; no enclosing course — dashboard, system — means no
+   course toggle applies) and the **module toggle** only inside a module context.
+3. The result feeds `courseenabled` / `contextenabled` / `runtimeavailable`, which both
+   the readiness panel (`aiready`) and the entry points (`ai_send_message`,
+   `activate_trial_context`) consume — display and behaviour stay consistent by
+   construction. The status array carries `availabilitybypassed` so the readiness
+   panel can label skipped toggles honestly ("not restricted for your role") instead
+   of pretending they are enabled.
+
+Net effect per audience: **teachers** (no bypass) can use the agent only in courses
+where they hold `useaiinstructions` *and* AI is allowed; **admins/managers** are never
+blocked by availability toggles. Note the toggle's direction: core defaults
+`enableaitools` to *enabled* (opt-out per course), so restricting teachers to selected
+courses means disabling the toggle elsewhere.
 
 ### Per-skill capabilities
 
@@ -119,7 +153,11 @@ It is constructed context-agnostically as `new aiready(int $contextid, int $user
 booking-specific extras (module config URL, module AI toggle fallback, booking statistics
 via the duck-typed `mod_booking\…\booking_readiness_provider`) only apply when the context
 is a booking module — every other context level gets neutral values and a generic welcome
-string. It runs five sequential checks, each defensively wrapped:
+string. The course/module toggle rows are only rendered where the respective toggle
+exists (course row needs an enclosing course, module row a module context), and for
+availability-bypass holders (§3a) their detail text says the toggles do not apply to
+this user rather than claiming they are enabled. It runs five sequential checks, each
+defensively wrapped:
 
 | # | Check | Source | Default if core too old |
 |---|-------|--------|-------------------------|

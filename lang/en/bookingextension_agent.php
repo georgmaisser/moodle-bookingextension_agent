@@ -23,7 +23,9 @@
  */
 
 $string['agent:debugskillselection'] = 'Use skill selection debug tool';
+$string['agent:ignoreaiavailability'] = 'Ignore course/module AI availability toggles for the AI agent';
 $string['agent:skill_booking_analyze_rules'] = 'Analyze booking rules';
+$string['agent:useaiinstructions'] = 'Use the AI agent';
 $string['agent_booking_add_pricecat_capability_required'] = 'Adding price categories requires moodle/site:config capability.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Please confirm how booking policy consent should be transmitted.';
 $string['agent_booking_blocker_followup_customform'] = 'Please provide the required custom form values that should be transmitted.';
@@ -623,6 +625,7 @@ $string['aiready_check_capability_todo'] = 'Your current role cannot use Booking
 $string['aiready_check_context_enabled'] = 'AI allowed in this course module';
 $string['aiready_check_context_enabled_done'] = 'AI tools are enabled for this booking activity.';
 $string['aiready_check_context_enabled_todo'] = 'AI tools are currently not allowed in this course module.';
+$string['aiready_check_availability_bypassed'] = 'Not restricted for your role — the AI availability toggles do not apply to you.';
 $string['aiready_check_course_enabled'] = 'AI allowed in this course';
 $string['aiready_check_course_enabled_done'] = 'AI tools are enabled for this course.';
 $string['aiready_check_course_enabled_todo'] = 'AI tools are currently not enabled for this course.';

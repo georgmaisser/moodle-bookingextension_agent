@@ -25,12 +25,13 @@ flowchart TD
     %% =========================================================
     subgraph AUTHZ["authorization_service"]
         AZ1["require_use_capability(userid, contextid)"]
-        AZ2["require_valid_context(contextid)"]
+        AZ2["require_valid_context(contextid)\nlevels: MODULE / COURSE / COURSECAT / USER / SYSTEM\n(USER = dashboard, navbar entry point)"]
         AZ3["is_agent_extension_installed()"]
+        AZ4["availability layer (no permission!)\ncourse/cm enableaitools toggles\nSKIPPED for holders of agent:ignoreaiavailability\n(admins implicit, manager default)\nenforced centrally in get_runtime_provider_status\n→ aiready + ai_send_message + activate_trial_context"]
     end
 
     subgraph CSTORE["conversation_store (DB-backed)"]
-        CS1["get_or_create_thread(userid, contextid, bookingid)"]
+        CS1["get_or_create_thread(userid, contextid)"]
         CS2["add_message(threadid, role, text, meta)"]
         CS3["get_recent_messages(threadid, limit)"]
         CS4["get_run(runid) / create_run()"]
@@ -574,7 +575,9 @@ flowchart TD
         direction TB
         LG_DB["DB rollout policy\nnew schema via install.xml + matching upgrade.php step\n(guarded create_table; see benchmark + user_memory tables)"]
         LG_MEM["User memory contract\nuser-stated facts/preferences, global per user\n(local_wbagent_user_memory, no contextid)\ncore.remember (R1, auto; LLM tags relevant_for[]) · core.forget (R2, explicit confirm)\n· core.list_memories (R0, shows relevant_for)\ndistinct from core.recall_memory (= past conversation)\nchannel-filtered injection: selection / construction / synchronization\n(untagged = all channels); budget-capped 4096 chars\nlimits: 15 facts · 500/fact · 4096 total · dedupe\nprivacy provider @ CONTEXT_USER mandatory"]
-        LG_CTX["Context authority\nRuntime uses Moodle contextid\nas the scope key"]
+        LG_CTX["Context authority\nRuntime uses Moodle contextid\nas the scope key\ncontext-level-agnostic: module / course /\ncoursecat / user / system (navbar wand)"]
+        LG_RCTX["Rich context awareness (SYSTEM_RUNTIME)\nbase lines every phase: booking_name / timezone /\nnow_iso (minute-granular = cache-friendly)\nmoodle_context YAML (ids, course, module) ONLY in\nparameter construction + synchronizer —\nselection stays slim (token economy)\nsources cache-backed: agent_context + get_fast_modinfo\n(no DB load); defensive: failure drops the block"]
+        LG_AVAIL["Availability ≠ permission\ncourse/cm enableaitools = availability layer\nfor non-privileged users (teachers, students)\nagent:ignoreaiavailability bypasses both toggles\n(admins implicit via doanything, manager default)\nGate 1 (use + skill caps) and Gate 2 (native caps\nin preflight) stay untouched by the bypass"]
         LG_AUTO["Auto-confirm\nconfirmation_request + session allowlist\nkeyed by user + contextid\n→ ai_confirm_run without manual click"]
         LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
         LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]

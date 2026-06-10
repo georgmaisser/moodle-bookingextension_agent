@@ -43,8 +43,12 @@ reply is grounded in — and nothing more (no skill discovery, no commands):
 ## 3. Prompt & language
 
 `synchronizer_prompt_builder` builds `[SYSTEM]` + optional `[SYSTEM_RUNTIME]` + message
-history + `[OBSERVATION n]` blocks + an `[OUTPUT_CONTRACT]` + `[ASSISTANT]`. The output
-contract encodes the hard rules directly in the prompt:
+history + `[OBSERVATION n]` blocks + an `[OUTPUT_CONTRACT]` + `[ASSISTANT]`. The
+`[SYSTEM_RUNTIME]` block here carries the full `moodle_context:` YAML section (rich
+context awareness, [ch. 05 §3](05-planner-orchestrator.md)): the synchronizer passes the
+`synchronization` memory channel, which also selects the full context block, so the final
+reply can reference the user's current course/module precisely. The output contract
+encodes the hard rules directly in the prompt:
 
 - return exactly one JSON object; **`commands = []` always** (the synchronizer may never
   emit commands);

@@ -34,6 +34,7 @@ use core\di;
 use core_text;
 use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
+use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
@@ -177,7 +178,7 @@ class orchestrator {
      * This is the single source of truth for availability checks used by both
      * readiness UI and runtime message processing.
      *
-     * @param int $contextid Course-module id.
+     * @param int $contextid Moodle context id (any level the agent runs at).
      * @return array<string,mixed>
      */
     public function get_runtime_provider_status(int $contextid): array {
@@ -186,6 +187,7 @@ class orchestrator {
             'provideractive' => false,
             'courseenabled' => false,
             'contextenabled' => false,
+            'availabilitybypassed' => false,
             'runtimeavailable' => false,
             'toolactionclass' => '',
             'finalactionclass' => '',
@@ -237,18 +239,27 @@ class orchestrator {
                 }
             }
 
+            // AVAILABILITY layer (not a permission): the course/module "enableaitools"
+            // toggles restrict non-privileged users only. Holders of the
+            // ignoreaiavailability capability — site admins implicitly, managers by
+            // default — bypass both toggles. Checked for the CURRENT user ($USER):
+            // this status is always computed inside a user-facing request (aiready,
+            // ai_send_message, activate_trial_context).
+            // See docs/Blueprints/agent_permissions_concept_2026-06-10.md §2/§7.
+            $availabilitybypassed = has_capability('bookingextension/agent:ignoreaiavailability', $context);
+
             // The core course-level AI toggle only exists within a course. Resolve the
             // enclosing course context first: core's is_ai_tools_enabled_in_course()
             // treats any non-course context's instanceid as a cmid, which silently
             // breaks for user/system contexts (e.g. the dashboard). No enclosing
             // course → no course toggle applies.
             $coursecontext = $context->get_course_context(false);
-            $courseenabled = ($coursecontext && method_exists($manager, 'is_ai_tools_enabled_in_course'))
+            $courseenabled = ($coursecontext && !$availabilitybypassed && method_exists($manager, 'is_ai_tools_enabled_in_course'))
                 ? ai_manager::is_ai_tools_enabled_in_course($coursecontext)
                 : true;
 
             $moduleaienabled = true;
-            if ($context->contextlevel === CONTEXT_MODULE) {
+            if ($context->contextlevel === CONTEXT_MODULE && !$availabilitybypassed) {
                 $moduleaifields = ai_manager::get_ai_fields_from_course_module($context->instanceid);
                 $moduleaienabled = is_null($moduleaifields->enableaitools)
                     || (bool)$moduleaifields->enableaitools;
@@ -328,6 +339,7 @@ class orchestrator {
                 'provideractive' => $provideractive,
                 'courseenabled' => $courseenabled,
                 'contextenabled' => $contextenabled,
+                'availabilitybypassed' => $availabilitybypassed,
                 'runtimeavailable' => $runtimeavailable,
                 'toolactionclass' => $toolactionclass,
                 'finalactionclass' => $finalactionclass,
@@ -2352,13 +2364,28 @@ PROMPT;
         $bookingname = $cm
             ? format_string($cm->name)
             : ($blockcontext ? $blockcontext->get_context_name() : 'this booking instance');
-        $nowiso = (new \DateTime('now', $tz))->format(\DateTimeInterface::ATOM);
+        // Minute granularity on purpose: a second-precise timestamp makes every request's
+        // prompt unique and is the main breaker for upstream prompt-prefix caching.
+        $nowiso = (new \DateTime('now', $tz))->format('Y-m-d\TH:iP');
 
         $lines = [
             'booking_name: ' . $bookingname,
             'timezone: ' . $timezonename,
             'now_iso: ' . $nowiso,
         ];
+
+        // Rich context awareness: a structured moodle_context block, injected ONLY where
+        // it earns its tokens — parameter construction (the constructor needs real ids to
+        // fill parameters without clarification round-trips) and the synchronizer (the
+        // final reply references the user's current environment). Selection stays slim:
+        // the skill choice follows intent, not course structure.
+        // Data sources are cache-backed only: agent_context (static context cache) and
+        // get_fast_modinfo (MUC) — no extra DB load per request. Never breaks the prompt.
+        $fullcontextblock = ($phase === self::PHASE_PARAMETER_CONSTRUCTION)
+            || ($memorychannel === user_memory_service::SCOPE_SYNCHRONIZATION);
+        if ($fullcontextblock && $blockcontext) {
+            $this->append_moodle_context_section($lines, $blockcontext);
+        }
 
         // Keep first-turn language enforcement in SYSTEM_RUNTIME so static SYSTEM
         // prompt prefixes remain cache-friendly across requests.
@@ -2411,6 +2438,66 @@ PROMPT;
         $this->append_json_list_section($lines, 'completed_observations:', $completedobservations);
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Append the structured moodle_context block (rich context awareness).
+     *
+     * YAML-shaped so the LLM can address course/module ids directly when building
+     * parameters. Sources are strictly cache-backed: the context comes from Moodle's
+     * static context cache, course + module details from get_fast_modinfo (MUC) —
+     * including the course record, so no separate get_course() query is needed.
+     * Defensive: any failure leaves the prompt without the block instead of breaking
+     * the request.
+     *
+     * @param array $lines runtime block lines, appended in place
+     * @param context $blockcontext the resolved request context
+     */
+    private function append_moodle_context_section(array &$lines, context $blockcontext): void {
+        $levelnames = [
+            CONTEXT_SYSTEM => 'System',
+            CONTEXT_USER => 'User',
+            CONTEXT_COURSECAT => 'Course category',
+            CONTEXT_COURSE => 'Course',
+            CONTEXT_MODULE => 'Module',
+        ];
+        // Keep YAML values single-line and quote-safe.
+        $yamlsafe = static function (string $value): string {
+            return '"' . str_replace(['"', "\n", "\r"], ["'", ' ', ''], $value) . '"';
+        };
+
+        try {
+            $ctx = agent_context::from_context($blockcontext);
+
+            $lines[] = '';
+            $lines[] = 'moodle_context:';
+            $lines[] = '  context_id: ' . $ctx->id();
+            $lines[] = '  context_level: ' . $ctx->level();
+            $lines[] = '  context_level_name: ' . $yamlsafe($levelnames[$ctx->level()] ?? 'Other');
+            $lines[] = '  context_name: ' . $yamlsafe($blockcontext->get_context_name(false));
+
+            $courseid = $ctx->courseid();
+            if ($courseid !== null) {
+                $modinfo = get_fast_modinfo($courseid);
+                $course = $modinfo->get_course();
+                $lines[] = '  course:';
+                $lines[] = '    id: ' . (int)$courseid;
+                $lines[] = '    fullname: ' . $yamlsafe(format_string($course->fullname));
+                $lines[] = '    shortname: ' . $yamlsafe(format_string($course->shortname));
+
+                $cmid = $ctx->cmid();
+                if ($cmid !== null && isset($modinfo->cms[$cmid])) {
+                    $cminfo = $modinfo->cms[$cmid];
+                    $lines[] = '  module:';
+                    $lines[] = '    cmid: ' . (int)$cmid;
+                    $lines[] = '    modname: ' . $yamlsafe((string)$cminfo->modname);
+                    $lines[] = '    instance_id: ' . (int)$cminfo->instance;
+                    $lines[] = '    name: ' . $yamlsafe(format_string($cminfo->name));
+                }
+            }
+        } catch (\Throwable $e) {
+            debugging('moodle_context block skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
     }
 
     /**

@@ -184,3 +184,23 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 
 _(This log is the running deliverable of the discrepancy pass; the ❓ items are collected
 for the maintainer at the end.)_
+
+### Flowchart updates 2026-06-10 (maintainer-instructed, applied to the `.mmd`)
+
+- ✅ **`AZ2` label** — now lists the accepted context levels
+  (MODULE / COURSE / COURSECAT / USER / SYSTEM); USER contexts host the dashboard for the
+  global navbar entry point.
+- ✅ **`AZ4` (new node, AUTHZ subgraph)** — the availability layer: course/cm
+  `enableaitools` toggles, skipped for holders of `agent:ignoreaiavailability`
+  (admins implicitly, manager default), enforced centrally in
+  `get_runtime_provider_status` and consumed by aiready + entry points.
+- ✅ **`LG_AVAIL` (new legend)** — "availability ≠ permission" contract: the bypass never
+  touches Gate 1 (use/skill capabilities) or Gate 2 (native capabilities in preflight).
+- ✅ **`LG_CTX` extended** — context-level-agnostic scope key (module/course/coursecat/
+  user/system).
+- ✅ **`CS1` corrected** — `get_or_create_thread(userid, contextid)`; the `bookingid`
+  parameter was removed from code in consolidation phase P3 and the node was stale.
+- ✅ **`LG_RCTX` (new legend, 2026-06-10)** — rich context awareness: the SYSTEM_RUNTIME
+  base lines (booking_name/timezone/minute-granular now_iso) plus the moodle_context YAML
+  section injected only in parameter construction + synchronizer (selection stays slim);
+  sources are agent_context + get_fast_modinfo, defensively wrapped.

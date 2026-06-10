@@ -40,6 +40,19 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    // Availability bypass: holders ignore the course/module "enableaitools" toggles.
+    // The toggles are an AVAILABILITY layer aimed at non-privileged users (teachers,
+    // later students) — site admins pass implicitly via moodle/site:doanything, and
+    // managers get it by default. Assignable per course (category), so an admin can
+    // also grant it to selected trusted teachers. See
+    // docs/Blueprints/agent_permissions_concept_2026-06-10.md.
+    'bookingextension/agent:ignoreaiavailability' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];
 
 $teacherskills = [

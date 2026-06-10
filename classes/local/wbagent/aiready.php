@@ -207,15 +207,21 @@ class aiready {
                 : get_string('aiready_check_provider_active_todo', 'bookingextension_agent'),
             $providerconfigurl
         );
+        // Availability bypass (ignoreaiavailability): the toggles do not restrict this
+        // user — say so instead of pretending the toggles are on (they may be off,
+        // which matters when an admin diagnoses a teacher-facing problem).
+        $availabilitybypassed = (bool)($runtimeproviderstatus['availabilitybypassed'] ?? false);
         if ($courseid !== null) {
             // The course-level AI toggle only exists within a course; on dashboard or
             // system pages the row would be meaningless.
             $checks[] = $this->build_check(
                 $courseenabled,
                 get_string('aiready_check_course_enabled', 'bookingextension_agent'),
-                $courseenabled
-                    ? get_string('aiready_check_course_enabled_done', 'bookingextension_agent')
-                    : get_string('aiready_check_course_enabled_todo', 'bookingextension_agent'),
+                $availabilitybypassed
+                    ? get_string('aiready_check_availability_bypassed', 'bookingextension_agent')
+                    : ($courseenabled
+                        ? get_string('aiready_check_course_enabled_done', 'bookingextension_agent')
+                        : get_string('aiready_check_course_enabled_todo', 'bookingextension_agent')),
                 $courseconfigurl
             );
         }
@@ -224,9 +230,11 @@ class aiready {
             $checks[] = $this->build_check(
                 $contextenabled,
                 get_string('aiready_check_context_enabled', 'bookingextension_agent'),
-                $contextenabled
-                    ? get_string('aiready_check_context_enabled_done', 'bookingextension_agent')
-                    : get_string('aiready_check_context_enabled_todo', 'bookingextension_agent'),
+                ($availabilitybypassed && $contextenabled)
+                    ? get_string('aiready_check_availability_bypassed', 'bookingextension_agent')
+                    : ($contextenabled
+                        ? get_string('aiready_check_context_enabled_done', 'bookingextension_agent')
+                        : get_string('aiready_check_context_enabled_todo', 'bookingextension_agent')),
                 $moduleconfigurl
             );
         }

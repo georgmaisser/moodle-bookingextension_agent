@@ -81,17 +81,19 @@ Rechte beantworten „darf", nicht „wie viel". Vor Teacher-/Studenten-Rollout 
 
 ---
 
-## 7. Konkretes Code-Delta (klein)
+## 7. Konkretes Code-Delta — ✅ UMGESETZT (2026-06-10 abends, Version 2026061009)
 
-1. `db/access.php`: neue Cap `ignoreaiavailability`; `useaiinstructions` contextlevel → COURSE; (Phase 1 ggf. Archetyp-Default von useaiinstructions entfernen).
-2. `orchestrator::get_runtime_provider_status()` + `aiready`: `courseenabled`/`contextenabled` nur erzwingen, wenn der User **nicht** `ignoreaiavailability` am Kontext hat (Readiness braucht dafür die userid — hat sie). Checks-Anzeige: übersprungene Toggles als „nicht relevant (Bypass)" statt rot.
-3. `agent_runtime`/Entry-Points: dieselbe Bypass-Bedingung an der Laufzeit-Verfügbarkeitsprüfung (nicht nur Readiness), damit Anzeige und Verhalten konsistent sind.
-4. Phase 3: `$studentskills`-Tier in db/access.php + neue Skills (eigene Blueprints).
+1. ✅ `db/access.php`: neue Cap `bookingextension/agent:ignoreaiavailability` (read, COURSE, Default manager) + Cap-Namens-Strings en/de (auch der bislang fehlende für `useaiinstructions`). `useaiinstructions`-contextlevel und -Default **unverändert gelassen** (Entscheidung O1).
+2. ✅ Bypass zentral in `orchestrator::get_runtime_provider_status()`: `has_capability(ignoreaiavailability, $context)` für den aktuellen User → überspringt Kurs- **und** CM-Toggle (O2); Status-Array trägt neu `availabilitybypassed`.
+3. ✅ Entry-Points erben automatisch — `aiready`, `ai_send_message`, `activate_trial_context` konsumieren alle denselben Status; Anzeige und Verhalten sind per Konstruktion konsistent. `aiready` zeigt übersprungene Toggle-Zeilen mit ehrlichem Hinweis (`aiready_check_availability_bypassed`) statt „enabled" vorzutäuschen.
+4. Phase 3 (Studenten-Skill-Tier) und Quota-Schicht: weiterhin offen, siehe §5/§6.
 5. `local_wbagent`-Auskopplung: Caps werden 1:1 zu `local/wbagent:*` — Konzept unabhängig davon.
 
-## 8. Offene Entscheidungen für Georg
+Doku: [architecture/02 §3a](../architecture/02-authorization-and-context.md) (Verfügbarkeitsschicht) + Flowchart (AUTHZ-Knoten `AZ4`, Legende `LG_AVAIL`, `AZ2` mit Kontextleveln inkl. USER/COURSECAT).
 
-- O1: Phase 1 strikt? → `useaiinstructions`-Default (editingteacher) jetzt entfernen oder per Site-Override lösen?
-- O2: Soll `ignoreaiavailability` auch das **CM-Toggle** überspringen (konsequent: ja) oder nur das Kurs-Toggle?
-- O3: Manager in Phase 1 wie Admin behandeln (useaiinstructions-Default für manager) — ja/nein?
-- O4: Quota-Schicht schon in Phase 2 (Teacher) oder erst Phase 3?
+## 8. Entscheidungen (Georg, 2026-06-10)
+
+- O1: **`useaiinstructions` bleibt auf editingteacher-Default.** Teacher-Steuerung läuft über die Verfügbarkeitsschicht: ohne Bypass-Cap sind Teacher nur in Kursen handlungsfähig, in denen KI erlaubt ist. (Achtung Richtung: Core-Default ist „erlaubt" = Opt-out pro Kurs.)
+- O2: **Ja** — Bypass überspringt Kurs- UND CM-Toggle (umgesetzt).
+- O3: Manager bekommen den **Bypass** per Default (Cap-Archetyp); ein `useaiinstructions`-Default für Manager wurde nicht gesetzt (bei Bedarf via Rollen-UI).
+- O4: Quota-Schicht — **offen**, vor Teacher-/Studenten-Rollout zu entscheiden.

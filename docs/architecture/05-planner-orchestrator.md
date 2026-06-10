@@ -93,6 +93,30 @@ trimmed message history, `[PLANNER_TRACE n]` + `[OBSERVATION n]` blocks, a
 reminder. Admin-configured prompt overrides (`aiinitialprompt_*` settings) take precedence
 over the built-in templates.
 
+### The `[SYSTEM_RUNTIME]` block and rich context awareness
+
+`build_runtime_context_block()` keeps all per-request values out of the static `[SYSTEM]`
+prefix so upstream prompt caching stays effective. Base lines in every phase:
+`booking_name:` (booking instance name in booking module contexts, generic context name
+elsewhere), `timezone:`, and `now_iso:` — deliberately **minute-granular**, since a
+second-precise timestamp would make every request's prompt unique and defeat
+prompt-prefix caching.
+
+On top of that, a structured **`moodle_context:`** YAML section (context id/level/name,
+enclosing course id/fullname/shortname, module cmid/modname/instance id/name) is appended
+**only** where it earns its tokens:
+
+| Phase | moodle_context block |
+|---|---|
+| Discovery | no (no chat call) |
+| Selection | **no** — skill choice follows intent, not course structure (token economy) |
+| Parameter construction | **yes** — the constructor needs real ids to fill parameters without clarification round-trips |
+| Synchronizer (`process_synchronizer`, passes the `synchronization` memory channel) | **yes** — the final reply references the user's environment |
+
+Data sources are strictly cache-backed (`agent_context` → static context cache;
+`get_fast_modinfo()` → MUC, including the course record), so the block adds no DB load.
+Building it is wrapped defensively — on any failure the prompt simply lacks the block.
+
 ---
 
 ## 4. Routing per phase

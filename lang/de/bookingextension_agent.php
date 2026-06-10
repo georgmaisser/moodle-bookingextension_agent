@@ -23,7 +23,9 @@
  */
 
 $string['agent:debugskillselection'] = 'Skill-Selection-Debug-Tool verwenden';
+$string['agent:ignoreaiavailability'] = 'Kurs-/Modul-KI-Verfügbarkeitsschalter für den KI-Agenten ignorieren';
 $string['agent:skill_booking_analyze_rules'] = 'Buchungsregeln analysieren';
+$string['agent:useaiinstructions'] = 'Den KI-Agenten verwenden';
 $string['agent_booking_add_pricecat_capability_required'] = 'Zum Anlegen von Preiskategorien ist die Berechtigung moodle/site:config erforderlich.';
 $string['agent_booking_blocker_followup_bookingpolicy'] = 'Bitte bestaetigen Sie, wie die Zustimmung zur Buchungsrichtlinie uebermittelt werden soll.';
 $string['agent_booking_blocker_followup_customform'] = 'Bitte geben Sie die erforderlichen Werte fuer das benutzerdefinierte Formular an, die uebermittelt werden sollen.';
@@ -614,6 +616,7 @@ $string['aiready_check_capability_todo'] = 'Ihre aktuelle Rolle kann Booking AI 
 $string['aiready_check_context_enabled'] = 'AI in diesem Kursmodul erlaubt';
 $string['aiready_check_context_enabled_done'] = 'AI-Tools sind fuer diese Booking-Aktivitaet aktiviert.';
 $string['aiready_check_context_enabled_todo'] = 'AI-Tools sind in diesem Kursmodul derzeit nicht erlaubt.';
+$string['aiready_check_availability_bypassed'] = 'Für Ihre Rolle nicht eingeschränkt — die KI-Verfügbarkeitsschalter gelten für Sie nicht.';
 $string['aiready_check_course_enabled'] = 'AI ist in diesem Kurs erlaubt';
 $string['aiready_check_course_enabled_done'] = 'AI-Tools sind fuer diesen Kurs aktiviert.';
 $string['aiready_check_course_enabled_todo'] = 'AI-Tools sind fuer diesen Kurs derzeit nicht aktiviert.';
