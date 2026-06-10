@@ -132,6 +132,20 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     'description' => 'ISO 639-1 language code for the questions (e.g. "de", "en").',
                     'required' => false,
                 ],
+                'target_category' => [
+                    'type' => 'string',
+                    'description' => 'The question-bank category to use, ONLY when the user explicitly names one '
+                        . '(e.g. "use the Biology category"). Pass the user\'s wording verbatim. Do NOT ask the user '
+                        . 'which category to use and do NOT invent one — if the choice matters, the system lists the '
+                        . 'available categories itself. Leave empty otherwise.',
+                    'required' => false,
+                ],
+                'target_categoryid' => [
+                    'type' => 'integer',
+                    'description' => 'Internal: numeric id of the chosen question-bank category. Normally leave empty '
+                        . '— never guess an id. The system fills it in when the user picks from the listed categories.',
+                    'required' => false,
+                ],
             ],
             'prompt_meta' => [
                 'input_fields_for_prompt' => ['content', 'count', 'qtypes', 'difficulty'],
@@ -198,6 +212,10 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     '- Only ask the user for a source if NEITHER a document was uploaded NOR any content was provided.',
                     '- Default to a single multiple-choice question unless the user asks otherwise; set input.count and'
                         . ' input.qtypes accordingly (allowed types: multichoice, truefalse, shortanswer).',
+                    '- Do NOT ask the user which question bank or category to use, and never invent a category id. Leave'
+                        . ' input.target_category and input.target_categoryid empty: if the course has more than one'
+                        . ' category the system itself lists them and asks. Only if the user explicitly names a'
+                        . ' category, pass that name verbatim as input.target_category.',
                 ],
             ],
         ];
@@ -272,6 +290,13 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             ]]);
         }
 
+        // When the course already offers more than one writable question-bank category, ask the user
+        // where exactly to create the questions instead of silently picking the default bank.
+        $targetselection = $this->resolve_target_selection($input, $context, $userid);
+        if ($targetselection instanceof preflight_result_v2) {
+            return $targetselection;
+        }
+
         $qtypes = array_values(array_filter(array_map('strval', (array)($input['qtypes'] ?? []))));
         $qtypes = array_values(array_intersect($qtypes, self::ALLOWED_QTYPES));
 
@@ -281,7 +306,157 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'qtypes' => $qtypes,
             'difficulty' => (string)($input['difficulty'] ?? 'medium'),
             'outputlang' => $this->get_output_language($input),
+            'target_categoryid' => $targetselection,
         ]);
+    }
+
+    /**
+     * Decide which question-bank category the questions go into.
+     *
+     * Returns the chosen category id (0 = let execute auto-resolve the course default bank), or a
+     * needs_clarification preflight result when the course offers more than one writable target and
+     * the user has not picked one yet.
+     *
+     * @param array   $input
+     * @param context $context Ambient context of the run.
+     * @param int     $userid
+     * @return int|preflight_result_v2
+     */
+    private function resolve_target_selection(array $input, context $context, int $userid) {
+        $resolver = new question_bank_target_resolver();
+        $targets = $resolver->list_writable_targets($context, $userid);
+
+        // No bank exists yet: nothing to choose between, execute lazily creates the default.
+        if (empty($targets)) {
+            return 0;
+        }
+
+        // 1) An explicit, valid category id (the system filled it in from a prior selection) wins.
+        $chosenid = (int)($input['target_categoryid'] ?? 0);
+        if ($chosenid > 0) {
+            foreach ($targets as $target) {
+                if ($target['categoryid'] === $chosenid) {
+                    return $chosenid;
+                }
+            }
+        }
+
+        // 2) A category the user named in plain text: resolve it deterministically against the real
+        //    list here (the planner never knows the ids, so it can only pass the wording).
+        $name = trim((string)($input['target_category'] ?? ''));
+        if ($name !== '') {
+            $matches = $this->match_targets_by_name($targets, $name);
+            if (count($matches) === 1) {
+                return (int)$matches[0]['categoryid'];
+            }
+            if (count($matches) > 1) {
+                return $this->build_target_clarification(
+                    $matches,
+                    'More than one question category matches "' . $name . '". Which one did you mean?'
+                );
+            }
+            return $this->build_target_clarification(
+                $targets,
+                'I could not find a question category called "' . $name . '". Please choose one of these:'
+            );
+        }
+
+        // 3) An explicit id that did not match (stale / not writable) and no name to fall back on: re-ask.
+        if ($chosenid > 0) {
+            return $this->build_target_clarification(
+                $targets,
+                'That question category is not available to you. Please choose one of these:'
+            );
+        }
+
+        // 4) A single writable target => no ambiguity; execute resolves (and lazily creates) the default.
+        if (count($targets) <= 1) {
+            return 0;
+        }
+
+        // 5) Several writable targets and nothing chosen yet => ask, listing them all.
+        return $this->build_target_clarification(
+            $targets,
+            'This course has more than one question bank category you can add to. '
+                . 'Where exactly should I create the questions?'
+        );
+    }
+
+    /**
+     * Match the writable targets against a user-provided category name.
+     *
+     * Tries an exact (case-insensitive) match on the category name or the "Bank › Category" label
+     * first, then falls back to a substring match on the category name.
+     *
+     * @param array<int,array<string,mixed>> $targets
+     * @param string $name
+     * @return array<int,array<string,mixed>>
+     */
+    private function match_targets_by_name(array $targets, string $name): array {
+        $needle = \core_text::strtolower(trim($name));
+        if ($needle === '') {
+            return [];
+        }
+
+        $exact = [];
+        foreach ($targets as $target) {
+            $category = \core_text::strtolower((string)$target['categoryname']);
+            $label = \core_text::strtolower($target['bankname'] . ' › ' . $target['categoryname']);
+            if ($category === $needle || $label === $needle) {
+                $exact[] = $target;
+            }
+        }
+        if (!empty($exact)) {
+            return $exact;
+        }
+
+        $partial = [];
+        foreach ($targets as $target) {
+            if (str_contains(\core_text::strtolower((string)$target['categoryname']), $needle)) {
+                $partial[] = $target;
+            }
+        }
+        return $partial;
+    }
+
+    /**
+     * Build a needs_clarification result that lists the available question-bank categories.
+     *
+     * The human-readable message carries the category ids, and a structured 'options' list is attached
+     * so the answer can be mapped back deterministically to the target_categoryid input.
+     *
+     * @param array<int,array<string,mixed>> $targets
+     * @param string $lead Lead-in sentence for the message.
+     * @return preflight_result_v2
+     */
+    private function build_target_clarification(array $targets, string $lead): preflight_result_v2 {
+        $lines = [$lead, ''];
+        $options = [];
+        foreach ($targets as $target) {
+            $lines[] = sprintf(
+                '- %s › %s (%d question(s)) [category id %d]',
+                $target['bankname'],
+                $target['categoryname'],
+                (int)$target['questioncount'],
+                (int)$target['categoryid']
+            );
+            $options[] = [
+                'categoryid' => (int)$target['categoryid'],
+                'label' => $target['bankname'] . ' › ' . $target['categoryname'],
+                'bank' => $target['bankname'],
+                'category' => $target['categoryname'],
+                'questioncount' => (int)$target['questioncount'],
+            ];
+        }
+        $lines[] = '';
+        $lines[] = 'Just reply with the name of the category you want and I will create the questions there.';
+
+        return preflight_result_v2::invalid([[
+            'severity' => 'needs_clarification',
+            'message' => implode("\n", $lines),
+            'code' => 'GENERATE_QUESTIONS_TARGET_AMBIGUOUS',
+            'options' => $options,
+        ]]);
     }
 
     /**
@@ -309,10 +484,15 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         $thread = $store->get_active_thread($userid, $contextid);
         $threadid = $thread ? (int)$thread->id : 0;
 
-        // Resolve (get-or-create) the course question bank. This is the confirmed mutation point.
+        // Resolve the target question bank. This is the confirmed mutation point. When the user picked
+        // a specific category in the clarification, honour it; otherwise get-or-create the course default.
+        $targetcategoryid = (int)($preparedinput['target_categoryid'] ?? 0);
         $ambient = context::instance_by_id($contextid, MUST_EXIST);
         try {
-            $target = (new question_bank_target_resolver())->resolve_for_context($ambient);
+            $resolver = new question_bank_target_resolver();
+            $target = $targetcategoryid > 0
+                ? $resolver->resolve_selected_target($ambient, $targetcategoryid, $userid)
+                : $resolver->resolve_for_context($ambient);
         } catch (\Throwable $e) {
             return $this->build_error_result($e->getMessage());
         }
@@ -330,7 +510,12 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 continue;
             }
 
-            $imported = $importer->import_gift((string)$generated['gift'], $target['context'], $target['course']);
+            $imported = $importer->import_gift(
+                (string)$generated['gift'],
+                $target['context'],
+                $target['course'],
+                $targetcategoryid > 0 ? $targetcategoryid : null
+            );
             if (!empty($imported['success'])) {
                 return $this->build_success_result(
                     (int)$imported['imported'],

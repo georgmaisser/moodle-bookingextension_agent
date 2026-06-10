@@ -43,13 +43,14 @@ class question_import_service {
      * activity), so $context must be a CONTEXT_MODULE context — question_get_default_category()
      * only creates default categories there.
      *
-     * @param string   $gift    GIFT document text.
-     * @param context  $context Target module (question-bank) context that receives the questions.
-     * @param stdClass $course  Course record the import runs against.
+     * @param string   $gift       GIFT document text.
+     * @param context  $context    Target module (question-bank) context that receives the questions.
+     * @param stdClass $course     Course record the import runs against.
+     * @param int|null $categoryid Specific category to import into; null = the context's default category.
      * @return array{success:bool,imported:int,questionids:int[],categoryid:int,errors:string}
      */
-    public function import_gift(string $gift, context $context, stdClass $course): array {
-        global $CFG;
+    public function import_gift(string $gift, context $context, stdClass $course, ?int $categoryid = null): array {
+        global $CFG, $DB;
         require_once($CFG->dirroot . '/question/format.php');
         require_once($CFG->dirroot . '/question/format/gift/format.php');
 
@@ -67,8 +68,15 @@ class question_import_service {
             return $fail('The generated GIFT document was empty.');
         }
 
-        // Get or create the default question category for the target context.
-        $category = question_get_default_category((int)$context->id, true);
+        // Use the explicitly chosen category, or get/create the context's default category.
+        if ($categoryid !== null && $categoryid > 0) {
+            $category = $DB->get_record('question_categories', ['id' => $categoryid, 'contextid' => $context->id]);
+            if (empty($category)) {
+                return $fail('The chosen question category does not belong to the target question bank.');
+            }
+        } else {
+            $category = question_get_default_category((int)$context->id, true);
+        }
         if (empty($category) || empty($category->id)) {
             return $fail('No question category is available for the target context.');
         }

@@ -76,36 +76,42 @@ class question_preview_renderer {
         }
 
         $options = self::build_display_options();
-        $headhtml = '';
         $bodyhtml = '';
         $rendered = 0;
 
-        foreach ($questionids as $questionid) {
-            if ($rendered >= self::MAX_RENDER) {
-                break;
-            }
-            try {
-                $question = question_bank::load_question($questionid);
-            } catch (\Throwable $e) {
-                continue;
-            }
+        // This runs inside the synchronous webservice request that returns JSON. Question rendering can
+        // emit stray output (developer-debug notices, filter warnings) straight to the output buffer,
+        // which would corrupt the JSON envelope ("Unexpected token '<'"). Buffer the whole render and
+        // discard anything echoed: only the returned HTML strings are kept. We also deliberately do NOT
+        // call question_engine::initialise_js()/render_question_head_html() — those mutate $PAGE page
+        // requirements (and would log "added too late" debugging here), and their JS/CSS would not run
+        // when the block is injected via innerHTML anyway.
+        ob_start();
+        try {
+            foreach ($questionids as $questionid) {
+                if ($rendered >= self::MAX_RENDER) {
+                    break;
+                }
+                try {
+                    $question = question_bank::load_question($questionid);
+                    // Each question gets its own transient usage so one bad question cannot poison the rest.
+                    $quba = question_engine::make_questions_usage_by_activity('bookingextension_agent', $context);
+                    $quba->set_preferred_behaviour(self::PREVIEW_BEHAVIOUR);
+                    $slot = $quba->add_question($question, $question->defaultmark);
+                    $quba->start_question($slot);
 
-            try {
-                // Each question gets its own transient usage so one bad question cannot poison the rest.
-                $quba = question_engine::make_questions_usage_by_activity('bookingextension_agent', $context);
-                $quba->set_preferred_behaviour(self::PREVIEW_BEHAVIOUR);
-                $slot = $quba->add_question($question, $question->defaultmark);
-                $quba->start_question($slot);
-
-                $headhtml .= $quba->render_question_head_html($slot);
-                $bodyhtml .= \html_writer::div(
-                    $quba->render_question($slot, $options, (string)($rendered + 1)),
-                    'bookingextension_agent-question-preview-item'
-                );
-                $rendered++;
-            } catch (\Throwable $e) {
-                continue;
+                    $bodyhtml .= \html_writer::div(
+                        $quba->render_question($slot, $options, (string)($rendered + 1)),
+                        'bookingextension_agent-question-preview-item'
+                    );
+                    $rendered++;
+                } catch (\Throwable $e) {
+                    continue;
+                }
             }
+        } finally {
+            // Drop any stray echoed output so it never reaches the JSON response.
+            ob_end_clean();
         }
 
         if ($rendered === 0) {
@@ -131,7 +137,7 @@ class question_preview_renderer {
         }
 
         return \html_writer::div(
-            question_engine::initialise_js() . $headhtml . $heading . $bodyhtml . $banklink,
+            $heading . $bodyhtml . $banklink,
             'bookingextension_agent-question-preview'
         );
     }

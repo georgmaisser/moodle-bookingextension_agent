@@ -66,4 +66,112 @@ class question_bank_target_resolver {
             'cm' => $cm,
         ];
     }
+
+    /**
+     * List the question categories in the enclosing course the user may add questions to.
+     *
+     * Enumerates every question-bank (mod_qbank) activity in the course, keeps the ones the user can
+     * write to (moodle/question:add at the bank's module context) and returns their usable (non-top)
+     * categories. Returns an empty list when no bank exists yet — the default bank is created lazily
+     * on first use, so "no banks" is treated as "no ambiguity" by the caller, not as an error.
+     *
+     * This is read-only: it never creates a bank or category.
+     *
+     * @param context $ambient The context the agent is running in.
+     * @param int     $userid  The acting user.
+     * @return array<int,array{categoryid:int,categoryname:string,questioncount:int,bankcmid:int,bankname:string,bankcontextid:int}>
+     */
+    public function list_writable_targets(context $ambient, int $userid): array {
+        global $DB;
+
+        $coursecontext = $ambient->get_course_context(false);
+        if (!$coursecontext) {
+            return [];
+        }
+        $course = get_course((int)$coursecontext->instanceid);
+        $modinfo = get_fast_modinfo($course, $userid);
+
+        $targets = [];
+        foreach ($modinfo->get_instances_of('qbank') as $cm) {
+            if (!$cm->uservisible) {
+                continue;
+            }
+            $bankcontext = context_module::instance($cm->id);
+            if (!has_capability('moodle/question:add', $bankcontext, $userid)) {
+                continue;
+            }
+
+            // Real, selectable categories only: the per-context "top" container has parent = 0.
+            $categories = $DB->get_records_select(
+                'question_categories',
+                'contextid = :ctx AND parent <> 0',
+                ['ctx' => $bankcontext->id],
+                'sortorder, name',
+                'id, name'
+            );
+            foreach ($categories as $cat) {
+                $targets[] = [
+                    'categoryid' => (int)$cat->id,
+                    'categoryname' => format_string($cat->name, true, ['context' => $bankcontext]),
+                    'questioncount' => $this->count_category_questions((int)$cat->id),
+                    'bankcmid' => (int)$cm->id,
+                    'bankname' => format_string($cm->get_name(), true, ['context' => $bankcontext]),
+                    'bankcontextid' => (int)$bankcontext->id,
+                ];
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Resolve a specific, user-chosen category into an import target.
+     *
+     * Validates that the category is one of the user's writable targets in this course, so a stale or
+     * forged category id can never redirect the import outside what the user is allowed to write to.
+     *
+     * @param context $ambient    The context the agent is running in.
+     * @param int     $categoryid The chosen question category id.
+     * @param int     $userid     The acting user.
+     * @return array{context:context_module,course:stdClass,cm:cm_info,categoryid:int}
+     * @throws moodle_exception When the category is not a writable target in this course.
+     */
+    public function resolve_selected_target(context $ambient, int $categoryid, int $userid): array {
+        $coursecontext = $ambient->get_course_context(false);
+        if (!$coursecontext) {
+            throw new moodle_exception('error', 'moodle', '', null,
+                'Questions can only be generated within a course context.');
+        }
+
+        foreach ($this->list_writable_targets($ambient, $userid) as $target) {
+            if ($target['categoryid'] === $categoryid) {
+                $course = get_course((int)$coursecontext->instanceid);
+                $cm = get_fast_modinfo($course, $userid)->get_cm($target['bankcmid']);
+                return [
+                    'context' => context_module::instance($target['bankcmid']),
+                    'course' => $course,
+                    'cm' => $cm,
+                    'categoryid' => $categoryid,
+                ];
+            }
+        }
+
+        throw new moodle_exception('error', 'moodle', '', null,
+            'The selected question category is not a writable target in this course.');
+    }
+
+    /**
+     * Best-effort count of the question bank entries in a category (for display in the chooser).
+     *
+     * @param int $categoryid
+     * @return int
+     */
+    private function count_category_questions(int $categoryid): int {
+        global $DB;
+        try {
+            return (int)$DB->count_records('question_bank_entries', ['questioncategoryid' => $categoryid]);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
 }
