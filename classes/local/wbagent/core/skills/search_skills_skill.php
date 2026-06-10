@@ -135,6 +135,9 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
                 'status' => 'failed',
                 'message' => 'Empty search query.',
                 'discovered_skills' => [],
+                'observation_full' => 'No search query was provided to core.search_skills. Re-run this skill '
+                    . 'with a concrete "query" describing the capability the user needs (use the user\'s own '
+                    . 'request). Do NOT conclude from this that the capability is unavailable.',
             ];
         }
 
@@ -222,8 +225,10 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
         $observationfull = empty($lines)
             ? 'Skill search for "' . $query . '" found no matching skills. '
                 . 'Tell the user this capability is not available, or ask for clarification.'
-            : 'Skill search for "' . $query . '" found these capabilities. Select one of them in your next '
-                . 'step (they are valid, registered skills):' . "\n" . implode("\n", $lines);
+            : 'Skill search for "' . $query . '" found these capabilities. You MUST select ONE of them as a '
+                . 'skill_call in your next step — they are valid, registered, executable skills. Do NOT tell the '
+                . 'user the capability is unavailable, and do NOT ask the user to perform it manually:'
+                . "\n" . implode("\n", $lines);
 
         return [
             'status' => 'executed',

@@ -634,6 +634,18 @@ class orchestrator {
                         break;
                     }
                 }
+                // When the latest user message is a short, low-semantic follow-up (an answer to a prior
+                // clarification/confirmation: "medium", "yes", "the second one", "Biology"), embedding it
+                // alone carries no task semantics and drops the originally requested skill out of top-K
+                // (see Blueprint thread223). Stateless fix: prepend the most recent SUBSTANTIAL earlier user
+                // message so the original task stays discoverable. Nothing is persisted, so a genuine topic
+                // switch (a rich new request) is unaffected — it dominates the embedding on its own.
+                if (self::is_low_semantic_followup($querytext)) {
+                    $originaltask = $this->find_recent_substantial_user_text($messages);
+                    if ($originaltask !== '' && strpos($querytext, $originaltask) === false) {
+                        $querytext = $originaltask . ' ' . $querytext;
+                    }
+                }
                 $pendingstepintent = trim((string)$this->store->get_thread_metadata_value($threadid, 'next_step_intent'));
                 if ($pendingstepintent !== '' && $pendingstepintent !== $querytext) {
                     $querytext = $querytext . ' ' . $pendingstepintent;
@@ -2161,6 +2173,52 @@ PROMPT;
         }
 
         return true;
+    }
+
+    /**
+     * Heuristic: is this user text a short, low-semantic follow-up (an answer to a prior question)?
+     *
+     * Short answers like "medium", "yes", "the second one", "Biology", "category 6" carry no task
+     * semantics and would, on their own, embed to unrelated skills. Pure word-count heuristic — no state.
+     *
+     * @param string $text
+     * @return bool
+     */
+    private static function is_low_semantic_followup(string $text): bool {
+        $text = trim($text);
+        if ($text === '') {
+            return false;
+        }
+        $words = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+        // Three words or fewer is treated as a follow-up answer, not a standalone request.
+        return count($words) <= 3;
+    }
+
+    /**
+     * Return the most recent SUBSTANTIAL earlier user message (the original task), skipping the latest
+     * user message (the short follow-up itself). Capped in length so a pasted document cannot blow up
+     * the embedding query. Empty string when none qualifies.
+     *
+     * @param \stdClass[] $messages
+     * @return string
+     */
+    private function find_recent_substantial_user_text(array $messages): string {
+        $skippedlatest = false;
+        foreach (array_reverse($messages) as $message) {
+            if ((string)($message->role ?? '') !== 'user') {
+                continue;
+            }
+            $text = trim((string)($message->content ?? ''));
+            if (!$skippedlatest) {
+                // The most recent user message is the short follow-up already in the query; skip it.
+                $skippedlatest = true;
+                continue;
+            }
+            if ($text !== '' && !self::is_low_semantic_followup($text)) {
+                return \core_text::substr($text, 0, 600);
+            }
+        }
+        return '';
     }
 
     /**

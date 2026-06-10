@@ -46,6 +46,13 @@ class docs_corpus_registry {
     /** Provider method that returns corpus_id => absolute root. */
     private const PROVIDER_METHOD = 'get_doc_corpora';
 
+    /**
+     * Fallback corpus_id when admin sets aidocsroot but leaves aidocs_corpusid empty.
+     * Kept as 'mod_booking' for back-compat with existing indexed data on sites that
+     * never set aidocs_corpusid explicitly. New deployments should configure it.
+     */
+    private const FALLBACK_ADMIN_CORPUS_ID = 'mod_booking';
+
     /** @var array<string,string>|null Per-instance resolved map (corpus_id => abs root). */
     private ?array $corpora = null;
 
@@ -128,7 +135,7 @@ class docs_corpus_registry {
         if ($configuredroot !== '' && is_dir($configuredroot)) {
             $corpusid = trim((string)get_config('bookingextension_agent', 'aidocs_corpusid'));
             if ($corpusid === '') {
-                $corpusid = docs_embeddings_index_service::DEFAULT_CORPUS_ID;
+                $corpusid = self::FALLBACK_ADMIN_CORPUS_ID;
             }
             $corpora[$corpusid] = rtrim($configuredroot, '/\\');
         }

@@ -39,14 +39,10 @@ use context_system;
  * for .md files. Each file becomes one chunk. Content hashes prevent redundant
  * re-embedding on unchanged files.
  *
- * Corpus registry is currently driven by plugin config keys:
- *   get_config('bookingextension_agent', 'aidocsroot')  — primary corpus root
- *   get_config('bookingextension_agent', 'aidocs_corpusid') — corpus_id (default: mod_booking)
+ * Corpus registry is driven by docs_corpus_registry, which discovers provider-declared
+ * corpora and merges the admin-configured corpus (aidocsroot / aidocs_corpusid) on top.
  */
 class docs_embeddings_index_service {
-    /** Default corpus id when none configured. */
-    public const DEFAULT_CORPUS_ID = 'mod_booking';
-
     /**
      * Rebuild the documentation embeddings index.
      *

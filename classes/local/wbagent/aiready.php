@@ -29,7 +29,6 @@ use context_system;
 use core\di;
 use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
-use mod_booking\singleton_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
@@ -341,49 +340,22 @@ class aiready {
     }
 
     /**
-     * Get booking statistics using singletons and cached objects.
+     * Get booking statistics via duck-typed provider discovery.
      *
-     * @return array with 'num_options' and 'num_booked' keys
+     * The concrete implementation lives in mod_booking\local\wbagent\booking\booking_readiness_provider
+     * so the engine carries no compile-time dependency on mod_booking internals.
+     *
+     * @return array{num_options:int,num_booked:int}
      */
     private function get_booking_statistics(): array {
-        $numoptions = 0;
-        $numbooked = 0;
-
-        try {
-            // Get booking instance via singleton.
-            $bookinginstance = singleton_service::get_instance_of_booking_by_bookingid($this->bookingid);
-            if (!$bookinginstance) {
-                return [
-                    'num_options' => 0,
-                    'num_booked' => 0,
-                ];
+        $provider = '\\mod_booking\\local\\wbagent\\booking\\booking_readiness_provider';
+        if (class_exists($provider) && method_exists($provider, 'get_booking_statistics')) {
+            try {
+                return (array)$provider::get_booking_statistics($this->cmid, $this->bookingid);
+            } catch (\Throwable $e) {
+                debugging('aiready: booking_readiness_provider failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             }
-
-            $numoptions = $bookinginstance->get_all_options_count();
-
-            // Get all option IDs for this booking.
-            $optionids = $bookinginstance->get_all_options(0, 0);
-
-            // Count booked persons by iterating through all options.
-            foreach ($optionids as $option) {
-                $optionid = $option->id;
-                // Get option settings via singleton.
-                $optionsettings = singleton_service::get_instance_of_booking_option_settings($optionid);
-                // Get booking answers via singleton to count booked persons.
-                $answers = singleton_service::get_instance_of_booking_answers($optionsettings);
-                // Count booked persons.
-                $bookedusers = $answers->get_usersonlist();
-                $numbooked += count($bookedusers);
-            }
-        } catch (\Exception $e) {
-            // If something goes wrong, return zeros.
-            $numoptions = 0;
-            $numbooked = 0;
         }
-
-        return [
-            'num_options' => $numoptions,
-            'num_booked' => $numbooked,
-        ];
+        return ['num_options' => 0, 'num_booked' => 0];
     }
 }

@@ -352,6 +352,18 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     }
 
     /**
+     * Fields in the input that must be omitted from executed_input result echoes for privacy.
+     *
+     * Duck-typed by executor — skills that carry sensitive input fields declare them here
+     * so the executor stays skill-agnostic.
+     *
+     * @return array<int,string>
+     */
+    public function get_sensitive_input_fields(): array {
+        return ['query'];
+    }
+
+    /**
      * Build planner-friendly previous-message observation text.
      *
      * @param array<int,array<string,mixed>> $messages

@@ -87,9 +87,6 @@ class agent_decision_service {
     /** Trigger id: user explicitly discards current pending confirmation intent. */
     private const TRIGGER_DISCARD_PENDING_CONFIRMATION = 'core.discard_pending_confirmation';
 
-    /** Trigger id: user allows creating missing user in confirmation flow. */
-    private const TRIGGER_ALLOW_MISSING_USER_AUTOCREATE = 'booking.create_user_allowed_if_missing';
-
     /** @var skill_registry */
     private skill_registry $registry;
 

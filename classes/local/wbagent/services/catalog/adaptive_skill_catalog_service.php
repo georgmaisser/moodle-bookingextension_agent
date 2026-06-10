@@ -31,7 +31,6 @@
 
 namespace bookingextension_agent\local\wbagent\services\catalog;
 
-use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
 
 /**
  * Reduces full skill catalog to tiered adaptive candidates with safety nets.
@@ -55,16 +54,11 @@ class adaptive_skill_catalog_service {
     private const MANDATORY_SKILL_KEYWORDS = ['help', 'search', 'list', 'get_skills'];
 
     /**
-     * Downstream mutation skills always included regardless of embedding score.
-     * Ensures trainer-assignment and user-booking are available after creation skills.
+     * Keyword patterns that make a skill mandatory (always shown regardless of recency/embedding).
+     * Engine-level only: concrete domain skill names are never listed here.
+     * Domain skills that must always be shown declare 'governance' => ['always_available' => true]
+     * in their get_schema() return, which propagates to the 'always_available' catalog flag.
      */
-    private const ALWAYS_INCLUDE_SKILL_NAMES = [
-        'mod_booking.update_option_trainer',
-        'mod_booking.book_users',
-        // Universal dynamic-discovery fallback: always offer the tool-search skill so the planner can
-        // retrieve a matching capability when nothing in the shown catalog fits (instead of erroring).
-        'core.search_skills',
-    ];
 
         /**
          * Reduce full skill catalog to tiered adaptive catalog.
@@ -109,10 +103,11 @@ class adaptive_skill_catalog_service {
     }
 
      /**
-      * Extract mandatory skills (help, search, list, get_skills variants).
+      * Extract mandatory skills.
       *
-      * These are always shown to LLM regardless of recency or phase.
-      * Allows LLM to "reset" or request alternative catalog views.
+      * A skill is mandatory (always shown regardless of recency or phase) when it matches
+      * the MANDATORY_SKILL_KEYWORDS list (engine-level) OR when the skill declared
+      * 'governance' => ['always_available' => true] in its schema (domain skills).
       *
       * @param array $fullcatalog
       * @return array Mandatory skill contracts.
@@ -120,18 +115,11 @@ class adaptive_skill_catalog_service {
     private static function get_mandatory_skills(array $fullcatalog): array {
         $mandatory = [];
         foreach ($fullcatalog as $skill) {
-            $skillname = (string)($skill['skill'] ?? $skill['skill'] ?? '');
-            $skillnamelower = strtolower($skillname);
-            $ismandatory = false;
-            foreach (self::MANDATORY_SKILL_KEYWORDS as $keyword) {
-                if (strpos($skillnamelower, $keyword) !== false) {
-                    $ismandatory = true;
-                    break;
-                }
-            }
+            $skillnamelower = strtolower((string)($skill['skill'] ?? ''));
+            $ismandatory = (bool)($skill['always_available'] ?? false);
             if (!$ismandatory) {
-                foreach (self::ALWAYS_INCLUDE_SKILL_NAMES as $alwaysname) {
-                    if (strtolower($skillname) === strtolower($alwaysname)) {
+                foreach (self::MANDATORY_SKILL_KEYWORDS as $keyword) {
+                    if (strpos($skillnamelower, $keyword) !== false) {
                         $ismandatory = true;
                         break;
                     }

@@ -303,10 +303,10 @@ PROMPT;
             $lines[] = '  - Multi-step request (multiple sequential mutations) on first turn: '
                 . 'planned_steps=[{"intent":"..."},{"intent":"..."}] listing ALL future steps beyond the current one.';
             $lines[] = 'next_step_intent REQUIRED: always a string (never null).';
-            $lines[] = 'Valid example: {"response_type":"skill_call","commands":[{"skill":"mod_booking.create_option","input":{}}],'
-                . '"planned_steps":[{"intent":"Set trainer"},{"intent":"Book user"}],"next_step_intent":"Create event 2"}';
+            $lines[] = 'Valid example: {"response_type":"skill_call","commands":[{"skill":"example.create_record","input":{}}],'
+                . '"planned_steps":[{"intent":"Set assignee"},{"intent":"Notify user"}],"next_step_intent":"Create record 2"}';
             $lines[] = 'Invalid example: {"response_type":"skill_call","commands":['
-                . '{"current":{"skill":"mod_booking.create_option"}}]}';
+                . '{"current":{"skill":"example.create_record"}}]}';
             $lines[] = 'If NONE of the skills in the SKILL CATALOG can fulfill the request, do NOT answer that no '
                 . 'capability exists. Instead select core.search_skills to search the full tool registry: '
                 . '{"response_type":"skill_call","commands":[{"skill":"core.search_skills","input":{}}],'

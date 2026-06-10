@@ -105,9 +105,10 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'properties' => [
                 'content' => [
                     'type' => 'string',
-                    'description' => 'The topic, facts, or exact question and correct answer to base the questions on, '
-                        . 'when the user provides the content directly in the chat. Leave empty if the user uploaded a '
-                        . 'document/PDF instead.',
+                    'description' => 'SOURCE MATERIAL only — the topic, the facts, or (if the user dictated it) the '
+                        . 'exact question and its correct answer, passed verbatim from the chat. Do NOT author or '
+                        . 'pre-formulate the questions yourself here; this skill writes the questions. Leave empty if '
+                        . 'the user uploaded a document/PDF instead.',
                     'required' => false,
                 ],
                 'count' => [

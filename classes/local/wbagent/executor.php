@@ -47,11 +47,6 @@ use bookingextension_agent\local\wbagent\services\security\authorization_service
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class executor implements agent_executor {
-    /** @var array<string,array<int,string>> Fields omitted from result echoes for privacy. */
-    private const SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS = [
-        'recall_memory' => ['query'],
-    ];
-
     /** @var skill_registry */
     private skill_registry $registry;
 
@@ -94,7 +89,7 @@ class executor implements agent_executor {
          */
     public function execute_commands(array $commands, int $contextid, int $userid, string $idempotencykey, int $runid): array {
         $context = context::instance_by_id($contextid, MUST_EXIST);
-        // cmid is only needed by booking-style skills (e.g. preview-option memory);
+        // Cmid is only needed by booking-style skills (e.g. preview-option memory);
         // 0 outside a module context.
         $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
         // Re-check authorization (always re-verify in adhoc context).
@@ -261,9 +256,12 @@ class executor implements agent_executor {
             $safe[$key] = $value;
         }
 
-        $skillsuffix = trim((string)(explode('.', $skillname, 2)[1] ?? $skillname));
-        foreach (self::SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS[$skillsuffix] ?? [] as $fieldname) {
-            unset($safe[$fieldname]);
+        // Duck-typed: skills that carry sensitive fields declare get_sensitive_input_fields().
+        // Executor stays skill-agnostic — no hardcoded field names per skill name.
+        if ($skill !== null && method_exists($skill, 'get_sensitive_input_fields')) {
+            foreach ((array)$skill->get_sensitive_input_fields() as $fieldname) {
+                unset($safe[(string)$fieldname]);
+            }
         }
 
         return $safe;

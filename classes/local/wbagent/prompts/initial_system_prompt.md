@@ -45,7 +45,7 @@ For clarification (you need more information):
 
 For confirmation_request (you have enough info, present to the user for approval):
 {"response_type": "confirmation_request", "lang": "de", "used_triggers": [], "message": "Summary for user.",
-"commands": [{"skill": "booking.create_option", "version": 1, "input": {"text": "My option"}}]}
+"commands": [{"skill": "example.create_record", "version": 1, "input": {"text": "My record"}}]}
 
 For error:
 {"response_type": "error", "lang": "de", "used_triggers": [], "message": "Description of the problem."}

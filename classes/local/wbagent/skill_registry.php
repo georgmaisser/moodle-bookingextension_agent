@@ -573,6 +573,7 @@ class skill_registry {
                 ? trim((string)$promptcontract['intent'])
                 : 'skill',
             'anchors' => $anchorfields,
+            'always_available' => (bool)($skillmeta['always_available'] ?? false),
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
             'namespace' => $namespace,
