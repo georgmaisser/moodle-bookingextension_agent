@@ -194,5 +194,19 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026061001, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026061004) {
+        $dbman = $DB->get_manager(); // phpcs:ignore
+
+        // Per-memory injection channels (selection,construction,synchronization); empty = all.
+        // Guarded by field_exists so it is a no-op where install.xml/an earlier run already added it.
+        $table = new xmldb_table('local_wbagent_user_memory');
+        $field = new xmldb_field('scopes', XMLDB_TYPE_CHAR, '120', null, null, null, null, 'memory');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026061004, 'bookingextension', 'agent');
+    }
+
     return true;
 }

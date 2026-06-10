@@ -188,6 +188,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Owning user"/>
         <FIELD NAME="memory" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="The stated fact/preference/instruction"/>
+        <FIELD NAME="scopes" TYPE="char" LENGTH="120" NOTNULL="false" SEQUENCE="false" COMMENT="Comma-separated injection channels (selection,construction,synchronization); empty = all"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
