@@ -620,7 +620,14 @@ class interpreter implements agent_interpreter {
         // Fallback: top-level skill/version/input fields.
         $skillname = $this->safe_string($parsed['skill'] ?? $parsed['skill'] ?? '');
         if ($skillname !== '') {
-            $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
+            // Mirror the commands[] path: a top-level command may carry its payload under
+            // "parameters" or "input" (the planner is not consistent). Read parameters first,
+            // then merge input, so a top-level {"skill":...,"parameters":{...}} command does not
+            // silently lose all its arguments (which surfaced as a false GENERATE_QUESTIONS_NO_SOURCE).
+            $input = is_array($parsed['parameters'] ?? null) ? $parsed['parameters'] : [];
+            if (is_array($parsed['input'] ?? null)) {
+                $input = array_merge($input, $parsed['input']);
+            }
             $input = $this->unwrap_redundant_input_envelope($input);
             $input = $this->prune_empty_input_values($input);
             return [[
