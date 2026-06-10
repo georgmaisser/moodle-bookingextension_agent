@@ -112,6 +112,14 @@ $adminonlyskills = [
     'booking_create_user',
 ];
 
+// Authorized-user skills: act only on the acting user's own data (e.g. their stored agent
+// memories), so any authenticated user permitted to use the agent may run them.
+$authorizeduserskills = [
+    'core_forget',
+    'core_list_memories',
+    'core_remember',
+];
+
 $buildskillcapability = static function (string $skillsuffix, string $role): array {
     $definition = [
         'riskbitmask' => RISK_DATALOSS | RISK_XSS,
@@ -132,6 +140,12 @@ $buildskillcapability = static function (string $skillsuffix, string $role): arr
         $definition['archetypes'] = [
             'manager' => CAP_ALLOW,
         ];
+    } else if ($role === 'authorizeduser') {
+        $definition['captype'] = 'write';
+        $definition['contextlevel'] = CONTEXT_MODULE;
+        $definition['archetypes'] = [
+            'user' => CAP_ALLOW,
+        ];
     }
     return ['bookingextension/agent:skill_' . $skillsuffix => $definition];
 };
@@ -146,6 +160,10 @@ foreach ($managerskills as $skillsuffix) {
 
 foreach ($adminonlyskills as $skillsuffix) {
     $capabilities += $buildskillcapability($skillsuffix, 'admin');
+}
+
+foreach ($authorizeduserskills as $skillsuffix) {
+    $capabilities += $buildskillcapability($skillsuffix, 'authorizeduser');
 }
 
 // Benchmark capabilities.
