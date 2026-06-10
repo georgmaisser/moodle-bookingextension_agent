@@ -244,3 +244,29 @@ free text makes a real provider mandatory.
 3. **No update/edit skill:** editing a memory = `forget` + `remember`.
 
 Remaining gate before coding: flowchart node added & signed off (§10 last item).
+
+---
+
+## 12. Scoped (channel-tagged) injection (2026-06-10, Georg)
+
+Initial injection put *every* memory into one place. Refined so the LLM structures each memory
+at storage time and injection is filtered deterministically per channel.
+
+- **Tagging:** `core.remember` gains an optional `relevant_for[]` param with enum
+  `selection` | `construction` | `synchronization`. The constructor LLM classifies by effect:
+  selection = which action/skill; construction = field values/parameters; synchronization =
+  reply wording/presentation. Stored in a new `local_wbagent_user_memory.scopes` column
+  (comma-separated; **empty = all channels**, also the back-compat default for older rows).
+- **Injection (`build_runtime_context_block`)** filters via
+  `user_memory_service::get_for_scope($userid, $channel)`:
+  - `PHASE_SELECTION` → channel `selection` (planner selection call),
+  - `PHASE_PARAMETER_CONSTRUCTION` → channel `construction`,
+  - synchronizer → channel `synchronization`, passed **explicitly** as a new `$memorychannel`
+    argument because `process_synchronizer` also builds the block with `PHASE_SELECTION` and
+    must not pull selection-only items.
+  Discovery makes no LLM call → no channel. Untagged memories appear in all channels.
+- **Surfacing:** `core.list_memories` shows each memory's `relevant_for`; privacy provider
+  exports the `scopes` field.
+- Why construction matters (the original gap): a memory like *"I prefer morning bookings"* or
+  *"my employee id is 12345"* should default field values during parameter construction, which
+  the selection-only injection never reached.
