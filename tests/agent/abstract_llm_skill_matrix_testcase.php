@@ -205,9 +205,19 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
                     ? in_array('RECOVERABLE_INPUT_ERROR', $issuecodes, true)
                     : strpos((string)$issuecodes, 'RECOVERABLE_INPUT_ERROR') !== false;
                 $hastoolcallevidence = $this->first_loop_has_expected_tool_call($result, $skillname);
+                // The planner may legitimately close a turn with "sufficient" AFTER the
+                // skill already executed (the final reply summarises the observation, the
+                // WS payload then carries no result entries). The queue is the durable
+                // ground truth for that case — accept a succeeded queue item for the
+                // expected skill as execution evidence instead of failing the scenario.
+                $hasqueueevidence = $this->thread_has_succeeded_skill_queue_item(
+                    $prepared['store'],
+                    (int)$prepared['threadid'],
+                    $skillname
+                );
                 if (
                     in_array($responsetype, ['sufficient', 'execution_result'], true)
-                    && ($allowdirectanswer || $hastoolcallevidence)
+                    && ($allowdirectanswer || $hastoolcallevidence || $hasqueueevidence)
                 ) {
                     $finalresult = $result;
                     $finalresult['status'] = 'executed';
@@ -1018,6 +1028,47 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
             $rendered = str_replace('{{' . $key . '}}', (string)$value, $rendered);
         }
         return $rendered;
+    }
+
+    /**
+     * Check the thread queue for a succeeded item of the expected skill.
+     *
+     * Durable execution evidence for turns whose final WS payload no longer
+     * carries result entries (e.g. a closing "sufficient" reply).
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param string $skillname
+     * @return bool
+     */
+    protected function thread_has_succeeded_skill_queue_item(
+        conversation_store $store,
+        int $threadid,
+        string $skillname
+    ): bool {
+        if ($threadid <= 0) {
+            return false;
+        }
+
+        $candidates = $this->skill_result_candidate_names($skillname);
+        $queue = new \bookingextension_agent\local\wbagent\queue\queue_manager($store);
+        foreach ($queue->get_queue_items($threadid) as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $itemskill = trim((string)($item['skill'] ?? ''));
+            $status = (string)($item['status'] ?? '');
+            if ($itemskill === '' || !\bookingextension_agent\local\wbagent\services\queue_status_policy::is_succeeded_status($status)) {
+                continue;
+            }
+            foreach ($candidates as $candidate) {
+                if ($candidate !== '' && $itemskill === $candidate) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

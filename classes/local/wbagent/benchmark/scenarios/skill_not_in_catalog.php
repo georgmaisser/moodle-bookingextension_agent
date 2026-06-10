@@ -48,7 +48,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_class(): string {
-        return 'clarification';
+        return 'recovery';
     }
     /**
      * Get the scenario description.
@@ -56,7 +56,10 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_description(): string {
-        return 'Request for unavailable action -> clarification, no hallucinated skill';
+        return 'Request for unavailable action -> core.search_skills catalog lookup (RAG fallback), '
+            . 'no hallucinated skill. Updated for the deliberate search_skills fallback (thread 203): '
+            . 'the agent must FIRST search the full catalog instead of immediately giving up with a '
+            . 'clarification.';
     }
     /**
      * Get the user message.
@@ -72,7 +75,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_expected_response_type(): string {
-        return 'clarification';
+        return 'skill_call';
     }
     /**
      * Get the expected skill.
@@ -80,46 +83,45 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_expected_skill(): string {
-        return '';
+        return 'core.search_skills';
     }
 
     /**
-
      * Get the stub selector response.
-
      *
-
      * @return string
-
      */
     public function get_stub_selector_response(): string {
-        return '{"response_type":"clarification","message":"Das Erstellen von Zoom-Links ist nicht verfuegbar.",'
-            . '"commands":[],"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
+        return '{"response_type":"skill_call","message":"Ich suche im Skill-Katalog nach einer passenden Aktion.",'
+            . '"commands":[{"skill":"core.search_skills","version":1,"input":{"query":"Zoom-Link erstellen"}}],'
+            . '"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 
     /**
-
      * Perform additional assertions.
-
      *
-
      * @param array $result
-
      * @return array
-
      */
     public function assert_additional(array $result): array {
-        $skill = $result['commands'][0]['skill'] ?? '';
+        $commands = is_array($result['commands'] ?? null) ? $result['commands'] : [];
+        $skills = array_map(
+            static fn($c): string => is_array($c) ? trim((string)($c['skill'] ?? '')) : '',
+            $commands
+        );
+        $nonsearch = array_filter($skills, static fn(string $s): bool => $s !== '' && $s !== 'core.search_skills');
+        $hallucinated = array_filter($skills, static fn(string $s): bool => stripos($s, 'zoom') !== false);
+
         return [
             [
-                'label'  => 'No command emitted for unavailable action',
-                'passed' => empty($result['commands']),
-                'detail' => "commands: " . json_encode($result['commands'] ?? []),
+                'label'  => 'Only the catalog lookup is emitted for the unavailable action',
+                'passed' => empty($nonsearch),
+                'detail' => 'commands: ' . json_encode($commands),
             ],
             [
                 'label'  => 'No hallucinated skill name',
-                'passed' => $skill === '' || strpos($skill, 'zoom') === false,
-                'detail' => "skill: {$skill}",
+                'passed' => empty($hallucinated),
+                'detail' => 'skills: ' . implode(', ', $skills),
             ],
         ];
     }

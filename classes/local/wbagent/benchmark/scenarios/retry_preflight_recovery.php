@@ -77,10 +77,15 @@ class retry_preflight_recovery extends abstract_benchmark_scenario {
     /**
      * Get the expected skill.
      *
+     * Empty on purpose: the check lives in assert_additional, which also accepts
+     * the legitimate find-then-book pattern — but deliberately NOT diagnose/search
+     * detours triggered by the error wording (that distraction is exactly what
+     * this scenario measures).
+     *
      * @return string
      */
     public function get_expected_skill(): string {
-        return 'mod_booking.book_users';
+        return '';
     }
 
     /**
@@ -104,11 +109,17 @@ class retry_preflight_recovery extends abstract_benchmark_scenario {
      * @return array
      */
     public function assert_additional(array $result): array {
+        $skill = trim((string)($result['commands'][0]['skill'] ?? ''));
+        $hasfollowup = !empty($result['planned_steps']) || trim((string)($result['next_step_intent'] ?? '')) !== '';
+        $direct = $skill === 'mod_booking.book_users';
+        $findthenbook = $skill === 'mod_booking.search_options' && $hasfollowup;
+
         return [
             [
-                'label'  => 'Correct skill selected despite error context in message',
-                'passed' => ($result['commands'][0]['skill'] ?? '') === 'mod_booking.book_users',
-                'detail' => 'skill: ' . ($result['commands'][0]['skill'] ?? 'none'),
+                'label'  => 'Booking intent survives error context (book_users, or search_options with follow-up; '
+                    . 'diagnose/course detours fail)',
+                'passed' => $direct || $findthenbook,
+                'detail' => "skill: {$skill}; followup: " . ($hasfollowup ? 'yes' : 'no'),
             ],
         ];
     }

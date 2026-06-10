@@ -77,24 +77,45 @@ class book_users_single extends abstract_benchmark_scenario {
     /**
      * Get the expected skill.
      *
+     * Empty on purpose: the strict first-command check moved to assert_additional,
+     * which also accepts the legitimate find-then-book pattern (search_options
+     * first with a planned follow-up step).
+     *
      * @return string
      */
     public function get_expected_skill(): string {
-        return 'mod_booking.book_users';
+        return '';
     }
 
     /**
-
      * Get the stub selector response.
-
      *
-
      * @return string
-
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.book_users","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Book Anna Berger","used_triggers":["mod_booking.book_users_for_option"],'
             . '"lang":"de","user_lang":"de"}';
+    }
+
+    /**
+     * Perform additional assertions.
+     *
+     * @param array $result
+     * @return array
+     */
+    public function assert_additional(array $result): array {
+        $skill = trim((string)($result['commands'][0]['skill'] ?? ''));
+        $hasfollowup = !empty($result['planned_steps']) || trim((string)($result['next_step_intent'] ?? '')) !== '';
+        $direct = $skill === 'mod_booking.book_users';
+        $findthenbook = $skill === 'mod_booking.search_options' && $hasfollowup;
+
+        return [
+            [
+                'label'  => 'Booking intent selected (book_users directly, or search_options with planned follow-up)',
+                'passed' => $direct || $findthenbook,
+                'detail' => "skill: {$skill}; followup: " . ($hasfollowup ? 'yes' : 'no'),
+            ],
+        ];
     }
 }
