@@ -123,8 +123,10 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
         foreach ($records as $record) {
             $id = (int)$record->id;
             $text = (string)$record->memory;
-            $memories[] = ['id' => $id, 'memory' => $text];
-            $lines[] = $index . '. (id=' . $id . ') ' . $text;
+            $scopes = user_memory_service::parse_scopes($record->scopes ?? null);
+            $scopelabel = empty($scopes) ? 'all' : implode(',', $scopes);
+            $memories[] = ['id' => $id, 'memory' => $text, 'relevant_for' => $scopes];
+            $lines[] = $index . '. (id=' . $id . ', relevant_for=' . $scopelabel . ') ' . $text;
             $index++;
         }
 

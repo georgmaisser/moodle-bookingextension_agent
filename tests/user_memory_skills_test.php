@@ -164,7 +164,29 @@ final class user_memory_skills_test extends advanced_testcase {
         $populated = $skill->execute([], 0, $userid);
         $this->assertCount(1, $populated['memories']);
         $this->assertSame($id, $populated['memories'][0]['id']);
+        $this->assertArrayHasKey('relevant_for', $populated['memories'][0]);
         $this->assertStringContainsString('id=' . $id, $populated['observation_full']);
+    }
+
+    /**
+     * remember forwards the relevant_for channels to the service.
+     */
+    public function test_remember_persists_scopes(): void {
+        $this->resetAfterTest();
+        $userid = (int)$this->getDataGenerator()->create_user()->id;
+        $skill = new remember_skill();
+
+        $skill->execute(
+            ['memory' => 'Address me as Dr X', 'relevant_for' => [user_memory_service::SCOPE_SYNCHRONIZATION]],
+            0,
+            $userid
+        );
+
+        $record = (new user_memory_service())->get_all($userid)[0];
+        $this->assertSame(
+            [user_memory_service::SCOPE_SYNCHRONIZATION],
+            user_memory_service::parse_scopes($record->scopes)
+        );
     }
 
     /**

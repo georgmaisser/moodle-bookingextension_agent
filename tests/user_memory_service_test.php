@@ -140,6 +140,52 @@ final class user_memory_service_test extends advanced_testcase {
     }
 
     /**
+     * Scopes are normalized (unknown dropped, canonical order) and stored.
+     */
+    public function test_add_stores_normalized_scopes(): void {
+        $this->resetAfterTest();
+        $service = new user_memory_service();
+        $userid = (int)$this->getDataGenerator()->create_user()->id;
+
+        $service->add($userid, 'Address me as Dr X', ['synchronization', 'bogus', 'SELECTION']);
+        $record = $service->get_all($userid)[0];
+
+        // Unknown "bogus" dropped; kept in canonical order (selection before synchronization).
+        $this->assertSame(
+            [user_memory_service::SCOPE_SELECTION, user_memory_service::SCOPE_SYNCHRONIZATION],
+            user_memory_service::parse_scopes($record->scopes)
+        );
+    }
+
+    /**
+     * get_for_scope returns scoped memories plus untagged (all-channel) ones.
+     */
+    public function test_get_for_scope_filters_by_channel(): void {
+        $this->resetAfterTest();
+        $service = new user_memory_service();
+        $userid = (int)$this->getDataGenerator()->create_user()->id;
+
+        $service->add($userid, 'sync only', [user_memory_service::SCOPE_SYNCHRONIZATION]);
+        $service->add($userid, 'construction only', [user_memory_service::SCOPE_CONSTRUCTION]);
+        $service->add($userid, 'everywhere'); // Empty scopes = all channels.
+
+        $selection = array_map(static fn($r) => $r->memory, $service->get_for_scope($userid, user_memory_service::SCOPE_SELECTION));
+        $this->assertEqualsCanonicalizing(['everywhere'], $selection);
+
+        $construction = array_map(
+            static fn($r) => $r->memory,
+            $service->get_for_scope($userid, user_memory_service::SCOPE_CONSTRUCTION)
+        );
+        $this->assertEqualsCanonicalizing(['construction only', 'everywhere'], $construction);
+
+        $sync = array_map(
+            static fn($r) => $r->memory,
+            $service->get_for_scope($userid, user_memory_service::SCOPE_SYNCHRONIZATION)
+        );
+        $this->assertEqualsCanonicalizing(['sync only', 'everywhere'], $sync);
+    }
+
+    /**
      * find() returns case-insensitive substring matches only for the owner.
      */
     public function test_find_matches_substring_for_owner(): void {

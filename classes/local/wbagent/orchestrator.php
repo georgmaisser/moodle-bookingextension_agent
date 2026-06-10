@@ -463,7 +463,8 @@ class orchestrator {
             !empty($observations),
             [],
             [],
-            $messages
+            $messages,
+            user_memory_service::SCOPE_SYNCHRONIZATION
         );
         // Inject pending planned step intents so the sync never suggests manual workarounds
         // for steps the agent is still planning to execute.
@@ -2253,7 +2254,8 @@ PROMPT;
         bool $hasobservations = false,
         array $skillcatalog = [],
         array $unavailableskillcatalog = [],
-        array $messages = []
+        array $messages = [],
+        string $memorychannel = ''
     ): string {
         $timezonename = (string)(get_config('core', 'timezone') ?? '');
         if ($timezonename === '' || $timezonename === '99') {
@@ -2288,14 +2290,16 @@ PROMPT;
             $lines[] = "- Include valid ISO 639-1 value 'user_lang'.";
         }
 
-        // Inject user-stated memories at the selection phase. Discovery is deterministic
-        // (no LLM call), so a discovery-only block would never reach a model. PHASE_SELECTION
-        // is built both for the planner's selection LLM call AND by the synchronizer
-        // (process_synchronizer), so stored facts reach both planning and the final reply
-        // (e.g. "always address me as Dr X"). Construction is skill-parameter only — skipped
-        // to control tokens. Budget is guaranteed by user_memory_service (<= 4096 chars).
-        if ($phase === self::PHASE_SELECTION) {
-            $this->append_user_memory_section($lines, $threadid);
+        // Inject user-stated memories filtered to the relevant channel. Each memory is tagged
+        // (by the LLM at core.remember time) with the stage(s) it influences. Channels:
+        //  - selection: planner skill-selection LLM call (PHASE_SELECTION)
+        //  - construction: planner parameter-construction LLM call (PHASE_PARAMETER_CONSTRUCTION)
+        //  - synchronization: synchronizer final reply (process_synchronizer passes it explicitly,
+        //    because it also builds this block with PHASE_SELECTION and must not pull selection items).
+        // Discovery makes no LLM call, so it carries no channel. Budget capped by the service.
+        $channel = $memorychannel !== '' ? $memorychannel : $this->memory_channel_for_phase($phase);
+        if ($channel !== '') {
+            $this->append_user_memory_section($lines, $threadid, $channel);
         }
 
         if (!empty($skillcatalog)) {
@@ -2332,29 +2336,47 @@ PROMPT;
     }
 
     /**
-     * Append the USER MEMORY block (user-stated facts) for the thread owner.
+     * Resolve the memory injection channel for a planner phase.
+     *
+     * @param string $phase
+     * @return string '' when the phase carries no memory channel (e.g. discovery)
+     */
+    private function memory_channel_for_phase(string $phase): string {
+        switch ($phase) {
+            case self::PHASE_SELECTION:
+                return user_memory_service::SCOPE_SELECTION;
+            case self::PHASE_PARAMETER_CONSTRUCTION:
+                return user_memory_service::SCOPE_CONSTRUCTION;
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Append the USER MEMORY block (user-stated facts) for the thread owner, filtered to one channel.
      *
      * Resolves the acting user from the thread owner so userid is never taken from
-     * model input. Emits nothing when the user has no stored memories.
+     * model input. Emits nothing when the user has no memories relevant to the channel.
      *
      * @param array<int,string> $lines
      * @param int $threadid
+     * @param string $channel One of user_memory_service::SCOPE_*
      * @return void
      */
-    private function append_user_memory_section(array &$lines, int $threadid): void {
+    private function append_user_memory_section(array &$lines, int $threadid, string $channel): void {
         $thread = $this->store->get_thread($threadid);
         $userid = (int)($thread->userid ?? 0);
         if ($userid <= 0) {
             return;
         }
 
-        $records = (new user_memory_service())->get_all($userid);
+        $records = (new user_memory_service())->get_for_scope($userid, $channel);
         if (empty($records)) {
             return;
         }
 
         $lines[] = '';
-        $lines[] = 'USER MEMORY (facts the user asked you to remember; respect these when planning):';
+        $lines[] = 'USER MEMORY (facts the user asked you to remember; respect these):';
         foreach ($records as $record) {
             $memory = trim((string)$record->memory);
             if ($memory !== '') {

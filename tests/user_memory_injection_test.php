@@ -43,17 +43,23 @@ final class user_memory_injection_test extends advanced_testcase {
      * @param string $phase
      * @return string
      */
-    private function build_block(orchestrator $orc, int $threadid, int $contextid, string $phase): string {
+    private function build_block(
+        orchestrator $orc,
+        int $threadid,
+        int $contextid,
+        string $phase,
+        string $channel = ''
+    ): string {
         $method = new \ReflectionMethod(orchestrator::class, 'build_runtime_context_block');
         $method->setAccessible(true);
-        return (string)$method->invoke($orc, $threadid, $contextid, $phase, false, false, [], [], []);
+        return (string)$method->invoke($orc, $threadid, $contextid, $phase, false, false, [], [], [], $channel);
     }
 
     /**
-     * The memory appears at selection (planner + synchronizer share this phase) but not at
-     * discovery (no LLM call) or construction (skill-parameter only).
+     * Memories are injected only into the channel they were tagged for; untagged memories
+     * (empty scopes) appear in every channel. Discovery carries no channel (no LLM call).
      */
-    public function test_memory_injected_at_selection_only(): void {
+    public function test_memory_injected_per_channel(): void {
         $this->resetAfterTest();
 
         $userid = (int)$this->getDataGenerator()->create_user()->id;
@@ -61,25 +67,43 @@ final class user_memory_injection_test extends advanced_testcase {
         $store = new conversation_store();
         $thread = $store->get_or_create_thread($userid, (int)$context->id);
 
-        (new user_memory_service())->add($userid, "Sprich mich immer mit 'Lieber Dr. Maisser' an.");
+        $service = new user_memory_service();
+        $service->add($userid, 'Address me as Dr Maisser', [user_memory_service::SCOPE_SYNCHRONIZATION]);
+        $service->add($userid, 'I prefer morning bookings', [user_memory_service::SCOPE_CONSTRUCTION]);
+        $service->add($userid, 'I am an admin everywhere'); // No scopes = all channels.
 
         $registry = skill_registry_factory::get_default();
         $orc = new orchestrator($registry, new interpreter($registry), $store);
+        $tid = (int)$thread->id;
+        $cid = (int)$context->id;
 
-        $selection = $this->build_block($orc, (int)$thread->id, (int)$context->id, orchestrator::PHASE_SELECTION);
-        $this->assertStringContainsString('USER MEMORY', $selection);
-        $this->assertStringContainsString('Lieber Dr. Maisser', $selection);
+        // Planner selection (channel derived from phase).
+        $selection = $this->build_block($orc, $tid, $cid, orchestrator::PHASE_SELECTION);
+        $this->assertStringContainsString('I am an admin everywhere', $selection);
+        $this->assertStringNotContainsString('Address me as Dr Maisser', $selection);
+        $this->assertStringNotContainsString('I prefer morning bookings', $selection);
 
-        $discovery = $this->build_block($orc, (int)$thread->id, (int)$context->id, orchestrator::PHASE_DISCOVERY);
-        $this->assertStringNotContainsString('USER MEMORY', $discovery);
+        // Parameter construction.
+        $construction = $this->build_block($orc, $tid, $cid, orchestrator::PHASE_PARAMETER_CONSTRUCTION);
+        $this->assertStringContainsString('I prefer morning bookings', $construction);
+        $this->assertStringContainsString('I am an admin everywhere', $construction);
+        $this->assertStringNotContainsString('Address me as Dr Maisser', $construction);
 
-        $construction = $this->build_block(
+        // Synchronizer reply (explicit channel; phase is SELECTION as in process_synchronizer).
+        $sync = $this->build_block(
             $orc,
-            (int)$thread->id,
-            (int)$context->id,
-            orchestrator::PHASE_PARAMETER_CONSTRUCTION
+            $tid,
+            $cid,
+            orchestrator::PHASE_SELECTION,
+            user_memory_service::SCOPE_SYNCHRONIZATION
         );
-        $this->assertStringNotContainsString('USER MEMORY', $construction);
+        $this->assertStringContainsString('Address me as Dr Maisser', $sync);
+        $this->assertStringContainsString('I am an admin everywhere', $sync);
+        $this->assertStringNotContainsString('I prefer morning bookings', $sync);
+
+        // Discovery carries no channel → no memory block at all.
+        $discovery = $this->build_block($orc, $tid, $cid, orchestrator::PHASE_DISCOVERY);
+        $this->assertStringNotContainsString('USER MEMORY', $discovery);
     }
 
     /**

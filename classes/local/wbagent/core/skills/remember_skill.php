@@ -72,11 +72,28 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                         . '(max ' . user_memory_service::MAX_CHARS_PER_MEMORY . ' characters).',
                     'required' => true,
                 ],
+                'relevant_for' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string', 'enum' => [
+                        user_memory_service::SCOPE_SELECTION,
+                        user_memory_service::SCOPE_CONSTRUCTION,
+                        user_memory_service::SCOPE_SYNCHRONIZATION,
+                    ]],
+                    'description' => 'Which planning stages this memory should influence. Classify by what the memory '
+                        . 'affects: "' . user_memory_service::SCOPE_SELECTION . '" = which action/skill to take '
+                        . '(e.g. "always create bookings, never events"); "' . user_memory_service::SCOPE_CONSTRUCTION
+                        . '" = field values/parameters (e.g. "I prefer morning bookings", "my employee id is 12345"); '
+                        . '"' . user_memory_service::SCOPE_SYNCHRONIZATION . '" = wording/presentation of the reply '
+                        . '(e.g. "always address me as Dr X", "answer in bullet points"). Pick all that apply. '
+                        . 'Omit only if genuinely unsure — then it applies everywhere.',
+                    'required' => false,
+                ],
             ],
             'prompt_meta' => [
-                'intent' => 'Persist a user-stated fact/preference/instruction for future planning. '
+                'intent' => 'Persist a user-stated fact/preference/instruction for future planning, tagged by the '
+                    . 'stage(s) it is relevant for (selection/construction/synchronization). '
                     . 'Use only when the user explicitly asks the agent to remember something about themselves.',
-                'input_fields_for_prompt' => ['memory'],
+                'input_fields_for_prompt' => ['memory', 'relevant_for'],
                 'anchor_fields' => ['memory'],
                 'capabilities' => ['user_memory_store'],
                 'context_scopes' => ['module'],
@@ -92,6 +109,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_example_input(): array {
         return [
             'memory' => 'Ich bevorzuge Buchungen am Vormittag.',
+            'relevant_for' => [user_memory_service::SCOPE_CONSTRUCTION],
         ];
     }
 
@@ -152,7 +170,11 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      */
     public function execute(array $input, int $contextid, int $userid): array {
         $service = new user_memory_service();
-        $result = $service->add($userid, (string)($input['memory'] ?? ''));
+        $scopes = [];
+        foreach ((array)($input['relevant_for'] ?? []) as $scope) {
+            $scopes[] = (string)$scope;
+        }
+        $result = $service->add($userid, (string)($input['memory'] ?? ''), $scopes);
 
         return [
             'status' => 'executed',

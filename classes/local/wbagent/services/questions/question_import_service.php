@@ -51,6 +51,11 @@ class question_import_service {
      */
     public function import_gift(string $gift, context $context, stdClass $course, ?int $categoryid = null): array {
         global $CFG, $DB;
+        // Load questionlib.php: it defines question_get_default_category() AND the global question_bank
+        // class (via question/engine/lib.php). The base qformat importprocess() calls question_bank
+        // unqualified, and question/format.php does not load it itself — in the agent's webservice/adhoc
+        // request that class is otherwise not present ("Class \"question_bank\" not found").
+        require_once($CFG->libdir . '/questionlib.php');
         require_once($CFG->dirroot . '/question/format.php');
         require_once($CFG->dirroot . '/question/format/gift/format.php');
 

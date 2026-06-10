@@ -40,15 +40,35 @@ class user_memory_service {
     /** Maximum total length (characters) of all memories for one user. */
     public const MAX_TOTAL_CHARS = 4096;
 
+    /** Injection channel: planner skill selection. */
+    public const SCOPE_SELECTION = 'selection';
+
+    /** Injection channel: planner parameter construction. */
+    public const SCOPE_CONSTRUCTION = 'construction';
+
+    /** Injection channel: synchronizer / final user-facing reply. */
+    public const SCOPE_SYNCHRONIZATION = 'synchronization';
+
+    /**
+     * Return the valid injection channels.
+     *
+     * @return array<int,string>
+     */
+    public static function valid_scopes(): array {
+        return [self::SCOPE_SELECTION, self::SCOPE_CONSTRUCTION, self::SCOPE_SYNCHRONIZATION];
+    }
+
     /**
      * Add a memory for a user after normalization, dedupe and all budget checks.
      *
      * @param int $userid
      * @param string $text
+     * @param array<int,string> $scopes Injection channels this memory is relevant for
+     *   (selection/construction/synchronization). Empty = all channels.
      * @return array{status:string,message:string,id:?int}
      *   status is one of: ok | empty | too_long | limit_count | limit_total | duplicate
      */
-    public function add(int $userid, string $text): array {
+    public function add(int $userid, string $text, array $scopes = []): array {
         global $DB;
 
         $normalized = $this->normalize($text);
@@ -107,6 +127,7 @@ class user_memory_service {
         $record = (object)[
             'userid' => $userid,
             'memory' => $normalized,
+            'scopes' => implode(',', $this->normalize_scopes($scopes)),
             'timecreated' => $now,
             'timemodified' => $now,
         ];
@@ -180,6 +201,64 @@ class user_memory_service {
         }
 
         return $matches;
+    }
+
+    /**
+     * Return the memories relevant for a given injection channel.
+     *
+     * A memory matches when its scopes list is empty (= all channels) or contains the channel.
+     *
+     * @param int $userid
+     * @param string $scope One of the valid_scopes() values.
+     * @return array<int,\stdClass>
+     */
+    public function get_for_scope(int $userid, string $scope): array {
+        $scope = trim($scope);
+        $matches = [];
+        foreach ($this->get_all($userid) as $record) {
+            $recordscopes = self::parse_scopes($record->scopes ?? null);
+            if (empty($recordscopes) || in_array($scope, $recordscopes, true)) {
+                $matches[] = $record;
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * Parse a stored comma-separated scopes string into a clean array.
+     *
+     * @param string|null $scopes
+     * @return array<int,string>
+     */
+    public static function parse_scopes(?string $scopes): array {
+        $scopes = trim((string)$scopes);
+        if ($scopes === '') {
+            return [];
+        }
+
+        $parts = array_filter(array_map('trim', explode(',', $scopes)), static fn($s): bool => $s !== '');
+        return array_values(array_intersect(self::valid_scopes(), array_unique($parts)));
+    }
+
+    /**
+     * Normalize requested scopes against the valid channel set (preserving canonical order).
+     *
+     * Unknown entries are dropped; an empty/invalid result means "all channels".
+     *
+     * @param array<int,string> $scopes
+     * @return array<int,string>
+     */
+    private function normalize_scopes(array $scopes): array {
+        $requested = [];
+        foreach ($scopes as $scope) {
+            $scope = \core_text::strtolower(trim((string)$scope));
+            if ($scope !== '') {
+                $requested[$scope] = true;
+            }
+        }
+
+        return array_values(array_intersect(self::valid_scopes(), array_keys($requested)));
     }
 
     /**

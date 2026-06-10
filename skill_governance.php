@@ -200,7 +200,11 @@ echo html_writer::tag(
     ['class' => 'mb-2 small text-muted']
 );
 echo html_writer::start_tag('form', ['method' => 'get', 'action' => $PAGE->url, 'class' => 'form-inline']);
-echo html_writer::tag('label', get_string('skillgovernance_gate_userid', 'bookingextension_agent'), ['for' => 'evaluserid', 'class' => 'mr-1']);
+echo html_writer::tag(
+    'label',
+    get_string('skillgovernance_gate_userid', 'bookingextension_agent'),
+    ['for' => 'evaluserid', 'class' => 'mr-1']
+);
 echo html_writer::empty_tag('input', [
     'type' => 'number',
     'id' => 'evaluserid',
@@ -209,7 +213,11 @@ echo html_writer::empty_tag('input', [
     'class' => 'form-control mr-3',
     'style' => 'width: 120px;',
 ]);
-echo html_writer::tag('label', get_string('skillgovernance_gate_contextid', 'bookingextension_agent'), ['for' => 'evalcontextid', 'class' => 'mr-1']);
+echo html_writer::tag(
+    'label',
+    get_string('skillgovernance_gate_contextid', 'bookingextension_agent'),
+    ['for' => 'evalcontextid', 'class' => 'mr-1']
+);
 echo html_writer::empty_tag('input', [
     'type' => 'number',
     'id' => 'evalcontextid',

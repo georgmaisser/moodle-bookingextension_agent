@@ -37,9 +37,8 @@ use core_privacy\local\request\writer;
  */
 class provider implements
     \core_privacy\local\metadata\provider,
-    \core_privacy\local\request\plugin\provider,
-    \core_privacy\local\request\core_userlist_provider {
-
+    \core_privacy\local\request\core_userlist_provider,
+    \core_privacy\local\request\plugin\provider {
     /** User memory table. */
     private const MEMORY_TABLE = 'local_wbagent_user_memory';
 
@@ -55,6 +54,7 @@ class provider implements
             [
                 'userid' => 'privacy:metadata:local_wbagent_user_memory:userid',
                 'memory' => 'privacy:metadata:local_wbagent_user_memory:memory',
+                'scopes' => 'privacy:metadata:local_wbagent_user_memory:scopes',
                 'timecreated' => 'privacy:metadata:local_wbagent_user_memory:timecreated',
                 'timemodified' => 'privacy:metadata:local_wbagent_user_memory:timemodified',
             ],
@@ -125,6 +125,7 @@ class provider implements
             foreach ($records as $record) {
                 $data[] = (object)[
                     'memory' => (string)$record->memory,
+                    'scopes' => (string)($record->scopes ?? ''),
                     'timecreated' => \core_privacy\local\request\transform::datetime((int)$record->timecreated),
                     'timemodified' => \core_privacy\local\request\transform::datetime((int)$record->timemodified),
                 ];
