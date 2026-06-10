@@ -114,7 +114,9 @@ class question_generation_service {
             '',
             'Output rules (critical):',
             '- Return ONLY valid GIFT. No explanations, no commentary, no Markdown, no code fences.',
-            '- Give every question a unique ::name:: prefix.',
+            '- Give every question a unique ::name:: prefix. Unless the user explicitly asked for a different '
+                . 'naming scheme, derive the name from the question itself: a short, meaningful summary of the '
+                . 'question text (its key concept or first few words), never a generic label like "Q1" or "Question 7".',
             '- multichoice: exactly one correct answer with "=", the others as distractors with "~".',
             '- truefalse: end with {TRUE} or {FALSE}.',
             '- shortanswer: one or more accepted answers, each prefixed with "=".',

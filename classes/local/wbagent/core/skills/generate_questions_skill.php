@@ -23,16 +23,18 @@ use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\questions\question_bank_target_resolver;
 use bookingextension_agent\local\wbagent\services\questions\question_generation_service;
 use bookingextension_agent\local\wbagent\services\questions\question_import_service;
+use bookingextension_agent\local\wbagent\services\questions\question_preview_renderer;
 use context;
 use moodle_url;
 
 /**
- * Core skill: generate Moodle questions from an uploaded document (core.generate_questions).
+ * Core skill: generate Moodle questions (core.generate_questions).
  *
- * Reads the PDF/document text the user uploaded (already injected into the conversation as a
- * "--- DOCUMENT --" block), asks the model to write the questions as GIFT, and imports them
- * into the course's question bank (a mod_qbank activity, created if needed). If an import
- * fails, the import errors are fed back to the model and generation is retried.
+ * Takes its source text either from the `content` input the user provided directly in the chat, or
+ * from the most recent uploaded document (injected into the conversation as a "--- DOCUMENT --" block);
+ * a document upload is optional. Asks the model to write the questions as GIFT and imports them into the
+ * course's question bank (a mod_qbank activity, created if needed). If an import fails, the import errors
+ * are fed back to the model and generation is retried.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -93,11 +95,21 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Generate Moodle quiz questions from an uploaded document or PDF and save them into '
-                . 'the course question bank. Use this whenever the user wants questions, a quiz, or a test created '
-                . 'from a document they uploaded.',
+            'description' => 'Generate Moodle quiz/test questions (multiple choice, true/false, short answer) and '
+                . 'save them into the course question bank. The questions can be based EITHER on a document/PDF the '
+                . 'user uploaded OR on a topic, facts, or an explicit question and answer the user provides directly '
+                . 'in the chat — an upload is NOT required. Use this whenever the user wants a question, quiz or test '
+                . 'created or inserted into Moodle (e.g. "make me a question", "mach mir / erstelle eine Frage", '
+                . '"create a quiz", "erstelle Fragen aus dem Dokument", "Frage in Moodle einfügen").',
             'readonly' => false,
             'properties' => [
+                'content' => [
+                    'type' => 'string',
+                    'description' => 'The topic, facts, or exact question and correct answer to base the questions on, '
+                        . 'when the user provides the content directly in the chat. Leave empty if the user uploaded a '
+                        . 'document/PDF instead.',
+                    'required' => false,
+                ],
                 'count' => [
                     'type' => 'integer',
                     'description' => 'How many questions to generate (default ' . self::DEFAULT_COUNT
@@ -122,7 +134,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['count', 'qtypes', 'difficulty'],
+                'input_fields_for_prompt' => ['content', 'count', 'qtypes', 'difficulty'],
                 'anchor_fields' => [],
             ],
         ];
@@ -151,8 +163,42 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         return [
             [
                 'id' => 'core.generate_questions_request',
-                'description' => 'User wants Moodle quiz/test questions generated from an uploaded document or PDF '
-                    . '(e.g. "create 10 questions from this PDF", "erstelle Fragen aus dem Dokument").',
+                'description' => 'User wants a Moodle quiz/test question (a question, quiz or test) generated or '
+                    . 'inserted into Moodle — based on an uploaded document/PDF OR on content the user provides '
+                    . 'directly (e.g. "make me a question", "mach mir / erstelle eine Frage", "erstelle ein Quiz", '
+                    . '"create 10 questions from this PDF", "Frage in Moodle einfügen").',
+            ],
+        ];
+    }
+
+    /**
+     * Construction-phase guidance and discovery triggers.
+     *
+     * Surfaced unconditionally once this skill is selected, so the constructor knows a document upload
+     * is optional and the user's inline content can be used directly.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_contextual_prompt_packs(): array {
+        return [
+            [
+                'id' => 'core.generate_questions',
+                'triggers' => [
+                    'make a question', 'create a question', 'generate questions', 'create a quiz', 'create a test',
+                    'questions from pdf', 'questions from document', 'insert question in moodle',
+                    'mach mir eine frage', 'erstelle eine frage', 'frage generieren', 'frage erstellen',
+                    'quiz erstellen', 'test erstellen', 'fragen aus dem dokument', 'frage in moodle einfügen',
+                ],
+                'guidance' => [
+                    '- core.generate_questions creates Moodle quiz questions and saves them into the course question'
+                        . ' bank itself, so do NOT look for a separate skill to "insert" a question.',
+                    '- A document/PDF upload is OPTIONAL. If the user states the topic, facts, or an explicit question'
+                        . ' and correct answer in the chat, pass that text verbatim as input.content and proceed; do'
+                        . ' NOT ask the user to upload a document.',
+                    '- Only ask the user for a source if NEITHER a document was uploaded NOR any content was provided.',
+                    '- Default to a single multiple-choice question unless the user asks otherwise; set input.count and'
+                        . ' input.qtypes accordingly (allowed types: multichoice, truefalse, shortanswer).',
+                ],
             ],
         ];
     }
@@ -197,13 +243,13 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @return preflight_result_v2
      */
     public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
-        $sourcetext = $this->extract_document_text($contextid, $userid);
+        $sourcetext = $this->resolve_source_text($input, $contextid, $userid);
         if ($sourcetext === null) {
             return preflight_result_v2::invalid([[
                 'severity' => 'needs_clarification',
-                'message' => 'No uploaded document was found in this conversation. Please upload a PDF first, '
-                    . 'then ask me to generate the questions.',
-                'code' => 'GENERATE_QUESTIONS_NO_DOCUMENT',
+                'message' => 'I need something to base the questions on. Either upload a document/PDF, or tell me '
+                    . 'the topic, the facts, or the exact question and its correct answer.',
+                'code' => 'GENERATE_QUESTIONS_NO_SOURCE',
             ]]);
         }
 
@@ -291,6 +337,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     array_map('intval', (array)$imported['questionids']),
                     (int)$target['cm']->id,
                     (string)$target['cm']->get_formatted_name(),
+                    (int)$target['context']->id,
                     $attempt
                 );
             }
@@ -303,6 +350,23 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'Could not generate importable questions after ' . self::MAX_RETRIES . ' attempts. '
                 . 'Last error: ' . $lasterror
         );
+    }
+
+    /**
+     * Resolve the text the questions are generated from: the content the user passed directly takes
+     * precedence, otherwise the most recent uploaded-document block in the conversation is used.
+     *
+     * @param array $input
+     * @param int   $contextid
+     * @param int   $userid
+     * @return string|null
+     */
+    private function resolve_source_text(array $input, int $contextid, int $userid): ?string {
+        $content = trim((string)($input['content'] ?? ''));
+        if ($content !== '') {
+            return $content;
+        }
+        return $this->extract_document_text($contextid, $userid);
     }
 
     /**
@@ -354,10 +418,18 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @param int[]  $questionids
      * @param int    $cmid
      * @param string $bankname
+     * @param int    $bankcontextid Context id of the question bank module (used by the inline preview).
      * @param int    $attempts
      * @return array<string,mixed>
      */
-    private function build_success_result(int $imported, array $questionids, int $cmid, string $bankname, int $attempts): array {
+    private function build_success_result(
+        int $imported,
+        array $questionids,
+        int $cmid,
+        string $bankname,
+        int $bankcontextid,
+        int $attempts
+    ): array {
         $bankurl = (new moodle_url('/question/edit.php', ['cmid' => $cmid]))->out(false);
         $message = $imported . ' question(s) were created in the course question bank "' . $bankname . '".';
 
@@ -375,7 +447,44 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'question_count' => $imported,
             'created_question_ids' => $questionids,
             'question_bank_url' => $bankurl,
+            'question_bank_contextid' => $bankcontextid,
             'observation_full' => $observation,
+        ];
+    }
+
+    /**
+     * Render the freshly created questions inline for the agent preview pane.
+     *
+     * The executor calls this on the raw execute() result; the returned block is attached under the
+     * result's 'preview' key and surfaced in the preview pane. We render the questions with Moodle's
+     * native question rendering (the same machinery the standalone preview page uses), so the teacher
+     * sees the real, rendered questions inline instead of having to open the preview page.
+     *
+     * @param array $resultentry The skill result (carries created_question_ids + question_bank_contextid).
+     * @param int   $contextid   Ambient context id of the run (unused: questions render in their bank context).
+     * @param int   $userid      Acting user id.
+     * @return array{type:string,html:string,payload:array}|null
+     */
+    public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
+        $questionids = array_values(array_filter(array_map('intval', (array)($resultentry['created_question_ids'] ?? []))));
+        $bankcontextid = (int)($resultentry['question_bank_contextid'] ?? 0);
+        if (empty($questionids) || $bankcontextid <= 0) {
+            return null;
+        }
+
+        $bankurl = (string)($resultentry['question_bank_url'] ?? '');
+        $html = (new question_preview_renderer())->render($questionids, $bankcontextid, $bankurl);
+        if (trim($html) === '') {
+            return null;
+        }
+
+        return [
+            'type' => 'generated_questions',
+            'html' => $html,
+            'payload' => [
+                'question_ids' => $questionids,
+                'question_bank_url' => $bankurl,
+            ],
         ];
     }
 

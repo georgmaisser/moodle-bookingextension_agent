@@ -59,9 +59,9 @@ final class generate_questions_skill_test extends advanced_testcase {
     }
 
     /**
-     * Preflight blocks when no document has been uploaded into the conversation.
+     * Preflight blocks only when neither an uploaded document nor inline content is available.
      */
-    public function test_preflight_requires_a_document(): void {
+    public function test_preflight_requires_a_source(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
@@ -73,7 +73,26 @@ final class generate_questions_skill_test extends advanced_testcase {
         $result = (new generate_questions_skill())->preflight([], $contextid, $userid)->to_array();
 
         $this->assertSame('hard_block', $result['status']);
-        $this->assertContains('GENERATE_QUESTIONS_NO_DOCUMENT', $result['issue_codes']);
+        $this->assertContains('GENERATE_QUESTIONS_NO_SOURCE', $result['issue_codes']);
+    }
+
+    /**
+     * Preflight passes with inline content and the capability present, without any uploaded document.
+     */
+    public function test_preflight_passes_with_inline_content(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid] = $this->make_context_and_user();
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', 'Make a question. Correct answer: Bretagne.');
+
+        $input = ['content' => 'Where are we going on holiday this year? The correct answer is Bretagne.'];
+        $result = (new generate_questions_skill())->preflight($input, $contextid, (int)$USER->id)->to_array();
+
+        $this->assertSame('pass', $result['status']);
     }
 
     /**
@@ -115,6 +134,57 @@ final class generate_questions_skill_test extends advanced_testcase {
         $result = (new generate_questions_skill())->preflight([], $contextid, (int)$USER->id)->to_array();
 
         $this->assertSame('pass', $result['status']);
+    }
+
+    /**
+     * No questions / no bank context => no preview block.
+     */
+    public function test_get_result_preview_returns_null_without_questions(): void {
+        $skill = new generate_questions_skill();
+        $this->assertNull($skill->get_result_preview([], 1, 1));
+        $this->assertNull($skill->get_result_preview(
+            ['created_question_ids' => [], 'question_bank_contextid' => 0],
+            1,
+            1
+        ));
+    }
+
+    /**
+     * A created question is rendered inline (native question rendering) into the preview block.
+     */
+    public function test_get_result_preview_renders_questions(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $qbank = $generator->create_module('qbank', ['course' => $course->id]);
+        $bankcontext = \context_module::instance($qbank->cmid);
+
+        /** @var \core_question_generator $questiongenerator */
+        $questiongenerator = $generator->get_plugin_generator('core_question');
+        $category = $questiongenerator->create_question_category(['contextid' => $bankcontext->id]);
+        $question = $questiongenerator->create_question('truefalse', null, [
+            'category' => $category->id,
+            'name' => 'Powerhouse of the cell',
+        ]);
+
+        $entry = [
+            'created_question_ids' => [(int)$question->id],
+            'question_bank_contextid' => (int)$bankcontext->id,
+            'question_bank_url' => 'https://example.com/question/edit.php?cmid=' . $qbank->cmid,
+        ];
+
+        $preview = (new generate_questions_skill())->get_result_preview($entry, (int)$bankcontext->id, (int)$USER->id);
+
+        $this->assertIsArray($preview);
+        $this->assertSame('generated_questions', $preview['type']);
+        $this->assertNotEmpty($preview['html']);
+        // Native question rendering wraps each question in a div.que.
+        $this->assertStringContainsString('que ', $preview['html']);
+        $this->assertStringContainsString('bookingextension_agent-question-preview', $preview['html']);
+        $this->assertSame([(int)$question->id], $preview['payload']['question_ids']);
     }
 
     /**
