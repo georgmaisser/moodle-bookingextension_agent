@@ -65,6 +65,9 @@ class privacy_anonymizer {
     /** @var conversation_store */
     private conversation_store $store;
 
+    /** @var array<int,string>|null Lazily-built union of built-in stop words and admin-configured protected words. */
+    private ?array $protectedwords = null;
+
     /**
      * Constructor.
      *
@@ -72,6 +75,47 @@ class privacy_anonymizer {
      */
     public function __construct(conversation_store $store) {
         $this->store = $store;
+    }
+
+    /**
+     * Return the set of words that must never be treated as a person name.
+     *
+     * Combines the engine-level {@see self::NAME_STOPWORDS} baseline with the admin-configured
+     * `aiprivacyprotectedwords` setting (comma- or newline-separated), so sites can stop common
+     * words from being anonymized when a real account happens to use them as a name (e.g. a user
+     * literally called "admin user"). Comparison is case-insensitive against normalized names.
+     *
+     * @return array<int,string>
+     */
+    private function get_protected_words(): array {
+        if ($this->protectedwords !== null) {
+            return $this->protectedwords;
+        }
+
+        $words = self::NAME_STOPWORDS;
+        $configured = (string)get_config('bookingextension_agent', 'aiprivacyprotectedwords');
+        foreach (preg_split('/[,\r\n]+/', $configured) ?: [] as $word) {
+            $normalized = core_text::strtolower(trim((string)$word));
+            if ($normalized !== '') {
+                $words[] = $normalized;
+            }
+        }
+
+        $this->protectedwords = array_values(array_unique($words));
+        return $this->protectedwords;
+    }
+
+    /**
+     * Whether a normalized word is protected from name anonymization.
+     *
+     * @param string $normalized A name already passed through {@see self::normalize_name()}.
+     * @return bool
+     */
+    private function is_protected_word(string $normalized): bool {
+        if ($normalized === '') {
+            return false;
+        }
+        return in_array($normalized, $this->get_protected_words(), true);
     }
 
     /**
@@ -503,7 +547,7 @@ class privacy_anonymizer {
         }
 
         $normalizedname = $this->normalize_name($trimmedvalue);
-        if ($normalizedname === '') {
+        if ($normalizedname === '' || $this->is_protected_word($normalizedname)) {
             return null;
         }
 
@@ -612,8 +656,8 @@ class privacy_anonymizer {
             $lastnorm = $this->normalize_name($lasttoken);
             if (
                 $firstnorm === '' || $lastnorm === ''
-                || in_array($firstnorm, self::NAME_STOPWORDS, true)
-                || in_array($lastnorm, self::NAME_STOPWORDS, true)
+                || $this->is_protected_word($firstnorm)
+                || $this->is_protected_word($lastnorm)
             ) {
                 continue;
             }
@@ -673,7 +717,7 @@ class privacy_anonymizer {
             }
 
             $normalized = $this->normalize_name($tokenvalue);
-            if ($normalized === '' || in_array($normalized, self::NAME_STOPWORDS, true)) {
+            if ($normalized === '' || $this->is_protected_word($normalized)) {
                 continue;
             }
 
@@ -1326,6 +1370,14 @@ class privacy_anonymizer {
 
             $raw = trim((string)$value[$field]);
             if ($raw === '' || self::looks_like_anon_token($raw)) {
+                continue;
+            }
+
+            // Never tokenize a protected word used as a first/last name (e.g. account "admin user").
+            if (
+                in_array($field, ['firstname', 'lastname'], true)
+                && $this->is_protected_word($this->normalize_name($raw))
+            ) {
                 continue;
             }
 

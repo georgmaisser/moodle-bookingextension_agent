@@ -14,6 +14,7 @@ toggles and feature flags supplement them.
 | `aiexecutionmode` | select | `direct` | execution mode: `direct` (run inline) or `adhoc` (queue via the [worker](tasks-and-async.md)) |
 | `aidebugmode` | checkbox | 0 | enable LLM debug logging ([observability](observability.md)) |
 | `aiprivacymode` | select | `strict` | PII anonymization before the LLM: `off` / `soft` / `strict` |
+| `aiprivacyprotectedwords` | textarea | `user, users, admin, edit, test` | comma-/newline-separated words never treated as a person name (and so never anonymized), even when a real account uses them as a first/last name (e.g. "admin user"). Case-insensitive; added on top of the built-in stop words. Read by `privacy_anonymizer::get_protected_words()` |
 | `aifollowupsuggestionscount` | int | 0 | number of follow-up suggestions (0 = off) |
 
 The LLM provider itself is configured in `aiprovider_wunderbyte` / core AI; the agent's

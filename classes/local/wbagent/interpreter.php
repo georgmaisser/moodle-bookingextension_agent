@@ -604,6 +604,7 @@ class interpreter implements agent_interpreter {
                 if (is_array($command['input'] ?? null)) {
                     $input = array_merge($input, $command['input']);
                 }
+                $input = $this->unwrap_redundant_input_envelope($input);
                 $input = $this->prune_empty_input_values($input);
 
                 $normalized[] = [
@@ -620,6 +621,7 @@ class interpreter implements agent_interpreter {
         $skillname = $this->safe_string($parsed['skill'] ?? $parsed['skill'] ?? '');
         if ($skillname !== '') {
             $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
+            $input = $this->unwrap_redundant_input_envelope($input);
             $input = $this->prune_empty_input_values($input);
             return [[
                 'skill' => $skillname,
@@ -629,6 +631,35 @@ class interpreter implements agent_interpreter {
         }
 
         return [];
+    }
+
+    /**
+     * Collapse a redundant nested parameter envelope.
+     *
+     * Some planner outputs wrap the real parameters in an extra "input" or "parameters"
+     * key (e.g. {"parameters":{"input":{"content":...}}} or {"input":{"input":{...}}}),
+     * which would otherwise reach a skill as $input['input'] and hide every real field —
+     * the skill then sees no parameters and wrongly reports missing input. When such a
+     * wrapper key holds an array, its contents are merged up one level; genuine sibling
+     * fields are preserved, and the inner payload wins on key collisions.
+     *
+     * No skill declares a property literally named "input" or "parameters", so unwrapping
+     * these keys cannot clobber a real field.
+     *
+     * @param array $input
+     * @return array
+     */
+    private function unwrap_redundant_input_envelope(array $input): array {
+        foreach (['input', 'parameters'] as $envelopekey) {
+            if (!is_array($input[$envelopekey] ?? null)) {
+                continue;
+            }
+            $nested = $input[$envelopekey];
+            unset($input[$envelopekey]);
+            // Inner payload carries the real fields; keep it on collision, retain siblings otherwise.
+            $input = $nested + $input;
+        }
+        return $input;
     }
 
     /**

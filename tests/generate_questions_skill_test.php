@@ -326,6 +326,9 @@ final class generate_questions_skill_test extends advanced_testcase {
         $this->assertIsArray($preview);
         $this->assertSame('generated_questions', $preview['type']);
         $this->assertNotEmpty($preview['html']);
+        // Option A: render-time JS is shipped as a separate string for the client to execute.
+        $this->assertArrayHasKey('js', $preview);
+        $this->assertIsString($preview['js']);
         // Native question rendering wraps each question in a div.que.
         $this->assertStringContainsString('que ', $preview['html']);
         $this->assertStringContainsString('bookingextension_agent-question-preview', $preview['html']);

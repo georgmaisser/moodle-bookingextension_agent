@@ -637,13 +637,18 @@ class orchestrator {
                 // When the latest user message is a short, low-semantic follow-up (an answer to a prior
                 // clarification/confirmation: "medium", "yes", "the second one", "Biology"), embedding it
                 // alone carries no task semantics and drops the originally requested skill out of top-K
-                // (see Blueprint thread223). Stateless fix: prepend the most recent SUBSTANTIAL earlier user
-                // message so the original task stays discoverable. Nothing is persisted, so a genuine topic
-                // switch (a rich new request) is unaffected — it dominates the embedding on its own.
-                if (self::is_low_semantic_followup($querytext)) {
-                    $originaltask = $this->find_recent_substantial_user_text($messages);
-                    if ($originaltask !== '' && strpos($querytext, $originaltask) === false) {
-                        $querytext = $originaltask . ' ' . $querytext;
+                // (see Blueprint thread223). Prepend the originating task so it stays discoverable.
+                //   B (deterministic): a clarification chain recorded the task that opened it — prefer that.
+                //   C (stateless fallback): otherwise, reach back to the most recent SUBSTANTIAL user message.
+                // Either way a genuine topic switch (a rich new request) is unaffected: it dominates the
+                // embedding on its own, and the recorded task is cleared as soon as a turn resolves.
+                $origintask = trim((string)$this->store->get_thread_metadata_value($threadid, 'clarification_origin_task'));
+                if ($origintask !== '' && strpos($querytext, $origintask) === false) {
+                    $querytext = $origintask . ' ' . $querytext;
+                } else if (self::is_low_semantic_followup($querytext)) {
+                    $heuristictask = $this->find_recent_substantial_user_text($messages);
+                    if ($heuristictask !== '' && strpos($querytext, $heuristictask) === false) {
+                        $querytext = $heuristictask . ' ' . $querytext;
                     }
                 }
                 $pendingstepintent = trim((string)$this->store->get_thread_metadata_value($threadid, 'next_step_intent'));
@@ -1997,15 +2002,20 @@ PROMPT;
                 $lines[] = 'REQUIRED: ' . implode(', ', array_values($minimal));
             }
 
-            // OPTIONAL: additional example_input fields not in minimal.
-            $examplekeys = array_filter(array_map('strval', array_keys((array)($entry['example_input'] ?? []))));
-            if (empty($examplekeys)) {
-                // Example_input may be a list of strings, not a map.
-                $examplekeys = array_filter(array_map('strval', (array)($entry['example_input'] ?? [])));
-            }
-            $optionalkeys = array_diff(array_values($examplekeys), array_values($minimal));
+            // OPTIONAL: additional example_input fields not already in minimal_input.
+            // example_input reaches this renderer as a compacted list of property names, but may
+            // also still be a raw {field: sample} map; take names from the values of a list and
+            // from the keys of a map. (Using array_keys() on the compacted list would yield numeric
+            // indices, and array_filter() would then drop the falsy "0" — rendering "OPTIONAL: 1, 2, 3".)
+            $exampleraw = (array)($entry['example_input'] ?? []);
+            $examplenames = array_is_list($exampleraw) ? array_values($exampleraw) : array_keys($exampleraw);
+            $examplekeys = array_values(array_filter(
+                array_map('strval', $examplenames),
+                static fn($name) => $name !== ''
+            ));
+            $optionalkeys = array_values(array_diff($examplekeys, array_values($minimal)));
             if (!empty($optionalkeys)) {
-                $lines[] = 'OPTIONAL: ' . implode(', ', array_slice(array_values($optionalkeys), 0, 8));
+                $lines[] = 'OPTIONAL: ' . implode(', ', array_slice($optionalkeys, 0, 8));
             }
 
             // TRIGGERS: trigger IDs as readable keywords (strip namespace prefix for brevity).

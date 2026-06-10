@@ -264,8 +264,77 @@ class agent_runtime {
         }
         $result = $this->apply_finalization_strategy($threadid, $result, $state);
         $result = $this->enforce_final_response_contract($result, $threadid);
+        $this->maintain_clarification_origin_task($threadid, $result);
         $this->messagepersistence->persist_assistant_message($threadid, $result);
         return $result;
+    }
+
+    /**
+     * B: keep a deterministic record of the task that triggered a clarification chain.
+     *
+     * When a turn ends in a blocking clarification (a real question to the user), remember the request
+     * that started the chain so the NEXT discovery turn can fold it into the skill-retrieval query even
+     * if the user's answer is a short, low-semantic token ("medium", "yes"). This is advisory only — it
+     * never forces a skill (the heuristic fallback C lives in the orchestrator). Lifecycle:
+     *  - set on the FIRST blocking clarification of a chain (preserved across follow-up clarifications),
+     *  - cleared as soon as a turn resolves to anything that is NOT a blocking clarification.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @return void
+     */
+    private function maintain_clarification_origin_task(int $threadid, array $result): void {
+        $key = 'clarification_origin_task';
+
+        if (!$this->is_blocking_clarification($result)) {
+            // Resolved, moved on, or abandoned: forget the origin task.
+            $this->store->set_thread_metadata_value($threadid, $key, '');
+            return;
+        }
+
+        // Preserve the task that opened the chain; do not overwrite it with a follow-up clarification.
+        $existing = trim((string)$this->store->get_thread_metadata_value($threadid, $key));
+        if ($existing !== '') {
+            return;
+        }
+
+        $task = $this->latest_user_message_text($threadid);
+        if ($task !== '') {
+            $this->store->set_thread_metadata_value($threadid, $key, $task);
+        }
+    }
+
+    /**
+     * A blocking clarification is a real question to the user (carries its own issue code), as opposed
+     * to the informative "found enough context" clarification used by the read/loop path.
+     *
+     * @param array $result
+     * @return bool
+     */
+    private function is_blocking_clarification(array $result): bool {
+        if (trim((string)($result['response_type'] ?? '')) !== 'clarification') {
+            return false;
+        }
+        $codes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
+        if (empty($codes)) {
+            return false;
+        }
+        return !in_array('LOOP_EARLY_SUFFICIENT_CONTEXT', $codes, true);
+    }
+
+    /**
+     * Most recent user message text (capped), used as the origin task for a clarification chain.
+     *
+     * @param int $threadid
+     * @return string
+     */
+    private function latest_user_message_text(int $threadid): string {
+        foreach (array_reverse($this->store->get_messages($threadid)) as $message) {
+            if ((string)($message->role ?? '') === 'user') {
+                return \core_text::substr(trim((string)($message->content ?? '')), 0, 600);
+            }
+        }
+        return '';
     }
 
     /**

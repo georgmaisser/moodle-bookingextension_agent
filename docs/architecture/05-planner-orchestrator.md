@@ -131,8 +131,14 @@ context)`:
    (`CONTRACT_PHASE_SKILL_NOT_ALLOWED`).
 4. **Command envelope normalization** — only `skill`, `version`, and `input | parameters`
    are read from each command; **unknown top-level keys are ignored**. `parameters` and
-   `input` merge into a canonical `input`; `version` defaults to `1`. Empty input values are
-   pruned, but `0` and `false` are preserved.
+   `input` merge into a canonical `input`; `version` defaults to `1`. A **redundant nested
+   envelope** is then collapsed: when the merged input is itself wrapped in a single `input`
+   or `parameters` key (e.g. the planner emitted `parameters:{input:{…}}`), that one level is
+   unwrapped so the skill receives its flat field set — `unwrap_redundant_input_envelope()`,
+   inner payload wins on collision, genuine sibling fields are kept. Without this, a skill
+   would see `$input['input']` instead of its real fields and wrongly report missing input
+   (e.g. `GENERATE_QUESTIONS_NO_SOURCE`). Finally, empty input values are pruned, but `0` and
+   `false` are preserved.
 
 The two codes `CONTRACT_PARSE_ERROR` and `CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED` are
 exactly the ones the [runtime loop retries once](04-agent-runtime-and-loop.md#4-framework-retry-hints).

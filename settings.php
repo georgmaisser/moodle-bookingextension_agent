@@ -126,6 +126,18 @@ $aisettingspage->add(
 );
 
 $aisettingspage->add(
+    new admin_setting_configtextarea(
+        'bookingextension_agent/aiprivacyprotectedwords',
+        get_string('aiprivacyprotectedwords', 'bookingextension_agent'),
+        get_string('aiprivacyprotectedwords_desc', 'bookingextension_agent'),
+        get_string('aiprivacyprotectedwords_default', 'bookingextension_agent'),
+        PARAM_RAW,
+        60,
+        4
+    )
+);
+
+$aisettingspage->add(
     new admin_setting_configtext(
         'bookingextension_agent/aifollowupsuggestionscount',
         get_string('aifollowupsuggestionscount', 'bookingextension_agent'),

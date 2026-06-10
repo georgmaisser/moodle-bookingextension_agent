@@ -659,7 +659,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         }
 
         $bankurl = (string)($resultentry['question_bank_url'] ?? '');
-        $html = (new question_preview_renderer())->render($questionids, $bankcontextid, $bankurl);
+        $rendered = (new question_preview_renderer())->render($questionids, $bankcontextid, $bankurl);
+        $html = (string)($rendered['html'] ?? '');
         if (trim($html) === '') {
             return null;
         }
@@ -667,6 +668,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         return [
             'type' => 'generated_questions',
             'html' => $html,
+            // Render-time JS (qtype init, filters, MathJax) the client runs via core/templates.
+            'js' => (string)($rendered['js'] ?? ''),
             'payload' => [
                 'question_ids' => $questionids,
                 'question_bank_url' => $bankurl,

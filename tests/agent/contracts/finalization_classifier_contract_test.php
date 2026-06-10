@@ -118,45 +118,17 @@ final class finalization_classifier_contract_test extends TestCase {
     }
 
     /**
-     * E: a blocking clarification (asks the user for input; carries its own issue code) must be emitted
-     * VERBATIM — never reworded by the synchronizer.
+     * E: a blocking clarification is still finalized by the synchronizer (so it is answered in the
+     * user's language); faithfulness to the source clarification is enforced in the synchronizer
+     * prompt/contract, not by bypassing it here.
      */
-    public function test_classifies_blocking_clarification_as_direct_final(): void {
+    public function test_classifies_blocking_clarification_as_llm_polish(): void {
         $classifier = new finalization_classifier();
 
         $strategy = $classifier->classify([
             'response_type' => 'clarification',
             'commands' => [],
             'issue_codes' => ['GENERATE_QUESTIONS_TARGET_AMBIGUOUS'],
-        ]);
-
-        $this->assertSame(finalization_classifier::STRATEGY_DIRECT_FINAL, $strategy);
-    }
-
-    /**
-     * E: an INFORMATIVE clarification (loop found enough context) is still polished by the synchronizer.
-     */
-    public function test_classifies_informative_clarification_as_llm_polish(): void {
-        $classifier = new finalization_classifier();
-
-        $strategy = $classifier->classify([
-            'response_type' => 'clarification',
-            'commands' => [],
-            'issue_codes' => ['LOOP_EARLY_SUFFICIENT_CONTEXT'],
-        ]);
-
-        $this->assertSame(finalization_classifier::STRATEGY_LLM_POLISH, $strategy);
-    }
-
-    /**
-     * E: a clarification without any issue code stays a polish candidate (no regression).
-     */
-    public function test_classifies_codeless_clarification_as_llm_polish(): void {
-        $classifier = new finalization_classifier();
-
-        $strategy = $classifier->classify([
-            'response_type' => 'clarification',
-            'commands' => [],
         ]);
 
         $this->assertSame(finalization_classifier::STRATEGY_LLM_POLISH, $strategy);

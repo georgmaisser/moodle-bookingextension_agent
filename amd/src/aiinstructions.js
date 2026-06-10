@@ -23,6 +23,7 @@
 
 import Ajax from 'core/ajax';
 import Notification from 'core/notification';
+import Templates from 'core/templates';
 
 /** Pending commands waiting for user confirmation. */
 let pendingCommands = null;
@@ -583,14 +584,31 @@ const appendMessageHtml = (role, html, meta = null) => {
 /**
  * Replace content of the dedicated side preview panel.
  *
+ * When the preview carries render-time JS (collected server-side via get_end_code — e.g. question
+ * rendering or a Mustache {{#js}} block), it is injected AND run through core/templates
+ * replaceNodeContents, the standard Moodle way to ship render-time JS into the page. Without JS we
+ * keep the cheap innerHTML path.
+ *
  * @param {string} html Trusted HTML.
+ * @param {string} [js] Trusted render-time JS to execute after injection.
+ * @return {Promise<void>}
  */
-const setSidePreviewHtml = (html) => {
+const setSidePreviewHtml = async (html, js) => {
     const preview = document.getElementById('booking-ai-side-preview');
     if (!preview) {
         return;
     }
-    preview.innerHTML = String(html || '');
+    const jsSource = String(js || '').trim();
+    if (jsSource === '') {
+        preview.innerHTML = String(html || '');
+        return;
+    }
+    try {
+        await Templates.replaceNodeContents(preview, String(html || ''), jsSource);
+    } catch (e) {
+        // Fall back to plain HTML if template JS execution fails for any reason.
+        preview.innerHTML = String(html || '');
+    }
 };
 
 export const registerPreviewRenderer = (type, renderFn) => {
@@ -625,9 +643,10 @@ export const dispatchSkillPreview = async (previewDescriptor, contextid) => {
         return;
     }
 
-    // 1. Direct server-rendered HTML produced by the skill (the common case).
+    // 1. Direct server-rendered HTML produced by the skill (the common case), optionally with
+    //    render-time JS the client must execute (questions, Mustache {{#js}}).
     if (previewDescriptor.html !== undefined && previewDescriptor.html !== null) {
-        setSidePreviewHtml(previewDescriptor.html);
+        await setSidePreviewHtml(previewDescriptor.html, previewDescriptor.js);
         return;
     }
 

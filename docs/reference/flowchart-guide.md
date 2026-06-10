@@ -93,6 +93,13 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   `skill_call` selection — a clarification turn makes only one planner call.*
 - ✓ **`OR_LANG` — confirmed.** No de/en token lists; language follows the latest user
   message.
+- ✅ **`CINT` command-envelope unwrap — flowchart updated (2026-06-10).** Added
+  `unwrap_redundant_input_envelope()` to the node: the constructor LLM non-deterministically
+  wraps params in a redundant `input`/`parameters` key (e.g. `parameters:{input:{…}}`); the
+  interpreter now collapses one such level so the skill receives flat fields. Without it a
+  skill sees `$input['input']` and falsely reports missing input (diagnosed via thread 226 →
+  `GENERATE_QUESTIONS_NO_SOURCE`; thread 227 with the flat shape worked, proving the wrap is
+  LLM-random). Tracks a code fix.
 - ✅ **`FSIG` signal components — flowchart corrected (B1).** Node relabelled to the real
   signals: base 0.20 + core 0.10 + namespace_hint 0.35 + recency_namespace 0.20. The
   diagram's `intent_code`/`trigger_id` don't exist in `family_signal_ranker`: intent is
@@ -105,6 +112,13 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 - ✅ **`EMB_QUERY` ALWAYS_INCLUDE list — flowchart corrected (B3).** Added `core.search_skills`
   to the node (the always-reachable RAG fallback). Pure omission; the always-include behaviour
   is by design.
+- ✅ **`EMB_QUERY` mandatory tier — flowchart updated (2026-06-10, engine boundary cleanup).**
+  The node previously named the hardcoded `ALWAYS_INCLUDE_SKILL_NAMES` constant. That constant
+  was removed: the mandatory tier is now `adaptive_skill_catalog_service::get_mandatory_skills()`,
+  which unions the per-skill `always_available` governance flag (domain skills declare it in
+  their schema — no `mod_booking.*` names in the engine) with the engine-level
+  `MANDATORY_SKILL_KEYWORDS` (keeps `core.search_skills` reachable). Tracks an approved code
+  change, not a diagram imprecision.
 
 ### Decision / preflight / queue / executor (ch. 08–11)
 

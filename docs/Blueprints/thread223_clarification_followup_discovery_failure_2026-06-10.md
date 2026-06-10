@@ -6,19 +6,26 @@
 
 | Fix | Status | Datei(en) | Risiko |
 |---|---|---|---|
-| **E** Synthesizer-Bypass für blockierende Clarifications | ✅ umgesetzt | `finalization_classifier` (neu: `INFORMATIVE_CLARIFICATION_CODES`; blockierende clarification mit Issue-Code → `DIRECT_FINAL`) + Contract-Tests | niedrig, generisch |
+| **E** Synchronizer FAITHFUL zu blockierenden Clarifications (NICHT bypassen!) | ✅ umgesetzt (korrigiert) | `synchronizer_prompt_builder` (CLARIFICATION RELAY POLICY) | niedrig |
 | **F** `content` = Quelltext, keine fertigen Fragen | ✅ umgesetzt | `generate_questions_skill::get_schema` | trivial |
 | **A** nie nach optionalen Feldern fragen | ✅ umgesetzt | `prompt_policy_builder` (MUTATION CLARIFICATION MINIMIZATION) | niedrig |
 | **C** Discovery-Query um Originaltask anreichern (zustandslose Heuristik) | ✅ umgesetzt | `orchestrator::run_discovery_phase` + Helfer `is_low_semantic_followup`/`find_recent_substantial_user_text` | niedrig, kein State |
+| **B** Pending-Intent für Clarifications (Advisory) | ✅ umgesetzt | `agent_runtime` (`maintain_clarification_origin_task` im Finalize-Chokepoint) + Read in `orchestrator` (deterministisch vor C) | niedrig, isoliert |
 | **D (Skill-Teil)** imperative search_skills-Observations | ✅ umgesetzt | `search_skills_skill` (Empty-Query- + Erfolgs-Observation) | niedrig |
-| **B** Pending-Intent für Clarifications (Advisory) | ⏸ offen | `agent_decision_service`/`pending_intent_service` | State-Maschine, braucht VM-Tests; überlappt mit C |
-| **D2** discovered_skills in nächsten Selektions-Katalog injizieren | ⏸ offen | Orchestrator-Loop-Control | Loop-Chirurgie, braucht VM-Tests |
+| **D2** discovered_skills in nächsten Selektions-Katalog injizieren | ⏸ offen | Orchestrator-Loop-Control | Loop-Chirurgie (in-run Re-Selection), braucht VM-Tests |
 
-**Warum B + D2 offen:** Beides ist State-/Loop-Verhalten, das ohne lauffähige Tests nicht verantwortbar
-„blind" geändert wird. **C neutralisiert den Auslöser bereits** (Originaltask bleibt in der Discovery), und B
-ist im Plan ohnehin als *optionales* Determinismus-Upgrade markiert; `discovered_skills` wird heute **nirgends**
-injiziert (der Kommentar im Skill ist aspirational) — D2 ist die echte, aber riskante Framework-Arbeit. Nach
-VM-Validierung von E/F/A/C entscheiden, ob B/D2 überhaupt nötig sind.
+**E — KORRIGIERT (Georg, 2026-06-10):** Der erste Ansatz (Synthesizer per `DIRECT_FINAL` umgehen, Message
+verbatim) war **falsch** — er gab den rohen **englischen** Planner/Preflight-Text direkt an den User (Thread
+225). Vorgabe: **IMMER der Synchronizer antwortet** (Sprache des Users), er muss die Constructor/Preflight-
+Rückgabe nur **treu** übersetzen/wiedergeben. Architektur-Erkenntnis: `synchronizer_output_contract::merge()`
+behält ohnehin den `response_type` der Source (clarification) und ersetzt **nur die Message** — der Bug in 224
+war rein die **untreue Message**. Fix daher: Classifier unverändert (clarification → LLM_POLISH), aber
+**CLARIFICATION RELAY POLICY** im Synchronizer-Prompt erzwingt treue Wiedergabe (Optionen/IDs erhalten, nichts
+selbst entscheiden, kein „geht nicht", keine fabrizierte Completion).
+
+**Warum D2 offen:** `discovered_skills` wird heute **nirgends** injiziert (der Kommentar im Skill ist
+aspirational); die echte In-Run-Re-Selection-Injektion ist riskante Loop-Chirurgie. **C neutralisiert den
+Auslöser bereits**, daher niedrige Priorität — nach VM-Validierung entscheiden, ob D2 überhaupt nötig ist.
 
 ## 0. Worum es geht
 

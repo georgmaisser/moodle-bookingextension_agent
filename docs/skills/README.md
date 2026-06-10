@@ -88,9 +88,11 @@ always requires manual confirmation and never auto-retries (see
 
 ## Notes for skill authors
 
-- **Two always-included skills.** `mod_booking.update_option_trainer` and
-  `mod_booking.book_users` are force-included in the post-discovery catalog
-  (`ALWAYS_INCLUDE_SKILL_NAMES`), alongside `core.search_skills` — see
+- **Always-included skills.** A skill is force-included in the post-discovery catalog when it
+  declares `'governance' => ['always_available' => true]` in `get_schema()` (how domain skills
+  like `mod_booking.update_option_trainer` and `mod_booking.book_users` opt in), or when its
+  name matches an engine-level keyword in `MANDATORY_SKILL_KEYWORDS` (which keeps
+  `core.search_skills` reachable). The engine hardcodes **no** concrete skill names — see
   [discovery](../architecture/06-discovery-families-embeddings.md#4-the-embedding-query).
 - **`override`** appears on most mutating booking skills: it is how the agent confirms past a
   soft block (e.g. a duplicate-title `DOMAIN_CONFLICT`).

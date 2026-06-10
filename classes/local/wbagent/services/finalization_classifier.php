@@ -86,17 +86,6 @@ class finalization_classifier {
     ];
 
     /**
-     * Issue codes that mark a `clarification` as an INFORMATIVE result (a read/loop step that found
-     * enough context) rather than a blocking question to the user. Informative clarifications are still
-     * polished by the synchronizer; blocking ones must be emitted verbatim (see classify()).
-     *
-     * @var string[]
-     */
-    private const INFORMATIVE_CLARIFICATION_CODES = [
-        'LOOP_EARLY_SUFFICIENT_CONTEXT',
-    ];
-
-    /**
      * Classify finalization strategy from normalized result metadata.
      *
      * @param array<string,mixed> $result
@@ -132,18 +121,10 @@ class finalization_classifier {
         }
 
         if ($responsetype === 'sufficient' || $responsetype === 'clarification') {
-            // A clarification that asks the user for more input (preflight/decision needs_clarification)
-            // must reach the user VERBATIM — the synchronizer would reword it, drop the listed options, or
-            // fabricate closure (it even picks a target itself, undoing skill-side safety). Such blocking
-            // clarifications carry their own issue code(s); the informative "found enough context"
-            // clarification is tagged with an INFORMATIVE_CLARIFICATION_CODES sentinel and still gets
-            // polished. This keeps the engine generic — no skill-specific issue codes are enumerated here.
-            if ($responsetype === 'clarification'
-                    && !empty($issuecodes)
-                    && !$this->contains_any($issuecodes, self::INFORMATIVE_CLARIFICATION_CODES)) {
-                return self::STRATEGY_DIRECT_FINAL;
-            }
-
+            // Clarifications and sufficient results are always finalized by the synchronizer so the answer
+            // is composed in the user's language. The synchronizer is made FAITHFUL to a blocking
+            // clarification (relay the question + options, never fabricate closure) via its prompt/contract,
+            // not by bypassing it here.
             if (in_array($riskclass, [skill_risk_class::R2, skill_risk_class::R3], true)) {
                 return self::STRATEGY_LLM_POLISH;
             }

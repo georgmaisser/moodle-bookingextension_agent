@@ -2,7 +2,8 @@
 
 **Date:** 2026-06-10
 **Author:** Claude (review requested by Georg)
-**Status:** Findings — not yet actioned
+**Status:** ✅ Actioned 2026-06-10 — all of Tier 1 (2.1–2.5), Tier 2, and Tier 3 implemented in
+one sprint. See the [completion log](#7-completion-log-2026-06-10).
 **Related:** `project_wbagent_local_plugin_extraction`, the "executor stays clean" rule,
 `AGENT_IMPLEMENTATION_FLOWCHART.mmd` (legends `LG_3P`, `LG_AGN`, `LG_DET`)
 
@@ -160,4 +161,39 @@ extraction.
 6. **Tier 2** — fold into the `local_wbagent` extraction (move domain services/DTOs to the
    booking side; `aiready` availability via provider hook).
 
-No code changed yet — this is the register only.
+~~No code changed yet — this is the register only.~~ **Superseded — all items actioned, see below.**
+
+---
+
+## 7. Completion log (2026-06-10)
+
+All items implemented in one sprint. Engine tree (`classes/local/wbagent/`) now carries **no**
+concrete `mod_booking.*` skill name.
+
+**Tier 1**
+- **2.1 Selector catalog** — removed `ALWAYS_INCLUDE_SKILL_NAMES`. Skills now declare
+  `'governance' => ['always_available' => true]` in `get_schema()`; the flag is threaded via
+  `skill_contract_validator::build_skill_metadata()` → `skill_registry::build_prompt_contract()`
+  → catalog, and read by `adaptive_skill_catalog_service::get_mandatory_skills()` (unioned with
+  the engine-level `MANDATORY_SKILL_KEYWORDS`, which keeps `core.search_skills` reachable).
+  `update_option_trainer` + `book_users` opt in via the flag.
+- **2.2 Prompt builder example** — `phase_prompt_bundle_builder.php` now uses
+  `example.create_record` instead of `mod_booking.create_option`.
+- **2.3 Static system prompt** — `initial_system_prompt.md` example → `example.create_record`.
+- **2.4 Executor sensitive fields** — removed `SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS`; executor
+  now calls the duck-typed `get_sensitive_input_fields()` generically (mirrors
+  `get_result_preview`). `recall_memory_skill` implements it (`['query']`).
+- **2.5 Decision trigger constant** — was dead; deleted
+  `TRIGGER_ALLOW_MISSING_USER_AUTOCREATE` from `agent_decision_service.php`.
+
+**Tier 2 — domain code moved to `mod_booking`** (not to a new namespace inside the agent
+plugin — that was a wrong first attempt, corrected per Georg). DTOs and services now live under
+`mod_booking\local\wbagent\{dto,services\mutation,services\lookup}`; the engine-tree stubs were
+**deleted** (no class_alias shims). The 4 unused `classes/external/booking_*` endpoints (never
+registered in `db/services.php`, no callers) were deleted entirely. `aiready.php` resolves
+booking statistics via duck-typed `mod_booking\local\wbagent\booking\booking_readiness_provider`
+(class_exists/method_exists), so the engine has no compile-time `mod_booking` dependency.
+
+**Tier 3 — corpus default** — removed `docs_embeddings_index_service::DEFAULT_CORPUS_ID`;
+fallback moved to `docs_corpus_registry::FALLBACK_ADMIN_CORPUS_ID` (back-compat value
+`'mod_booking'`).

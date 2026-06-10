@@ -85,7 +85,7 @@ flowchart TD
         FREG["family_registry_service\nDomain/Context -> Skill Family map\nthird-party extensible contracts"]
         CORESET["core_family_set\nalways-on family baseline\n(core.* including core.search_skills\n+ platform safety families)"]
         EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
-        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nupdate_option_trainer + book_users + core.search_skills: always-include downstream skills\n(ALWAYS_INCLUDE_SKILL_NAMES in adaptive_skill_catalog_service)"]
+        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nmandatory tier (always-include): always_available governance flag\n(domain skills: update_option_trainer + book_users) +\nMANDATORY_SKILL_KEYWORDS (engine-level: keeps core.search_skills)\nadaptive_skill_catalog_service::get_mandatory_skills() — no hardcoded mod_booking.* names"]
         FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete skills)\nonly on wunderbyte+embeddings-ready path"]
         FSIG["family_signal_ranker\nlanguage-agnostic signals:\nnamespace_hint(0.35) + recency_namespace(0.20)\n+ core_bonus(0.10) + base(0.20)\n(context_prior + recency folded in here;\nintent is carried by the semantic path, not a discrete signal;\nno lexical keyword dependency)"]
         DISC_A["discovery stage A (default)\ncontext families + core families only\nslim family cards with hard budget"]
@@ -103,7 +103,7 @@ flowchart TD
         SINT["interpreter::interpret_phase_output(raw, selection, context)\nparse + contract + normalization"]
         SELSKILL["selected_skill handoff\nexactly one skill\nfrom selector to constructor"]
         CPLLM["llm_call_service::invoke(..., source=planner_construction, action_class=constructor_build_params)\nPhase 2 call"]
-        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization\ncommand envelope: use only skill/version/input|parameters\nignore unknown command-level keys"]
+        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization\ncommand envelope: use only skill/version/input|parameters\nignore unknown command-level keys\nunwrap_redundant_input_envelope(): collapse a nested input/parameters\nwrapper (e.g. parameters:{input:{...}}) so skill gets flat fields"]
         PCOMP["planner_result_composer\ncompose unified planner result\npersist planner_trace_history + phase_trace"]
         RESP_TYPE{"parsed\nresponse_type"}
     end

@@ -24,11 +24,11 @@
 
 namespace bookingextension_agent\local\wbagent;
 
-use context_module;
 use context_system;
 use core\di;
 use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
+use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
@@ -50,26 +50,25 @@ class aiready {
     /** Wunderbyte final reply action class name. */
     private const WB_ACTION_GENERATE_AGENT_REPLY = '\\aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
 
-    /** @var int */
-    private int $cmid;
+    /** @var agent_context */
+    private agent_context $ctx;
 
     /** @var int */
     private int $userid;
 
-    /** @var int */
-    private int $bookingid;
-
     /**
      * Constructor.
      *
-     * @param int $cmid
+     * Context-agnostic: works for module, course and system contexts. Booking-specific
+     * extras (module config URL, AI toggle fallback, statistics) only apply when the
+     * context is a booking module; all other contexts get neutral values.
+     *
+     * @param int $contextid
      * @param int $userid
-     * @param int $bookingid
      */
-    public function __construct(int $cmid, int $userid, int $bookingid) {
-        $this->cmid = $cmid;
+    public function __construct(int $contextid, int $userid) {
+        $this->ctx = agent_context::from_contextid($contextid);
         $this->userid = $userid;
-        $this->bookingid = $bookingid;
     }
 
     /**
@@ -80,7 +79,7 @@ class aiready {
     public function export_for_template(): array {
         global $CFG;
 
-        $context = context_module::instance($this->cmid);
+        $context = $this->ctx->moodle_context();
         $authz = new authorization_service();
 
         if (!authorization_service::is_agent_extension_installed()) {
@@ -94,7 +93,7 @@ class aiready {
                 'nonadmintext' => '',
                 'initialpanelhidden' => true,
                 'chatpanelhidden' => true,
-                'cmid' => $this->cmid,
+                'cmid' => $this->ctx->cmid() ?? 0,
             ];
         }
 
@@ -109,10 +108,16 @@ class aiready {
         $debugmode = !empty(get_config('bookingextension_agent', 'aidebugmode'));
         $llmdebugenabled = llm_debug_logger::is_enabled();
 
-        $cm = get_coursemodule_from_id('booking', $this->cmid, 0, false, MUST_EXIST);
+        $isbookingmodule = $this->ctx->is_module('booking');
+        $cmid = $this->ctx->cmid();
+        $courseid = $this->ctx->courseid();
         $providerconfigurl = (new \moodle_url('/admin/settings.php', ['section' => 'aiprovider']))->out(false);
-        $courseconfigurl = (new \moodle_url('/course/edit.php', ['id' => $cm->course]))->out(false);
-        $moduleconfigurl = (new \moodle_url('/course/modedit.php', ['update' => $this->cmid, 'return' => 1]))->out(false);
+        $courseconfigurl = $courseid !== null
+            ? (new \moodle_url('/course/edit.php', ['id' => $courseid]))->out(false)
+            : null;
+        $moduleconfigurl = $cmid !== null
+            ? (new \moodle_url('/course/modedit.php', ['update' => $cmid, 'return' => 1]))->out(false)
+            : null;
         $capabilityurl = (new \moodle_url('/admin/roles/check.php', [
             'contextid' => $context->id,
             'capability' => 'bookingextension/agent:useaiinstructions',

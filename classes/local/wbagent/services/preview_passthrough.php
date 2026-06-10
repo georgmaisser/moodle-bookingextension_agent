@@ -37,6 +37,8 @@ use bookingextension_agent\local\wbagent\conversation_store;
  *   [
  *     'type'      => 'booking_option',  // free, skill-defined string (for client dispatch)
  *     'html'      => '<div>…</div>',     // optional, server-rendered HTML (trusted plugin output)
+ *     'js'        => 'require([...])…',   // optional, render-time JS (trusted, collected via get_end_code);
+ *                                         // the client injects html + runs js via core/templates
  *     'js_module' => 'mod_x/preview',    // optional AMD module name for client-side rendering
  *     'payload'   => [ … ],              // optional data handed to the js_module
  *   ]
@@ -160,6 +162,14 @@ class preview_passthrough {
         $newhtml = isset($preview['html']) && is_string($preview['html']) ? $preview['html'] : '';
         if ($oldhtml !== '' && $newhtml !== '' && strpos($newhtml, $oldhtml) === false) {
             $preview['html'] = $oldhtml . $newhtml;
+        }
+
+        // Concatenate render-time JS the same way as HTML, so a multi-step chain that accumulates
+        // several HTML blocks also accumulates each block's initialisation JS.
+        $oldjs = isset($accumulated['js']) && is_string($accumulated['js']) ? $accumulated['js'] : '';
+        $newjs = isset($preview['js']) && is_string($preview['js']) ? $preview['js'] : '';
+        if ($oldjs !== '' && strpos($newjs, $oldjs) === false) {
+            $preview['js'] = trim($oldjs . "\n" . $newjs);
         }
 
         // Merge payloads (especially list of optionids) across the confirm chain.

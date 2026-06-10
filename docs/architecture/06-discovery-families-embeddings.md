@@ -65,7 +65,8 @@ is hardcoded, plus any `core.*` families from the contracts, hard-capped at
 in the candidate set regardless of context.
 
 > Note: `core.search_skills` reaches the planner not through the core *family* set but
-> through `ALWAYS_INCLUDE_SKILL_NAMES` in the adaptive catalog (see [§4](#4-the-embedding-query)).
+> through the adaptive catalog's **mandatory-skill** tier — it matches the engine-level
+> `MANDATORY_SKILL_KEYWORDS` (see [§4](#4-the-embedding-query)).
 
 ---
 
@@ -106,19 +107,25 @@ from being treated as a brand-new, contextless request — the pending intent ke
 anchored to what the agent was about to do. See [ch. 03 §5](03-conversation-store.md) for
 where `next_step_intent` is stored.
 
-`adaptive_skill_catalog_service::ALWAYS_INCLUDE_SKILL_NAMES` force-includes a few skills in
-the post-discovery catalog regardless of ranking:
+`adaptive_skill_catalog_service::get_mandatory_skills()` force-includes a few skills in the
+post-discovery catalog regardless of ranking. A skill is mandatory when **either**:
 
-```php
-const ALWAYS_INCLUDE_SKILL_NAMES = [
-    'mod_booking.update_option_trainer',
-    'mod_booking.book_users',
-    'core.search_skills',            // universal dynamic-discovery fallback
-];
-```
+- it declares `'governance' => ['always_available' => true]` in its `get_schema()` — this is
+  how **domain** skills opt in (e.g. `mod_booking.update_option_trainer`,
+  `mod_booking.book_users`), with **no** concrete skill names hardcoded in the engine; or
+- its name matches an engine-level keyword in
+  `MANDATORY_SKILL_KEYWORDS = ['help', 'search', 'list', 'get_skills']` — this is what keeps
+  the RAG fallback `core.search_skills` (and similar utility skills) always reachable.
 
-These are the skills that must always be reachable: the two highest-traffic booking actions
-and the RAG fallback (`core.search_skills`) that can find anything discovery missed.
+> **Engine-boundary note.** This replaced the former hardcoded
+> `ALWAYS_INCLUDE_SKILL_NAMES = ['mod_booking.update_option_trainer', 'mod_booking.book_users',
+> 'core.search_skills']` constant. The engine no longer names any `mod_booking.*` skill; the
+> `always_available` flag is threaded generically from each skill's schema through
+> `skill_contract_validator::build_skill_metadata()` → `skill_registry::build_prompt_contract()`
+> → the catalog. See the engine boundary cleanup blueprint.
+
+These are the skills that must always be reachable: the highest-traffic domain actions (via
+their own `always_available` flag) and the RAG fallback that can find anything discovery missed.
 
 ---
 
@@ -220,8 +227,9 @@ by blending skill and family scores (default 0.7/0.3). See
 > bounded blend caps semantic influence at 30%. The `FRANK` node now states the real formula.
 
 > **✓ Confirmed:** dual path with deterministic fallback; query = latest message +
-> next_step_intent; `ALWAYS_INCLUDE` = update_option_trainer + book_users + **search_skills**
-> (now named in the `EMB_QUERY` node too); Stage budgets 12/24/36; confidence 0.60/0.45;
+> next_step_intent; mandatory tier = `always_available` governance flag (domain skills:
+> update_option_trainer + book_users) + `MANDATORY_SKILL_KEYWORDS` (engine-level: keeps
+> **search_skills** reachable); Stage budgets 12/24/36; confidence 0.60/0.45;
 > context prior is soft (`is_hard_filter = false`); low-score tail (max 2, min 0.15).
 
 See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for the consolidated log.
