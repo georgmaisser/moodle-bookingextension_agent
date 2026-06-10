@@ -24,6 +24,7 @@
 import Ajax from 'core/ajax';
 import Notification from 'core/notification';
 import Templates from 'core/templates';
+import Fragment from 'core/fragment';
 
 /** Pending commands waiting for user confirmation. */
 let pendingCommands = null;
@@ -604,7 +605,11 @@ const setSidePreviewHtml = async (html, js) => {
         return;
     }
     try {
-        await Templates.replaceNodeContents(preview, String(html || ''), jsSource);
+        // The collected JS is page-footer markup (<script> blocks). Fragment.processCollectedJavascript
+        // unwraps it into the raw JS replaceNodeContents expects, and skips already-loaded src scripts —
+        // exactly the path Moodle's own fragments use.
+        const rawJs = Fragment.processCollectedJavascript(jsSource);
+        await Templates.replaceNodeContents(preview, String(html || ''), rawJs);
     } catch (e) {
         // Fall back to plain HTML if template JS execution fails for any reason.
         preview.innerHTML = String(html || '');
