@@ -140,7 +140,7 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
      * @param array<string,mixed> $payload
      * @return string
      */
-    private function payload_text(array $payload): string {
+    protected function payload_text(array $payload): string {
         $chunks = [
             (string)($payload['message'] ?? ''),
             (string)($payload['displaymessage'] ?? ''),

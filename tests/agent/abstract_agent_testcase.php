@@ -267,6 +267,16 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     ): void {
         $manager = \core\di::get(\core_ai\manager::class);
         $actionconfig = [
+            // Core generate_text backs skill-internal LLM calls (e.g. the
+            // core.generate_questions GIFT generation via invoke_for_context).
+            'core_ai\\aiactions\\generate_text' => [
+                'enabled' => true,
+                'settings' => [
+                    'model' => $model,
+                    'endpoint' => $chatendpoint,
+                    'systeminstruction' => 'Follow the user instruction precisely and return only the requested output.',
+                ],
+            ],
             'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
                 'enabled' => true,
                 'settings' => [
@@ -526,6 +536,36 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $store    = new conversation_store();
         $authz    = new authorization_service();
         return new executor($registry, $store, $authz);
+    }
+
+    /**
+     * Flatten a payload into assertion-friendly text.
+     *
+     * Lives here (not in the matrix testcase) because plain real-LLM tests
+     * extending this base also build assertion messages from WS payloads.
+     *
+     * @param array<string,mixed> $payload
+     * @return string
+     */
+    protected function payload_text(array $payload): string {
+        $chunks = [
+            (string)($payload['message'] ?? ''),
+            (string)($payload['displaymessage'] ?? ''),
+            (string)($payload['detail'] ?? ''),
+            (string)($payload['usermessage'] ?? ''),
+            (string)($payload['observation_full'] ?? ''),
+            (string)($payload['memory_observation_text'] ?? ''),
+            (string)($payload['debugmessage'] ?? ''),
+            is_array($payload['resultsjson'] ?? null)
+                ? (string)json_encode($payload['resultsjson'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string)($payload['resultsjson'] ?? ''),
+            is_array($payload['commands'] ?? null)
+                ? (string)json_encode($payload['commands'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+                : (string)($payload['commands'] ?? ''),
+            json_encode($payload['results'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ];
+
+        return "\n" . implode("\n", $chunks) . "\n";
     }
 
     /**

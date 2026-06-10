@@ -525,7 +525,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
      * @param array<string,mixed> $payload
      * @return string
      */
-    private function payload_text(array $payload): string {
+    protected function payload_text(array $payload): string {
         $commands = $payload['commands'] ?? '';
         if (is_array($commands)) {
             $commands = json_encode($commands, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

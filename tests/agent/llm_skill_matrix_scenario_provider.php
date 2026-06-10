@@ -150,6 +150,87 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'core.remember' => [
+                'prompt' => 'Nutze deine Merk-Funktion (core.remember) und speichere dauerhaft als Notiz '
+                    . 'ueber mich: Ich moechte, dass du Buchungsoptionen immer mit Datum und Uhrzeit '
+                    . 'zusammenfasst.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'core.list_memories' => [
+                'setup' => 'prepare_user_memory_scenario',
+                'prompt' => 'Welche Notizen hast du dir bisher ueber mich gemerkt? Bitte liste alle auf.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'final',
+                        'type' => 'field_contains',
+                        'field' => 'observation_full',
+                        'value' => '{{memory_token}}',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'core.forget' => [
+                'setup' => 'prepare_user_memory_scenario',
+                'prompt' => 'Vergiss bitte dauerhaft meine gespeicherte Notiz ueber "{{memory_token}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'core.generate_questions' => [
+                'setup' => 'prepare_generate_questions_scenario',
+                'prompt' => "--- DOCUMENT: danube.pdf ---\n"
+                    . 'The Danube is the second-longest river in Europe at about 2850 kilometres. '
+                    . 'It rises in the Black Forest in Germany and flows into the Black Sea. '
+                    . "It passes through ten countries, more than any other river in the world.\n"
+                    . "--- END DOCUMENT ---\n\n"
+                    . 'Please create 2 multiple-choice questions of medium difficulty from this '
+                    . 'document and add them to the question bank in the default category.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'core.recreate_skill_catalog' => [
                 'prompt' => 'Bitte fuehre jetzt die Admin-Aktion core.recreate_skill_catalog aus ' .
                     'und plane den Neuaufbau des Skill-Katalogs.',
@@ -583,6 +664,24 @@ final class llm_skill_matrix_scenario_provider {
             'mod_booking.diagnose_cancellation_issue' => [
                 'setup' => 'prepare_update_option_scenario',
                 'prompt' => 'Diagnose why {{teacher_fullname}} cannot cancel booking option {{existing_option_name}}.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.diagnose_user_booking' => [
+                'setup' => 'prepare_update_option_scenario',
+                'prompt' => 'Diagnose the booking situation of user {{teacher_fullname}} '
+                    . 'for option {{existing_option_name}}.',
                 'assertions' => [
                     [
                         'target' => 'final',

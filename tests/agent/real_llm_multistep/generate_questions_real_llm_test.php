@@ -77,8 +77,8 @@ final class generate_questions_real_llm_test extends abstract_agent_testcase {
             . "into glucose and oxygen. It takes place in the chloroplasts, mostly in the leaves. The green "
             . "pigment chlorophyll absorbs the light energy that drives the reaction.\n"
             . "--- END DOCUMENT ---";
-        $prompt = $document . "\n\nPlease create 3 multiple-choice questions from this document "
-            . "and add them to the question bank.";
+        $prompt = $document . "\n\nPlease create 3 multiple-choice questions of medium difficulty "
+            . "from this document and add them to the question bank in the default category.";
 
         $_POST['sesskey'] = sesskey();
         $response = ai_send_message::execute($contextid, $prompt, $threadid);

@@ -450,6 +450,39 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
+     * Seed one stored user memory (user_memory table) for core.forget / core.list_memories.
+     *
+     * Distinct from prepare_recall_memory_scenario, which seeds past CONVERSATION
+     * content — user memories are explicit stored facts, global per user.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_user_memory_scenario(): array {
+        $token = 'matrix-fact-' . substr(sha1(uniqid('', true)), 0, 8);
+        (new \bookingextension_agent\local\wbagent\services\user_memory_service())->add(
+            (int)$this->teacher->id,
+            'Always mention the token ' . $token . ' when summarising bookings.'
+        );
+
+        return [
+            'replacements' => [
+                'memory_token' => $token,
+            ],
+        ];
+    }
+
+    /**
+     * Grant the native question-bank capability core.generate_questions checks in Gate 2.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_generate_questions_scenario(): array {
+        $this->grant_optional_capability_to_editingteacher('moodle/question:add');
+
+        return [];
+    }
+
+    /**
      * Provide deterministic placeholders for entities scenarios.
      *
      * @return array<string,mixed>
@@ -732,33 +765,6 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
                     $this->fail('Unknown scenario assertion type: ' . $type . ' for ' . (string)($scenario['skill'] ?? ''));
             }
         }
-    }
-
-    /**
-     * Flatten a payload into assertion-friendly text.
-     *
-     * @param array<string,mixed> $payload
-     * @return string
-     */
-    protected function payload_text(array $payload): string {
-        $chunks = [
-            (string)($payload['message'] ?? ''),
-            (string)($payload['displaymessage'] ?? ''),
-            (string)($payload['detail'] ?? ''),
-            (string)($payload['usermessage'] ?? ''),
-            (string)($payload['observation_full'] ?? ''),
-            (string)($payload['memory_observation_text'] ?? ''),
-            (string)($payload['debugmessage'] ?? ''),
-            is_array($payload['resultsjson'] ?? null)
-                ? (string)json_encode($payload['resultsjson'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                : (string)($payload['resultsjson'] ?? ''),
-            is_array($payload['commands'] ?? null)
-                ? (string)json_encode($payload['commands'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                : (string)($payload['commands'] ?? ''),
-            json_encode($payload['results'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        ];
-
-        return "\n" . implode("\n", $chunks) . "\n";
     }
 
     /**
