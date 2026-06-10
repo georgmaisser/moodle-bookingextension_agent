@@ -21,6 +21,7 @@ namespace bookingextension_agent\local\wbagent\services\security;
 use context;
 use coding_exception;
 use bookingextension_agent\local\wbagent\dto\agent_context;
+use bookingextension_agent\local\wbagent\dto\target_selector;
 
 /**
  * Resolves the operating context for a single skill operation (runtime context switch).
@@ -66,6 +67,49 @@ class context_resolver {
         }
 
         return $ambient->with_context($target);
+    }
+
+    /**
+     * Resolve the operating context, optionally against an explicit target (cross-context).
+     *
+     * With no target (or an empty one) this behaves exactly like {@see self::resolve()} — the
+     * ambient context or its nearest ancestor of the required level (fully backward compatible).
+     *
+     * With an explicit target selector it resolves a DIFFERENT branch of the context tree (e.g.
+     * another course) via the {@see operating_context_target_registry}. This is NOT a privilege
+     * escalation: it only decides WHICH context the operation targets; the caller must still
+     * enforce Gate 2 (require_capability) at the returned operating context. An ambiguous,
+     * not-found or unsupported target raises {@see context_target_unresolved_exception} (carrying
+     * the candidates) so the caller can ask for clarification — it never silently falls back to
+     * the ambient context.
+     *
+     * @param agent_context        $ambient      The context the chat/thread lives in.
+     * @param int                  $requiredlevel A Moodle CONTEXT_* level constant.
+     * @param target_selector|null $target       Explicit target, or null for ambient/ancestor.
+     * @param int                  $userid       Acting user id (visibility-aware target resolution).
+     * @param operating_context_target_registry|null $registry Injectable for tests.
+     * @return agent_context The operating context.
+     * @throws context_target_unresolved_exception When an explicit target cannot be uniquely resolved.
+     * @throws coding_exception When no ancestor of the required level exists (no-target path).
+     */
+    public function resolve_operating_context(
+        agent_context $ambient,
+        int $requiredlevel,
+        ?target_selector $target = null,
+        int $userid = 0,
+        ?operating_context_target_registry $registry = null
+    ): agent_context {
+        if ($target === null || $target->is_empty()) {
+            return $this->resolve($ambient, $requiredlevel);
+        }
+
+        $registry = $registry ?? new operating_context_target_registry();
+        $resolution = $registry->resolve($target, $userid);
+        if (!$resolution->is_resolved()) {
+            throw new context_target_unresolved_exception($resolution);
+        }
+
+        return $ambient->with_context($resolution->context());
     }
 
     /**

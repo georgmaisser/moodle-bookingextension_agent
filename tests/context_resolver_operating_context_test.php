@@ -1,0 +1,185 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace bookingextension_agent;
+
+use advanced_testcase;
+use context_course;
+use context_module;
+use context_system;
+use bookingextension_agent\local\wbagent\dto\agent_context;
+use bookingextension_agent\local\wbagent\dto\context_target_resolution;
+use bookingextension_agent\local\wbagent\dto\target_selector;
+use bookingextension_agent\local\wbagent\services\security\context_resolver;
+use bookingextension_agent\local\wbagent\services\security\context_target_unresolved_exception;
+use bookingextension_agent\local\wbagent\services\security\operating_context_target_registry;
+
+/**
+ * Tests for operating-context resolution (cross-context target course, Phase 0).
+ *
+ * @package    bookingextension_agent
+ * @covers     \bookingextension_agent\local\wbagent\services\security\context_resolver
+ * @covers     \bookingextension_agent\local\wbagent\services\security\operating_context_target_registry
+ * @covers     \bookingextension_agent\local\wbagent\dto\target_selector
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+final class context_resolver_operating_context_test extends advanced_testcase {
+    /**
+     * With no target, an ambient module context resolves UP to its course (today's behaviour).
+     */
+    public function test_no_target_walks_up_to_course(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
+        $modcontext = context_module::instance($page->cmid);
+        $ambient = agent_context::from_context($modcontext);
+
+        $resolver = new context_resolver();
+        $operating = $resolver->resolve_operating_context($ambient, CONTEXT_COURSE, null);
+
+        $this->assertSame(CONTEXT_COURSE, $operating->level());
+        $this->assertSame((int)context_course::instance($course->id)->id, $operating->id());
+    }
+
+    /**
+     * An empty selector behaves exactly like the no-target path.
+     */
+    public function test_empty_selector_falls_back_to_ancestor_walk(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
+        $ambient = agent_context::from_context(context_module::instance($page->cmid));
+
+        $resolver = new context_resolver();
+        $operating = $resolver->resolve_operating_context($ambient, CONTEXT_COURSE, target_selector::for_course());
+
+        $this->assertSame((int)context_course::instance($course->id)->id, $operating->id());
+    }
+
+    /**
+     * An explicit target course id resolves to THAT course, not the ambient one.
+     */
+    public function test_explicit_target_course_id_resolves_cross_context(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $ambientcourse = $this->getDataGenerator()->create_course();
+        $targetcourse = $this->getDataGenerator()->create_course();
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $ambientcourse->id]);
+        $ambient = agent_context::from_context(context_module::instance($page->cmid));
+
+        $resolver = new context_resolver();
+        $operating = $resolver->resolve_operating_context(
+            $ambient,
+            CONTEXT_COURSE,
+            target_selector::for_course((int)$targetcourse->id)
+        );
+
+        $this->assertSame((int)context_course::instance($targetcourse->id)->id, $operating->id());
+        $this->assertNotSame((int)context_course::instance($ambientcourse->id)->id, $operating->id());
+    }
+
+    /**
+     * A unique free-text course name resolves to its context.
+     */
+    public function test_target_course_by_unique_name_resolves(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $target = $this->getDataGenerator()->create_course(['fullname' => 'Zoology Masterclass 9000']);
+        $ambient = agent_context::from_context(context_system::instance());
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::for_course(null, 'Zoology Masterclass 9000'));
+
+        $this->assertTrue($resolution->is_resolved());
+        $this->assertSame((int)context_course::instance($target->id)->id, (int)$resolution->context()->id);
+    }
+
+    /**
+     * Several name matches yield an ambiguous resolution carrying the candidates.
+     */
+    public function test_ambiguous_course_name_lists_candidates(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->getDataGenerator()->create_course(['fullname' => 'Shared Title Alpha']);
+        $this->getDataGenerator()->create_course(['fullname' => 'Shared Title Beta']);
+        $ambient = agent_context::from_context(context_system::instance());
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::for_course(null, 'Shared Title'));
+
+        $this->assertSame(context_target_resolution::STATUS_AMBIGUOUS, $resolution->status());
+        $this->assertGreaterThanOrEqual(2, count($resolution->candidates()));
+
+        // The resolver surfacing the ambiguity must make resolve_operating_context ask for clarification.
+        $resolver = new context_resolver();
+        $this->expectException(context_target_unresolved_exception::class);
+        $resolver->resolve_operating_context(
+            $ambient,
+            CONTEXT_COURSE,
+            target_selector::for_course(null, 'Shared Title'),
+            0,
+            $registry
+        );
+    }
+
+    /**
+     * An unknown course name is not-found, and surfaces as the unresolved exception.
+     */
+    public function test_unknown_course_name_is_not_found(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $ambient = agent_context::from_context(context_system::instance());
+        $registry = new operating_context_target_registry();
+
+        $resolution = $registry->resolve(target_selector::for_course(null, 'No Such Course 31337'));
+        $this->assertSame(context_target_resolution::STATUS_NOT_FOUND, $resolution->status());
+
+        $resolver = new context_resolver();
+        try {
+            $resolver->resolve_operating_context(
+                $ambient,
+                CONTEXT_COURSE,
+                target_selector::for_course(null, 'No Such Course 31337'),
+                0,
+                $registry
+            );
+            $this->fail('Expected context_target_unresolved_exception.');
+        } catch (context_target_unresolved_exception $e) {
+            $this->assertSame(context_target_resolution::STATUS_NOT_FOUND, $e->get_resolution()->status());
+        }
+    }
+
+    /**
+     * A target level with no core support and no provider is reported as unsupported.
+     */
+    public function test_unsupported_level_without_provider(): void {
+        $this->resetAfterTest();
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::create(CONTEXT_MODULE, 42, null));
+
+        $this->assertSame(context_target_resolution::STATUS_UNSUPPORTED, $resolution->status());
+    }
+}
