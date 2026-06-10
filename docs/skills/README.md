@@ -53,6 +53,7 @@ Every skill is gated at run time by its per-skill capability
 | `mod_booking.analyze_rules` | Read-only analysis of booking rules / notifications | `query`, `active_only`, `include_templates` |
 | `mod_booking.diagnose_booking_issue` | Why a user can't book / isn't booked | `optionquery`, `userquery`, `issue` |
 | `mod_booking.diagnose_cancellation_issue` | Why a user can't cancel | `optionquery`, `userquery` |
+| `mod_booking.diagnose_user_booking` | Verbose status report for one person — status, when booked, completion, previous/cancelled bookings, submitted form data, and received messages. Option-scoped when an option is named, else an instance-wide overview (e.g. "how many options has X completed") | `userquery`/`userid`, `optionquery`/`optionid` (optional), `includemessages` |
 
 ### Scoped write (R1)
 
