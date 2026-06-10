@@ -2341,7 +2341,11 @@ PROMPT;
         $cm = ($blockcontext instanceof context_module)
             ? get_coursemodule_from_id('booking', (int)$blockcontext->instanceid, 0, false, IGNORE_MISSING)
             : false;
-        $bookingname = $cm ? format_string($cm->name) : 'this booking instance';
+        // Booking module contexts keep the booking instance name (behaviour-preserving);
+        // any other context level falls back to its generic Moodle context name.
+        $bookingname = $cm
+            ? format_string($cm->name)
+            : ($blockcontext ? $blockcontext->get_context_name() : 'this booking instance');
         $nowiso = (new \DateTime('now', $tz))->format(\DateTimeInterface::ATOM);
 
         $lines = [

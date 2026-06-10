@@ -567,6 +567,7 @@ $string['ai_upload_invalid_type'] = 'Dateityp nicht unterstützt. Bitte ein Bild
 $string['ai_upload_no_file'] = 'Keine Datei empfangen. Bitte erneut versuchen.';
 $string['ai_wait_thread_timeout_message'] = 'Anscheinend gab es ein Problem beim Warten auf den naechsten AI-Planungsschritt. Bitte versuchen Sie es erneut.';
 $string['ai_welcome_empty'] = 'Willkommen! Möchten Sie, dass ich Ihnen bei der Erstellung Ihrer ersten Buchungsoption helfe?';
+$string['ai_welcome_generic'] = 'Willkommen! Wie kann ich Ihnen hier helfen?';
 $string['ai_welcome_with_options'] = 'Willkommen! Sie haben hier {$a->numoptions} Buchungsoptionen, und {$a->numbooked} Personen sind bereits gebucht. Wie kann ich Ihnen helfen?';
 $string['aidocsentry'] = 'Dokumentations-Einstiegsdatei';
 $string['aidocsentry_desc'] = 'Standarddatei, die beim Öffnen der Agentendokumentation verwendet wird.';

@@ -574,6 +574,7 @@ $string['ai_upload_invalid_type'] = 'File type not supported. Please upload an i
 $string['ai_upload_no_file'] = 'No file received. Please try again.';
 $string['ai_wait_thread_timeout_message'] = 'It looks like there was a problem while waiting for the next AI planning step. Please try again.';
 $string['ai_welcome_empty'] = 'Welcome! Would you like me to help you create your first booking option?';
+$string['ai_welcome_generic'] = 'Welcome! How can I help you here?';
 $string['ai_welcome_with_options'] = 'Welcome! You have {$a->numoptions} booking options here, and {$a->numbooked} people are already booked. How can I help you?';
 $string['aidebugmode'] = 'AI debug mode';
 $string['aidebugmode_desc'] = 'Enable detailed AI readiness and exchange logging for this extension.';

@@ -27,7 +27,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\llm;
 
 use core\context;
-use context_module;
 use core\di;
 use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
@@ -62,76 +61,11 @@ class llm_call_service {
     }
 
     /**
-     * Invoke a core_ai action class with guaranteed debug logging.
-     *
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @param string $source
-     * @param string $prompt
-     * @param string $actionclass
-     * @return array{success:bool,rawcontent:string,errormessage:string,errorcode:int,errorname:string}
-     */
-    public function invoke(
-        int $threadid,
-        int $cmid,
-        int $userid,
-        string $source,
-        string $prompt,
-        string $actionclass = generate_text::class
-    ): array {
-        $rawcontent = '';
-        $errormessage = '';
-        $errorcode = 0;
-        $errorname = '';
-        $success = false;
-
-        try {
-            $context = context_module::instance($cmid);
-            $manager = di::get(ai_manager::class);
-
-            $action = $this->build_prompt_action($actionclass, $context->id, $userid, $prompt);
-
-            $response = $manager->process_action($action);
-            $rawcontent = (string)($response->get_response_data()['generatedcontent'] ?? '');
-            $success = (bool)$response->get_success();
-            $errormessage = (string)($response->get_errormessage() ?? '');
-            $errorcode = (int)$response->get_errorcode();
-            $errorname = (string)$response->get_error();
-        } catch (\Throwable $e) {
-            $success = false;
-            $errormessage = $e->getMessage();
-            $errorcode = (int)$e->getCode();
-            $errorname = '';
-        }
-
-        llm_debug_logger::log_exchange_always(
-            $this->store,
-            $threadid,
-            $cmid,
-            $userid,
-            $source,
-            $prompt,
-            $rawcontent,
-            $success,
-            $errormessage
-        );
-
-        return [
-            'success' => $success,
-            'rawcontent' => $rawcontent,
-            'errormessage' => $errormessage,
-            'errorcode' => $errorcode,
-            'errorname' => $errorname,
-        ];
-    }
-
-    /**
      * Invoke a core_ai action class by context id (context-level-agnostic).
      *
-     * Mirrors invoke() but resolves the context directly from a context id instead of a
-     * course-module id, so the agent can run at course/system level, not only inside a
-     * module. The debug log records the real context id.
+     * Resolves the context directly from a context id, so the agent can run at
+     * course/system level, not only inside a module. The debug log records the
+     * real context id.
      *
      * @param int $threadid
      * @param int $contextid
@@ -196,93 +130,7 @@ class llm_call_service {
     }
 
     /**
-     * Invoke wunderbyte embeddings action with guaranteed debug logging.
-     *
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @param string $source
-     * @param string $inputtext
-     * @param int|null $dimensions
-     * @return array{success:bool,embedding:array<int,float|int>,model:string,dimensions:int,errormessage:string,errorcode:int,errorname:string}
-     */
-    public function invoke_embeddings(
-        int $threadid,
-        int $cmid,
-        int $userid,
-        string $source,
-        string $inputtext,
-        ?int $dimensions = null
-    ): array {
-        $embedding = [];
-        $model = '';
-        $useddimensions = 0;
-        $errormessage = '';
-        $errorcode = 0;
-        $errorname = '';
-        $success = false;
-
-        try {
-            if (!class_exists(self::WB_ACTION_GENERATE_EMBEDDINGS)) {
-                throw new \moodle_exception('wunderbyte embeddings action class is missing.');
-            }
-
-            $context = context_module::instance($cmid);
-            $manager = di::get(ai_manager::class);
-
-            $actionclass = self::WB_ACTION_GENERATE_EMBEDDINGS;
-            $action = new $actionclass(
-                contextid: $context->id,
-                userid: $userid,
-                inputtext: $inputtext,
-                dimensions: $dimensions,
-            );
-
-            $response = $manager->process_action($action);
-            $responsedata = (array)$response->get_response_data();
-
-            $embedding = (array)($responsedata['embedding'] ?? []);
-            $model = (string)($responsedata['model'] ?? '');
-            $useddimensions = (int)($responsedata['dimensions'] ?? count($embedding));
-            $success = (bool)$response->get_success() && !empty($embedding);
-            $errormessage = (string)($response->get_errormessage() ?? '');
-            $errorcode = (int)$response->get_errorcode();
-            $errorname = (string)$response->get_error();
-        } catch (\Throwable $e) {
-            $success = false;
-            $errormessage = $e->getMessage();
-            $errorcode = (int)$e->getCode();
-            $errorname = '';
-        }
-
-        llm_debug_logger::log_exchange_always(
-            $this->store,
-            $threadid,
-            $cmid,
-            $userid,
-            $source,
-            $inputtext,
-            $success ? '[embedding:' . count($embedding) . ']' : '',
-            $success,
-            $errormessage
-        );
-
-        return [
-            'success' => $success,
-            'embedding' => $embedding,
-            'model' => $model,
-            'dimensions' => $useddimensions,
-            'errormessage' => $errormessage,
-            'errorcode' => $errorcode,
-            'errorname' => $errorname,
-        ];
-    }
-
-    /**
-     * Invoke Wunderbyte embeddings action by context id (compatibility path).
-     *
-     * Some background jobs run without a module cmid and provide a context id
-     * directly. Keep this explicit entry-point for those callers.
+     * Invoke Wunderbyte embeddings action by context id (context-level-agnostic).
      *
      * @param int $threadid
      * @param int $contextid

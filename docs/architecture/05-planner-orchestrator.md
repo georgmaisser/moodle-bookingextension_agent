@@ -57,17 +57,18 @@ construction is skipped and the turn ends after one planner call.
 ## 2. Exactly two planner LLM calls
 
 This is the `LG_PLAN` design invariant, and it holds literally in the code. The only
-planner *chat* calls (`llm_call_service::invoke(...)`) in `process()` are:
+planner *chat* calls (`llm_call_service::invoke_for_context(...)`) in `process()` are:
 
 | Phase | Call site | Source / action |
 |-------|-----------|-----------------|
-| Selection | `orchestrator.php:1057` | `planner_selection` / selector pick-skill |
-| Construction | `orchestrator.php:1292` | `planner_construction` / constructor build-params |
+| Selection | `orchestrator.php:1075` | `planner_selection` / selector pick-skill |
+| Construction | `orchestrator.php:1309` | `planner_construction` / constructor build-params |
 
-Discovery issues **no** chat call — only `invoke_embeddings()` at `orchestrator.php:687`
-(a vector call, not a planner decision). The third `invoke()` in the file, at
-`orchestrator.php:489`, belongs to **`process_synchronizer()`** — a separate pass, not part
-of the planner pipeline (see [§8](#8-the-synchronizer-reuse) and [ch. 12](12-synchronizer.md)).
+Discovery issues **no** chat call — only `invoke_embeddings_for_context()` at
+`orchestrator.php:707` (a vector call, not a planner decision). The third
+`invoke_for_context()` in the file, at `orchestrator.php:492`, belongs to
+**`process_synchronizer()`** — a separate pass, not part of the planner pipeline (see
+[§8](#8-the-synchronizer-reuse) and [ch. 12](12-synchronizer.md)).
 
 So: **two** planner chat calls for a `skill_call` turn, **one** for a clarification/sufficient
 turn, plus an optional embeddings call in discovery.

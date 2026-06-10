@@ -14,7 +14,7 @@ Die Vermutung ist **weitgehend richtig** — näher am „Ja", als die Erstfassu
 1. **Frontend-Laufzeit (Hürde 1, weiterhin gültig):** Da der Agent derzeit als Subplugin eines Aktivitätsmoduls (`bookingextension_agent`) registriert ist, wird sein JS-Code standardmäßig **nur auf Booking-Seiten** geladen. Auf Dashboard- (`/my/`), Kurs- oder Admin-Seiten läuft der Code gar nicht. Für eine globale Navbar-Einbindung wird ein globaler Einstiegspunkt benötigt — lösbar über Moodles Hook-System direkt aus dem Subplugin (siehe §4).
 2. **Backend-Gating (Hürde 2, durch Konsolidierung P1–P3 weitgehend GELÖST):** Die Erstfassung beschrieb hier einen veralteten Code-Stand. Tatsächlich akzeptiert die Autorisierung bereits MODULE/COURSE/SYSTEM-Kontexte, `threads.bookingid` wurde komplett entfernt, und die Runtime trägt durchgehend `contextid`. **Tatsächlich noch offen sind nur zwei Restkopplungen:** der Booking-Namens-Lookup im Orchestrator-Promptblock und der `aiready`-Readiness-Check (= P4a des Konsolidierungsplans). Details in §2.2.
 
-**Ergebnis:** Das Feature ist umsetzbar. Voraussetzung sind nur noch die zwei Rest-Entkopplungen aus §4.5 sowie das globale Einbindungskonzept (Moodle-Hooks + Admin-Setting), solange der Code im Subplugin verbleibt. **Einordnung in die Roadmap:** Die Hook-Konstruktion im Subplugin ist eine bewusste **Übergangslösung** — nach der geplanten Auskopplung in ein `local_wbagent`-Plugin (siehe `wbagent_local_plugin_extraction_plan_2026-06-08.md`) wandern `db/hooks.php` und das Navbar-JS natürlich dorthin. Außerdem gilt: **„Stürzt nicht ab" ≠ „ist nützlich"** — welche Skills außerhalb eines Booking-Kontexts sinnvoll arbeiten (Framework-Skillnamen, P4b), ist eine eigene Produktfrage und Voraussetzung für eine Default-Aktivierung des Settings.
+**Ergebnis:** Das Feature ist umsetzbar. Die Backend-Restkopplungen (Orchestrator-Kontextname, `aiready`/P4a) wurden am 2026-06-10 abends geschlossen — **das Backend ist damit vollständig context-agnostisch**; es fehlt nur noch das globale Einbindungskonzept (Moodle-Hooks + Admin-Setting, §4.1–4.4), solange der Code im Subplugin verbleibt. **Einordnung in die Roadmap:** Die Hook-Konstruktion im Subplugin ist eine bewusste **Übergangslösung** — nach der geplanten Auskopplung in ein `local_wbagent`-Plugin (siehe `wbagent_local_plugin_extraction_plan_2026-06-08.md`) wandern `db/hooks.php` und das Navbar-JS natürlich dorthin. Außerdem gilt: **„Stürzt nicht ab" ≠ „ist nützlich"** — welche Skills außerhalb eines Booking-Kontexts sinnvoll arbeiten (Framework-Skillnamen, P4b), ist eine eigene Produktfrage und Voraussetzung für eine Default-Aktivierung des Settings.
 
 ---
 
@@ -45,10 +45,10 @@ Die Erstfassung dieses Abschnitts beschrieb den Code-Stand **vor** der Kontext-K
    Die Spalte `bookingid` wurde in P3 **komplett aus `local_wbagent_ai_threads` entfernt** (kein Upgrade nötig, Plugin nicht produktiv). `get_or_create_thread()` / `create_fresh_thread()` in conversation_store.php arbeiten mit `(int $userid, int $contextid)`.
 3. **Runtime: BEREITS GELÖST.**  
    `resolve_cmid_from_contextid()` existiert nicht mehr; der gesamte Planner-Loop (agent_runtime → orchestrator → decision → executor) trägt durchgehend `contextid` (P2/P2b/P2c).
-4. **Orchestrator-Promptblock: NOCH OFFEN (Restkopplung 1).**  
-   [orchestrator.php:2341](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wbagent/orchestrator.php#L2341) ermittelt den Aktivitätsnamen für `context_name` noch via `get_coursemodule_from_id('booking', …, IGNORE_MISSING)` — bewusste Brücke, crasht dank `IGNORE_MISSING` nicht, liefert aber außerhalb von Booking keinen Kontextnamen.
-5. **Readiness-Check: NOCH OFFEN (Restkopplung 2 = P4a).**  
-   [aiready.php](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wbagent/aiready.php#L69) verlangt im Constructor `(int $cmid, int $userid, int $bookingid)` und validiert via `get_coursemodule_from_id('booking', …)` (Z. 112). Entkopplung inkl. Cross-Repo-Caller (`mod/booking/view.php`) ist als P4a des Konsolidierungsplans bereits eingeplant.
+4. **Orchestrator-Promptblock: GELÖST (2026-06-10 abends).**  
+   `build_runtime_context_block` nutzt für Nicht-Booking-Kontexte jetzt `$blockcontext->get_context_name()` als Fallback; Booking-Modul-Kontexte behalten verhaltensgleich den Booking-Instanznamen. (Prompt-Key heißt weiterhin `booking_name:` — Umbenennung zu `context_name:` bewusst zurückgestellt wegen Prompt-Stabilität.)
+5. **Readiness-Check: GELÖST (2026-06-10 abends, = P4a).**  
+   [aiready.php](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wbagent/aiready.php) ist auf `agent_context` umgebaut: Constructor `(int $contextid, int $userid)`, Modul-URLs/AI-Toggle/Statistiken nur bei Booking-Modul-Kontext, sonst neutrale Werte + generischer Welcome-String (`ai_welcome_generic`). Booking-Statistiken kommen via duck-typed `mod_booking\…\booking_readiness_provider`. Cross-Repo-Caller `mod/booking/view.php` angepasst (`new aiready($context->id, $USER->id)`).
 
 ---
 
@@ -164,14 +164,15 @@ Das JavaScript-Modul sucht das Navbar-Element und baut die Overlay-UI auf:
 
 > **⚠️ Revision 2:** Die ursprünglichen Punkte 1–3 dieses Schritts (Autorisierung verallgemeinern, `bookingid` nullable, `resolve_cmid_from_contextid` → null) sind durch die Kontext-Konsolidierung P1–P3 **bereits umgesetzt — und zwar sauberer** (`agent_context`-DTO, `bookingid` komplett entfernt statt nullable). Sie dürfen NICHT wie ursprünglich beschrieben implementiert werden; insbesondere würde ein `bookingid NOTNULL="false"` in `install.xml` eine bewusst gelöschte Spalte wieder einführen.
 
-Tatsächlich offen sind nur noch (deckungsgleich mit dem Konsolidierungsplan `agent_context_konsolidierung_implementierungsplan_2026-06-09.md`):
+**Stand 2026-06-10 abends: Punkte 1 und 2 sind UMGESETZT** (siehe §2.2, Punkte 4 und 5). P4b (Framework-Skillnamen) wurde durch Commit `3d76f05` („get rid of old booking references") im Wesentlichen erledigt: `option_lookup_service`, Option-/Entity-Mutation-Services, alte externe WS-Klassen und Option-DTOs sind gelöscht; hardcodierte `mod_booking.*`-Skillnamen kommen im Framework nicht mehr vor.
 
-1. **Orchestrator-Promptblock generalisieren:**  
-   In [orchestrator.php:2341](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wbagent/orchestrator.php#L2341) `$context->get_context_name()` als Fallback für den `context_name`-Promptblock nutzen, wenn `get_coursemodule_from_id('booking', …, IGNORE_MISSING)` nichts liefert (Booking-Name bleibt Spezialfall für Modul-Kontexte — verhaltensgleich für Booking).
-2. **Readiness-Abfrage entkoppeln (= P4a des Konsolidierungsplans):**  
-   [aiready.php](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wbagent/aiready.php) verlangt im Constructor noch `(cmid, userid, bookingid)` und validiert booking-spezifisch. Umbau auf `agent_context` gemäß Konsolidierungsplan §4.6; betrifft auch den Cross-Repo-Caller in `mod/booking/view.php`. Booking-Statistiken werden zum optionalen mod_booking-Hook; Nicht-Booking-Kontexte liefern neutrale Statuswerte.
-3. **Nützlichkeit außerhalb Booking (= P4b, Voraussetzung für Default-Aktivierung):**  
-   Hardcodierte `mod_booking.*`-Skillnamen im Framework (`option_lookup_service` u. a.) auflösen, damit Skill-Discovery in Kurs-/System-Kontexten sinnvolle Ergebnisse liefert. Ohne P4b öffnet der Zauberstab außerhalb von Booking zwar crash-frei, kann dort aber kaum etwas anbieten.
+**Bewusst verbleibende Booking-Bezüge** (kein Handlungsbedarf für die Navbar):
+
+1. `classes/agent.php` extends `mod_booking\plugininfo\bookingextension` — strukturell, solange der Agent ein Booking-Subplugin ist; löst sich erst mit der `local_wbagent`-Auskopplung.
+2. `docs_corpus_registry::FALLBACK_ADMIN_CORPUS_ID = 'mod_booking'` — dokumentierte Back-Compat für bereits indizierte Embeddings.
+3. `skill_contract_validator::RESERVED_NAMESPACES = ['booking', 'core']` und das Lang-Component-Mapping in `result_payload_summarizer` — Governance/Back-Compat, booking-agnostisch im Verhalten.
+4. Benchmark-Szenarien unter `benchmark/scenarios/` — bewusst booking-spezifische Testdaten.
+5. Duck-typed Provider-Klassennamen (z. B. `booking_readiness_provider` in `aiready`) — das gewollte Inversionsmuster, kein Compile-Time-Zwang.
 
 ---
 

@@ -19,9 +19,9 @@ A **thread** is one conversation, unique per `(userid, contextid)` while active.
 
 | Method | Behavior |
 |--------|----------|
-| `get_or_create_thread(userid, contextid, bookingid)` | return the active thread or insert a new `status='active'` one |
+| `get_or_create_thread(userid, contextid)` | return the active thread or insert a new `status='active'` one |
 | `get_active_thread(userid, contextid)` | the active thread or `null` |
-| `create_fresh_thread(userid, contextid, bookingid)` | archive all active threads for the pair, then create a new one (the "start over" path used by `ai_privacy_precheck?forcenewthread=1`) |
+| `create_fresh_thread(userid, contextid)` | archive all active threads for the pair, then create a new one (the "start over" path used by `ai_privacy_precheck?forcenewthread=1`) |
 | `get_thread(threadid)` | a single thread, or `null` |
 | `get_last_thread_for_user(userid, contextid)` | the previous (archived/non-active) thread, for history |
 | `get_user_threads_by_date_window(userid, contextid, from, to)` | thread ids with messages in a time window, dual-fenced on `thread.userid` and `message.userid` |

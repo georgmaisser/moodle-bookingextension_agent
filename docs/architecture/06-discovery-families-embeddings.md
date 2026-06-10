@@ -77,7 +77,7 @@ The flowchart's `EMB_AVAIL` gate. `run_discovery_phase()` checks
 status, and a non-empty query:
 
 - **Path A — semantic.** When `aiprovider_wunderbyte` embeddings are available and the
-  catalog is ready, it calls `llm_call_service::invoke_embeddings()` for the query vector,
+  catalog is ready, it calls `llm_call_service::invoke_embeddings_for_context()` for the query vector,
   retrieves top-k skill rows, and — when the `FAMILY_EMBEDDINGS_ENABLED` feature flag is on
   — scores families semantically (`family_embeddings_retrieval_service::score_families()`)
   and boosts the skill rows by family score.

@@ -20,7 +20,7 @@ LLM debug logs is e.g. `m_local_wbagent_ai_llm_debug`.
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
-| `local_wbagent_ai_threads` | one conversation per (user, context) | `id`, `userid`, `contextid`, `bookingid`, `status` (`active`/archived), `metadatajson`, `timecreated`, `timemodified` |
+| `local_wbagent_ai_threads` | one conversation per (user, context) | `id`, `userid`, `contextid`, `status` (`active`/archived), `metadatajson`, `timecreated`, `timemodified` |
 | `local_wbagent_ai_messages` | messages in a thread | `id`, `threadid`→threads, `userid`, `role` (`user`/`assistant`/`system`/`step`), `content`, `structuredjson`, `timecreated` |
 | `local_wbagent_ai_runs` | a confirmed/executed command set (unit of idempotency) | `id`, `threadid`, `userid`, `contextid`, `status` (`pending`→`completed`/`failed`), `idempotencykey` (sha256), `commandsjson`, `timecreated`, `timemodified` |
 | `local_wbagent_ai_llm_debug` | raw LLM exchanges (debug mode) | `id`, `threadid`, `userid`, `contextid`, `source`, `success`, request/response text, `timecreated` |

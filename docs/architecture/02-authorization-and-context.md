@@ -6,8 +6,9 @@
 Two ideas drive this chapter:
 
 1. **One capability gates the agent**, and per-skill capabilities gate *what it may do*.
-2. **The Moodle module `contextid` is the scope key** for everything stateful — threads,
-   session allowances, confirmations.
+2. **The Moodle `contextid` is the scope key** for everything stateful — threads,
+   session allowances, confirmations. Since the context consolidation the engine is
+   context-level-agnostic: module, course and system contexts are all valid hosts.
 
 **Files:** `classes/local/wbagent/services/security/authorization_service.php`,
 `classes/local/wbagent/aiready.php`, `db/access.php`.
@@ -17,36 +18,47 @@ Two ideas drive this chapter:
 ## 1. The authorization service
 
 `authorization_service` is the single gate between an external function and the engine. It
-exposes four methods (the first three are the flowchart's `AZ1`–`AZ3`):
+exposes these methods (the first three are the flowchart's `AZ1`–`AZ3`):
 
 | Method | Checks | On failure |
 |--------|--------|------------|
 | `is_agent_extension_installed(): bool` *(static)* | the plugin is installed and upgraded (via `core_plugin_manager`) | returns `false` (never throws) |
 | `require_use_capability(int $userid, int $contextid): void` | plugin installed **and** `has_capability('bookingextension/agent:useaiinstructions', context)` | throws `required_capability_exception` (`nopermissions`) |
-| `require_valid_context(int $contextid): void` | the context is an active **booking module** context (delegates to a private `require_booking_module_context()`) | throws `moodle_exception('invalidcontext')` or `moodle_exception('invalidcoursemodule', 'bookingextension_agent')` |
+| `require_valid_context(int $contextid): void` | the context exists and is one of `CONTEXT_MODULE`, `CONTEXT_COURSE`, `CONTEXT_SYSTEM` (delegates to a private `resolve_valid_context()`) | throws `moodle_exception('invalidcontext')` |
+| `require_valid_context_for_levels(int $contextid, array $allowedlevels): agent_context` | same, but with an explicit allow-list of context levels; returns the resolved [`agent_context`](#2-context-authority--agent_context) DTO | throws `moodle_exception('invalidcontext')` |
+| `require_capability_at(int $userid, context $operatingcontext, string $capability): void` | re-checks a capability at a (possibly switched) operating context — used by the runtime context switch (`context_resolver`) | throws `required_capability_exception` |
 | `can_use(int $userid, int $contextid): bool` | the same as `require_use_capability` + valid context, but **safe** | returns `false` (catches all `Throwable`) |
 
 The split between the throwing `require_*` methods and the boolean `can_use()` matters:
 external functions call `can_use()` so they can return a clean `permission_denied` payload
 instead of an exception page, while internal call sites use `require_*` to fail hard.
 
-The private `require_booking_module_context()` resolves a module context, asserts it is a
-`context_module`, and confirms it belongs to a `booking` course module — returning the
-`context_module`. This is also where the **context-authority** rule is enforced: the agent
-only ever operates inside a booking activity's module context.
+The private `resolve_valid_context()` resolves the context and asserts its level is in the
+allowed set — there is **no** booking-module assertion anymore: the agent may be hosted by
+any module, course or system context. Whether a given *skill* may run in that context is a
+separate question, answered by per-skill capabilities (§3) and each skill's native-capability
+preflight check (Gate 2).
 
 ---
 
-## 2. Context authority & cmid resolution
+## 2. Context authority & `agent_context`
 
-The runtime carries the **module `contextid`** as the scope key, not a course id or a
-booking instance id. `agent_runtime::resolve_cmid_from_contextid()` converts it to a cmid
-when a subsystem needs the course-module:
+The runtime carries the **`contextid`** as the scope key, not a course id, cmid or a
+booking instance id. The value object `dto\agent_context` is the single carrier for
+"where am I running": built once at the entry point (e.g. via
+`require_valid_context_for_levels()`), it exposes the context id, level and display name,
+and resolves module details **lazily and optionally**:
 
 ```php
-$ctx = context::instance_by_id($contextid, MUST_EXIST);
-// must be a context_module → $ctx->instanceid is the cmid
+$ctx = agent_context::from_contextid($contextid);
+$ctx->id();                  // the authoritative scope key
+$ctx->is_module('booking');  // false outside a booking module — no exception
+$ctx->cmid();                // ?int — null outside a module context
+$ctx->display_name();        // generic context name for prompts/UI
 ```
+
+There is no `resolve_cmid_from_contextid()` anymore; nothing in the engine assumes a
+course-module behind the context.
 
 Consequences that recur throughout the engine:
 
@@ -102,8 +114,12 @@ to capability is part of the skill-governance picture — see
 ## 4. Readiness (`aiready`)
 
 `aiready` produces the readiness snapshot the chat panel shows *before* the user types, and
-backs the readiness gate's reason mapping in [ch. 01 §3](01-entry-and-web-services.md). It
-runs five sequential checks, each defensively wrapped:
+backs the readiness gate's reason mapping in [ch. 01 §3](01-entry-and-web-services.md).
+It is constructed context-agnostically as `new aiready(int $contextid, int $userid)`;
+booking-specific extras (module config URL, module AI toggle fallback, booking statistics
+via the duck-typed `mod_booking\…\booking_readiness_provider`) only apply when the context
+is a booking module — every other context level gets neutral values and a generic welcome
+string. It runs five sequential checks, each defensively wrapped:
 
 | # | Check | Source | Default if core too old |
 |---|-------|--------|-------------------------|

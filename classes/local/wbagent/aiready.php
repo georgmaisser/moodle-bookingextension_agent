@@ -143,9 +143,7 @@ class aiready {
                 $store = new conversation_store();
                 $interp = new interpreter($registry);
                 $orchestrator = new orchestrator($registry, $interp, $store);
-                $runtimeproviderstatus = $orchestrator->get_runtime_provider_status(
-                    (int)context_module::instance($this->cmid)->id
-                );
+                $runtimeproviderstatus = $orchestrator->get_runtime_provider_status($this->ctx->id());
 
                 $provideractive = (bool)($runtimeproviderstatus['provideractive'] ?? false);
 
@@ -158,13 +156,16 @@ class aiready {
 
                     // For wunderbyte custom actions (without placement wiring),
                     // fall back to the module-level AI toggle when provider + course are active.
+                    // Only module contexts carry such a toggle; other context levels keep
+                    // the value computed by the runtime status.
                     if (
                         !$contextenabled
                         && $haswunderbyteprovider
                         && $provideractive
                         && $courseenabled
+                        && $cmid !== null
                     ) {
-                        $contextenabled = $this->is_module_ai_toggle_enabled();
+                        $contextenabled = $this->is_module_ai_toggle_enabled($cmid);
                     }
                 } else {
                     // Fallback if method does not exist (e.g. older core version) - assume enabled.
@@ -268,12 +269,16 @@ class aiready {
             : get_string('aitrial_activation_question', 'bookingextension_agent');
 
         $stats = $this->get_booking_statistics();
-        $welcometext = ($stats['num_options'] === 0)
-            ? get_string('ai_welcome_empty', 'bookingextension_agent')
-            : get_string('ai_welcome_with_options', 'bookingextension_agent', (object) [
+        if (!$isbookingmodule) {
+            $welcometext = get_string('ai_welcome_generic', 'bookingextension_agent');
+        } else if ($stats['num_options'] === 0) {
+            $welcometext = get_string('ai_welcome_empty', 'bookingextension_agent');
+        } else {
+            $welcometext = get_string('ai_welcome_with_options', 'bookingextension_agent', (object) [
                 'numoptions' => $stats['num_options'],
                 'numbooked' => $stats['num_booked'],
             ]);
+        }
 
         // Previews are now self-contained: each skill returns ready HTML (and optionally its own
         // AMD module name) as data inside the result, so there is no global preview-type/js-module
@@ -281,7 +286,7 @@ class aiready {
         $jsmodules = [];
 
         return [
-            'cmid' => $this->cmid,
+            'cmid' => $cmid ?? 0,
             'contextid' => (int)$context->id,
             'threadid' => $threadid,
             'sesskey' => sesskey(),
@@ -333,11 +338,12 @@ class aiready {
     /**
      * Check whether the module-level AI toggle is enabled.
      *
+     * @param int $cmid
      * @return bool
      */
-    private function is_module_ai_toggle_enabled(): bool {
+    private function is_module_ai_toggle_enabled(int $cmid): bool {
         try {
-            $fields = ai_manager::get_ai_fields_from_course_module($this->cmid);
+            $fields = ai_manager::get_ai_fields_from_course_module($cmid);
             return is_null($fields->enableaitools) || (bool)$fields->enableaitools;
         } catch (\Throwable $e) {
             return false;
@@ -349,18 +355,24 @@ class aiready {
      *
      * The concrete implementation lives in mod_booking\local\wbagent\booking\booking_readiness_provider
      * so the engine carries no compile-time dependency on mod_booking internals.
+     * Non-booking contexts get neutral values.
      *
      * @return array{num_options:int,num_booked:int}
      */
     private function get_booking_statistics(): array {
+        $neutral = ['num_options' => 0, 'num_booked' => 0];
+        if (!$this->ctx->is_module('booking')) {
+            return $neutral;
+        }
+        $cm = get_coursemodule_from_id('booking', (int)$this->ctx->cmid(), 0, false, IGNORE_MISSING);
         $provider = '\\mod_booking\\local\\wbagent\\booking\\booking_readiness_provider';
-        if (class_exists($provider) && method_exists($provider, 'get_booking_statistics')) {
+        if ($cm && class_exists($provider) && method_exists($provider, 'get_booking_statistics')) {
             try {
-                return (array)$provider::get_booking_statistics($this->cmid, $this->bookingid);
+                return (array)$provider::get_booking_statistics((int)$this->ctx->cmid(), (int)$cm->instance);
             } catch (\Throwable $e) {
                 debugging('aiready: booking_readiness_provider failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             }
         }
-        return ['num_options' => 0, 'num_booked' => 0];
+        return $neutral;
     }
 }

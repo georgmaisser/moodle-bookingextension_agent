@@ -27,7 +27,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 use core\context;
-use context_module;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
