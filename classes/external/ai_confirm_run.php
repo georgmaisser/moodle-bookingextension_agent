@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\external;
 
-use context_module;
 use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -92,17 +91,11 @@ class ai_confirm_run extends external_api {
         ]);
 
         $authz = new authorization_service();
-        try {
-            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-            if (!($context instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-        } catch (\Throwable $e) {
-            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
-        }
+        $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
 
         $params['contextid'] = (int)$context->id;
-        $cmid = (int)$context->instanceid;
+        // Only module contexts carry a cmid; other context levels pass 0.
+        $cmid = ($context->contextlevel === CONTEXT_MODULE) ? (int)$context->instanceid : 0;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
 

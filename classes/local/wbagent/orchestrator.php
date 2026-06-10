@@ -237,8 +237,14 @@ class orchestrator {
                 }
             }
 
-            $courseenabled = method_exists($manager, 'is_ai_tools_enabled_in_course')
-                ? ai_manager::is_ai_tools_enabled_in_course($context)
+            // The core course-level AI toggle only exists within a course. Resolve the
+            // enclosing course context first: core's is_ai_tools_enabled_in_course()
+            // treats any non-course context's instanceid as a cmid, which silently
+            // breaks for user/system contexts (e.g. the dashboard). No enclosing
+            // course → no course toggle applies.
+            $coursecontext = $context->get_course_context(false);
+            $courseenabled = ($coursecontext && method_exists($manager, 'is_ai_tools_enabled_in_course'))
+                ? ai_manager::is_ai_tools_enabled_in_course($coursecontext)
                 : true;
 
             $moduleaienabled = true;
@@ -511,10 +517,10 @@ class orchestrator {
      * Resolve synchronizer action class with dedicated fallback chain.
      *
      * @param ai_manager $manager
-     * @param context_module $context
+     * @param context $context
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
-    private function resolve_synchronizer_action_class(ai_manager $manager, context_module $context): array {
+    private function resolve_synchronizer_action_class(ai_manager $manager, context $context): array {
         try {
             if ($manager->is_action_available(self::WB_ACTION_GENERATE_AGENT_REPLY)) {
                 return [
@@ -550,7 +556,7 @@ class orchestrator {
      * @param int $userid
      * @param array $observations
      * @param agent_state|null $agentstate
-     * @param context_module $context
+     * @param context $context
      * @param ai_manager $manager
      * @param skill_executability_evaluator $evaluator
      * @return array<string,mixed>
@@ -561,7 +567,7 @@ class orchestrator {
         int $userid,
         array $observations,
         ?agent_state $agentstate,
-        context_module $context,
+        context $context,
         ai_manager $manager,
         skill_executability_evaluator $evaluator
     ): array {
@@ -977,7 +983,7 @@ class orchestrator {
      * @param int $userid
      * @param array $observations
      * @param array<string,mixed> $discoverystate
-     * @param context_module $context
+     * @param context $context
      * @param ai_manager $manager
      * @return array<string,mixed>
      */
@@ -987,7 +993,7 @@ class orchestrator {
         int $userid,
         array $observations,
         array $discoverystate,
-        context_module $context,
+        context $context,
         ai_manager $manager
     ): array {
         $contextid = (int)($discoverystate['contextid'] ?? 0);

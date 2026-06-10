@@ -59,16 +59,18 @@ class authorization_service implements agent_authorization_service {
     /**
      * Resolve and validate the agent context by id.
      *
-     * Context-level-agnostic: accepts a module, course or system context (no longer
-     * hard-requires a booking module). A booking module context still validates exactly
-     * as before, so existing behaviour is unchanged.
+     * Context-level-agnostic: accepts every context level the agent can be hosted at.
+     * CONTEXT_USER matters for the global navbar entry point — the dashboard (/my/)
+     * runs in the user's own user context. CONTEXT_COURSECAT covers category pages.
+     * A booking module context still validates exactly as before, so existing
+     * behaviour is unchanged. Only CONTEXT_BLOCK stays excluded (no sensible host).
      *
      * @param int $contextid
      * @return context
      */
     private function resolve_valid_context(int $contextid): context {
         $context = context::instance_by_id($contextid, MUST_EXIST);
-        $allowedlevels = [CONTEXT_MODULE, CONTEXT_COURSE, CONTEXT_SYSTEM];
+        $allowedlevels = [CONTEXT_MODULE, CONTEXT_COURSE, CONTEXT_COURSECAT, CONTEXT_USER, CONTEXT_SYSTEM];
         if (!in_array((int)$context->contextlevel, $allowedlevels, true)) {
             throw new moodle_exception('invalidcontext');
         }

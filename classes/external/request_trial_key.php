@@ -27,7 +27,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\external;
 
 use cache;
-use context_module;
 use context_system;
 use core\context;
 use core_external\external_api;
@@ -67,14 +66,7 @@ class request_trial_key extends external_api {
         ]);
 
         $authz = new authorization_service();
-        try {
-            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-            if (!($context instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-        } catch (\Throwable $e) {
-            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
-        }
+        $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);

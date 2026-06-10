@@ -70,15 +70,9 @@ class activate_trial_context extends external_api {
         ]);
 
         $authz = new authorization_service();
-        try {
-            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-            if (!($context instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-        } catch (\Throwable $e) {
-            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
-        }
-        $cmid = (int)$context->instanceid;
+        $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+        // Only module contexts carry a cmid; other context levels pass 0.
+        $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -103,11 +97,21 @@ class activate_trial_context extends external_api {
             ];
         }
 
-        $cm = get_coursemodule_from_id('booking', $cmid, 0, false, MUST_EXIST);
-        $DB->set_field('course', 'enableaitools', 1, ['id' => (int)$cm->course]);
-        $DB->set_field('course_modules', 'enableaitools', 1, ['id' => $cmid]);
-
-        rebuild_course_cache((int)$cm->course, true);
+        if ($cmid > 0) {
+            // Any module type: the AI toggles are core fields, not booking-specific.
+            $cm = get_coursemodule_from_id('', $cmid, 0, false, MUST_EXIST);
+            $DB->set_field('course', 'enableaitools', 1, ['id' => (int)$cm->course]);
+            $DB->set_field('course_modules', 'enableaitools', 1, ['id' => $cmid]);
+            rebuild_course_cache((int)$cm->course, true);
+        } else {
+            // Outside a module (navbar overlay): enable the enclosing course toggle
+            // if there is one; dashboard/system contexts have no toggle to flip.
+            $coursecontext = $context->get_course_context(false);
+            if ($coursecontext) {
+                $DB->set_field('course', 'enableaitools', 1, ['id' => (int)$coursecontext->instanceid]);
+                rebuild_course_cache((int)$coursecontext->instanceid, true);
+            }
+        }
 
         return [
             'success' => true,

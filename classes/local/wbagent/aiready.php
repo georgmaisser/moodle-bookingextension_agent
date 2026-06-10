@@ -190,48 +190,54 @@ class aiready {
             $threadid = (int)$thread->id;
         }
 
-        $checks = [
-            $this->build_check(
-                $providersconfigured,
-                get_string('aiready_check_provider_configured', 'bookingextension_agent'),
-                $providersconfigured
-                    ? get_string('aiready_check_provider_configured_done', 'bookingextension_agent')
-                    : get_string('aiready_check_provider_configured_todo', 'bookingextension_agent'),
-                $providerconfigurl
-            ),
-            $this->build_check(
-                $provideractive,
-                get_string('aiready_check_provider_active', 'bookingextension_agent'),
-                $provideractive
-                    ? get_string('aiready_check_provider_active_done', 'bookingextension_agent')
-                    : get_string('aiready_check_provider_active_todo', 'bookingextension_agent'),
-                $providerconfigurl
-            ),
-            $this->build_check(
+        $checks = [];
+        $checks[] = $this->build_check(
+            $providersconfigured,
+            get_string('aiready_check_provider_configured', 'bookingextension_agent'),
+            $providersconfigured
+                ? get_string('aiready_check_provider_configured_done', 'bookingextension_agent')
+                : get_string('aiready_check_provider_configured_todo', 'bookingextension_agent'),
+            $providerconfigurl
+        );
+        $checks[] = $this->build_check(
+            $provideractive,
+            get_string('aiready_check_provider_active', 'bookingextension_agent'),
+            $provideractive
+                ? get_string('aiready_check_provider_active_done', 'bookingextension_agent')
+                : get_string('aiready_check_provider_active_todo', 'bookingextension_agent'),
+            $providerconfigurl
+        );
+        if ($courseid !== null) {
+            // The course-level AI toggle only exists within a course; on dashboard or
+            // system pages the row would be meaningless.
+            $checks[] = $this->build_check(
                 $courseenabled,
                 get_string('aiready_check_course_enabled', 'bookingextension_agent'),
                 $courseenabled
                     ? get_string('aiready_check_course_enabled_done', 'bookingextension_agent')
                     : get_string('aiready_check_course_enabled_todo', 'bookingextension_agent'),
                 $courseconfigurl
-            ),
-            $this->build_check(
+            );
+        }
+        if ($cmid !== null) {
+            // Module-level AI toggle row only makes sense inside an activity.
+            $checks[] = $this->build_check(
                 $contextenabled,
                 get_string('aiready_check_context_enabled', 'bookingextension_agent'),
                 $contextenabled
                     ? get_string('aiready_check_context_enabled_done', 'bookingextension_agent')
                     : get_string('aiready_check_context_enabled_todo', 'bookingextension_agent'),
                 $moduleconfigurl
-            ),
-            $this->build_check(
-                $hascapability,
-                get_string('aiready_check_capability', 'bookingextension_agent'),
-                $hascapability
-                    ? get_string('aiready_check_capability_done', 'bookingextension_agent')
-                    : get_string('aiready_check_capability_todo', 'bookingextension_agent'),
-                $capabilityurl
-            ),
-        ];
+            );
+        }
+        $checks[] = $this->build_check(
+            $hascapability,
+            get_string('aiready_check_capability', 'bookingextension_agent'),
+            $hascapability
+                ? get_string('aiready_check_capability_done', 'bookingextension_agent')
+                : get_string('aiready_check_capability_todo', 'bookingextension_agent'),
+            $capabilityurl
+        );
 
         $introtext = get_string('aiready_intro_text', 'bookingextension_agent');
 
@@ -255,6 +261,11 @@ class aiready {
                     ];
                     if ($reason !== '' && isset($reasonmap[$reason])) {
                         $admintext = get_string($reasonmap[$reason], 'bookingextension_agent');
+                    } else if (!$hascapability) {
+                        // Runtime is fine, only the use-capability is missing — the
+                        // capability check row already explains that; a provider
+                        // error message here would point admins at the wrong knob.
+                        $admintext = '';
                     } else {
                         $admintext = get_string('ai_provider_not_configured', 'bookingextension_agent');
                     }

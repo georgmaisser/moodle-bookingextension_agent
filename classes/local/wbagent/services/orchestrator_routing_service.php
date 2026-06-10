@@ -19,7 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use context_module;
+use core\context;
 use core_ai\manager as ai_manager;
 use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
@@ -70,11 +70,11 @@ class orchestrator_routing_service {
      * Route to planner action classes by explicit pipeline phase.
      *
      * @param ai_manager $manager
-     * @param context_module $context
+     * @param context $context
      * @param string $phase
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
-    public function resolve_action_class_for_phase(ai_manager $manager, context_module $context, string $phase): array {
+    public function resolve_action_class_for_phase(ai_manager $manager, context $context, string $phase): array {
         $normalizedphase = $this->normalize_phase($phase);
         if ($normalizedphase === self::PHASE_PARAMETER_CONSTRUCTION) {
             return $this->resolve_construction_action_class($manager, $context);
@@ -87,10 +87,10 @@ class orchestrator_routing_service {
      * Route the selection phase action class.
      *
      * @param ai_manager $manager
-     * @param context_module $context
+     * @param context $context
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
-    private function resolve_selection_action_class(ai_manager $manager, context_module $context): array {
+    private function resolve_selection_action_class(ai_manager $manager, context $context): array {
         try {
             if ($manager->is_action_available($this->wbplanneraction)) {
                 return [
@@ -122,10 +122,10 @@ class orchestrator_routing_service {
      * Route the construction phase action class.
      *
      * @param ai_manager $manager
-     * @param context_module $context
+     * @param context $context
      * @return array{actionclass:string, routepolicy:string, routingfallback:bool}
      */
-    private function resolve_construction_action_class(ai_manager $manager, context_module $context): array {
+    private function resolve_construction_action_class(ai_manager $manager, context $context): array {
         try {
             if ($manager->is_action_available($this->wbplanneraction)) {
                 return [
@@ -157,11 +157,11 @@ class orchestrator_routing_service {
      * Check action availability with context and global provider state.
      *
      * @param ai_manager $manager
-     * @param context_module $context
+     * @param context $context
      * @param string $actionclass
      * @return bool
      */
-    public function is_action_available_in_context(ai_manager $manager, context_module $context, string $actionclass): bool {
+    public function is_action_available_in_context(ai_manager $manager, context $context, string $actionclass): bool {
         if (!$manager->is_action_available($actionclass)) {
             return false;
         }

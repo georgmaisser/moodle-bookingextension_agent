@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\external;
 
-use context_module;
+use core\context;
 
 /**
  * Shared formatter for assistant messages returned by external webservices.
@@ -32,10 +32,10 @@ class ws_message_formatter {
      * Format a markdown-like assistant message as HTML for WS output.
      *
      * @param string $message
-     * @param context_module $context
+     * @param context $context any context level the agent runs at
      * @return string
      */
-    public static function format_ws_message(string $message, context_module $context): string {
+    public static function format_ws_message(string $message, context $context): string {
         $message = trim($message);
         if ($message === '') {
             return '';

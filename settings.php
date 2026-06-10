@@ -92,6 +92,15 @@ $aisettingspage->add(
 );
 
 $aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/inject_in_navbar',
+        get_string('inject_in_navbar', 'bookingextension_agent'),
+        get_string('inject_in_navbar_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+$aisettingspage->add(
     new admin_setting_configtext(
         'bookingextension_agent/aidocsroot',
         get_string('aidocsroot', 'bookingextension_agent'),

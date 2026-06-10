@@ -77,15 +77,9 @@ class ai_get_doc_content extends external_api {
         );
 
         $authz = new authorization_service();
-        try {
-            $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-            if (!($context instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
-            }
-        } catch (\Throwable $e) {
-            $context = context_module::instance((int)$params['contextid'], MUST_EXIST);
-        }
-        $cmid = (int)$context->instanceid;
+        $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
+        // Only module contexts carry a cmid; other context levels pass 0.
+        $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
         $authz->require_use_capability((int)$USER->id, (int)$context->id);
@@ -469,16 +463,17 @@ class ai_get_doc_content extends external_api {
 
         // Replace documented placeholders with concrete identifiers from the active preview context.
         $raw = preg_replace('/<\s*contextid\s*>/i', (string)$contextid, $raw) ?? $raw;
+        // <cmid> placeholders can only be resolved inside a module context;
+        // elsewhere (course/system, e.g. navbar overlay) leave them untouched.
         try {
             $ctx = context::instance_by_id($contextid, MUST_EXIST);
-            if (!($ctx instanceof context_module)) {
-                throw new \coding_exception('Invalid module context id.');
+            if ($ctx instanceof context_module) {
+                $raw = preg_replace('/<\s*cmid\s*>/i', (string)(int)$ctx->instanceid, $raw) ?? $raw;
             }
-            $cmid = (int)$ctx->instanceid;
         } catch (\Throwable $e) {
-            $cmid = (int)context_module::instance($contextid, MUST_EXIST)->instanceid;
+            // Unresolvable context: keep the raw link unchanged.
+            $ignored = $e;
         }
-        $raw = preg_replace('/<\s*cmid\s*>/i', (string)$cmid, $raw) ?? $raw;
 
         $parts = parse_url($raw);
         if ($parts === false) {

@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\external;
 
-use context_module;
 use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;

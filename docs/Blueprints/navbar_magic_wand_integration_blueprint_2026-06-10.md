@@ -82,6 +82,17 @@ sequenceDiagram
 
 ## 4. Konkrete Planungsschritte & Technische Umsetzung (Anmerkungen)
 
+> **✅ UMGESETZT (2026-06-10):** Schritte 1–4 sind implementiert — mit zwei Abweichungen
+> gegenüber dem ursprünglichen Text: (a) Das Panel wird **nicht** client-seitig aus dem
+> Template gebaut, sondern über einen **Fragment-Callback**
+> (`bookingextension_agent_output_fragment_aipanel` in `lib.php`) serverseitig gerendert
+> und beim Klick in ein `core/modal` geladen. (b) **Lazy-Loading-Vorgabe (Georg):** Die
+> Navbar-Injektion muss auf jeder Seite minimal sein — der Hook macht keine DB-Abfrage
+> (Config/Capability sind request-gecacht), `navbar_magic_wand.js` hat **keine statischen
+> Imports** und macht **kein String-AJAX** (Label kommt als Parameter aus PHP); Modal,
+> Templates, Fragment und das aiready-Panel laden ausschließlich per Dynamic Import beim
+> ersten Klick.
+
 ### 4.1 Schritt 1: Admin-Setting hinzufügen
 Wir fügen eine neue Einstellungsoption in [settings.php](file:///var/www/moodle/public/mod/booking/bookingextension/agent/settings.php) hinzu, um die Navbar-Injektion ein- und ausschaltbar zu machen.
 
