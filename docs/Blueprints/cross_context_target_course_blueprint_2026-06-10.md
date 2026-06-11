@@ -327,23 +327,65 @@ agent plugin core layer), and any future course-scoped skills; lang en+de.
 
 ---
 
-## 8. Follow-up: per-skill capability-check audit (prerequisite for silent read-only cross-context)
+## 8. Per-skill capability-check audit — ✅ DONE (2026-06-11)
 
-Because read-only cross-context will run **without** a confirmation, the safety rests entirely on
-each skill enforcing the right capability at the **operating** context. Before (or alongside)
-enabling cross-context for any read-only skill, audit every skill for:
+**The opt-in rule (the gate this audit establishes).** A skill may set
+`supports_target_context() = true` **only if its capability check binds to the OPERATING
+context**, by one of:
+- **(A) declaring `get_required_native_capabilities()`** — the engine re-checks it at the operating
+  context (Phase 1b), the preferred path; or
+- **(B) an inline `require_capability`/`has_capability`** that uses the **passed `$contextid`**
+  (which is the operating context after Phase 1b) — never a hardwired ambient `cmid`/`$USER`.
 
-- Declares the correct `get_required_native_capabilities()` for what it reads/writes (e.g. a skill
-  reading other users' data must require `mod/booking:readresponses` or equivalent — like the new
-  `diagnose_user_booking`), **and**
-- Does not perform its own DB reads that bypass that check at a context other than the one Gate 2
-  validated, **and**
-- When it resolves a course/module itself, it does so at the operating context (not the ambient
-  one) once Phase 1 threads the operating context through.
+A skill relying only on **Gate 1** (the governance capability, checked at the *ambient* context)
+must **not** opt in until it adds (A) or (B), because Gate 1 would still be evaluated in the wrong
+(ambient) context.
 
-Deliverable: a short matrix (skill × native caps × read/write scope × cross-context-safe?) kept in
-this blueprint or `docs/skills/`. Skills that fail the audit must not opt into `target_context`
-until fixed.
+### Matrix (auditing how each skill's data access is gated)
+
+| Skill | R/W | Native cap (Gate 2) | How access is gated | Cross-context opt-in? |
+|-------|-----|---------------------|---------------------|-----------------------|
+| `core.generate_questions` | W (R2) | `moodle/question:add` | (A) engine, at operating ctx | ✅ opted in (Phase 3), safe |
+| `mod_booking.diagnose_user_booking` | R (R0) | `mod/booking:readresponses` | (A) engine, at operating ctx | ✅ safe to opt in (not yet) |
+| `mod_booking.diagnose_booking_issue` | R | none | (B) inline `mod/booking:bookforothers` **at ambient cmid** | ⚠ must switch inline check to operating ctx first |
+| `mod_booking.diagnose_cancellation_issue` | R | none | (B) inline, **at ambient cmid** | ⚠ same as above |
+| `mod_booking.get_option_details` | R | none | Gate 1 only | ⛔ add native cap before opt-in |
+| `mod_booking.search_options` | R | none | Gate 1 only | ⛔ add native cap before opt-in |
+| `mod_booking.analyze_rules` | R | none | Gate 1 only | ⛔ add native cap before opt-in |
+| `mod_booking.list_option_properties` | R | none | Gate 1 only (schema only, no user data) | ⛔ low-risk, still add cap |
+| `mod_booking.create/update/bulk/trainer/*` (W) | W (R1/R2) | none | Gate 1 + `booking_option::update($context)` write pipeline | ⛔ declare `mod/booking:updatebooking` before opt-in |
+| `mod_booking.add_price_category` | W | none | (B) inline `moodle/site:config` | ✓ inline cap, but verify it uses operating ctx |
+| `mod_booking.configure_booking_instance` | W | none | (B) inline | ✓ verify operating ctx |
+| `core.search_users` | R | none | Gate 1; global people search | ⛔ inherently cross-scope; add cap before opt-in |
+| `core.search_courses` | R | none | core course visibility (user-aware) | ✓ visibility-scoped already |
+| `core.get_current_user` / `core.recall_memory` / `core.list_memories` / `core.remember` / `core.forget` | R/own | none | acts on the acting user's own data only | ✓ no other-context exposure |
+| `core.explain_docs` / `core.list_actions` / `core.search_skills` | R | none | non-personal (docs / capability listing) | ✓ no sensitive data |
+| `core.recreate_skill_catalog` | W (R2) | none | admin/Gate 1 | n/a (engine-global) |
+
+### Findings & conclusions
+1. **No read-only skill currently opts into cross-context** (`supports_target_context()` is false
+   everywhere except `generate_questions`), so there is **no active cross-context exposure today**.
+   The only opted-in skill, `generate_questions`, declares its native cap → Gate 2 at the target →
+   safe (verified by `generate_questions_cross_context_test`).
+2. **Models to copy:** `generate_questions` (W) and `diagnose_user_booking` (R) both use path (A) —
+   the clean pattern. Any future cross-context skill should follow them.
+3. **`diagnose_booking_issue` / `diagnose_cancellation_issue`** already gate other-user access, but
+   via an inline `has_capability('mod/booking:bookforothers', context_of(cmid))` bound to the
+   **ambient** cmid. They are safe today (no opt-in) but must move that check to the passed
+   (operating) `$contextid` before opting in.
+4. **Mutating option skills** (`create_option`, `update_option`, `bulk_update_options`,
+   `update_option_trainer`, …) declare **no** engine native cap; their write goes through
+   `booking_option::update($context)` and they rely on Gate 1 (teacher-gated) at the ambient
+   context. Safe today (module-scoped, no opt-in); must declare `mod/booking:updatebooking` (path A)
+   before opting in.
+5. **`core.search_users`** is inherently cross-scope (global people search) gated by Gate 1 only —
+   the highest-attention read-only candidate; needs a native cap (e.g. a site/people-view cap)
+   before any cross-context opt-in.
+
+**Net:** the engine-level guarantee (Gate 2 at the operating context) is sound; the residual work
+is **per-skill** and is now captured as the opt-in rule above. The rule has been added to the skill
+contract guidance so new adopters follow path (A)/(B). No code change is required for the current
+state (only `generate_questions` opts in, and it is safe).
 
 ---
 

@@ -96,7 +96,14 @@ abstract class base_skill implements skill_interface {
      * Default false = the skill always runs in the ambient context (today's behaviour). A skill
      * opts in by returning true AND implementing {@see self::get_target_selector()}; the operating
      * context is then resolved by skill_operating_context_resolver and the skill's native
-     * capability (Gate 2) is re-checked there. See the cross-context blueprint.
+     * capability (Gate 2) is re-checked there.
+     *
+     * OPT-IN SAFETY RULE (cross-context blueprint §8): only return true if this skill's capability
+     * check binds to the OPERATING context — either by declaring
+     * {@see self::get_required_native_capabilities()} (preferred; the engine enforces it at the
+     * operating context), or by an inline require_capability/has_capability that uses the PASSED
+     * $contextid (the operating context), never a hardwired ambient cmid/$USER. A skill relying
+     * only on the ambient-checked governance capability (Gate 1) must NOT opt in.
      *
      * @return bool
      */
