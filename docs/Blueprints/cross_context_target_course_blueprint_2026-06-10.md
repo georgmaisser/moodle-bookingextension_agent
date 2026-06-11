@@ -236,15 +236,20 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   context, so the queued path stays correct.
 
 ### Phase 2 — skill contract + queue persistence + confirmation + deep-link
-**2a — base_skill target-context contract (defaults): ✅ DONE (commit `<this>`)**
+**2a — base_skill target-context contract (defaults): ✅ DONE (commit `526f7f4`)**
 - ✅ `base_skill`: `supports_target_context(): bool` (false), `get_target_context_level(): int`
   (= required level), `get_target_selector(array $input): ?target_selector` (null). Formalises the
   duck-typed hooks; every skill now exposes them returning "no target", so behaviour is unchanged
   (operating == ambient). Skills opt in by overriding (Phase 3). Tests green.
 
-**2b — queue persistence of `operating_contextid` (so async cross-context runs target the right place):**
-- enqueue/dequeue + `queue_command_mapper` carry `operating_contextid`; executor reads it from the
-  queued command (falls back to ambient when absent).
+**2b — queue persistence of `operating_contextid`: ✅ DONE (commit `<this>`)**
+- ✅ The shadow queue is thread metadata (no DB schema change): `enqueue_command` stores
+  `operating_contextid` on the queue item (from the command, fallback ambient);
+  `set_prepared_input` now builds the guard token at the item's operating context (the second
+  guard-build site); `queue_command_mapper::from_queue_item` carries `operating_contextid` back
+  into the command so the executor targets it. Behaviour-preserving (operating == ambient today);
+  r3-skill e2e (enqueue→guard→executor) green. Full cross-context e2e arrives with the first
+  adopter in Phase 3.
 
 **2c — confirmation + deep-link:**
 - `agent_decision_service` `D_PROMOTE`: enrich confirmation with `operating_context_label`; scope

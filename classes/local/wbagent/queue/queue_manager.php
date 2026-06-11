@@ -175,6 +175,10 @@ class queue_manager {
             'queue_item_id' => 'q' . $threadid . '_' . $seq,
             'thread_id' => $threadid,
             'contextid' => $contextid,
+            // Operating context for cross-context execution; equals the ambient contextid when the
+            // skill does not target another context. Carried so async confirmed runs and the guard
+            // token target the same context as preflight did.
+            'operating_contextid' => (int)($command['operating_contextid'] ?? $contextid),
             'run_id' => $runid,
             'step_id' => $stepid,
             'skill' => $skill,
@@ -324,8 +328,11 @@ class queue_manager {
             }
             $item['prepared_input'] = $preparedinput;
             $skillname = trim((string)($item['skill'] ?? ''));
+            // Bind the guard to the item's operating context (cross-context target), falling back
+            // to the passed contextid — must match what the executor verifies.
+            $operatingcontextid = (int)($item['operating_contextid'] ?? $contextid);
             $item['guard_token'] = $skillname !== ''
-                ? preflight_execution_gate::build_guard_token($skillname, $contextid, $preparedinput)
+                ? preflight_execution_gate::build_guard_token($skillname, $operatingcontextid, $preparedinput)
                 : '';
             $item['updated_at'] = $now;
             break;

@@ -56,6 +56,12 @@ class queue_command_mapper {
             'risk_class' => self::normalize_risk_class((string)($item['risk_class'] ?? '')),
         ];
 
+        // Carry the operating context (cross-context target) so the executor verifies the guard
+        // and runs the skill at the same context the queued command was prepared for.
+        if (isset($item['operating_contextid'])) {
+            $command['operating_contextid'] = (int)$item['operating_contextid'];
+        }
+
         $dependson = array_values(array_filter(array_map('strval', (array)($item['depends_on'] ?? []))));
         if (!empty($dependson)) {
             $command['depends_on'] = $dependson;
