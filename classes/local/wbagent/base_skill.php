@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\dto\target_selector;
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\skill_prompt_contract;
@@ -87,6 +88,42 @@ abstract class base_skill implements skill_interface {
      */
     public function get_required_context_level(): int {
         return CONTEXT_MODULE;
+    }
+
+    /**
+     * Whether this skill can run against an explicitly named operating context (cross-context).
+     *
+     * Default false = the skill always runs in the ambient context (today's behaviour). A skill
+     * opts in by returning true AND implementing {@see self::get_target_selector()}; the operating
+     * context is then resolved by skill_operating_context_resolver and the skill's native
+     * capability (Gate 2) is re-checked there. See the cross-context blueprint.
+     *
+     * @return bool
+     */
+    public function supports_target_context(): bool {
+        return false;
+    }
+
+    /**
+     * The Moodle context level a cross-context target names (defaults to the required level).
+     *
+     * @return int A Moodle CONTEXT_* level constant.
+     */
+    public function get_target_context_level(): int {
+        return $this->get_required_context_level();
+    }
+
+    /**
+     * Build the operating-context target selector from this command's input, or null for none.
+     *
+     * Only consulted when {@see self::supports_target_context()} is true. Returning null or an
+     * empty selector keeps the skill in the ambient context.
+     *
+     * @param array $input
+     * @return target_selector|null
+     */
+    public function get_target_selector(array $input): ?target_selector {
+        return null;
     }
 
     /**

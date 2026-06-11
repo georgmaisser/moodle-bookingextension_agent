@@ -218,7 +218,7 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   the ambient context unchanged for every skill today. Unit-tested (3 cases: non-opt-in → ambient,
   opt-in + target → cross-context, opt-in + empty selector → ambient).
 
-**1b — wire into the hot path (behaviour-preserving when operating == ambient): ✅ DONE (commit `<this>`)**
+**1b — wire into the hot path (behaviour-preserving when operating == ambient): ✅ DONE (commit `f27092d`)**
 - ✅ `preflight_pipeline::run()`: resolves operating context per command (via
   `skill_operating_context_resolver`), calls `skill->preflight` at it (the skill's own capability
   check then runs at the operating context = Gate 2), stores `operating_contextid` on the prepared
@@ -235,12 +235,22 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   same context. Today the executor falls back to the ambient context, which equals the operating
   context, so the queued path stays correct.
 
-### Phase 2 — skill contract + confirmation + deep-link
-- `base_skill`: `supports_target_context(): bool`, `get_target_context_level(): int`,
-  `get_target_selector(array $input): ?target_selector` (default course query/id).
+### Phase 2 — skill contract + queue persistence + confirmation + deep-link
+**2a — base_skill target-context contract (defaults): ✅ DONE (commit `<this>`)**
+- ✅ `base_skill`: `supports_target_context(): bool` (false), `get_target_context_level(): int`
+  (= required level), `get_target_selector(array $input): ?target_selector` (null). Formalises the
+  duck-typed hooks; every skill now exposes them returning "no target", so behaviour is unchanged
+  (operating == ambient). Skills opt in by overriding (Phase 3). Tests green.
+
+**2b — queue persistence of `operating_contextid` (so async cross-context runs target the right place):**
+- enqueue/dequeue + `queue_command_mapper` carry `operating_contextid`; executor reads it from the
+  queued command (falls back to ambient when absent).
+
+**2c — confirmation + deep-link:**
 - `agent_decision_service` `D_PROMOTE`: enrich confirmation with `operating_context_label`; scope
   session-allow signature by operating contextid.
 - Standardise `result_deeplink`; synchronizer renders it.
+- Lang strings (en+de), incl. the deferred `error_context_target_unresolved`.
 
 ### Phase 3 — first adopter: `generate_questions`
 - Add `coursequery` / `courseid` inputs + `target_context` declaration.
