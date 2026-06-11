@@ -731,6 +731,7 @@ $string['benchmark_trend'] = 'Trend ({$a} Durchläufe)';
 $string['benchmark_trend_table'] = 'Trend-Tabelle';
 $string['benchmark_uuid'] = 'UUID';
 $string['benchmark_value'] = 'Wert';
+$string['cachedef_attachment_tokens'] = 'Anhang-Tokens (Cache)';
 $string['cachedef_trialnonce'] = 'Trial-Nonce (Cache)';
 $string['error_ai_actions_missing'] = 'Der KI-Provider unterstützt die für diesen Agenten erforderlichen Aktionen nicht.';
 $string['error_ai_context_disabled'] = 'KI-Funktionen sind in diesem Kontext deaktiviert.';

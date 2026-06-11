@@ -753,6 +753,7 @@ $string['benchmark_value'] = 'Value';
 $string['cachedef_aiprivacynames'] = 'AI privacy names (cache)';
 $string['cachedef_aiwaitmailbox'] = 'AI wait mailbox (session cache)';
 $string['cachedef_aiwaitstate'] = 'AI wait state (session cache)';
+$string['cachedef_attachment_tokens'] = 'Attachment tokens (cache)';
 $string['cachedef_trialnonce'] = 'Trial nonce (cache)';
 $string['error_ai_actions_missing'] = 'The AI provider does not support the required actions for this agent.';
 $string['error_ai_context_disabled'] = 'AI features are disabled in this context.';
