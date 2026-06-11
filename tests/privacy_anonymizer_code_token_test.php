@@ -59,6 +59,7 @@ final class privacy_anonymizer_code_token_test extends \advanced_testcase {
         $anonymizer = new privacy_anonymizer($store);
 
         $message = 'Use core.forget (trigger core.forget_request) or mod_booking.book_users. '
+            . 'Command payload: {"forget": true, "memory": "x"}. '
             . 'Estorgan Forget asked us to forget his stored preference.';
         $sanitized = (string)$anonymizer->anonymize_value_for_llm((int)$thread->id, $message);
 
@@ -66,6 +67,7 @@ final class privacy_anonymizer_code_token_test extends \advanced_testcase {
         $this->assertStringContainsString('core.forget', $sanitized);
         $this->assertStringContainsString('core.forget_request', $sanitized);
         $this->assertStringContainsString('mod_booking.book_users', $sanitized);
+        $this->assertStringContainsString('{"forget": true', $sanitized);
         $this->assertStringNotContainsString('core.ANON_USER', $sanitized);
 
         // The person reference in prose must still be anonymized.

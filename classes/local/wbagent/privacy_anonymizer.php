@@ -814,36 +814,41 @@ class privacy_anonymizer {
      *
      * Matches `<namespace>.<identifier>` such as "core.forget",
      * "mod_booking.book_users" or "core.remember_request" — lowercase identifiers
-     * joined by a dot, exactly the naming contract enforced for skills. Words inside
-     * these spans must never be treated as person names: replacing them corrupts
-     * commands, catalogs and history and makes the planner emit non-registered
-     * skill names (thread 288). Emails are not affected — they are replaced as a
-     * whole before name anonymization runs.
+     * joined by a dot, exactly the naming contract enforced for skills — plus
+     * JSON object keys (`"identifier":`) inside serialized command/observation
+     * payloads. Words inside these spans must never be treated as person names:
+     * replacing them corrupts commands, catalogs and history and makes the planner
+     * emit non-registered skill names (thread 288). Emails are not affected — they
+     * are replaced as a whole before name anonymization runs.
      *
      * @param string $message
      * @return array<int,array{start:int,end:int}>
      */
     private function find_code_token_spans(string $message): array {
         $spans = [];
-        $matches = [];
-        preg_match_all(
+
+        $patterns = [
+            // Namespaced skill names and trigger ids: core.forget, core.forget_request.
             '/\b[a-z][a-z0-9_]+\.[a-z][a-z0-9_]+\b/',
-            $message,
-            $matches,
-            PREG_OFFSET_CAPTURE
-        );
+            // JSON object keys in serialized payloads: "forget": true.
+            '/"[a-z][a-z0-9_]*"\s*:/',
+        ];
 
-        foreach ((array)($matches[0] ?? []) as $match) {
-            if (!is_array($match) || count($match) < 2) {
-                continue;
+        foreach ($patterns as $pattern) {
+            $matches = [];
+            preg_match_all($pattern, $message, $matches, PREG_OFFSET_CAPTURE);
+            foreach ((array)($matches[0] ?? []) as $match) {
+                if (!is_array($match) || count($match) < 2) {
+                    continue;
+                }
+
+                $token = (string)$match[0];
+                $start = (int)$match[1];
+                $spans[] = [
+                    'start' => $start,
+                    'end' => $start + strlen($token),
+                ];
             }
-
-            $token = (string)$match[0];
-            $start = (int)$match[1];
-            $spans[] = [
-                'start' => $start,
-                'end' => $start + strlen($token),
-            ];
         }
 
         return $spans;
