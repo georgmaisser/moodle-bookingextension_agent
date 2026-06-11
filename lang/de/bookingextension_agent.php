@@ -295,6 +295,7 @@ $string['agent_booking_pricecat_identifier_invalid'] = 'Der Bezeichner darf nur 
 $string['agent_booking_pricecat_identifier_required'] = 'Bitte geben Sie einen eindeutigen Bezeichner für die Preiskategorie an.';
 $string['agent_booking_prices_empty'] = 'Feld "prices" muss mindestens ein Kategorie-Wert-Paar enthalten.';
 $string['agent_booking_prices_not_object'] = 'Feld "prices" muss eine Objektzuordnung sein, z.B. {"default": 10, "student": 20}.';
+$string['agent_booking_no_instance_in_scope'] = 'Im aktuellen Kontext (z. B. Dashboard) gibt es keine Buchungsaktivitaet. Bitte sagen Sie mir, welchen Kurs oder welche Buchungsaktivitaet Sie meinen.';
 $string['agent_booking_recall_memory_date_hint_required'] = 'Das Feld "date_hint" ist fuer den Modus "date_window" erforderlich.';
 $string['agent_booking_recall_memory_invalid_date_hint'] = 'Das date_hint konnte nicht verstanden werden. Bitte gib ein konkretes Datum wie "2026-05-15" oder "letzten Freitag" an.';
 $string['agent_booking_recall_memory_invalid_mode'] = 'Das Feld "mode" muss entweder "last_thread" oder "date_window" sein.';

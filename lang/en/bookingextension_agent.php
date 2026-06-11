@@ -295,6 +295,7 @@ $string['agent_booking_pricecat_identifier_invalid'] = 'The identifier may only 
 $string['agent_booking_pricecat_identifier_required'] = 'Please provide a unique identifier for the price category.';
 $string['agent_booking_prices_empty'] = 'Field "prices" must contain at least one category => value pair.';
 $string['agent_booking_prices_not_object'] = 'Field "prices" must be an object map like {"default": 10, "student": 20}.';
+$string['agent_booking_no_instance_in_scope'] = 'There is no booking activity in the current context (for example the dashboard). Please tell me which course or booking activity you mean.';
 $string['agent_booking_recall_memory_date_hint_required'] = 'Field "date_hint" is required for mode "date_window".';
 $string['agent_booking_recall_memory_invalid_date_hint'] = 'Could not understand date_hint. Please provide a specific date like "2026-05-15" or "last friday".';
 $string['agent_booking_recall_memory_invalid_mode'] = 'Field "mode" must be either "last_thread" or "date_window".';
