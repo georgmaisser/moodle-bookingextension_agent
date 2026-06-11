@@ -74,9 +74,11 @@ const getModal = (contextid, title) => {
                     + '<div class="spinner-border" role="status"></div></div>',
                 large: true,
             });
-            // The preview needs more room than Bootstrap's modal-lg offers;
-            // the actual width lives in styles.css behind this hook class.
-            modal.getModal().addClass('bookingextension-agent-wand-modal');
+            // The preview needs more room than Bootstrap's modal-lg offers.
+            // getModal() returns the .modal-dialog itself: modal-xl is the
+            // Bootstrap-native baseline (1140px), the hook class widens it
+            // further via --bs-modal-width in styles.css.
+            modal.getModal().addClass('modal-xl bookingextension-agent-wand-modal');
             loadPanel(modal, contextid);
             return modal;
         })();

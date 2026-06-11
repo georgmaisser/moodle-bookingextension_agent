@@ -487,8 +487,11 @@
     border-top: 2px dashed #74b9ff;
 }
 
-/* Extra-wide navbar magic-wand modal: the result preview needs the space. */
-.bookingextension-agent-wand-modal .modal-dialog {
+/* Extra-wide navbar magic-wand modal: the result preview needs the space.
+   core/modal's getModal() returns the .modal-dialog element itself, so the
+   hook class sits ON the dialog -- target it directly and plug into
+   Bootstrap's own width mechanism (--bs-modal-width). */
+.modal-dialog.bookingextension-agent-wand-modal {
+    --bs-modal-width: min(1400px, 95vw);
     max-width: min(1400px, 95vw);
-    width: min(1400px, 95vw);
 }
