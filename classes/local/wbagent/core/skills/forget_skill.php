@@ -70,18 +70,26 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
             'properties' => [
                 'query' => [
                     'type' => 'string',
-                    'description' => 'Search text to locate the memory to delete. Provide this OR id.',
+                    'description' => 'Search text to locate ONE memory to delete. Provide this OR id OR all.',
                     'required' => false,
                 ],
                 'id' => [
                     'type' => 'integer',
-                    'description' => 'Exact id of the memory to delete (e.g. from core.list_memories). Provide this OR query.',
+                    'description' => 'Exact id of the memory to delete (e.g. from core.list_memories). Provide this OR query OR all.',
+                    'required' => false,
+                ],
+                'all' => [
+                    'type' => 'boolean',
+                    'description' => 'Set true when the user wants to forget EVERYTHING stored about them '
+                        . '(e.g. "vergiss alles", "forget all my preferences", "vergiss deine gesamte Erinnerung"). '
+                        . 'Do NOT invent a query for such requests — use this flag instead.',
                     'required' => false,
                 ],
             ],
             'prompt_meta' => [
-                'intent' => 'Delete one stored user memory, resolved by query or explicit id, always confirmed.',
-                'input_fields_for_prompt' => ['query'],
+                'intent' => 'Delete stored user memories: one (by query or explicit id) or all of them '
+                    . '(all=true), always confirmed.',
+                'input_fields_for_prompt' => ['query', 'all'],
                 'anchor_fields' => ['query'],
                 'capabilities' => ['user_memory_delete'],
                 // Affected scope is the USER's global memory store, not the hosting context.
@@ -115,6 +123,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                     'vergiss: Ich bevorzuge Buchungen am Vormittag',
                     'forget that my employee id is 12345',
                     'lösche die gespeicherte Einstellung zu Raum B',
+                    'vergiss alles, was du dir über mich gemerkt hast',
                 ],
             ],
         ];
@@ -130,7 +139,8 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         $errors = [];
         $query = trim((string)($input['query'] ?? ''));
         $id = (int)($input['id'] ?? 0);
-        if ($query === '' && $id <= 0) {
+        $all = !empty($input['all']);
+        if ($query === '' && $id <= 0 && !$all) {
             $errors[] = get_string('agent_memory_forget_need_query', 'bookingextension_agent');
         }
 
@@ -164,6 +174,22 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         $id = (int)($input['id'] ?? 0);
         $query = trim((string)($input['query'] ?? ''));
 
+        // Forget-everything path: confirm with the full list, delete all on confirm.
+        if (!empty($input['all'])) {
+            $records = $service->get_all($userid);
+            if (empty($records)) {
+                return preflight_result_v2::invalid($this->clarification_issues([
+                    get_string('agent_memory_forget_none_stored', 'bookingextension_agent'),
+                ]));
+            }
+
+            return preflight_result_v2::ok([
+                'all' => true,
+                'ids' => array_map(static fn($record): int => (int)$record->id, $records),
+                'memory' => $this->format_candidates($records),
+            ]);
+        }
+
         // Explicit id path: ownership-checked.
         if ($id > 0) {
             $owned = null;
@@ -188,8 +214,21 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         // Query path: find candidates and propose, never silent multi-delete.
         $matches = $service->find($userid, $query);
         if (empty($matches)) {
+            // Distinguish "nothing stored at all" from "query matched nothing":
+            // listing what IS stored lets the user (and the planner retry) pick the
+            // right entry instead of wrongly concluding the memory is empty.
+            $stored = $service->get_all($userid);
+            if (empty($stored)) {
+                return preflight_result_v2::invalid($this->clarification_issues([
+                    get_string('agent_memory_forget_none_stored', 'bookingextension_agent'),
+                ]));
+            }
+
             return preflight_result_v2::invalid($this->clarification_issues([
-                get_string('agent_memory_forget_no_match', 'bookingextension_agent', s($query)),
+                get_string('agent_memory_forget_no_match_with_list', 'bookingextension_agent', (object)[
+                    'query' => s($query),
+                    'candidates' => $this->format_candidates($stored),
+                ]),
             ]));
         }
 
@@ -218,6 +257,22 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         $service = new user_memory_service();
         $id = (int)($input['id'] ?? 0);
         $memory = (string)($input['memory'] ?? '');
+
+        // Confirmed forget-everything path.
+        if (!empty($input['all'])) {
+            $deletedcount = 0;
+            foreach ((array)($input['ids'] ?? []) as $deleteid) {
+                if ($service->delete($userid, (int)$deleteid)) {
+                    $deletedcount++;
+                }
+            }
+
+            return [
+                'status' => 'executed',
+                'detail' => get_string('agent_memory_forget_all_ok', 'bookingextension_agent', $deletedcount),
+                'observation_full' => '[USER_MEMORY] forgot ALL stored memories (' . $deletedcount . ') :: ' . $memory,
+            ];
+        }
 
         $deleted = $service->delete($userid, $id);
         if (!$deleted) {
