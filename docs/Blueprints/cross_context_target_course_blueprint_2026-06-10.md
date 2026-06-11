@@ -211,25 +211,29 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
 - ✅ Also added: `dto/context_target_resolution.php`, `context_target_unresolved_exception`.
 
 ### Phase 1 — thread the operating context (engine)
-**1a — resolver glue (no hot-path change): ✅ DONE (commit `<this>`)**
+**1a — resolver glue (no hot-path change): ✅ DONE (commit `b147e39`)**
 - ✅ `skill_operating_context_resolver`: maps a skill+input+ambient context to its operating
   context. Duck-typed (`supports_target_context()` / `get_target_selector()` /
   `get_target_context_level()` optional on skills, mirroring `get_result_preview`), so it returns
   the ambient context unchanged for every skill today. Unit-tested (3 cases: non-opt-in → ambient,
   opt-in + target → cross-context, opt-in + empty selector → ambient).
 
-**1b — wire into the hot path (behaviour-preserving when operating == ambient):**
-- `preflight_pipeline::run()`: resolve operating context per command; call `skill->preflight` at it
-  (the skill's own capability check then runs at the operating context = Gate 2); store
-  `operating_contextid` on the prepared command.
-- `agent_decision_service::apply_execution_guard_tokens()`: build the guard token with the
+**1b — wire into the hot path (behaviour-preserving when operating == ambient): ✅ DONE (commit `<this>`)**
+- ✅ `preflight_pipeline::run()`: resolves operating context per command (via
+  `skill_operating_context_resolver`), calls `skill->preflight` at it (the skill's own capability
+  check then runs at the operating context = Gate 2), stores `operating_contextid` on the prepared
+  command; an unresolvable target yields `CONTEXT_TARGET_UNRESOLVED`.
+- ✅ `agent_decision_service::apply_execution_guard_tokens()`: builds the guard token with the
   operating contextid.
-- `executor`: verify guard + `skill->execute()` against the operating contextid.
-- Queue persistence: carry `operating_contextid` through enqueue/dequeue so async confirmed runs
-  target the same context.
-- Back-compat: when no target selector, operating contextid == ambient (today's behaviour).
-  Regression-test the whole existing booking skill suite (must be byte-for-byte equivalent with no
-  target — identical guard tokens).
+- ✅ `executor`: verifies guard + `skill->execute()` against the operating contextid; Gate 1
+  governance `evaluate_skill` stays at the ambient context.
+- ✅ Back-compat verified: no skill opts in yet → operating == ambient → identical guard tokens;
+  r3-skill e2e (guard+executor) + generate_questions + full plugin suite green.
+- ✅ Flowchart updated (`PF_L2P`, `EXC_GUARD`, `EXC_RUN`, new `LG_CTX`) + flowchart-guide entry.
+- ⏳ **Deferred to Phase 2 (only needed once operating ≠ ambient):** persist `operating_contextid`
+  through the queue (enqueue/dequeue + `queue_command_mapper`) so async confirmed runs target the
+  same context. Today the executor falls back to the ambient context, which equals the operating
+  context, so the queued path stays correct.
 
 ### Phase 2 — skill contract + confirmation + deep-link
 - `base_skill`: `supports_target_context(): bool`, `get_target_context_level(): int`,

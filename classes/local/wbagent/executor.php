@@ -145,6 +145,12 @@ class executor implements agent_executor {
                 continue;
             }
 
+            // Operating context for this command: the cross-context target resolved during
+            // decision-service preflight, or the ambient context when none (today's default).
+            // Gate 1 (governance, above) stays at the ambient context; Gate 2 (the skill's own
+            // native capability check) and execution run at the operating context.
+            $operatingcontextid = (int)($cmd['operating_contextid'] ?? $contextid);
+
             // Lightweight structural guard only — no DB access.
             // Deep validation already happened in decision-service preflight.
             $structural = $skill->check_structure($input);
@@ -175,7 +181,7 @@ class executor implements agent_executor {
                     continue;
                 }
 
-                if (!preflight_execution_gate::verify_guard_token($guardtoken, (string)$skillname, $contextid, $input)) {
+                if (!preflight_execution_gate::verify_guard_token($guardtoken, (string)$skillname, $operatingcontextid, $input)) {
                     $results[] = [
                         'status' => 'error',
                         'detail' => 'Execution guard mismatch for mutating command.',
@@ -187,7 +193,7 @@ class executor implements agent_executor {
                 }
             }
 
-            $result = $skill->execute($input, $contextid, $userid);
+            $result = $skill->execute($input, $operatingcontextid, $userid);
             if (is_array($result) && !isset($result['skill'])) {
                 $result['skill'] = $skillname;
             }

@@ -25,6 +25,9 @@ use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wbagent\dto\agent_context;
+use bookingextension_agent\local\wbagent\services\security\skill_operating_context_resolver;
+use bookingextension_agent\local\wbagent\services\security\context_target_unresolved_exception;
 
 /**
  * Unified preflight pipeline for mutating command batches.
@@ -98,6 +101,10 @@ class preflight_pipeline {
         $context = context::instance_by_id($contextid, MUST_EXIST);
         // cmid is only needed by booking-style skills; 0 outside a module context.
         $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
+        // The chat/thread ambient context; a command may resolve a different operating context
+        // (cross-context target). Skills that do not opt in keep the ambient context unchanged.
+        $ambient = agent_context::from_contextid($contextid);
+        $operatingresolver = new skill_operating_context_resolver();
 
         foreach ($commands as $idx => $command) {
             $label = 'Command #' . ($idx + 1);
@@ -172,7 +179,17 @@ class preflight_pipeline {
                 $input = $anonymizer->deanonymize_command_input_for_active_user($contextid, $userid, $input);
             }
 
-            $preflightresult = $skill->preflight($input, $contextid, $userid);
+            try {
+                $operatingcontextid = $operatingresolver->resolve($skill, $input, $ambient, $userid)->id();
+            } catch (context_target_unresolved_exception $e) {
+                // An opted-in skill named a cross-context target that could not be resolved
+                // uniquely (ambiguous / not found / unsupported) → surface as a clarification.
+                $issuecodes[] = 'CONTEXT_TARGET_UNRESOLVED';
+                $errors[] = $label . ': ' . $e->getMessage();
+                continue;
+            }
+
+            $preflightresult = $skill->preflight($input, $operatingcontextid, $userid);
             foreach ($preflightresult->issuecodes as $code) {
                 if ($code !== '') {
                     $issuecodes[] = $code;
@@ -214,6 +231,9 @@ class preflight_pipeline {
 
             $updatedcommand = $command;
             $updatedcommand['input'] = $preflightresult->preparedinput;
+            // Carry the resolved operating context so the guard token and the executor target the
+            // same context. Equals the ambient context today (no skill opts into cross-context yet).
+            $updatedcommand['operating_contextid'] = $operatingcontextid;
             $preparedcommands[] = $updatedcommand;
         }
 

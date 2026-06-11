@@ -122,6 +122,16 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 
 ### Decision / preflight / queue / executor (ch. 08–11)
 
+- ✅ **Operating context threaded through preflight/guard/executor — flowchart updated
+  (2026-06-11, cross-context Phase 1b).** `PF_L2P` now shows
+  `skill_operating_context_resolver` running before `skill::preflight(..., OPERATING contextid)`,
+  with Gate 2 enforced at the operating context and `CONTEXT_TARGET_UNRESOLVED` on an
+  unresolvable target. `EXC_GUARD`/`EXC_RUN` now use the operating contextid
+  (`sha256(skill:operating_context:prepared_input)`; `skill::execute(..., OPERATING contextid)`),
+  Gate 1 governance stays at the ambient context. New legend `LG_CTX` records the ambient-vs-
+  operating contract. Behaviour-preserving today: no skill opts into a target yet, so operating ==
+  ambient and guard tokens are unchanged (r3 e2e + generate_questions suites green). Open for
+  Phase 2: persisting `operating_contextid` through the queue + the confirmation label.
 - ✅ **`EXC_GUARD` — corrected.** There is no `execution_guard` class. The node now names the
   real call `preflight_execution_gate::verify_guard_token(guardtoken, skillname, contextid,
   prepared_input)` — a `hash_equals` against `sha256(skill:context:prepared_input)` (the old

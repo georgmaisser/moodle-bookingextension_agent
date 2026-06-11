@@ -950,9 +950,12 @@ class agent_decision_service {
             }
 
             $preparedinput = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+            // Bind the guard to the operating context resolved during preflight (cross-context
+            // target), or the ambient context when none — must match what the executor verifies.
+            $operatingcontextid = (int)($command['operating_contextid'] ?? $contextid);
             $command['guard_token'] = \bookingextension_agent\local\wbagent\services\preflight_execution_gate::build_guard_token(
                 $skillname,
-                $contextid,
+                $operatingcontextid,
                 $preparedinput
             );
         }

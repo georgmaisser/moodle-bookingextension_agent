@@ -172,7 +172,7 @@ flowchart TD
         L1_FAIL["hard_block\nblockinglayer: schema\nISSUE: SCHEMA_ERROR\n/ SCHEMA_UNAVAILABLE"]
 
         subgraph L2["Layer 2 — Domain Prepare"]
-            PF_L2P["skill::preflight(input, contextid, userid)\n— DB-dependent prepare + validation\n— late-bound dependency outputs allowed\n→ preflight_result_v2"]
+            PF_L2P["skill_operating_context_resolver: resolve operating context\n(ambient by default; cross-context target if the skill opts in via\nsupports_target_context/get_target_selector → context_resolver)\nthen skill::preflight(input, OPERATING contextid, userid)\n— Gate 2 (native capability) runs at the OPERATING context\n— DB-dependent prepare + validation → preflight_result_v2\n— unresolvable target → CONTEXT_TARGET_UNRESOLVED (clarification)"]
             PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, SCHEMA_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT (engine-generic)\n  + provider confirmable codes via issue_code_provider\n  (e.g. DUPLICATE_TITLE_* from booking_issue_code_provider)"]
         end
         L2_STATUS{"preflight\nstatus?"}
@@ -220,9 +220,9 @@ flowchart TD
         EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
         EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled · skill_version_unsupported"]
-        EXC_GUARD["preflight_execution_gate::verify_guard_token(\n  guard_token, skillname, contextid, prepared_input)\nhash_equals vs sha256(skill:context:prepared_input)\nno second full preflight"]
+        EXC_GUARD["preflight_execution_gate::verify_guard_token(\n  guard_token, skillname, OPERATING contextid, prepared_input)\nhash_equals vs sha256(skill:operating_context:prepared_input)\noperating_contextid carried on the command (== ambient unless cross-context)\nno second full preflight"]
         EXC_GUARD_OK{"guard\npass?"}
-        EXC_RUN["skill::execute(prepared_input, contextid, userid)\n→ result payload"]
+        EXC_RUN["skill::execute(prepared_input, OPERATING contextid, userid)\n→ result payload\n(Gate 1 governance evaluate_skill stays at the ambient context)"]
         EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
         EXC_SPAWN["spawn_handler (contract path)\nspawn_commands schema/normalization present\nruntime enqueue path currently optional"]
@@ -583,6 +583,7 @@ flowchart TD
         LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]
         LG_3P["Third-party onboarding\nprovider + skill contract only\nno framework rewiring"]
         LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
+        LG_CTX["Operating context (cross-context)\nambient context (thread) MAY differ from operating context (per command)\nskill opts in via supports_target_context/get_target_selector (duck-typed)\ncontext_resolver resolves the target; preflight/Gate 2/guard/execute use it\nGate 1 (governance) stays at ambient; Gate 2 (native cap) re-checked at operating context\ntoday operating == ambient (no skill opts in yet); guard binds to operating context\nopen: queue persistence of operating_contextid + confirmation label (Phase 2)"]
         LG_PLAN["Planner contract\nstrict split: deterministic discovery -> selection -> parameter_construction\nexactly two planner LLM calls and two planner phase outputs\nDiscovery defaults to context + core families (Stage A)\nif low confidence: Stage B adjacent families -> Stage C global slim fallback\nDual discovery path is mandatory:\n- with aiprovider_wunderbyte + embeddings ready: semantic family retrieval is active, weighted by context_prior + signals\n- without embeddings/provider: deterministic family derivation from Moodle context + core families + signals remains active\nSelector always receives deterministic, budgeted family-scoped skill candidates in both paths\nFamily-level retrieval first, concrete skill later (lazy loading)\nMoodle context acts as ranking prior, not hard filter\nno joint skill-choice + parameter generation in one step\n(no domain-specific or option-id heuristics)\nplanner decides, but does not polish the final reply"]
         LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / skill_call / structural failures\nR3 sufficient requires irreversibility_notice\nR2 sufficient requires affected_scope_summary\nsemantic drift → rollback to planner output\nSynchronizer output may refine message only; must not mutate execution semantics"]
         LG_RISK["Risk class contract\nskill declares R0–R3 in skill_interface\nvalidated by skill_contract_validator\nenforced in preflight, queue, decision service, synchronizer"]
