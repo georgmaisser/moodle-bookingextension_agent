@@ -1,7 +1,7 @@
 # AI Error Messaging — Schluss mit „The AI provider returned an error"
 
 **Datum:** 2026-06-11
-**Status:** Blueprint (gegen HEAD verifiziert; Neuerstellung der verlorenen Erstfassung)
+**Status:** Blueprint v2 (gegen HEAD verifiziert). **Vorgänger:** [`AI_ERROR_MESSAGING_ANALYSIS.md`](AI_ERROR_MESSAGING_ANALYSIS.md) (2026-06-08, umgesetzt in `f9506c4`) hat die Klassifizierungs-Infrastruktur geschaffen (failurereason-Mapping, error_class, weiche Berechtigungsprüfung). Dieses Dokument ist die Lückenanalyse danach: Die Klassifizierung existiert, aber sechs Quellen setzen die `message` weiterhin auf die Pauschale — v2 stellt die Meldungs-Auflösung zentral und ursachenehrlich.
 **Ziel (Georg):** Die generische Provider-Pauschalmeldung darf den User **nie mehr** erreichen. Jeder Fehler zeigt seine echte Ursachenklasse — in User-Sprache, mit Admin-Detail wo sinnvoll.
 
 ---
