@@ -2,7 +2,7 @@
 
 **Datum:** 2026-06-11
 **Status:** Blueprint v2 (gegen HEAD verifiziert). **Vorgänger:** [`AI_ERROR_MESSAGING_ANALYSIS.md`](AI_ERROR_MESSAGING_ANALYSIS.md) (2026-06-08, umgesetzt in `f9506c4`) hat die Klassifizierungs-Infrastruktur geschaffen (failurereason-Mapping, error_class, weiche Berechtigungsprüfung). Dieses Dokument ist die Lückenanalyse danach: Die Klassifizierung existiert, aber sechs Quellen setzen die `message` weiterhin auf die Pauschale — v2 stellt die Meldungs-Auflösung zentral und ursachenehrlich.
-**Ziel (Georg):** Die generische Provider-Pauschalmeldung darf den User **nie mehr** erreichen. Jeder Fehler zeigt seine echte Ursachenklasse — in User-Sprache, mit Admin-Detail wo sinnvoll.
+**Ziel (Georg):** Die generische Provider-Pauschalmeldung darf den User **nie mehr** erreichen. Jeder Fehler zeigt seine echte Ursachenklasse — und zwar **präsentiert vom user-facing LLM (Synchronizer)**, wie alle anderen Antworten auch (Sprachtreue, Konversationston). Es geht NICHT darum, den Synchronizer durch Template-Strings zu ersetzen, sondern darum, ihm endlich klassengerechte Fehlerinformation zu geben statt der nichtssagenden Provider-Floskel.
 
 ---
 
@@ -63,30 +63,34 @@ Die Folgen: User probieren sinnlos „später noch einmal", Admins suchen am fal
 
 ## 4. Design-Prinzipien
 
-1. **Eine zentrale Auflösung:** `finalization_template_service::resolve_message()` wird DIE Stelle, die aus `issue_codes` + `error_class` + `results[].detail` die User-Meldung baut. Die Quellen 1–6 liefern nur noch klassifizierte Payloads (`error_class`, `issue_codes`, `errors[]` für Admin-Detail) — **keine** `message`-Pauschale mehr an der Quelle.
-2. **Skill-Wahrheit gewinnt:** Hat ein failed Result ein nicht-leeres `detail`, ist das die Meldung (Klasse D schlägt B/C-Fallbacks).
-3. **Provider nur beschuldigen, wenn der Provider schuld ist:** Klassen C/E erhalten eigene „interner Fehler"-Strings; `exception_thrown` ebenso.
-4. **Zwei Sichten:** User sieht den lokalisierten Klassentext; Admins (`is_platform_admin` bzw. Debug-Mode) zusätzlich `errors[0]`-Originaltext — heute schon teilweise im aiready-Panel etabliert, gleiches Muster für Chat-Fehler.
-5. **Synchronizer-Vertrag respektieren:** Fehler-Results gehen als `direct_final`/`template_only` raus (Matrix existiert) — der Synchronizer darf eine korrekte Fehlerklasse nie in eine Pauschale „glätten".
-6. **Jede neue Fehlerquelle muss klassifizieren:** Lint-/Review-Regel: kein neues `get_string('ai_provider_error', …)` außerhalb des zentralen Resolvers (CI-Grep).
+1. **Der Synchronizer präsentiert Fehler (Regelfall).** Fehler sind Antworten wie alle anderen: Der Synchronizer formuliert sie in der Sprache des Users, im Konversationskontext, mit sinnvollem nächsten Schritt („In diesem Kurs ist KI deaktiviert — soll ich dir zeigen, wo du das einschalten kannst?"). Voraussetzung ist nur, dass er **klassengerechte Information** bekommt statt der Floskel.
+2. **Strukturierte Fehler-Observation als Synchronizer-Input.** Quellen 1–6 liefern keine fertige `message` mehr, sondern einen klassifizierten Payload (`error_class`, `issue_codes`, `errors[]`-Detail). Daraus baut die Engine eine Fehler-Observation für den Synchronizer, z. B.:
+   `[ERROR] class=course_disabled · reason: AI tools are disabled for this course · explain this to the user in their language and suggest the next step; do NOT blame the AI provider; do NOT invent other causes.`
+   Diese Observation ist Engine-Instruktionstext (`observation_engine_static` — keine Anonymizer-Korruption).
+3. **Skill-Wahrheit gewinnt:** Hat ein failed Result ein nicht-leeres `detail` (Klasse D), ist DAS der Inhalt der Fehler-Observation — der Synchronizer präsentiert die Skill-Meldung, nie eine Provider-Floskel darüber.
+4. **Provider nur beschuldigen, wenn der Provider schuld ist:** Klassen C/E werden als „interner Planungsfehler"/Governance benannt; `exception_thrown` als interner Statusfehler.
+5. **Template-Fallback NUR wenn der Synchronizer selbst nicht kann.** Bei den Klassen, in denen kein LLM-Call möglich oder sinnvoll ist (A: Provider nicht verfügbar; B: auth_failed/quota/timeout/transient — man kann einen toten Provider nicht bitten, sich zu entschuldigen), greift der deterministische `finalization_template_service` mit lokalisierten, klassenspezifischen Strings. Genau dafür hat v1 das `template_only`-Routing gebaut — es bekommt jetzt vollständige, ehrliche Texte pro Klasse statt der Pauschale. Für ALLE anderen Klassen gilt Prinzip 1.
+6. **Zwei Sichten:** User sieht die Synchronizer-Formulierung (bzw. den Klassen-Template-Text); Admins (`is_platform_admin`/Debug-Mode) zusätzlich `errors[0]`-Originaldetail — Muster wie im aiready-Panel.
+7. **Jede neue Fehlerquelle muss klassifizieren:** kein neues `get_string('ai_provider_error', …)` außerhalb des Template-Fallbacks (CI-Grep).
 
 ## 5. Umsetzungsplan
 
 | Phase | Inhalt | Aufwand |
 |---|---|---|
-| **P1** | Neue Lang-Strings (en/de): `error_ai_internal_planning` (Klasse C), `error_ai_internal_status` (`exception_thrown`), `error_ai_provider_timeout`, `error_ai_transient_io`, `error_ai_empty_response`; `ERROR_CLASS_LANG_KEYS` im Template-Service vervollständigen (alle B-Klassen) | klein |
-| **P2** | Quellen 3/4/5/6 auf interne Klassen umstellen (`error_class = 'internal_contract'` / `'internal_status'`), Quelle 1/2: `message` aus dem Template-Service statt Pauschale | klein |
-| **P3** | Failed-Run-Pfad: `message` aus `results[].detail` zusammensetzen (mehrere Results: erste Fehlerzeile + „weitere Fehler"-Hinweis); `ai_confirm_run`-Antwortpfad identisch behandeln | mittel |
-| **P4** | Admin-Detail-Kanal im Chat (debugmessage-Feld existiert; bei `is_platform_admin` an die Fehlermeldung anhängen) | klein |
-| **P5** | CI-Guard: Grep-Test, dass `ai_provider_error` nur noch im zentralen Resolver vorkommt; deterministische Unit-Tests je Fehlerklasse (Payload rein → erwartete Meldung raus) | klein |
+| **P1** | **Fehler-Observation-Builder** (Engine): aus `error_class` + `issue_codes` + `errors[]`/`results[].detail` eine `[ERROR]`-Observation für den Synchronizer bauen (engine-static, mit Präsentations-Instruktion und Anti-Floskel-/Anti-Erfindungs-Regel); Routing: Fehler-Results der Klassen C/D/E laufen durch den normalen Synchronizer-Pfad statt `direct_final` mit Pauschale | mittel |
+| **P2** | Quellen 3/4/5/6 klassifizieren (`error_class = 'internal_contract'` / `'internal_status'`) und an P1 anschließen; **keine** `message`-Pauschale mehr an der Quelle | klein |
+| **P3** | **Template-Fallback vervollständigen** (nur Klassen A/B, in denen kein Synchronizer-Call möglich ist): Lang-Strings en/de pro Klasse (`error_ai_internal_status`, `error_ai_provider_timeout`, `error_ai_transient_io`, `error_ai_empty_response`); `ERROR_CLASS_LANG_KEYS` komplettieren; Quelle 1/2 nutzen ausschließlich diese Klassentexte | klein |
+| **P4** | Admin-Detail-Kanal im Chat (debugmessage-Feld existiert; bei `is_platform_admin` Original-`errors[0]` anhängen) | klein |
+| **P5** | CI-Guard: `ai_provider_error` nur noch im Template-Fallback; deterministische Unit-Tests: (a) Payload je Klasse → erwartete Observation bzw. Template-Text, (b) Synchronizer-Contract-Test, dass die Fehler-Observation im Sync-Prompt landet | klein |
 
-**Nicht-Ziele:** Keine Änderung der Retry-Logik (Backoff/Klassifizierung bleibt); keine neuen Fehlerquellen-Patterns; Klasse-D-Wurzeln werden weiterhin skill-seitig gefixt (Muster: Scope-Guard, Grounding-Contract).
+**Nicht-Ziele:** Keine Änderung der Retry-Logik (Backoff/Klassifizierung bleibt); der Synchronizer wird NICHT durch Templates ersetzt (Templates nur als Fallback, wenn der Provider selbst die Ursache ist); Klasse-D-Wurzeln werden weiterhin skill-seitig gefixt (Muster: Scope-Guard, Grounding-Contract).
 
 ## 6. Testplan
 
-- Unit: `finalization_template_service`-Matrix — pro (issue_codes, error_class, results) die erwartete Meldung (deterministisch, kein LLM).
+- Unit (deterministisch, kein LLM): (a) Fehler-Observation-Builder — pro (error_class, issue_codes, detail) die erwartete `[ERROR]`-Observation; (b) Template-Fallback-Matrix für die A/B-Klassen.
+- Synchronizer-Contract: Fehler-Observation erscheint im Sync-Prompt; Sync-Antwort ist `sufficient`/`error` mit leerem `commands` (bestehender Vertrag), Sprache folgt User-Input.
 - Benchmark: `confirmation_request_r1` erwartet weiterhin `error` als response_type — Texte ändern sich, Typen nicht; `budget_exceeded`-Szenario unverändert.
-- Real-LLM-Spotchecks: provozierter Quota-/Timeout-Fall (Stub), Skill-Fehler (Klasse D) am Dashboard.
+- Real-LLM-Spotchecks: Skill-Fehler (Klasse D) am Dashboard → Synchronizer präsentiert das Skill-Detail in User-Sprache; provozierter Quota-/Timeout-Fall (Stub) → Template-Text.
 
 ## 7. Bezug zu erledigten Arbeiten
 
