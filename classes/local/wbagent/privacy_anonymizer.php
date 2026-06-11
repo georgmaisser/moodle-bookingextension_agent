@@ -618,7 +618,16 @@ class privacy_anonymizer {
         $firstusers = is_array($matchindex['firstusers'] ?? null) ? (array)$matchindex['firstusers'] : [];
         $lastusers = is_array($matchindex['lastusers'] ?? null) ? (array)$matchindex['lastusers'] : [];
         $fullusers = is_array($matchindex['fullusers'] ?? null) ? (array)$matchindex['fullusers'] : [];
-        $emailspans = $this->find_email_spans($message);
+        // Protected spans: never name-anonymize inside emails or namespaced code
+        // tokens (skill names / trigger ids like "core.forget"). Thread 288: a test
+        // user with lastname "forget" turned the skill name core.forget into
+        // "core.ANON_USER_n_lastname" in prompts/history, so the planner emitted a
+        // non-registered skill. Standalone prose occurrences of such names stay
+        // anonymizable — only the code-token span is exempt.
+        $protectedspans = array_merge(
+            $this->find_email_spans($message),
+            $this->find_code_token_spans($message)
+        );
 
         if (empty($nameindex)) {
             return [$message, 0];
@@ -646,8 +655,8 @@ class privacy_anonymizer {
             $firststart = (int)$words[$i][1];
             $secondstart = (int)$words[$i + 1][1];
             if (
-                $this->offset_overlaps_email_span($firststart, $emailspans)
-                || $this->offset_overlaps_email_span($secondstart, $emailspans)
+                $this->offset_overlaps_protected_span($firststart, $protectedspans)
+                || $this->offset_overlaps_protected_span($secondstart, $protectedspans)
             ) {
                 continue;
             }
@@ -712,7 +721,7 @@ class privacy_anonymizer {
 
             $tokenvalue = (string)$entry[0];
             $tokenstart = (int)$entry[1];
-            if ($this->offset_overlaps_email_span($tokenstart, $emailspans)) {
+            if ($this->offset_overlaps_protected_span($tokenstart, $protectedspans)) {
                 continue;
             }
 
@@ -801,13 +810,53 @@ class privacy_anonymizer {
     }
 
     /**
-     * Return true when offset belongs to an email span.
+     * Find byte-offset spans of namespaced code tokens (skill names, trigger ids).
+     *
+     * Matches `<namespace>.<identifier>` such as "core.forget",
+     * "mod_booking.book_users" or "core.remember_request" — lowercase identifiers
+     * joined by a dot, exactly the naming contract enforced for skills. Words inside
+     * these spans must never be treated as person names: replacing them corrupts
+     * commands, catalogs and history and makes the planner emit non-registered
+     * skill names (thread 288). Emails are not affected — they are replaced as a
+     * whole before name anonymization runs.
+     *
+     * @param string $message
+     * @return array<int,array{start:int,end:int}>
+     */
+    private function find_code_token_spans(string $message): array {
+        $spans = [];
+        $matches = [];
+        preg_match_all(
+            '/\b[a-z][a-z0-9_]+\.[a-z][a-z0-9_]+\b/',
+            $message,
+            $matches,
+            PREG_OFFSET_CAPTURE
+        );
+
+        foreach ((array)($matches[0] ?? []) as $match) {
+            if (!is_array($match) || count($match) < 2) {
+                continue;
+            }
+
+            $token = (string)$match[0];
+            $start = (int)$match[1];
+            $spans[] = [
+                'start' => $start,
+                'end' => $start + strlen($token),
+            ];
+        }
+
+        return $spans;
+    }
+
+    /**
+     * Return true when offset belongs to a protected span (email or code token).
      *
      * @param int $offset
      * @param array<int,array{start:int,end:int}> $spans
      * @return bool
      */
-    private function offset_overlaps_email_span(int $offset, array $spans): bool {
+    private function offset_overlaps_protected_span(int $offset, array $spans): bool {
         foreach ($spans as $span) {
             $start = (int)($span['start'] ?? 0);
             $end = (int)($span['end'] ?? 0);
