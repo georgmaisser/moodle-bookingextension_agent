@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent;
 
 use core\context;
+use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
@@ -178,13 +179,20 @@ class agent_runtime {
             $this->persist_phase_trace_for_loop_step($threadid, $result);
 
             if ((string)($result['response_type'] ?? '') === 'execution_result') {
+                $stepresults = (array)($result['results'] ?? []);
                 $observation = result_payload_summarizer::for_observation(
-                    $result['results'] ?? [],
+                    $stepresults,
                     $step + 1
                 );
+                // Backend data in observations is masked at construction time — the
+                // only point where result identity still exists, so engine-static
+                // instructional observations (e.g. search_skills catalog text) can
+                // be exempted. Everything downstream (state, loop_results, live
+                // [OBSERVATION n] blocks, sync input) inherits the masked text.
+                $observation = $this->mask_step_observation_for_llm($threadid, $stepresults, $observation);
                 $state->record_step(
                     (array)($result['commands'] ?? []),
-                    (array)($result['results'] ?? []),
+                    $stepresults,
                     $observation
                 );
 
@@ -196,6 +204,8 @@ class agent_runtime {
 
             $retryissuecode = $this->resolve_framework_retry_issue_code($result, $frameworkretrycounts);
             if ($retryissuecode !== null) {
+                // Note: framework retry observations (appended below) are engine text
+                // by construction and intentionally stay unmasked.
                 if ($this->has_active_non_planner_retry_signal($result)) {
                     $result['issue_codes'] = array_values(array_unique(array_merge(
                         (array)($result['issue_codes'] ?? []),
@@ -610,6 +620,51 @@ class agent_runtime {
         }
 
         return false;
+    }
+
+    /**
+     * Mask backend data in a step observation before it can reach any prompt.
+     *
+     * Variant (a) of the privacy decision: with an active privacy mode, live
+     * observations are anonymized exactly like the ledger copy — at construction
+     * time, where the contributing result entries are still available. A step whose
+     * every observation-carrying result declares `observation_engine_static` (e.g.
+     * core.search_skills catalog instructions) stays unmasked: anonymizing
+     * instructional engine text corrupts it (threads 286/288). Code tokens and JSON
+     * keys are additionally protected inside the anonymizer itself.
+     *
+     * @param int $threadid
+     * @param array<int,mixed> $results result entries that produced the observation
+     * @param string $observation
+     * @return string
+     */
+    private function mask_step_observation_for_llm(int $threadid, array $results, string $observation): string {
+        if (trim($observation) === '') {
+            return $observation;
+        }
+
+        $privacy = new privacy_anonymizer($this->store);
+        if (!$privacy->should_anonymize_llm_backend_data()) {
+            return $observation;
+        }
+
+        $allenginestatic = !empty($results);
+        foreach ($results as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $carriesobservation = trim((string)($entry['observation_full'] ?? '')) !== ''
+                || trim((string)($entry['detail'] ?? '')) !== '';
+            if ($carriesobservation && empty($entry['observation_engine_static'])) {
+                $allenginestatic = false;
+                break;
+            }
+        }
+        if ($allenginestatic) {
+            return $observation;
+        }
+
+        return (string)$privacy->anonymize_value_for_llm($threadid, $observation);
     }
 
     /**

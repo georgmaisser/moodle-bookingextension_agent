@@ -123,6 +123,9 @@ class execution_observation_ledger {
                 'observation_full' => $observationfull,
                 'produced_outputs' => is_array($entry['produced_outputs'] ?? null) ? (array)$entry['produced_outputs'] : [],
                 'issue_codes' => $issuecodes,
+                // Engine-generated instructional observations (duck-typed result flag,
+                // e.g. core.search_skills catalog text) are exempt from anonymization.
+                'engine_static' => !empty($entry['observation_engine_static']),
                 'created_at' => $now,
             ];
 
@@ -195,6 +198,9 @@ class execution_observation_ledger {
             }
             if (!empty($entry['issue_codes']) && is_array($entry['issue_codes'])) {
                 $row['issue_codes'] = array_values(array_map('strval', (array)$entry['issue_codes']));
+            }
+            if (!empty($entry['engine_static'])) {
+                $row['engine_static'] = true;
             }
 
             $runtime[] = $row;

@@ -473,7 +473,7 @@ class orchestrator {
         $routingfallback = !empty($routing['routingfallback']);
 
         $systemprompt = $this->synchronizerpromptbuilder->build_system_prompt($actionclass);
-        $runtimecontext = $this->build_runtime_context_block(
+        $runtimeblocks = $this->build_runtime_context_block(
             $threadid,
             $contextid,
             self::PHASE_SELECTION,
@@ -482,23 +482,26 @@ class orchestrator {
             [],
             [],
             $messages,
-            user_memory_service::SCOPE_SYNCHRONIZATION
+            user_memory_service::SCOPE_SYNCHRONIZATION,
+            $observations
         );
+        $runtimestate = $runtimeblocks['volatile'];
         // Inject pending planned step intents so the sync never suggests manual workarounds
         // for steps the agent is still planning to execute.
         $pendingintents = (new queue_manager($this->store, $this->registry))
             ->get_planned_placeholder_intents($threadid);
         if (!empty($pendingintents)) {
-            $runtimecontext .= "\n\nPENDING AGENT STEPS (will be executed automatically — do NOT suggest manual workarounds):\n";
+            $runtimestate .= "\n\nPENDING AGENT STEPS (will be executed automatically — do NOT suggest manual workarounds):\n";
             foreach ($pendingintents as $idx => $intent) {
-                $runtimecontext .= ($idx + 1) . '. ' . trim($intent) . "\n";
+                $runtimestate .= ($idx + 1) . '. ' . trim($intent) . "\n";
             }
         }
         $prompt = $this->synchronizerpromptbuilder->build_prompt(
             $systemprompt,
             $messages,
             $observations,
-            $runtimecontext
+            $runtimeblocks['stable'],
+            $runtimestate
         );
 
         $llm = new llm_call_service($this->store);
@@ -894,7 +897,7 @@ class orchestrator {
             $isfirstassistantturn,
             $shouldincludeskillcatalog
         );
-        $runtimecontext = $this->build_runtime_context_block(
+        $runtimeblocks = $this->build_runtime_context_block(
             $threadid,
             $contextid,
             self::PHASE_DISCOVERY,
@@ -902,7 +905,9 @@ class orchestrator {
             $hasanyobservations,
             $runtimecatalog,
             $unavailableskillcatalog,
-            $messages
+            $messages,
+            '',
+            $observations
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $prompt = $this->build_prompt(
@@ -910,9 +915,11 @@ class orchestrator {
             $messages,
             $observations,
             self::PHASE_DISCOVERY,
-            $runtimecontext,
+            $runtimeblocks['stable'],
             $plannertracehistory,
-            $autoconfirmmode
+            $autoconfirmmode,
+            [],
+            $runtimeblocks['volatile']
         );
 
         $historycount = count(array_slice(
@@ -1043,7 +1050,7 @@ class orchestrator {
             $isfirstassistantturn,
             $shouldincludeskillcatalog
         );
-        $runtimecontext = $this->build_runtime_context_block(
+        $runtimeblocks = $this->build_runtime_context_block(
             $threadid,
             $contextid,
             self::PHASE_SELECTION,
@@ -1051,7 +1058,9 @@ class orchestrator {
             $hasanyobservations,
             $runtimecatalog,
             $unavailableskillcatalog,
-            $messages
+            $messages,
+            '',
+            $observations
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $plannedstepintents = (new queue_manager($this->store, $this->registry))
@@ -1061,10 +1070,11 @@ class orchestrator {
             $messages,
             $observations,
             self::PHASE_SELECTION,
-            $runtimecontext,
+            $runtimeblocks['stable'],
             $plannertracehistory,
             $autoconfirmmode,
-            $plannedstepintents
+            $plannedstepintents,
+            $runtimeblocks['volatile']
         );
 
         $historycount = count(array_slice(
@@ -1282,7 +1292,7 @@ class orchestrator {
             $isfirstassistantturn,
             $shouldincludeskillcatalog
         );
-        $runtimecontext = $this->build_runtime_context_block(
+        $runtimeblocks = $this->build_runtime_context_block(
             $threadid,
             $contextid,
             self::PHASE_PARAMETER_CONSTRUCTION,
@@ -1290,7 +1300,9 @@ class orchestrator {
             !empty($constructionobservations),
             $constructionruntimecatalog,
             $unavailableskillcatalog,
-            $messages
+            $messages,
+            '',
+            $constructionobservations
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $prompt = $this->build_prompt(
@@ -1298,9 +1310,11 @@ class orchestrator {
             $messages,
             $constructionobservations,
             self::PHASE_PARAMETER_CONSTRUCTION,
-            $runtimecontext,
+            $runtimeblocks['stable'],
             $plannertracehistory,
-            $autoconfirmmode
+            $autoconfirmmode,
+            [],
+            $runtimeblocks['volatile']
         );
 
         $historycount = count(array_slice(
@@ -2261,9 +2275,10 @@ PROMPT;
      * @param  \stdClass[] $messages
      * @param  string[]    $observations  Structured observation strings (may be empty).
      * @param  string      $phase Explicit planner phase (discovery/selection/parameter_construction).
-     * @param  string      $runtimecontext Dynamic per-request context appended after static system prompt.
+     * @param  string      $runtimecontext Per-thread-stable runtime facts appended after static system prompt.
      * @param  string[]    $plannertracehistory Full planner trace history from thread metadata.
      * @param  bool        $autoconfirmmode Whether confirmation is already allowed for this thread.
+     * @param  string      $runtimestate Per-request volatile runtime state appended after history.
      * @return string
      */
     private function build_prompt(
@@ -2274,7 +2289,8 @@ PROMPT;
         string $runtimecontext = '',
         array $plannertracehistory = [],
         bool $autoconfirmmode = false,
-        array $plannedstepintents = []
+        array $plannedstepintents = [],
+        string $runtimestate = ''
     ): string {
         return $this->promptbundlebuilder->build_prompt(
             $systemprompt,
@@ -2284,7 +2300,8 @@ PROMPT;
             $runtimecontext,
             $plannertracehistory,
             $autoconfirmmode,
-            $plannedstepintents
+            $plannedstepintents,
+            $runtimestate
         );
     }
 
@@ -2320,17 +2337,28 @@ PROMPT;
     }
 
     /**
-     * Build a small dynamic runtime context block for this request.
+     * Build the dynamic runtime context blocks for this request.
      *
      * Keeping per-request values out of the static [SYSTEM] block improves
-     * prompt-prefix stability for upstream prompt caching.
+     * prompt-prefix stability for upstream prompt caching. The result is split
+     * into a per-thread-stable part ('stable', emitted as [SYSTEM_RUNTIME] right
+     * after [SYSTEM]) and a volatile per-request part ('volatile', emitted as
+     * [SYSTEM_RUNTIME_STATE] below the conversation history) so that high-churn
+     * content (timestamp, adaptive catalog, execution ledgers) never invalidates
+     * the cacheable prompt prefix.
      *
      * @param int $contextid
      * @param string $phase
      * @param bool $isfirstassistantturn
      * @param bool $hasobservations
      * @param array $skillcatalog
-     * @return string
+     * @param array $unavailableskillcatalog
+     * @param array $messages
+     * @param string $memorychannel
+     * @param array $liveobservations observation strings already emitted as [OBSERVATION n]
+     *                                blocks in the same prompt — used to compact duplicate
+     *                                ledger entries
+     * @return array{stable: string, volatile: string}
      */
     private function build_runtime_context_block(
         int $threadid,
@@ -2341,8 +2369,9 @@ PROMPT;
         array $skillcatalog = [],
         array $unavailableskillcatalog = [],
         array $messages = [],
-        string $memorychannel = ''
-    ): string {
+        string $memorychannel = '',
+        array $liveobservations = []
+    ): array {
         $timezonename = (string)(get_config('core', 'timezone') ?? '');
         if ($timezonename === '' || $timezonename === '99') {
             $timezonename = date_default_timezone_get();
@@ -2368,9 +2397,15 @@ PROMPT;
         // prompt unique and is the main breaker for upstream prompt-prefix caching.
         $nowiso = (new \DateTime('now', $tz))->format('Y-m-d\TH:iP');
 
+        // Split for prompt-prefix caching: $lines holds per-thread-stable facts emitted
+        // right after the static [SYSTEM] block; $statelines holds volatile per-request
+        // state (timestamp, adaptive catalog, execution ledgers) emitted below the
+        // conversation history as [SYSTEM_RUNTIME_STATE].
         $lines = [
             'booking_name: ' . $bookingname,
             'timezone: ' . $timezonename,
+        ];
+        $statelines = [
             'now_iso: ' . $nowiso,
         ];
 
@@ -2411,18 +2446,18 @@ PROMPT;
             if ($phase === self::PHASE_PARAMETER_CONSTRUCTION) {
                 // Construction phase needs full parameter details — keep JSON so the constructor
                 // can read types, descriptions and validation hints for the single selected skill.
-                $this->append_json_object_section($lines, 'SKILL CATALOG:', $skillcatalog);
+                $this->append_json_object_section($statelines, 'SKILL CATALOG:', $skillcatalog);
             } else {
-                $lines[] = '';
-                $lines[] = 'SKILL CATALOG:';
-                $lines[] = $this->render_catalog_as_text($skillcatalog);
+                $statelines[] = '';
+                $statelines[] = 'SKILL CATALOG:';
+                $statelines[] = $this->render_catalog_as_text($skillcatalog);
             }
         }
 
         if (!empty($unavailableskillcatalog)) {
-            $lines[] = '';
-            $lines[] = 'UNAVAILABLE SKILLS (exist but not currently executable):';
-            $lines[] = $this->render_catalog_as_text($unavailableskillcatalog);
+            $statelines[] = '';
+            $statelines[] = 'UNAVAILABLE SKILLS (exist but not currently executable):';
+            $statelines[] = $this->render_catalog_as_text($unavailableskillcatalog);
         }
 
         $privacy = new privacy_anonymizer($this->store);
@@ -2430,14 +2465,65 @@ PROMPT;
         $completedcommands = $this->completedhistorysvc->extract_from_messages($messages);
         $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands);
         $completedcommands = (array)$privacy->anonymize_value_for_llm($threadid, $completedcommands);
-        $this->append_json_list_section($lines, 'completed_commands:', $completedcommands);
+        $this->append_json_list_section($statelines, 'completed_commands:', $completedcommands);
 
         $observationledger = new execution_observation_ledger($this->store);
         $completedobservations = $observationledger->get_recent_for_runtime($threadid, 12);
-        $completedobservations = (array)$privacy->anonymize_value_for_llm($threadid, $completedobservations);
-        $this->append_json_list_section($lines, 'completed_observations:', $completedobservations);
 
-        return implode("\n", $lines);
+        // Dedup haystack: live observations are already part of this prompt as
+        // [OBSERVATION n] blocks; a ledger row repeating the same text is compacted
+        // to its skill/status stub (the "already done" signal survives, the token
+        // duplication does not). Both sides carry the same masking state, so the
+        // comparison is reliable.
+        $livehaystack = $this->normalize_for_observation_dedup(
+            implode("\n", array_map('strval', $liveobservations))
+        );
+
+        $rows = [];
+        foreach ($completedobservations as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $enginestatic = !empty($row['engine_static']);
+            unset($row['engine_static']);
+
+            if ($enginestatic) {
+                // Engine-generated instructional text (e.g. search_skills catalog
+                // descriptions) is never masked — masking corrupts instructions
+                // (threads 286/288). Data sub-fields (input values) still go
+                // through the anonymizer.
+                $observation = (string)($row['observation'] ?? '');
+                unset($row['observation']);
+                $row = (array)$privacy->anonymize_value_for_llm($threadid, $row);
+                $row['observation'] = $observation;
+            } else {
+                $row = (array)$privacy->anonymize_value_for_llm($threadid, $row);
+            }
+
+            $observationtext = $this->normalize_for_observation_dedup((string)($row['observation'] ?? ''));
+            if ($observationtext !== '' && $livehaystack !== '' && str_contains($livehaystack, $observationtext)) {
+                $row['observation'] = '[already shown in OBSERVATION blocks above]';
+            }
+
+            $rows[] = $row;
+        }
+        $this->append_json_list_section($statelines, 'completed_observations:', $rows);
+
+        return [
+            'stable' => implode("\n", $lines),
+            'volatile' => implode("\n", $statelines),
+        ];
+    }
+
+    /**
+     * Whitespace-normalize observation text for the ledger-vs-live dedup check.
+     *
+     * @param string $text
+     * @return string
+     */
+    private function normalize_for_observation_dedup(string $text): string {
+        return trim((string)preg_replace('/\s+/u', ' ', $text));
     }
 
     /**
@@ -2471,9 +2557,10 @@ PROMPT;
 
             $lines[] = '';
             $lines[] = 'moodle_context:';
+            // Spell the level out — the raw Moodle level constant (e.g. 30) means
+            // nothing to the model.
             $lines[] = '  context_id: ' . $ctx->id();
-            $lines[] = '  context_level: ' . $ctx->level();
-            $lines[] = '  context_level_name: ' . $yamlsafe($levelnames[$ctx->level()] ?? 'Other');
+            $lines[] = '  context_level: ' . $yamlsafe($levelnames[$ctx->level()] ?? ('Other (level ' . $ctx->level() . ')'));
             $lines[] = '  context_name: ' . $yamlsafe($blockcontext->get_context_name(false));
 
             $courseid = $ctx->courseid();
