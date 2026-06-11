@@ -251,7 +251,7 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   r3-skill e2e (enqueue→guard→executor) green. Full cross-context e2e arrives with the first
   adopter in Phase 3.
 
-**2c — confirmation transparency + lang strings: ✅ DONE (commit `<this>`)**
+**2c — confirmation transparency + lang strings: ✅ DONE (commit `2831ad4`)**
 - ✅ `agent_decision_service`: when a mutating command's operating context differs from the
   ambient one, the confirmation message gains a clear "this will be carried out in: <course>"
   note and an `operating_context_label` field (`build_operating_context_note()`). Empty today (no
@@ -265,12 +265,20 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   R1 session-allow in one course cannot authorise another). Low risk today (no cross-context
   adopter yet); tracked for when a cross-context R1 skill appears.
 
-### Phase 3 — first adopter: `generate_questions`
-- Add `coursequery` / `courseid` inputs + `target_context` declaration.
-- Drop the inline `get_course_context()`; rely on the passed operating context.
-- Map `question_bank_url` → `result_deeplink`.
-- The planner's previously-invented `target_courseid` becomes a real, resolved, permission-checked
-  field. Lang strings (en+de) for the confirmation + deep-link label.
+### Phase 3 — first adopter: `generate_questions` — ✅ DONE (commit `<this>`)
+- ✅ Added `coursequery` / `courseid` inputs + the cross-context opt-in
+  (`supports_target_context()` → true, `get_target_context_level()` → `CONTEXT_COURSE`,
+  `get_target_selector()` builds a course selector from the inputs).
+- ✅ No change needed to `preflight`/`execute`: they already operate on the passed contextid, and
+  with the operating context resolved to the target course, `get_course_context()` returns that
+  course and Gate 2 (`moodle/question:add`) is checked there. The planner's previously-invented
+  `target_courseid` is now a real, resolved, permission-checked field (`courseid`/`coursequery`).
+- ✅ Cross-context e2e test (`generate_questions_cross_context_test`, 3 cases): selector mapping,
+  operating context resolves to the target course, **Gate 2 enforced at the target** (a user
+  without `moodle/question:add` in the target course is blocked; an editing teacher there passes).
+  The existing single-course `generate_questions` suite (13 tests) stays green — no regression.
+- The `result_deeplink` mapping stays deferred (see 2c): the existing question-bank URL/preview
+  already gives the "open there" affordance.
 
 ### Phase 4 — (optional, later) redirect/handoff
 - Frontend "continue there" affordance + cross-context thread handoff token. Not required for C.

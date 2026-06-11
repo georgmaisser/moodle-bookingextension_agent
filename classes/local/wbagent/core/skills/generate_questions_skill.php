@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\dto\target_selector;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\questions\question_bank_target_resolver;
@@ -76,6 +77,42 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      */
     public function get_required_context_level(): int {
         return CONTEXT_COURSE;
+    }
+
+    /**
+     * This skill can create questions in a course other than the current one (cross-context).
+     *
+     * @return bool
+     */
+    public function supports_target_context(): bool {
+        return true;
+    }
+
+    /**
+     * The cross-context target is a course.
+     *
+     * @return int
+     */
+    public function get_target_context_level(): int {
+        return CONTEXT_COURSE;
+    }
+
+    /**
+     * Build the target-course selector from the courseid / coursequery input.
+     *
+     * Returns null (→ current course) when neither is given. The resolved course becomes the
+     * operating context, and the native capability (moodle/question:add) is re-checked there.
+     *
+     * @param array $input
+     * @return target_selector|null
+     */
+    public function get_target_selector(array $input): ?target_selector {
+        $courseid = (int)($input['courseid'] ?? 0);
+        $coursequery = trim((string)($input['coursequery'] ?? ''));
+        if ($courseid <= 0 && $coursequery === '') {
+            return null;
+        }
+        return target_selector::for_course($courseid > 0 ? $courseid : null, $coursequery !== '' ? $coursequery : null);
     }
 
     /**
@@ -145,6 +182,20 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     'type' => 'integer',
                     'description' => 'Internal: numeric id of the chosen question-bank category. Normally leave empty '
                         . '— never guess an id. The system fills it in when the user picks from the listed categories.',
+                    'required' => false,
+                ],
+                'coursequery' => [
+                    'type' => 'string',
+                    'description' => 'Target a DIFFERENT course than the current one, ONLY when the user explicitly '
+                        . 'names one (e.g. "create the questions in the course Biology 101"). Pass the user\'s wording '
+                        . 'verbatim; resolve via core.search_courses first if you only know the name. Leave empty to '
+                        . 'create the questions in the current course.',
+                    'required' => false,
+                ],
+                'courseid' => [
+                    'type' => 'integer',
+                    'description' => 'Numeric id of the target course, when already known. Leave empty for the current '
+                        . 'course; never guess an id.',
                     'required' => false,
                 ],
             ],
