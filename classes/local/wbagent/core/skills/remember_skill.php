@@ -35,10 +35,16 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
     public const SKILL_NAME = 'core.remember';
 
     /**
-     * Constructor — scoped additive write (auto-confirmable).
+     * Constructor — treated like read-only (R0), no confirmation step.
+     *
+     * Decision (Georg, 2026-06-11): storing a note the user EXPLICITLY asked the
+     * agent to remember is a write to the user's own preference store only —
+     * a confirmation round-trip ("merke dir X" → "soll ich?" → "ja") is pure
+     * friction. The destructive counterpart core.forget stays R2 with explicit
+     * confirmation, so nothing is lost without a guarded path.
      */
     public function __construct() {
-        parent::__construct(false, skill_risk_class::R1);
+        parent::__construct(true, skill_risk_class::R0);
     }
 
     /**

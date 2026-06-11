@@ -214,3 +214,7 @@ for the maintainer at the end.)_
   base lines (booking_name/timezone/minute-granular now_iso) plus the moodle_context YAML
   section injected only in parameter construction + synchronizer (selection stays slim);
   sources are agent_context + get_fast_modinfo, defensively wrapped.
+- ✅ **`UM_REMEMBER` + `LG_MEM` updated (2026-06-11, maintainer decision)** — core.remember
+  is now R0/readonly-treated and executes directly without a confirmation step (write only
+  to the user's own preference store; core.forget keeps R2 explicit confirmation and gained
+  an all=true forget-everything mode).
