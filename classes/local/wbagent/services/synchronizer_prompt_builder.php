@@ -140,7 +140,11 @@ class synchronizer_prompt_builder {
             . "PENDING STEPS POLICY: If next_step_intent or planned_steps indicate further actions are queued, "
             . "do NOT tell the user to perform those steps manually. "
             . "Instead report what was completed and state that the agent will continue with the remaining steps. "
-            . "Never suggest manual workarounds for actions the agent is capable of executing.";
+            . "Never suggest manual workarounds for actions the agent is capable of executing.\n"
+            . "LINK POLICY: When you mention a course, booking option, activity, user or rule, include the URL "
+            . "given for it in the observations (markdown link on the entity name). Use those URLs EXACTLY as "
+            . "provided — NEVER construct, guess, shorten or modify a URL yourself, and never invent links for "
+            . "entities that came without one.";
 
         $parts[] = '[ASSISTANT]';
 

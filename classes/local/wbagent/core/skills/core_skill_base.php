@@ -633,6 +633,9 @@ abstract class core_skill_base extends base_skill {
 
             $identityparts = [
                 'userid=' . $this->format_observation_scalar($user['userid'] ?? null),
+                // Real moodle_url profile link travels with every user mention so the
+                // synchronizer can present it clickable without inventing URLs.
+                'profileurl=' . $this->format_observation_scalar($user['profileurl'] ?? null),
                 'username=' . $this->format_observation_scalar($user['username'] ?? null),
                 'fullname=' . $this->format_observation_scalar($user['fullname'] ?? null),
                 'firstname=' . $this->format_observation_scalar($user['firstname'] ?? null),

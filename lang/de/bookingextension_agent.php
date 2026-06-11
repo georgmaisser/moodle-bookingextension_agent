@@ -32,6 +32,7 @@ $string['agent_booking_blocker_followup_customform'] = 'Bitte geben Sie die erfo
 $string['agent_booking_blocker_followup_customform_bookingpolicy'] = 'Bitte geben Sie die Werte fuer das benutzerdefinierte Formular an und bestaetigen Sie, wie die Zustimmung zur Buchungsrichtlinie uebermittelt werden soll.';
 $string['agent_booking_blocker_followup_generic'] = 'Bitte geben Sie die erforderlichen Informationen an, um die blockierende(n) Bedingung(en) zu erfuellen.';
 $string['agent_booking_book_users_booked'] = '{$a->count} Benutzer in Option id={$a->optionid} gebucht: {$a->userids}.';
+$string['agent_booking_booked_users_label'] = 'Gebuchte Nutzer:innen';
 $string['agent_booking_book_users_option_resolve_failed'] = 'Buchungsoption konnte nicht aufgeloest werden.';
 $string['agent_booking_book_users_required_bookusersquery'] = 'No users could be resolved from the provided query. Please specify at least one user by name, e-mail, or id.';
 $string['agent_booking_book_users_soft_block'] = 'Benutzer {$a->userid} kann sich nicht selbst buchen ({$a->descriptions}), Sie haben jedoch das Recht, fuer ihn zu buchen.';
@@ -214,6 +215,7 @@ $string['agent_booking_diagnose_error_option_resolve'] = 'Die Buchungsoption kon
 $string['agent_booking_diagnose_intro_cannot_book'] = 'Darum kann die Buchung aktuell fehlschlagen:';
 $string['agent_booking_diagnose_intro_checked_option'] = 'Ich habe Ihre Buchungssituation fuer "{$a}" geprueft.';
 $string['agent_booking_diagnose_intro_checked_option_other'] = 'Ich habe die Buchungssituation der ausgewaehlten Person fuer "{$a}" geprueft.';
+$string['agent_booking_diagnosed_user_label'] = 'Diagnostizierte Person';
 $string['agent_booking_diagnose_intro_missing_email'] = 'Das kann ich zur E-Mail-Frage bestaetigen:';
 $string['agent_booking_diagnose_intro_status'] = 'Ihr aktueller Status ist {$a}.';
 $string['agent_booking_diagnose_other_user_permission_denied'] = 'Sie duerfen keine Buchungsdiagnose fuer andere Nutzer:innen ausfuehren.';

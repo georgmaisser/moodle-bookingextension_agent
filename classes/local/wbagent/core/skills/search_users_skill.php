@@ -326,9 +326,15 @@ class search_users_skill extends core_skill_base implements
                 continue;
             }
             $name = (string)($user['fullname'] ?? $user['username'] ?? '');
+            // Entity mentions are always linked (moodle_url-built profileurl from the
+            // result payload) — never leave a user as plain text in agent output.
+            $profileurl = trim((string)($user['profileurl'] ?? ''));
+            $namecell = $profileurl !== ''
+                ? \html_writer::link($profileurl, s($name))
+                : s($name);
             $rows .= \html_writer::tag(
                 'tr',
-                \html_writer::tag('td', s($name))
+                \html_writer::tag('td', $namecell)
                 . \html_writer::tag('td', s((string)($user['email'] ?? '')))
                 . \html_writer::tag('td', s((string)($user['id'] ?? '')))
             );

@@ -32,6 +32,7 @@ $string['agent_booking_blocker_followup_customform'] = 'Please provide the requi
 $string['agent_booking_blocker_followup_customform_bookingpolicy'] = 'Please provide the custom form values and confirm how booking policy consent should be transmitted.';
 $string['agent_booking_blocker_followup_generic'] = 'Please provide the required information to satisfy the blocking condition(s).';
 $string['agent_booking_book_users_booked'] = 'Booked {$a->count} user(s) into option id={$a->optionid}: {$a->userids}.';
+$string['agent_booking_booked_users_label'] = 'Booked users';
 $string['agent_booking_book_users_option_resolve_failed'] = 'Could not resolve booking option.';
 $string['agent_booking_book_users_required_bookusersquery'] = 'No users could be resolved from the provided query. Please specify at least one user by name, e-mail, or id.';
 $string['agent_booking_book_users_soft_block'] = 'User {$a->userid} cannot book themselves ({$a->descriptions}), but you have the right to book on their behalf.';
@@ -214,6 +215,7 @@ $string['agent_booking_diagnose_error_option_resolve'] = 'Could not resolve book
 $string['agent_booking_diagnose_intro_cannot_book'] = 'Here is why booking may currently fail:';
 $string['agent_booking_diagnose_intro_checked_option'] = 'I checked your booking situation for "{$a}".';
 $string['agent_booking_diagnose_intro_checked_option_other'] = 'I checked the booking situation for the selected user on "{$a}".';
+$string['agent_booking_diagnosed_user_label'] = 'Diagnosed user';
 $string['agent_booking_diagnose_intro_missing_email'] = 'Here is what I can confirm about the email question:';
 $string['agent_booking_diagnose_intro_status'] = 'Your current status is {$a}.';
 $string['agent_booking_diagnose_other_user_permission_denied'] = 'You are not allowed to run booking diagnostics for other users.';
