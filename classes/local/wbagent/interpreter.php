@@ -1145,7 +1145,10 @@ class interpreter implements agent_interpreter {
                 if ($selection->skillname !== '') {
                     $evaluation = $evaluator->evaluate_skill($selection->skillname, $userid, $contextid);
                     $denyreason = (string)($evaluation['deny_reason'] ?? skill_contract_validator::DENY_NOT_REGISTERED);
-                    $errors[] = "$label: skill '" . $selection->skillname . "' denied by governance gate (" . $denyreason . ").";
+                    $denymessage = skill_contract_validator::get_user_facing_deny_message($denyreason, $selection->skillname);
+                    $errors[] = $denymessage !== null
+                        ? "$label: " . $denymessage
+                        : "$label: skill '" . $selection->skillname . "' denied by governance gate (" . $denyreason . ").";
                     $issuecodes[] = 'SKILL_DENIED';
                 } else {
                     foreach ($selection->errors as $error) {

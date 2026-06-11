@@ -24,7 +24,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026061010;
+$plugin->version   = 2026061011;
 $plugin->requires  = 2024100700;
 $plugin->component = 'bookingextension_agent';
 $plugin->supported = [500, 501];

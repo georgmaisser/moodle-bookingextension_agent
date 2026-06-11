@@ -80,6 +80,18 @@ class skill_executability_evaluator {
             ]);
         }
 
+        // Full-access gate: without a PRO license or the Wunderbyte LLM
+        // subscription only readonly skills are executable.
+        if (
+            empty($meta['readonly'])
+            && !services\agent_access_service::has_full_access()
+        ) {
+            return $this->deny_result($skillname, skill_contract_validator::DENY_REQUIRES_PRO, [
+                'readonly' => false,
+                'requires_full_access' => true,
+            ]);
+        }
+
         if (!$this->has_required_capabilities($userid, $contextid, $skillname)) {
             return $this->deny_result($skillname, skill_contract_validator::DENY_MISSING_CAPABILITY, [
                 'required_capabilities' => $this->registry->get_skill_capabilities($skillname),

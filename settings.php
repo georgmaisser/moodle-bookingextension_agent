@@ -39,10 +39,6 @@ if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
     $defaultplannerprompttemplate = '';
 }
 
-if (get_config('bookingextension_agent', 'aiinitialprompt_discovery') === false) {
-    set_config('aiinitialprompt_discovery', $defaultplannerprompttemplate, 'bookingextension_agent');
-}
-
 if (get_config('bookingextension_agent', 'aiinitialprompt_selection') === false) {
     set_config('aiinitialprompt_selection', $defaultplannerprompttemplate, 'bookingextension_agent');
 }
@@ -66,6 +62,50 @@ $aisettingspage->add(
         'bookingextension_agent_aisettings_heading',
         get_string('aisettings', 'bookingextension_agent'),
         get_string('aisettings_desc', 'bookingextension_agent')
+    )
+);
+
+// License key (same mechanism as Booking PRO; products 'wbagent' or combined
+// 'bookingagent'). A combined key in Booking's licensekey field also unlocks
+// the agent — the status text reflects whichever candidate key is valid.
+$licensekeydesc = get_string('licensekeydesc', 'bookingextension_agent');
+if (class_exists('bookingextension_agent\local\wb_license')) {
+    $ownkey = trim((string)get_config('bookingextension_agent', 'licensekey'));
+    if ($ownkey !== '') {
+        $license = \bookingextension_agent\local\wb_license::parse_licensekey_for_agent($ownkey);
+        if ($license['validforagent']) {
+            $licensekeydesc = "<p style='color: green; font-weight: bold'>"
+                . get_string('licenseactivated', 'bookingextension_agent', $license['expirationdate'])
+                . '</p>';
+        } else if (
+            $license['expirationdate'] !== ''
+            && in_array($license['product'], [
+                \bookingextension_agent\local\wb_license::PRODUCT_AGENT,
+                \bookingextension_agent\local\wb_license::PRODUCT_BOOKING_AGENT,
+            ], true)
+        ) {
+            $licensekeydesc = "<p style='color: red; font-weight: bold'>"
+                . get_string('licenseexpired', 'bookingextension_agent', $license['expirationdate'])
+                . '</p>';
+        } else {
+            $licensekeydesc = "<p style='color: red; font-weight: bold'>"
+                . get_string('licenseinvalid', 'bookingextension_agent')
+                . '</p>';
+        }
+    } else if (\bookingextension_agent\local\wb_license::agent_license_is_activated()) {
+        // Unlocked via a combined key in Booking's licensekey setting.
+        $licensekeydesc = "<p style='color: green; font-weight: bold'>"
+            . get_string('licenseactivatedviabooking', 'bookingextension_agent')
+            . '</p>';
+    }
+}
+
+$aisettingspage->add(
+    new admin_setting_configtext(
+        'bookingextension_agent/licensekey',
+        get_string('licensekey', 'bookingextension_agent'),
+        $licensekeydesc,
+        ''
     )
 );
 
@@ -111,16 +151,6 @@ $aisettingspage->add(
 );
 
 $aisettingspage->add(
-    new admin_setting_configtext(
-        'bookingextension_agent/aidocsentry',
-        get_string('aidocsentry', 'bookingextension_agent'),
-        get_string('aidocsentry_desc', 'bookingextension_agent'),
-        'README.md',
-        PARAM_TEXT
-    )
-);
-
-$aisettingspage->add(
     new admin_setting_configselect(
         'bookingextension_agent/aiprivacymode',
         get_string('aiprivacymode', 'bookingextension_agent'),
@@ -143,28 +173,6 @@ $aisettingspage->add(
         PARAM_RAW,
         60,
         4
-    )
-);
-
-$aisettingspage->add(
-    new admin_setting_configtext(
-        'bookingextension_agent/aifollowupsuggestionscount',
-        get_string('aifollowupsuggestionscount', 'bookingextension_agent'),
-        get_string('aifollowupsuggestionscount_desc', 'bookingextension_agent'),
-        '0',
-        PARAM_INT
-    )
-);
-
-$aisettingspage->add(
-    new admin_setting_configtextarea(
-        'bookingextension_agent/aiinitialprompt_discovery',
-        get_string('aiinitialprompt_discovery', 'bookingextension_agent'),
-        get_string('aiinitialprompt_discovery_desc', 'bookingextension_agent'),
-        $defaultplannerprompttemplate,
-        PARAM_RAW,
-        120,
-        8
     )
 );
 

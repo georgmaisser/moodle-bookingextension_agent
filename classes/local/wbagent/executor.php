@@ -135,9 +135,11 @@ class executor implements agent_executor {
             $evaluation = $evaluator->evaluate_skill((string)$skillname, $userid, $contextid);
             if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
                 $denyreason = trim((string)($evaluation['deny_reason'] ?? skill_contract_validator::DENY_NOT_REGISTERED));
+                $denymessage = skill_contract_validator::get_user_facing_deny_message($denyreason, (string)$skillname);
                 $results[] = [
                     'status' => 'error',
-                    'detail' => 'Skill denied by governance gate (' . $denyreason . '): ' . (string)$skillname,
+                    'detail' => $denymessage
+                        ?? ('Skill denied by governance gate (' . $denyreason . '): ' . (string)$skillname),
                     'resultid' => null,
                     'deny_reason' => $denyreason,
                     'diagnostics' => (array)($evaluation['diagnostics'] ?? []),

@@ -38,6 +38,7 @@ use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
+use bookingextension_agent\local\wbagent\services\agent_access_service;
 use bookingextension_agent\local\wbagent\services\catalog\adaptive_skill_catalog_service;
 use bookingextension_agent\local\wbagent\services\discovery\family_ranker;
 use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
@@ -636,6 +637,14 @@ class orchestrator {
 
         if ($shouldincludeskillcatalog) {
             $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
+            // Full-access gate: without a PRO license or the Wunderbyte LLM
+            // subscription, mutating skills move from the selectable catalog to
+            // UNAVAILABLE SKILLS — the planner still sees them and the reply can
+            // point at the upgrade path instead of failing late in governance.
+            if (!agent_access_service::has_full_access()) {
+                [$allpromptcontracts, $unavailableskillcatalog] =
+                    $this->split_prompt_contracts_by_full_access($allpromptcontracts);
+            }
             $runtimecatalog = $this->slim_prompt_catalog_for_planner($allpromptcontracts);
             $catalogselectionmode = 'slim_all';
 
@@ -2772,7 +2781,45 @@ PROMPT;
             return 'runtime_disabled';
         }
 
+        if ($reason === skill_contract_validator::DENY_REQUIRES_PRO) {
+            return 'requires_pro_license_or_subscription';
+        }
+
         return 'not_active_now';
+    }
+
+    /**
+     * Split prompt contracts into readonly (selectable without full access) and
+     * mutating ones, which move to the unavailable catalog with an upgrade hint.
+     *
+     * @param array<int,array<string,mixed>> $contracts
+     * @return array{0: array<int,array<string,mixed>>, 1: array<int,array<string,mixed>>}
+     */
+    private function split_prompt_contracts_by_full_access(array $contracts): array {
+        $available = [];
+        $locked = [];
+        $upgradeurl = trim((string)get_string('aitrial_pro_license_url', 'bookingextension_agent'));
+        // Prepended (not appended): the catalog renderer truncates descriptions,
+        // and the lock notice must survive that.
+        $lockednote = '[Locked: requires the Wunderbyte PRO license or subscription'
+            . ($upgradeurl !== '' ? ' — ' . $upgradeurl : '')
+            . '] ';
+
+        foreach ($contracts as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+
+            if (!empty($contract['readonly'])) {
+                $available[] = $contract;
+                continue;
+            }
+
+            $contract['description'] = trim($lockednote . trim((string)($contract['description'] ?? '')));
+            $locked[] = $contract;
+        }
+
+        return [$available, $locked];
     }
 
     /**

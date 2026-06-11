@@ -53,6 +53,9 @@ class skill_contract_validator {
     /** Deny reason: runtime is globally disabled. */
     public const DENY_RUNTIME_DISABLED = 'runtime_disabled';
 
+    /** Deny reason: mutating skill needs a PRO license or the Wunderbyte subscription. */
+    public const DENY_REQUIRES_PRO = 'requires_pro';
+
     /** Deny reason: requested skill version is unsupported. */
     public const DENY_SKILL_VERSION_UNSUPPORTED = 'skill_version_unsupported';
 
@@ -252,6 +255,29 @@ class skill_contract_validator {
     }
 
     /**
+     * Return a localized user-facing message for a deny reason, when one exists.
+     *
+     * The message flows through the normal result/observation pipeline, so the
+     * synchronizer relays (and translates) it like any other skill outcome.
+     * Reasons without a dedicated message return null — callers keep their
+     * technical diagnostics phrasing for those.
+     *
+     * @param string $reason one of the DENY_* constants
+     * @param string $skillname
+     * @return string|null
+     */
+    public static function get_user_facing_deny_message(string $reason, string $skillname): ?string {
+        if ($reason === self::DENY_REQUIRES_PRO) {
+            return get_string('agent_skill_denied_requires_pro', 'bookingextension_agent', (object)[
+                'skill' => $skillname,
+                'upgradeurl' => get_string('aitrial_pro_license_url', 'bookingextension_agent'),
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
      * Return standardized deny reasons in priority order.
      *
      * @return array<int,string>
@@ -260,6 +286,7 @@ class skill_contract_validator {
         return [
             self::DENY_RUNTIME_DISABLED,
             self::DENY_INACTIVE,
+            self::DENY_REQUIRES_PRO,
             self::DENY_MISSING_CAPABILITY,
             self::DENY_CONTEXT_INVALID,
             self::DENY_SKILL_VERSION_UNSUPPORTED,
