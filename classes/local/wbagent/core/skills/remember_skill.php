@@ -68,7 +68,9 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
             'properties' => [
                 'memory' => [
                     'type' => 'string',
-                    'description' => 'The exact fact/preference/instruction to remember. Keep it brief and factual '
+                    'description' => 'The fact/preference/instruction to remember as a COMPLETE, self-contained '
+                        . 'statement that makes sense without the conversation (e.g. "Address the user as '
+                        . '\'Dr. Smith\'", NOT just "Dr. Smith"). Keep it brief and factual '
                         . '(max ' . user_memory_service::MAX_CHARS_PER_MEMORY . ' characters).',
                     'required' => true,
                 ],
@@ -79,13 +81,15 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                         user_memory_service::SCOPE_CONSTRUCTION,
                         user_memory_service::SCOPE_SYNCHRONIZATION,
                     ]],
-                    'description' => 'Which planning stages this memory should influence. Classify by what the memory '
-                        . 'affects: "' . user_memory_service::SCOPE_SELECTION . '" = which action/skill to take '
-                        . '(e.g. "always create bookings, never events"); "' . user_memory_service::SCOPE_CONSTRUCTION
-                        . '" = field values/parameters (e.g. "I prefer morning bookings", "my employee id is 12345"); '
-                        . '"' . user_memory_service::SCOPE_SYNCHRONIZATION . '" = wording/presentation of the reply '
-                        . '(e.g. "always address me as Dr X", "answer in bullet points"). Pick all that apply. '
-                        . 'Omit only if genuinely unsure — then it applies everywhere.',
+                    'description' => 'Which planning stages this memory should influence. Decision rule: does it '
+                        . 'change HOW THE AGENT TALKS to the user (form of address, tone, language, formatting)? '
+                        . '→ "' . user_memory_service::SCOPE_SYNCHRONIZATION . '" (the user-facing reply stage). '
+                        . 'Does it change FIELD VALUES when building an action (e.g. "I prefer morning bookings", '
+                        . '"my employee id is 12345")? → "' . user_memory_service::SCOPE_CONSTRUCTION . '". '
+                        . 'Does it change WHICH ACTION to pick (e.g. "always create bookings, never events")? '
+                        . '→ "' . user_memory_service::SCOPE_SELECTION . '". Pick all that apply. '
+                        . 'WHEN IN DOUBT, OMIT THIS FIELD ENTIRELY — an untagged memory applies everywhere, '
+                        . 'a wrongly narrowed one is invisible to the user.',
                     'required' => false,
                 ],
             ],
@@ -108,8 +112,8 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      */
     public function get_example_input(): array {
         return [
-            'memory' => 'Ich bevorzuge Buchungen am Vormittag.',
-            'relevant_for' => [user_memory_service::SCOPE_CONSTRUCTION],
+            'memory' => "Sprich den User immer mit 'Dr. Maier' an.",
+            'relevant_for' => [user_memory_service::SCOPE_SYNCHRONIZATION],
         ];
     }
 
