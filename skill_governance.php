@@ -527,39 +527,51 @@ echo html_writer::end_div();
 echo html_writer::end_tag('form');
 
 // Inject JavaScript for search/filter.
+// The AMD footer block runs after DOMContentLoaded has already fired, so waiting
+// for that event would never attach the listener — init directly when ready.
 $js = "
-document.addEventListener('DOMContentLoaded', function() {
-    var searchInput = document.getElementById('skill-search-input');
-    if (!searchInput) return;
+(function() {
+    var init = function() {
+        var searchInput = document.getElementById('skill-search-input');
+        if (!searchInput) {
+            return;
+        }
 
-    searchInput.addEventListener('input', function() {
-        var query = searchInput.value.toLowerCase().trim();
-        var rows = document.querySelectorAll('#skills-governance-table tbody .skill-row');
+        searchInput.addEventListener('input', function() {
+            var query = searchInput.value.toLowerCase().trim();
+            var rows = document.querySelectorAll('#skills-governance-table tbody .skill-row');
 
-        rows.forEach(function(row) {
-            var skillname = row.getAttribute('data-skillname').toLowerCase();
-            var component = row.getAttribute('data-component').toLowerCase();
-            var capabilities = row.getAttribute('data-capabilities').toLowerCase();
+            rows.forEach(function(row) {
+                var skillname = (row.getAttribute('data-skillname') || '').toLowerCase();
+                var component = (row.getAttribute('data-component') || '').toLowerCase();
+                var capabilities = (row.getAttribute('data-capabilities') || '').toLowerCase();
 
-            var match = skillname.indexOf(query) !== -1 ||
-                        component.indexOf(query) !== -1 ||
-                        capabilities.indexOf(query) !== -1;
+                var match = skillname.indexOf(query) !== -1 ||
+                            component.indexOf(query) !== -1 ||
+                            capabilities.indexOf(query) !== -1;
 
-            var nextRow = row.nextElementSibling;
-            if (match) {
-                row.style.display = '';
-                if (nextRow && nextRow.classList.contains('skill-detail-row')) {
-                    nextRow.style.display = '';
+                var nextRow = row.nextElementSibling;
+                if (match) {
+                    row.style.display = '';
+                    if (nextRow && nextRow.classList.contains('skill-detail-row')) {
+                        nextRow.style.display = '';
+                    }
+                } else {
+                    row.style.display = 'none';
+                    if (nextRow && nextRow.classList.contains('skill-detail-row')) {
+                        nextRow.style.display = 'none';
+                    }
                 }
-            } else {
-                row.style.display = 'none';
-                if (nextRow && nextRow.classList.contains('skill-detail-row')) {
-                    nextRow.style.display = 'none';
-                }
-            }
+            });
         });
-    });
-});
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
 ";
 $PAGE->requires->js_amd_inline($js);
 

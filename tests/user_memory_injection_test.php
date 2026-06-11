@@ -52,7 +52,8 @@ final class user_memory_injection_test extends advanced_testcase {
     ): string {
         $method = new \ReflectionMethod(orchestrator::class, 'build_runtime_context_block');
         $method->setAccessible(true);
-        return (string)$method->invoke($orc, $threadid, $contextid, $phase, false, false, [], [], [], $channel);
+        $blocks = (array)$method->invoke($orc, $threadid, $contextid, $phase, false, false, [], [], [], $channel);
+        return (string)($blocks['stable'] ?? '') . "\n" . (string)($blocks['volatile'] ?? '');
     }
 
     /**

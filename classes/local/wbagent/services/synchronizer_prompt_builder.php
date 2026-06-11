@@ -40,28 +40,59 @@ class synchronizer_prompt_builder {
         $template = orchestrator::get_default_initial_prompt_template_for_action($actionclass);
 
         // Allow optional admin synthesis-style prefix without planner prompt reuse.
+        // The setting is seeded with the default opening sentence, which the template
+        // already contains — only a real admin customization is merged. When both start
+        // with the expert-opening sentence, the prefix replaces the template's opening
+        // line instead of duplicating it (same rule as phase_prompt_bundle_builder).
         $summaryprefix = trim((string)(get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') ?? ''));
-        if ($summaryprefix !== '') {
-            $template = $summaryprefix . "\n\n" . ltrim($template);
+        if ($summaryprefix !== '' && $summaryprefix !== orchestrator::get_default_summary_prompt_prefix()) {
+            $trimmedtemplate = ltrim($template);
+            $isexpertopening = static function (string $text): bool {
+                return preg_match(
+                    '/^You are an expert that composes polished, helpful answers for the /',
+                    trim($text)
+                ) === 1;
+            };
+
+            if ($isexpertopening($summaryprefix) && $isexpertopening($trimmedtemplate)) {
+                $newlinepos = strpos($trimmedtemplate, "\n");
+                $template = $newlinepos === false
+                    ? $summaryprefix
+                    : $summaryprefix . "\n" . ltrim(substr($trimmedtemplate, $newlinepos + 1), "\n");
+            } else {
+                $template = $summaryprefix . "\n\n" . $trimmedtemplate;
+            }
         }
 
-        return $template;
+        // Keep placeholders stable across requests for better prompt-prefix caching:
+        // the [SYSTEM] block stays byte-identical, real values live in the runtime blocks.
+        return strtr($template, [
+            '{{bookingname}}' => '[SYSTEM_RUNTIME.booking_name]',
+            '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
+            '{{nowiso}}' => '[SYSTEM_RUNTIME_STATE.now_iso]',
+        ]);
     }
 
     /**
      * Build synchronizer prompt from history + observations.
      *
+     * Cache-friendly ordering: static [SYSTEM], per-thread-stable [SYSTEM_RUNTIME],
+     * append-only history/observations, then the per-request [SYSTEM_RUNTIME_STATE]
+     * (now_iso, execution ledgers) so volatile content never busts the shared prefix.
+     *
      * @param string $systemprompt
      * @param array<int,\stdClass> $messages
      * @param array<int,string> $observations
-     * @param string $runtimecontext
+     * @param string $runtimecontext Per-thread-stable runtime facts.
+     * @param string $runtimestate Per-request volatile runtime state.
      * @return string
      */
     public function build_prompt(
         string $systemprompt,
         array $messages,
         array $observations,
-        string $runtimecontext = ''
+        string $runtimecontext = '',
+        string $runtimestate = ''
     ): string {
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -83,6 +114,10 @@ class synchronizer_prompt_builder {
             }
             $parts[] = "[OBSERVATION {$observationnumber}]\n{$trimmed}";
             $observationnumber++;
+        }
+
+        if ($runtimestate !== '') {
+            $parts[] = "[SYSTEM_RUNTIME_STATE]\n{$runtimestate}";
         }
 
         $parts[] = "[OUTPUT_CONTRACT]\n"

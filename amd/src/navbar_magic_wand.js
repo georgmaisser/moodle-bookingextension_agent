@@ -74,6 +74,9 @@ const getModal = (contextid, title) => {
                     + '<div class="spinner-border" role="status"></div></div>',
                 large: true,
             });
+            // The preview needs more room than Bootstrap's modal-lg offers;
+            // the actual width lives in styles.css behind this hook class.
+            modal.getModal().addClass('bookingextension-agent-wand-modal');
             loadPanel(modal, contextid);
             return modal;
         })();

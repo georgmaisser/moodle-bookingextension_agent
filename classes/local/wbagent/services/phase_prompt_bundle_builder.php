@@ -112,7 +112,12 @@ class phase_prompt_bundle_builder {
         ) {
             // Only prepend a custom admin-configured prefix; the default template already
             // contains the "You are an expert..." opening, so skip when no override is set.
+            // The setting is seeded with the default opening sentence — that is not a
+            // customization and must not replace the template's cache-stable opening line.
             $summaryprefix = trim((string)(get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') ?? ''));
+            if ($summaryprefix === orchestrator::get_default_summary_prompt_prefix()) {
+                $summaryprefix = '';
+            }
             if ($summaryprefix !== '') {
                 $trimmedtemplate = ltrim($template);
                 $isexpertopening = static function (string $text): bool {
@@ -142,7 +147,7 @@ class phase_prompt_bundle_builder {
             // Keep placeholders stable across requests for better prompt-prefix caching.
             '{{bookingname}}' => '[SYSTEM_RUNTIME.booking_name]',
             '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
-            '{{nowiso}}' => '[SYSTEM_RUNTIME.now_iso]',
+            '{{nowiso}}' => '[SYSTEM_RUNTIME_STATE.now_iso]',
             '{{skilllist}}' => $skilllist,
             '{{schemajson}}' => '[]',
             '{{skillcatalogjson}}' => '[]',
@@ -203,12 +208,18 @@ PROMPT;
      * tool results into its next decision without those results ever being stored as
      * conversation messages.
      *
+     * Cache-friendly ordering: static [SYSTEM], per-thread-stable [SYSTEM_RUNTIME],
+     * append-only history/traces/observations, then the per-request
+     * [SYSTEM_RUNTIME_STATE] (now_iso, skill catalog, execution ledgers) so volatile
+     * content never busts the shared prompt prefix.
+     *
      * @param  string      $systemprompt
      * @param  \stdClass[] $messages
      * @param  string[]    $observations  Structured observation strings (may be empty).
-     * @param  string      $runtimecontext Dynamic per-request context appended after static system prompt.
+     * @param  string      $runtimecontext Per-thread-stable runtime facts appended after static system prompt.
      * @param  string[]    $plannertracehistory Full planner trace history from thread metadata.
      * @param  bool        $autoconfirmmode Whether confirmation is already allowed for this thread.
+     * @param  string      $runtimestate Per-request volatile runtime state appended after history.
      * @return string
      */
     public function build_prompt(
@@ -219,7 +230,8 @@ PROMPT;
         string $runtimecontext = '',
         array $plannertracehistory = [],
         bool $autoconfirmmode = false,
-        array $plannedstepintents = []
+        array $plannedstepintents = [],
+        string $runtimestate = ''
     ): string {
         $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_phase($phase));
 
@@ -236,6 +248,10 @@ PROMPT;
         }
 
         $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
+
+        if ($runtimestate !== '') {
+            $parts[] = "[SYSTEM_RUNTIME_STATE]\n{$runtimestate}";
+        }
 
         if (
             $phase === orchestrator_prompt_profile_service::PHASE_SELECTION

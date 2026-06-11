@@ -554,6 +554,47 @@ abstract class core_skill_base extends base_skill {
     }
 
     /**
+     * List all courses visible to the current user (empty-query course listing).
+     *
+     * Returns the first $limit normalized course candidates plus the total count
+     * so callers can report truncation. Enrolment counts are only computed for
+     * the returned slice to keep large sites cheap.
+     *
+     * @param int $limit Maximum number of courses to return.
+     * @return array{courses: array<int,array<string,mixed>>, total: int}
+     */
+    protected function list_course_candidates_for_preview(int $limit = 50): array {
+        $records = get_courses('all', 'c.fullname ASC', 'c.id, c.fullname, c.shortname, c.visible, c.category');
+
+        $visible = [];
+        foreach ($records as $record) {
+            $courseid = (int)($record->id ?? 0);
+            if ($courseid <= 0 || $courseid === SITEID) {
+                continue;
+            }
+            if (!\core_course_category::can_view_course_info($record)) {
+                continue;
+            }
+            $visible[] = $record;
+        }
+
+        $total = count($visible);
+        $courses = [];
+        foreach (array_slice($visible, 0, max(1, $limit)) as $record) {
+            $courseid = (int)$record->id;
+            $courses[] = [
+                'courseid' => $courseid,
+                'fullname' => (string)($record->fullname ?? ''),
+                'shortname' => (string)($record->shortname ?? ''),
+                'courseurl' => (new \moodle_url('/course/view.php', ['id' => $courseid]))->out(false),
+                'activeenrolledcount' => $this->count_active_course_enrolments($courseid),
+            ];
+        }
+
+        return ['courses' => $courses, 'total' => $total];
+    }
+
+    /**
      * Count currently active enrolments for a course.
      *
      * @param int $courseid

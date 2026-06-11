@@ -56,14 +56,16 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
             'version' => 1,
             'description' => 'Search courses and return matching course candidates '
                 . 'including courseid, shortname, fullname, course URL, and active '
-                . 'enrolment count. Use this first when a follow-up skill needs a '
-                . 'concrete course identity or link.',
+                . 'enrolment count. With an empty or omitted query it lists ALL courses '
+                . 'available on the platform. Use this first when a follow-up skill needs '
+                . 'a concrete course identity or link, or when the user asks which courses exist.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_courses',
             'properties' => [
                 'query' => [
                     'type' => 'string',
-                    'description' => 'Search text for course full name, short name or id.',
+                    'description' => 'Search text for course full name, short name or id. '
+                        . 'Leave empty or omit to list all available courses.',
                     'required' => false,
                 ],
                 'coursequery' => [
@@ -121,7 +123,8 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
         return [
             [
                 'id' => 'core.search_courses_request',
-                'description' => 'User asks to find/search courses by name, shortname or id.',
+                'description' => 'User asks to find/search courses by name, shortname or id, '
+                    . 'or to list all courses available on the platform.',
             ],
             [
                 'id' => 'core.search_courses_limit_request',
@@ -142,10 +145,14 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
                 'triggers' => [
                     'search courses', 'find course', 'find courses', 'course id',
                     'suche kurs', 'suche kurse', 'finde kurs', 'kurs finden',
+                    'list courses', 'list all courses', 'which courses', 'all courses',
+                    'alle kurse', 'welche kurse', 'kurse anzeigen', 'kurse auflisten',
                 ],
                 'guidance' => [
                     '- Use core.search_courses as a FIRST STEP when you need a courseid to pass to',
                     '  a follow-up skill and only a course name is known.',
+                    '- To list ALL courses on the platform (e.g. "which courses exist?"), call the',
+                    '  skill with an empty or omitted input.query — do NOT ask the user for a search term.',
                     '- Execute this skill and wait for the observation; then use the resolved courseid.',
                     '- This skill already returns the course URL, so do not ask the model to invent or compose',
                     '  a Moodle course link itself.',
@@ -165,14 +172,10 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
      * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
      */
     public function check_structure(array $input): array {
-        $errors = [];
-        if ($this->resolve_query($input) === '') {
-            $errors[] = get_string('agent_booking_search_courses_query_required', 'bookingextension_agent');
-        }
-
+        // An empty query is valid: it lists all courses visible to the user.
         return [
-            'valid' => empty($errors),
-            'errors' => $errors,
+            'valid' => true,
+            'errors' => [],
             'ambiguities' => [],
         ];
     }
@@ -188,19 +191,21 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     public function execute(array $input, int $contextid, int $userid): array {
         $query = $this->resolve_query($input);
         $outputlang = $this->get_output_language($input);
-        $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : 10;
-
-        if ($query === '') {
-            return [
-                'status' => 'error',
-                'detail' => get_string('agent_booking_search_courses_query_required', 'bookingextension_agent'),
-                'resultid' => null,
-            ];
-        }
+        $listall = ($query === '');
+        $limit = isset($input['limit']) ? max(1, (int)$input['limit']) : ($listall ? 50 : 10);
 
         $debugbase = $this->build_skill_debug_message(self::SKILL_NAME, $input);
 
-        $courses = $this->search_course_candidates_for_preview($query, $limit);
+        $total = 0;
+        if ($listall) {
+            // Empty query deliberately lists all courses visible to the user.
+            $listing = $this->list_course_candidates_for_preview($limit);
+            $courses = $listing['courses'];
+            $total = (int)$listing['total'];
+        } else {
+            $courses = $this->search_course_candidates_for_preview($query, $limit);
+        }
+
         if (empty($courses)) {
             $usermessage = $this->localized_string('agent_booking_search_courses_no_results', null, $outputlang);
             return [
@@ -214,11 +219,18 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
             ];
         }
 
-        $usermessage = $this->localized_string(
-            'agent_booking_search_courses_found',
-            count($courses),
-            $outputlang
-        );
+        $usermessage = $listall
+            ? $this->localized_string('agent_booking_search_courses_listed', $total, $outputlang)
+            : $this->localized_string('agent_booking_search_courses_found', count($courses), $outputlang);
+
+        $observationfull = $this->build_course_observation_full($courses, $outputlang, $listall ? $usermessage : '');
+        if ($listall && $total > count($courses)) {
+            $observationfull .= "\n" . $this->localized_string(
+                'agent_booking_search_courses_listed_partial',
+                (object)['shown' => count($courses), 'total' => $total],
+                $outputlang
+            );
+        }
 
         return [
             'status' => 'executed',
@@ -226,9 +238,10 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
             'usermessage' => $usermessage,
             'resultid' => (int)($courses[0]['courseid'] ?? 0),
             'courses' => $courses,
-            'observation_full' => $this->build_course_observation_full($courses, $outputlang),
+            'observation_full' => $observationfull,
             'debugmessage' => $debugbase
-                . "\nResults: " . count($courses),
+                . "\nResults: " . count($courses)
+                . ($listall ? "\nTotal visible: " . $total : ''),
         ];
     }
 
@@ -237,15 +250,18 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
      *
      * @param array<int,array<string,mixed>> $courses
      * @param string $lang
+     * @param string $headline Optional headline override (empty = default "found" line).
      * @return string
      */
-    private function build_course_observation_full(array $courses, string $lang): string {
+    private function build_course_observation_full(array $courses, string $lang, string $headline = ''): string {
         if (empty($courses)) {
             return $this->localized_string('agent_booking_search_courses_no_results', null, $lang);
         }
 
         $lines = [];
-        $lines[] = $this->localized_string('agent_booking_search_courses_found', count($courses), $lang);
+        $lines[] = $headline !== ''
+            ? $headline
+            : $this->localized_string('agent_booking_search_courses_found', count($courses), $lang);
 
         foreach ($courses as $course) {
             $fullname = trim((string)($course['fullname'] ?? ''));

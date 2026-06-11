@@ -106,6 +106,23 @@ Deliverables:
 Definition of Done:
 - Simulation liefert fuer Kern-Workflows stabile und nachvollziehbare Differenzen.
 
+### WS7: Semantische Site-Suche (P2, spaeter)
+Ziel: Inhalte der ganzen Moodle-Site semantisch ueber den Agent auffindbar machen, ohne pro Plugin zu scrapen.
+
+Ansatz: Moodles Search-Areas (`\core_search\base`) als Korpus nutzen — sie liefern bereits indexierbare,
+zugriffskontrollierte Chunks (`\core_search\document` + `check_access()`). Die Keyword-Engine wird durch unsere
+Embeddings ersetzt: Chunks embedden, in einem Vektor-Store ablegen, semantisch retrieven.
+
+Kernpunkte:
+- Sicherheit ist Make-or-Break: Retrieval IMMER per-User mit `check_access()` nachfiltern (Option A) oder als
+  `\core_search\engine` implementieren, das Access nativ erbt (Option B, empfohlen pruefen).
+- Skalierung: CSV-Katalog reicht nicht — echter Vektor-Store, Chunking, inkrementelles Indexing (an
+  Such-Index-Task andocken) inkl. Deletes, kuratierte Area-Whitelist.
+- Engine-clean: als Skill (`core.find_content`) + skill-eigene Services; Agent-Engine kennt von Site-Suche nichts.
+
+Details + Datenmodell + Indexing-Flow: siehe Blueprint
+`semantische_site_suche_embeddings_adapter_2026-06-10.md`. Bewusst spaeter (Phase 3+), nicht jetzt.
+
 ## 4) Zusaetzliche sinnvolle Ideen (Vorschlaege)
 
 ### 4.1 Observability und Audit Trail (P0)
@@ -149,6 +166,7 @@ Definition of Done:
 - WS6 produktionsreif machen
 - Observability/Audit Trail
 - Safety Policy Packs und Eval Harness
+- WS7 Semantische Site-Suche (Analyse/Prototyp; Option A vs. `\core_search\engine`)
 
 ## 6) Messbare Erfolgskriterien
 - -30% Rueckfragen vor mutierenden Aktionen (durch bessere Preview/Context).
