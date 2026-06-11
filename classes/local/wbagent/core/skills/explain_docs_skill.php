@@ -82,7 +82,9 @@ class explain_docs_skill extends core_skill_base implements
                 . 'the user\'s question. Works in any language — queries are matched against '
                 . 'the documentation corpus language-agnostically. Use this skill whenever '
                 . 'the user asks how something works, how to configure a feature, or what '
-                . 'a term means in the context of this plugin.',
+                . 'a term means in the context of this plugin. Documentation answers are '
+                . 'strictly grounded: only the returned excerpt counts — never answer such '
+                . 'questions from general knowledge.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_action_core_explain_docs',
             'properties' => [
@@ -371,7 +373,12 @@ class explain_docs_skill extends core_skill_base implements
             'detail' => $usermessage,
             'usermessage' => $usermessage,
             'resultid' => null,
-            'observation_full' => $usermessage,
+            'observation_full' => 'DOCUMENTATION GROUNDING CONTRACT (non-negotiable): the documentation lookup '
+                . 'found NOTHING for this question. Tell the user that this is not covered by the documentation. '
+                . 'Do NOT answer the documentation question from outside knowledge and NEVER invent parameters, '
+                . 'options or features. ' . $usermessage,
+            // Instructional engine text — exempt from privacy anonymization.
+            'observation_engine_static' => true,
             'debugmessage' => $debugbase . "\nmode=no_results",
         ];
     }
@@ -438,6 +445,10 @@ class explain_docs_skill extends core_skill_base implements
             'has_more' => $hasmore,
             'total_lines' => $totallines,
             'observation_full' => $observation,
+            // Shipped documentation + grounding instructions = engine text; exempt
+            // from privacy anonymization (masking would corrupt doc content, and the
+            // user question is NOT part of this observation).
+            'observation_engine_static' => true,
             'debugmessage' => $debugsuffix,
         ];
     }
@@ -466,6 +477,20 @@ class explain_docs_skill extends core_skill_base implements
         ?int $nextlinestart
     ): string {
         $lines = [];
+        // Grounding contract: documentation answers must come from the excerpt and
+        // nothing else. Thread 321: the planner confidently invented a shortcode
+        // parameter (pastcourses=1) on top of a correct excerpt — the contract
+        // travels with the observation so every consumer (next planner turn AND
+        // synchronizer) sees it right next to the content it constrains.
+        $lines[] = 'DOCUMENTATION GROUNDING CONTRACT (non-negotiable):';
+        $lines[] = '- The excerpt below is the ONLY authoritative source for answering the documentation question.';
+        $lines[] = '- Answer EXCLUSIVELY from this excerpt. Do NOT add parameters, options, attributes, features or '
+            . 'behaviour from outside knowledge, and NEVER invent identifiers.';
+        $lines[] = '- If the user asks whether something exists and it is not in this excerpt, answer that it is NOT '
+            . 'documented and list what the excerpt actually documents instead.';
+        $lines[] = '- If this excerpt does not cover the question and has_more is true, read on (next_line_start) or '
+            . 'search a more specific document BEFORE answering — do not fill gaps from memory.';
+        $lines[] = '';
         $lines[] = 'Doc: ' . $path;
         if ($title !== '' && $title !== $path) {
             $lines[] = 'Title: ' . $title;
