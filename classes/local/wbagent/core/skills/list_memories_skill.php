@@ -70,7 +70,8 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
                 'input_fields_for_prompt' => [],
                 'anchor_fields' => [],
                 'capabilities' => ['user_memory_list'],
-                'context_scopes' => ['module'],
+                // Affected scope is the USER's global memory store, not the hosting context.
+                'context_scopes' => ['user'],
             ],
         ];
 

@@ -84,7 +84,8 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 'input_fields_for_prompt' => ['query'],
                 'anchor_fields' => ['query'],
                 'capabilities' => ['user_memory_delete'],
-                'context_scopes' => ['module'],
+                // Affected scope is the USER's global memory store, not the hosting context.
+                'context_scopes' => ['user'],
             ],
         ];
     }

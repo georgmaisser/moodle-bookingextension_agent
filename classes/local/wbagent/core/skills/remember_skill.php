@@ -100,7 +100,9 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                 'input_fields_for_prompt' => ['memory', 'relevant_for'],
                 'anchor_fields' => ['memory'],
                 'capabilities' => ['user_memory_store'],
-                'context_scopes' => ['module'],
+                // Affected scope is the USER's global memory store — not the hosting
+                // Moodle context (the skill runs anywhere, incl. the dashboard).
+                'context_scopes' => ['user'],
             ],
         ];
     }
@@ -112,7 +114,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      */
     public function get_example_input(): array {
         return [
-            'memory' => "Sprich den User immer mit 'Dr. Maier' an.",
+            'memory' => "Sprich den User immer mit 'Dr. Smith' an.",
             'relevant_for' => [user_memory_service::SCOPE_SYNCHRONIZATION],
         ];
     }

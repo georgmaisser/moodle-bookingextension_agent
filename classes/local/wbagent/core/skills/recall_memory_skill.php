@@ -94,6 +94,9 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 'input_fields_for_prompt' => ['mode'],
                 'anchor_fields' => ['date_hint', 'query'],
                 'capabilities' => ['conversation_memory_recall', 'date_window_lookup'],
+                // Reads the USER's own conversation history; was implicitly defaulting
+                // to ['module'] via base_skill — declared honestly as user-scoped.
+                'context_scopes' => ['user'],
             ],
         ];
 
