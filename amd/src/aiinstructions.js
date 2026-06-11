@@ -2510,7 +2510,32 @@ const requestTrialKey = () => {
 };
 
 /**
- * Activate trial context and refresh page on success.
+ * Refresh the agent UI after trial activation.
+ *
+ * Inside the navbar wand modal a full page reload would close the modal and
+ * lose the user's place — instead the aipanel fragment is re-fetched into the
+ * modal body. Inline embeddings (booking view tab) keep the page reload.
+ *
+ * @param {Object} ctx trial UI context
+ */
+const reloadAgentPanel = (ctx) => {
+    const modal = ctx.wrapper ? ctx.wrapper.closest('.bookingextension-agent-wand-modal') : null;
+    const body = modal ? modal.querySelector('.modal-body') : null;
+    const contextid = Number((ctx.wrapper && ctx.wrapper.dataset.contextid) || 0);
+    if (!body || !contextid) {
+        window.location.reload();
+        return;
+    }
+
+    Fragment.loadFragment('bookingextension_agent', 'aipanel', contextid, {contextid: contextid})
+        .done((html, js) => {
+            Templates.replaceNodeContents(body, html, js);
+        })
+        .fail(() => window.location.reload());
+};
+
+/**
+ * Activate trial context and refresh the agent UI on success.
  */
 const activateTrialContext = () => {
     const ctx = getTrialUiContext();
@@ -2544,7 +2569,7 @@ const activateTrialContext = () => {
                     + '<i class="fa fa-check-circle mr-2" aria-hidden="true"></i>'
                     + renderTextWithLinks(resp.message || ctx.trialActivateSuccess)
                     + ' <strong>' + escapeHtml(ctx.trialReloadingLabel) + '</strong></div>';
-                setTimeout(() => window.location.reload(), 1800);
+                setTimeout(() => reloadAgentPanel(ctx), 1800);
             } else {
                 ctx.trialResult.innerHTML =
                     '<div class="alert alert-danger mb-0">'

@@ -85,6 +85,30 @@ class activate_trial_context extends external_api {
             ];
         }
 
+        // The activation promise ("should we set up the system now?") includes
+        // re-enabling a configured-but-disabled Wunderbyte provider instance.
+        // Previously this endpoint only flipped course/module toggles and told
+        // the admin "no active provider" for the disabled-instance case.
+        try {
+            $manager = \core\di::get(\core_ai\manager::class);
+            $candidates = array_merge(
+                array_values((array)$manager->get_provider_instances([
+                    'provider' => 'aiprovider_wunderbyte\\provider',
+                ])),
+                array_values((array)$manager->get_provider_instances([
+                    'name' => 'Wunderbyte',
+                    'provider' => 'aiprovider_openai\\provider',
+                ]))
+            );
+            foreach ($candidates as $instance) {
+                if (empty($instance->enabled)) {
+                    $manager->enable_provider_instance($instance);
+                }
+            }
+        } catch (\Throwable $e) {
+            debugging('trial activation: enabling provider instance failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+
         $registry = skill_registry::make_default();
         $store = new conversation_store();
         $status = (new orchestrator($registry, new interpreter($registry), $store))
