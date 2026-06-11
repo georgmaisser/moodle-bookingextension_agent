@@ -265,7 +265,7 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   R1 session-allow in one course cannot authorise another). Low risk today (no cross-context
   adopter yet); tracked for when a cross-context R1 skill appears.
 
-### Phase 3 — first adopter: `generate_questions` — ✅ DONE (commit `<this>`)
+### Phase 3 — first adopter: `generate_questions` — ✅ DONE (commit `d22d5de`)
 - ✅ Added `coursequery` / `courseid` inputs + the cross-context opt-in
   (`supports_target_context()` → true, `get_target_context_level()` → `CONTEXT_COURSE`,
   `get_target_selector()` builds a course selector from the inputs).
