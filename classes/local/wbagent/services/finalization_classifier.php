@@ -83,6 +83,11 @@ class finalization_classifier {
         'auth_failed',
         'quota_exceeded',
         'runtime_disabled',
+        // Provider classes never route to the synchronizer: the provider itself is
+        // the failing component, so an extra LLM call would fail (or lie) too.
+        'provider_error',
+        // Internal status failures are deterministic facts, not conversation.
+        'internal_status',
     ];
 
     /**

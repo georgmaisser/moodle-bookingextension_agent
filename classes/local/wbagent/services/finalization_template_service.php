@@ -57,6 +57,15 @@ class finalization_template_service {
             'The AI provider quota was exceeded. Please try again later.',
         'runtime_disabled' =>
             'AI runtime is currently disabled for this context.',
+        // The one class where the old catch-all wording is actually true.
+        'provider_error' =>
+            'The AI provider returned an error. Please try again later.',
+        'internal_contract' =>
+            'An internal planning error occurred. Please try again — your request was not executed.',
+        'internal_status' =>
+            'An internal error occurred while checking the AI status. Please try again or contact an administrator.',
+        'skill_exception' =>
+            'The requested action failed with an internal error. Please try again or rephrase your request.',
     ];
 
     /** @var array<string,string> */
@@ -64,6 +73,12 @@ class finalization_template_service {
         'auth_failed' => 'error_ai_trial_token_invalid',
         'quota_exceeded' => 'error_ai_provider_quota_exceeded',
         'runtime_disabled' => 'error_ai_context_disabled',
+        'provider_timeout' => 'error_ai_provider_timeout',
+        'transient_io' => 'error_ai_transient_io',
+        'provider_error' => 'ai_provider_error',
+        'internal_contract' => 'error_ai_internal_planning',
+        'internal_status' => 'error_ai_internal_status',
+        'skill_exception' => 'error_ai_skill_exception',
     ];
 
     /** @var array<string,string> */
@@ -112,11 +127,16 @@ class finalization_template_service {
         }
 
         if ($msg !== '') {
-            $rawerrors = $result['errors'] ?? [];
-            if (!empty($rawerrors) && is_array($rawerrors)) {
-                $rawerror = trim(implode(' ', $rawerrors));
-                if ($rawerror !== '') {
-                    $msg .= ' (Details: ' . $rawerror . ')';
+            // Raw error details are an ADMIN diagnostic channel — regular users get
+            // the localized class text only (raw provider/internal strings are noise
+            // for them and may be English-only).
+            if (is_siteadmin()) {
+                $rawerrors = $result['errors'] ?? [];
+                if (!empty($rawerrors) && is_array($rawerrors)) {
+                    $rawerror = trim(implode(' ', $rawerrors));
+                    if ($rawerror !== '') {
+                        $msg .= ' (Details: ' . $rawerror . ')';
+                    }
                 }
             }
             return $msg;

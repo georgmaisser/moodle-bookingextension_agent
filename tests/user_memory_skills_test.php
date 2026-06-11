@@ -82,13 +82,15 @@ final class user_memory_skills_test extends advanced_testcase {
     }
 
     /**
-     * Risk-class contract: remember is R1, forget R2, list R0.
+     * Risk-class contract: remember is R0 (readonly-treated, no confirmation —
+     * decision 2026-06-11, write only to the user's own preference store),
+     * forget R2 (explicit confirm), list R0.
      */
     public function test_risk_class_contract(): void {
         $remember = new remember_skill();
         $this->assertSame('core.remember', $remember->get_name());
-        $this->assertFalse($remember->is_read_only());
-        $this->assertSame(skill_risk_class::R1, $remember->get_risk_class());
+        $this->assertTrue($remember->is_read_only());
+        $this->assertSame(skill_risk_class::R0, $remember->get_risk_class());
 
         $forget = new forget_skill();
         $this->assertSame('core.forget', $forget->get_name());

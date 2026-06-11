@@ -175,7 +175,8 @@ class ai_send_message extends external_api {
             if ($reason !== '' && isset($reasonmap[$reason])) {
                 $errormessage = get_string($reasonmap[$reason], 'bookingextension_agent');
             } else if ($reason === 'exception_thrown') {
-                $errormessage = get_string('ai_provider_error', 'bookingextension_agent');
+                // Internal failure of the status check itself — not a provider error.
+                $errormessage = get_string('error_ai_internal_status', 'bookingextension_agent');
             } else {
                 if (!empty($runtimeproviderstatus['provideractive']) && empty($runtimeproviderstatus['courseenabled'])) {
                     $errormessage = get_string('error_ai_course_disabled', 'bookingextension_agent');

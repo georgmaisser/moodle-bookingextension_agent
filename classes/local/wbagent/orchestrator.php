@@ -1530,7 +1530,11 @@ class orchestrator {
     private function build_selection_contract_error_result(string $issuecode, string $error): array {
         return [
             'response_type' => 'error',
-            'message' => get_string('ai_provider_error', 'bookingextension_agent'),
+            // Deliberately empty: an internal contract violation is NOT a provider
+            // error. The message is composed downstream — synchronizer presentation
+            // fed by the error observation, or the class template as fallback.
+            'message' => '',
+            'error_class' => 'internal_contract',
             'commands' => [],
             'selected_skill' => '',
             'ambiguities' => [],
@@ -1547,7 +1551,10 @@ class orchestrator {
     private function build_selector_handoff_error_result(): array {
         return [
             'response_type' => 'error',
-            'message' => get_string('ai_provider_error', 'bookingextension_agent'),
+            // Deliberately empty — internal handoff error, resolved downstream
+            // (CONTRACT_SELECTION_SKILL_MISSING has a dedicated template text).
+            'message' => '',
+            'error_class' => 'internal_contract',
             'commands' => [],
             'ambiguities' => [],
             'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_skill for construction.'],
@@ -1583,7 +1590,10 @@ class orchestrator {
 
         return [
             'response_type' => 'error',
-            'message' => get_string('ai_provider_error', 'bookingextension_agent'),
+            // Deliberately empty: the template fallback resolves the localized
+            // class-specific text from error_class (provider classes never go to
+            // the synchronizer — the provider itself is the failing component).
+            'message' => '',
             'commands' => [],
             'ambiguities' => [],
             'errors' => [$errormessage],
@@ -1600,7 +1610,8 @@ class orchestrator {
     private function build_empty_provider_result(): array {
         return [
             'response_type' => 'error',
-            'message' => get_string('ai_provider_error', 'bookingextension_agent'),
+            // Deliberately empty — the transient_io class template resolves it.
+            'message' => '',
             'commands' => [],
             'ambiguities' => [],
             'errors' => ['Provider returned empty content.'],

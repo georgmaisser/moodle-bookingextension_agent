@@ -69,7 +69,70 @@ class synchronizer_input_builder {
             $observations[] = $executionfeedbackobservation;
         }
 
+        $errorobservation = $this->build_error_observation($result);
+        if ($errorobservation !== '') {
+            $observations[] = $errorobservation;
+        }
+
         return $observations;
+    }
+
+    /**
+     * Build the structured error observation for error presentation.
+     *
+     * The synchronizer presents errors like any other answer (user language,
+     * conversational, sensible next step) — provided it knows the actual cause.
+     * This block carries the classified cause (error_class, issue codes, raw
+     * errors, failed result details) plus a non-negotiable presentation
+     * instruction: never blame the AI provider for non-provider causes, never
+     * invent causes, never claim success.
+     *
+     * @param array $result
+     * @return string empty when the result is not an error
+     */
+    private function build_error_observation(array $result): string {
+        if (trim((string)($result['response_type'] ?? '')) !== 'error') {
+            return '';
+        }
+
+        $lines = [];
+        $lines[] = '[ERROR] The request FAILED. Compose an honest error reply in the user\'s language:';
+
+        $errorclass = trim((string)($result['error_class'] ?? ''));
+        if ($errorclass !== '') {
+            $lines[] = 'error_class: ' . $errorclass;
+        }
+
+        $issuecodes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
+        if (!empty($issuecodes)) {
+            $lines[] = 'issue_codes: ' . implode(', ', $issuecodes);
+        }
+
+        $causes = [];
+        foreach ((array)($result['errors'] ?? []) as $error) {
+            $error = trim((string)$error);
+            if ($error !== '') {
+                $causes[] = $error;
+            }
+        }
+        foreach ((array)($result['results'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $status = trim((string)($entry['status'] ?? ''));
+            $detail = trim((string)($entry['detail'] ?? ''));
+            if (in_array($status, ['error', 'failed'], true) && $detail !== '') {
+                $causes[] = $detail;
+            }
+        }
+        if (!empty($causes)) {
+            $lines[] = 'causes: ' . implode(' | ', array_unique($causes));
+        }
+
+        $lines[] = 'Rules: explain the cause above and a sensible next step. Do NOT blame the AI provider '
+            . 'unless error_class names it. Do NOT invent other causes. Do NOT claim the request succeeded.';
+
+        return implode("\n", $lines);
     }
 
     /**

@@ -234,12 +234,20 @@ class synchronizer_output_contract {
      * @return string Empty string when no source conflict exists.
      */
     private function source_conflict_reason(array $source): string {
+        // Deliberate error presentation (set by the runtime polish step): the
+        // synchronizer was fed the error cause and asked to present it in the
+        // user's language. Response type and command semantics stay untouched by
+        // merge(), so the sync cannot turn the error into a success — only the
+        // wording is composed. Without the flag, error sources keep the strict
+        // auto-rejection below.
+        $errorpresentation = !empty($source['error_presentation_requested']);
+
         $sourceresponsetype = trim((string)($source['response_type'] ?? ''));
-        if ($sourceresponsetype === 'error') {
+        if ($sourceresponsetype === 'error' && !$errorpresentation) {
             return 'SYNC_SOURCE_RESPONSE_ERROR_REJECTED';
         }
 
-        if ($this->latest_source_result_is_error($source)) {
+        if ($this->latest_source_result_is_error($source) && !$errorpresentation) {
             return 'SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED';
         }
 

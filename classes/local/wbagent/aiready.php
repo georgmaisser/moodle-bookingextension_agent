@@ -265,7 +265,8 @@ class aiready {
                         'actions_missing'   => 'error_ai_actions_missing',
                         'course_disabled'   => 'error_ai_course_disabled',
                         'context_disabled'  => 'error_ai_context_disabled',
-                        'exception_thrown'  => 'ai_provider_error',
+                        // Internal failure of the status check itself — not a provider error.
+                        'exception_thrown'  => 'error_ai_internal_status',
                     ];
                     if ($reason !== '' && isset($reasonmap[$reason])) {
                         $admintext = get_string($reasonmap[$reason], 'bookingextension_agent');

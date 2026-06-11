@@ -1276,7 +1276,12 @@ class agent_decision_service {
 
             return [
                 'response_type' => 'error',
-                'message'       => localized_string_service::get('ai_provider_error', 'bookingextension_agent', null, $outputlang),
+                // A skill exception is NOT a provider error (threads 323/326 surfaced
+                // an invalid-cmid crash as a provider message). Message stays empty —
+                // the synchronizer presents the cause from the error observation
+                // (errors[] + failed result details), template class as fallback.
+                'message'       => '',
+                'error_class'   => 'skill_exception',
                 'commands'      => $preparedcommands,
                 'ambiguities'   => [],
                 'errors'        => [$e->getMessage()],

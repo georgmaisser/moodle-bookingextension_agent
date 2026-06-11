@@ -358,11 +358,21 @@ class agent_runtime {
         $strategy = $this->finalizationclassifier->classify($result);
 
         if ($strategy === finalization_classifier::STRATEGY_TEMPLATE_ONLY) {
-            return $this->apply_template_only_finalization($threadid, $result);
+            $result = $this->apply_template_only_finalization($threadid, $result);
+        } else if ($strategy === finalization_classifier::STRATEGY_LLM_POLISH) {
+            $result = $this->apply_synchronizer_message_polish($threadid, $result, $state);
         }
 
-        if ($strategy === finalization_classifier::STRATEGY_LLM_POLISH) {
-            return $this->apply_synchronizer_message_polish($threadid, $result, $state);
+        // Safety net: error sources now ship with message='' (the cause lives in
+        // error_class/issue_codes/errors). Whatever path failed to compose a
+        // message resolves the class template here — the user must never see an
+        // empty error, and never the retired provider catch-all for non-provider
+        // causes.
+        if ((string)($result['response_type'] ?? '') === 'error' && trim((string)($result['message'] ?? '')) === '') {
+            $templatemessage = $this->finalizationtemplatesvc->resolve_message($result);
+            $result['message'] = $templatemessage !== ''
+                ? $templatemessage
+                : $this->build_contract_fallback_message('error', $threadid);
         }
 
         return $result;
@@ -411,6 +421,14 @@ class agent_runtime {
         $userid = (int)($thread->userid ?? 0);
         if ($contextid <= 0 || $userid <= 0) {
             return $result;
+        }
+
+        // Deliberate error presentation: the synchronizer is FED the error cause
+        // (error observation from the input builder) and asked to present it —
+        // the output contract honours this flag instead of auto-rejecting
+        // message replacement for error sources.
+        if ((string)($result['response_type'] ?? '') === 'error') {
+            $result['error_presentation_requested'] = true;
         }
 
         $observations = $this->synchronizerinputbuilder->build_observations($result, $state);

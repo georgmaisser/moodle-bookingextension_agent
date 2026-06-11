@@ -27,6 +27,7 @@ Die Folgen: User probieren sinnlos „später noch einmal", Admins suchen am fal
 | 4 | `orchestrator::build_selector_handoff_error_result()` (~Z. 1547) | Interner Handoff-Fehler (selected_skill fehlt) | **nein** |
 | 5 | `ai_send_message.php:178` (`exception_thrown`-Zweig) | Beliebige Exception in `get_runtime_provider_status` (z. B. der Dashboard-TypeError) | **nein** |
 | 6 | `aiready.php` reasonmap `'exception_thrown' => 'ai_provider_error'` | dito, Readiness-Panel | **nein** |
+| 7 | `agent_decision_service` (~Z. 1279, `READONLY_PROVIDER_EXCEPTION`) — *bei Umsetzung entdeckt* | **Skill-Exception bei Read-only-Ausführung** — die tatsächliche Quelle der Threads 323/326! | **nein** |
 
 ### 2.2 Was bereits existiert (und ausgebaut statt neu erfunden werden soll)
 
@@ -73,15 +74,15 @@ Die Folgen: User probieren sinnlos „später noch einmal", Admins suchen am fal
 6. **Zwei Sichten:** User sieht die Synchronizer-Formulierung (bzw. den Klassen-Template-Text); Admins (`is_platform_admin`/Debug-Mode) zusätzlich `errors[0]`-Originaldetail — Muster wie im aiready-Panel.
 7. **Jede neue Fehlerquelle muss klassifizieren:** kein neues `get_string('ai_provider_error', …)` außerhalb des Template-Fallbacks (CI-Grep).
 
-## 5. Umsetzungsplan
+## 5. Umsetzungsplan — Stand 2026-06-11 nachmittags: UMGESETZT
 
-| Phase | Inhalt | Aufwand |
-|---|---|---|
-| **P1** | **Fehler-Observation-Builder** (Engine): aus `error_class` + `issue_codes` + `errors[]`/`results[].detail` eine `[ERROR]`-Observation für den Synchronizer bauen (engine-static, mit Präsentations-Instruktion und Anti-Floskel-/Anti-Erfindungs-Regel); Routing: Fehler-Results der Klassen C/D/E laufen durch den normalen Synchronizer-Pfad statt `direct_final` mit Pauschale | mittel |
-| **P2** | Quellen 3/4/5/6 klassifizieren (`error_class = 'internal_contract'` / `'internal_status'`) und an P1 anschließen; **keine** `message`-Pauschale mehr an der Quelle | klein |
-| **P3** | **Template-Fallback vervollständigen** (nur Klassen A/B, in denen kein Synchronizer-Call möglich ist): Lang-Strings en/de pro Klasse (`error_ai_internal_status`, `error_ai_provider_timeout`, `error_ai_transient_io`, `error_ai_empty_response`); `ERROR_CLASS_LANG_KEYS` komplettieren; Quelle 1/2 nutzen ausschließlich diese Klassentexte | klein |
-| **P4** | Admin-Detail-Kanal im Chat (debugmessage-Feld existiert; bei `is_platform_admin` Original-`errors[0]` anhängen) | klein |
-| **P5** | CI-Guard: `ai_provider_error` nur noch im Template-Fallback; deterministische Unit-Tests: (a) Payload je Klasse → erwartete Observation bzw. Template-Text, (b) Synchronizer-Contract-Test, dass die Fehler-Observation im Sync-Prompt landet | klein |
+- [x] **P1 Fehler-Observation + Sync-Routing:** `synchronizer_input_builder::build_error_observation()` (`[ERROR]`-Block mit error_class, issue_codes, causes aus `errors[]` + failed-result-details, Anti-Floskel-/Anti-Erfindungs-/Anti-Erfolgs-Regeln). **Zusatzbefund:** Das Sync-Output-Gate lehnte error-Quellen pauschal ab (`SYNC_SOURCE_RESPONSE_ERROR_REJECTED`) — deshalb kam trotz llm_polish-Routing nie eine Sync-Formulierung durch. Neues Flag `error_presentation_requested` (vom Runtime-Polish gesetzt) erlaubt die bewusste Fehler-Präsentation; response_type/commands bleiben durch merge() unantastbar, der Sync kann den Fehler also nicht in Erfolg umlügen.
+- [x] **P2 Quellen klassifiziert:** Alle 7 Quellen liefern `message=''` + ehrliche Klasse (`internal_contract`, `skill_exception`, Provider-Klassen); `exception_thrown` → `error_ai_internal_status` (ai_send_message + aiready). **Kern-Defekt behoben:** `apply_template_only_finalization` returnte bei nicht-leerer message früh — die Floskel an der Quelle hat die gute v1-Auflösung immer beschattet. Safety-Net in `apply_finalization_strategy`: leere error-message wird IMMER klassenaufgelöst (nie leer, nie Floskel für Nicht-Provider-Ursachen).
+- [x] **P3 Template-Fallback komplett:** `provider_error` + `internal_status` in TEMPLATE_ERROR_CLASSES (toten Provider nicht per LLM-Call um Formulierung bitten); ERROR_CLASS_LANG_KEYS/MESSAGES für alle Klassen; neue Strings en/de: `error_ai_provider_timeout`, `error_ai_transient_io`, `error_ai_internal_planning`, `error_ai_internal_status`, `error_ai_skill_exception`. `internal_contract`/`skill_exception` bewusst NICHT template-geroutet → Synchronizer präsentiert (Georgs Prinzip).
+- [x] **P4 Admin-Detail:** Raw-`errors[]`-Suffix („Details: …") im Template-Service nur noch für `is_siteadmin()` — vorher bekamen ALLE User die rohen Provider-/Stacktrace-Texte.
+- [x] **P5 Tests + CI-Guard:** `tests/ai_error_messaging_test.php` — Template-Matrix je Klasse, Admin-only-Details, Classifier-Routing (Provider-Klassen → template, internal_contract/skill_exception → Sync), `[ERROR]`-Observation-Inhalt, CI-Guard (`ai_provider_error` nur im Template-Fallback referenzierbar). Suite 333 grün; Real-LLM-Spotchecks (multistep/sync-Pfade) grün.
+
+**Offen:** Live-Verifikation eines echten Klasse-D-Falls durch Georg (z. B. provozierter Skill-Fehler → Sync-Antwort in User-Sprache statt Floskel).
 
 **Nicht-Ziele:** Keine Änderung der Retry-Logik (Backoff/Klassifizierung bleibt); der Synchronizer wird NICHT durch Templates ersetzt (Templates nur als Fallback, wenn der Provider selbst die Ursache ist); Klasse-D-Wurzeln werden weiterhin skill-seitig gefixt (Muster: Scope-Guard, Grounding-Contract).
 
