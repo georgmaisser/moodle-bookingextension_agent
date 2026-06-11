@@ -152,8 +152,8 @@ final class llm_skill_matrix_scenario_provider {
             ],
             'core.remember' => [
                 'prompt' => 'Nutze deine Merk-Funktion (core.remember) und speichere dauerhaft als Notiz '
-                    . 'ueber mich: Ich moechte, dass du Buchungsoptionen immer mit Datum und Uhrzeit '
-                    . 'zusammenfasst.',
+                    . 'ueber mich, gueltig fuer alle Aufgaben und Situationen (keine Rueckfrage noetig): '
+                    . 'Ich moechte, dass du Buchungsoptionen immer mit Datum und Uhrzeit zusammenfasst.',
                 'assertions' => [
                     [
                         'target' => 'final',
