@@ -43,16 +43,13 @@ class context_target_unresolved_exception extends moodle_exception {
      */
     public function __construct(context_target_resolution $resolution) {
         $this->resolution = $resolution;
-        // Phase 0: no user-facing string yet — the caller turns get_resolution() into a proper
-        // clarification (candidate list etc.) when this is wired in. A core fallback message keeps
-        // this exception self-contained without a dangling lang string. The dedicated
-        // 'error_context_target_unresolved' string + clarification UX land with that wiring.
+        // The caller (preflight) turns this into a clarification; the message carries the
+        // resolution status. A richer candidate-list clarification can be layered on later.
         parent::__construct(
-            'error',
-            'moodle',
+            'error_context_target_unresolved',
+            'bookingextension_agent',
             '',
-            null,
-            'context target unresolved: ' . $resolution->status()
+            $resolution->status()
         );
     }
 

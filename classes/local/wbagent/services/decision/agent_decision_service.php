@@ -382,6 +382,44 @@ class agent_decision_service {
     }
 
     /**
+     * Build a human note naming the operating context(s) a cross-context mutation will act on.
+     *
+     * Returns '' when every command runs in the ambient context (today's default) — so this adds
+     * nothing to confirmations until a skill opts into cross-context execution.
+     *
+     * @param  array  $commands       The mutating commands (carry operating_contextid).
+     * @param  int    $ambientcontextid The context the chat/thread lives in.
+     * @param  string $outputlang
+     * @return string
+     */
+    private function build_operating_context_note(array $commands, int $ambientcontextid, string $outputlang = ''): string {
+        $names = [];
+        foreach ($commands as $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+            $operatingcontextid = (int)($command['operating_contextid'] ?? 0);
+            if ($operatingcontextid <= 0 || $operatingcontextid === $ambientcontextid) {
+                continue;
+            }
+            try {
+                $context = \context::instance_by_id($operatingcontextid, IGNORE_MISSING);
+            } catch (\Throwable $e) {
+                $context = null;
+            }
+            if ($context) {
+                $names[$operatingcontextid] = $context->get_context_name();
+            }
+        }
+
+        if (empty($names)) {
+            return '';
+        }
+
+        return $this->localized('agent_confirm_operating_context_note', implode(', ', $names), $outputlang);
+    }
+
+    /**
      * Build a deterministic fallback message per response type and language.
      *
      * @param  array  $result
@@ -680,6 +718,16 @@ class agent_decision_service {
             $confirmmessage = trim((string)($result['message'] ?? ''));
             if ($confirmmessage === '') {
                 $confirmmessage = $this->build_fallback_message($result, $outputlang);
+            }
+
+            // Cross-context transparency: when a mutating command targets a different context than
+            // the one the chat lives in, the user must see WHERE before confirming.
+            $operatingnote = $this->build_operating_context_note((array)$result['commands'], $contextid, $outputlang);
+            if ($operatingnote !== '') {
+                $confirmmessage = $confirmmessage !== ''
+                    ? $confirmmessage . "\n\n" . $operatingnote
+                    : $operatingnote;
+                $result['operating_context_label'] = $operatingnote;
             }
 
             if (is_array($readonlyexecution)) {

@@ -251,11 +251,19 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
   r3-skill e2e (enqueue→guard→executor) green. Full cross-context e2e arrives with the first
   adopter in Phase 3.
 
-**2c — confirmation + deep-link:**
-- `agent_decision_service` `D_PROMOTE`: enrich confirmation with `operating_context_label`; scope
-  session-allow signature by operating contextid.
-- Standardise `result_deeplink`; synchronizer renders it.
-- Lang strings (en+de), incl. the deferred `error_context_target_unresolved`.
+**2c — confirmation transparency + lang strings: ✅ DONE (commit `<this>`)**
+- ✅ `agent_decision_service`: when a mutating command's operating context differs from the
+  ambient one, the confirmation message gains a clear "this will be carried out in: <course>"
+  note and an `operating_context_label` field (`build_operating_context_note()`). Empty today (no
+  skill opts in) → behaviour-preserving; activates with the Phase 3 adopter. r3 e2e green.
+- ✅ Lang strings (en+de): `agent_confirm_operating_context_note` + the previously deferred
+  `error_context_target_unresolved`; the exception now uses the real string.
+- ⏳ **Deferred (polish, not blocking Phase 3):** a generic `result_deeplink` contract +
+  synchronizer rendering. `generate_questions` already surfaces a question-bank URL via its
+  preview, so the "open there" affordance largely exists; generalising it is a later cleanup.
+- ⏳ **Deferred to a follow-up:** scope the session-allow signature by operating contextid (so an
+  R1 session-allow in one course cannot authorise another). Low risk today (no cross-context
+  adopter yet); tracked for when a cross-context R1 skill appears.
 
 ### Phase 3 — first adopter: `generate_questions`
 - Add `coursequery` / `courseid` inputs + `target_context` declaration.
