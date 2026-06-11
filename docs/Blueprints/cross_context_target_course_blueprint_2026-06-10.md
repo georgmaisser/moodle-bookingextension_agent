@@ -200,22 +200,36 @@ A matching entry goes into `reference/flowchart-guide.md` once applied.
 
 ## 5. Implementation concept (phased)
 
-### Phase 0 — groundwork (no behaviour change)
-- Add `dto/target_selector.php` (value object).
-- Extend `context_resolver` with `resolve_operating_context(...)`; keep `resolve(...)` as the
+### Phase 0 — groundwork (no behaviour change) — ✅ DONE (commit `b9268b4`)
+- ✅ Add `dto/target_selector.php` (value object).
+- ✅ Extend `context_resolver` with `resolve_operating_context(...)`; keep `resolve(...)` as the
   no-target path. Unit tests: ambient ≥ required → unchanged; ancestor walk → unchanged; explicit
-  target → resolves; unresolved target → throws/typed failure.
-- Add `operating_context_target_registry` with the core `CONTEXT_COURSE` resolver (reuse the
-  `core.search_courses` lookup) + a duck-typed provider hook for other levels.
+  target → resolves; unresolved target → throws/typed failure. (7 tests green.)
+- ✅ Add `operating_context_target_registry` with the core `CONTEXT_COURSE` resolver (reuse the
+  `core.search_courses` lookup) + a duck-typed provider hook for other levels
+  (`operating_context_target_provider_interface`).
+- ✅ Also added: `dto/context_target_resolution.php`, `context_target_unresolved_exception`.
 
 ### Phase 1 — thread the operating context (engine)
-- `preflight_pipeline::run()`: resolve operating context per command; call `skill->preflight` and
-  `require_native_capabilities` at it; store `operating_contextid` on the queued command.
-- `preflight_execution_gate`: bind guard token to operating contextid.
-- `executor`: execute against operating contextid.
+**1a — resolver glue (no hot-path change): ✅ DONE (commit `<this>`)**
+- ✅ `skill_operating_context_resolver`: maps a skill+input+ambient context to its operating
+  context. Duck-typed (`supports_target_context()` / `get_target_selector()` /
+  `get_target_context_level()` optional on skills, mirroring `get_result_preview`), so it returns
+  the ambient context unchanged for every skill today. Unit-tested (3 cases: non-opt-in → ambient,
+  opt-in + target → cross-context, opt-in + empty selector → ambient).
+
+**1b — wire into the hot path (behaviour-preserving when operating == ambient):**
+- `preflight_pipeline::run()`: resolve operating context per command; call `skill->preflight` at it
+  (the skill's own capability check then runs at the operating context = Gate 2); store
+  `operating_contextid` on the prepared command.
+- `agent_decision_service::apply_execution_guard_tokens()`: build the guard token with the
+  operating contextid.
+- `executor`: verify guard + `skill->execute()` against the operating contextid.
+- Queue persistence: carry `operating_contextid` through enqueue/dequeue so async confirmed runs
+  target the same context.
 - Back-compat: when no target selector, operating contextid == ambient (today's behaviour).
   Regression-test the whole existing booking skill suite (must be byte-for-byte equivalent with no
-  target).
+  target — identical guard tokens).
 
 ### Phase 2 — skill contract + confirmation + deep-link
 - `base_skill`: `supports_target_context(): bool`, `get_target_context_level(): int`,
