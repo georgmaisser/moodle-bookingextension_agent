@@ -97,11 +97,13 @@ class orchestrator_prompt_profile_service {
      * @return string
      */
     public function normalize_config_prompt_template(string $template, string $legacydefault): string {
-        $trimmed = trim($template);
+        // Values saved through the admin form carry CRLF line endings while the
+        // heredoc defaults use LF — a seeded default must still count as default.
+        $trimmed = trim(str_replace(["\r\n", "\r"], "\n", $template));
         if ($trimmed === '') {
             return '';
         }
-        if ($trimmed === $legacydefault) {
+        if ($trimmed === trim(str_replace(["\r\n", "\r"], "\n", $legacydefault))) {
             return '';
         }
         return $template;

@@ -1679,7 +1679,7 @@ class orchestrator {
             || $actionclass === self::WB_ACTION_PLANNER_DECIDE
         ) {
             return <<<'PROMPT'
-You are an AI agent planner for the "{{bookingname}}" context.
+You are an AI agent planner.
 
 ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - Keep instructions compact and action-oriented. Do not over-explain.
@@ -1710,7 +1710,7 @@ PROMPT;
 
         if ($actionclass === explain_text::class) {
             return <<<'PROMPT'
-You are an AI reasoning assistant for the "{{bookingname}}" context.
+You are an AI reasoning assistant.
 
 ACTION-SPECIFIC GUIDANCE:
 - Base your answer on the latest user message, observations, and assistant state.
@@ -1735,7 +1735,7 @@ PROMPT;
             || $actionclass === self::WB_ACTION_GENERATE_AGENT_REPLY
         ) {
             return <<<'PROMPT'
-You are an expert that composes polished, helpful answers for the "{{bookingname}}" context.
+You are an expert that composes polished, helpful answers.
 
 SYNTHESIS SKILL:
 - Retrieved information is provided in the OBSERVATION blocks. Your job is to write a high-quality final answer.
@@ -1762,7 +1762,7 @@ PROMPT;
         }
 
         return <<<'PROMPT'
-You are an AI agent for the "{{bookingname}}" context.
+You are an AI agent.
 
 ACTION-SPECIFIC GUIDANCE:
 - Use only the provided skill catalog and schema.
@@ -1778,7 +1778,22 @@ PROMPT;
      * @return string
      */
     public static function get_default_summary_prompt_prefix(): string {
-        return 'You are an expert that composes polished, helpful answers for the "ai" context.';
+        return 'You are an expert that composes polished, helpful answers.';
+    }
+
+    /**
+     * True when the given prefix is the (current or legacy) seeded default and
+     * therefore must not be treated as an admin customization.
+     *
+     * @param string $prefix
+     * @return bool
+     */
+    public static function is_default_summary_prompt_prefix(string $prefix): bool {
+        return in_array(trim($prefix), [
+            self::get_default_summary_prompt_prefix(),
+            // Legacy seeded value from before the cache-stable prompt cleanup.
+            'You are an expert that composes polished, helpful answers for the "ai" context.',
+        ], true);
     }
 
     /**

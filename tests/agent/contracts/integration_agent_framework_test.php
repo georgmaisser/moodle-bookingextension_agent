@@ -427,8 +427,9 @@ final class integration_agent_framework_test extends TestCase {
         // Verify template does not contain hardcoded plugin-specific skill names.
         $this->assertNotEmpty($template, 'Prompt template should not be empty');
 
-        // Verify the live planner fallback remains templated and generic.
-        $this->assertStringContainsString('{{bookingname}}', $template, 'Template should use booking placeholders');
+        // Verify the live planner fallback stays cache-stable: no per-context
+        // placeholders in the [SYSTEM] block; booking_name lives in [SYSTEM_RUNTIME].
+        $this->assertStringNotContainsString('{{bookingname}}', $template, 'Template must not embed per-context names');
         $this->assertStringNotContainsString('booking.explain_docs_topic', $template);
     }
 

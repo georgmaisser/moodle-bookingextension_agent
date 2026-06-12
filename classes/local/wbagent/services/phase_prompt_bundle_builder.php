@@ -115,14 +115,14 @@ class phase_prompt_bundle_builder {
             // The setting is seeded with the default opening sentence — that is not a
             // customization and must not replace the template's cache-stable opening line.
             $summaryprefix = trim((string)(get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') ?? ''));
-            if ($summaryprefix === orchestrator::get_default_summary_prompt_prefix()) {
+            if (orchestrator::is_default_summary_prompt_prefix($summaryprefix)) {
                 $summaryprefix = '';
             }
             if ($summaryprefix !== '') {
                 $trimmedtemplate = ltrim($template);
                 $isexpertopening = static function (string $text): bool {
                     return preg_match(
-                        '/^You are an expert that composes polished, helpful answers for the /',
+                        '/^You are an expert that composes polished, helpful answers/',
                         trim($text)
                     ) === 1;
                 };
@@ -182,7 +182,7 @@ class phase_prompt_bundle_builder {
      */
     private function get_default_constructor_prompt_template(): string {
         return <<<'PROMPT'
-You are an AI parameter constructor for the "{{bookingname}}" context.
+You are an AI parameter constructor.
 
 CONSTRUCTOR ROLE (STRICT):
 - This call is constructor-only.

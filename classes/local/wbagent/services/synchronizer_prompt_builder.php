@@ -45,11 +45,11 @@ class synchronizer_prompt_builder {
         // with the expert-opening sentence, the prefix replaces the template's opening
         // line instead of duplicating it (same rule as phase_prompt_bundle_builder).
         $summaryprefix = trim((string)(get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') ?? ''));
-        if ($summaryprefix !== '' && $summaryprefix !== orchestrator::get_default_summary_prompt_prefix()) {
+        if ($summaryprefix !== '' && !orchestrator::is_default_summary_prompt_prefix($summaryprefix)) {
             $trimmedtemplate = ltrim($template);
             $isexpertopening = static function (string $text): bool {
                 return preg_match(
-                    '/^You are an expert that composes polished, helpful answers for the /',
+                    '/^You are an expert that composes polished, helpful answers/',
                     trim($text)
                 ) === 1;
             };
