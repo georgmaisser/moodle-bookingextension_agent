@@ -95,18 +95,8 @@ class synchronizer_input_builder {
             return '';
         }
 
-        $lines = [];
-        $lines[] = '[ERROR] The request FAILED. Compose an honest error reply in the user\'s language:';
-
-        $errorclass = trim((string)($result['error_class'] ?? ''));
-        if ($errorclass !== '') {
-            $lines[] = 'error_class: ' . $errorclass;
-        }
-
         $issuecodes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
-        if (!empty($issuecodes)) {
-            $lines[] = 'issue_codes: ' . implode(', ', $issuecodes);
-        }
+        $errorclass = trim((string)($result['error_class'] ?? ''));
 
         $causes = [];
         foreach ((array)($result['errors'] ?? []) as $error) {
@@ -124,6 +114,35 @@ class synchronizer_input_builder {
             if (in_array($status, ['error', 'failed'], true) && $detail !== '') {
                 $causes[] = $detail;
             }
+        }
+
+        // A pure governance availability denial is NOT a malfunction: the skill is either not
+        // enabled on this system or the user lacks the capability for it. It still travels as
+        // response_type=error (so the finalization_classifier humanizes it via the synchronizer,
+        // per the flowchart's "safe domain error" path), but the observation must frame it as a
+        // neutral availability notice — otherwise the reply calls it an internal error.
+        if (!empty($issuecodes) && array_values(array_unique($issuecodes)) === ['SKILL_DENIED']) {
+            $lines = [];
+            $lines[] = '[UNAVAILABLE] The requested capability is not available to this user in this '
+                . 'session. This is NOT an error, bug or malfunction — the skill is either not enabled '
+                . 'on this system or the user lacks permission for it.';
+            if (!empty($causes)) {
+                $lines[] = 'reason: ' . implode(' | ', array_unique($causes));
+            }
+            $lines[] = 'Rules: State plainly and neutrally, in the user\'s language, that this capability '
+                . 'is currently not available to them (use the reason above: not enabled, or missing '
+                . 'permission). Do NOT call it an internal error, do NOT apologize for a malfunction, do '
+                . 'NOT suggest reloading or waiting, do NOT invent other causes. Keep it short and factual.';
+            return implode("\n", $lines);
+        }
+
+        $lines = [];
+        $lines[] = '[ERROR] The request FAILED. Compose an honest error reply in the user\'s language:';
+        if ($errorclass !== '') {
+            $lines[] = 'error_class: ' . $errorclass;
+        }
+        if (!empty($issuecodes)) {
+            $lines[] = 'issue_codes: ' . implode(', ', $issuecodes);
         }
         if (!empty($causes)) {
             $lines[] = 'causes: ' . implode(' | ', array_unique($causes));

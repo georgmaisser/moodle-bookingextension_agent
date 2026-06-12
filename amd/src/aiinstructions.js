@@ -2172,7 +2172,14 @@ const sendMessage = (message) => {
                 return resp;
             }
 
-            const isError = resp.response_type === 'error';
+            // A pure governance availability denial (skill not enabled on this system, or the user
+            // lacks the capability) is NOT a malfunction. response_type stays 'error' so the
+            // backend/flowchart contract is unchanged, but it is presented as a normal neutral
+            // reply instead of a red error bubble.
+            const isAvailabilityDenial = resp.response_type === 'error'
+                && issueCodes.length > 0
+                && issueCodes.every((code) => String(code).trim() === 'SKILL_DENIED');
+            const isError = resp.response_type === 'error' && !isAvailabilityDenial;
             const meta = {
                 response_type: resp.response_type || '',
                 threadid: Number(resp.threadid || currentThreadId || 0),
