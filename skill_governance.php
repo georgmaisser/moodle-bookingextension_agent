@@ -66,21 +66,34 @@ if (data_submitted() && confirm_sesskey()) {
             $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             set_config($settingname, '1', 'bookingextension_agent');
         }
+        // Per-skill toggles are now the source of truth; drop the global override.
+        set_config('aiskillenableall', '0', 'bookingextension_agent');
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     } else if ($bulk === 'disableall') {
         foreach ($contracts as $skillname => $meta) {
             $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             set_config($settingname, '0', 'bookingextension_agent');
         }
+        // Per-skill toggles are now the source of truth; drop the global override.
+        set_config('aiskillenableall', '0', 'bookingextension_agent');
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     } else {
-        // Save individual toggles.
-        $skillsposted = optional_param_array('skills', [], PARAM_RAW);
+        // Save individual toggles. Skill names contain dots (e.g. "wbagent.list_skills") and
+        // Moodle's optional_param_array() silently drops array KEYS that are not [a-z0-9_-]+,
+        // so the dotted skill name is carried as the checkbox VALUE (numeric keys) and matched
+        // against the known contracts here. Only checked skills are posted; everything else is
+        // explicitly set to '0'.
+        $enabledposted = optional_param_array('enabledskills', [], PARAM_RAW);
+        $enabledset = array_flip(array_map('strval', $enabledposted));
         foreach ($contracts as $skillname => $meta) {
             $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
-            $value = isset($skillsposted[$skillname]) ? '1' : '0';
+            $value = isset($enabledset[(string)$skillname]) ? '1' : '0';
             set_config($settingname, $value, 'bookingextension_agent');
         }
+        // These per-skill toggles are now authoritative. Clearing the global "enable all"
+        // override is essential: otherwise is_skill_active() short-circuits to true for every
+        // skill and a box unticked here would reappear active on reload.
+        set_config('aiskillenableall', '0', 'bookingextension_agent');
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 }
@@ -306,8 +319,9 @@ foreach ($contracts as $skillname => $meta) {
     $rowindex++;
     $skill = $registry->get_skill((string)$skillname);
     $provider = $registry->get_provider_for_skill((string)$skillname);
-    $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
-    $isactive = get_config('bookingextension_agent', $settingname) !== '0'; // Default true/active.
+    // Use the engine's own activation check so the checkbox reflects the real runtime state
+    // (default-off for skills that were never explicitly enabled; honours "enable all").
+    $isactive = $registry->is_skill_active((string)$skillname);
 
     $capabilities = (array)($meta['capabilities'] ?? []);
     $capabilitylabel = implode('<br/>', array_map('s', $capabilities));
@@ -348,8 +362,8 @@ foreach ($contracts as $skillname => $meta) {
     echo html_writer::start_tag('td', ['style' => 'text-align: center;']);
     echo html_writer::empty_tag('input', [
         'type' => 'checkbox',
-        'name' => 'skills[' . s((string)$skillname) . ']',
-        'value' => '1',
+        'name' => 'enabledskills[]',
+        'value' => (string)$skillname,
         'checked' => $isactive ? 'checked' : null,
     ]);
     echo html_writer::end_tag('td');
