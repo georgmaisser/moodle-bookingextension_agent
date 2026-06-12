@@ -94,7 +94,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.list_actions' => [
+            'wbagent.list_skills' => [
                 'prompt' => 'Welche Aktionen stehen mir hier im Buchungskontext zur Verfuegung? Bitte nenne sie mir geordnet.',
                 'assertions' => [
                     [
@@ -110,7 +110,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.search_skills' => [
+            'wbagent.search_skills' => [
                 'prompt' => 'Ich brauche eine bestimmte Aktion, die du wahrscheinlich nicht standardmäßig geladen hast. ' .
                     'Suche in deinem Skill-Katalog nach einem Tool zum Herunterladen von Zertifikaten (download certificate).',
                 'assertions' => [
@@ -127,7 +127,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.recall_memory' => [
+            'wbagent.recall_memory' => [
                 'prompt' => 'What did we talk about last time about "{{memory_token}}"?',
                 'setup' => 'prepare_recall_memory_scenario',
                 'assertions' => [
@@ -150,8 +150,8 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.remember' => [
-                'prompt' => 'Nutze deine Merk-Funktion (core.remember) und speichere dauerhaft als Notiz '
+            'wbagent.remember' => [
+                'prompt' => 'Nutze deine Merk-Funktion (wbagent.remember) und speichere dauerhaft als Notiz '
                     . 'ueber mich, gueltig fuer alle Aufgaben und Situationen (keine Rueckfrage noetig): '
                     . 'Ich moechte, dass du Buchungsoptionen immer mit Datum und Uhrzeit zusammenfasst.',
                 'assertions' => [
@@ -168,7 +168,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.list_memories' => [
+            'wbagent.list_memories' => [
                 'setup' => 'prepare_user_memory_scenario',
                 'prompt' => 'Welche Notizen hast du dir bisher ueber mich gemerkt? Bitte liste alle auf.',
                 'assertions' => [
@@ -191,7 +191,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.forget' => [
+            'wbagent.forget' => [
                 'setup' => 'prepare_user_memory_scenario',
                 'prompt' => 'Vergiss bitte dauerhaft meine gespeicherte Notiz ueber "{{memory_token}}".',
                 'assertions' => [
@@ -208,7 +208,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.generate_questions' => [
+            'question.generate_questions' => [
                 'setup' => 'prepare_generate_questions_scenario',
                 'prompt' => "--- DOCUMENT: danube.pdf ---\n"
                     . 'The Danube is the second-longest river in Europe at about 2850 kilometres. '
@@ -231,8 +231,8 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.recreate_skill_catalog' => [
-                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion core.recreate_skill_catalog aus ' .
+            'wbagent.recreate_skill_catalog' => [
+                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wbagent.recreate_skill_catalog aus ' .
                     'und plane den Neuaufbau des Skill-Katalogs.',
                 'assertions' => [
                     [
@@ -259,7 +259,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.search_courses' => [
+            'course.search_courses' => [
                 'prompt' => 'Suche bitte nach dem Kurs "{{course_fullname}}".',
                 'assertions' => [
                     [
@@ -696,7 +696,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'core.explain_docs' => [
+            'wbagent.explain_docs' => [
                 'prompt' => 'Explain how to create a booking option using the plugin documentation.',
                 'skip_reason' => 'Temporarily skipped: docs embeddings index may not be built in CI.',
                 'assertions' => [

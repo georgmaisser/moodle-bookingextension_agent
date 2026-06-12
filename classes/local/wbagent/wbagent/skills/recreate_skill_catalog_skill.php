@@ -14,15 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use core\task\manager;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\task\rebuild_skill_catalog_embeddings_adhoc;
 
 /**
- * Skill definition for core.recreate_skill_catalog.
+ * Skill definition for wbagent.recreate_skill_catalog.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -30,7 +31,7 @@ use bookingextension_agent\task\rebuild_skill_catalog_embeddings_adhoc;
  */
 class recreate_skill_catalog_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.recreate_skill_catalog';
+    public const SKILL_NAME = 'wbagent.recreate_skill_catalog';
 
     /**
      * Constructor.
@@ -105,7 +106,7 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.recreate_skill_catalog_requested',
+                'id' => 'wbagent.recreate_skill_catalog_requested',
                 'description' => 'User asks to rebuild/recreate skill catalog embeddings.',
             ],
             [

@@ -124,7 +124,7 @@ class execution_observation_ledger {
                 'produced_outputs' => is_array($entry['produced_outputs'] ?? null) ? (array)$entry['produced_outputs'] : [],
                 'issue_codes' => $issuecodes,
                 // Engine-generated instructional observations (duck-typed result flag,
-                // e.g. core.search_skills catalog text) are exempt from anonymization.
+                // e.g. wbagent.search_skills catalog text) are exempt from anonymization.
                 'engine_static' => !empty($entry['observation_engine_static']),
                 'created_at' => $now,
             ];

@@ -17,9 +17,9 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\core\skills\forget_skill;
-use bookingextension_agent\local\wbagent\core\skills\list_memories_skill;
-use bookingextension_agent\local\wbagent\core\skills\remember_skill;
+use bookingextension_agent\local\wbagent\wbagent\skills\forget_skill;
+use bookingextension_agent\local\wbagent\wbagent\skills\list_memories_skill;
+use bookingextension_agent\local\wbagent\wbagent\skills\remember_skill;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\services\user_memory_service;
@@ -32,9 +32,9 @@ use bookingextension_agent\local\wbagent\skill_registry_factory;
  * Contract + behaviour tests for the user-memory skills.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\core\skills\remember_skill
- * @covers     \bookingextension_agent\local\wbagent\core\skills\forget_skill
- * @covers     \bookingextension_agent\local\wbagent\core\skills\list_memories_skill
+ * @covers     \bookingextension_agent\local\wbagent\wbagent\skills\remember_skill
+ * @covers     \bookingextension_agent\local\wbagent\wbagent\skills\forget_skill
+ * @covers     \bookingextension_agent\local\wbagent\wbagent\skills\list_memories_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -44,9 +44,9 @@ final class user_memory_skills_test extends advanced_testcase {
      */
     public function test_skills_are_discovered(): void {
         $names = array_keys(skill_discovery::get_skill_instances('bookingextension_agent'));
-        $this->assertContains('core.remember', $names);
-        $this->assertContains('core.forget', $names);
-        $this->assertContains('core.list_memories', $names);
+        $this->assertContains('wbagent.remember', $names);
+        $this->assertContains('wbagent.forget', $names);
+        $this->assertContains('wbagent.list_memories', $names);
     }
 
     /**
@@ -65,7 +65,7 @@ final class user_memory_skills_test extends advanced_testcase {
         $registry = skill_registry_factory::get_default();
         $evaluator = new skill_executability_evaluator($registry, new authorization_service());
 
-        foreach (['core.remember', 'core.forget', 'core.list_memories'] as $name) {
+        foreach (['wbagent.remember', 'wbagent.forget', 'wbagent.list_memories'] as $name) {
             $capability = skill_contract_validator::build_skill_capability_name('bookingextension/agent', $name);
             $this->assertNotEmpty(
                 get_capability_info($capability),
@@ -88,23 +88,23 @@ final class user_memory_skills_test extends advanced_testcase {
      */
     public function test_risk_class_contract(): void {
         $remember = new remember_skill();
-        $this->assertSame('core.remember', $remember->get_name());
+        $this->assertSame('wbagent.remember', $remember->get_name());
         $this->assertTrue($remember->is_read_only());
         $this->assertSame(skill_risk_class::R0, $remember->get_risk_class());
 
         $forget = new forget_skill();
-        $this->assertSame('core.forget', $forget->get_name());
+        $this->assertSame('wbagent.forget', $forget->get_name());
         $this->assertFalse($forget->is_read_only());
         $this->assertSame(skill_risk_class::R2, $forget->get_risk_class());
 
         $list = new list_memories_skill();
-        $this->assertSame('core.list_memories', $list->get_name());
+        $this->assertSame('wbagent.list_memories', $list->get_name());
         $this->assertTrue($list->is_read_only());
         $this->assertSame(skill_risk_class::R0, $list->get_risk_class());
     }
 
     /**
-     * remember and list_memories explicitly name core.recall_memory to keep the
+     * remember and list_memories explicitly name wbagent.recall_memory to keep the
      * selector from confusing stored facts with past-conversation recall.
      */
     public function test_descriptions_disambiguate_from_recall_memory(): void {

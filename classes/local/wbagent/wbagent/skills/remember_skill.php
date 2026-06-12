@@ -14,16 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\services\user_memory_service;
 
 /**
- * Skill definition for core.remember — store a user-stated fact/preference.
+ * Skill definition for wbagent.remember — store a user-stated fact/preference.
  *
- * Distinct from core.recall_memory: this stores facts the user explicitly asks
+ * Distinct from wbagent.recall_memory: this stores facts the user explicitly asks
  * the agent to remember, NOT previous conversation turns.
  *
  * @package    bookingextension_agent
@@ -32,7 +33,7 @@ use bookingextension_agent\local\wbagent\services\user_memory_service;
  */
 class remember_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.remember';
+    public const SKILL_NAME = 'wbagent.remember';
 
     /**
      * Constructor — treated like read-only (R0), no confirmation step.
@@ -40,7 +41,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      * Decision (Georg, 2026-06-11): storing a note the user EXPLICITLY asked the
      * agent to remember is a write to the user's own preference store only —
      * a confirmation round-trip ("merke dir X" → "soll ich?" → "ja") is pure
-     * friction. The destructive counterpart core.forget stays R2 with explicit
+     * friction. The destructive counterpart wbagent.forget stays R2 with explicit
      * confirmation, so nothing is lost without a guarded path.
      */
     public function __construct() {
@@ -67,7 +68,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
             'description' => 'Store a fact, preference or standing instruction the user explicitly asks the agent '
                 . 'to remember for future planning (e.g. "remember that I prefer morning bookings"). '
                 . 'This stores user-stated facts — it is NOT for recalling previous conversation '
-                . '(use core.recall_memory for that). User isolation is strict; userid is never taken from input.',
+                . '(use wbagent.recall_memory for that). User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'agent_memory_remember_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_remember_skillcall',
@@ -133,7 +134,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.remember_request',
+                'id' => 'wbagent.remember_request',
                 'description' => 'User asks the agent to remember a fact, preference or standing instruction '
                     . 'about themselves (stored facts, not previous conversation).',
                 'examples' => [

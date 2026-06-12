@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use context_module;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
@@ -26,15 +27,15 @@ use bookingextension_agent\local\wbagent\skill_executability_evaluator;
 use bookingextension_agent\local\wbagent\skill_registry_factory;
 
 /**
- * Skill definition for core.list_actions.
+ * Skill definition for wbagent.list_skills.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class list_actions_skill extends core_skill_base implements skill_trigger_provider_interface {
+class list_skills_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.list_actions';
+    public const SKILL_NAME = 'wbagent.list_skills';
 
     /**
      * Constructor.
@@ -104,11 +105,11 @@ class list_actions_skill extends core_skill_base implements skill_trigger_provid
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.list_actions_request',
+                'id' => 'wbagent.list_skills_request',
                 'description' => 'User asks which actions/skills the booking agent can perform.',
             ],
             [
-                'id' => 'core.list_actions_scope_filter',
+                'id' => 'wbagent.list_skills_scope_filter',
                 'description' => 'User asks for only readonly or only mutating actions.',
             ],
         ];

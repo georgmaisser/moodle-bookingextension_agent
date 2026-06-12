@@ -324,8 +324,8 @@ PROMPT;
             $lines[] = 'Invalid example: {"response_type":"skill_call","commands":['
                 . '{"current":{"skill":"example.create_record"}}]}';
             $lines[] = 'If NONE of the skills in the SKILL CATALOG can fulfill the request, do NOT answer that no '
-                . 'capability exists. Instead select core.search_skills to search the full tool registry: '
-                . '{"response_type":"skill_call","commands":[{"skill":"core.search_skills","input":{}}],'
+                . 'capability exists. Instead select wbagent.search_skills to search the full tool registry: '
+                . '{"response_type":"skill_call","commands":[{"skill":"wbagent.search_skills","input":{}}],'
                 . '"planned_steps":[],"next_step_intent":"Search for a skill that can <capability>"}. '
                 . 'Do this at most once per request; if the follow-up still finds nothing, return clarification or error.';
         }

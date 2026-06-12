@@ -19,15 +19,15 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use context_course;
 use context_module;
-use bookingextension_agent\local\wbagent\core\skills\generate_questions_skill;
+use bookingextension_agent\local\wbagent\question\skills\generate_questions_skill;
 use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\services\security\skill_operating_context_resolver;
 
 /**
- * Cross-context behaviour of core.generate_questions (blueprint Phase 3 adopter).
+ * Cross-context behaviour of question.generate_questions (blueprint Phase 3 adopter).
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\core\skills\generate_questions_skill
+ * @covers     \bookingextension_agent\local\wbagent\question\skills\generate_questions_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

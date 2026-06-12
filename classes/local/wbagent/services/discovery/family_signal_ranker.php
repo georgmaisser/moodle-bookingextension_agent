@@ -74,7 +74,7 @@ class family_signal_ranker {
         foreach ($families as $family) {
             $score = $this->baseweight;
 
-            if (strpos($family, 'core.') === 0) {
+            if (strpos($family, 'wbagent.') === 0) {
                 $score += $this->coreweight;
             }
 

@@ -77,7 +77,7 @@ final class routing_decision_log_service_contract_test extends TestCase {
         ], [
             'promptcontracts' => [
                 ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options', 'namespace' => 'mod_booking'],
-                ['skill' => 'core.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
+                ['skill' => 'wbagent.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
             ],
             'contextprior' => ['namespace_hint' => 'mod_booking'],
             'recent_skill_names' => ['mod_booking.create_option'],

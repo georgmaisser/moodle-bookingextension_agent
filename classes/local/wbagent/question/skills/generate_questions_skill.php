@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\question\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\dto\target_selector;
@@ -29,7 +30,7 @@ use context;
 use moodle_url;
 
 /**
- * Core skill: generate Moodle questions (core.generate_questions).
+ * Core skill: generate Moodle questions (question.generate_questions).
  *
  * Takes its source text either from the `content` input the user provided directly in the chat, or
  * from the most recent uploaded document (injected into the conversation as a "--- DOCUMENT --" block);
@@ -43,7 +44,7 @@ use moodle_url;
  */
 class generate_questions_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.generate_questions';
+    public const SKILL_NAME = 'question.generate_questions';
 
     /** Default number of questions when not specified. */
     private const DEFAULT_COUNT = 5;
@@ -188,7 +189,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course than the current one, ONLY when the user explicitly '
                         . 'names one (e.g. "create the questions in the course Biology 101"). Pass the user\'s wording '
-                        . 'verbatim; resolve via core.search_courses first if you only know the name. Leave empty to '
+                        . 'verbatim; resolve via course.search_courses first if you only know the name. Leave empty to '
                         . 'create the questions in the current course.',
                     'required' => false,
                 ],
@@ -228,7 +229,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.generate_questions_request',
+                'id' => 'question.generate_questions_request',
                 'description' => 'User wants a Moodle quiz/test question (a question, quiz or test) generated or '
                     . 'inserted into Moodle — based on an uploaded document/PDF OR on content the user provides '
                     . 'directly (e.g. "make me a question", "mach mir / erstelle eine Frage", "erstelle ein Quiz", '
@@ -248,7 +249,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'core.generate_questions',
+                'id' => 'question.generate_questions',
                 'triggers' => [
                     'make a question', 'create a question', 'generate questions', 'create a quiz', 'create a test',
                     'questions from pdf', 'questions from document', 'insert question in moodle',
@@ -256,7 +257,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     'quiz erstellen', 'test erstellen', 'fragen aus dem dokument', 'frage in moodle einfügen',
                 ],
                 'guidance' => [
-                    '- core.generate_questions creates Moodle quiz questions and saves them into the course question'
+                    '- question.generate_questions creates Moodle quiz questions and saves them into the course question'
                         . ' bank itself, so do NOT look for a separate skill to "insert" a question.',
                     '- A document/PDF upload is OPTIONAL. If the user states the topic, facts, or an explicit question'
                         . ' and correct answer in the chat, pass that text verbatim as input.content and proceed; do'
@@ -394,7 +395,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         }
 
         // 2) A category the user named in plain text: resolve it deterministically against the real
-        //    list here (the planner never knows the ids, so it can only pass the wording).
+        // list here (the planner never knows the ids, so it can only pass the wording).
         $name = trim((string)($input['target_category'] ?? ''));
         if ($name !== '') {
             $matches = $this->match_targets_by_name($targets, $name);

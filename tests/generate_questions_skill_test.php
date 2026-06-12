@@ -18,14 +18,14 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\core\skills\generate_questions_skill;
+use bookingextension_agent\local\wbagent\question\skills\generate_questions_skill;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 
 /**
  * Contract tests for the generate_questions core skill (deterministic parts).
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\core\skills\generate_questions_skill
+ * @covers     \bookingextension_agent\local\wbagent\question\skills\generate_questions_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,7 +39,7 @@ final class generate_questions_skill_test extends advanced_testcase {
      */
     public function test_metadata(): void {
         $skill = new generate_questions_skill();
-        $this->assertSame('core.generate_questions', $skill->get_name());
+        $this->assertSame('question.generate_questions', $skill->get_name());
         $this->assertFalse($skill->is_read_only());
         $this->assertSame(skill_risk_class::R2, $skill->get_risk_class());
         $this->assertSame(['moodle/question:add'], $skill->get_required_native_capabilities());

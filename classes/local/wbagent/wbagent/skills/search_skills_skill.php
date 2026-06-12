@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
@@ -26,7 +27,7 @@ use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use bookingextension_agent\local\wbagent\skill_registry_factory;
 
 /**
- * Skill definition for core.search_skills (Dynamic Skill Discovery).
+ * Skill definition for wbagent.search_skills (Dynamic Skill Discovery).
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -34,7 +35,7 @@ use bookingextension_agent\local\wbagent\skill_registry_factory;
  */
 class search_skills_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.search_skills';
+    public const SKILL_NAME = 'wbagent.search_skills';
 
     /**
      * Constructor.
@@ -93,7 +94,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.search_skills_request',
+                'id' => 'wbagent.search_skills_request',
                 'description' => 'User asks to perform an action but the necessary tool is not immediately visible.',
             ],
         ];
@@ -135,7 +136,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
                 'status' => 'failed',
                 'message' => 'Empty search query.',
                 'discovered_skills' => [],
-                'observation_full' => 'No search query was provided to core.search_skills. Re-run this skill '
+                'observation_full' => 'No search query was provided to wbagent.search_skills. Re-run this skill '
                     . 'with a concrete "query" describing the capability the user needs (use the user\'s own '
                     . 'request). Do NOT conclude from this that the capability is unavailable.',
                 // Instructional engine text — exempt from privacy anonymization
@@ -175,7 +176,7 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
             0, // Thread ID 0 indicates internal retrieval lookup without thread context.
             $contextid,
             $userid,
-            'core.search_skills',
+            'wbagent.search_skills',
             $query,
             $embeddingdimensions
         );

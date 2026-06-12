@@ -6,38 +6,67 @@
 > abstraction see [architecture/14-skill-layer.md](../architecture/14-skill-layer.md); for
 > what risk class means see [architecture/15-risk-classes.md](../architecture/15-risk-classes.md).
 
-A **skill** is one capability the agent can invoke. The agent ships **27 skills** in two
-namespaces:
+A **skill** is one capability the agent can invoke. The engine-provided skills are split by
+responsibility across four namespaces (all registered by
+`bookingextension_agent\local\wbagent\skill_provider` and discovered from the matching
+`classes/local/wbagent/<namespace>/skills/` directory):
 
-- **`core.*`** — 8 engine-provided, domain-agnostic skills, registered by
-  `bookingextension_agent\local\wbagent\skill_provider`
-  (in `classes/local/wbagent/core/skills/`).
-- **`mod_booking.*`** — 19 booking-domain skills, discovered from the `mod_booking`
-  component (in `mod/booking/classes/local/wbagent/options/skills/`, base class
-  `booking_skill_base`).
+- **`wbagent.*`** — agent-specific engine skills (memory, doc-Q&A, skill discovery), in
+  `classes/local/wbagent/wbagent/skills/`. This namespace is the engine's always-on discovery
+  baseline (see [discovery](../architecture/06-discovery-families-embeddings.md)).
+- **`core.*`** — Moodle-core (user) skills, in `classes/local/wbagent/core/skills/`. `core` is
+  reserved here for genuine Moodle-core domain, matching its meaning in Moodle itself.
+- **`course.*`** — Moodle-course skills, in `classes/local/wbagent/course/skills/`.
+- **`question.*`** — Moodle question-bank skills, in `classes/local/wbagent/question/skills/`.
+
+Booking-domain skills live under **`mod_booking.*`** (discovered from the `mod_booking`
+component, base class `booking_skill_base`).
 
 Every skill is gated at run time by its per-skill capability
 `bookingextension/agent:skill_<name>` and by the activation toggle
 `aiskillenabled_<name>` (see [governance](../operations/governance.md)).
 
+The abstract base class `core_skill_base` stays in `core/skills/` and is extended by all
+engine skills regardless of namespace.
+
 ---
 
-## Core skills (`core.*`)
+## Agent engine skills (`wbagent.*`)
 
 | Skill | Risk | Read-only | Purpose | Key inputs |
 |-------|:---:|:---:|---------|-----------|
-| `core.explain_docs` | R0 | ✓ | Search the documentation corpora and return a relevant excerpt (any language) | `question`, `outputlang`, `doc_path`, `corpus_id`, `line_start` |
-| `core.get_current_user` | R0 | ✓ | Return info about the current user | `outputlang` |
-| `core.list_actions` | R0 | ✓ | List the agent's capabilities / skill names | `question`, `scope`, `outputlang` |
-| `core.recall_memory` | R0 | ✓ | Recall the user's own earlier conversation (last thread / date window) | `mode`, `date_hint`, `query` |
-| `core.search_courses` | R0 | ✓ | Find courses matching a query | `query`, `limit`, `outputlang` |
-| `core.search_skills` | R0 | ✓ | RAG fallback — search the registry for capabilities discovery missed | `query` |
-| `core.search_users` | R0 | ✓ | Find users with profile/courses/roles | `query`, `limit`, `outputlang` |
-| `core.recreate_skill_catalog` | **R2** | ✗ | Rebuild the skill-catalog embeddings CSV | `force`, `model`, `dimensions` |
+| `wbagent.explain_docs` | R0 | ✓ | Search the documentation corpora and return a relevant excerpt (any language) | `question`, `outputlang`, `doc_path`, `corpus_id`, `line_start` |
+| `wbagent.list_skills` | R0 | ✓ | List the agent's capabilities / skill names | `question`, `scope`, `outputlang` |
+| `wbagent.recall_memory` | R0 | ✓ | Recall the user's own earlier conversation (last thread / date window) | `mode`, `date_hint`, `query` |
+| `wbagent.remember` | R0 | ✓ | Store a user-stated fact/preference | `memory`, `scopes` |
+| `wbagent.forget` | R0 | ✓ | Remove a stored user memory | `query` |
+| `wbagent.list_memories` | R0 | ✓ | List the user's stored memories | `outputlang` |
+| `wbagent.search_skills` | R0 | ✓ | RAG fallback — search the registry for capabilities discovery missed | `query` |
+| `wbagent.recreate_skill_catalog` | **R2** | ✗ | Rebuild the skill-catalog embeddings CSV | `force`, `model`, `dimensions` |
 
-`core.explain_docs`, `core.get_current_user`, and `core.search_users` are preview-capable
-(`get_result_preview`). Note that all core skills are R0 **except**
-`core.recreate_skill_catalog`, which mutates the embeddings index (R2).
+`wbagent.explain_docs` is preview-capable (`get_result_preview`). All are R0 **except**
+`wbagent.recreate_skill_catalog`, which mutates the embeddings index (R2).
+
+## Moodle-core skills (`core.*`)
+
+| Skill | Risk | Read-only | Purpose | Key inputs |
+|-------|:---:|:---:|---------|-----------|
+| `core.get_current_user` | R0 | ✓ | Return info about the current user | `outputlang` |
+| `core.search_users` | R0 | ✓ | Find users with profile/courses/roles | `query`, `limit`, `outputlang` |
+
+Both are preview-capable (`get_result_preview`).
+
+## Moodle-course skills (`course.*`)
+
+| Skill | Risk | Read-only | Purpose | Key inputs |
+|-------|:---:|:---:|---------|-----------|
+| `course.search_courses` | R0 | ✓ | Find courses matching a query | `query`, `limit`, `outputlang` |
+
+## Moodle question-bank skills (`question.*`)
+
+| Skill | Risk | Read-only | Purpose | Key inputs |
+|-------|:---:|:---:|---------|-----------|
+| `question.generate_questions` | **R2** | ✗ | Generate questions (optionally from an upload) and import them into the course question bank | `topic`, `count`, `qtype`, `courseid` |
 
 ---
 
@@ -93,7 +122,7 @@ always requires manual confirmation and never auto-retries (see
   declares `'governance' => ['always_available' => true]` in `get_schema()` (how domain skills
   like `mod_booking.update_option_trainer` and `mod_booking.book_users` opt in), or when its
   name matches an engine-level keyword in `MANDATORY_SKILL_KEYWORDS` (which keeps
-  `core.search_skills` reachable). The engine hardcodes **no** concrete skill names — see
+  `wbagent.search_skills` reachable). The engine hardcodes **no** concrete skill names — see
   [discovery](../architecture/06-discovery-families-embeddings.md#4-the-embedding-query).
 - **`override`** appears on most mutating booking skills: it is how the agent confirms past a
   soft block (e.g. a duplicate-title `DOMAIN_CONFLICT`).

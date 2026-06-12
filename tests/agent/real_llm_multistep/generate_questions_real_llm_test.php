@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Real-LLM end-to-end test for core.generate_questions.
+ * Real-LLM end-to-end test for question.generate_questions.
  *
  * @package   bookingextension_agent
  * @category  test

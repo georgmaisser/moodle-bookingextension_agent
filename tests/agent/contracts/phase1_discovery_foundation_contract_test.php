@@ -49,8 +49,8 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
      */
     public function test_skill_family_contract_derives_family_from_skill_name(): void {
         $this->assertSame('mod_booking.general', skill_family_contract::from_skill_name('mod_booking.create_option'));
-        $this->assertSame('core.general', skill_family_contract::from_skill_name('core.recall_memory'));
-        $this->assertSame('core.general', skill_family_contract::from_skill_name('not_namespaced'));
+        $this->assertSame('wbagent.general', skill_family_contract::from_skill_name('wbagent.recall_memory'));
+        $this->assertSame('wbagent.general', skill_family_contract::from_skill_name('not_namespaced'));
     }
 
     /**
@@ -111,7 +111,7 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
         $contracts = [
             ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
             ['skill' => 'mod_booking.create_slotbooking_option', 'family' => 'mod_booking.options'],
-            ['skill' => 'core.recall_memory', 'family' => 'core.general'],
+            ['skill' => 'wbagent.recall_memory', 'family' => 'wbagent.general'],
             ['skill' => 'local_entities.lookup', 'family' => 'local_entities.general'],
         ];
 
@@ -120,7 +120,7 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
         $result = $registry->discover($contracts, $contextprior)->to_array();
 
         $this->assertSame(['mod_booking.options'], $result['context_families']);
-        $this->assertContains('core.general', $result['core_families']);
+        $this->assertContains('wbagent.general', $result['core_families']);
         $this->assertContains('mod_booking.options', $result['families']);
         $this->assertArrayHasKey('context_prior', $result);
     }

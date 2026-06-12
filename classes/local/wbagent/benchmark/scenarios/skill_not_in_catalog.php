@@ -56,7 +56,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_description(): string {
-        return 'Request for unavailable action -> core.search_skills catalog lookup (RAG fallback), '
+        return 'Request for unavailable action -> wbagent.search_skills catalog lookup (RAG fallback), '
             . 'no hallucinated skill. Updated for the deliberate search_skills fallback (thread 203): '
             . 'the agent must FIRST search the full catalog instead of immediately giving up with a '
             . 'clarification.';
@@ -83,7 +83,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_expected_skill(): string {
-        return 'core.search_skills';
+        return 'wbagent.search_skills';
     }
 
     /**
@@ -93,7 +93,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","message":"Ich suche im Skill-Katalog nach einer passenden Aktion.",'
-            . '"commands":[{"skill":"core.search_skills","version":1,"input":{"query":"Zoom-Link erstellen"}}],'
+            . '"commands":[{"skill":"wbagent.search_skills","version":1,"input":{"query":"Zoom-Link erstellen"}}],'
             . '"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 
@@ -109,7 +109,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
             static fn($c): string => is_array($c) ? trim((string)($c['skill'] ?? '')) : '',
             $commands
         );
-        $nonsearch = array_filter($skills, static fn(string $s): bool => $s !== '' && $s !== 'core.search_skills');
+        $nonsearch = array_filter($skills, static fn(string $s): bool => $s !== '' && $s !== 'wbagent.search_skills');
         $hallucinated = array_filter($skills, static fn(string $s): bool => stripos($s, 'zoom') !== false);
 
         return [

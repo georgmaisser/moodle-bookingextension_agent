@@ -20,10 +20,10 @@ use advanced_testcase;
 use ReflectionMethod;
 use stdClass;
 use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\core\skills\explain_docs_skill;
+use bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill;
 
 /**
- * Documentation-intent routing: core.explain_docs is forced into the candidate catalog for
+ * Documentation-intent routing: wbagent.explain_docs is forced into the candidate catalog for
  * doc-intent questions so the selector can pick it over domain skills (thread-209: "explain the
  * booking rules" was routed to analyze_rules because explain_docs never reached the candidate set).
  *

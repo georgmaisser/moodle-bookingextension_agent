@@ -14,15 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\user_memory_service;
 
 /**
- * Skill definition for core.forget — delete a stored user-stated memory.
+ * Skill definition for wbagent.forget — delete a stored user-stated memory.
  *
  * Always destructive (R2): the resolution is list → confirm → delete-by-id and
  * always goes through explicit confirmation. A query that matches zero or several
@@ -34,7 +35,7 @@ use bookingextension_agent\local\wbagent\services\user_memory_service;
  */
 class forget_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.forget';
+    public const SKILL_NAME = 'wbagent.forget';
 
     /**
      * Constructor — broad/destructive write, always explicit confirmation.
@@ -75,7 +76,8 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 ],
                 'id' => [
                     'type' => 'integer',
-                    'description' => 'Exact id of the memory to delete (e.g. from core.list_memories). Provide this OR query OR all.',
+                    'description' => 'Exact id of the memory to delete (e.g. from wbagent.list_memories). '
+                        . 'Provide this OR query OR all.',
                     'required' => false,
                 ],
                 'all' => [
@@ -117,7 +119,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.forget_request',
+                'id' => 'wbagent.forget_request',
                 'description' => 'User asks the agent to forget/delete a previously stored fact or preference.',
                 'examples' => [
                     'vergiss: Ich bevorzuge Buchungen am Vormittag',

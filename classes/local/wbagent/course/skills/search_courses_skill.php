@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\course\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 
 /**
- * Skill definition for core.search_courses.
+ * Skill definition for course.search_courses.
  *
  * @package    bookingextension_agent
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
@@ -28,7 +29,7 @@ use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_inter
  */
 class search_courses_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.search_courses';
+    public const SKILL_NAME = 'course.search_courses';
 
     /**
      * Constructor.
@@ -122,12 +123,12 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.search_courses_request',
+                'id' => 'course.search_courses_request',
                 'description' => 'User asks to find/search courses by name, shortname or id, '
                     . 'or to list all courses available on the platform.',
             ],
             [
-                'id' => 'core.search_courses_limit_request',
+                'id' => 'course.search_courses_limit_request',
                 'description' => 'User asks for a limited number of returned courses.',
             ],
         ];
@@ -141,7 +142,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'core.search_courses',
+                'id' => 'course.search_courses',
                 'triggers' => [
                     'search courses', 'find course', 'find courses', 'course id',
                     'suche kurs', 'suche kurse', 'finde kurs', 'kurs finden',
@@ -149,7 +150,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
                     'alle kurse', 'welche kurse', 'kurse anzeigen', 'kurse auflisten',
                 ],
                 'guidance' => [
-                    '- Use core.search_courses as a FIRST STEP when you need a courseid to pass to',
+                    '- Use course.search_courses as a FIRST STEP when you need a courseid to pass to',
                     '  a follow-up skill and only a course name is known.',
                     '- To list ALL courses on the platform (e.g. "which courses exist?"), call the',
                     '  skill with an empty or omitted input.query — do NOT ask the user for a search term.',

@@ -619,8 +619,8 @@ class privacy_anonymizer {
         $lastusers = is_array($matchindex['lastusers'] ?? null) ? (array)$matchindex['lastusers'] : [];
         $fullusers = is_array($matchindex['fullusers'] ?? null) ? (array)$matchindex['fullusers'] : [];
         // Protected spans: never name-anonymize inside emails or namespaced code
-        // tokens (skill names / trigger ids like "core.forget"). Thread 288: a test
-        // user with lastname "forget" turned the skill name core.forget into
+        // tokens (skill names / trigger ids like "wbagent.forget"). Thread 288: a test
+        // user with lastname "forget" turned the skill name wbagent.forget into
         // "core.ANON_USER_n_lastname" in prompts/history, so the planner emitted a
         // non-registered skill. Standalone prose occurrences of such names stay
         // anonymizable — only the code-token span is exempt.
@@ -812,8 +812,8 @@ class privacy_anonymizer {
     /**
      * Find byte-offset spans of namespaced code tokens (skill names, trigger ids).
      *
-     * Matches `<namespace>.<identifier>` such as "core.forget",
-     * "mod_booking.book_users" or "core.remember_request" — lowercase identifiers
+     * Matches `<namespace>.<identifier>` such as "wbagent.forget",
+     * "mod_booking.book_users" or "wbagent.remember_request" — lowercase identifiers
      * joined by a dot, exactly the naming contract enforced for skills — plus
      * JSON object keys (`"identifier":`) inside serialized command/observation
      * payloads. Words inside these spans must never be treated as person names:
@@ -828,7 +828,7 @@ class privacy_anonymizer {
         $spans = [];
 
         $patterns = [
-            // Namespaced skill names and trigger ids: core.forget, core.forget_request.
+            // Namespaced skill names and trigger ids: wbagent.forget, wbagent.forget_request.
             '/\b[a-z][a-z0-9_]+\.[a-z][a-z0-9_]+\b/',
             // JSON object keys in serialized payloads: "forget": true.
             '/"[a-z][a-z0-9_]*"\s*:/',

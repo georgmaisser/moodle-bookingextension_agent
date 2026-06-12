@@ -21,7 +21,7 @@ namespace bookingextension_agent\local\wbagent;
  *
  * Exposes the bookingextension_agent/docs tree as the "bookingextension_agent" corpus so the
  * wbagent docs registry can index, search and preview the agent's own documentation. This lets
- * the core.explain_docs skill answer questions about the engine itself (the runtime loop, the
+ * the wbagent.explain_docs skill answer questions about the engine itself (the runtime loop, the
  * planner contract, risk classes, …) directly from this corpus.
  *
  * The mechanism is component-agnostic: any plugin exposes its docs the same way by adding a

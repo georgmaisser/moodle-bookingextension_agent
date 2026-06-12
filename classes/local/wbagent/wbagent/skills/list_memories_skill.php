@@ -14,16 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\services\user_memory_service;
 
 /**
- * Skill definition for core.list_memories — list stored user-stated facts.
+ * Skill definition for wbagent.list_memories — list stored user-stated facts.
  *
- * Distinct from core.recall_memory: lists facts the user explicitly asked the
+ * Distinct from wbagent.recall_memory: lists facts the user explicitly asked the
  * agent to remember, NOT previous conversation turns.
  *
  * @package    bookingextension_agent
@@ -32,7 +33,7 @@ use bookingextension_agent\local\wbagent\services\user_memory_service;
  */
 class list_memories_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.list_memories';
+    public const SKILL_NAME = 'wbagent.list_memories';
 
     /**
      * Constructor — read-only.
@@ -60,7 +61,7 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
             'version' => 1,
             'description' => 'List the stored facts/preferences the user previously asked the agent to remember '
                 . '(e.g. "what do you know about me?"). These are stored user-stated facts, NOT previous '
-                . 'conversation (use core.recall_memory for past conversation). '
+                . 'conversation (use wbagent.recall_memory for past conversation). '
                 . 'User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'agent_memory_list_skillcall',
@@ -86,7 +87,7 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.list_memories_request',
+                'id' => 'wbagent.list_memories_request',
                 'description' => 'User asks what stored facts/preferences the agent has about them.',
                 'examples' => [
                     'was weißt du über mich?',

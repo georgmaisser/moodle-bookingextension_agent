@@ -14,14 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 
 /**
- * Skill definition for core.recall_memory.
+ * Skill definition for wbagent.recall_memory.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -29,7 +30,7 @@ use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_inter
  */
 class recall_memory_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.recall_memory';
+    public const SKILL_NAME = 'wbagent.recall_memory';
 
     /**
      * Constructor.
@@ -149,7 +150,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.recall_memory_last_time',
+                'id' => 'wbagent.recall_memory_last_time',
                 'description' => 'User asks what was discussed previously.',
                 'examples' => [
                     'what did we talk about last time',
@@ -158,7 +159,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 ],
             ],
             [
-                'id' => 'core.recall_memory_date_window',
+                'id' => 'wbagent.recall_memory_date_window',
                 'description' => 'User asks for memory in a date window.',
                 'examples' => [
                     'what did we talk about last friday',

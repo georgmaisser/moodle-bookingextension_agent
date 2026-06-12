@@ -36,7 +36,7 @@ class core_family_set {
      * @return array<int,string>
      */
     public function resolve(array $promptcontracts): array {
-        $families = ['core.general'];
+        $families = ['wbagent.general'];
 
         foreach ($promptcontracts as $contract) {
             if (!is_array($contract)) {
@@ -44,7 +44,7 @@ class core_family_set {
             }
 
             $family = trim((string)($contract['family'] ?? ''));
-            if ($family === '' || strpos($family, 'core.') !== 0) {
+            if ($family === '' || strpos($family, 'wbagent.') !== 0) {
                 continue;
             }
 

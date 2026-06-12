@@ -532,7 +532,7 @@ class skill_registry {
             $namespace = (string)substr($skillname, 0, (int)strpos($skillname, '.'));
         }
         if ($namespace === '') {
-            $namespace = 'core';
+            $namespace = 'wbagent';
         }
 
         $contractversion = max(1, (int)($promptcontract['version'] ?? 1));

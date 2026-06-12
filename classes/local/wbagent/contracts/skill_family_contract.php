@@ -30,7 +30,7 @@ use bookingextension_agent\local\wbagent\skill_contract_validator;
  */
 class skill_family_contract {
     /** @var string Fallback family name when no valid family can be derived. */
-    public const DEFAULT_FAMILY = 'core.general';
+    public const DEFAULT_FAMILY = 'wbagent.general';
 
     /**
      * Derive a deterministic family from a skill name namespace.

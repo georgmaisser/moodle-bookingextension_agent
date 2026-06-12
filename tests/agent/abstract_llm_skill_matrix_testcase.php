@@ -422,7 +422,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
-     * Seed a same-thread memory snippet for core.recall_memory.
+     * Seed a same-thread memory snippet for wbagent.recall_memory.
      *
      * @return array<string,mixed>
      */
@@ -460,7 +460,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
-     * Seed one stored user memory (user_memory table) for core.forget / core.list_memories.
+     * Seed one stored user memory (user_memory table) for wbagent.forget / wbagent.list_memories.
      *
      * Distinct from prepare_recall_memory_scenario, which seeds past CONVERSATION
      * content — user memories are explicit stored facts, global per user.
@@ -482,7 +482,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
-     * Grant the native question-bank capability core.generate_questions checks in Gate 2.
+     * Grant the native question-bank capability question.generate_questions checks in Gate 2.
      *
      * @return array<string,mixed>
      */

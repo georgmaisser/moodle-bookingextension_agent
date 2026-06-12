@@ -647,7 +647,7 @@ class agent_runtime {
      * observations are anonymized exactly like the ledger copy — at construction
      * time, where the contributing result entries are still available. A step whose
      * every observation-carrying result declares `observation_engine_static` (e.g.
-     * core.search_skills catalog instructions) stays unmasked: anonymizing
+     * wbagent.search_skills catalog instructions) stays unmasked: anonymizing
      * instructional engine text corrupts it (threads 286/288). Code tokens and JSON
      * keys are additionally protected inside the anonymizer itself.
      *

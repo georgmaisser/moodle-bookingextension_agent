@@ -36,7 +36,7 @@ use bookingextension_agent\local\wbagent\interfaces\skill_interface;
  */
 class skill_contract_validator {
     /** Reserved namespaces owned by bookingextension_agent. */
-    public const RESERVED_NAMESPACES = ['booking', 'core'];
+    public const RESERVED_NAMESPACES = ['booking', 'core', 'wbagent'];
 
     /** Deny reason: skill was not registered. */
     public const DENY_NOT_REGISTERED = 'not_registered';
@@ -267,14 +267,23 @@ class skill_contract_validator {
      * @return string|null
      */
     public static function get_user_facing_deny_message(string $reason, string $skillname): ?string {
-        if ($reason === self::DENY_REQUIRES_PRO) {
-            return get_string('agent_skill_denied_requires_pro', 'bookingextension_agent', (object)[
-                'skill' => $skillname,
-                'upgradeurl' => get_string('aitrial_pro_license_url', 'bookingextension_agent'),
-            ]);
+        switch ($reason) {
+            case self::DENY_REQUIRES_PRO:
+                return get_string('agent_skill_denied_requires_pro', 'bookingextension_agent', (object)[
+                    'skill' => $skillname,
+                    'upgradeurl' => get_string('aitrial_pro_license_url', 'bookingextension_agent'),
+                ]);
+            case self::DENY_MISSING_CAPABILITY:
+                // Not an error: the user simply lacks the right to use this capability.
+                return get_string('agent_skill_denied_missing_capability', 'bookingextension_agent');
+            case self::DENY_INACTIVE:
+            case self::DENY_RUNTIME_DISABLED:
+            case self::DENY_NOT_REGISTERED:
+                // Not an error: the capability is simply not available/enabled on this system.
+                return get_string('agent_skill_denied_unavailable', 'bookingextension_agent');
+            default:
+                return null;
         }
-
-        return null;
     }
 
     /**

@@ -55,7 +55,7 @@ participates automatically.
 
 ## 3. Serving your documentation (`docs_provider`)
 
-Expose a docs corpus so `core.explain_docs` can answer questions about your plugin:
+Expose a docs corpus so `wbagent.explain_docs` can answer questions about your plugin:
 
 ```php
 namespace yourcomponent\local\wbagent;
@@ -129,7 +129,7 @@ No engine files change. That is the whole point of the contract.
 
 The agent plugin ships its own `docs_provider`
 (`classes/local/wbagent/docs_provider.php`, corpus id `bookingextension_agent`) exposing this
-`docs/` folder, so `core.explain_docs` answers questions about the engine itself directly
+`docs/` folder, so `wbagent.explain_docs` answers questions about the engine itself directly
 from these pages — no admin `aidocsroot` needed. Only the `mod_booking` corpus currently has
 a public web route for a clickable source link; other corpora (including this one) still
 render fully in the inline preview pane.

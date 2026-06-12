@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Real-LLM regression test for core.list_actions output ordering.
+ * Real-LLM regression test for wbagent.list_skills output ordering.
  *
  * The skill output should be grouped as:
  * provider -> readonly/write -> capability/skill entries.
@@ -42,7 +42,7 @@ use bookingextension_agent\external\ai_send_message;
  * @group bookingextension_agent_agent
  * @coversNothing
  */
-final class list_actions_real_llm_test extends abstract_agent_testcase {
+final class list_skills_real_llm_test extends abstract_agent_testcase {
     protected function setUp(): void {
         parent::setUp();
         $this->require_real_llm();
@@ -85,10 +85,10 @@ final class list_actions_real_llm_test extends abstract_agent_testcase {
         );
 
         $skillresult = $this->make_executor()->execute_commands(
-            [['skill' => 'core.list_actions', 'version' => 1, 'input' => []]],
+            [['skill' => 'wbagent.list_skills', 'version' => 1, 'input' => []]],
             $contextid,
             (int)$this->teacher->id,
-            hash('sha256', 'core.list_actions:' . uniqid('', true)),
+            hash('sha256', 'wbagent.list_skills:' . uniqid('', true)),
             0
         )[0];
         $this->assertSame('executed', (string)($skillresult['status'] ?? ''));

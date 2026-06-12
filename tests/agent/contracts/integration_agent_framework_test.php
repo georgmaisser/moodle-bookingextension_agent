@@ -390,7 +390,7 @@ final class integration_agent_framework_test extends TestCase {
         $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
         $subset = $retrieval->build_planner_catalog_subset([
             [
-                'skill' => 'core.recreate_skill_catalog',
+                'skill' => 'wbagent.recreate_skill_catalog',
                 'intent' => 'mutate',
                 'readonly' => '0',
                 'description' => 'stale csv description',
@@ -532,7 +532,7 @@ final class integration_agent_framework_test extends TestCase {
         $skillnames = array_map(static fn($skill): string => $skill->get_name(), $provider->get_skills());
 
         $this->assertContains('core.get_current_user', $skillnames);
-        $this->assertContains('core.recreate_skill_catalog', $skillnames);
+        $this->assertContains('wbagent.recreate_skill_catalog', $skillnames);
 
         $exampleskillclass = '\\bookingextension_agent\\local\\wbagent\\examples\\skills\\readonly_example_skill';
         if (class_exists($exampleskillclass)) {
@@ -1170,7 +1170,7 @@ final class integration_agent_framework_test extends TestCase {
             ],
             'message' => 'Executing.',
         ], 'parameter_construction', [
-            'allowed_skills' => ['core.recreate_skill_catalog'],
+            'allowed_skills' => ['wbagent.recreate_skill_catalog'],
         ]);
 
         $this->assertSame('error', $result['response_type']);
@@ -1193,7 +1193,7 @@ final class integration_agent_framework_test extends TestCase {
             'commands' => [
                 ['skill' => 'core.get_current_user', 'version' => 1, 'input' => []],
             ],
-            'selected_skill' => 'core.recreate_skill_catalog',
+            'selected_skill' => 'wbagent.recreate_skill_catalog',
             'message' => 'Selecting.',
         ], 'selection');
 
@@ -1286,7 +1286,7 @@ final class integration_agent_framework_test extends TestCase {
             ],
             'results' => [
                 ['skill' => 'core.get_current_user', 'status' => 'ok'],
-                ['skill' => 'core.recreate_skill_catalog', 'status' => 'error'],
+                ['skill' => 'wbagent.recreate_skill_catalog', 'status' => 'error'],
             ],
         ]);
 
@@ -1319,7 +1319,7 @@ final class integration_agent_framework_test extends TestCase {
             'response_type' => 'confirmation_request',
             'message' => 'Original',
             'commands' => [
-                ['skill' => 'core.recreate_skill_catalog', 'version' => 1, 'input' => ['force' => true]],
+                ['skill' => 'wbagent.recreate_skill_catalog', 'version' => 1, 'input' => ['force' => true]],
             ],
             'lang' => 'de',
         ];

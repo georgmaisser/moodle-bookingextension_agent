@@ -81,20 +81,20 @@ $teacherskills = [
     'booking_diagnose_booking_issue',
     'booking_diagnose_cancellation_issue',
     'booking_diagnose_user_booking',
-    'core_explain_docs',
+    'wbagent_explain_docs',
     'booking_explain_skill_schema',
     'core_get_current_user',
     'booking_get_option_details',
-    'core_list_actions',
+    'wbagent_list_skills',
     'booking_list_option_properties',
-    'core_recall_memory',
-    'core_search_courses',
+    'wbagent_recall_memory',
+    'course_search_courses',
     'booking_search_options',
     'core_search_users',
     'booking_update_option',
-    'core_recreate_skill_catalog',
-    'core_search_skills',
-    'core_generate_questions',
+    'wbagent_recreate_skill_catalog',
+    'wbagent_search_skills',
+    'question_generate_questions',
 ];
 
 $managerskills = [
@@ -129,9 +129,9 @@ $adminonlyskills = [
 // Authorized-user skills: act only on the acting user's own data (e.g. their stored agent
 // memories), so any authenticated user permitted to use the agent may run them.
 $authorizeduserskills = [
-    'core_forget',
-    'core_list_memories',
-    'core_remember',
+    'wbagent_forget',
+    'wbagent_list_memories',
+    'wbagent_remember',
 ];
 
 $buildskillcapability = static function (string $skillsuffix, string $role): array {

@@ -887,7 +887,7 @@ class orchestrator {
             }
         }
 
-        // Documentation questions must always be able to reach core.explain_docs, even when the
+        // Documentation questions must always be able to reach wbagent.explain_docs, even when the
         // embedding top-k discovery ranked domain skills above it (e.g. "explain the booking rules"
         // pulls the rule skills). Force the doc skill into the candidate catalog for doc-intent
         // queries so the selector can choose it instead of, say, analyze_rules.
@@ -1857,7 +1857,7 @@ PROMPT;
     }
 
     /**
-     * Force core.explain_docs into the candidate catalog when the latest user message looks like a
+     * Force wbagent.explain_docs into the candidate catalog when the latest user message looks like a
      * documentation/explanation question.
      *
      * Embedding top-k discovery ranks domain skills (e.g. analyze_rules, create_rule_from_template)
@@ -1876,7 +1876,7 @@ PROMPT;
         array $allcontracts,
         array $messages
     ): array {
-        $docskill = \bookingextension_agent\local\wbagent\core\skills\explain_docs_skill::SKILL_NAME;
+        $docskill = \bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill::SKILL_NAME;
 
         foreach ($runtimecatalog as $row) {
             if (trim((string)($row['skill'] ?? '')) === $docskill) {
@@ -1913,7 +1913,7 @@ PROMPT;
      * Heuristic: does the text read like a "explain / what is / how does / documentation" question?
      *
      * Language-agnostic-ish marker set (de + en) covering the common doc-intent phrasings. Kept
-     * deliberately small and high-precision; misses still fall back to core.search_skills.
+     * deliberately small and high-precision; misses still fall back to wbagent.search_skills.
      *
      * @param string $text
      * @return bool
@@ -2451,7 +2451,7 @@ PROMPT;
         }
 
         // Inject user-stated memories filtered to the relevant channel. Each memory is tagged
-        // (by the LLM at core.remember time) with the stage(s) it influences. Channels:
+        // (by the LLM at wbagent.remember time) with the stage(s) it influences. Channels:
         //  - selection: planner skill-selection LLM call (PHASE_SELECTION)
         //  - construction: planner parameter-construction LLM call (PHASE_PARAMETER_CONSTRUCTION)
         //  - synchronization: synchronizer final reply (process_synchronizer passes it explicitly,

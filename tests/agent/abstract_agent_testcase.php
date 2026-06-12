@@ -268,7 +268,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         $manager = \core\di::get(\core_ai\manager::class);
         $actionconfig = [
             // Core generate_text backs skill-internal LLM calls (e.g. the
-            // core.generate_questions GIFT generation via invoke_for_context).
+            // question.generate_questions GIFT generation via invoke_for_context).
             'core_ai\\aiactions\\generate_text' => [
                 'enabled' => true,
                 'settings' => [

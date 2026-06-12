@@ -58,14 +58,14 @@ final class privacy_anonymizer_code_token_test extends \advanced_testcase {
         $thread = $store->get_or_create_thread((int)$USER->id, (int)\context_system::instance()->id);
         $anonymizer = new privacy_anonymizer($store);
 
-        $message = 'Use core.forget (trigger core.forget_request) or mod_booking.book_users. '
+        $message = 'Use wbagent.forget (trigger wbagent.forget_request) or mod_booking.book_users. '
             . 'Command payload: {"forget": true, "memory": "x"}. '
             . 'Estorgan Forget asked us to forget his stored preference.';
         $sanitized = (string)$anonymizer->anonymize_value_for_llm((int)$thread->id, $message);
 
         // Code tokens must survive verbatim.
-        $this->assertStringContainsString('core.forget', $sanitized);
-        $this->assertStringContainsString('core.forget_request', $sanitized);
+        $this->assertStringContainsString('wbagent.forget', $sanitized);
+        $this->assertStringContainsString('wbagent.forget_request', $sanitized);
         $this->assertStringContainsString('mod_booking.book_users', $sanitized);
         $this->assertStringContainsString('{"forget": true', $sanitized);
         $this->assertStringNotContainsString('core.ANON_USER', $sanitized);

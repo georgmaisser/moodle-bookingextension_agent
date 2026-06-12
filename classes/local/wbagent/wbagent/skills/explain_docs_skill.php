@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\core\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
+use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\doc_markdown_preview_renderer;
@@ -23,7 +24,7 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service;
 use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readiness_service;
 
 /**
- * Core skill: explain documentation topics (core.explain_docs).
+ * Core skill: explain documentation topics (wbagent.explain_docs).
  *
  * Searches registered documentation corpora and returns a windowed excerpt
  * from the most relevant document. Supports any query language — the embedding-
@@ -43,7 +44,7 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readine
 class explain_docs_skill extends core_skill_base implements
     skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'core.explain_docs';
+    public const SKILL_NAME = 'wbagent.explain_docs';
 
     /** Minimum cosine-similarity score (×1000) to trust a semantic result directly. */
     private const PLANNER_DIRECT_DOC_SCORE = 720;
@@ -172,12 +173,12 @@ class explain_docs_skill extends core_skill_base implements
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'core.explain_docs_request',
+                'id' => 'wbagent.explain_docs_request',
                 'description' => 'User asks how something works, asks for documentation, or wants '
                     . 'to understand a feature (booking rules, conditions, placeholders, etc.).',
             ],
             [
-                'id' => 'core.explain_docs_read_more',
+                'id' => 'wbagent.explain_docs_read_more',
                 'description' => 'User asks to read more or continue reading a previously returned '
                     . 'documentation page.',
             ],
@@ -192,13 +193,13 @@ class explain_docs_skill extends core_skill_base implements
     public function get_contextual_prompt_packs(): array {
         return [
             [
-                'id' => 'core.explain_docs',
+                'id' => 'wbagent.explain_docs',
                 'triggers' => [
                     'how does', 'how do i', 'explain', 'documentation', 'what is',
                     'wie funktioniert', 'erkläre', 'dokumentation', 'was ist',
                 ],
                 'guidance' => [
-                    '- Use core.explain_docs whenever the user asks how a feature works or wants documentation.',
+                    '- Use wbagent.explain_docs whenever the user asks how a feature works or wants documentation.',
                     '- Always set input.question to the user\'s actual question verbatim.',
                     '- If the user\'s question is not in English, add up to 2 English paraphrases to '
                     . 'input.search_queries for better recall (keep domain terms like "booking rules" unchanged).',
