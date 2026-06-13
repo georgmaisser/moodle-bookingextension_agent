@@ -832,6 +832,9 @@ class privacy_anonymizer {
             '/\b[a-z][a-z0-9_]+\.[a-z][a-z0-9_]+\b/',
             // JSON object keys in serialized payloads: "forget": true.
             '/"[a-z][a-z0-9_]*"\s*:/',
+            // Moodle capability tokens: mod/booking:addoption, moodle/course:manageactivities. Without this
+            // a user name colliding with a word inside the token (e.g. "Booking") would corrupt it.
+            '/\b[a-z][a-z0-9_]+\/[a-z][a-z0-9_]+:[a-z][a-z0-9_]+\b/',
         ];
 
         foreach ($patterns as $pattern) {
