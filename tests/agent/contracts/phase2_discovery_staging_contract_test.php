@@ -164,7 +164,17 @@ final class phase2_discovery_staging_contract_test extends TestCase {
         $this->assertContains('mod_booking.options', $families);
         $this->assertContains('local_entities.general', $families);
         $this->assertContains('core.general', $families);
-        $this->assertSame($families, $contextfamilies);
+        // No hard exclusion on a namespace miss: every passed family survives into the context set.
+        $this->assertEqualsCanonicalizing(
+            ['mod_booking.options', 'local_entities.general', 'core.general'],
+            $contextfamilies
+        );
+        // The merged family set is a superset of the context families plus the always-on core
+        // baseline (core_family_set seeds wbagent.general), so it is never narrower than the context set.
+        foreach ($contextfamilies as $contextfamily) {
+            $this->assertContains($contextfamily, $families);
+        }
+        $this->assertContains('wbagent.general', $families);
         $this->assertSame($prior, (array)($result['context_prior'] ?? []));
     }
 
