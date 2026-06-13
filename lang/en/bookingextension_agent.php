@@ -25,6 +25,7 @@
 $string['agent:debugskillselection'] = 'Use skill selection debug tool';
 $string['agent:ignoreaiavailability'] = 'Ignore course/module AI availability toggles for the AI agent';
 $string['agent:skill_booking_analyze_rules'] = 'Analyze booking rules';
+$string['agent:skill_course_add_activity'] = 'Add an activity or resource to a course';
 $string['agent:useaiinstructions'] = 'Use the AI agent';
 $string['agent_adminpages'] = 'Agent admin pages';
 $string['agent_adminpages_desc'] = 'These pages belong to the booking agent and are only available while the agent is enabled:';

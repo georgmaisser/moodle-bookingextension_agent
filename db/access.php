@@ -81,6 +81,7 @@ $teacherskills = [
     'booking_diagnose_booking_issue',
     'booking_diagnose_cancellation_issue',
     'booking_diagnose_user_booking',
+    'course_add_activity',
     'wbagent_explain_docs',
     'booking_explain_skill_schema',
     'core_get_current_user',
