@@ -333,6 +333,12 @@ abstract class core_skill_base extends base_skill {
             'phone2' => (string)($user->phone2 ?? ''),
             'lang' => (string)($user->lang ?? ''),
             'timezone' => (string)($user->timezone ?? ''),
+            // Activity/recency signals — answer "when was X last here?" and "can mail even reach them?".
+            'emailstop' => (int)($user->emailstop ?? 0),
+            'lastaccess' => $this->format_user_timestamp((int)($user->lastaccess ?? 0)),
+            'lastlogin' => $this->format_user_timestamp((int)($user->lastlogin ?? 0)),
+            'currentlogin' => $this->format_user_timestamp((int)($user->currentlogin ?? 0)),
+            'firstaccess' => $this->format_user_timestamp((int)($user->firstaccess ?? 0)),
             'description' => (string)($user->description ?? ''),
             'descriptionformat' => (int)($user->descriptionformat ?? 0),
             'auth' => (string)($user->auth ?? ''),
@@ -353,8 +359,13 @@ abstract class core_skill_base extends base_skill {
      * @return array<int,array<string,mixed>>
      */
     protected function build_user_courses_payload(int $userid): array {
+        global $DB;
+
         $courses = enrol_get_users_courses($userid, true, 'id, fullname, shortname, visible, category, sortorder');
         $payload = [];
+
+        // One cheap lookup of the per-course last access for all the user's courses.
+        $lastaccessmap = $DB->get_records_menu('user_lastaccess', ['userid' => $userid], '', 'courseid, timeaccess');
 
         foreach ($courses as $course) {
             $courseid = (int)($course->id ?? 0);
@@ -369,6 +380,7 @@ abstract class core_skill_base extends base_skill {
                 'visible' => (int)($course->visible ?? 1),
                 'category' => (int)($course->category ?? 0),
                 'sortorder' => (int)($course->sortorder ?? 0),
+                'lastaccess' => $this->format_user_timestamp((int)($lastaccessmap[$courseid] ?? 0)),
                 'roles' => [],
             ];
 
@@ -651,6 +663,11 @@ abstract class core_skill_base extends base_skill {
                 'phone2=' . $this->format_observation_scalar($user['phone2'] ?? null),
                 'lang=' . $this->format_observation_scalar($user['lang'] ?? null),
                 'timezone=' . $this->format_observation_scalar($user['timezone'] ?? null),
+                'lastaccess=' . $this->format_observation_scalar($user['lastaccess'] ?? null),
+                'lastlogin=' . $this->format_observation_scalar($user['lastlogin'] ?? null),
+                'currentlogin=' . $this->format_observation_scalar($user['currentlogin'] ?? null),
+                'firstaccess=' . $this->format_observation_scalar($user['firstaccess'] ?? null),
+                'emailstop=' . $this->format_observation_scalar($user['emailstop'] ?? null),
                 'auth=' . $this->format_observation_scalar($user['auth'] ?? null),
                 'confirmed=' . $this->format_observation_scalar($user['confirmed'] ?? null),
                 'suspended=' . $this->format_observation_scalar($user['suspended'] ?? null),
@@ -672,6 +689,19 @@ abstract class core_skill_base extends base_skill {
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Format a user/access timestamp for observation + payload output.
+     *
+     * @param int $timestamp
+     * @return string Human-readable date, or 'never' for an empty timestamp.
+     */
+    protected function format_user_timestamp(int $timestamp): string {
+        if ($timestamp <= 0) {
+            return get_string('never');
+        }
+        return userdate($timestamp, get_string('strftimedatetimeshort', 'langconfig'));
     }
 
     /**
@@ -712,6 +742,7 @@ abstract class core_skill_base extends base_skill {
                 . ', fullname=' . $this->format_observation_scalar($course['fullname'] ?? null)
                 . ', visible=' . $this->format_observation_scalar($course['visible'] ?? null)
                 . ', category=' . $this->format_observation_scalar($course['category'] ?? null)
+                . ', lastaccess=' . $this->format_observation_scalar($course['lastaccess'] ?? null)
                 . ', roles=' . $this->format_role_observation((array)($course['roles'] ?? []))
                 . '}';
         }
