@@ -1,0 +1,148 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace bookingextension_agent;
+
+use advanced_testcase;
+use context_course;
+use bookingextension_agent\local\wbagent\course\skills\update_activity_skill;
+use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+
+/**
+ * Tests for the course.update_activity skill.
+ *
+ * @package    bookingextension_agent
+ * @covers     \bookingextension_agent\local\wbagent\course\skills\update_activity_skill
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+final class update_activity_skill_test extends advanced_testcase {
+    /**
+     * Create a course + editing teacher + one page activity, acting as the teacher with the course context.
+     *
+     * @param array<string,mixed> $pageopts
+     * @return array{0:\stdClass,1:\stdClass,2:\stdClass,3:int} [course, teacher, page cm record, coursecontextid]
+     */
+    private function setup_page(array $pageopts = []): array {
+        global $PAGE;
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $page = $this->getDataGenerator()->create_module('page',
+            ['course' => $course->id, 'name' => 'Welcome page'] + $pageopts);
+        $coursecontext = context_course::instance($course->id);
+        $this->setUser($teacher);
+        $PAGE->set_context($coursecontext);
+        return [$course, $teacher, $page, (int)$coursecontext->id];
+    }
+
+    /**
+     * Metadata: mutating, R2, course-scoped, cross-context, manageactivities.
+     */
+    public function test_metadata(): void {
+        $skill = new update_activity_skill();
+        $this->assertSame('course.update_activity', $skill->get_name());
+        $this->assertFalse($skill->is_read_only());
+        $this->assertSame(skill_risk_class::R2, $skill->get_risk_class());
+        $this->assertSame(['moodle/course:manageactivities'], $skill->get_required_native_capabilities());
+        $this->assertTrue($skill->supports_target_context());
+    }
+
+    /**
+     * Rename via cmid: preflight passes and writes nothing; execute renames the activity.
+     */
+    public function test_rename_via_cmid(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+
+        $skill = new update_activity_skill();
+        $pf = $skill->preflight(['cmid' => (int)$page->cmid, 'name' => 'Renamed page'], $ctxid, (int)$teacher->id);
+        $this->assertSame('pass', $pf->status);
+        $this->assertSame((int)$page->cmid, $pf->preparedinput['cmid']);
+
+        // Read-only preflight: name still the original until execute runs.
+        $this->assertSame('Welcome page', $DB->get_field('page', 'name', ['id' => (int)$page->id]));
+
+        $result = $skill->execute($pf->preparedinput, $ctxid, (int)$teacher->id);
+        $this->assertSame('executed', $result['status']);
+        $cm = get_fast_modinfo($course)->get_cm((int)$page->cmid);
+        $this->assertSame('Renamed page', $cm->name);
+    }
+
+    /**
+     * Hiding via cmid sets the activity invisible.
+     */
+    public function test_hide_activity(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+
+        $skill = new update_activity_skill();
+        $pf = $skill->preflight(['cmid' => (int)$page->cmid, 'visible' => false], $ctxid, (int)$teacher->id);
+        $this->assertSame('pass', $pf->status);
+        $result = $skill->execute($pf->preparedinput, $ctxid, (int)$teacher->id);
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame(0, (int)get_fast_modinfo($course)->get_cm((int)$page->cmid)->visible);
+    }
+
+    /**
+     * Resolving by name works; an empty change set asks what to change.
+     */
+    public function test_resolve_by_name_and_no_changes(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        $skill = new update_activity_skill();
+
+        $nochanges = $skill->preflight(['activityquery' => 'Welcome'], $ctxid, (int)$teacher->id);
+        $this->assertSame('hard_block', $nochanges->status);
+        $this->assertContains('UPDATE_ACTIVITY_NO_CHANGES', $nochanges->issuecodes);
+
+        $ok = $skill->preflight(['activityquery' => 'Welcome', 'name' => 'New name'], $ctxid, (int)$teacher->id);
+        $this->assertSame('pass', $ok->status);
+        $this->assertSame((int)$page->cmid, $ok->preparedinput['cmid']);
+    }
+
+    /**
+     * An ambiguous name lists candidates with options.
+     */
+    public function test_ambiguous_name(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        $this->getDataGenerator()->create_module('page', ['course' => $course->id, 'name' => 'Welcome again']);
+
+        $result = (new update_activity_skill())->preflight(
+            ['activityquery' => 'Welcome', 'name' => 'X'], $ctxid, (int)$teacher->id);
+        $this->assertSame('hard_block', $result->status);
+        $this->assertContains('UPDATE_ACTIVITY_AMBIGUOUS', $result->issuecodes);
+        $this->assertNotEmpty($result->issues[0]['options']);
+    }
+
+    /**
+     * Gate 2: a student without manageactivities is blocked.
+     */
+    public function test_gate_blocks_student(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $course->id, 'student');
+        $this->setUser($student);
+
+        $result = (new update_activity_skill())->preflight(
+            ['cmid' => (int)$page->cmid, 'name' => 'X'], $ctxid, (int)$student->id);
+        $this->assertSame('hard_block', $result->status);
+        $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
+    }
+}

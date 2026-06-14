@@ -74,32 +74,7 @@ class module_form_contract {
                 return ['ok' => false, 'errors' => [], 'built' => false];
             }
 
-            $exported = (array)$quickform->exportValues();
-            $errors = [];
-
-            // Best-effort required-element detection: the form declares which elements are mandatory.
-            foreach (array_unique(array_map('strval', (array)$quickform->_required)) as $element) {
-                if ($element === '') {
-                    continue;
-                }
-                if ($this->value_is_empty($exported[$element] ?? ($data->{$element} ?? null))) {
-                    $errors[$element] = get_string('required');
-                }
-            }
-
-            // Real custom + cross-field validation (e.g. url "invalidurl"). Core form validation reads raw
-            // array keys (trim()/json_decode()), so hand it a complete value set: every declared element
-            // defaulted to '' (avoids undefined-key + null warnings), overlaid with the exported values.
-            try {
-                $validationinput = array_merge($this->element_defaults($quickform), $this->normalize_for_validation($exported));
-                foreach ((array)$mform->validation($validationinput, []) as $field => $message) {
-                    $errors[(string)$field] = (string)$message;
-                }
-            } catch (\Throwable $e) {
-                // A module whose validation() needs a live request: rely on required-element detection only.
-                unset($e);
-            }
-
+            $errors = $this->collect_form_errors($quickform, $mform, $data);
             return ['ok' => empty($errors), 'errors' => $errors, 'built' => true];
         } finally {
             $this->pop_build_globals($restoreglobals);
@@ -133,18 +108,10 @@ class module_form_contract {
 
             // Start from the form's own exported values: that carries every field default the module defines
             // (display, numbering, forum type, …) so we never hardcode per-module field tables. Editor fields
-            // are skipped here and (re)built by apply_inputs so we preserve the scaffold's draft itemids.
+            // are skipped and (re)built by apply_inputs so we preserve the scaffold's draft itemids.
             $quickform = $this->quickform($mform);
             if ($quickform !== null) {
-                foreach ((array)$quickform->exportValues() as $key => $value) {
-                    if (!is_string($key) || $key === '' || strpos($key, '_qf__') === 0) {
-                        continue;
-                    }
-                    if (in_array($key, ['introeditor', 'page', 'mform_isexpanded_id_general'], true)) {
-                        continue;
-                    }
-                    $moduleinfo->{$key} = $value;
-                }
+                $this->merge_exported($moduleinfo, $quickform);
             }
 
             // Our explicit inputs win over exported defaults.
@@ -157,6 +124,162 @@ class module_form_contract {
             return $moduleinfo;
         } finally {
             $this->pop_build_globals($restoreglobals);
+        }
+    }
+
+    /**
+     * Validate a partial UPDATE of an existing activity against its real mod_form (read-only).
+     *
+     * @param stdClass $course
+     * @param stdClass $cm Course module record (get_coursemodule_from_id).
+     * @param array<string,mixed> $changes name/intro/visible/settings — only provided keys change.
+     * @return array{ok:bool,errors:array<string,string>,built:bool}
+     */
+    public function validate_update(stdClass $course, stdClass $cm, array $changes): array {
+        $restoreglobals = $this->push_build_globals($course);
+        try {
+            try {
+                [$mform, $data] = $this->build_update_form($course, $cm, $changes);
+            } catch (\Throwable $e) {
+                return ['ok' => false, 'errors' => [], 'built' => false];
+            }
+            $quickform = $this->quickform($mform);
+            if ($quickform === null) {
+                return ['ok' => false, 'errors' => [], 'built' => false];
+            }
+            $errors = $this->collect_form_errors($quickform, $mform, $data);
+            return ['ok' => empty($errors), 'errors' => $errors, 'built' => true];
+        } finally {
+            $this->pop_build_globals($restoreglobals);
+        }
+    }
+
+    /**
+     * Build the $moduleinfo for update_moduleinfo(): existing instance values overlaid with the changes.
+     *
+     * @param stdClass $course
+     * @param stdClass $cm
+     * @param array<string,mixed> $changes
+     * @return stdClass
+     */
+    public function build_prepared_update_moduleinfo(stdClass $course, stdClass $cm, array $changes): stdClass {
+        $restoreglobals = $this->push_build_globals($course);
+        try {
+            [$mform, $data] = $this->build_update_form($course, $cm, $changes);
+            $moduleinfo = clone $data;
+            $quickform = $this->quickform($mform);
+            if ($quickform !== null) {
+                // Update: carry the existing editor content through (don't skip editors).
+                $this->merge_exported($moduleinfo, $quickform, false);
+            }
+            $modname = (string)$data->modulename;
+            $this->apply_inputs($moduleinfo, $modname,
+                (string)($changes['name'] ?? ''), (string)($changes['intro'] ?? ''), (array)($changes['settings'] ?? []));
+            if (array_key_exists('visible', $changes) && $changes['visible'] !== null) {
+                $moduleinfo->visible = (int)$changes['visible'];
+                $moduleinfo->visibleoncoursepage = 1;
+            }
+            // Invariants update_moduleinfo() relies on (kept from the existing-instance scaffold).
+            $moduleinfo->coursemodule = (int)$data->coursemodule;
+            $moduleinfo->instance = (int)$data->instance;
+            $moduleinfo->module = (int)$data->module;
+            $moduleinfo->modulename = $modname;
+            $moduleinfo->course = (int)$course->id;
+            $moduleinfo->section = (int)$data->section;
+            return $moduleinfo;
+        } finally {
+            $this->pop_build_globals($restoreglobals);
+        }
+    }
+
+    /**
+     * Build a module's mod_form headless for an EXISTING instance (edit), seeded with current data + changes.
+     *
+     * @param stdClass $course
+     * @param stdClass $cm
+     * @param array<string,mixed> $changes
+     * @return array{0:moodleform,1:stdClass}
+     * @throws \Throwable When the form cannot be built headless.
+     */
+    private function build_update_form(stdClass $course, stdClass $cm, array $changes): array {
+        global $CFG;
+        require_once($CFG->dirroot . '/course/modlib.php');
+        require_once($CFG->libdir . '/gradelib.php');
+
+        // Existing instance data as form data — the core path the edit UI uses.
+        [$cmrec, $context, $module, $data, $cw] = get_moduleinfo_data($cm, $course);
+        unset($context, $module);
+        $modname = (string)$data->modulename;
+
+        $this->apply_inputs($data, $modname,
+            (string)($changes['name'] ?? ''), (string)($changes['intro'] ?? ''), (array)($changes['settings'] ?? []));
+        if (array_key_exists('visible', $changes) && $changes['visible'] !== null) {
+            $data->visible = (int)$changes['visible'];
+        }
+
+        $modform = $CFG->dirroot . '/mod/' . $modname . '/mod_form.php';
+        if (!file_exists($modform)) {
+            throw new \coding_exception('No mod_form for module ' . $modname);
+        }
+        require_once($modform);
+        $classname = 'mod_' . $modname . '_mod_form';
+        if (!class_exists($classname)) {
+            throw new \coding_exception('No mod_form class for module ' . $modname);
+        }
+        $mform = new $classname($data, $cw->section, $cmrec, $course);
+        $mform->set_data($data);
+        return [$mform, $data];
+    }
+
+    /**
+     * Collect required-field + custom validation() errors from a built form (shared by create + update).
+     *
+     * @param \MoodleQuickForm $quickform
+     * @param moodleform $mform
+     * @param stdClass $data
+     * @return array<string,string>
+     */
+    private function collect_form_errors(\MoodleQuickForm $quickform, moodleform $mform, stdClass $data): array {
+        $exported = (array)$quickform->exportValues();
+        $errors = [];
+        foreach (array_unique(array_map('strval', (array)$quickform->_required)) as $element) {
+            if ($element === '') {
+                continue;
+            }
+            if ($this->value_is_empty($exported[$element] ?? ($data->{$element} ?? null))) {
+                $errors[$element] = get_string('required');
+            }
+        }
+        try {
+            $validationinput = array_merge($this->element_defaults($quickform), $this->normalize_for_validation($exported));
+            foreach ((array)$mform->validation($validationinput, []) as $field => $message) {
+                $errors[(string)$field] = (string)$message;
+            }
+        } catch (\Throwable $e) {
+            unset($e);
+        }
+        return $errors;
+    }
+
+    /**
+     * Merge a form's exported values into a moduleinfo, skipping markers and editor fields (shared).
+     *
+     * @param stdClass $moduleinfo
+     * @param \MoodleQuickForm $quickform
+     * @return void
+     */
+    private function merge_exported(stdClass $moduleinfo, \MoodleQuickForm $quickform, bool $skipeditors = true): void {
+        foreach ((array)$quickform->exportValues() as $key => $value) {
+            if (!is_string($key) || $key === '' || strpos($key, '_qf__') === 0 || $key === 'mform_isexpanded_id_general') {
+                continue;
+            }
+            // On CREATE the editor fields are (re)built by apply_inputs to preserve fresh draft itemids; on
+            // UPDATE we must carry the form's existing editor content (with its prepared draft itemid) so an
+            // unchanged editor field is not lost (e.g. mod_page's required "page" content on a rename).
+            if ($skipeditors && in_array($key, ['introeditor', 'page'], true)) {
+                continue;
+            }
+            $moduleinfo->{$key} = $value;
         }
     }
 

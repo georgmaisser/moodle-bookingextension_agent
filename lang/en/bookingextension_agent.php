@@ -26,6 +26,7 @@ $string['agent:debugskillselection'] = 'Use skill selection debug tool';
 $string['agent:ignoreaiavailability'] = 'Ignore course/module AI availability toggles for the AI agent';
 $string['agent:skill_booking_analyze_rules'] = 'Analyze booking rules';
 $string['agent:skill_course_add_activity'] = 'Add an activity or resource to a course';
+$string['agent:skill_course_update_activity'] = 'Edit an activity or resource in a course';
 $string['agent:skill_course_diagnose_access'] = 'Diagnose course/activity access problems';
 $string['agent:skill_course_diagnose_enrolment'] = 'Diagnose course enrolment problems';
 $string['agent:skill_core_diagnose_permissions'] = 'Diagnose roles and permissions across contexts';

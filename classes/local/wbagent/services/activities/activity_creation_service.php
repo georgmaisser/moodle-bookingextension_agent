@@ -71,6 +71,43 @@ class activity_creation_service {
     }
 
     /**
+     * Apply a prepared $moduleinfo to an existing course module (edit), transactionally.
+     *
+     * @param stdClass $cm Course module record the moduleinfo was built from.
+     * @param stdClass $moduleinfo Prepared, validated module info (see module_form_contract update mode).
+     * @param stdClass $course
+     * @return array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int}
+     * @throws \Throwable On update failure (the underlying update_moduleinfo() rolls its DB changes back).
+     */
+    public function update(stdClass $cm, stdClass $moduleinfo, stdClass $course): array {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/modlib.php');
+
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            [$updatedcm, $updatedinfo] = update_moduleinfo($cm, $moduleinfo, $course);
+            $transaction->allow_commit();
+        } catch (\Throwable $e) {
+            $transaction->rollback($e);
+            throw $e;
+        }
+        unset($updatedcm);
+
+        $cmid = (int)($moduleinfo->coursemodule ?? $cm->id ?? 0);
+        $modname = (string)($moduleinfo->modulename ?? '');
+        $name = (string)($updatedinfo->name ?? $moduleinfo->name ?? $modname);
+
+        return [
+            'cmid' => $cmid,
+            'instance' => (int)($moduleinfo->instance ?? $cm->instance ?? 0),
+            'modname' => $modname,
+            'name' => $name,
+            'url' => $this->resolve_activity_url($course, $cmid, $modname),
+            'coursecontextid' => (int)\context_course::instance($course->id)->id,
+        ];
+    }
+
+    /**
      * Resolve a user-facing URL for the freshly created activity.
      *
      * Activities without their own view page (e.g. a label) link back to the course page.
