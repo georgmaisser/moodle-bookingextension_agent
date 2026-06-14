@@ -426,8 +426,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     private function create_quiz_hull(\stdClass $course, int $sectionnum, string $name, string $intro, array $settings): array {
         $moduleinfo = (new module_form_contract())->build_prepared_moduleinfo($course, 'quiz', $sectionnum, $name, $intro, $settings);
         // Quiz-specific: overall feedback fields add_moduleinfo requires (one empty band = no feedback).
-        $moduleinfo->feedbacktext = [['text' => '', 'format' => FORMAT_HTML, 'itemid' => 0]];
-        $moduleinfo->feedbackboundaries = [];
+        quiz_question_service::ensure_quiz_feedback($moduleinfo);
         // The quiz form does not export an id-number element headless; default it to avoid an undefined notice.
         if (!isset($moduleinfo->cmidnumber)) {
             $moduleinfo->cmidnumber = '';

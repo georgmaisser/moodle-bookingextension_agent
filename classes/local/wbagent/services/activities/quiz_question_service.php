@@ -49,6 +49,40 @@ class quiz_question_service {
     private const ALLOWED_QTYPES = ['multichoice', 'truefalse', 'shortanswer'];
 
     /**
+     * Ensure a quiz $moduleinfo carries well-formed overall-feedback fields for add/update_moduleinfo.
+     *
+     * quiz_after_add_or_update() reads $moduleinfo->feedbacktext[$i]['text'|'format'|'itemid']; the headless
+     * form export can leave these malformed (missing format) → "feedbacktextformat cannot be null". This
+     * preserves any existing band text while guaranteeing format/itemid, and defaults to one empty band.
+     *
+     * @param stdClass $moduleinfo
+     * @return void
+     */
+    public static function ensure_quiz_feedback(stdClass $moduleinfo): void {
+        $bands = (array)($moduleinfo->feedbacktext ?? []);
+        $normalized = [];
+        foreach ($bands as $band) {
+            if (is_string($band)) {
+                $normalized[] = ['text' => $band, 'format' => FORMAT_HTML, 'itemid' => 0];
+                continue;
+            }
+            $band = (array)$band;
+            $normalized[] = [
+                'text' => (string)($band['text'] ?? ''),
+                'format' => isset($band['format']) ? (int)$band['format'] : FORMAT_HTML,
+                'itemid' => isset($band['itemid']) ? (int)$band['itemid'] : 0,
+            ];
+        }
+        if (empty($normalized)) {
+            $normalized[] = ['text' => '', 'format' => FORMAT_HTML, 'itemid' => 0];
+        }
+        $moduleinfo->feedbacktext = $normalized;
+        if (!isset($moduleinfo->feedbackboundaries) || !is_array($moduleinfo->feedbackboundaries)) {
+            $moduleinfo->feedbackboundaries = [];
+        }
+    }
+
+    /**
      * Decide how to source questions from the input.
      *
      * @param array $input

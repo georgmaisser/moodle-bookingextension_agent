@@ -84,6 +84,7 @@ $teacherskills = [
     'course_add_activity',
     'course_update_activity',
     'course_add_quiz',
+    'course_update_quiz',
     'course_diagnose_access',
     'course_diagnose_enrolment',
     'core_diagnose_permissions',
