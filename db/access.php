@@ -83,6 +83,7 @@ $teacherskills = [
     'booking_diagnose_user_booking',
     'course_add_activity',
     'course_update_activity',
+    'course_add_quiz',
     'course_diagnose_access',
     'course_diagnose_enrolment',
     'core_diagnose_permissions',
