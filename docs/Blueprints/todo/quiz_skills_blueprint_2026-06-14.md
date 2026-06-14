@@ -1,6 +1,12 @@
 # Design-Notiz: Quiz-Skills (`course.add_quiz` + `course.update_quiz`)
 
-*Stand: 2026-06-14 · Planung (keine Umsetzung) · baut auf add_activity/update_activity + generate_questions auf*
+*Stand: 2026-06-14 · P1 (add_quiz) + P2 (update_quiz) UMGESETZT & verifiziert (13 Tests grün), committet · v2 (Fragen entfernen/umsortieren/Regrade) offen · baut auf add_activity/update_activity + generate_questions auf*
+
+> **Umsetzungsstand 2026-06-14:** `quiz_question_service` (3 Quellen + generation-first + `ensure_quiz_feedback`),
+> `course.add_quiz` (P1, leeres Quiz erlaubt, Quellen-Rückfrage mit Kategorien), `course.update_quiz` (P2,
+> Settings-Edit via Update-Modus + Fragen hinzufügen). Commits `fda1c29` (add_quiz) + `b052087` (update_quiz).
+> Generierungs-Pfad nur deterministisch getestet (echter LLM-Lauf beim Deploy). Deploy (Upgrade 2026061308 +
+> Settings + Embeddings-Rebuild) noch offen.
 
 ## Entscheidung (Kontext)
 Quiz gehört **nicht** in die generischen `course.add_activity`/`course.update_activity` (siehe deren Blueprint §7
