@@ -359,6 +359,7 @@ $string['agent_booking_verify_field_maxanswers_failed'] = 'Field "maxanswers" co
 $string['agent_booking_verify_field_maxoverbooking_failed'] = 'Field "maxoverbooking" could not be confirmed after save. Requested "{$a->requested}", stored "{$a->actual}".';
 $string['agent_booking_verify_field_text_failed'] = 'Field "text" could not be confirmed after save. Requested "{$a->requested}", stored "{$a->actual}".';
 $string['agent_confirm_operating_context_note'] = 'Note: this will be carried out in: {$a}.';
+$string['agent_confirm_target_course'] = 'course "{$a->name}" (ID {$a->id})';
 $string['agent_decision_command_malformed'] = 'Command #{$a}: malformed.';
 $string['agent_decision_command_missing_skill'] = 'Command #{$a}: missing skill.';
 $string['agent_decision_command_skill_not_registered'] = 'Command #{$a->idx}: skill {$a->skill} is not registered.';

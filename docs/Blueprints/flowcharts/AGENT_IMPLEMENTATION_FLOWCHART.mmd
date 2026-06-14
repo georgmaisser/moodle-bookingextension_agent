@@ -156,6 +156,7 @@ flowchart TD
         D_CONFIRM_PENDING["confirm_pending →\nhandle_confirm_pending()\n(re-preflight pending mutation)"]
         D_CMD_ROUTE["handle_command_routing()\nR0 → readonly staged execute\nR1 → queue with session-allow\nR2 → queue, confirmation enforced\nR3 → queue, manual only, extra budget step"]
         D_PREFLIGHT["handle_preflight()\nrisk_class forwarded to queue transition\nR0 no queue entry\nR1 L1 + L2\nR2 L1 + L2 + L3\nR3 L1 + L2 + L3 + external_dependency_check"]
+        D_TARGET_NOTE["build_operating_context_note(PREPARED commands)\nappended to EVERY mutating confirmation_request message\n(pass + soft_block), after preflight resolves operating_contextid\nnames target course + id via describe_target_context()\n(agent_confirm_target_course); ALWAYS shown — incl. ambient course\n(no longer cross-context-only) → mis-resolved course visible before write\nNOTE: NOT built pre-preflight in handle_command_routing\n(raw commands lack operating_contextid → would mislabel cross-context)"]
         D_STORE_PENDING["set/clear pending_intent\npending_confirmation_code"]
     end
 
@@ -378,6 +379,8 @@ flowchart TD
     D_CONFIRM_PENDING --> D_STORE_PENDING
     D_CMD_ROUTE -->|confirmation_request + commands| D_PREFLIGHT
     D_CMD_ROUTE -->|execution_result / clarification| D_STORE_PENDING
+    D_PREFLIGHT -->|"confirmation_request (pass / soft_block)"| D_TARGET_NOTE
+    D_TARGET_NOTE --> D_STORE_PENDING
     D_PREFLIGHT --> D_STORE_PENDING
 
     D_PREVIEW_OUT --> D_STORE_PENDING
@@ -622,6 +625,7 @@ flowchart TD
     style CONF_FOLLOW fill:#264653,color:#fff
     style DIRECT_FINAL fill:#e9c46a,color:#000
     style D_PREFLIGHT fill:#e9c46a,color:#000
+    style D_TARGET_NOTE fill:#e9c46a,color:#000
     style D_CMD_ROUTE fill:#e9c46a,color:#000
     style SYNC_RUN fill:#1d3557,color:#fff
     style SYNC_TEMPLATE fill:#264653,color:#fff

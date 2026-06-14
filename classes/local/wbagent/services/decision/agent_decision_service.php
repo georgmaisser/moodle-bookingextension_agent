@@ -382,24 +382,33 @@ class agent_decision_service {
     }
 
     /**
-     * Build a human note naming the operating context(s) a cross-context mutation will act on.
+     * Build a human note naming the target context(s) a mutation will act on.
      *
-     * Returns '' when every command runs in the ambient context (today's default) — so this adds
-     * nothing to confirmations until a skill opts into cross-context execution.
+     * The user must always see WHERE a write will be carried out before confirming — including the
+     * common same-course case (e.g. "create a label here"). A command that carries no explicit
+     * operating_contextid falls back to the ambient context, so the target is named in every
+     * mutation confirmation, not only for cross-context targets. When the context resolves to a
+     * course, the note names the course with its id so a mis-resolved course is caught before the
+     * write happens.
      *
-     * @param  array  $commands       The mutating commands (carry operating_contextid).
+     * @param  array  $commands       The mutating commands (may carry operating_contextid).
      * @param  int    $ambientcontextid The context the chat/thread lives in.
      * @param  string $outputlang
      * @return string
      */
     private function build_operating_context_note(array $commands, int $ambientcontextid, string $outputlang = ''): string {
-        $names = [];
+        $labels = [];
         foreach ($commands as $command) {
             if (!is_array($command)) {
                 continue;
             }
+            // Same-course mutations carry no explicit operating context — fall back to the ambient
+            // context so the target course is still named (this is the case point 4 must catch).
             $operatingcontextid = (int)($command['operating_contextid'] ?? 0);
-            if ($operatingcontextid <= 0 || $operatingcontextid === $ambientcontextid) {
+            if ($operatingcontextid <= 0) {
+                $operatingcontextid = $ambientcontextid;
+            }
+            if ($operatingcontextid <= 0) {
                 continue;
             }
             try {
@@ -408,15 +417,39 @@ class agent_decision_service {
                 $context = null;
             }
             if ($context) {
-                $names[$operatingcontextid] = $context->get_context_name();
+                $labels[$operatingcontextid] = $this->describe_target_context($context, $outputlang);
             }
         }
 
-        if (empty($names)) {
+        if (empty($labels)) {
             return '';
         }
 
-        return $this->localized('agent_confirm_operating_context_note', implode(', ', $names), $outputlang);
+        return $this->localized('agent_confirm_operating_context_note', implode(', ', array_unique($labels)), $outputlang);
+    }
+
+    /**
+     * Human label for a mutation's target context, naming the course (with its id) when resolvable
+     * so a wrong course shows up in the confirmation before the write.
+     *
+     * @param  \context $context
+     * @param  string   $outputlang
+     * @return string
+     */
+    private function describe_target_context(\context $context, string $outputlang = ''): string {
+        $coursecontext = $context->get_course_context(false);
+        if ($coursecontext) {
+            try {
+                $course = get_course((int)$coursecontext->instanceid);
+                return $this->localized('agent_confirm_target_course', (object)[
+                    'name' => format_string($course->fullname),
+                    'id' => (int)$course->id,
+                ], $outputlang);
+            } catch (\Throwable $e) {
+                // Fall through to the generic context name when the course cannot be loaded.
+            }
+        }
+        return $context->get_context_name();
     }
 
     /**
@@ -720,15 +753,9 @@ class agent_decision_service {
                 $confirmmessage = $this->build_fallback_message($result, $outputlang);
             }
 
-            // Cross-context transparency: when a mutating command targets a different context than
-            // the one the chat lives in, the user must see WHERE before confirming.
-            $operatingnote = $this->build_operating_context_note((array)$result['commands'], $contextid, $outputlang);
-            if ($operatingnote !== '') {
-                $confirmmessage = $confirmmessage !== ''
-                    ? $confirmmessage . "\n\n" . $operatingnote
-                    : $operatingnote;
-                $result['operating_context_label'] = $operatingnote;
-            }
+            // The target-context note (WHERE the write happens) is appended later in handle_preflight,
+            // once the prepared commands carry their resolved operating_contextid — naming it here from
+            // the raw commands would mislabel cross-context targets as the ambient context.
 
             if (is_array($readonlyexecution)) {
                 if ($this->execution_result_has_failures($readonlyexecution)) {
@@ -912,9 +939,14 @@ class agent_decision_service {
             ) {
                 $confirmcommands = !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'];
                 // Soft-confirmable: show confirmation_request with augmented message.
+                $softmessage = $validationmessage !== '' ? $validationmessage : (string)$result['message'];
+                $softnote = $this->build_operating_context_note($confirmcommands, $contextid, $outputlang);
+                if ($softnote !== '') {
+                    $softmessage = trim($softmessage) !== '' ? trim($softmessage) . "\n\n" . $softnote : $softnote;
+                }
                 return [
                     'response_type'   => 'confirmation_request',
-                    'message'         => $validationmessage !== '' ? $validationmessage : $result['message'],
+                    'message'         => $softmessage,
                     'commands'        => $confirmcommands,
                     'queue_item_ids'  => $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []),
                     'ambiguities'     => [],
@@ -968,6 +1000,16 @@ class agent_decision_service {
                 $confirmationmessage = implode(' ', $parts);
             }
             $result['message'] = $confirmationmessage;
+        }
+
+        // Always name WHERE the write will be carried out (target course + id) on the prepared
+        // commands, so a mis-resolved course is visible in the confirmation before anything is
+        // created or changed.
+        $targetnote = $this->build_operating_context_note($preparedcommands, $contextid, $outputlang);
+        if ($targetnote !== '') {
+            $base = trim((string)($result['message'] ?? ''));
+            $result['message'] = $base !== '' ? $base . "\n\n" . $targetnote : $targetnote;
+            $result['operating_context_label'] = $targetnote;
         }
 
         return $result;
