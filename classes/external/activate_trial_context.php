@@ -70,12 +70,13 @@ class activate_trial_context extends external_api {
         ]);
 
         $authz = new authorization_service();
+        if ($problem = $authz->check_use_readiness((int)$USER->id, (int)$params['contextid'])) {
+            return ['success' => false, 'message' => $problem['message']];
+        }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
         // Only module contexts carry a cmid; other context levels pass 0.
         $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
-        $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
         require_capability('moodle/site:config', context_system::instance());
 
         if (!class_exists('\\core_ai\\manager')) {

@@ -80,11 +80,22 @@ class ai_privacy_precheck extends external_api {
         $forcenewthread = (int)$params['forcenewthread'];
 
         $authz = new authorization_service();
+        if ($problem = $authz->check_use_readiness((int)$USER->id, $contextid)) {
+            return [
+                'status' => 'blocked',
+                'message' => $problem['message'],
+                'sanitizedmessage' => '',
+                'anonymizedcount' => 0,
+                'anonymizedemails' => 0,
+                'anonymizednames' => 0,
+                'elapsedms' => 0,
+                'threadid' => 0,
+                'strictmode' => 0,
+            ];
+        }
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $contextid = (int)$context->id;
-        $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
         if ($message === '') {
             return [

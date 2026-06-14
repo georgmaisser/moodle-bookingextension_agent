@@ -105,10 +105,18 @@ class ai_upload_attachment extends external_api {
 
         // Auth.
         $authz = new authorization_service();
+        if ($problem = $authz->check_use_readiness((int)$USER->id, $contextid)) {
+            return [
+                'success' => false,
+                'attachment_token' => '',
+                'attachment_type' => '',
+                'display_name' => '',
+                'thumbnail_html' => '',
+                'message' => $problem['message'],
+            ];
+        }
         $context = context::instance_by_id($contextid, MUST_EXIST);
-        $authz->require_valid_context($contextid);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, $contextid);
 
         // Strip the data-URL prefix if present: "data:<mime>;base64,<data>".
         $rawb64 = $filedata;

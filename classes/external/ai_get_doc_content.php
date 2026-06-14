@@ -77,12 +77,13 @@ class ai_get_doc_content extends external_api {
         );
 
         $authz = new authorization_service();
+        if ($problem = $authz->check_use_readiness((int)$USER->id, (int)$params['contextid'])) {
+            return ['success' => false, 'html' => '', 'title' => '', 'error' => $problem['message']];
+        }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
         // Only module contexts carry a cmid; other context levels pass 0.
         $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
-        $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
         // Resolve the corpus root strictly via the registry (the only trusted corpus_id → root map).
         $corpusroot = (new docs_corpus_registry())->resolve_root((string)$params['corpus_id']);

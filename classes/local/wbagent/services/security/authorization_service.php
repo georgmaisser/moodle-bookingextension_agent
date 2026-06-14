@@ -102,16 +102,42 @@ class authorization_service implements agent_authorization_service {
      * @return bool
      */
     public function can_use(int $userid, int $contextid): bool {
-        if (!self::is_agent_extension_installed()) {
-            return false;
-        }
+        return $this->check_use_readiness($userid, $contextid) === null;
+    }
 
+    /**
+     * Graceful readiness check for the AI webservice entry points: never throws.
+     *
+     * Distinguishes three failure states so callers can present a clean, accurate message instead of a raw
+     * exception: the agent being unavailable (not installed / mid-upgrade) is NOT reported as a permission
+     * problem. Returns null when ready.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @return array{code:string,message:string}|null
+     */
+    public function check_use_readiness(int $userid, int $contextid): ?array {
+        if (!self::is_agent_extension_installed()) {
+            return [
+                'code' => 'agent_unavailable',
+                'message' => get_string('error_ai_unavailable', 'bookingextension_agent'),
+            ];
+        }
         try {
             $context = $this->resolve_valid_context($contextid);
-            return has_capability('bookingextension/agent:useaiinstructions', $context, $userid);
         } catch (\Throwable $e) {
-            return false;
+            return [
+                'code' => 'context_invalid',
+                'message' => get_string('error_ai_context_invalid', 'bookingextension_agent'),
+            ];
         }
+        if (!has_capability('bookingextension/agent:useaiinstructions', $context, $userid)) {
+            return [
+                'code' => 'permission_denied',
+                'message' => get_string('error_ai_permission_denied', 'bookingextension_agent'),
+            ];
+        }
+        return null;
     }
 
     /**

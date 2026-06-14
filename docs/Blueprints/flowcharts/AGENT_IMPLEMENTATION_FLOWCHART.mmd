@@ -24,9 +24,10 @@ flowchart TD
     %% AUTH + STORE
     %% =========================================================
     subgraph AUTHZ["authorization_service"]
-        AZ1["require_use_capability(userid, contextid)"]
+        AZ_READY["check_use_readiness(userid, contextid) — GRACEFUL, never throws\nreturns null when ready, else {code, message}\ncodes: agent_unavailable | context_invalid | permission_denied\nagent_unavailable = plugin not installed / mid-upgrade\n(DISTINCT from no-permission; was previously a misleading\nrequired_capability_exception 'Use the AI agent')\nEVERY webservice entry point calls this FIRST and returns a\nstructured error in its own shape — never a raw exception"]
+        AZ1["require_use_capability(userid, contextid)\nTHROWS required_capability_exception\n(internal executor/worker use only — NOT the WS entry gate)"]
         AZ2["require_valid_context(contextid)\nlevels: MODULE / COURSE / COURSECAT / USER / SYSTEM\n(USER = dashboard, navbar entry point)"]
-        AZ3["is_agent_extension_installed()"]
+        AZ3["is_agent_extension_installed()\n= is_installed_and_upgraded(); false during a pending upgrade\n→ surfaced as agent_unavailable via check_use_readiness"]
         AZ4["availability layer (no permission!)\ncourse/cm enableaitools toggles\nSKIPPED for holders of agent:ignoreaiavailability\n(admins implicit, manager default)\nenforced centrally in get_runtime_provider_status\n→ aiready + ai_send_message + activate_trial_context"]
     end
 
@@ -275,9 +276,9 @@ flowchart TD
     %% =========================================================
 
     %% Entry → Auth → Store → Runtime
-    ASM -->|"0. extension installed?"| AZ3
-    ASM -->|"1. require_sesskey()"| AZ1
-    ASM -->|"2. validate_parameters()"| AZ2
+    ASM -->|"0. require_sesskey() + validate_parameters()"| AZ2
+    ASM -->|"1. readiness gate (graceful)"| AZ_READY
+    AZ_READY -->|"problem → structured error, no raw exception"| ASM_FAIL
     ASM --> ASM_GATE
     ASM_GATE -->|"fail"| ASM_FAIL
     ASM_GATE -->|"pass: privacy precheck + attachments[]"| ASM_ATTACH
@@ -285,11 +286,11 @@ flowchart TD
     ASM_ATTACH -->|"add_message(user, augmented)"| CS2
     CS2 -->|"run_loop()"| RUNLOOP
     ASM -->|"response autoconfirm?"| CS12
-    ACR --> AZ3
-    ACD --> AZ3
-    APO --> AZ3
+    ACR -->|"readiness gate (graceful)"| AZ_READY
+    ACD -->|"readiness gate (graceful)"| AZ_READY
+    APO -->|"readiness gate (graceful)"| AZ_READY
     APO -.->|"fetch steps lock-free"| CS16
-    APREVIEW --> AZ3
+    APREVIEW -->|"readiness gate (graceful)"| AZ_READY
     ACR -->|"allow_session=true"| CS11
     ACR -->|"executionmode=adhoc\nqueue_adhoc_task"| ADHOC
     ACR -->|"consume pending intent"| CS13

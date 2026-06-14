@@ -74,10 +74,12 @@ class ai_poll_thread extends external_api {
         ]);
 
         $authz = new authorization_service();
+        if ($authz->check_use_readiness((int)$USER->id, (int)$params['contextid']) !== null) {
+            // Polling stays quiet when the agent is unavailable / not permitted (no raw exception).
+            return ['threadid' => 0, 'messages' => []];
+        }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-        $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
         $store = new conversation_store();
 

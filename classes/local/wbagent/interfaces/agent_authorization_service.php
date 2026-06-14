@@ -57,6 +57,20 @@ interface agent_authorization_service {
     public function can_use(int $userid, int $contextid): bool;
 
     /**
+     * Graceful readiness check for the AI webservice entry points: never throws.
+     *
+     * Returns null when the agent is ready for this user/context, otherwise a structured problem
+     * ['code' => agent_unavailable|context_invalid|permission_denied, 'message' => user-facing string].
+     * "agent_unavailable" covers the plugin being not installed / mid-upgrade — distinct from a real
+     * permission denial, so callers never surface a misleading "no permission" error.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @return array{code:string,message:string}|null
+     */
+    public function check_use_readiness(int $userid, int $contextid): ?array;
+
+    /**
      * Assert that the context belongs to an active booking module.
      *
      * Throws \moodle_exception on failure.

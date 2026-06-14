@@ -99,8 +99,9 @@ class ai_confirm_run extends external_api {
         $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
 
-        if (!$authz->can_use((int)$USER->id, (int)$context->id)) {
-            $errormessage = get_string('error_ai_permission_denied', 'bookingextension_agent');
+        if ($problem = $authz->check_use_readiness((int)$USER->id, (int)$context->id)) {
+            $errormessage = $problem['message'];
+            $issuecode = $problem['code'] === 'permission_denied' ? 'PERMISSION_ERROR' : 'AGENT_UNAVAILABLE';
             return [
                 'success' => false,
                 'runid' => 0,
@@ -112,8 +113,8 @@ class ai_confirm_run extends external_api {
                 'autoconfirm' => 0,
                 'commands' => '[]',
                 'resultsjson' => '[]',
-                'issuecodesjson' => json_encode(['PERMISSION_ERROR']),
-                'errorsjson' => json_encode(['permission_denied']),
+                'issuecodesjson' => json_encode([$issuecode]),
+                'errorsjson' => json_encode([$problem['code']]),
                 'queueitemid' => '',
                 'previewjson' => '',
             ];

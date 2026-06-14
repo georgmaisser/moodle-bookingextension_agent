@@ -72,11 +72,11 @@ class ai_discard_pending extends external_api {
         ]);
 
         $authz = new authorization_service();
+        if ($problem = $authz->check_use_readiness((int)$USER->id, (int)$params['contextid'])) {
+            return ['success' => false, 'discardedcount' => 0, 'threadid' => 0, 'message' => $problem['message']];
+        }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-
-        $authz->require_valid_context((int)$context->id);
         self::validate_context($context);
-        $authz->require_use_capability((int)$USER->id, (int)$context->id);
 
         $store = new conversation_store();
         $pendingintentsvc = new pending_intent_service($store);
