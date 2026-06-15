@@ -333,6 +333,46 @@ markiert, damit das Prompt-Refactoring keine Domänenlogik nachbaut.
   Diskrepanz Code↔Flowchart, siehe Policy.
 - **Risiko:** offen — bewusst als Klärungspunkt geführt.
 
+### H7 — Discovery: intent-bewusste Eskalation + Kontext-als-Prior ✅ UMGESETZT 2026-06-15
+
+- **Befund (Analyse #3, Muster A/B):** `course.*` / `core.diagnose_*` waren im
+  Booking-Kontext **nicht discoverbar** (registriert+executable, aber „kein Skill"),
+  bzw. wurden auf eine Buchungsoption fehlgeroutet.
+- **Ursachenkette (verifiziert im Code):**
+  1. `namespace_hint` = **häufigste** Skill-Namespace (Popularität), nicht der echte
+     Kontext → immer `mod_booking`
+     ([orchestrator.php:2888](../../../classes/local/wbagent/orchestrator.php#L2888)).
+  2. `family_registry_service` verengte die **Ranking-Gesamtmenge** hart auf
+     `context∪core` → course/diagnose-Familien wurden **vor** dem Ranking gedroppt.
+  3. `core_family_set` nimmt nur `wbagent.*` als always-on → core/course nicht baseline.
+  4. Stage-A-Kurzschluss bei Score ≥ 0.60 (Booking-Prior) → nie Eskalation auf B/C.
+  5. Family-Embeddings-Fixture im Test **veraltet** (Namespace-Split) → semantischer
+     Pfad aus → Intent-Signal fehlte.
+- **Umgesetzt:**
+  - **(1) Intent-bewusster Gate** in
+    [discovery_stage_controller.php](../../../classes/local/wbagent/services/discovery/discovery_stage_controller.php):
+    Stage A gilt nur als „sufficient", wenn die **top-semantische (Intent-)Familie**
+    in Stage A liegt; sonst Eskalation (`escalation_reason=stage_a_intent_outside`).
+    Ohne Embeddings inert (graceful, `INTENT_SEMANTIC_MIN`).
+  - **(Kontext-als-Prior, notwendige Begleitkorrektur)** in
+    [family_registry_service.php](../../../classes/local/wbagent/services/discovery/family_registry_service.php):
+    Ranking-Universe = **alle** Familien; `namespace_hint` markiert nur noch den
+    Stage-A-Prior, verengt das Universe nicht mehr. Bringt Code auf den
+    Flowchart-Vertrag „context = ranking prior, not hard filter" (LG_DET).
+  - **(3) Embeddings-Fixture** neu gebaut
+    ([skill_catalog_embeddings.csv](../../../tests/agent/fixtures/skill_catalog_embeddings.csv),
+    `cli/rebuild_embeddings_fixture.php --embed`; created=9, updated=11) → semantischer
+    Pfad im Test aktiv.
+- **Verifikation:** 14/14 Staging-Unit-Tests grün (inkl. 3 neue); real_llm vorher
+  „kein Skill" → `course.add_quiz`/`course.add_activity`/`course.diagnose_grades` ✔,
+  `core.diagnose_permissions` erreicht jetzt das Skill; volle non-real_llm-Suite
+  435 Tests, 0 Failures.
+- **Flowchart:** angepasst (DISC_A_OK, FREG, DISC_A, LG_PLAN) — bringt die Doku auf
+  das implementierte „prior, not filter"-Verhalten.
+- **Noch offen (separat):** `namespace_hint` aus dem **echten** Moodle-Kontext statt
+  Popularität (Ursache 1) und die Namespace-Split-Baseline (Ursache 3, Mandatory-Tier)
+  — wirken bereits durch (1)+(3) nicht mehr blockierend, bleiben aber sauberere Folge-Schritte.
+
 ---
 
 ## Thread-übergreifende Evidenz (Hypothesen-Test, ≥5 Threads)
@@ -464,6 +504,8 @@ sichtbar gemacht**.
 > mehrere Läufe stabil.
 
 ### Muster A — Discovery-Lücke: `course.*` / `core.diagnose_*` im Booking-Kontext unsichtbar
+
+> ✅ **Behoben durch [H7](#h7--discovery-intent-bewusste-eskalation--kontext-als-prior--umgesetzt-2026-06-15)** (2026-06-15). Muster B (Fehl-Routing) wird durch dieselbe Korrektur entschärft. Verifiziert: 3/4 Szenarien grün, 4. erreicht das Skill.
 
 Im ambienten **Booking-Modul-Kontext** findet die Discovery-/Selection-Phase die
 course- und diagnose-Skills **nicht**, obwohl sie registriert **und** executable sind
