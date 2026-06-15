@@ -685,10 +685,14 @@ $string['aitrial_disclaimer'] = '* This will submit the URL of this site to Wund
 $string['aitrial_js_failed_default'] = 'Activation failed.';
 $string['aitrial_js_reloading'] = 'Reloading...';
 $string['aitrial_already_exists'] = 'A trial has already been issued for this site. Please check your AI provider settings (Site administration → AI → AI providers).';
+$string['aitrial_fallback_note'] = 'No Wunderbyte provider is installed. You can start the trial with the standard provider — the agent will then support a smaller set of skills (no semantic search).';
 $string['aitrial_js_unexpected_error'] = 'An unexpected error occurred.';
 $string['aitrial_pro_license_url'] = 'https://showroom.wunderbyte.at/course/view.php?id=62';
 $string['aitrial_provider_created'] = 'Your Wunderbyte trial AI provider has been created and enabled. AI is now ready.';
+$string['aitrial_provider_install_hint'] = 'For the full feature set (including semantic search), install the Wunderbyte AI provider:';
+$string['aitrial_provider_install_link_label'] = 'Install the Wunderbyte AI provider';
 $string['aitrial_provider_install_url'] = 'https://github.com/Wunderbyte-GmbH/moodle-aiprovider_wunderbyte';
+$string['aitrial_provider_installed_check'] = 'Wunderbyte AI provider installed';
 $string['aitrial_provider_required'] = 'No AI provider is installed yet. For the best results, install the Wunderbyte AI provider: {$a}';
 $string['aitrial_provision_failed'] = 'The trial could not be set up automatically. Please try again later or contact info@wunderbyte.at.';
 $string['aitrial_success_activated'] = 'Your Wunderbyte trial has been activated. The AI assistant is now ready to use.';

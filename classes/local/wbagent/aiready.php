@@ -305,6 +305,21 @@ class aiready {
         // registry to seed here.
         $jsmodules = [];
 
+        // Who may start the guided trial setup: admins (via site:doanything) plus anyone
+        // explicitly granted the capability (managers). Drives the trial UI visibility so
+        // managers — not only platform admins — can onboard.
+        $canrequesttrial = has_capability(
+            'bookingextension/agent:requesttrial',
+            context_system::instance(),
+            $this->userid
+        );
+
+        // Provider PLUGIN installation (distinct from an instance being CONFIGURED): decides
+        // whether to recommend installing the Wunderbyte provider or to offer the standard
+        // (reduced) fallback in the onboarding card.
+        $wunderbyteprovinstalled = (bool)\core_component::get_plugin_directory('aiprovider', 'wunderbyte');
+        $standardprovinstalled = (bool)\core_component::get_plugin_directory('aiprovider', 'openai');
+
         return [
             'cmid' => $cmid ?? 0,
             'contextid' => (int)$context->id,
@@ -314,9 +329,15 @@ class aiready {
             'ready_for_chat' => $readyforchat,
             'provider_available' => $provideractive,
             'is_platform_admin' => $isplatformadmin,
+            'can_request_trial' => $canrequesttrial,
             'has_use_capability' => $hascapability,
-            'show_trial_button' => $isplatformadmin && !$readyforchat && !$haswunderbyteprovider,
-            'show_trial_activate_button' => $isplatformadmin && !$readyforchat && $haswunderbyteprovider,
+            'show_trial_button' => $canrequesttrial && !$readyforchat && !$haswunderbyteprovider,
+            'show_trial_activate_button' => $canrequesttrial && !$readyforchat && $haswunderbyteprovider,
+            // Provider-plugin guidance for the onboarding card.
+            'wunderbyte_provider_installed' => $wunderbyteprovinstalled,
+            'using_standard_fallback' => !$wunderbyteprovinstalled && $standardprovinstalled,
+            'no_provider_installed' => !$wunderbyteprovinstalled && !$standardprovinstalled,
+            'provider_install_url' => get_string('aitrial_provider_install_url', 'bookingextension_agent'),
             // Live AI-credit bar: only when a Wunderbyte provider exists and the
             // viewer may see organisation-level spend (managers/admins).
             'show_usage_bar' => $haswunderbyteprovider

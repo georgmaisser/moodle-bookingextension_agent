@@ -148,6 +148,23 @@
 
             {{#show_trial_button}}
             <div class="booking-ai-trial-wrap mt-3 mb-3">
+                {{! Precondition: which provider plugin will back the trial. }}
+                {{#wunderbyte_provider_installed}}
+                <div class="alert alert-success py-2 mb-3 booking-ai-provider-check">
+                    <i class="fa fa-check-circle mr-2" aria-hidden="true"></i>{{#str}}aitrial_provider_installed_check, bookingextension_agent{{/str}}
+                </div>
+                {{/wunderbyte_provider_installed}}
+                {{^wunderbyte_provider_installed}}
+                <div class="alert {{#using_standard_fallback}}alert-warning{{/using_standard_fallback}}{{^using_standard_fallback}}alert-info{{/using_standard_fallback}} py-2 mb-3 booking-ai-provider-check">
+                    <div>{{#str}}aitrial_provider_install_hint, bookingextension_agent{{/str}}</div>
+                    <a href="{{provider_install_url}}" target="_blank" rel="noopener noreferrer">
+                        <i class="fa fa-external-link mr-1" aria-hidden="true"></i>{{#str}}aitrial_provider_install_link_label, bookingextension_agent{{/str}}
+                    </a>
+                    {{#using_standard_fallback}}
+                    <div class="small text-muted mt-2">{{#str}}aitrial_fallback_note, bookingextension_agent{{/str}}</div>
+                    {{/using_standard_fallback}}
+                </div>
+                {{/wunderbyte_provider_installed}}
                 <button id="booking-ai-trial-btn"
                         class="btn btn-primary btn-lg"
                         data-contextid="{{contextid}}"

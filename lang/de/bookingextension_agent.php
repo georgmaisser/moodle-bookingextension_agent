@@ -664,10 +664,14 @@ $string['aitrial_coreai_unavailable'] = 'Das core-AI-Subsystem ist in dieser Moo
 $string['aitrial_disclaimer'] = '* Dabei wird die URL dieser Seite an die Wunderbyte GmbH uebermittelt und Sie erhalten ein Token, das nur ueber Ihre Seiten-URL definiert ist. Es werden keine personenbezogenen oder weiteren Informationen uebermittelt oder gespeichert.';
 $string['aitrial_js_failed_default'] = 'Aktivierung fehlgeschlagen.';
 $string['aitrial_already_exists'] = 'Für diese Site wurde bereits eine Testversion ausgestellt. Bitte prüfen Sie Ihre KI-Provider-Einstellungen (Website-Administration → KI → KI-Provider).';
+$string['aitrial_fallback_note'] = 'Es ist kein Wunderbyte-Provider installiert. Sie können die Testversion mit dem Standard-Provider starten — der Agent unterstützt dann einen kleineren Skill-Umfang (keine semantische Suche).';
 $string['aitrial_js_reloading'] = 'Neu laden...';
 $string['aitrial_js_unexpected_error'] = 'Ein unerwarteter Fehler ist aufgetreten.';
 $string['aitrial_provider_created'] = 'Ihr Wunderbyte-Trial-KI-Provider wurde erstellt und aktiviert. KI ist jetzt einsatzbereit.';
+$string['aitrial_provider_install_hint'] = 'Für den vollen Funktionsumfang (inkl. semantischer Suche) installieren Sie den Wunderbyte-KI-Provider:';
+$string['aitrial_provider_install_link_label'] = 'Wunderbyte-KI-Provider installieren';
 $string['aitrial_provider_install_url'] = 'https://github.com/Wunderbyte-GmbH/moodle-aiprovider_wunderbyte';
+$string['aitrial_provider_installed_check'] = 'Wunderbyte-KI-Provider installiert';
 $string['aitrial_provider_required'] = 'Es ist noch kein KI-Provider installiert. Für beste Ergebnisse installieren Sie den Wunderbyte-KI-Provider: {$a}';
 $string['aitrial_provision_failed'] = 'Die Testversion konnte nicht automatisch eingerichtet werden. Bitte versuchen Sie es später erneut oder kontaktieren Sie info@wunderbyte.at.';
 $string['aitrial_pro_license_url'] = 'https://showroom.wunderbyte.at/course/view.php?id=62';
