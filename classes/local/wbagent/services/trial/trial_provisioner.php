@@ -158,8 +158,11 @@ class trial_provisioner {
                 'success' => true,
                 'message' => '',
                 'apikey' => (string)$body['apikey'],
-                // Trust the admin-configured base over whatever the service echoes back.
-                'endpoint' => !empty($body['endpoint']) ? (string)$body['endpoint'] : $base,
+                // ALWAYS use the admin-configured PUBLIC base for the provider's action
+                // endpoints. The service echoes back its OWN internal LiteLLM URL (e.g.
+                // http://litellm:4000) which Moodle cannot reach and curl blocks — so we
+                // deliberately ignore $body['endpoint'] here.
+                'endpoint' => $base,
             ];
         }
 
