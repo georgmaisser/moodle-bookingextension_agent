@@ -1,8 +1,72 @@
 # Prompt-Refactoring — Sammelblueprint
 
-**Status:** 🟡 In Sammlung — weitere Thread-Analysen folgen
-**Angelegt:** 2026-06-14
+**Status:** 🟢 Discovery-Lücke behoben · H2/H4/H5/H6/H7 umgesetzt · Suite stabil (3 nichtdet. real_llm-Failures)
+**Angelegt:** 2026-06-14 · **Letzter Stand:** 2026-06-15 (vollständiger Suite-Lauf)
 **Thema:** Refactoring der Agent-Prompts (Selector / Constructor / Synchronizer)
+
+---
+
+## Aktueller Stand (Snapshot 2026-06-15, vollständiger Suite-Lauf inkl. real_llm)
+
+Vollständiger Lauf `bookingextension_agent_testsuite` **mit** Live-LLM (MiniMax-M2.7,
+text-embedding-3-small):
+
+```
+Tests: 435 · Failures: 3 · Skipped: 2 · Deprecations: 85 (Moodle-Rauschen) · ~9:46 min
+```
+
+### ✅ Was bereits funktioniert
+
+| Bereich | Stand |
+|---------|-------|
+| **Deterministische Suite** (~373 Tests) | **vollständig grün**, 0 Failures |
+| **Discovery-Lücke** (course.*/core.diagnose_* im Booking-Kontext) | **behoben** (H7) — keine „kein Skill"-Verweigerung mehr; `add_quiz`, `add_activity`, `diagnose_*`, `update_activity/quiz` werden gefunden & ausgeführt |
+| **H2** genannter Kurs → `coursequery` (Construction) | umgesetzt (commit 9299077) |
+| **H4** Selektor plant keinen Suchschritt für Ziel im Kontext | umgesetzt (9299077) |
+| **H5** Synchronizer Entitätstyp-/Link-Policy | umgesetzt (9299077) |
+| **H6** Zielkurs-Hinweis vor Write (`build_operating_context_note`) | bereits vorhanden (verifiziert) |
+| **H7** Discovery: Intent-Eskalation + Kontext-als-Prior + Embeddings-Fixture | umgesetzt (ab3b171, 3d2fb37) |
+| **Smoke-Matrix-Coverage** (alle registrierten Skills) | Coverage-Meta-Test grün |
+| **real_llm-Einzeltests** (list_skills, generate_questions, confirmation_flow, search_*, get_current_user, lecture_autoconfirm, normal_option_datetime) | grün |
+
+### ⚠️ Was noch offen ist — Warum — Fix-Weg
+
+**O1 — real_llm-Clarification bei unvollständigem Input (die 3 aktuellen Failures).**
+Alle 3 sind **nicht** „kein Skill", sondern `clarification` (Skill wird korrekt gewählt,
+Planner fragt nach fehlendem Feld). **LLM-nichtdeterministisch** (in anderen Läufen grün).
+
+| Skill | Planner-Frage | Ursache | Fix-Weg |
+|-------|---------------|---------|---------|
+| `course.add_activity` | „Welcher Kurs? Kein aktueller Kurs-Kontext erkannt." | LLM verwirft sporadisch den ambienten Kurs-Kontext | Selektor-/Construction-Regel schärfen: ambienter Kurs aus `SYSTEM_RUNTIME.moodle_context` ist gültiger Default; nicht nachfragen, wenn Kontext vorhanden |
+| `course.diagnose_access` | „Welche Aktivität?" | optionales `activityquery` — Szenario unterspezifiziert; Skill fragt statt kursweit zu diagnostizieren | Szenario-Prompt präzisieren **oder** `allow_clarification`; Skill: bei fehlender Aktivität kursweit diagnostizieren statt fragen |
+| `mod_booking.update_option_trainer` | „teacherids fehlt" | Prompt liefert `teacheremail`, Skill-`minimal_input` will `teacherids` | Name/E-Mail→id-Auflösung in Construction/Skill **oder** `minimal_input` um `teacheremail` erweitern |
+
+**O2 — create/update **options**: Construction sporadisch unzuverlässig** (Analyse #3, Muster C).
+Diesen Lauf **nicht** aufgetreten (update_option/create_selflearning grün), aber in
+früheren Läufen real: `update_option` → „no commands generated" (348-Klasse);
+`create_selflearning_option` → schema-fremde Keys (`courseid`/`contextid`) → Reject.
+**Intermittierend.** → **Georgs „radikaler Rethink":** schmaleres, intent-getriebenes
+Option-Input-Contract; kanonische Keys **normalisieren statt rejecten**; H1
+(Skill/Command strukturell fixieren) + Recovery statt `error`.
+
+**O3 — Sprachdrift (Modell).** MiniMax-M2.7 antwortet sporadisch auf Chinesisch
+(diesen Lauf nicht aufgetreten). → Sprach-Contract im Synchronizer/Selector härten
+bzw. Modellwahl prüfen. Reines Modellverhalten, kein Skill-Defekt.
+
+**O4 — `namespace_hint` = Popularität statt echtem Kontext** (H7-Folgeschritt).
+Funktioniert dank Intent-Guard bereits, ist aber unsauber → Hint aus dem realen
+ambienten cm/Kurs ableiten ([orchestrator.php:2888](../../../classes/local/wbagent/orchestrator.php#L2888)).
+
+**O5 — `oneclick.create_instance` / `wbagent.explain_docs`** → bewusst `skip_reason`
+(Provisioner-Templates bzw. Docs-Embedding-Index im CI nicht vorhanden).
+
+**O6 — H6 offene Frage:** Zielkurs-Hinweis auch bei session-auto-confirmten
+Schreibvorgängen erzwingen? (Flowchart-Klärung mit Georg, siehe H6.)
+
+### Priorisierung des nächsten Schritts
+1. **O2** (create/update options) — der eigentliche „radikale Rethink", höchster Wert.
+2. **O1** — kleine, sichere Schärfungen (ambienter Kontext als Default, Szenario-/Contract-Feinschliff).
+3. **O4** — sauberer Kontext-Hint (entkoppelt Discovery endgültig von der Skill-Popularität).
 
 ---
 
