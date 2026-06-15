@@ -30,7 +30,58 @@
 
 const BUTTON_ID = 'bookingextension-agent-navbar-wand';
 
+// The inline panel rendered by mod/booking's view.php carries this id. When it
+// is present we must drive THAT panel instead of loading a second copy into a
+// modal — the whole aiinstructions module looks elements up by fixed global id,
+// so two live copies would collide on the first one in document order.
+const INLINE_WRAPPER_ID = 'booking-ai-wrapper';
+
 let modalPromise = null;
+
+/**
+ * Reuse an already-rendered inline agent panel instead of opening the modal.
+ *
+ * On mod/booking's view.php the panel is rendered (and init()'d) inline inside a
+ * Bootstrap earmark tab. Loading the navbar fragment there would duplicate every
+ * fixed `booking-ai-*` id, and aiinstructions.js would then operate on whichever
+ * copy is first in the DOM (the inline one) regardless of which entry point was
+ * clicked. So when the inline panel exists we just bring its tab forward.
+ *
+ * @returns {Boolean} true if an inline panel was found and focused, false otherwise
+ */
+const focusInlinePanel = () => {
+    const wrapper = document.getElementById(INLINE_WRAPPER_ID);
+    if (!wrapper) {
+        return false;
+    }
+
+    // Activate the enclosing earmark tab, if any. The nav-link toggles the pane
+    // via Bootstrap's delegated handler; a plain click works for both the BS4
+    // (data-toggle) and BS5 (data-bs-toggle) markup the earmark emits, so we
+    // avoid importing the Tab plugin and stay theme-agnostic.
+    const pane = wrapper.closest('.tab-pane');
+    if (pane && pane.id) {
+        const navlink = document.querySelector(
+            'a[data-toggle="tab"][aria-controls="' + pane.id + '"],'
+            + 'a[data-bs-toggle="tab"][aria-controls="' + pane.id + '"],'
+            + 'a[data-toggle="tab"][href="#' + pane.id + '"],'
+            + 'a[data-bs-toggle="tab"][href="#' + pane.id + '"]'
+        );
+        if (navlink && !navlink.classList.contains('active')) {
+            navlink.click();
+        }
+    }
+
+    wrapper.scrollIntoView({behavior: 'smooth', block: 'start'});
+
+    const input = document.getElementById('booking-ai-input');
+    if (input) {
+        // Defer focus until the tab/scroll settles so it isn't stolen back.
+        window.setTimeout(() => input.focus(), 300);
+    }
+
+    return true;
+};
 
 /**
  * Load the agent panel fragment into the modal body.
@@ -139,6 +190,10 @@ export const init = (contextid, label) => {
 
     button.addEventListener('click', async(e) => {
         e.preventDefault();
+        // Prefer an inline panel (view.php) over a second modal copy.
+        if (focusInlinePanel()) {
+            return;
+        }
         const modal = await getModal(contextid, label);
         modal.show();
     });
