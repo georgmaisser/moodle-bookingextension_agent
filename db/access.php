@@ -53,6 +53,16 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    // Start the guided AI trial setup (request a Wunderbyte trial key and create the
+    // provider instance). Site-level action: admins pass via moodle/site:doanything,
+    // and managers are granted explicitly so they can onboard without full site config.
+    'bookingextension/agent:requesttrial' => [
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
+        ],
+    ],
 ];
 
 $teacherskills = [

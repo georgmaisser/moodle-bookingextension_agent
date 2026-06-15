@@ -24,6 +24,7 @@
 
 $string['agent:debugskillselection'] = 'Skill-Selection-Debug-Tool verwenden';
 $string['agent:ignoreaiavailability'] = 'Kurs-/Modul-KI-Verfügbarkeitsschalter für den KI-Agenten ignorieren';
+$string['agent:requesttrial'] = 'KI-Testversion einrichten';
 $string['agent:skill_booking_analyze_rules'] = 'Buchungsregeln analysieren';
 $string['agent:useaiinstructions'] = 'Den KI-Agenten verwenden';
 $string['agent_adminpages'] = 'Agent-Admin-Seiten';
@@ -662,8 +663,13 @@ $string['aitrial_button_start'] = 'Ich moechte jetzt meine kostenlose Testversio
 $string['aitrial_coreai_unavailable'] = 'Das core-AI-Subsystem ist in dieser Moodle-Version nicht verfuegbar.';
 $string['aitrial_disclaimer'] = '* Dabei wird die URL dieser Seite an die Wunderbyte GmbH uebermittelt und Sie erhalten ein Token, das nur ueber Ihre Seiten-URL definiert ist. Es werden keine personenbezogenen oder weiteren Informationen uebermittelt oder gespeichert.';
 $string['aitrial_js_failed_default'] = 'Aktivierung fehlgeschlagen.';
+$string['aitrial_already_exists'] = 'Für diese Site wurde bereits eine Testversion ausgestellt. Bitte prüfen Sie Ihre KI-Provider-Einstellungen (Website-Administration → KI → KI-Provider).';
 $string['aitrial_js_reloading'] = 'Neu laden...';
 $string['aitrial_js_unexpected_error'] = 'Ein unerwarteter Fehler ist aufgetreten.';
+$string['aitrial_provider_created'] = 'Ihr Wunderbyte-Trial-KI-Provider wurde erstellt und aktiviert. KI ist jetzt einsatzbereit.';
+$string['aitrial_provider_install_url'] = 'https://github.com/Wunderbyte-GmbH/moodle-aiprovider_wunderbyte';
+$string['aitrial_provider_required'] = 'Es ist noch kein KI-Provider installiert. Für beste Ergebnisse installieren Sie den Wunderbyte-KI-Provider: {$a}';
+$string['aitrial_provision_failed'] = 'Die Testversion konnte nicht automatisch eingerichtet werden. Bitte versuchen Sie es später erneut oder kontaktieren Sie info@wunderbyte.at.';
 $string['aitrial_pro_license_url'] = 'https://showroom.wunderbyte.at/course/view.php?id=62';
 $string['aitrial_success_activated'] = 'Ihre Wunderbyte-Testversion wurde aktiviert. Der AI-Assistent ist jetzt einsatzbereit.';
 $string['aitrial_support_firewall'] = 'Entschuldigung, das hat nicht funktioniert. Ein moeglicher Grund koennen Firewall-Einstellungen Ihres Systems sein. Wenn Sie trotzdem eine Testversion moechten, schreiben Sie bitte an info@wunderbyte.at.';
@@ -815,3 +821,5 @@ $string['skillselectiondebug_source'] = 'Quelle';
 $string['skillselectiondebug_topk'] = 'Top-K Kandidaten';
 $string['task_cleanup_attachment_temp_files'] = 'Abgelaufene AI-Anhang-Temporärdateien aufräumen';
 $string['task_execute_ai_run'] = 'AI-Agent-Lauf ausfuehren';
+$string['trial_endpoint_base_url'] = 'Basis-URL des Trial-Endpoints';
+$string['trial_endpoint_base_url_desc'] = 'Basis-URL des Wunderbyte-Trial-/LiteLLM-Dienstes zum Erzeugen von Trial-Keys (z. B. https://llm.wunderbyte.at). Die Trial-Anfrage geht an {base}/api/moodle-trial.';

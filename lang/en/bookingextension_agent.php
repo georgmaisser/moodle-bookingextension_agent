@@ -24,6 +24,7 @@
 
 $string['agent:debugskillselection'] = 'Use skill selection debug tool';
 $string['agent:ignoreaiavailability'] = 'Ignore course/module AI availability toggles for the AI agent';
+$string['agent:requesttrial'] = 'Start the AI trial setup';
 $string['agent:skill_booking_analyze_rules'] = 'Analyze booking rules';
 $string['agent:skill_course_add_activity'] = 'Add an activity or resource to a course';
 $string['agent:skill_course_update_activity'] = 'Edit an activity or resource in a course';
@@ -683,8 +684,13 @@ $string['aitrial_coreai_unavailable'] = 'The core AI subsystem is not available 
 $string['aitrial_disclaimer'] = '* This will submit the URL of this site to Wunderbyte GmbH and you will receive a token which is only defined by your site URL. No personal or further information will be transmitted or stored.';
 $string['aitrial_js_failed_default'] = 'Activation failed.';
 $string['aitrial_js_reloading'] = 'Reloading...';
+$string['aitrial_already_exists'] = 'A trial has already been issued for this site. Please check your AI provider settings (Site administration → AI → AI providers).';
 $string['aitrial_js_unexpected_error'] = 'An unexpected error occurred.';
 $string['aitrial_pro_license_url'] = 'https://showroom.wunderbyte.at/course/view.php?id=62';
+$string['aitrial_provider_created'] = 'Your Wunderbyte trial AI provider has been created and enabled. AI is now ready.';
+$string['aitrial_provider_install_url'] = 'https://github.com/Wunderbyte-GmbH/moodle-aiprovider_wunderbyte';
+$string['aitrial_provider_required'] = 'No AI provider is installed yet. For the best results, install the Wunderbyte AI provider: {$a}';
+$string['aitrial_provision_failed'] = 'The trial could not be set up automatically. Please try again later or contact info@wunderbyte.at.';
 $string['aitrial_success_activated'] = 'Your Wunderbyte trial has been activated. The AI assistant is now ready to use.';
 $string['aitrial_support_firewall'] = 'Sorry, that did not work. One possible reason could be firewall settings on your own system. If you still want to get a trial, please write to info@wunderbyte.at.';
 $string['aitrial_token_expired_subscription'] = 'Your trial token has expired. You can buy a subscription here: {$a}';
@@ -858,3 +864,5 @@ $string['skillselectiondebug_source'] = 'Source';
 $string['skillselectiondebug_topk'] = 'Top-K candidates';
 $string['task_cleanup_attachment_temp_files'] = 'Clean up expired AI attachment temp files';
 $string['task_execute_ai_run'] = 'Execute AI agent run';
+$string['trial_endpoint_base_url'] = 'Trial endpoint base URL';
+$string['trial_endpoint_base_url_desc'] = 'Base URL of the Wunderbyte trial/LiteLLM service used to mint trial keys (e.g. https://llm.wunderbyte.at). The trial request is sent to {base}/api/moodle-trial.';

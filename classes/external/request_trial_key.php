@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\external;
 
-use cache;
 use context_system;
 use core\context;
 use core_external\external_api;
@@ -34,9 +33,10 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wbagent\services\trial\trial_provisioner;
 
 /**
- * Request trial key nonce for back-channel challenge.
+ * Request a Wunderbyte trial key and provision a working AI provider from it.
  */
 class request_trial_key extends external_api {
     /**
@@ -51,7 +51,7 @@ class request_trial_key extends external_api {
     }
 
     /**
-     * Generate and cache nonce for trial challenge endpoint.
+     * Request a trial key and provision the AI provider instance from it.
      *
      * @param int $contextid
      * @return array
@@ -71,23 +71,12 @@ class request_trial_key extends external_api {
         }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
         self::validate_context($context);
-        require_capability('moodle/site:config', context_system::instance());
+        // Managers may onboard too; admins pass via moodle/site:doanything.
+        require_capability('bookingextension/agent:requesttrial', context_system::instance());
 
-        if (!class_exists('\\core_ai\\manager')) {
-            return [
-                'success' => false,
-                'message' => get_string('aitrial_coreai_unavailable', 'bookingextension_agent'),
-            ];
-        }
-
-        $token = random_string(32);
-        $cache = cache::make('bookingextension_agent', 'trialnonce');
-        $cache->set('nonce_' . $token, $token);
-
-        return [
-            'success' => true,
-            'message' => get_string('aitrial_token_received', 'bookingextension_agent'),
-        ];
+        // Full provisioning: mint the trial key and create/enable the provider instance.
+        // Returns {success, message} ready for the external return structure.
+        return (new trial_provisioner())->provision((int)$params['contextid']);
     }
 
     /**

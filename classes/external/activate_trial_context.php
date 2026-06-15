@@ -77,7 +77,8 @@ class activate_trial_context extends external_api {
         // Only module contexts carry a cmid; other context levels pass 0.
         $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
         self::validate_context($context);
-        require_capability('moodle/site:config', context_system::instance());
+        // Managers may onboard too; admins pass via moodle/site:doanything.
+        require_capability('bookingextension/agent:requesttrial', context_system::instance());
 
         if (!class_exists('\\core_ai\\manager')) {
             return [
