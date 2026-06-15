@@ -138,6 +138,11 @@ async def _create_trial_key(site_id: str, wwwroot: str) -> str:
         "max_budget": TRIAL_BUDGET_USD,
         "budget_duration": f"{TRIAL_DAYS}d",
         "expires": expires_at,
+        # Allow the key to read its OWN budget/usage via GET /key/info (the Moodle
+        # usage bar self-looks-up with this key). Without this, keys default to
+        # "llm_api_routes" only and every /key/info call is rejected with 403.
+        # "llm_api_routes" must stay listed, otherwise the key can no longer chat.
+        "allowed_routes": ["llm_api_routes", "/key/info"],
         "metadata": {
             "moodle_site": str(wwwroot),
             "site_id": site_id,

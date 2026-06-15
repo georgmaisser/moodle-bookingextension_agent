@@ -2869,6 +2869,31 @@ const initCentralBodyHandlers = () => {
  * @param {Object} jsModulesOrConfig Registered JS modules map or main configuration object.
  * @param {Object|null} config Main configuration object if JS modules map is provided first.
  */
+/**
+ * Lazily mount the Wunderbyte AI-provider usage bar, if its container is present.
+ *
+ * The container is rendered server-side only for users with the
+ * aiprovider/wunderbyte:viewusage capability and an active Wunderbyte provider,
+ * so this just wires up the shared bar component when that container exists.
+ *
+ * @return {void}
+ */
+const maybeInitUsageBar = () => {
+    const container = document.querySelector('#booking-ai-wrapper [data-region="wb-usage-bar"]');
+    if (!container) {
+        return;
+    }
+    import('aiprovider_wunderbyte/usage_bar')
+        .then((UsageBar) => {
+            // Compact pill next to "AI provider active", fetched only once visible.
+            UsageBar.init(container, 0, {compact: true, lazy: true});
+            return UsageBar;
+        })
+        .catch(() => {
+            // Provider plugin unavailable or module failed to load: leave the slot empty.
+        });
+};
+
 export const init = (jsModulesOrConfig = {}, config = null) => {
     let runtimeConfig = config;
 
@@ -2926,6 +2951,7 @@ export const init = (jsModulesOrConfig = {}, config = null) => {
     // Must be available in onboarding mode where ready_for_chat is false.
     bindTrialButton();
     initCentralBodyHandlers();
+    maybeInitUsageBar();
 
     if (!runtimeConfig.ready_for_chat) {
         return;

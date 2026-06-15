@@ -32,7 +32,10 @@
     <div class="booking-ai-chat-container card">
         <div class="card-header d-flex align-items-center justify-content-between">
             <h5 class="mb-0">{{#str}}aiinstructions, bookingextension_agent{{/str}}</h5>
-            <span class="badge badge-success">{{#str}}ai_provider_active, bookingextension_agent{{/str}}</span>
+            <div class="d-flex align-items-center">
+                {{#show_usage_bar}}<span class="booking-ai-usage mr-2" data-region="wb-usage-bar"></span>{{/show_usage_bar}}
+                <span class="badge badge-success">{{#str}}ai_provider_active, bookingextension_agent{{/str}}</span>
+            </div>
         </div>
 
         <div class="card-body p-0">

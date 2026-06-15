@@ -317,6 +317,10 @@ class aiready {
             'has_use_capability' => $hascapability,
             'show_trial_button' => $isplatformadmin && !$readyforchat && !$haswunderbyteprovider,
             'show_trial_activate_button' => $isplatformadmin && !$readyforchat && $haswunderbyteprovider,
+            // Live AI-credit bar: only when a Wunderbyte provider exists and the
+            // viewer may see organisation-level spend (managers/admins).
+            'show_usage_bar' => $haswunderbyteprovider
+                && has_capability('aiprovider/wunderbyte:viewusage', context_system::instance(), $this->userid),
             'activation_question_text' => $activationquestiontext,
             'intro_text' => $introtext,
             'admin_text' => $admintext,
