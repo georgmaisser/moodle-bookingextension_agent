@@ -78,7 +78,13 @@ class family_registry_service {
         }
 
         $corefamilies = $this->corefamilyset->resolve($promptcontracts);
-        $families = array_values(array_unique(array_merge($contextfamilies, $corefamilies)));
+
+        // Context is a ranking PRIOR, not a hard filter (flowchart LG_DET). The ranking
+        // universe must therefore stay the FULL family set so the semantic/intent signal can
+        // surface a cross-namespace family (e.g. course.* from a booking context). The
+        // namespace match only marks the Stage A prior subset ($contextfamilies); it must NOT
+        // narrow the candidate universe, otherwise non-context skills become undiscoverable.
+        $families = array_values(array_unique(array_merge($allfamilies, $corefamilies)));
         sort($families, SORT_STRING);
 
         return new discovery_result($families, $contextfamilies, $corefamilies, $contextprior);

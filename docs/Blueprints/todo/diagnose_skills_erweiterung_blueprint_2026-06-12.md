@@ -1,7 +1,32 @@
 # Diagnose-Skills: Machbarkeitsprüfung und Planungsdokument
 
-Status: **Analyse / Planung** (keine Umsetzung)
+Status: **UMGESETZT (2026-06-13)** — alle 5 Aufgaben + Stufe-0-Foundation implementiert, auf VM
+verifiziert (37 Tests grün), committet. Ursprünglich: Analyse / Planung.
 Datum: 2026-06-12
+
+> ## Umsetzungsstand 2026-06-13 (Georgs Entscheidungen: course.*/core.* · vorerst frei · Stufe-0 zuerst · Anonymizer Option A)
+>
+> **Foundation (Stufe 0):** `diagnostics/diagnostic_link_builder` + `diagnostics/diagnostic_checklist_preview`
+> (geteilt von allen Skills); `core_skill_base` um Aktivitätssignale erweitert (lastaccess/lastlogin/
+> currentlogin/firstaccess/emailstop + per-Kurs user_lastaccess) → wirkt in `core.search_users` + `core.get_current_user`.
+>
+> **Skills (alle R0, Guards in execute(), Checklisten-Preview + echte moodle_url-Links):**
+> - `course.diagnose_access` (21) — Gate `moodle/role:review` (viewparticipants war zu schwach, Studierende haben es)
+> - `course.diagnose_enrolment` (25) — Gate `moodle/course:enrolreview`; self/cohort/manual + Task-Health (admin)
+> - `core.diagnose_permissions` (24) — Gate `moodle/role:review`; Rollenkette ODER Capability+Overrides + Namensvorschläge
+> - `core.diagnose_notifications` (30) — Gate `moodle/user:viewalldetails` (privat); User-State + Mail-Infra (admin) + ehrliche SMTP-Grenze
+> - `course.diagnose_grades` (22) — Gate `moodle/grade:viewall`; **Fakten-Sammler, kein Nachrechnen**; self sieht keine verborgenen Noten
+>
+> **Engine (einmalig, von Georg freigegeben — Option A):** `privacy_anonymizer` schützt jetzt `x/y:z`-Capability-Tokens
+> (sonst von kollidierenden Namen zerschossen). Eigener Commit `ebf42b8`.
+>
+> **mod_booking (additiv):** `diagnose_user_booking`-Trigger für „keine Mail" + `diagnose_booking_issue`-Aktivitätssichtbarkeit.
+>
+> **§4 Row 2 (Enrolment-Status in search_users):** Entscheidung (c) — search_users-Semantik bleibt; Status kommt über `course.diagnose_enrolment`.
+>
+> **Commits:** Agent `ebf42b8` (Anonymizer), `b383eab` (Foundation+access/enrolment/permissions), `3f54f14` (notifications+grades); mod_booking `0dfbbd6c4`. Version 2026061305.
+>
+> **Offen:** mod_booking-Unit-Test für die `diagnose_booking_issue`-Sichtbarkeit; operativ bei Deploy: Upgrade 2026061305 + Skill-Settings `aiskillenabled_*` aktivieren + Embeddings-Rebuild (für Discovery der neuen Trigger/Skills).
 Auftrag: Prüfung von fünf Diagnose-Aufgaben (Georgs Liste, Nr. 21/22/24/25/30) auf
 Umsetzbarkeit als Agent-Skills — inkl. Abgleich mit bestehenden Skills,
 Erweiterungs- statt Neubau-Optionen, und durchgehend: **echte moodle_url-Links in

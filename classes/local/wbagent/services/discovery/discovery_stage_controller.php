@@ -26,6 +26,17 @@ namespace bookingextension_agent\local\wbagent\services\discovery;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class discovery_stage_controller {
+    /**
+     * Minimum semantic score for a family to count as a genuine intent signal.
+     *
+     * Below this the embedding signal is treated as noise/absent (e.g. embeddings
+     * unavailable, all semantic scores ~0), so the intent-coverage guard stays inert
+     * and legacy signal-only staging behaviour is preserved.
+     *
+     * @var float
+     */
+    private const INTENT_SEMANTIC_MIN = 0.15;
+
     /** @var discovery_budget_policy */
     private discovery_budget_policy $budgetpolicy;
 
@@ -70,21 +81,19 @@ class discovery_stage_controller {
             ];
         }
 
-        $rankmap = [];
-        foreach ($rankedfamilies as $row) {
-            $family = (string)($row['family'] ?? '');
-            if ($family === '') {
-                continue;
-            }
-            $rankmap[$family] = (float)($row['score'] ?? 0.0);
-        }
-
         $stageafamilies = array_values(array_unique(array_merge($contextfamilies, $corefamilies)));
         $stagearows = $this->rows_for_families($rankedfamilies, $stageafamilies);
         $stagearows = $this->budgetpolicy->apply_budget($stagearows, 'A');
         $stageascore = $this->top_score($stagearows);
 
-        if ($this->confidencepolicy->is_sufficient($stageascore, 'A')) {
+        // Intent-coverage guard (flowchart "context = ranking PRIOR, not hard filter"):
+        // the ambient context must not short-circuit at Stage A when the strongest semantic
+        // (intent) match lies OUTSIDE the Stage A family set. Intent is carried by the
+        // embedding/semantic signal; when it is absent this guard is inert (see
+        // stage_a_covers_intent) so legacy signal-only behaviour is preserved.
+        $intentcovered = $this->stage_a_covers_intent($rankedfamilies, $stageafamilies);
+
+        if ($intentcovered && $this->confidencepolicy->is_sufficient($stageascore, 'A')) {
             $selectedfamilies = array_values(array_map(
                 static fn(array $row): string => (string)$row['family'],
                 $stagearows
@@ -98,6 +107,7 @@ class discovery_stage_controller {
             ];
         }
 
+        $escalationreasonb = $intentcovered ? 'stage_a_low_confidence' : 'stage_a_intent_outside';
         $stagebrows = $this->budgetpolicy->apply_budget($rankedfamilies, 'B');
         $stagebscore = $this->top_score($stagebrows);
         if ($this->confidencepolicy->is_sufficient($stagebscore, 'B')) {
@@ -109,7 +119,7 @@ class discovery_stage_controller {
             return [
                 'discovery_stage' => 'B',
                 'confidence_score' => $this->confidencepolicy->normalize_score($stagebscore),
-                'escalation_reason' => 'stage_a_low_confidence',
+                'escalation_reason' => $escalationreasonb,
                 'selected_families' => $selectedfamilies,
             ];
         }
@@ -126,6 +136,39 @@ class discovery_stage_controller {
             'escalation_reason' => 'stage_b_low_confidence',
             'selected_families' => $selectedfamilies,
         ];
+    }
+
+    /**
+     * Decide whether the Stage A family set covers the user's semantic intent.
+     *
+     * Returns true when the highest-scoring SEMANTIC family is already inside Stage A,
+     * or when there is no meaningful semantic signal at all (embeddings unavailable →
+     * all semantic scores below {@see self::INTENT_SEMANTIC_MIN}). It returns false only
+     * when a clear semantic intent points at a family OUTSIDE Stage A, which must force
+     * escalation so that cross-namespace skills (e.g. course.* from a booking context)
+     * are not silently filtered out.
+     *
+     * @param array<int,array<string,mixed>> $rankedfamilies
+     * @param array<int,string> $stageafamilies
+     * @return bool
+     */
+    private function stage_a_covers_intent(array $rankedfamilies, array $stageafamilies): bool {
+        $topfamily = '';
+        $topsemantic = 0.0;
+        foreach ($rankedfamilies as $row) {
+            $semantic = (float)($row['semantic_score'] ?? 0.0);
+            if ($semantic > $topsemantic) {
+                $topsemantic = $semantic;
+                $topfamily = (string)($row['family'] ?? '');
+            }
+        }
+
+        // No meaningful semantic (intent) signal — keep legacy signal-only behaviour.
+        if ($topfamily === '' || $topsemantic < self::INTENT_SEMANTIC_MIN) {
+            return true;
+        }
+
+        return in_array($topfamily, $stageafamilies, true);
     }
 
     /**

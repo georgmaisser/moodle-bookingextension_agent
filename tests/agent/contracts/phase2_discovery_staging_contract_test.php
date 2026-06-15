@@ -254,4 +254,70 @@ final class phase2_discovery_staging_contract_test extends TestCase {
         $this->assertIsArray($result['selected_families']);
         $this->assertNotEmpty($result['selected_families']);
     }
+
+    /**
+     * On a namespace match the matched namespace is the Stage A prior, but the candidate
+     * universe must still contain cross-namespace families (context = prior, not hard filter).
+     */
+    public function test_family_registry_keeps_full_universe_on_namespace_match(): void {
+        $promptcontracts = [
+            ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
+            ['skill' => 'course.add_quiz', 'family' => 'course.general'],
+            ['skill' => 'core.diagnose_permissions', 'family' => 'core.general'],
+        ];
+        $prior = (new context_prior_builder())->build(123, [
+            'userid' => 42,
+            'namespace_hint' => 'mod_booking',
+        ]);
+
+        $result = (new family_registry_service())->discover($promptcontracts, $prior)->to_array();
+        $families = (array)($result['families'] ?? []);
+        $contextfamilies = (array)($result['context_families'] ?? []);
+
+        // Stage A prior is narrowed to the matched namespace ...
+        $this->assertSame(['mod_booking.options'], $contextfamilies);
+        // ... but the ranking universe keeps every family so intent can surface them.
+        $this->assertContains('mod_booking.options', $families);
+        $this->assertContains('course.general', $families);
+        $this->assertContains('core.general', $families);
+    }
+
+    /**
+     * A high context signal must NOT short-circuit Stage A when the strongest semantic
+     * (intent) match is a family outside Stage A — escalate so it stays discoverable.
+     */
+    public function test_stage_controller_escalates_when_semantic_intent_is_outside_stage_a(): void {
+        $ranked = (new family_ranker())->rank(
+            ['mod_booking.options', 'course.general', 'core.general'],
+            ['mod_booking.options' => 0.90, 'course.general' => 0.10, 'core.general' => 0.20],
+            ['mod_booking.options' => 0.10, 'course.general' => 0.95, 'core.general' => 0.10]
+        );
+
+        $result = (new discovery_stage_controller())->resolve(
+            $ranked,
+            ['mod_booking.options'],
+            ['core.general']
+        );
+
+        $this->assertNotSame('A', $result['discovery_stage']);
+        $this->assertSame('stage_a_intent_outside', $result['escalation_reason']);
+        $this->assertContains('course.general', (array)$result['selected_families']);
+    }
+
+    /**
+     * When the strongest semantic match is already inside Stage A, the guard must not
+     * over-escalate: a confident in-context query still resolves at Stage A.
+     */
+    public function test_stage_controller_stays_in_a_when_semantic_intent_is_inside_stage_a(): void {
+        $ranked = (new family_ranker())->rank(
+            ['mod_booking.options', 'course.general'],
+            ['mod_booking.options' => 0.80, 'course.general' => 0.20],
+            ['mod_booking.options' => 0.90, 'course.general' => 0.30]
+        );
+
+        $result = (new discovery_stage_controller())->resolve($ranked, ['mod_booking.options'], ['core.general']);
+
+        $this->assertSame('A', $result['discovery_stage']);
+        $this->assertSame('none', $result['escalation_reason']);
+    }
 }
