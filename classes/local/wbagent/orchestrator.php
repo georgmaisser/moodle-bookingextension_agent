@@ -1696,6 +1696,11 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
       -> response_type=skill_call, commands non-empty.
   6) multi-step request, first turn, no [PENDING PLANNED STEPS] in context
       -> select the first skill + set planned_steps=[{intent of step 2},{intent of step 3},...].
+- CONTEXT-AWARE PLANNING: Do NOT add a search/resolution/lookup step for a target that is already
+  identified in the SYSTEM_RUNTIME context. If the target course/activity is the current one in
+  SYSTEM_RUNTIME.moodle_context, select the action skill directly instead of a preceding search step
+  (e.g. "create a quiz in this course" -> the quiz skill now, NOT course.search_courses first).
+  Plan a resolution step only when the user names a target that is NOT the current context.
 - Use only exact skill names from the SKILL CATALOG. Never invent aliases.
 - If a matching skill appears in UNAVAILABLE SKILLS, mention that it exists but is currently not executable.
 - Do not emit unavailable skills in commands.

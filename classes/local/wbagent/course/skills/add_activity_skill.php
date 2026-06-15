@@ -168,10 +168,12 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 ],
                 'coursequery' => [
                     'type' => 'string',
-                    'description' => 'Target a DIFFERENT course than the current one, ONLY when the user explicitly '
-                        . 'names one (e.g. "add a page in the course Biology 101"). Pass the user\'s wording '
-                        . 'verbatim; resolve via course.search_courses first if you only know the name. Leave empty '
-                        . 'to use the current course.',
+                    'description' => 'The course the user named as the target, if any. If the user names a course in '
+                        . 'this message OR an earlier one (e.g. "add a page in the course Biology 101", "please add '
+                        . 'it in selflearning"), you MUST put that exact wording here verbatim — a named course is '
+                        . 'NEVER the same as "the current course", even if it was mentioned earlier in the chat. The '
+                        . 'system resolves the name itself. Leave empty ONLY when the user named no course at all '
+                        . '(then the current course is used).',
                     'required' => false,
                 ],
                 'courseid' => [
@@ -199,6 +201,10 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
             'name' => 'Course introduction',
             'intro' => 'Welcome to the course.',
             'section' => 'top',
+            // Illustrates the cross-course shape: surfaces coursequery as an OPTIONAL field in the
+            // compact selector catalog (without mislabeling the optional field as REQUIRED) so a
+            // user-named target course is not silently dropped. See prompt_refactoring blueprint H2.
+            'coursequery' => 'Biology 101',
         ];
     }
 

@@ -144,7 +144,14 @@ class synchronizer_prompt_builder {
             . "LINK POLICY: When you mention a course, booking option, activity, user or rule, include the URL "
             . "given for it in the observations (markdown link on the entity name). Use those URLs EXACTLY as "
             . "provided — NEVER construct, guess, shorten or modify a URL yourself, and never invent links for "
-            . "entities that came without one.";
+            . "entities that came without one.\n"
+            . "ENTITY TYPE POLICY: Name each item by the entity type the observation gives it — a course is a "
+            . "course, a booking activity is an activity, a booking option is an option. NEVER present a booking "
+            . "activity or option as if it were a course. When an item is an activity or option that lives inside "
+            . "a course, make the type explicit and keep the parent course distinct, e.g. "
+            . "\"activity 'selflearning' (course: Booking)\" — do NOT label it \"in the course 'selflearning'\". "
+            . "Use each entity's own link target from the observations (an activity links to its activity view, "
+            . "a course to its course view); never relabel one type's link as another type.";
 
         $parts[] = '[ASSISTANT]';
 
