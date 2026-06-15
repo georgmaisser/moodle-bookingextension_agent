@@ -13,6 +13,10 @@ Environment variables expected
     LITELLM_BASE_URL     – base URL of your LiteLLM instance, e.g. https://llm.wunderbyte.at
     TRIAL_BUDGET_USD     – optional, default 2.0  ($ credit for the trial key)
     TRIAL_DAYS           – optional, default 14   (lifetime of the trial key in days)
+    TRIAL_MODELS         – optional, comma-separated; default
+                           "wunderbyte-privat,wunderbyte-privat-mini,wunderbyte-embeddings"
+                           (the model aliases the trial key may access; must match the
+                           Moodle agent's actionconfig and exist on the proxy)
 
 Deployment
 ----------
@@ -45,8 +49,25 @@ LITELLM_MASTER_KEY: str = os.environ.get("LITELLM_MASTER_KEY", "")
 TRIAL_BUDGET_USD: float = float(os.environ.get("TRIAL_BUDGET_USD", "2.0"))
 TRIAL_DAYS: int = int(os.environ.get("TRIAL_DAYS", "14"))
 
-# LiteLLM model alias that trial keys are allowed to use.
-TRIAL_MODEL_ALIAS: str = os.environ.get("TRIAL_MODEL_ALIAS", "wunderbyte-privat")
+# LiteLLM model aliases the trial key is allowed to use. The Moodle agent maps its
+# actions onto these EXACT names: wunderbyte-privat (chat / agent reply / generate_text),
+# wunderbyte-privat-mini (compact planner), wunderbyte-embeddings (embeddings). All three
+# must exist as models on the LiteLLM proxy. Override with a comma-separated TRIAL_MODELS
+# env var only if the proxy uses different names (then align the Moodle actionconfig too).
+TRIAL_MODELS: list[str] = [
+    m.strip()
+    for m in os.environ.get(
+        "TRIAL_MODELS",
+        "wunderbyte-privat,wunderbyte-privat-mini,wunderbyte-embeddings",
+    ).split(",")
+    if m.strip()
+]
+
+# Primary model reported back to Moodle (informational only — Moodle configures all
+# three actions itself). Defaults to the first granted alias.
+TRIAL_MODEL_ALIAS: str = os.environ.get(
+    "TRIAL_MODEL_ALIAS", TRIAL_MODELS[0] if TRIAL_MODELS else "wunderbyte-privat"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +155,7 @@ async def _create_trial_key(site_id: str, wwwroot: str) -> str:
 
     payload = {
         "key_alias": f"wunderbyte-privat-{site_id}",
-        "models": [TRIAL_MODEL_ALIAS],
+        "models": TRIAL_MODELS,
         "max_budget": TRIAL_BUDGET_USD,
         "budget_duration": f"{TRIAL_DAYS}d",
         "expires": expires_at,
