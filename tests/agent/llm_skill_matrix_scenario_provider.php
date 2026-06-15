@@ -816,6 +816,176 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'core.diagnose_notifications' => [
+                'prompt' => 'Diagnose the notification situation for {{teacher_fullname}} in this course.',
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'core.diagnose_permissions' => [
+                'prompt' => 'List the permissions of {{teacher_fullname}} for the capability '
+                    . 'mod/booking:addoption in this course.',
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.diagnose_enrolment' => [
+                'prompt' => 'Diagnose enrolment issues for {{teacher_fullname}} in this course.',
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.diagnose_access' => [
+                'prompt' => 'Diagnose the course access of {{teacher_fullname}} in this course.',
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.diagnose_grades' => [
+                'prompt' => 'Diagnose the grades of {{teacher_fullname}} in this course.',
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.add_activity' => [
+                'prompt' => 'Add a text label saying "Welcome {{batch_label}}" at the top of this course.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.add_quiz' => [
+                'prompt' => 'Create a quiz titled "Quiz {{batch_label}}" in this course.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.update_activity' => [
+                'setup' => 'prepare_course_activity_scenario',
+                'prompt' => 'Rename the activity "{{existing_activity_name}}" to "Updated activity {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'course.update_quiz' => [
+                'setup' => 'prepare_course_quiz_scenario',
+                'prompt' => 'Rename the quiz "{{existing_quiz_name}}" to "Updated quiz {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'oneclick.create_instance' => [
+                'prompt' => 'Use oneclick.create_instance to provision a new booking activity called '
+                    . '"Oneclick {{batch_label}}" in this course.',
+                'skip_reason' => 'Requires configured oneclick provisioner templates that are not seeded in CI.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
         ];
     }
 }

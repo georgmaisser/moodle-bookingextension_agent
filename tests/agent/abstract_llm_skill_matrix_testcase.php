@@ -572,6 +572,44 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
+     * Seed one standard course activity (page) and expose its name for update/diagnose scenarios.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_course_activity_scenario(): array {
+        $activityname = 'Matrix Activity ' . substr(sha1(uniqid('', true)), 0, 8);
+        $this->getDataGenerator()->create_module('page', [
+            'course' => (int)$this->course->id,
+            'name' => $activityname,
+        ]);
+
+        return [
+            'replacements' => [
+                'existing_activity_name' => $activityname,
+            ],
+        ];
+    }
+
+    /**
+     * Seed one quiz activity and expose its name for the update-quiz scenario.
+     *
+     * @return array<string,mixed>
+     */
+    protected function prepare_course_quiz_scenario(): array {
+        $quizname = 'Matrix Quiz ' . substr(sha1(uniqid('', true)), 0, 8);
+        $this->getDataGenerator()->create_module('quiz', [
+            'course' => (int)$this->course->id,
+            'name' => $quizname,
+        ]);
+
+        return [
+            'replacements' => [
+                'existing_quiz_name' => $quizname,
+            ],
+        ];
+    }
+
+    /**
      * Assert scenarios depending on booking rules service are executable.
      *
      * @return array<string,mixed>
