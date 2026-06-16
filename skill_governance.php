@@ -286,6 +286,10 @@ echo html_writer::end_tag('form');
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $PAGE->url]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
+// Without this, the POST carries no action/bulk and falls through to the per-skill
+// "save toggles" branch with an empty enabledskills[] — disabling every skill (and
+// never queuing the rebuild).
+echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'rebuild']);
 echo html_writer::empty_tag('input', [
     'type' => 'submit',
     'class' => 'btn btn-primary',
