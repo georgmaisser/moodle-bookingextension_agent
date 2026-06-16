@@ -420,8 +420,18 @@ foreach ($contracts as $skillname => $meta) {
     // Build the collapsible inner content.
     $bodycontent = '';
 
-    // Description.
-    $description = s((string)($meta['schema']['description'] ?? ''));
+    // Description. The normalized governance metadata in $meta does NOT carry the schema, so the
+    // description must be read from the skill's own schema (same source build_prompt_contract uses).
+    $schemadescription = '';
+    if ($skill) {
+        try {
+            $schemaarr = (array)$skill->get_schema();
+            $schemadescription = (string)($schemaarr['description'] ?? '');
+        } catch (\Throwable $e) {
+            $schemadescription = '';
+        }
+    }
+    $description = s(trim($schemadescription));
     $bodycontent .= html_writer::tag('h6', 'Description');
     $bodycontent .= html_writer::tag('p', $description ?: '<span class="text-muted">No description.</span>');
 
