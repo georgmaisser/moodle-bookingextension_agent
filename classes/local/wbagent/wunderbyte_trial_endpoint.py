@@ -9,14 +9,17 @@ Requirements
 
 Environment variables expected
 --------------------------------
-    LITELLM_MASTER_KEY   – your LiteLLM admin key (Bearer token for management API)
+    LITELLM_TRIALCREATE_KEY   – your LiteLLM admin key (Bearer token for management API)
     LITELLM_BASE_URL     – base URL of your LiteLLM instance, e.g. https://llm.wunderbyte.at
-    TRIAL_BUDGET_USD     – optional, default 2.0  ($ credit for the trial key)
+    TRIAL_BUDGET_USD     – optional, default 3.0  ($ credit for the trial key)
     TRIAL_DAYS           – optional, default 14   (lifetime of the trial key in days)
     TRIAL_MODELS         – optional, comma-separated; default
                            "wunderbyte-privat,wunderbyte-privat-mini,wunderbyte-embeddings"
                            (the model aliases the trial key may access; must match the
                            Moodle agent's actionconfig and exist on the proxy)
+    TRIAL_TEAM_ID        – optional; LiteLLM team id every trial key is created into,
+                           so trial keys are isolated from production keys and capped by
+                           the team's max_budget. The team must permit the trial models.
 
 Deployment
 ----------
@@ -48,9 +51,9 @@ router = APIRouter()
 # Configuration (from environment)
 # ---------------------------------------------------------------------------
 LITELLM_BASE_URL: str = os.environ.get("LITELLM_BASE_URL", "http://localhost:4000").rstrip("/")
-LITELLM_MASTER_KEY: str = os.environ.get("LITELLM_MASTER_KEY", "")
-TRIAL_BUDGET_USD: float = float(os.environ.get("TRIAL_BUDGET_USD", "2.0"))
-TRIAL_DAYS: int = int(os.environ.get("TRIAL_DAYS", "14"))
+LITELLM_TRIALCREATE_KEY: str = os.environ.get("LITELLM_TRIALCREATE_KEY", "")
+TRIAL_BUDGET_USD: float = float(os.environ.get("TRIAL_BUDGET_USD", "3.0"))
+TRIAL_DAYS: int = int(os.environ.get("TRIAL_DAYS", "30"))
 
 # LiteLLM model aliases the trial key is allowed to use. The Moodle agent maps its
 # actions onto these EXACT names: wunderbyte-privat (chat / agent reply / generate_text),
@@ -79,6 +82,12 @@ MAX_KEYS_PER_IP: int = int(os.environ.get("TRIAL_MAX_KEYS_PER_IP", "3"))
 MAX_ACTIVE_KEYS: int = int(os.environ.get("TRIAL_MAX_ACTIVE_KEYS", "500"))
 ACTIVE_WINDOW_DAYS: int = int(os.environ.get("TRIAL_ACTIVE_WINDOW_DAYS", "30"))
 TRIAL_ALIAS_PREFIX: str = "wunderbyte-privat-"
+
+# Optional LiteLLM team every trial key is created into, so trial keys are isolated
+# from production keys and bounded by the team's own max_budget (a hard spend backstop
+# independent of the per-key/global caps). Create the team once via /team/new — it MUST
+# permit the trial models — then set its id here. Empty -> keys are created team-less.
+TRIAL_TEAM_ID: str = os.environ.get("TRIAL_TEAM_ID", "")
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +183,7 @@ def _host_is_public(host: str) -> bool:
 
 async def _litellm_headers() -> dict:
     return {
-        "Authorization": f"Bearer {LITELLM_MASTER_KEY}",
+        "Authorization": f"Bearer {LITELLM_TRIALCREATE_KEY}",
         "Content-Type": "application/json",
     }
 
@@ -272,14 +281,15 @@ async def _create_trial_key(site_id: str, wwwroot: str, client_ip: str) -> str:
     Create a new time-limited, budget-limited LiteLLM virtual key for the trial.
     The key is tagged with the site identifier so it can be found and revoked later.
     """
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)).isoformat()
-
     payload = {
         "key_alias": f"wunderbyte-privat-{site_id}",
         "models": TRIAL_MODELS,
+        # One-time trial credit that NEVER resets: max_budget with NO budget_duration
+        # (budget_duration would refill it every period). The key instead simply expires.
         "max_budget": TRIAL_BUDGET_USD,
-        "budget_duration": f"{TRIAL_DAYS}d",
-        "expires": expires_at,
+        # Key lifetime. LiteLLM sets expiry from `duration` (e.g. "30d") — a raw `expires`
+        # timestamp is ignored, which is why earlier keys came back with expires=null.
+        "duration": f"{TRIAL_DAYS}d",
         # Allow the key to read its OWN budget/usage via GET /key/info (the Moodle
         # usage bar self-looks-up with this key). Without this, keys default to
         # "llm_api_routes" only and every /key/info call is rejected with 403.
@@ -295,6 +305,10 @@ async def _create_trial_key(site_id: str, wwwroot: str, client_ip: str) -> str:
         },
         ## "tags": ["moodle-trial"],
     }
+
+    # Isolate trial keys in their own team (and under its budget) when configured.
+    if TRIAL_TEAM_ID:
+        payload["team_id"] = TRIAL_TEAM_ID
 
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
