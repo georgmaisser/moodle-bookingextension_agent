@@ -176,6 +176,15 @@ class trial_provisioner {
             return $this->fail(get_string('aitrial_already_exists', 'bookingextension_agent'));
         }
 
+        // 429 = an abuse cap was hit (per-IP or global). The service sends the exact,
+        // already user-facing reason in `detail` — surface it verbatim.
+        if ($status === 429) {
+            $detail = (is_array($body) && !empty($body['detail'])) ? (string)$body['detail'] : '';
+            return $this->fail($detail !== ''
+                ? $detail
+                : get_string('aitrial_provision_failed', 'bookingextension_agent'));
+        }
+
         debugging('trial_provisioner: unexpected trial response HTTP ' . $status, DEBUG_DEVELOPER);
         return $this->fail(get_string('aitrial_provision_failed', 'bookingextension_agent'));
     }

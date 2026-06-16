@@ -37,7 +37,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,14 @@ TRIAL_MODELS: list[str] = [
 TRIAL_MODEL_ALIAS: str = os.environ.get(
     "TRIAL_MODEL_ALIAS", TRIAL_MODELS[0] if TRIAL_MODELS else "wunderbyte-privat"
 )
+
+# Abuse limits. Per-IP: how many trial keys one source IP may ever create. Global:
+# how many trial keys may exist created within the trailing ACTIVE_WINDOW_DAYS.
+# All trial keys carry the alias prefix below + request_ip/created_at in metadata.
+MAX_KEYS_PER_IP: int = int(os.environ.get("TRIAL_MAX_KEYS_PER_IP", "3"))
+MAX_ACTIVE_KEYS: int = int(os.environ.get("TRIAL_MAX_ACTIVE_KEYS", "500"))
+ACTIVE_WINDOW_DAYS: int = int(os.environ.get("TRIAL_ACTIVE_WINDOW_DAYS", "30"))
+TRIAL_ALIAS_PREFIX: str = "wunderbyte-privat-"
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +200,74 @@ async def _find_existing_key(site_id: str) -> str | None:
     return None
 
 
-async def _create_trial_key(site_id: str, wwwroot: str) -> str:
+def _client_ip(request: Request) -> str:
+    """
+    Real source IP. The service sits behind a reverse proxy, so request.client.host
+    is the proxy; prefer the first hop in X-Forwarded-For. Ensure your proxy SETS a
+    trustworthy XFF (and strips any client-supplied one), otherwise the per-IP cap
+    can be spoofed via a forged header.
+    """
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+async def _list_trial_keys() -> list[dict] | None:
+    """
+    All trial keys (full objects, so metadata/created_at are available). Returns None
+    if the list call fails — callers then fail OPEN (a LiteLLM hiccup must not block
+    legitimate trials), which is logged loudly.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                f"{LITELLM_BASE_URL}/key/list",
+                headers=await _litellm_headers(),
+                params={"return_full_object": "true", "size": 1000},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+        logger.error("Could not list trial keys for cap enforcement: %s", exc)
+        return None
+
+    raw = data.get("keys", []) if isinstance(data, dict) else data
+    out: list[dict] = []
+    for k in raw:
+        if not isinstance(k, dict):
+            # Only key hashes were returned (no return_full_object support) -> no metadata.
+            logger.warning("LiteLLM /key/list returned no full objects; per-IP cap cannot be enforced.")
+            continue
+        if str(k.get("key_alias") or "").startswith(TRIAL_ALIAS_PREFIX):
+            out.append(k)
+    return out
+
+
+def _count_keys_for_ip(keys: list[dict], ip: str) -> int:
+    return sum(1 for k in keys if (k.get("metadata") or {}).get("request_ip") == ip)
+
+
+def _count_active_keys(keys: list[dict], window_days: int) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+    n = 0
+    for k in keys:
+        created = (k.get("metadata") or {}).get("created_at") or k.get("created_at")
+        if not created:
+            n += 1  # unknown age -> count conservatively
+            continue
+        try:
+            ts = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if ts >= cutoff:
+                n += 1
+        except ValueError:
+            n += 1  # unparseable -> count conservatively
+    return n
+
+
+async def _create_trial_key(site_id: str, wwwroot: str, client_ip: str) -> str:
     """
     Create a new time-limited, budget-limited LiteLLM virtual key for the trial.
     The key is tagged with the site identifier so it can be found and revoked later.
@@ -214,6 +289,9 @@ async def _create_trial_key(site_id: str, wwwroot: str) -> str:
             "moodle_site": str(wwwroot),
             "site_id": site_id,
             "trial": True,
+            # Used by the per-IP and global trailing-window caps.
+            "request_ip": client_ip,
+            "created_at": datetime.now(timezone.utc).isoformat(),
         },
         ## "tags": ["moodle-trial"],
     }
@@ -232,22 +310,22 @@ async def _create_trial_key(site_id: str, wwwroot: str) -> str:
 # Route
 # ---------------------------------------------------------------------------
 @router.post("/moodle-trial", response_model=TrialResponse)
-async def request_moodle_trial(body: TrialRequest) -> TrialResponse:
+async def request_moodle_trial(body: TrialRequest, request: Request) -> TrialResponse:
     """
     Entry point called by the Moodle bookingextension_agent plugin when an admin clicks
     "Start my free trial".
 
     Steps
     -----
-    1. Validate the nonce via back-channel challenge.
-    2. Check if this site already has a trial key.
-       - If yes: return an informative error (409-like message in HTTP 200 body
-         because Moodle's external API layer doesn't handle non-200 well).
-    3. Create a new LiteLLM virtual key scoped to the trial model.
-    4. Return the key + endpoint to Moodle.
+    1. Verify the origin via back-channel challenge.
+    2. Reject if this site already has a trial key.
+    3. Enforce abuse caps (per-IP and global trailing window).
+    4. Create a new LiteLLM virtual key scoped to the trial models.
+    5. Return the key + endpoint to Moodle.
     """
     wwwroot_str = str(body.wwwroot).rstrip("/")
     site_id = _site_id(wwwroot_str)
+    client_ip = _client_ip(request)
 
     # -- 1. Verify origin --
     origin_ok = await _verify_origin(wwwroot_str, body.nonce)
@@ -274,9 +352,29 @@ async def request_moodle_trial(body: TrialRequest) -> TrialResponse:
             ),
         )
 
-    # -- 3. Issue a new key --
+    # -- 3. Abuse caps. List failure -> fail open (logged) so a LiteLLM hiccup
+    # cannot lock everyone out; the budget/expiry scoping still bounds the damage.
+    trial_keys = await _list_trial_keys()
+    if trial_keys is not None:
+        if _count_keys_for_ip(trial_keys, client_ip) >= MAX_KEYS_PER_IP:
+            logger.warning("Per-IP trial cap hit for %s", client_ip)
+            raise HTTPException(
+                status_code=429,
+                detail="More than three keys were created for this IP.",
+            )
+        if _count_active_keys(trial_keys, ACTIVE_WINDOW_DAYS) >= MAX_ACTIVE_KEYS:
+            logger.error("Global trial cap (%s) reached.", MAX_ACTIVE_KEYS)
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "The trial key limit has been reached. Please try again later "
+                    "or contact info@wunderbyte.at."
+                ),
+            )
+
+    # -- 4. Issue a new key --
     try:
-        apikey = await _create_trial_key(site_id, wwwroot_str)
+        apikey = await _create_trial_key(site_id, wwwroot_str, client_ip)
     except httpx.HTTPStatusError as exc:
         logger.error("LiteLLM key creation failed: %s", exc.response.text)
         raise HTTPException(status_code=502, detail="Failed to create trial key in LiteLLM : " + str(LITELLM_BASE_URL))
