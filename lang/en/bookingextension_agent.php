@@ -515,6 +515,7 @@ $string['ai_preview_not_supported_skill'] = 'A row preview is only available for
 $string['ai_privacy_check_running'] = 'Privacy check running...';
 $string['ai_privacy_precheck_summary'] = '{$a->count} entries anonymized in your request ({$a->names} names, {$a->emails} e-mails).';
 $string['ai_privacy_precheck_summary_none'] = 'Privacy check complete: no personal entries needed anonymization.';
+$string['ai_privacy_redacted_user'] = 'a user';
 $string['ai_privacy_response_note'] = 'Privacy note: personal data in this response was de-anonymized for display.';
 $string['ai_property_bookuserscompleted'] = 'Book users: mark as completed';
 $string['ai_property_bookuserstimebooked'] = 'Book users: booking time';

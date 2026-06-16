@@ -195,6 +195,12 @@ class executor implements agent_executor {
                 }
             }
 
+            // Hand the current thread id to skills that need it (duck-typed, executor stays
+            // skill-agnostic) - e.g. recall_memory re-anchors recalled tokens into this thread's map.
+            if (method_exists($skill, 'set_runtime_threadid')) {
+                $skill->set_runtime_threadid($threadid);
+            }
+
             $result = $skill->execute($input, $operatingcontextid, $userid);
             if (is_array($result) && !isset($result['skill'])) {
                 $result['skill'] = $skillname;

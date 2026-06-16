@@ -20,6 +20,7 @@ use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\privacy_anonymizer;
 
 /**
  * Skill definition for wbagent.recall_memory.
@@ -32,11 +33,27 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     /** Skill name constant. */
     public const SKILL_NAME = 'wbagent.recall_memory';
 
+    /** @var int Current (target) thread id, injected by the executor before execute(). */
+    private int $runtimethreadid = 0;
+
     /**
      * Constructor.
      */
     public function __construct() {
         parent::__construct(true, skill_risk_class::R0);
+    }
+
+    /**
+     * Receive the current thread id from the executor (duck-typed).
+     *
+     * Recalled memory carries placeholders minted under the SOURCE thread's token map; we need the
+     * current thread id to re-anchor them into this thread's map so they de-anonymize on display.
+     *
+     * @param int $threadid
+     * @return void
+     */
+    public function set_runtime_threadid(int $threadid): void {
+        $this->runtimethreadid = $threadid;
     }
 
     /**
@@ -193,6 +210,9 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             $threadid = (int)($thread->id ?? 0);
             if ($threadid > 0) {
                 $messages = $store->get_user_messages_for_thread($userid, $threadid, null, null, $query);
+                foreach ($messages as $message) {
+                    $message->sourcethreadid = $threadid;
+                }
             }
         } else {
             $datehint = trim((string)($input['date_hint'] ?? ''));
@@ -225,6 +245,9 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                     if ($threadid === 0) {
                         $threadid = (int)$candidateid;
                     }
+                    foreach ($threadmessages as $message) {
+                        $message->sourcethreadid = (int)$candidateid;
+                    }
                     $messages = array_merge($messages, $threadmessages);
                 }
             }
@@ -244,17 +267,35 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             ];
         }
 
+        // Recalled content was anonymized under its own (source) thread's token map. Re-anchor those
+        // placeholders into the current thread's map so they resolve on display; this is token-to-token
+        // only (no clear-text PII), and recall is strictly user-isolated so it never crosses users.
+        $anonymizer = new privacy_anonymizer($store);
+
         $normalizedmessages = [];
         foreach ($messages as $message) {
+            $sourcethreadid = (int)($message->sourcethreadid ?? 0);
+            $reanchor = $this->runtimethreadid > 0 && $sourcethreadid > 0;
+
+            $content = (string)($message->content ?? '');
+            if ($reanchor) {
+                $content = (string)$anonymizer->reanchor_value_for_thread($this->runtimethreadid, $sourcethreadid, $content);
+            }
+
             $structured = null;
             if ($includestructured) {
                 $decoded = json_decode((string)($message->structuredjson ?? ''), true);
-                $structured = is_array($decoded) ? $decoded : null;
+                if (is_array($decoded)) {
+                    if ($reanchor) {
+                        $decoded = $anonymizer->reanchor_value_for_thread($this->runtimethreadid, $sourcethreadid, $decoded);
+                    }
+                    $structured = $decoded;
+                }
             }
 
             $normalizedmessages[] = [
                 'role' => (string)($message->role ?? ''),
-                'content' => (string)($message->content ?? ''),
+                'content' => $content,
                 'time' => (int)($message->timecreated ?? 0),
                 'structured' => $structured,
             ];

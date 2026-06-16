@@ -497,6 +497,7 @@ $string['ai_preview_not_supported_skill'] = 'Eine Zeilenvorschau ist nur fuer Be
 $string['ai_privacy_check_running'] = 'Datenschutzpruefung laeuft...';
 $string['ai_privacy_precheck_summary'] = '{$a->count} Eintraege in der Anfrage anonymisiert ({$a->names} Namen, {$a->emails} E-Mails).';
 $string['ai_privacy_precheck_summary_none'] = 'Datenschutzpruefung abgeschlossen: keine personenbezogenen Eintraege gefunden.';
+$string['ai_privacy_redacted_user'] = 'ein:e Nutzer:in';
 $string['ai_privacy_response_note'] = 'Datenschutzhinweis: Personenbezogene Daten in dieser Antwort wurden fuer die Anzeige deanonymisiert.';
 $string['ai_property_bookuserscompleted'] = 'Nutzer:innen buchen: als abgeschlossen markieren';
 $string['ai_property_bookuserstimebooked'] = 'Nutzer:innen buchen: Buchungszeit';

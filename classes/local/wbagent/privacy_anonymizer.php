@@ -263,26 +263,29 @@ class privacy_anonymizer {
             return [
                 'message' => $message,
                 'replacedcount' => 0,
+                'redactedcount' => 0,
             ];
         }
 
         $tokenmap = $this->get_token_map($threadid);
         $entries = $tokenmap['entries'] ?? [];
-        if (!is_array($entries) || empty($entries)) {
-            return [
-                'message' => $message,
-                'replacedcount' => 0,
-            ];
+        if (!is_array($entries)) {
+            $entries = [];
         }
 
         $replacedcount = 0;
+        $redactedcount = 0;
+        // Fail closed: every ANON_USER token must resolve to its original, or - when the current
+        // thread's map has no entry for it (e.g. a placeholder surfaced from another thread via
+        // recall_memory) - be replaced by a neutral label. A raw placeholder must never reach the user.
         $displaymessage = preg_replace_callback(
             '/\bANON_USER_\d+(?:_[a-z]+)?\b/',
-            static function (array $m) use ($entries, &$replacedcount): string {
+            function (array $m) use ($entries, &$replacedcount, &$redactedcount): string {
                 $token = (string)$m[0];
-                $entry = $entries[$token] ?? null;
+                $entry = $this->resolve_token_entry($entries, $token);
                 if (!is_array($entry)) {
-                    return $token;
+                    $redactedcount++;
+                    return get_string('ai_privacy_redacted_user', 'bookingextension_agent');
                 }
 
                 $replacedcount++;
@@ -312,6 +315,7 @@ class privacy_anonymizer {
         return [
             'message' => (string)$displaymessage,
             'replacedcount' => $replacedcount,
+            'redactedcount' => $redactedcount,
         ];
     }
 
@@ -332,6 +336,95 @@ class privacy_anonymizer {
         $this->set_token_map($threadid, $tokenmap);
 
         return $sanitized;
+    }
+
+    /**
+     * Re-anchor ANON_USER tokens that were minted in another thread into the current thread's map.
+     *
+     * Recalled memory (recall_memory) surfaces content that was persisted in anonymized form under
+     * a different thread's token map, so its placeholders (e.g. ANON_USER_3_firstname) have no entry
+     * in the current thread and would otherwise leak verbatim. For each token we look up the SOURCE
+     * thread's entry and re-mint an equivalent token in the TARGET (current) thread's map via the
+     * shared {@see self::get_or_create_token()} (deduplicated by the person-stable identitykey, so
+     * the same person merges and distinct persons are renumbered). The original/value are written
+     * only into the target map entry (server-side, for later display de-anonymization) - they are
+     * never expanded into the returned text, so no clear-text PII reaches the LLM.
+     *
+     * @param int $targetthreadid current thread whose map should gain the entries
+     * @param int $sourcethreadid thread the recalled text was originally anonymized under
+     * @param mixed $value string or nested array carrying recalled (anonymized) content
+     * @return mixed value with tokens rewritten to current-thread tokens
+     */
+    public function reanchor_value_for_thread(int $targetthreadid, int $sourcethreadid, $value) {
+        if ($this->get_mode() === self::MODE_OFF) {
+            return $value;
+        }
+        if ($targetthreadid <= 0 || $sourcethreadid <= 0 || $targetthreadid === $sourcethreadid) {
+            return $value;
+        }
+
+        $sourcemap = $this->get_token_map($sourcethreadid);
+        $sourceentries = $sourcemap['entries'] ?? [];
+        if (!is_array($sourceentries) || empty($sourceentries)) {
+            return $value;
+        }
+
+        $targetmap = $this->get_token_map($targetthreadid);
+        $touched = false;
+        $result = $this->reanchor_recursive($value, $sourceentries, $targetmap, $touched);
+        if ($touched) {
+            $this->set_token_map($targetthreadid, $targetmap);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Recursively rewrite source-thread tokens to target-thread tokens in a string or nested array.
+     *
+     * @param mixed $value
+     * @param array<string,mixed> $sourceentries entries of the source thread's token map
+     * @param array $targetmap target thread token map (mutated in place via get_or_create_token)
+     * @param bool $touched set true when at least one token was re-anchored
+     * @return mixed
+     */
+    private function reanchor_recursive($value, array $sourceentries, array &$targetmap, bool &$touched) {
+        if (is_string($value)) {
+            if ($value === '' || strpos($value, 'ANON_USER_') === false) {
+                return $value;
+            }
+            return preg_replace_callback(
+                '/\bANON_USER_\d+(?:_[a-z]+)?\b/',
+                function (array $m) use ($sourceentries, &$targetmap, &$touched): string {
+                    $token = (string)$m[0];
+                    $entry = $this->resolve_token_entry($sourceentries, $token);
+                    if (!is_array($entry)) {
+                        // Unknown in the source map: leave it; the display gate redacts it fail-closed.
+                        return $token;
+                    }
+                    $touched = true;
+                    return $this->get_or_create_token(
+                        $targetmap,
+                        (string)($entry['identitykey'] ?? ''),
+                        (string)($entry['type'] ?? ''),
+                        (string)($entry['value'] ?? ''),
+                        (string)($entry['original'] ?? ''),
+                        (array)($entry['variants'] ?? [])
+                    );
+                },
+                $value
+            );
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->reanchor_recursive($item, $sourceentries, $targetmap, $touched);
+        }
+
+        return $value;
     }
 
     /**
