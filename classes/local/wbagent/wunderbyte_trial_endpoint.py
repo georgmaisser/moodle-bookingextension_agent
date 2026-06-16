@@ -29,9 +29,12 @@ The Moodle plugin will POST to  POST /api/moodle-trial
 """
 
 import hashlib
+import ipaddress
 import logging
 import os
+import socket
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -97,11 +100,26 @@ async def _verify_origin(wwwroot: str, nonce: str) -> bool:
     Back-channel challenge: fetch the Moodle challenge endpoint and check that
     it echoes back the nonce exactly.  This proves the request really originates
     from the declared domain.
+
+    Hardened against SSRF: the wwwroot comes from the (untrusted) request body, so
+    we require https and refuse any host that resolves to a private/loopback/
+    link-local/reserved address, and we do NOT follow redirects (a redirect could
+    bounce us onto an internal target). Residual risk: DNS rebinding between this
+    resolve and httpx's own resolve — acceptable for a budget-capped trial key, but
+    pin the IP here if you want belt-and-braces.
     """
-    return True  # -- DISABLED FOR TESTING --
+    parsed = urlparse(wwwroot)
+    if parsed.scheme != "https":
+        logger.warning("Rejected non-https wwwroot: %s", wwwroot)
+        return False
+    host = parsed.hostname
+    if not host or not _host_is_public(host):
+        logger.warning("Rejected wwwroot with non-public/unresolvable host: %s", wwwroot)
+        return False
+
     challenge_url = f"{wwwroot.rstrip('/')}/mod/booking/bookingextension/agent/trial_challenge.php"
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
             resp = await client.get(challenge_url, params={"token": nonce})
             if resp.status_code != 200:
                 logger.warning("Challenge failed for %s: HTTP %s", wwwroot, resp.status_code)
@@ -116,6 +134,34 @@ async def _verify_origin(wwwroot: str, nonce: str) -> bool:
     except Exception as exc:
         logger.warning("Challenge request error for %s: %s", wwwroot, exc)
         return False
+
+
+def _host_is_public(host: str) -> bool:
+    """
+    True only if every address `host` resolves to is a global/public IP. Blocks
+    SSRF to loopback, RFC1918, link-local (incl. cloud metadata 169.254.169.254),
+    reserved, multicast and unspecified ranges.
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    for info in infos:
+        ip = info[4][0]
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_multicast
+            or addr.is_unspecified
+        ):
+            return False
+    return True
 
 
 async def _litellm_headers() -> dict:
