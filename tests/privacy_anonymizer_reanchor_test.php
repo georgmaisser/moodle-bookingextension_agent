@@ -159,6 +159,44 @@ final class privacy_anonymizer_reanchor_test extends \advanced_testcase {
     }
 
     /**
+     * Command input with a token that resolves in this thread is clean; a token minted in another
+     * thread stays unresolved after de-anonymization and is detected (so the executor can fail closed).
+     *
+     * @covers \bookingextension_agent\local\wbagent\privacy_anonymizer::has_unresolved_anon_tokens
+     */
+    public function test_unresolved_command_input_token_is_detected(): void {
+        global $USER;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->getDataGenerator()->create_user([
+            'firstname' => 'Estorgan',
+            'lastname' => 'Forget',
+            'email' => 'estorgan.forget@example.com',
+        ]);
+        set_config('aiprivacymode', 'strict', 'bookingextension_agent');
+
+        $store = new conversation_store();
+        $anonymizer = new privacy_anonymizer($store);
+
+        $sourceid = (int)$this->fresh_thread($store, (int)$USER->id)->id;
+        $targetid = (int)$this->fresh_thread($store, (int)$USER->id)->id;
+
+        // Anonymize a name in the source thread to obtain a real token.
+        $sanitized = (string)$anonymizer->anonymize_value_for_llm($sourceid, 'Estorgan Forget asked.');
+        $this->assertSame(1, preg_match('/\bANON_USER_\d+(?:_[a-z]+)?\b/', $sanitized, $m));
+        $token = $m[0];
+
+        // In the source thread the token resolves to the real value -> nothing unresolved.
+        $resolved = $anonymizer->deanonymize_command_input($sourceid, ['userquery' => $token]);
+        $this->assertFalse($anonymizer->has_unresolved_anon_tokens($resolved));
+
+        // In another thread (empty map) the token cannot resolve and must be detected as unresolved.
+        $unresolved = $anonymizer->deanonymize_command_input($targetid, ['userquery' => $token]);
+        $this->assertTrue($anonymizer->has_unresolved_anon_tokens($unresolved));
+    }
+
+    /**
      * Create a fresh active thread (own course context) so source/target maps are distinct.
      *
      * @param conversation_store $store

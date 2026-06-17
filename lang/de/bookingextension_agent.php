@@ -503,6 +503,7 @@ $string['ai_preview_not_supported_skill'] = 'Eine Zeilenvorschau ist nur fuer Be
 $string['ai_privacy_check_running'] = 'Datenschutzpruefung laeuft...';
 $string['ai_privacy_precheck_summary'] = '{$a->count} Eintraege in der Anfrage anonymisiert ({$a->names} Namen, {$a->emails} E-Mails).';
 $string['ai_privacy_precheck_summary_none'] = 'Datenschutzpruefung abgeschlossen: keine personenbezogenen Eintraege gefunden.';
+$string['agent_privacy_unresolved_reference'] = 'Eine referenzierte Person konnte nicht aufgelöst werden. Bitte formuliere die Anfrage mit einem eindeutigen Namen oder einer E-Mail-Adresse neu.';
 $string['ai_privacy_redacted_user'] = 'ein:e Nutzer:in';
 $string['ai_privacy_response_note'] = 'Datenschutzhinweis: Personenbezogene Daten in dieser Antwort wurden fuer die Anzeige deanonymisiert.';
 $string['ai_property_bookuserscompleted'] = 'Nutzer:innen buchen: als abgeschlossen markieren';

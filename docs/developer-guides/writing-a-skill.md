@@ -11,6 +11,15 @@ extending `base_skill` or `core_skill_base`), declare its contracts, and registe
 a provider. The engine does the planning, gating, confirming, queuing, and replying around
 it.
 
+> **Quick start (scaffold).** You don't have to write the boilerplate by hand. Ask the agent
+> for a skill template — the `wbagent.scaffold_skill` skill turns a natural-language description
+> plus a target `component` into a downloadable ZIP containing a fully-commented skill class
+> (contract filled in, `preflight()`/`execute()` left as guided `TODO`s), a `db/access.php`
+> capability snippet, a lang snippet and a README with the exact wiring steps. The generated
+> file is contract-valid by construction and auto-discovered once dropped under
+> `<yourplugin>/classes/local/wbagent/<domain>/skills/` (no provider needed). Use this guide to
+> then implement the behaviour.
+
 ---
 
 ## 1. Anatomy

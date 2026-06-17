@@ -122,6 +122,25 @@ class executor implements agent_executor {
                 $input = $anonymizer->deanonymize_command_input($threadid, $input);
             }
 
+            // Fail closed: if a command parameter still carries an unresolved ANON_USER token after
+            // de-anonymization (e.g. a placeholder surfaced from another thread/turn), do not execute
+            // the skill with a meaningless placeholder - ask the planner to restate instead.
+            if (
+                $threadid > 0
+                && is_array($input)
+                && $anonymizer->should_anonymize_llm_backend_data()
+                && $anonymizer->has_unresolved_anon_tokens($input)
+            ) {
+                $results[] = [
+                    'status' => 'error',
+                    'detail' => get_string('agent_privacy_unresolved_reference', 'bookingextension_agent'),
+                    'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+                    'resultid' => null,
+                    'skill' => $skillname,
+                ];
+                continue;
+            }
+
             $skill = $this->registry->get_skill($skillname);
             if (!$skill) {
                 $results[] = [

@@ -252,6 +252,30 @@ class privacy_anonymizer {
     }
 
     /**
+     * Whether any string in the (already de-anonymized) value still contains an ANON_USER token.
+     *
+     * After deanonymize_command_input() a remaining placeholder means it could not be resolved to a
+     * real value (e.g. it was minted in another thread/turn). Callers use this to fail closed rather
+     * than execute a skill with a meaningless placeholder string as a parameter.
+     *
+     * @param mixed $value string or nested array
+     * @return bool
+     */
+    public function has_unresolved_anon_tokens($value): bool {
+        if (is_string($value)) {
+            return self::looks_like_anon_token($value);
+        }
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if ($this->has_unresolved_anon_tokens($item)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * De-mask assistant text for user display only (no persistence side effects).
      *
      * @param int $threadid
