@@ -56,6 +56,8 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         // Bundle shape.
         $this->assertSame('scaffolddemo.archive_item', $bundle['skillname']);
         $this->assertSame('mod/scaffolddemo:skill_scaffolddemo_archive_item', $bundle['capability']);
+        // The ZIP is named after the actual skill.
+        $this->assertSame('scaffolddemo.archive_item.zip', $bundle['zip_filename']);
         $this->assertArrayHasKey('README.md', $bundle['files']);
         $this->assertArrayHasKey(
             'classes/local/wbagent/scaffolddemo/skills/archive_item_skill.php',
@@ -71,8 +73,14 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         $zip->close();
 
         // The generated PHP loads, instantiates and passes the runtime skill contract validator.
+        $skillsource = $bundle['files']['classes/local/wbagent/scaffolddemo/skills/archive_item_skill.php'];
+        // Method docblocks must carry correct @param/@return tags, not just prose.
+        $this->assertStringContainsString('@param array $input', $skillsource);
+        $this->assertStringContainsString('@return preflight_result_v2', $skillsource);
+        $this->assertStringContainsString('@return array<int,string>', $skillsource);
+
         $skillfile = make_request_directory() . '/archive_item_skill.php';
-        file_put_contents($skillfile, $bundle['files']['classes/local/wbagent/scaffolddemo/skills/archive_item_skill.php']);
+        file_put_contents($skillfile, $skillsource);
         require($skillfile);
 
         $fqcn = 'mod_scaffolddemo\\local\\wbagent\\scaffolddemo\\skills\\archive_item_skill';
@@ -145,6 +153,23 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         $this->assertIsArray($preview);
         $this->assertStringContainsString('data:application/zip;base64,', $preview['html']);
         $this->assertStringContainsString('download="', $preview['html']);
+    }
+
+    /**
+     * When the namespace derived from the component is reserved (booking/core/wbagent), the
+     * generator falls back to the full component name instead of rejecting it.
+     */
+    public function test_generator_falls_back_for_reserved_namespace(): void {
+        $this->resetAfterTest();
+
+        $bundle = skill_template_generator::generate([
+            'component' => 'local/wbagent',
+            'description' => 'Do a custom thing.',
+            // No skillname: derived namespace would be the reserved "wbagent" -> falls back.
+        ]);
+
+        $this->assertStringStartsWith('local_wbagent.', $bundle['skillname']);
+        $this->assertSame($bundle['skillname'] . '.zip', $bundle['zip_filename']);
     }
 
     /**

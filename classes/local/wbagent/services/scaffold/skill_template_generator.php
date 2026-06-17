@@ -234,6 +234,8 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
 
     /**
      * Unique, namespaced skill name: "<namespace>.<action>", lowercase, matching ^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$.
+     *
+     * @return string
      */
     public function get_name(): string {
         return '{{SKILLNAME}}';
@@ -247,6 +249,8 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
      * - every entry in 'properties' needs: type, a one-sentence 'description' (the LLM reads it), and required(bool).
      * - 'prompt_meta.intent': one line; 'anchor_fields': the main lookup field(s).
      * - For R2/R3 skills 'context_scopes' is MANDATORY (e.g. ['module','course']) or the skill is rejected.
+     *
+     * @return array
      */
     public function get_schema(): array {
         return [
@@ -267,13 +271,18 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
     /**
      * Native Moodle capabilities the underlying action requires (enforced in preflight via
      * require_native_capabilities()). Return [] for a purely read-only skill with no extra gate.
+     *
+     * @return array<int,string>
      */
     public function get_required_native_capabilities(): array {
         return [{{CAPABILITIES}}];
     }
 
     /**
-     * Cheap, pure structural validation (NO database access). Return ['valid'=>bool,'errors'=>[]].
+     * Cheap, pure structural validation (NO database access).
+     *
+     * @param array $input raw input from the planner
+     * @return array{valid: bool, errors: array<int,string>}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -290,6 +299,11 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
      *   preflight_result_v2::ok($preparedinput)             - ready to execute
      *   preflight_result_v2::confirmable($prepared, $issues) - needs user confirmation
      *   preflight_result_v2::invalid($issues)                - cannot proceed
+     *
+     * @param array $input raw input from the planner
+     * @param int $contextid operating context id
+     * @param int $userid acting user id
+     * @return preflight_result_v2
      */
     public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
         // TODO (you): resolve the target entity from $input, authorise via
@@ -298,8 +312,12 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
     }
 
     /**
-     * Perform the action. Use ONLY $preparedinput from preflight() - do not re-resolve. Return a
-     * result array: ['status' => 'executed', 'detail' => '...', 'observation_full' => '...'].
+     * Perform the action. Use ONLY $preparedinput from preflight() - do not re-resolve.
+     *
+     * @param array $preparedinput prepared input returned by preflight()
+     * @param int $contextid operating context id
+     * @param int $userid acting user id
+     * @return array result, e.g. ['status' => 'executed', 'detail' => '...', 'observation_full' => '...']
      */
     public function execute(array $preparedinput, int $contextid, int $userid): array {
         // TODO (you): implement the real behaviour here, then remove this placeholder return.
@@ -317,6 +335,11 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
     /**
      * Optional rich preview of the result (rendered in the agent's side panel). While unimplemented
      * this shows an "under construction" card; replace it with a real preview of your output.
+     *
+     * @param array $resultentry the stored result entry from execute()
+     * @param int $contextid operating context id
+     * @param int $userid acting user id
+     * @return array|null preview descriptor (e.g. ['type' => ..., 'html' => ...]) or null for no preview
      */
     public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
         return [
@@ -330,6 +353,8 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
 
     /**
      * Example phrases that should route the planner to this skill. Keep them natural and varied.
+     *
+     * @return array<int,array<string,mixed>>
      */
     public function get_message_triggers(): array {
         return [
@@ -512,7 +537,8 @@ PHP;
         $bytes = (string)file_get_contents($zippath);
         @unlink($zippath);
 
-        $filename = 'skill_' . preg_replace('/[^a-z0-9]+/', '_', $spec['skillname']) . '_template.zip';
+        // Name the archive after the actual skill, e.g. "myplugin.archive_item.zip".
+        $filename = $spec['skillname'] . '.zip';
         return [base64_encode($bytes), $filename];
     }
 
@@ -607,7 +633,19 @@ PHP;
     private static function derive_namespace(string $component): string {
         $parts = preg_split('#[/_]#', $component) ?: [];
         $candidate = self::slugify((string)end($parts));
-        return $candidate !== '' ? $candidate : 'myplugin';
+        if ($candidate === '') {
+            $candidate = 'myplugin';
+        }
+        // Reserved namespaces (booking/core/wbagent) belong to the agent engine. If the derived
+        // namespace is reserved, fall back to the full component name (e.g. local/wbagent ->
+        // local_wbagent), which is unique to the plugin and never reserved.
+        if (!skill_contract_validator::component_may_register_namespace($component, $candidate)) {
+            $fallback = self::slugify(str_replace('/', '_', $component));
+            if ($fallback !== '') {
+                $candidate = $fallback;
+            }
+        }
+        return $candidate;
     }
 
     /**
