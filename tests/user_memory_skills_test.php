@@ -17,7 +17,9 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
+use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\wbagent\skills\forget_skill;
+use bookingextension_agent\local\wbagent\wbagent\skills\recall_memory_skill;
 use bookingextension_agent\local\wbagent\wbagent\skills\list_memories_skill;
 use bookingextension_agent\local\wbagent\wbagent\skills\remember_skill;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
@@ -47,6 +49,52 @@ final class user_memory_skills_test extends advanced_testcase {
         $this->assertContains('wbagent.remember', $names);
         $this->assertContains('wbagent.forget', $names);
         $this->assertContains('wbagent.list_memories', $names);
+    }
+
+    /**
+     * recall_memory surfaces a readable, timezone-adjusted timestamp per message in its observation,
+     * so temporal recalls keep the "when", not just the "what".
+     *
+     * @covers \bookingextension_agent\local\wbagent\wbagent\skills\recall_memory_skill
+     */
+    public function test_recall_memory_observation_includes_readable_timestamps(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $user = $this->getDataGenerator()->create_user();
+        $contextid = (int)\context_system::instance()->id;
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$user->id, $contextid);
+
+        $ts = make_timestamp(2026, 6, 1, 10, 0);
+        $DB->insert_record('local_wbagent_ai_messages', (object)[
+            'threadid' => (int)$thread->id,
+            'userid' => (int)$user->id,
+            'role' => 'user',
+            'content' => 'How many options are there?',
+            'structuredjson' => null,
+            'timecreated' => $ts,
+        ]);
+        $DB->insert_record('local_wbagent_ai_messages', (object)[
+            'threadid' => (int)$thread->id,
+            'userid' => (int)$user->id,
+            'role' => 'assistant',
+            'content' => 'There are three options.',
+            'structuredjson' => null,
+            'timecreated' => $ts + 60,
+        ]);
+        // recall_memory returns a PREVIOUS conversation, not the current active one; mark it archived.
+        $DB->set_field('local_wbagent_ai_threads', 'status', 'archived', ['id' => (int)$thread->id]);
+
+        $result = (new recall_memory_skill())->execute(['mode' => 'last_thread'], $contextid, (int)$user->id);
+
+        $this->assertSame('executed', $result['status']);
+        $observation = (string)$result['observation_full'];
+        $this->assertStringContainsString('USER_PREVIOUS', $observation);
+        // The readable, timezone-adjusted timestamp of the message appears in the observation.
+        $this->assertStringContainsString(userdate($ts, get_string('strftimedatetimeshort', 'langconfig')), $observation);
     }
 
     /**

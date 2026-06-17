@@ -21,6 +21,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\services\observation_time;
 
 /**
  * Skill definition for wbagent.recall_memory.
@@ -301,7 +302,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             ];
         }
 
-        $observation = $this->build_memory_observation_text($normalizedmessages);
+        $observation = $this->build_memory_observation_text($normalizedmessages, $fromtimestamp, $totimestamp);
 
         return [
             'status' => 'executed',
@@ -414,8 +415,20 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
      * @param array<int,array<string,mixed>> $messages
      * @return string
      */
-    private function build_memory_observation_text(array $messages): string {
-        $lines = ['[MEMORY_CONTEXT] Historical messages from earlier discussion, not the current turn.'];
+    private function build_memory_observation_text(
+        array $messages,
+        ?int $fromtimestamp = null,
+        ?int $totimestamp = null
+    ): string {
+        // Give the model temporal context: the recalled window (date_window mode) plus a readable,
+        // timezone-adjusted timestamp per message, so "yesterday"/"last friday" recalls can be
+        // answered with the actual when, not just the what.
+        $header = '[MEMORY_CONTEXT] Historical messages from earlier discussion, not the current turn.';
+        if (!empty($fromtimestamp) && !empty($totimestamp)) {
+            $header .= ' (period: ' . observation_time::format((int)$fromtimestamp)
+                . ' - ' . observation_time::format((int)$totimestamp) . ')';
+        }
+        $lines = [$header];
         $userindex = 1;
         $assistantindex = 1;
 
@@ -426,14 +439,17 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 continue;
             }
 
+            $time = (int)($message['time'] ?? 0);
+            $stamp = $time > 0 ? (' · ' . observation_time::format($time)) : '';
+
             if ($role === 'user') {
-                $lines[] = '[USER_PREVIOUS ' . $userindex . '] ' . $content;
+                $lines[] = '[USER_PREVIOUS ' . $userindex . $stamp . '] ' . $content;
                 $userindex++;
                 continue;
             }
 
             if ($role === 'assistant') {
-                $lines[] = '[ASSISTANT_PREVIOUS ' . $assistantindex . '] ' . $content;
+                $lines[] = '[ASSISTANT_PREVIOUS ' . $assistantindex . $stamp . '] ' . $content;
                 $assistantindex++;
             }
         }
