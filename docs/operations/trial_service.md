@@ -62,14 +62,45 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
    (A `proxy_admin` key is rotatable/revocable independently of the master; for true least
    privilege scope it to the `moodle-trials` team — verify the team-admin sequence against
    your LiteLLM Swagger at `http://127.0.0.1:4000/docs`.)
-4. **Spend alerting** (LiteLLM-native, not service code) in the proxy `config.yaml`:
+4. **Spend alerting via e-mail to the main admin** (LiteLLM-native, not service code).
+   LiteLLM sends budget alerts over SMTP; the recipient is **the e-mail on the account that
+   owns the budget**, so put the **main/super-admin's e-mail** on the `moodle-trials` team admin
+   (or the scoped service user from step 3) — there is no standalone "send alerts to X" address.
+
+   a. Set the recipient by giving the owning account the main admin's e-mail (re-run/patch step 2/3):
+   ```bash
+   # On user/new (step 3) or via /user/update, attach the admin alert address:
+   curl -X POST 'http://127.0.0.1:4000/user/update' \
+     -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
+     -d '{"user_id":"<moodle-trial-service user id>","user_email":"<main admin e-mail>"}'
+   ```
+
+   b. Enable SMTP e-mail alerting in the proxy `config.yaml`:
    ```yaml
+   litellm_settings:
+     callbacks: ["smtp_email"]
    general_settings:
-     alerting: ["slack"]
+     alerting: ["email"]
      alert_types: ["budget_alerts", "spend_reports"]
      spend_report_frequency: "1d"
-   # env: SLACK_WEBHOOK_URL="https://hooks.slack.com/services/…"
    ```
+
+   c. SMTP env (docker-compose.yml on the trial server). Use Wunderbyte's own SMTP relay so the
+   alert comes from a Wunderbyte address:
+   ```bash
+   SMTP_HOST="<wunderbyte smtp host>"
+   SMTP_PORT="587"
+   SMTP_TLS="True"
+   SMTP_USERNAME="<smtp user>"
+   SMTP_PASSWORD="<smtp password>"
+   SMTP_SENDER_EMAIL="alerts@wunderbyte.at"   # the From: address
+   # Optional tuning:
+   EMAIL_BUDGET_ALERT_MAX_SPEND_ALERT_PERCENTAGE=0.8   # alert at 80% of max_budget
+   EMAIL_BUDGET_ALERT_TTL=86400                        # at most one alert per 24h
+   ```
+   Verify after deploy: drive a trial key close to its budget (or lower a soft budget) and confirm
+   the main admin receives the alert. (LiteLLM e-mail alerting docs:
+   https://docs.litellm.ai/docs/proxy/email and https://docs.litellm.ai/docs/proxy/alerting.)
 
 ## Reverse proxy / client IP (required for the per-IP cap)
 
