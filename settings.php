@@ -133,6 +133,22 @@ if ($agentenabled) {
         }
     }
 
+    // If no PRO license grants access but the agent's LLM calls run over the Wunderbyte LLM
+    // endpoint (active trial or subscription at llm.wunderbyte.at), make clear that a Pro license
+    // is not currently required. Note: trial vs. subscription cannot be distinguished Moodle-side -
+    // both simply route through the Wunderbyte endpoint; enforcement happens at the gateway.
+    $accessservice = '\\bookingextension_agent\\local\\wbagent\\services\\agent_access_service';
+    if (
+        class_exists('bookingextension_agent\\local\\wb_license')
+        && class_exists($accessservice)
+        && !\bookingextension_agent\local\wb_license::agent_license_is_activated()
+        && $accessservice::runs_on_wunderbyte_llm()
+    ) {
+        $licensekeydesc = "<p style='color: green; font-weight: bold'>"
+            . get_string('licensenotrequiredviaendpoint', 'bookingextension_agent')
+            . '</p>' . $licensekeydesc;
+    }
+
     $aisettingspage->add(
         new admin_setting_configtext(
             'bookingextension_agent/licensekey',

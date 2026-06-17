@@ -825,6 +825,7 @@ $string['inject_in_navbar'] = 'Show magic wand in the navbar';
 $string['inject_in_navbar_desc'] = 'Adds the AI agent magic-wand icon to the navbar on all Moodle pages (for users holding the agent capability in the current context). The agent panel itself is only loaded when the icon is clicked.';
 $string['licenseactivated'] = 'Agent license activated! (Valid until: {$a})';
 $string['licenseactivatedviabooking'] = 'Agent license activated via the combined Booking + Agent key in the Booking license setting.';
+$string['licensenotrequiredviaendpoint'] = 'A Pro license is not currently required: the agent runs over the llm.wunderbyte.at endpoint (active trial or subscription). Usage is enforced at the Wunderbyte gateway.';
 $string['licenseexpired'] = 'Agent license expired on {$a}. Please renew it.';
 $string['licenseinvalid'] = 'Invalid license key. The key must be issued for the product "wbagent" or "bookingagent" (Booking + Agent) and for this wwwroot.';
 $string['licensekey'] = 'Agent license key';

@@ -790,6 +790,7 @@ $string['inject_in_navbar'] = 'Zauberstab in der Navbar anzeigen';
 $string['inject_in_navbar_desc'] = 'Zeigt das Zauberstab-Symbol des KI-Agenten in der Navbar auf allen Moodle-Seiten (für Nutzer/innen mit der Agent-Berechtigung im jeweiligen Kontext). Das Agent-Panel selbst wird erst beim Klick auf das Symbol geladen.';
 $string['licenseactivated'] = 'Agent-Lizenz aktiviert! (Gültig bis: {$a})';
 $string['licenseactivatedviabooking'] = 'Agent-Lizenz über den kombinierten Booking + Agent-Schlüssel in der Booking-Lizenzeinstellung aktiviert.';
+$string['licensenotrequiredviaendpoint'] = 'Eine Pro-Lizenz ist aktuell nicht erforderlich: Der Agent läuft über den llm.wunderbyte.at-Endpoint (aktiver Trial oder Abo). Die Nutzung wird am Wunderbyte-Gateway durchgesetzt.';
 $string['licenseexpired'] = 'Agent-Lizenz am {$a} abgelaufen. Bitte erneuern.';
 $string['licenseinvalid'] = 'Ungültiger Lizenzschlüssel. Der Schlüssel muss für das Produkt "wbagent" oder "bookingagent" (Booking + Agent) und für diese wwwroot ausgestellt sein.';
 $string['licensekey'] = 'Agent-Lizenzschlüssel';
