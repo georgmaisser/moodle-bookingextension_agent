@@ -29,21 +29,13 @@ use core\di;
 use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wbagent\dto\agent_context;
+use bookingextension_agent\local\wbagent\services\agent_access_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
  * Central readiness state for the booking AI panel.
  */
 class aiready {
-    /** Wunderbyte provider class name. */
-    private const WB_PROVIDER_CLASS = 'aiprovider_wunderbyte\\provider';
-
-    /** Legacy trial provider class name used via OpenAI compatibility. */
-    private const WB_LEGACY_PROVIDER_CLASS = 'aiprovider_openai\\provider';
-
-    /** Legacy trial provider display name. */
-    private const WB_LEGACY_PROVIDER_NAME = 'Wunderbyte';
-
     /** Wunderbyte planner action class name. */
     private const WB_ACTION_PLANNER_DECIDE = '\\aiprovider_wunderbyte\\aiactions\\planner_decide';
 
@@ -128,14 +120,12 @@ class aiready {
                 $manager = di::get(ai_manager::class);
                 $providersconfigured = !empty($manager->get_provider_instances());
 
-                $hasnativewunderbyteprovider = !empty($manager->get_provider_instances([
-                    'provider' => self::WB_PROVIDER_CLASS,
-                ]));
-                $haslegacywunderbyteprovider = !empty($manager->get_provider_instances([
-                    'name' => self::WB_LEGACY_PROVIDER_NAME,
-                    'provider' => self::WB_LEGACY_PROVIDER_CLASS,
-                ]));
-                $haswunderbyteprovider = $hasnativewunderbyteprovider || $haslegacywunderbyteprovider;
+                // Endpoint-based detection (no provider name/class heuristic): an instance counts
+                // as the Wunderbyte trial/subscription only when its action endpoint actually
+                // targets the Wunderbyte LLM gateway. A wunderbyte provider pointed elsewhere is
+                // deliberately excluded. Disabled instances are included so the "activate" path
+                // can still find a configured-but-off trial.
+                $haswunderbyteprovider = !empty(agent_access_service::find_wunderbyte_llm_instances(false));
 
                 // Use shared factory fallback so readiness checks stay available
                 // even when strict skill-governance blocks full registry boot.

@@ -129,6 +129,58 @@ class agent_access_service {
     }
 
     /**
+     * Find provider instances whose action endpoints point at the Wunderbyte LLM gateway.
+     *
+     * Endpoint-based detection that replaces any provider-name/-class heuristic: an instance
+     * counts only when it actually targets a wunderbyte.at host, so a Wunderbyte provider that
+     * is pointed at a different endpoint is deliberately NOT matched. Scans every instance
+     * (including disabled ones) so the trial "activate" path can find a configured-but-off trial.
+     *
+     * @param bool $enabledonly Only consider enabled instances.
+     * @return array<int,object> Matching provider instances.
+     */
+    public static function find_wunderbyte_llm_instances(bool $enabledonly = false): array {
+        try {
+            $manager = di::get(ai_manager::class);
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $matches = [];
+        foreach ((array)$manager->get_provider_instances() as $instance) {
+            if ($enabledonly && empty($instance->enabled)) {
+                continue;
+            }
+            if (self::instance_targets_wunderbyte_llm($instance)) {
+                $matches[] = $instance;
+            }
+        }
+
+        return array_values($matches);
+    }
+
+    /**
+     * Whether a provider instance's configured action endpoints point at the Wunderbyte LLM gateway.
+     *
+     * Reads the instance's own actionconfig (no manager routing), so it works for disabled
+     * instances too. True as soon as any configured action endpoint is a wunderbyte.at host.
+     *
+     * @param object $instance A core_ai provider instance.
+     * @return bool
+     */
+    public static function instance_targets_wunderbyte_llm(object $instance): bool {
+        $actionconfig = (array)($instance->actionconfig ?? []);
+        foreach ($actionconfig as $cfg) {
+            $settings = (array)(($cfg ?? [])['settings'] ?? []);
+            $endpoint = trim((string)($settings['endpoint'] ?? $settings['apiendpoint'] ?? ''));
+            if ($endpoint !== '' && self::is_wunderbyte_host($endpoint)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Resolve the configured endpoint of the primary enabled provider for an action.
      *
      * @param ai_manager $manager

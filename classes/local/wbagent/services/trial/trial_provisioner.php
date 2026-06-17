@@ -206,10 +206,12 @@ class trial_provisioner {
         $config = ['apikey' => $apikey];
         $actionconfig = $this->build_actionconfig($strategy, $endpoint);
 
-        $existing = (array)$manager->get_provider_instances([
-            'name' => self::INSTANCE_NAME,
-            'provider' => $classname,
-        ]);
+        // Re-find OUR instance by endpoint (targets the Wunderbyte LLM) + provider class — not by
+        // display name. INSTANCE_NAME below is only the label we give a freshly created instance.
+        $existing = array_values(array_filter(
+            \bookingextension_agent\local\wbagent\services\agent_access_service::find_wunderbyte_llm_instances(false),
+            static fn($instance) => (string)($instance->provider ?? '') === $classname
+        ));
 
         if ($existing) {
             $instance = reset($existing);
