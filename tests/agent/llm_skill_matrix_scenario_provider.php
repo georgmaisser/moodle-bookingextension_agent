@@ -32,7 +32,16 @@ use bookingextension_agent\local\wbagent\skill_registry_factory;
  */
 final class llm_skill_matrix_scenario_provider {
     /**
-     * Build provider rows for all skills currently registered in the live registry.
+     * Components whose skills the real-LLM smoke matrix exercises. Third-party skills (e.g. from
+     * bookingextension/oneclick or local/entities) are intentionally out of scope: they must not
+     * produce smoke failures here, only our own mod/booking + agent skills do.
+     *
+     * @var array<int,string>
+     */
+    private const SMOKE_OWNED_COMPONENTS = ['mod/booking', 'bookingextension/agent'];
+
+    /**
+     * Build provider rows for the registered skills owned by mod/booking + the agent.
      *
      * @return array<string,array{0:array<string,mixed>}>
      */
@@ -43,7 +52,10 @@ final class llm_skill_matrix_scenario_provider {
         ksort($contracts);
 
         $rows = [];
-        foreach (array_keys($contracts) as $skillname) {
+        foreach ($contracts as $skillname => $contract) {
+            if (!self::is_owned_smoke_skill((array)$contract)) {
+                continue;
+            }
             $scenario = $definitions[$skillname] ?? [
                 'prompt' => '',
                 'missing_definition' => true,
@@ -57,7 +69,7 @@ final class llm_skill_matrix_scenario_provider {
     }
 
     /**
-     * Return registry skill names that still have no explicit scenario definition.
+     * Return owned (mod/booking + agent) skill names that still have no explicit scenario definition.
      *
      * @return array<int,string>
      */
@@ -66,7 +78,10 @@ final class llm_skill_matrix_scenario_provider {
         $registry = skill_registry_factory::get_default();
         $missing = [];
 
-        foreach ($registry->get_skill_names() as $skillname) {
+        foreach ($registry->get_skill_contracts() as $skillname => $contract) {
+            if (!self::is_owned_smoke_skill((array)$contract)) {
+                continue;
+            }
             if (!array_key_exists($skillname, $definitions)) {
                 $missing[] = $skillname;
             }
@@ -74,6 +89,16 @@ final class llm_skill_matrix_scenario_provider {
 
         sort($missing);
         return $missing;
+    }
+
+    /**
+     * Whether a skill contract belongs to a component the smoke matrix covers.
+     *
+     * @param array<string,mixed> $contract registry skill contract metadata
+     * @return bool
+     */
+    private static function is_owned_smoke_skill(array $contract): bool {
+        return in_array(trim((string)($contract['component'] ?? '')), self::SMOKE_OWNED_COMPONENTS, true);
     }
 
     /**
