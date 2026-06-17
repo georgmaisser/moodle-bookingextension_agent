@@ -173,14 +173,13 @@ class agent_decision_service {
         int $previewoptionid
     ): array {
         // Context id is provided directly by the caller (context-agnostic decision path).
-        if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
-            $expiredblocked = $this->queuesvc->fail_expired_blocked_items($threadid);
-            if ($expiredblocked > 0) {
-                $result['issue_codes'] = array_values(array_unique(array_merge(
-                    (array)($result['issue_codes'] ?? []),
-                    ['BLOCKED_CONFIRMATION_TIMEOUT']
-                )));
-            }
+        // Stale blocked_confirmation items are always expired (no admin toggle).
+        $expiredblocked = $this->queuesvc->fail_expired_blocked_items($threadid);
+        if ($expiredblocked > 0) {
+            $result['issue_codes'] = array_values(array_unique(array_merge(
+                (array)($result['issue_codes'] ?? []),
+                ['BLOCKED_CONFIRMATION_TIMEOUT']
+            )));
         }
         // 1. Preview shortcut: if the user asked for a preview and one is available.
         if ($previewoptionid > 0 && trigger_result_util::has_trigger($result, 'core.is_preview_request')) {
@@ -702,15 +701,14 @@ class agent_decision_service {
                 $dependson[] = (string)$mutatingqueueids[$idx - 1];
             }
             $dependson = array_values(array_unique(array_filter($dependson)));
-            if ((bool)get_config('bookingextension_agent', 'queue_dag_validation_enabled')) {
-                $existingitems = $this->queuesvc->get_queue_items($threadid);
-                if (!$this->queuesvc->validate_depends_on_is_dag($existingitems, $dependson)) {
-                    $result['issue_codes'] = array_values(array_unique(array_merge(
-                        (array)($result['issue_codes'] ?? []),
-                        ['DEPENDENCY_CYCLE']
-                    )));
-                    $status = 'failed';
-                }
+            // Queue depends_on links are always validated as an acyclic graph (no admin toggle).
+            $existingitems = $this->queuesvc->get_queue_items($threadid);
+            if (!$this->queuesvc->validate_depends_on_is_dag($existingitems, $dependson)) {
+                $result['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    ['DEPENDENCY_CYCLE']
+                )));
+                $status = 'failed';
             }
             $queued = $this->queuesvc->enqueue_command(
                 $threadid,

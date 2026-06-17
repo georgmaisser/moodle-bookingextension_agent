@@ -160,19 +160,10 @@ if ($agentenabled) {
 
     $aisettingspage->add(
         new admin_setting_configcheckbox(
-            'bookingextension_agent/aidebugmode',
-            get_string('aidebugmode', 'bookingextension_agent'),
-            get_string('aidebugmode_desc', 'bookingextension_agent'),
-            0
-        )
-    );
-
-    $aisettingspage->add(
-        new admin_setting_configcheckbox(
             'bookingextension_agent/inject_in_navbar',
             get_string('inject_in_navbar', 'bookingextension_agent'),
             get_string('inject_in_navbar_desc', 'bookingextension_agent'),
-            0
+            1
         )
     );
 
@@ -250,39 +241,17 @@ if ($agentenabled) {
 
     $aisettingspage->add(
         new admin_setting_configcheckbox(
-            'bookingextension_agent/aigovernancestrictmode',
-            get_string('aigovernancestrictmode', 'bookingextension_agent'),
-            get_string('aigovernancestrictmode_desc', 'bookingextension_agent'),
+            'bookingextension_agent/aidebugmode',
+            get_string('aidebugmode', 'bookingextension_agent'),
+            get_string('aidebugmode_desc', 'bookingextension_agent'),
             0
         )
     );
 
-    $aisettingspage->add(
-        new admin_setting_configcheckbox(
-            'bookingextension_agent/queue_dag_validation_enabled',
-            get_string('queue_dag_validation_enabled', 'bookingextension_agent'),
-            get_string('queue_dag_validation_enabled_desc', 'bookingextension_agent'),
-            1
-        )
-    );
-
-    $aisettingspage->add(
-        new admin_setting_configcheckbox(
-            'bookingextension_agent/queue_blocked_ttl_enabled',
-            get_string('queue_blocked_ttl_enabled', 'bookingextension_agent'),
-            get_string('queue_blocked_ttl_enabled_desc', 'bookingextension_agent'),
-            1
-        )
-    );
-
-    $aisettingspage->add(
-        new admin_setting_configcheckbox(
-            'bookingextension_agent/preflight_audit_enabled',
-            get_string('preflight_audit_enabled', 'bookingextension_agent'),
-            get_string('preflight_audit_enabled_desc', 'bookingextension_agent'),
-            0
-        )
-    );
+    // Queue depends_on DAG validation and blocked-confirmation TTL expiry are always on (no admin
+    // toggle). Governance strict mode (fail registry init on contract diagnostics) is a CI/dev tool,
+    // not an admin setting — it stays off by default and can be forced via set_config in CI.
+    // Preflight audit logging was retired (wrote to thread metadata, never surfaced) — no setting.
 
     $adminroot->add('modbookingfolder', new admin_externalpage(
         'bookingextension_agent_skillgovernance',

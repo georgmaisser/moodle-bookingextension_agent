@@ -106,8 +106,7 @@ class queue_manager {
         $contextid = $this->resolve_thread_contextid($threadid);
 
         if (
-            (bool)get_config('bookingextension_agent', 'queue_dag_validation_enabled')
-            && !empty($dependson)
+            !empty($dependson)
             && !$this->validate_depends_on_is_dag($items, $dependson)
         ) {
             $now = time();
@@ -853,10 +852,6 @@ class queue_manager {
      * @return int
      */
     private function resolve_blocked_ttl_seconds(string $riskclass): int {
-        if (!(bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
-            return 0;
-        }
-
         $riskclass = $this->normalize_risk_class($riskclass);
         if ($riskclass === skill_risk_class::R2) {
             return 300;

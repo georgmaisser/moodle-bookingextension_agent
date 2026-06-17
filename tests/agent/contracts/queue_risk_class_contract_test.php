@@ -42,18 +42,15 @@ final class queue_risk_class_contract_test extends TestCase {
             ->getMock();
         $queuesvc = new queue_manager($store);
 
-        $previousenabled = get_config('bookingextension_agent', 'queue_blocked_ttl_enabled');
         $previousttl = get_config('bookingextension_agent', 'queue_blocked_ttl_seconds');
 
         try {
-            set_config('queue_blocked_ttl_enabled', '1', 'bookingextension_agent');
             set_config('queue_blocked_ttl_seconds', '1111', 'bookingextension_agent');
 
             $this->assertSame(900, $this->invoke_private_method($queuesvc, 'resolve_blocked_ttl_seconds', [skill_risk_class::R1]));
             $this->assertSame(300, $this->invoke_private_method($queuesvc, 'resolve_blocked_ttl_seconds', [skill_risk_class::R2]));
             $this->assertSame(900, $this->invoke_private_method($queuesvc, 'resolve_blocked_ttl_seconds', [skill_risk_class::R3]));
         } finally {
-            set_config('queue_blocked_ttl_enabled', (string)($previousenabled ? $previousenabled : '0'), 'bookingextension_agent');
             set_config('queue_blocked_ttl_seconds', (string)($previousttl ? $previousttl : '900'), 'bookingextension_agent');
         }
     }
@@ -67,33 +64,26 @@ final class queue_risk_class_contract_test extends TestCase {
             ->getMock();
         $queuesvc = new queue_manager($store);
 
-        $previousenabled = get_config('bookingextension_agent', 'queue_blocked_ttl_enabled');
-        try {
-            set_config('queue_blocked_ttl_enabled', '1', 'bookingextension_agent');
-
-            $this->assertSame(1300, $this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
-                'blocked_confirmation',
-                1000,
-                skill_risk_class::R2,
-            ]));
-            $this->assertSame(1900, $this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
-                'blocked_confirmation',
-                1000,
-                skill_risk_class::R1,
-            ]));
-            $this->assertSame(1900, $this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
-                'blocked_confirmation',
-                1000,
-                skill_risk_class::R3,
-            ]));
-            $this->assertNull($this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
-                'ready',
-                1000,
-                skill_risk_class::R2,
-            ]));
-        } finally {
-            set_config('queue_blocked_ttl_enabled', (string)($previousenabled ? $previousenabled : '0'), 'bookingextension_agent');
-        }
+        $this->assertSame(1300, $this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
+            'blocked_confirmation',
+            1000,
+            skill_risk_class::R2,
+        ]));
+        $this->assertSame(1900, $this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
+            'blocked_confirmation',
+            1000,
+            skill_risk_class::R1,
+        ]));
+        $this->assertSame(1900, $this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
+            'blocked_confirmation',
+            1000,
+            skill_risk_class::R3,
+        ]));
+        $this->assertNull($this->invoke_private_method($queuesvc, 'resolve_blocked_expires_at', [
+            'ready',
+            1000,
+            skill_risk_class::R2,
+        ]));
     }
 
     /**

@@ -131,9 +131,8 @@ class confirm_run_service {
 
         $queuesvc = new queue_manager($this->store);
         $auditlogger = new preflight_audit_logger($this->store);
-        if ((bool)get_config('bookingextension_agent', 'queue_blocked_ttl_enabled')) {
-            $queuesvc->fail_expired_blocked_items($threadid);
-        }
+        // Stale blocked_confirmation items are always expired (no admin toggle).
+        $queuesvc->fail_expired_blocked_items($threadid);
 
         $activequeueitemid = $this->resolve_pending_queue_item_id(
             $queuesvc,

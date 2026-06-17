@@ -52,6 +52,8 @@ class preflight_audit_logger {
      * @return void
      */
     public function append(int $threadid, int $runid, array $entry): void {
+        // Preflight audit logging was retired: the admin setting was removed, so this gate is now
+        // always false and nothing is written. The call sites remain harmless no-ops.
         if (!(bool)get_config('bookingextension_agent', 'preflight_audit_enabled')) {
             return;
         }

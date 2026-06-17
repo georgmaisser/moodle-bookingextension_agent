@@ -224,5 +224,18 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026061703, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026061704) {
+        // Three rollout/CI guard settings were removed: queue DAG validation and blocked-confirmation
+        // TTL expiry are always on now, and governance strict mode is no longer an admin setting
+        // (it stays off by default; CI forces it via set_config). Drop the orphaned config values.
+        unset_config('queue_dag_validation_enabled', 'bookingextension_agent');
+        unset_config('queue_blocked_ttl_enabled', 'bookingextension_agent');
+        unset_config('aigovernancestrictmode', 'bookingextension_agent');
+        // Preflight audit logging was retired; its setting is gone (gate now always false).
+        unset_config('preflight_audit_enabled', 'bookingextension_agent');
+
+        upgrade_plugin_savepoint(true, 2026061704, 'bookingextension', 'agent');
+    }
+
     return true;
 }
