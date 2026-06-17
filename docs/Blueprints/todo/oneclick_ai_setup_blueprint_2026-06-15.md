@@ -2,6 +2,10 @@
 
 **Status:** 🟢 In Umsetzung — Provisioning-Scheibe (Schritt 1–4) implementiert; UI (5–6) + Python-Änderungen offen
 **Angelegt:** 2026-06-15
+**Aktualisiert:** 2026-06-17 — Provider-Erkennung von **Name** auf **Endpoint** umgestellt: eine
+Instanz gilt nur dann als Wunderbyte-Trial/-Abo, wenn ihr Action-Endpoint tatsächlich auf
+`*.wunderbyte.at` zeigt (Helper in `agent_access_service`). Die Konstanten `WB_*_PROVIDER_NAME/CLASS`
+in `aiready.php` sind entfernt. Details siehe **§8** und die markierten Stellen in §1.2/§1.4/§3.
 **Aktualisiert:** 2026-06-15 — O1/O2 entschieden; G1 (alle drei Modell-Aliasse im Trial) und G2
 (bestehenden Key zurückgeben) entschieden; R1 verifiziert (OpenAI erlaubt Endpoint-Override).
 Backend-Provisioning umgesetzt — siehe **§8 Umsetzungsstatus**.
@@ -36,8 +40,11 @@ Das deckt sich exakt mit der Beobachtung.
 ### 1.2 „Yes, activate AI" findet keinen Provider
 
 `classes/external/activate_trial_context.php:63-145`:
-- **aktiviert nur bestehende** Provider-Instanzen (`aiprovider_wunderbyte\provider`, oder eine
-  `aiprovider_openai\provider`-Instanz mit Name `Wunderbyte`) — `enable_provider_instance()`,
+- **aktiviert nur bestehende** Provider-Instanzen — `enable_provider_instance()`,
+  > **Aktualisiert 2026-06-17:** Die Auswahl erfolgte ursprünglich über Klasse + Name `Wunderbyte`.
+  > Inzwischen werden die zu aktivierenden Instanzen **endpoint-basiert** ermittelt
+  > (`agent_access_service::find_wunderbyte_llm_instances()` — alle Instanzen, deren
+  > Action-Endpoint auf `*.wunderbyte.at` zeigt, inkl. deaktivierter).
 - legt **keine** Instanz an und hinterlegt **keinen** Key,
 - prüft danach `get_runtime_provider_status()` → `provideractive`.
 
@@ -70,9 +77,14 @@ nie genutzt.
   Endpoint pro Action in `actionconfig['settings']['endpoint']`; Usage via GET `/key/info`.
   Capability `aiprovider/wunderbyte:viewusage` definiert (`ai/provider/wunderbyte/db/access.php:31-37`).
 - **aiprovider_openai** ist installiert (`ai/provider/openai/`): Config `apikey` (+ optional `orgid`).
-- **Konstanten** (`aiready.php`): `WB_PROVIDER_CLASS='aiprovider_wunderbyte\provider'`,
-  `WB_LEGACY_PROVIDER_CLASS='aiprovider_openai\provider'`, `WB_LEGACY_PROVIDER_NAME='Wunderbyte'`.
-  → Es existiert bereits das Muster „OpenAI-Instanz mit Name *Wunderbyte*, gegen den LiteLLM-Proxy".
+- **Erkennung „ist eine Wunderbyte-Instanz vorhanden?"** läuft **endpoint-basiert**
+  (`agent_access_service::instance_targets_wunderbyte_llm()` / `find_wunderbyte_llm_instances()`):
+  eine Instanz zählt nur, wenn ihr `actionconfig['settings']['endpoint']` auf `*.wunderbyte.at`
+  zeigt — unabhängig von Provider-Name oder -Klasse. Ein `aiprovider_wunderbyte` mit fremdem
+  Endpoint wird damit **bewusst nicht** als Trial/Abo-Äquivalent gewertet.
+  > **Aktualisiert 2026-06-17:** Die früheren Konstanten `WB_PROVIDER_CLASS`,
+  > `WB_LEGACY_PROVIDER_CLASS`, `WB_LEGACY_PROVIDER_NAME='Wunderbyte'` (Namens-/Klassen-Heuristik)
+  > sind entfernt; der Name dient nur noch als Anzeige-Label beim Anlegen (`INSTANCE_NAME`).
 
 ---
 
@@ -191,7 +203,7 @@ if ($strategy === 'wunderbyte') {
 } else { // openai (OpenAI-kompatibel gegen LiteLLM-Proxy)
     $instance = $manager->create_provider_instance(
         classname: 'aiprovider_openai\\provider',
-        name: 'Wunderbyte',            // bestehendes Legacy-Muster (WB_LEGACY_PROVIDER_NAME)
+        name: 'Wunderbyte',            // nur Anzeige-Label (INSTANCE_NAME), KEIN Match-Key mehr
         enabled: true,
         config: ['apikey' => $apikey],
         actionconfig: /* endpoint/base-url → $endpoint, model → $model */,
@@ -244,8 +256,9 @@ erlaubt `aiprovider_openai` das Überschreiben der Base-URL pro Action (analog W
 
 - **actionconfig**-Form je Provider exakt prüfen (`hook_listener`/`provider`-Form-Felder):
   Wunderbyte liest Endpoint aus `actionconfig['settings']['endpoint']` (`provider.php:168-193`).
-- **Idempotenz:** Existiert bereits eine `name='Wunderbyte'`-Instanz, nur `update_provider_instance()`
-  + `enable_provider_instance()` statt Duplikat anlegen.
+- **Idempotenz:** Existiert bereits eine Instanz der passenden Provider-Klasse, deren Endpoint auf
+  `*.wunderbyte.at` zeigt (Match über `find_wunderbyte_llm_instances()` + Klasse, **nicht** über den
+  Namen), nur `update_provider_instance()` + `enable_provider_instance()` statt Duplikat anlegen.
 - **Wichtig (Risiko R1):** Ob `aiprovider_openai` eine **eigene Base-URL** (statt api.openai.com)
   zulässt, muss verifiziert werden — der Trial-Key ist ein **LiteLLM**-Key, kein echter OpenAI-Key.
   Falls nicht überschreibbar, ist der „Standard-Pfad" nur mit einem **eigenen** OpenAI-Key der
@@ -379,3 +392,17 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 - **UI (Schritt 5–6):** `get_setup_status`-WS + Todo-Liste + Pfad-Buttons (`aiinstructions.mustache`/`.js`).
   Aktuell läuft die Auto-Erkennung serverseitig; die explizite „Standard-Provider fortfahren"-Wahl im UI fehlt noch.
 - **`db/services.php`:** neue WS-Funktion `get_setup_status` (sobald UI-Schritt kommt).
+
+### 🔄 Aktualisierung 2026-06-17 — Endpoint- statt Namenserkennung
+- **Problem:** Provider-Erkennung lief teils über den Anzeige-Namen `Wunderbyte` (fragil beim
+  Umbenennen; ein `aiprovider_wunderbyte` mit fremdem Endpoint wäre fälschlich als PRO-Äquivalent
+  gewertet worden).
+- **Umgesetzt:** Zwei wiederverwendbare Helfer in `agent_access_service` —
+  `instance_targets_wunderbyte_llm($instance)` (prüft `actionconfig`-Endpoints einer Instanz, auch
+  deaktiviert) und `find_wunderbyte_llm_instances($enabledonly=false)`. Damit umgestellt:
+  `aiready.php` (`$haswunderbyteprovider`), `trial_provisioner.php` (Upsert-Match = Endpoint + Klasse)
+  und `activate_trial_context.php` (Aktivierung endpoint-basiert). Konstanten `WB_*` in `aiready.php`
+  entfernt; `INSTANCE_NAME` bleibt nur als Anzeige-Label.
+- **Unverändert:** Der PRO-Access-Gate (`agent_access_service::has_full_access()` /
+  `runs_on_wunderbyte_llm()`) war bereits endpoint-basiert.
+- **Hinweis:** Host-Match ist Suffix `*.wunderbyte.at` (nicht exakt `llm.`). Bei Bedarf verengen.
