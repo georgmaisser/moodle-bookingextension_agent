@@ -1432,7 +1432,6 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
     if (
         responseType === 'execution_result'
         || responseType === 'sufficient'
-        || responseType === 'queued'
         || responseType === 'clarification'
         || responseType === 'error'
     ) {

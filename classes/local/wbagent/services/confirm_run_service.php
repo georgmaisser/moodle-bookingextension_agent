@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services;
 
-use core\task\manager as task_manager;
 use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
@@ -39,7 +38,6 @@ use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\task\execute_ai_run_adhoc;
 
 /**
  * Handles confirmation flow independent from external API formatting.
@@ -282,46 +280,6 @@ class confirm_run_service {
             $idempotencykey,
             $commandsforrun
         );
-
-        $executionmode = (string)(get_config('bookingextension_agent', 'aiexecutionmode') ?? 'direct');
-        if ($executionmode === 'adhoc') {
-            $this->store->update_run_status($runid, 'queued');
-            $queuedmessage = get_string('ai_run_queued', 'bookingextension_agent');
-            $this->store->add_message($threadid, 'assistant', $queuedmessage, [
-                'response_type' => 'execution_result',
-                'runid' => (int)$runid,
-                'status' => 'queued',
-                'results' => [],
-            ]);
-
-            $task = new execute_ai_run_adhoc();
-            $task->set_custom_data([
-                'runid' => $runid,
-                'userid' => $userid,
-                'contextid' => $contextid,
-                'idempotencykey' => $idempotencykey,
-            ]);
-            $task->set_userid($userid);
-            task_manager::queue_adhoc_task($task);
-
-            return [
-                'success' => true,
-                'runid' => (int)$runid,
-                'threadid' => $threadid,
-                'response_type' => 'queued',
-                'message' => $queuedmessage,
-                'autoconfirm' => 0,
-                'commands' => $commandsforrun,
-                'results' => [],
-                'attempted_skills' => [],
-                'issue_codes' => [],
-                'errors' => [],
-                'pending_confirmation_code' => '',
-                'queueitemid' => $activequeueitemid,
-                'attempt_budget' => attempt_budget_dto::from_queue_item($activeitem)->to_array(),
-                ...$this->build_preview_response_fields($threadid, [], $contextid, $userid),
-            ];
-        }
 
         // Release session lock before long-running execution.
         \core\session\manager::write_close();

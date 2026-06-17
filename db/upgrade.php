@@ -216,5 +216,13 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026061702, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026061703) {
+        // The aiexecutionmode setting (direct/adhoc) and the adhoc AI-run execution path were
+        // removed; AI runs always execute inline now. Drop the orphaned stored config value.
+        unset_config('aiexecutionmode', 'bookingextension_agent');
+
+        upgrade_plugin_savepoint(true, 2026061703, 'bookingextension', 'agent');
+    }
+
     return true;
 }

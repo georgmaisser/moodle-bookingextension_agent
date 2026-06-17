@@ -159,19 +159,6 @@ if ($agentenabled) {
     );
 
     $aisettingspage->add(
-        new admin_setting_configselect(
-            'bookingextension_agent/aiexecutionmode',
-            get_string('aiexecutionmode', 'bookingextension_agent'),
-            get_string('aiexecutionmode_desc', 'bookingextension_agent'),
-            'direct',
-            [
-                'direct' => get_string('aiexecutionmode_direct', 'bookingextension_agent'),
-                'adhoc' => get_string('aiexecutionmode_adhoc', 'bookingextension_agent'),
-            ]
-        )
-    );
-
-    $aisettingspage->add(
         new admin_setting_configcheckbox(
             'bookingextension_agent/aidebugmode',
             get_string('aidebugmode', 'bookingextension_agent'),
