@@ -83,6 +83,23 @@ final class llm_skill_matrix_scenario_provider {
      */
     private static function get_scenario_definitions(): array {
         return [
+            'agent.scaffold_skill' => [
+                'prompt' => 'Ich möchte einen eigenen Skill für mein Plugin mod/myplugin bauen, der einen '
+                    . 'Eintrag archiviert. Gib mir bitte eine Vorlage zum Herunterladen.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'core.get_current_user' => [
                 'prompt' => 'Wer bin ich?',
                 'allow_direct_answer' => true,
