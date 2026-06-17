@@ -19,6 +19,7 @@ namespace bookingextension_agent\local\wbagent\core\skills;
 use context_course;
 use context_system;
 use bookingextension_agent\local\wbagent\base_skill;
+use bookingextension_agent\local\wbagent\services\observation_time;
 use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 
 /**
@@ -698,10 +699,7 @@ abstract class core_skill_base extends base_skill {
      * @return string Human-readable date, or 'never' for an empty timestamp.
      */
     protected function format_user_timestamp(int $timestamp): string {
-        if ($timestamp <= 0) {
-            return get_string('never');
-        }
-        return userdate($timestamp, get_string('strftimedatetimeshort', 'langconfig'));
+        return observation_time::format($timestamp);
     }
 
     /**
