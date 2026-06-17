@@ -83,7 +83,7 @@ final class llm_skill_matrix_scenario_provider {
      */
     private static function get_scenario_definitions(): array {
         return [
-            'agent.scaffold_skill' => [
+            'wbagent.scaffold_skill' => [
                 'prompt' => 'Ich möchte einen eigenen Skill für mein Plugin mod/myplugin bauen, der einen '
                     . 'Eintrag archiviert. Gib mir bitte eine Vorlage zum Herunterladen.',
                 'assertions' => [

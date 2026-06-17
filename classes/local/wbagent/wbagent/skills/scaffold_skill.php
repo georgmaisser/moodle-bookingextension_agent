@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\agent\skills;
+namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
@@ -23,7 +23,7 @@ use bookingextension_agent\local\wbagent\services\preflight_result_v2;
 use bookingextension_agent\local\wbagent\services\scaffold\skill_template_generator;
 
 /**
- * Skill definition for agent.scaffold_skill.
+ * Skill definition for wbagent.scaffold_skill.
  *
  * Lets a third-party developer describe a skill in natural language and download a ready-to-drop,
  * heavily-commented skill template (as a ZIP) for their own plugin. It is read-only: it only
@@ -37,7 +37,7 @@ use bookingextension_agent\local\wbagent\services\scaffold\skill_template_genera
  */
 class scaffold_skill extends core_skill_base implements skill_trigger_provider_interface {
     /** Skill name constant. */
-    public const SKILL_NAME = 'agent.scaffold_skill';
+    public const SKILL_NAME = 'wbagent.scaffold_skill';
 
     /**
      * Constructor.
@@ -303,7 +303,7 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_message_triggers(): array {
         return [
             [
-                'id' => 'agent.scaffold_skill_request',
+                'id' => 'wbagent.scaffold_skill_request',
                 'description' => 'Developer wants a starter template for a new agent skill.',
                 'examples' => [
                     'I want to build my own skill for the agent',

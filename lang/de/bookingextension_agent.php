@@ -26,6 +26,7 @@ $string['agent:debugskillselection'] = 'Skill-Selection-Debug-Tool verwenden';
 $string['agent:ignoreaiavailability'] = 'Kurs-/Modul-KI-Verfügbarkeitsschalter für den KI-Agenten ignorieren';
 $string['agent:requesttrial'] = 'KI-Testversion einrichten';
 $string['agent:skill_booking_analyze_rules'] = 'Buchungsregeln analysieren';
+$string['agent:skill_wbagent_scaffold_skill'] = 'Eine Startvorlage für einen neuen Agent-Skill erzeugen';
 $string['agent:useaiinstructions'] = 'Den KI-Agenten verwenden';
 $string['agent_adminpages'] = 'Agent-Admin-Seiten';
 $string['agent_adminpages_desc'] = 'Diese Seiten gehören zum Booking-Agent und sind nur verfügbar, solange der Agent aktiviert ist:';

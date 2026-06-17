@@ -25,7 +25,7 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\agent\skills\scaffold_skill;
+use bookingextension_agent\local\wbagent\wbagent\skills\scaffold_skill;
 use bookingextension_agent\local\wbagent\skill_contract_validator;
 use bookingextension_agent\local\wbagent\services\scaffold\skill_template_generator;
 
@@ -127,7 +127,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         $this->setAdminUser();
 
         $skill = new scaffold_skill();
-        $this->assertSame('agent.scaffold_skill', $skill->get_name());
+        $this->assertSame('wbagent.scaffold_skill', $skill->get_name());
         $this->assertTrue($skill->is_read_only());
 
         $result = $skill->execute(

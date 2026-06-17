@@ -107,6 +107,7 @@ $teacherskills = [
     'wbagent_list_skills',
     'booking_list_option_properties',
     'wbagent_recall_memory',
+    'wbagent_scaffold_skill',
     'course_search_courses',
     'booking_search_options',
     'core_search_users',

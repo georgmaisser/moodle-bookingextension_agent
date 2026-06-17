@@ -35,6 +35,7 @@ $string['agent:skill_course_diagnose_enrolment'] = 'Diagnose course enrolment pr
 $string['agent:skill_core_diagnose_permissions'] = 'Diagnose roles and permissions across contexts';
 $string['agent:skill_core_diagnose_notifications'] = 'Diagnose e-mail/notification delivery problems';
 $string['agent:skill_course_diagnose_grades'] = 'Diagnose missing or wrong grades';
+$string['agent:skill_wbagent_scaffold_skill'] = 'Generate a starter template for a new agent skill';
 $string['diagnostic_open_link'] = 'Open page';
 $string['agent:useaiinstructions'] = 'Use the AI agent';
 $string['agent_adminpages'] = 'Agent admin pages';
