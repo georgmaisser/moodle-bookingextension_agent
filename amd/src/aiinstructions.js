@@ -2471,7 +2471,8 @@ const requestTrialKey = () => {
 
     Ajax.call([{
         methodname: 'bookingextension_agent_request_trial_key',
-        args: {contextid: Number(ctx.trialBtn.dataset.contextid || 0)},
+        // consented:true — requestTrialKey() only runs after the user accepted the consent modal.
+        args: {contextid: Number(ctx.trialBtn.dataset.contextid || 0), consented: true},
     }])[0].then((resp) => {
         if (ctx.trialSpinner) {
             ctx.trialSpinner.classList.add('d-none');
@@ -2601,6 +2602,68 @@ const activateTrialContext = () => {
         ctx.activateBtn.disabled = false;
         Notification.exception(err);
     });
+};
+
+/**
+ * Show the GDPR consent modal before requesting a trial key.
+ *
+ * The trial key request only fires once the user ticks the consent checkbox and
+ * confirms. Privacy-mode state is read from the wrapper data attribute so the modal
+ * can show whether personal data is anonymised before it reaches the LLM.
+ *
+ * @returns {Promise<void>}
+ */
+const showTrialConsentModal = async () => {
+    const wrapper = document.getElementById('booking-ai-wrapper');
+    const privacyActive = !!(wrapper && wrapper.dataset.privacyModeActive === '1');
+    const title = String((wrapper && wrapper.dataset.trialConsentTitle) || '');
+    const acceptLabel = String((wrapper && wrapper.dataset.trialConsentAccept) || '');
+    const cancelLabel = String((wrapper && wrapper.dataset.trialConsentCancel) || '');
+
+    try {
+        const [ModalSaveCancel, ModalEvents] = await Promise.all([
+            import('core/modal_save_cancel'),
+            import('core/modal_events'),
+        ]);
+
+        const body = await Templates.render('bookingextension_agent/trial_consent_modal', {
+            privacy_mode_active: privacyActive,
+        });
+
+        const modal = await ModalSaveCancel.create({
+            title: title,
+            body: body,
+            large: true,
+        });
+
+        if (acceptLabel) {
+            modal.setButtonText('save', acceptLabel);
+        }
+        if (cancelLabel) {
+            modal.setButtonText('cancel', cancelLabel);
+        }
+
+        const root = modal.getRoot();
+        const saveButton = root.find('[data-action="save"]');
+
+        // Gate the accept button: only enabled once the consent checkbox is ticked.
+        saveButton.prop('disabled', true);
+        root.on('change', '#booking-ai-trial-consent-checkbox', (event) => {
+            saveButton.prop('disabled', !event.currentTarget.checked);
+        });
+
+        root.on(ModalEvents.save, () => {
+            requestTrialKey();
+        });
+        root.on(ModalEvents.hidden, () => {
+            modal.destroy();
+        });
+
+        modal.show();
+    } catch (err) {
+        // If the modal cannot be built, fail safe by not starting the trial silently.
+        Notification.exception(err);
+    }
 };
 
 /**
@@ -2754,7 +2817,8 @@ const handleBodyClick = (event) => {
 
     const trialBtn = target.closest('#booking-ai-trial-btn');
     if (trialBtn instanceof HTMLElement) {
-        requestTrialKey();
+        // GDPR gate: show the consent modal first; the key request runs only on confirm.
+        showTrialConsentModal();
         return;
     }
 

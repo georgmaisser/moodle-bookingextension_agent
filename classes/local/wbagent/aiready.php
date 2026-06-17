@@ -320,6 +320,13 @@ class aiready {
         $wunderbyteprovinstalled = (bool)\core_component::get_plugin_directory('aiprovider', 'wunderbyte');
         $standardprovinstalled = (bool)\core_component::get_plugin_directory('aiprovider', 'openai');
 
+        // Privacy mode drives the GDPR consent modal shown before a trial is requested.
+        // Default mirrors the admin setting default ('strict'); an unset config is treated as enabled.
+        $privacymode = (string)get_config('bookingextension_agent', 'aiprivacymode');
+        if ($privacymode === '') {
+            $privacymode = 'strict';
+        }
+
         return [
             'cmid' => $cmid ?? 0,
             'contextid' => (int)$context->id,
@@ -333,6 +340,9 @@ class aiready {
             'has_use_capability' => $hascapability,
             'show_trial_button' => $canrequesttrial && !$readyforchat && !$haswunderbyteprovider,
             'show_trial_activate_button' => $canrequesttrial && !$readyforchat && $haswunderbyteprovider,
+            // GDPR consent modal state (rendered client-side before the trial key request).
+            'privacy_mode' => $privacymode,
+            'privacy_mode_active' => $privacymode !== 'off',
             // Provider-plugin guidance for the onboarding card.
             'wunderbyte_provider_installed' => $wunderbyteprovinstalled,
             'using_standard_fallback' => !$wunderbyteprovinstalled && $standardprovinstalled,

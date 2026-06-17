@@ -47,6 +47,12 @@ class request_trial_key extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'contextid' => new external_value(PARAM_INT, 'Module context id.'),
+            'consented' => new external_value(
+                PARAM_BOOL,
+                'Whether the user confirmed the data-protection consent in the trial modal.',
+                VALUE_DEFAULT,
+                false
+            ),
         ]);
     }
 
@@ -54,15 +60,17 @@ class request_trial_key extends external_api {
      * Request a trial key and provision the AI provider instance from it.
      *
      * @param int $contextid
+     * @param bool $consented
      * @return array
      */
-    public static function execute(int $contextid): array {
+    public static function execute(int $contextid, bool $consented = false): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'contextid' => $contextid,
+            'consented' => $consented,
         ]);
 
         $authz = new authorization_service();
@@ -73,6 +81,22 @@ class request_trial_key extends external_api {
         self::validate_context($context);
         // Managers may onboard too; admins pass via moodle/site:doanything.
         require_capability('bookingextension/agent:requesttrial', context_system::instance());
+
+        // GDPR gate: the trial may only be provisioned once the user has confirmed the
+        // data-protection consent shown in the modal. Refuse otherwise (defends against
+        // direct web-service calls that bypass the UI).
+        if (empty($params['consented'])) {
+            return [
+                'success' => false,
+                'message' => get_string('aitrial_consent_required', 'bookingextension_agent'),
+            ];
+        }
+
+        // Record the consent server-side as a durable audit trail before provisioning.
+        \bookingextension_agent\event\trial_consent_given::create([
+            'context' => $context,
+            'userid' => (int)$USER->id,
+        ])->trigger();
 
         // Full provisioning: mint the trial key and create/enable the provider instance.
         // Returns {success, message} ready for the external return structure.
