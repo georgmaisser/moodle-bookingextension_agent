@@ -326,6 +326,10 @@ foreach ($contracts as $skillname => $meta) {
     // Use the engine's own activation check so the checkbox reflects the real runtime state
     // (default-off for skills that were never explicitly enabled; honours "enable all").
     $isactive = $registry->is_skill_active((string)$skillname);
+    // PRO marker: the same property the runtime gate uses — non-readonly skills require full
+    // access (PRO license / Wunderbyte subscription), readonly skills are free. See
+    // skill_executability_evaluator::evaluate_skill() DENY_REQUIRES_PRO.
+    $ispro = !$registry->is_read_only_skill((string)$skillname);
 
     $capabilities = (array)($meta['capabilities'] ?? []);
     $capabilitylabel = implode('<br/>', array_map('s', $capabilities));
@@ -388,7 +392,19 @@ foreach ($contracts as $skillname => $meta) {
 
     // Skill Name / Component.
     echo html_writer::start_tag('td');
-    echo html_writer::tag('strong', s((string)$skillname)) . '<br/>';
+    echo html_writer::tag('strong', s((string)$skillname));
+    if ($ispro) {
+        echo ' ' . html_writer::tag(
+            'span',
+            s(get_string('skillgovernance_pro_badge', 'bookingextension_agent')),
+            [
+                'class' => 'badge badge-warning ml-1',
+                'title' => s(get_string('skillgovernance_pro_badge_title', 'bookingextension_agent')),
+                'style' => 'cursor: help;',
+            ]
+        );
+    }
+    echo '<br/>';
     echo html_writer::tag('small', 'Component: ' . $component, ['class' => 'text-muted']);
     echo html_writer::end_tag('td');
 
