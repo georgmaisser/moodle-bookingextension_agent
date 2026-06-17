@@ -208,5 +208,13 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026061004, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026061702) {
+        // The trial endpoint base URL is now hard-coded (https://llm.wunderbyte.at) and no longer an
+        // admin setting; drop the orphaned stored config value.
+        unset_config('trial_endpoint_base_url', 'bookingextension_agent');
+
+        upgrade_plugin_savepoint(true, 2026061702, 'bookingextension', 'agent');
+    }
+
     return true;
 }

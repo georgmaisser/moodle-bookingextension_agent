@@ -895,5 +895,3 @@ $string['skillselectiondebug_source'] = 'Source';
 $string['skillselectiondebug_topk'] = 'Top-K candidates';
 $string['task_cleanup_attachment_temp_files'] = 'Clean up expired AI attachment temp files';
 $string['task_execute_ai_run'] = 'Execute AI agent run';
-$string['trial_endpoint_base_url'] = 'Trial endpoint base URL';
-$string['trial_endpoint_base_url_desc'] = 'Base URL of the Wunderbyte trial/LiteLLM service used to mint trial keys (e.g. https://llm.wunderbyte.at). The trial request is sent to {base}/api/moodle-trial.';

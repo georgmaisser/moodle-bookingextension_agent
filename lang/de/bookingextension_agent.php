@@ -852,5 +852,3 @@ $string['skillselectiondebug_source'] = 'Quelle';
 $string['skillselectiondebug_topk'] = 'Top-K Kandidaten';
 $string['task_cleanup_attachment_temp_files'] = 'Abgelaufene AI-Anhang-Temporärdateien aufräumen';
 $string['task_execute_ai_run'] = 'AI-Agent-Lauf ausfuehren';
-$string['trial_endpoint_base_url'] = 'Basis-URL des Trial-Endpoints';
-$string['trial_endpoint_base_url_desc'] = 'Basis-URL des Wunderbyte-Trial-/LiteLLM-Dienstes zum Erzeugen von Trial-Keys (z. B. https://llm.wunderbyte.at). Die Trial-Anfrage geht an {base}/api/moodle-trial.';

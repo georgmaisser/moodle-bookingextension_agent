@@ -36,16 +36,16 @@ use GuzzleHttp\Exception\GuzzleException;
  *
  * The Wunderbyte trial service verifies the request origin by calling back to
  * trial_challenge.php?token={nonce} (see that file), so the nonce must be cached
- * before the POST. Endpoint is always the LiteLLM proxy (admin setting
- * trial_endpoint_base_url, default https://llm.wunderbyte.at).
+ * before the POST. Endpoint is always the LiteLLM proxy, hard-coded to
+ * https://llm.wunderbyte.at (see self::BASE_URL).
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class trial_provisioner {
-    /** @var string Default LiteLLM/trial base URL used when the admin setting is empty. */
-    private const DEFAULT_BASE_URL = 'https://llm.wunderbyte.at';
+    /** @var string Hard-coded LiteLLM/trial service base URL (intentionally not an admin setting). */
+    private const BASE_URL = 'https://llm.wunderbyte.at';
 
     /** @var string Provider instance name shared by both strategies (also the legacy OpenAI name). */
     private const INSTANCE_NAME = 'Wunderbyte';
@@ -128,7 +128,7 @@ class trial_provisioner {
     private function exchange_nonce(string $nonce): array {
         global $CFG;
 
-        $base = rtrim((string)(get_config('bookingextension_agent', 'trial_endpoint_base_url') ?: self::DEFAULT_BASE_URL), '/');
+        $base = rtrim(self::BASE_URL, '/');
         $url = $base . '/api/moodle-trial';
 
         $request = new Request(

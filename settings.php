@@ -70,17 +70,8 @@ $aisettingspage->add(
     )
 );
 
-// Base URL of the Wunderbyte trial/LiteLLM service the guided setup talks to.
-// The trial provisioner POSTs to {this}/api/moodle-trial to mint a trial key.
-$aisettingspage->add(
-    new admin_setting_configtext(
-        'bookingextension_agent/trial_endpoint_base_url',
-        get_string('trial_endpoint_base_url', 'bookingextension_agent'),
-        get_string('trial_endpoint_base_url_desc', 'bookingextension_agent'),
-        'https://llm.wunderbyte.at',
-        PARAM_URL
-    )
-);
+// The trial/LiteLLM service base URL is hard-coded in trial_provisioner
+// (https://llm.wunderbyte.at) and intentionally NOT exposed as an admin setting.
 
 // Default is on: an unsaved (false) value must count as enabled.
 $agentenabledraw = get_config('bookingextension_agent', 'agent_enabled');
