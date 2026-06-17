@@ -5,8 +5,14 @@
 > and list where the diagram now diverges from the code.
 >
 > **Policy note.** Per the project's flowchart policy, the flowchart is the authoritative
-> architecture doc; **discrepancies are to be discussed with Georg, not silently aligned.** This
-> report changes neither the code nor the flowchart — it only records findings and recommendations.
+> architecture doc; **discrepancies are to be discussed with Georg, not silently aligned.**
+>
+> **Resolution (2026-06-17, approved by Georg).** Findings **1–3 applied to the flowchart**: the
+> adhoc execution-mode path (node + 2 edges + `LG_ADHOC` legend/style) and the `PAL` preflight-audit
+> node (+ its `PRV2 → PAL → CS8` edges) were removed, and the `ANON` node was expanded with the new
+> methods (`reanchor_value_for_thread`, fail-closed display redaction, command-input fail-closed
+> gate). Finding **4** needed no change (already aligned). Findings **5 and 6 left as-is** by
+> decision. The code is unchanged.
 >
 > Line/node references are against the flowchart as of this date (685 lines).
 

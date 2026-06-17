@@ -16,10 +16,6 @@ flowchart TD
         APREVIEW["command preview (preview_passthrough)\nNO standalone web service\nreturned as previewjson on\nai_send_message / ai_confirm_run"]
     end
 
-    subgraph WORKER["Async Worker Layer (classes/task/)"]
-        ADHOC["execute_ai_run_adhoc\nqueued by confirm_run_service\n(process confirmed run async)"]
-    end
-
     %% =========================================================
     %% AUTH + STORE
     %% =========================================================
@@ -187,7 +183,6 @@ flowchart TD
         end
 
         PRV2["preflight_result_v2 (single DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues\n(guard_token NOT on DTO — built from preparedinput,\nstored on the queue item)"]
-        PAL["preflight_audit_logger::append()\n(if preflight_audit_enabled)\n→ conversation_store thread metadata"]
     end
 
     %% =========================================================
@@ -250,7 +245,7 @@ flowchart TD
     %% SUPPORT SERVICES
     %% =========================================================
     subgraph SUPPORT["Support Services"]
-        ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_for_display()"]
+        ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_message_for_display() (fail-closed: redact unresolved ANON_USER_* tokens)\nreanchor_value_for_thread() (cross-thread recall re-anchoring, token→token, no cleartext)\nhas_unresolved_anon_tokens() → command-input fail-closed gate (RECOVERABLE_INPUT_ERROR)"]
         EMBS["family_embeddings_retrieval_service\nused in discovery phase for family ranking\nnot for direct skill-level top-k selection"]
         LANG["language_policy_service\nsource priority: latest user message\n→ model-declared user_lang\n→ technical fallback\nformats all framework-generated replies"]
         MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→skill routing)"]
@@ -293,12 +288,10 @@ flowchart TD
     APO -.->|"fetch steps lock-free"| CS16
     APREVIEW -->|"readiness gate (graceful)"| AZ_READY
     ACR -->|"allow_session=true"| CS11
-    ACR -->|"executionmode=adhoc\nqueue_adhoc_task"| ADHOC
     ACR -->|"consume pending intent"| CS13
     ACD -->|"consume pending intent (discard)"| CS13
     CS13 -->|"queue item resolved"| Q_READY
     CS13 -->|"discard all actionable mutating queue items (thread)"| Q_SKIP_USER
-    ADHOC -->|"process queued run"| EXC
 
     AZ1 --> CS1
     AZ2 --> CS1
@@ -402,8 +395,6 @@ flowchart TD
     L2_STATUS -->|retry_hint| PF_L3
     L2_STATUS -->|pass| PRV2
     PF_L3 --> PRV2
-    PRV2 --> PAL
-    PAL -->|"append() to thread metadata"| CS8
 
     %% Preflight result → Queue
     PRV2 -->|"pass + session allow => ready"| Q_READY
@@ -597,7 +588,6 @@ flowchart TD
         LG_CLASS["Deterministic finalization classifier\nno LLM routing by intuition\nclassification must be testable from normalized result metadata only"]
         LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, skill_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
         LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
-        LG_ADHOC["Adhoc execution mode\nconfirmed run can be queued\nand executed async via worker skill"]
         LG_CAP["Skill release gates\nruntime + active + context + capability"]
         LG_RETRY["Retry lifecycle + global budget view\npreflight retry_hint + queue retry_waiting\n+ execution retry + loop budget\n+ planner contract retry hints inside loop\n  (CONTRACT_PARSE_ERROR, CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED)\ncategory policy: TECHNICAL/DOMAIN/EXTERNAL_DEPENDENCY\nlayer collision guard + provider circuit-breaker"]
         LG_IDEM["Idempotency split\nqueue: signature reuse\nexecutor: already executed skip"]
@@ -667,7 +657,6 @@ flowchart TD
     style LG_CLASS fill:#264653,color:#fff
     style LG_MATRIX fill:#264653,color:#fff
     style LG_SPAWN_RULE fill:#264653,color:#fff
-    style LG_ADHOC fill:#457b9d,color:#fff
     style LG_CAP fill:#264653,color:#fff
     style LG_RETRY fill:#457b9d,color:#fff
     style LG_IDEM fill:#264653,color:#fff
