@@ -218,6 +218,20 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             }
         }
         if ($courseid <= 0) {
+            // No course named: when a person is named, answer the enrolment-overview question
+            // ("which courses is X enrolled in?") directly instead of dead-ending in a clarification.
+            // This is still enrolment diagnosis and reuses the same user-courses payload (with course
+            // links) that core.search_users already exposes, so it adds no new data surface.
+            $overviewuserid = (int)($input['userid'] ?? 0);
+            if ($overviewuserid <= 0 && trim((string)($input['userquery'] ?? '')) !== '') {
+                $overviewuserid = $this->resolve_userid($input, 0);
+            }
+            if ($overviewuserid > 0) {
+                $overviewuser = \core_user::get_user($overviewuserid, '*', IGNORE_MISSING);
+                if ($overviewuser && empty($overviewuser->deleted)) {
+                    return $this->enrolment_overview_result($overviewuser);
+                }
+            }
             return $this->error_result(
                 'Please tell me which course to check (by name), or open the course first.',
                 'missing_course'
@@ -581,6 +595,47 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             ],
             'checklist_rows' => $rows,
             'checklist_title' => 'Enrolment check: ' . $subject . ' · ' . $coursename,
+            'observation_full' => implode("\n", $lines),
+        ];
+    }
+
+    /**
+     * Build the enrolment overview for a named user when no course was given.
+     *
+     * Answers "which courses is this user enrolled in?" directly (with real course links) instead of
+     * forcing a course-clarification. Reuses {@see core_skill_base::build_user_courses_payload()} so the
+     * course list and links stay identical to core.search_users, and leaves it to the selector/synchronizer
+     * to either answer from the overview or pivot to a course-specific diagnosis.
+     *
+     * @param \stdClass $targetuser
+     * @return array<string,mixed>
+     */
+    private function enrolment_overview_result(\stdClass $targetuser): array {
+        $targetuserid = (int)$targetuser->id;
+        $courses = $this->build_user_courses_payload($targetuserid);
+        $subject = fullname($targetuser);
+
+        $usermessage = !empty($courses)
+            ? ($subject . ' is enrolled in ' . count($courses) . ' course(s).')
+            : ($subject . ' is not enrolled in any course.');
+
+        $lines = [
+            'No course was named — enrolment overview for ' . $subject . ' (id=' . $targetuserid . ').',
+            'Enrolled courses (with links): ' . $this->format_course_observation($courses),
+            'Note: no specific course was given. To diagnose why ' . $subject . ' is (not) enrolled in a '
+                . 'particular course, name that course and re-run; otherwise answer from the overview above '
+                . 'and use the course links.',
+        ];
+
+        return [
+            'status' => 'executed',
+            'detail' => $usermessage,
+            'usermessage' => $usermessage,
+            'resultid' => $targetuserid,
+            'enrolment_overview' => [
+                'targetuserid' => $targetuserid,
+                'courses' => $courses,
+            ],
             'observation_full' => implode("\n", $lines),
         ];
     }

@@ -376,6 +376,7 @@ abstract class core_skill_base extends base_skill {
 
             $coursepayload = [
                 'courseid' => $courseid,
+                'courseurl' => (new \moodle_url('/course/view.php', ['id' => $courseid]))->out(false),
                 'fullname' => (string)($course->fullname ?? ''),
                 'shortname' => (string)($course->shortname ?? ''),
                 'visible' => (int)($course->visible ?? 1),
@@ -738,6 +739,7 @@ abstract class core_skill_base extends base_skill {
             $parts[] = '{courseid=' . $this->format_observation_scalar($course['courseid'] ?? null)
                 . ', shortname=' . $this->format_observation_scalar($course['shortname'] ?? null)
                 . ', fullname=' . $this->format_observation_scalar($course['fullname'] ?? null)
+                . ', courseurl=' . $this->format_observation_scalar($course['courseurl'] ?? null)
                 . ', visible=' . $this->format_observation_scalar($course['visible'] ?? null)
                 . ', category=' . $this->format_observation_scalar($course['category'] ?? null)
                 . ', lastaccess=' . $this->format_observation_scalar($course['lastaccess'] ?? null)
