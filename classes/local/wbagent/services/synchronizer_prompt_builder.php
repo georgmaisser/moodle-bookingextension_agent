@@ -156,6 +156,20 @@ class synchronizer_prompt_builder {
             . "Use each entity's own link target from the observations (an activity links to its activity view, "
             . "a course to its course view); never relabel one type's link as another type.";
 
+        // PRO presentation policy — generic, never skill-specific. Only added WITHOUT full access
+        // (no PRO license AND not running on the Wunderbyte LLM). With full access the agent runs
+        // unrestricted, so this hint must not appear at all.
+        if (!agent_access_service::has_full_access()) {
+            $parts[] = "[PRO_LICENSE_POLICY]\n"
+                . "Some tasks are only available with the Wunderbyte PRO license or an active Wunderbyte "
+                . "subscription. When a request cannot be fulfilled for that reason, state plainly in the "
+                . "user's language that the task is only available with a Wunderbyte PRO license or a "
+                . "Wunderbyte subscription, and include this upgrade link as a markdown link labelled Get "
+                . "Pro: [Get Pro](" . get_string('aitrial_pro_license_url', 'bookingextension_agent') . "). "
+                . "Never reveal internal skill or function names, and never tell the user to try again "
+                . "later or contact support — upgrading via the Get Pro link is the only next step.";
+        }
+
         $parts[] = '[ASSISTANT]';
 
         return implode("\n\n", $parts);
