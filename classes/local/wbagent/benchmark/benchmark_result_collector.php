@@ -18,6 +18,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\benchmark;
 
+use bookingextension_agent\local\wbagent\services\shared_json_payload_extractor;
+
 /**
  * Evaluates a raw LLM selector response against a scenario's expected outcome.
  *
@@ -43,7 +45,7 @@ class benchmark_result_collector {
         int $tokensprompt = 0,
         int $tokenscompletion = 0
     ): array {
-        $parsed = json_decode($rawresponse, true);
+        $parsed = $this->decode_response_tolerantly($rawresponse);
         $jsonvalid = is_array($parsed);
 
         $responsetype = '';
@@ -123,6 +125,33 @@ class benchmark_result_collector {
     }
 
     /**
+     * Decode the model response the same way the live agent does.
+     *
+     * The interpreter ({@see \bookingextension_agent\local\wbagent\interpreter}) strips markdown
+     * ```json fences and surrounding prose before decoding, so a fenced-but-valid response works
+     * fine in production. The benchmark must mirror that tolerance, otherwise it fails a response on
+     * its wire format instead of judging its routing decision. Prefer the first candidate that
+     * decodes to an object carrying a response_type (the selector payload), then any decodable object.
+     *
+     * @param string $rawresponse raw model output (plain JSON, fenced, or wrapped in prose)
+     * @return array<string,mixed>|null decoded object, or null when nothing decodes
+     */
+    private function decode_response_tolerantly(string $rawresponse): ?array {
+        $fallback = null;
+        foreach (shared_json_payload_extractor::extract_json_candidates($rawresponse) as $candidate) {
+            $decoded = json_decode($candidate, true);
+            if (!is_array($decoded)) {
+                continue;
+            }
+            if (array_key_exists('response_type', $decoded)) {
+                return $decoded;
+            }
+            $fallback ??= $decoded;
+        }
+        return $fallback;
+    }
+
+    /**
      * Basic selector contract compliance check.
      *
      * @param array  $parsed
@@ -131,7 +160,10 @@ class benchmark_result_collector {
      */
     private function check_contract_compliance(array $parsed, array &$errors): bool {
         $ok = true;
-        $required = ['response_type', 'used_triggers', 'next_step_intent', 'lang', 'user_lang', 'planned_steps'];
+        // The lang / user_lang fields are optional at the selection phase: the live interpreter reads
+        // them with a null-coalescing default and never rejects a response for their absence (the
+        // construction phase and synchronizer settle language), so the benchmark must not require them.
+        $required = ['response_type', 'used_triggers', 'next_step_intent', 'planned_steps'];
         foreach ($required as $field) {
             if (!array_key_exists($field, $parsed)) {
                 $errors[] = "missing field: {$field}";
