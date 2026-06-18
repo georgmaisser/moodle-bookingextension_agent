@@ -125,6 +125,11 @@ const getModal = (contextid, title) => {
                     + '<div class="spinner-border" role="status"></div></div>',
                 large: true,
             });
+            // core/modal destroys itself on close by default (removeOnClose=true). We cache and
+            // re-show this single instance, so keep it in the DOM — otherwise a second wand click
+            // would call show() on a destroyed modal and nothing would happen. Reopening also keeps
+            // the existing conversation.
+            modal.setRemoveOnClose(false);
             // The preview needs more room than Bootstrap's modal-lg offers.
             // getModal() returns the .modal-dialog itself: modal-xl is the
             // Bootstrap-native baseline (1140px), the hook class widens it
