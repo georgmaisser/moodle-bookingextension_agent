@@ -22,7 +22,7 @@
  * wand. The tag is guarded by an auto-generated security token so only content an
  * admin explicitly authored can surface the agent:
  *
- *   [wbagent securitytoken=ABCDEFGH]
+ *   [wbbagent securitytoken=ABCDEFGH]
  *
  * The token is created and shown on the agent settings page. The authoritative
  * permission checks still happen server-side on every agent call (the panel itself
@@ -56,16 +56,16 @@ class shortcodes {
      * Render the AI agent panel inline for the current page context and viewer.
      *
      * Usage:
-     *   [wbagent securitytoken=ABCDEFGH]
+     *   [wbbagent securitytoken=ABCDEFGH]
      *
-     * @param string        $shortcode The shortcode tag name ("wbagent").
+     * @param string        $shortcode The shortcode tag name ("wbbagent").
      * @param array         $args      Shortcode attributes. securitytoken is required.
      * @param string|null   $content   Inner content between tags (unused).
      * @param object        $env       Rendering environment from the filter.
      * @param \Closure|null $next      Next handler in the filter chain.
      * @return string Rendered HTML, a warning box, or empty string.
      */
-    public static function wbagent(
+    public static function wbbagent(
         string $shortcode,
         array $args,
         ?string $content,
@@ -98,7 +98,7 @@ class shortcodes {
             return $OUTPUT->render_from_template('bookingextension_agent/aiinstructions', $aiready->export_for_template());
         } catch (\Throwable $e) {
             // Never let a misplaced shortcode (e.g. an unsupported context) break the page.
-            debugging('bookingextension_agent [wbagent] shortcode skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            debugging('bookingextension_agent [wbbagent] shortcode skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
             return '';
         }
     }

@@ -30,8 +30,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $shortcodes = [
-    'wbagent' => [
-        'callback' => 'bookingextension_agent\shortcodes::wbagent',
+    'wbbagent' => [
+        'callback' => 'bookingextension_agent\shortcodes::wbbagent',
         'description' => 'aiinstructions_shortcode',
     ],
 ];
