@@ -171,9 +171,14 @@ class trial_provisioner {
             return $this->fail(get_string('aitrial_support_firewall', 'bookingextension_agent'));
         }
 
-        // 409 = a trial was already issued for this site URL (one trial per URL).
+        // 409 = a trial was already issued for this site URL (one trial per URL). The site has used
+        // up its free trial; point the user at the buy/subscription page (link label only, URL hidden).
         if ($status === 409) {
-            return $this->fail(get_string('aitrial_already_exists', 'bookingextension_agent'));
+            return $this->fail(get_string(
+                'aitrial_already_exists',
+                'bookingextension_agent',
+                get_string('aitrial_pro_license_url', 'bookingextension_agent')
+            ));
         }
 
         // 429 = an abuse cap was hit (per-IP or global). The service sends the exact,

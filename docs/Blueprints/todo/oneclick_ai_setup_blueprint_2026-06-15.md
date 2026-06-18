@@ -1,6 +1,8 @@
 # One-Click-AI-Setup — Trial- & Provider-Onboarding
 
-**Status:** 🟢 In Umsetzung — Provisioning-Scheibe (Schritt 1–4) implementiert; UI (5–6) + Python-Änderungen offen
+**Status:** 🟢 In Umsetzung — Backend-Provisioning (Schritt 1–4) implementiert; Python-Referenzkopie:
+Origin-Challenge aktiv + 3 Modell-Aliasse umgesetzt, **nur G2 (Duplicate → bestehenden Key) offen**;
+UI (Schritt 5–6) offen. Aktueller Stand siehe **§8** (Update 2026-06-18).
 **Angelegt:** 2026-06-15
 **Aktualisiert:** 2026-06-17 — Provider-Erkennung von **Name** auf **Endpoint** umgestellt: eine
 Instanz gilt nur dann als Wunderbyte-Trial/-Abo, wenn ihr Action-Endpoint tatsächlich auf
@@ -183,9 +185,10 @@ return [
 5. Bei Fehler: sprechende, lokalisierte Fehlermeldung (Timeout, Endpoint nicht erreichbar,
    Nonce abgelehnt, Budget/Key-Limit) — **nicht** stilles „success".
 
-**Neue Admin-Settings** (`settings.php`):
-- `trial_endpoint_base_url` (Default z. B. `https://trial.wunderbyte.at` — **O1 klären**),
-- ggf. `trial_request_timeout`.
+**Trial-Endpoint:** ~~Admin-Setting `trial_endpoint_base_url`~~ → **hardcodiert** als
+`trial_provisioner::BASE_URL = https://llm.wunderbyte.at` (Stand 2026-06-18; das ursprünglich
+angelegte Setting wurde wieder entfernt, das Upgrade räumt die Altconfig per `unset_config` weg).
+Kein separates Timeout-Setting.
 
 ### Schritt C — Provider-Instanz programmatisch anlegen
 
@@ -339,7 +342,7 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 | Provisioning | `classes/local/wbagent/services/trial/trial_provisioner.php` (neu) | Nonce→Key→Instanz |
 | Trial-WS | `classes/external/request_trial_key.php` | ruft Provisioner statt nur Nonce |
 | Aktivierung | `classes/external/activate_trial_context.php` | diagnostische Fehlerpfade |
-| Settings | `settings.php` | `trial_endpoint_base_url`, Timeout |
+| Settings | `settings.php` | ~~`trial_endpoint_base_url`~~ → hardcodiert (`trial_provisioner::BASE_URL`); Setting entfernt |
 | Python | `classes/local/wbagent/wunderbyte_trial_endpoint.py` | Challenge reaktivieren (`:80`) |
 | UI | `templates/aiinstructions.mustache`, `amd/src/aiinstructions.js` | Todo-Liste + Pfad-Buttons |
 | WS-Registrierung | `db/services.php` | neue Funktion(en) eintragen |
@@ -370,14 +373,17 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 
 ### ✅ Umgesetzt (Backend-Provisioning, Schritt 1–4)
 - `db/access.php` — neue Capability `requesttrial` (CONTEXT_SYSTEM, manager CAP_ALLOW).
-- `settings.php` — Setting `trial_endpoint_base_url` (Default `https://llm.wunderbyte.at`).
+- ~~`settings.php` — Setting `trial_endpoint_base_url`~~ → **2026-06-18 wieder entfernt**; der Endpoint
+  ist jetzt **hardcodiert** (`trial_provisioner::BASE_URL = https://llm.wunderbyte.at`), das Upgrade
+  entfernt die Altconfig per `unset_config`.
 - `classes/local/wbagent/services/trial/trial_provisioner.php` (**neu**) — Kern:
   Nonce cachen → `POST {base}/api/moodle-trial` → `{apikey,endpoint}` → `create/update_provider_instance()`
   mit 3-Alias-actionconfig (Wunderbyte) bzw. `generate_text`-only (OpenAI-Fallback) → enablen.
   Fehler-Mapping: Verbindungsfehler/403 → Firewall-Text, 409 → „already exists", sonst → „provision failed".
   Strategie-Autoerkennung: Wunderbyte > OpenAI > (keiner → Installations-Hinweis).
 - `classes/external/request_trial_key.php` — ruft jetzt den Provisioner (echtes Provisioning statt nur Nonce);
-  Gate auf `requesttrial`.
+  Gate auf `requesttrial`; zusätzlich **GDPR-Consent-Gate** (Pflicht-Zustimmung vor Provisioning) +
+  `trial_consent_given`-Event.
 - `classes/external/activate_trial_context.php` — Gate auf `requesttrial` (Manager dürfen aktivieren).
 - `lang/en` + `lang/de` — Capability-, Setting- und Flow-Strings (`aitrial_provider_created`,
   `aitrial_provider_required`, `aitrial_already_exists`, `aitrial_provision_failed`, …).
@@ -385,13 +391,18 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 
 ### ⏳ Offen
 - **Python-Service** (`wunderbyte_trial_endpoint.py`, läuft separat an `llm.wunderbyte.at`):
-  G1 (`models`-Liste = 3 Aliasse), G2 (bei Duplicate bestehenden Key zurückgeben statt 409),
-  R2 (Origin-Challenge `:80 return True` reaktivieren). **Ohne Redeploy mintet der Service weiter nur
-  `wunderbyte-privat` und antwortet bei bereits genutzter URL mit 409.**
+  In der **Referenzkopie** inzwischen umgesetzt — **G1** (`TRIAL_MODELS` = alle 3 Aliasse, Default
+  `wunderbyte-privat,-mini,-embeddings`), **R2** (Origin-Challenge **aktiv**: `_verify_origin` wird
+  aufgerufen und lehnt mit 403 ab), plus C2-Caps (per-IP + globales Fenster) und One-time-`max_budget`
+  (kein `budget_duration`) mit `duration`-Ablauf. **Weiterhin offen: G2** — bei bereits vergebener URL
+  antwortet der Service mit **409** statt den bestehenden Key zurückzugeben (`:357-364`); Re-Setup
+  erfordert daher aktuell das Löschen des alten Keys (siehe `trial_service.md` → „Reset a site's trial").
+  ⚠️ Die **laufende** Instanz übernimmt Code-Änderungen erst nach `docker compose up -d --build`
+  (nicht per `restart`); der Deploy-Stand der Live-Instanz ist separat zu bestätigen.
 - **LiteLLM:** Aliasse `wunderbyte-privat-mini` und `wunderbyte-embeddings` müssen existieren; Trial-Budget muss Embeddings abdecken.
-- **UI (Schritt 5–6):** `get_setup_status`-WS + Todo-Liste + Pfad-Buttons (`aiinstructions.mustache`/`.js`).
-  Aktuell läuft die Auto-Erkennung serverseitig; die explizite „Standard-Provider fortfahren"-Wahl im UI fehlt noch.
-- **`db/services.php`:** neue WS-Funktion `get_setup_status` (sobald UI-Schritt kommt).
+- **UI (Schritt 5–6):** weitgehend erledigt — siehe „Stand 2026-06-18" unten. Onboarding-Karte gebaut,
+  Detection via `aiready.php`-Render-Daten; ein separater `get_setup_status`-WS ist nicht nötig. Offen nur
+  optional: expliziter Zwei-Button-Pfadwechsel.
 
 ### 🔄 Aktualisierung 2026-06-17 — Endpoint- statt Namenserkennung
 - **Problem:** Provider-Erkennung lief teils über den Anzeige-Namen `Wunderbyte` (fragil beim
@@ -406,3 +417,33 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 - **Unverändert:** Der PRO-Access-Gate (`agent_access_service::has_full_access()` /
   `runs_on_wunderbyte_llm()`) war bereits endpoint-basiert.
 - **Hinweis:** Host-Match ist Suffix `*.wunderbyte.at` (nicht exakt `llm.`). Bei Bedarf verengen.
+
+### 🔄 Aktualisierung 2026-06-18 — Doku-Sync mit dem Code
+Beim Review wurden Doku und Code abgeglichen; korrigiert wurde:
+- **Endpoint hardcodiert:** Das Setting `trial_endpoint_base_url` wurde wieder entfernt; der Endpoint
+  ist jetzt die Konstante `trial_provisioner::BASE_URL = https://llm.wunderbyte.at`, das Upgrade
+  räumt die Altconfig per `unset_config` weg. (Angepasst in §3 Schritt B, §7, §8 „Umgesetzt" sowie in
+  `operations/trial_service.md`.)
+- **Python-Referenzkopie verifiziert:** G1 (3 Aliasse) und R2 (Origin-Challenge aktiv) sind umgesetzt;
+  C2-Caps + One-time-Budget ebenfalls. **G2 (Duplicate → bestehenden Key statt 409) bleibt offen.**
+- **GDPR-Consent:** `request_trial_key` hat ein Pflicht-Consent-Gate + `trial_consent_given`-Event
+  (in §8 „Umgesetzt" ergänzt).
+
+**Stand 2026-06-18 — neu eingeordnet:**
+1. **Onboarding-UI (Schritt A+E): weitgehend ERLEDIGT** (Blueprint war hier veraltet). Die Onboarding-Karte
+   (`templates/aiinstructions.mustache`) rendert bereits Provider-Check, Install-Hinweis + Link, den
+   Fallback-Note für Pfad B (`aitrial_fallback_note`) und Start-/Aktivierungs-Button. Die Detection
+   liefert `aiready.php::export_for_template()` als **Render-Daten** (`wunderbyte_provider_installed`,
+   `using_standard_fallback`, `no_provider_installed`, `provider_install_url`, `readiness_checks`) —
+   ein separater `get_setup_status`-WS ist damit nicht nötig. **Offen nur optional:** ein *expliziter*
+   Zwei-Button-Pfadwechsel (Wunderbyte installieren vs. bewusst mit Standard-Provider fortfahren) statt
+   der heutigen Auto-Erkennung + Install-Link/Start-Button.
+2. **„Trial aufgebraucht" / Duplicate (ex-G2): ENTSCHIEDEN + UMGESETZT 2026-06-18.** Kein Auto-Reissue:
+   der Service bleibt bei 409; die Moodle-Meldung `aitrial_already_exists` zeigt jetzt „Testversion
+   aufgebraucht" + Kauf-/Abo-Link (showroom-URL als **versteckter** Markdown-Link, Klartext-URL aus
+   `aitrial_pro_license_url`). Re-Setup über Key-Löschung bleibt der Reset-Weg (`trial_service.md`).
+3. **Sicherheitsreste** (aus `trial_service.md` / Security-Review): H3 (Challenge beweist Kontrolle, nicht
+   Zustimmung), M1 (Key als Klartext in `ai_providers.config`), M2 (kein Key-Leak in Debug-Logs).
+4. **O3:** Skill-Differenz ohne Embeddings/Wunderbyte-Provider — wird **empirisch über Real-LLM-Tests**
+   entschieden (wie groß darf die Skill-Liste sein, ohne dass es zu viel wird); Pfad-B-Hinweistext bleibt
+   bis dahin generisch.

@@ -18,7 +18,7 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
       endpoints = https://llm.wunderbyte.at)
 ```
 
-- **Moodle side** (this repo): `classes/external/request_trial_key.php` → `classes/local/wbagent/services/trial/trial_provisioner.php` → core_ai provider instance. Admin setting `trial_endpoint_base_url` (default `https://llm.wunderbyte.at`).
+- **Moodle side** (this repo): `classes/external/request_trial_key.php` (capability `requesttrial` + GDPR consent gate → `trial_consent_given` event) → `classes/local/wbagent/services/trial/trial_provisioner.php` → core_ai provider instance. The trial endpoint is **hardcoded** as `trial_provisioner::BASE_URL = https://llm.wunderbyte.at`; the former admin setting `trial_endpoint_base_url` was removed (the upgrade unsets the orphaned config).
 - **Trial service** (separate server, container `litellm_trial_api`): `classes/local/wbagent/wunderbyte_trial_endpoint.py` is the **reference copy**. The running service has its own copy baked into its image — apply changes there and **rebuild**, not just restart.
 - **LiteLLM proxy** (container `litellm_proxy`, `127.0.0.1:4000`): mints/serves keys and models.
 
@@ -37,7 +37,7 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
 | `TRIAL_ACTIVE_WINDOW_DAYS` | Window for the global cap | `30` |
 
 > ⚠️ The public base URL Moodle stores in the provider (`https://llm.wunderbyte.at`) comes
-> from the Moodle admin setting `trial_endpoint_base_url`, **not** from the service's
+> from the hardcoded `trial_provisioner::BASE_URL`, **not** from the service's
 > `LITELLM_BASE_URL` (which is the service's internal view, e.g. `http://litellm:4000`).
 > The provisioner deliberately ignores the service's echoed endpoint.
 
@@ -121,9 +121,9 @@ Verify after deploy: a freshly minted key's `metadata.request_ip` should be a re
   `restart` reuses the old image.
 - **Env-only change** (docker-compose.yml): `docker compose up -d` (recreate). `restart`
   keeps the old env.
-- **Moodle plugin**: `php admin/cli/upgrade.php` + `php admin/cli/purge_caches.php`. Setting
-  `trial_endpoint_base_url` defaults to `https://llm.wunderbyte.at`. Capability
-  `bookingextension/agent:requesttrial` (manager + admin) gates the trial.
+- **Moodle plugin**: `php admin/cli/upgrade.php` + `php admin/cli/purge_caches.php`. The trial
+  endpoint is hardcoded (`trial_provisioner::BASE_URL = https://llm.wunderbyte.at`); there is no
+  admin setting. Capability `bookingextension/agent:requesttrial` (manager + admin) gates the trial.
 
 ## Security controls (implemented)
 
