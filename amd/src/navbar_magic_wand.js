@@ -51,7 +51,11 @@ let modalPromise = null;
  */
 const focusInlinePanel = () => {
     const wrapper = document.getElementById(INLINE_WRAPPER_ID);
-    if (!wrapper) {
+    // Only a GENUINE inline panel (mod/booking view.php tab) counts here. Ignore a wrapper that
+    // belongs to our own navbar modal: core/modal keeps the (hidden) modal in the DOM after close,
+    // so its panel's #booking-ai-wrapper would otherwise make every later click "focus" the
+    // invisible modal instead of re-opening it.
+    if (!wrapper || wrapper.closest('.bookingextension-agent-wand-modal')) {
         return false;
     }
 
@@ -125,11 +129,6 @@ const getModal = (contextid, title) => {
                     + '<div class="spinner-border" role="status"></div></div>',
                 large: true,
             });
-            // core/modal destroys itself on close by default (removeOnClose=true). We cache and
-            // re-show this single instance, so keep it in the DOM — otherwise a second wand click
-            // would call show() on a destroyed modal and nothing would happen. Reopening also keeps
-            // the existing conversation.
-            modal.setRemoveOnClose(false);
             // The preview needs more room than Bootstrap's modal-lg offers.
             // getModal() returns the .modal-dialog itself: modal-xl is the
             // Bootstrap-native baseline (1140px), the hook class widens it
