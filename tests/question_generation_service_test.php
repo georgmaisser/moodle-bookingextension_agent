@@ -69,6 +69,7 @@ final class question_generation_service_test extends advanced_testcase {
      * GIFT is extracted from a fenced reply, and passed through when unfenced.
      */
     public function test_extract_gift_handles_code_fences(): void {
+        // phpcs:ignore moodle.Strings.ForbiddenStrings.Found -- Literal Markdown code-fence backticks in a test fixture, not shell execution.
         $fenced = "Here you go:\n```gift\n::Q:: The sky is blue. {TRUE}\n```\nHope that helps.";
         $this->assertSame('::Q:: The sky is blue. {TRUE}', question_generation_service::extract_gift($fenced));
 

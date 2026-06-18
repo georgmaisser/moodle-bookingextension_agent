@@ -485,6 +485,7 @@ PHP;
         if (!empty($spec['warnings'])) {
             $warnings = "\n> NOTE:\n> - " . implode("\n> - ", $spec['warnings']) . "\n";
         }
+        // phpcs:disable moodle.Strings.ForbiddenStrings.Found -- Literal backticks in scaffold README/Markdown template content, not shell execution.
         return "# Skill template: {$spec['skillname']}\n"
             . $warnings
             . "\nThis bundle scaffolds an AI agent skill for component `{$spec['component']}`.\n"
@@ -512,6 +513,7 @@ PHP;
             . "## 6. Implement the behaviour\n"
             . "Fill in `preflight()` (resolve + authorise, no mutation) and `execute()` (act using only the\n"
             . "prepared input). Replace the placeholder return and the \"under construction\" preview.\n";
+        // phpcs:enable moodle.Strings.ForbiddenStrings.Found
     }
 
     /**
@@ -542,7 +544,7 @@ PHP;
         return [base64_encode($bytes), $filename];
     }
 
-    // --- small helpers -----------------------------------------------------------------------.
+    // Small helpers.
 
     /**
      * Normalize the properties list.

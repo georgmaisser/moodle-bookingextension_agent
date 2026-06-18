@@ -84,6 +84,10 @@ class ai_poll_thread extends external_api {
         $store = new conversation_store();
 
         if ($params['threadid'] > 0) {
+            // Never trust a client-supplied threadid: only read it when it belongs to this user.
+            if (!$store->thread_belongs_to_user((int)$params['threadid'], (int)$USER->id, (int)$params['contextid'])) {
+                return ['threadid' => 0, 'messages' => []];
+            }
             $tid = $params['threadid'];
         } else {
             $thread = $store->get_or_create_thread((int)$USER->id, (int)$params['contextid']);

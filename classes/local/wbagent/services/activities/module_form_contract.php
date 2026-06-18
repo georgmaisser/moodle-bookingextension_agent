@@ -173,8 +173,13 @@ class module_form_contract {
                 $this->merge_exported($moduleinfo, $quickform, false);
             }
             $modname = (string)$data->modulename;
-            $this->apply_inputs($moduleinfo, $modname,
-                (string)($changes['name'] ?? ''), (string)($changes['intro'] ?? ''), (array)($changes['settings'] ?? []));
+            $this->apply_inputs(
+                $moduleinfo,
+                $modname,
+                (string)($changes['name'] ?? ''),
+                (string)($changes['intro'] ?? ''),
+                (array)($changes['settings'] ?? [])
+            );
             if (array_key_exists('visible', $changes) && $changes['visible'] !== null) {
                 $moduleinfo->visible = (int)$changes['visible'];
                 $moduleinfo->visibleoncoursepage = 1;
@@ -211,8 +216,13 @@ class module_form_contract {
         unset($context, $module);
         $modname = (string)$data->modulename;
 
-        $this->apply_inputs($data, $modname,
-            (string)($changes['name'] ?? ''), (string)($changes['intro'] ?? ''), (array)($changes['settings'] ?? []));
+        $this->apply_inputs(
+            $data,
+            $modname,
+            (string)($changes['name'] ?? ''),
+            (string)($changes['intro'] ?? ''),
+            (array)($changes['settings'] ?? [])
+        );
         if (array_key_exists('visible', $changes) && $changes['visible'] !== null) {
             $data->visible = (int)$changes['visible'];
         }
@@ -466,7 +476,7 @@ class module_form_contract {
             }
             $key = $this->normalize_setting_key($modname, $key);
             if ($key === 'page') {
-                // mod_page content editor.
+                // The mod_page content editor.
                 $this->set_editor($data, 'page', (string)$value);
                 continue;
             }

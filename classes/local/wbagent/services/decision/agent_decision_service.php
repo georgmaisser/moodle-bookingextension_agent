@@ -446,6 +446,7 @@ class agent_decision_service {
                 ], $outputlang);
             } catch (\Throwable $e) {
                 // Fall through to the generic context name when the course cannot be loaded.
+                unset($e);
             }
         }
         return $context->get_context_name();

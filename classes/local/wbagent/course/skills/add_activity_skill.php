@@ -647,7 +647,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
         $name = (string)($created['name'] ?? '');
         $url = (string)($created['url'] ?? '');
         $courseid = 0;
-        // coursecontextid → courseid for the preview reload.
+        // Resolve coursecontextid to courseid for the preview reload.
         if (!empty($created['coursecontextid'])) {
             $cc = \context::instance_by_id((int)$created['coursecontextid'], IGNORE_MISSING);
             $courseid = $cc ? (int)$cc->instanceid : 0;

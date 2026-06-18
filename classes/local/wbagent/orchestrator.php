@@ -668,8 +668,8 @@ class orchestrator {
                 // clarification/confirmation: "medium", "yes", "the second one", "Biology"), embedding it
                 // alone carries no task semantics and drops the originally requested skill out of top-K
                 // (see Blueprint thread223). Prepend the originating task so it stays discoverable.
-                //   B (deterministic): a clarification chain recorded the task that opened it — prefer that.
-                //   C (stateless fallback): otherwise, reach back to the most recent SUBSTANTIAL user message.
+                // B (deterministic): a clarification chain recorded the task that opened it — prefer that.
+                // C (stateless fallback): otherwise, reach back to the most recent SUBSTANTIAL user message.
                 // Either way a genuine topic switch (a rich new request) is unaffected: it dominates the
                 // embedding on its own, and the recorded task is cleared as soon as a turn resolves.
                 $origintask = trim((string)$this->store->get_thread_metadata_value($threadid, 'clarification_origin_task'));
@@ -2472,10 +2472,10 @@ PROMPT;
 
         // Inject user-stated memories filtered to the relevant channel. Each memory is tagged
         // (by the LLM at wbagent.remember time) with the stage(s) it influences. Channels:
-        //  - selection: planner skill-selection LLM call (PHASE_SELECTION)
-        //  - construction: planner parameter-construction LLM call (PHASE_PARAMETER_CONSTRUCTION)
-        //  - synchronization: synchronizer final reply (process_synchronizer passes it explicitly,
-        //    because it also builds this block with PHASE_SELECTION and must not pull selection items).
+        // - selection: planner skill-selection LLM call (PHASE_SELECTION)
+        // - construction: planner parameter-construction LLM call (PHASE_PARAMETER_CONSTRUCTION)
+        // - synchronization: synchronizer final reply (process_synchronizer passes it explicitly,
+        // because it also builds this block with PHASE_SELECTION and must not pull selection items).
         // Discovery makes no LLM call, so it carries no channel. Budget capped by the service.
         $channel = $memorychannel !== '' ? $memorychannel : $this->memory_channel_for_phase($phase);
         if ($channel !== '') {

@@ -232,7 +232,7 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
         }
         $coursecontext = context_course::instance($courseid);
 
-        // 2) Resolve user (default self).
+        // Step two: resolve the target user, defaulting to self.
         $targetuserid = (int)($input['userid'] ?? 0);
         if ($targetuserid <= 0) {
             $targetuserid = $this->resolve_userid($input, $userid);
@@ -264,8 +264,12 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
 
         // 4) Course-level gradebook facts.
         if ((int)($course->showgrades ?? 1) === 0) {
-            $rows[] = $this->row('warn', 'Gradebook hidden from students',
-                'The course setting "show gradebook to students" is off.', $links->grade_setup($courseid));
+            $rows[] = $this->row(
+                'warn',
+                'Gradebook hidden from students',
+                'The course setting "show gradebook to students" is off.',
+                $links->grade_setup($courseid)
+            );
         } else {
             $rows[] = $this->row('ok', 'Gradebook shown to students', '', $links->grade_setup($courseid));
         }
@@ -293,9 +297,12 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
         }
 
         if ($needsupdate) {
-            $rows[] = $this->row('warn', 'Gradebook recalculation pending',
+            $rows[] = $this->row(
+                'warn',
+                'Gradebook recalculation pending',
                 'At least one item is flagged needsupdate — totals may be stale until recalculated.',
-                $links->grade_setup($courseid));
+                $links->grade_setup($courseid)
+            );
         }
 
         return $this->build_result($course, $courseid, $targetuser, $isself, $rows, $links, $userid);
@@ -352,8 +359,12 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
 
         // Respect hidden grades for a self-request without viewall.
         if ($grade->is_hidden() && !$canviewall) {
-            return $this->row('warn', 'Item "' . $name . '": grade hidden from the user',
-                'A grade exists but is hidden (not yet released or hidden by the teacher).', $url);
+            return $this->row(
+                'warn',
+                'Item "' . $name . '": grade hidden from the user',
+                'A grade exists but is hidden (not yet released or hidden by the teacher).',
+                $url
+            );
         }
 
         $flags = [];
@@ -372,8 +383,10 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
 
         $display = $this->format_grade($grade->finalgrade, $item);
         $finding = 'Grade: ' . $display;
-        if ($grade->finalgrade !== null && $grade->rawgrade !== null
-            && (float)$grade->finalgrade !== (float)$grade->rawgrade) {
+        if (
+            $grade->finalgrade !== null && $grade->rawgrade !== null
+            && (float)$grade->finalgrade !== (float)$grade->rawgrade
+        ) {
             $finding .= ' (raw ' . $this->format_grade($grade->rawgrade, $item) . ')';
         }
         if (!empty($flags)) {

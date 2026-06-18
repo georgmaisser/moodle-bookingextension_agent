@@ -203,8 +203,10 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
 
         // Cross-user gate (R0 → here): notification state is private — managers/admins only.
         if (!$isself && !has_capability('moodle/user:viewalldetails', context_user::instance($targetuserid), $userid)) {
-            return $this->error_result(get_string('nopermissions', 'error', 'moodle/user:viewalldetails'),
-                'permission_denied');
+            return $this->error_result(
+                get_string('nopermissions', 'error', 'moodle/user:viewalldetails'),
+                'permission_denied'
+            );
         }
 
         $targetuser = \core_user::get_user($targetuserid, '*', IGNORE_MISSING);
@@ -215,7 +217,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         $links = new diagnostic_link_builder();
         $rows = [];
 
-        // --- User-level blockers (the common causes). ---
+        // User-level blockers (the common causes).
         $email = trim((string)($targetuser->email ?? ''));
         if ($email === '') {
             $rows[] = $this->row('fail', 'No e-mail address on the account', 'Moodle cannot send e-mail without an address.');
@@ -232,41 +234,60 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
             $rows[] = $this->row('fail', 'Account suspended', 'Suspended accounts do not receive notifications.');
         }
         if ((int)($targetuser->emailstop ?? 0) === 1) {
-            $rows[] = $this->row('fail', 'User disabled all e-mail',
+            $rows[] = $this->row(
+                'fail',
+                'User disabled all e-mail',
                 'The account has "do not receive e-mail" set (emailstop).',
-                $links->notification_preferences($targetuserid));
+                $links->notification_preferences($targetuserid)
+            );
         }
         if (over_bounce_threshold($targetuser)) {
-            $rows[] = $this->row('fail', 'E-mail bounce threshold exceeded',
-                'Too many bounces — Moodle has stopped sending e-mail to this address.');
+            $rows[] = $this->row(
+                'fail',
+                'E-mail bounce threshold exceeded',
+                'Too many bounces — Moodle has stopped sending e-mail to this address.'
+            );
         }
 
         if ($this->all_ok($rows)) {
-            $rows[] = $this->row('ok', 'No user-level e-mail blocker found',
+            $rows[] = $this->row(
+                'ok',
+                'No user-level e-mail blocker found',
                 'Address valid, account active/confirmed, e-mail enabled, no bounce problem.',
-                $links->notification_preferences($targetuserid));
+                $links->notification_preferences($targetuserid)
+            );
         }
 
-        // --- Site mail infrastructure (admins only — never expose server details). ---
+        // Site mail infrastructure (admins only — never expose server details).
         if (is_siteadmin($userid)) {
             if (!empty($CFG->noemailever)) {
-                $rows[] = $this->row('fail', 'Site-wide e-mail is disabled',
-                    'noemailever is set: Moodle sends no e-mail at all.', $links->if_admin($links->outgoing_mail_config(), $userid));
+                $rows[] = $this->row(
+                    'fail',
+                    'Site-wide e-mail is disabled',
+                    'noemailever is set: Moodle sends no e-mail at all.',
+                    $links->if_admin($links->outgoing_mail_config(), $userid)
+                );
             }
             if (!empty($CFG->divertallemailsto)) {
-                $rows[] = $this->row('warn', 'All e-mail is being diverted',
+                $rows[] = $this->row(
+                    'warn',
+                    'All e-mail is being diverted',
                     'divertallemailsto is set: mail goes to a test address, not the real recipients.',
-                    $links->if_admin($links->outgoing_mail_config(), $userid));
+                    $links->if_admin($links->outgoing_mail_config(), $userid)
+                );
             }
             foreach ($this->mail_task_rows($links, $userid) as $taskrow) {
                 $rows[] = $taskrow;
             }
         }
 
-        // --- Honest limit (anti-hallucination). ---
-        $rows[] = $this->row('warn', 'Actual delivery cannot be verified',
+        // Honest limit (anti-hallucination).
+        $rows[] = $this->row(
+            'warn',
+            'Actual delivery cannot be verified',
             'This check cannot confirm whether the mail server delivered the message to the inbox '
-                . '(spam folder, external mail server). For a specific booking option\'s mails use the booking diagnosis.');
+            . '(spam folder, external mail server). For a specific booking option\'s mails use the booking diagnosis.'
+        );
 
         return $this->build_result($targetuser, $isself, $rows);
     }
@@ -283,8 +304,10 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         $unhealthy = [];
         foreach ($DB->get_records('task_scheduled') as $task) {
             $class = (string)$task->classname;
-            if (strpos($class, 'message') === false && strpos($class, 'email') === false
-                && strpos($class, 'notification') === false) {
+            if (
+                strpos($class, 'message') === false && strpos($class, 'email') === false
+                && strpos($class, 'notification') === false
+            ) {
                 continue;
             }
             if ((int)$task->disabled === 1) {

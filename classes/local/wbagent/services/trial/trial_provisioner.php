@@ -251,7 +251,7 @@ class trial_provisioner {
         $chat = $base . '/v1/chat/completions';
         $embeddings = $base . '/v1/embeddings';
 
-        // generate_text is a core_ai action both providers process; it is the minimum
+        // The generate_text action is a core_ai action both providers process; it is the minimum
         // for a usable agent and therefore the whole config for the OpenAI fallback.
         $generatetext = [
             'core_ai\\aiactions\\generate_text' => [

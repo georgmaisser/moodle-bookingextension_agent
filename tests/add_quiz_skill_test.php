@@ -76,7 +76,9 @@ final class add_quiz_skill_test extends advanced_testcase {
         [$course, $teacher, $ctxid] = $this->teacher_course();
         $result = (new add_quiz_skill())->preflight(
             ['courseid' => (int)$course->id, 'name' => 'My quiz', 'addquestions' => true],
-            $ctxid, (int)$teacher->id);
+            $ctxid,
+            (int)$teacher->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('ADD_QUIZ_QUESTION_SOURCE', $result->issuecodes);
     }
@@ -121,7 +123,9 @@ final class add_quiz_skill_test extends advanced_testcase {
         $skill = new add_quiz_skill();
         $pf = $skill->preflight(
             ['courseid' => (int)$course->id, 'name' => 'Q quiz', 'questionids' => [(int)$q1->id, (int)$q2->id]],
-            $ctxid, (int)$teacher->id);
+            $ctxid,
+            (int)$teacher->id
+        );
         $this->assertSame('pass', $pf->status);
         $this->assertSame('ids', $pf->preparedinput['plan']['mode']);
 
@@ -143,7 +147,10 @@ final class add_quiz_skill_test extends advanced_testcase {
         $this->setUser($student);
 
         $result = (new add_quiz_skill())->preflight(
-            ['courseid' => (int)$course->id, 'name' => 'Nope'], $ctxid, (int)$student->id);
+            ['courseid' => (int)$course->id, 'name' => 'Nope'],
+            $ctxid,
+            (int)$student->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
     }

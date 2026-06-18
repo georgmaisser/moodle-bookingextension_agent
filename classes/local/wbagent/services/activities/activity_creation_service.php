@@ -126,6 +126,7 @@ class activity_creation_service {
                 }
             } catch (\Throwable $e) {
                 // Fall through to the course page.
+                unset($e);
             }
         }
         return (new moodle_url('/course/view.php', ['id' => $course->id]))->out(false);

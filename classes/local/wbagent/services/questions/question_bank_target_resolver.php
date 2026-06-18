@@ -48,16 +48,26 @@ class question_bank_target_resolver {
     public function resolve_for_context(context $ambient): array {
         $coursecontext = $ambient->get_course_context(false);
         if (!$coursecontext) {
-            throw new moodle_exception('error', 'moodle', '', null,
-                'Questions can only be generated within a course context.');
+            throw new moodle_exception(
+                'error',
+                'moodle',
+                '',
+                null,
+                'Questions can only be generated within a course context.'
+            );
         }
 
         $course = get_course((int)$coursecontext->instanceid);
 
         $cm = question_bank_helper::get_default_open_instance_system_type($course, true);
         if (!$cm) {
-            throw new moodle_exception('error', 'moodle', '', null,
-                'Could not resolve or create a question bank for this course.');
+            throw new moodle_exception(
+                'error',
+                'moodle',
+                '',
+                null,
+                'Could not resolve or create a question bank for this course.'
+            );
         }
 
         return [
@@ -139,8 +149,13 @@ class question_bank_target_resolver {
     public function resolve_selected_target(context $ambient, int $categoryid, int $userid): array {
         $coursecontext = $ambient->get_course_context(false);
         if (!$coursecontext) {
-            throw new moodle_exception('error', 'moodle', '', null,
-                'Questions can only be generated within a course context.');
+            throw new moodle_exception(
+                'error',
+                'moodle',
+                '',
+                null,
+                'Questions can only be generated within a course context.'
+            );
         }
 
         foreach ($this->list_writable_targets($ambient, $userid) as $target) {
@@ -156,8 +171,13 @@ class question_bank_target_resolver {
             }
         }
 
-        throw new moodle_exception('error', 'moodle', '', null,
-            'The selected question category is not a writable target in this course.');
+        throw new moodle_exception(
+            'error',
+            'moodle',
+            '',
+            null,
+            'The selected question category is not a writable target in this course.'
+        );
     }
 
     /**

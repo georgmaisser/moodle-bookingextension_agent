@@ -88,6 +88,12 @@ class ai_get_thread_debug_logs extends external_api {
         }
 
         $store = new conversation_store();
+
+        // Never expose another user's raw LLM logs: the threadid must belong to this user.
+        if (!$store->thread_belongs_to_user((int)$params['threadid'], (int)$USER->id, (int)$params['contextid'])) {
+            return ['debuglogsjson' => '[]', 'error' => ''];
+        }
+
         $debugentries = $store->get_llm_debug_entries(
             $params['threadid'],
             max(1, min($params['limit'], 500))

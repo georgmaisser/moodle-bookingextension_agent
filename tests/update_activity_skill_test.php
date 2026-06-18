@@ -41,8 +41,10 @@ final class update_activity_skill_test extends advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_user();
         $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
-        $page = $this->getDataGenerator()->create_module('page',
-            ['course' => $course->id, 'name' => 'Welcome page'] + $pageopts);
+        $page = $this->getDataGenerator()->create_module(
+            'page',
+            ['course' => $course->id, 'name' => 'Welcome page'] + $pageopts
+        );
         $coursecontext = context_course::instance($course->id);
         $this->setUser($teacher);
         $PAGE->set_context($coursecontext);
@@ -124,7 +126,10 @@ final class update_activity_skill_test extends advanced_testcase {
         $this->getDataGenerator()->create_module('page', ['course' => $course->id, 'name' => 'Welcome again']);
 
         $result = (new update_activity_skill())->preflight(
-            ['activityquery' => 'Welcome', 'name' => 'X'], $ctxid, (int)$teacher->id);
+            ['activityquery' => 'Welcome', 'name' => 'X'],
+            $ctxid,
+            (int)$teacher->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('UPDATE_ACTIVITY_AMBIGUOUS', $result->issuecodes);
         $this->assertNotEmpty($result->issues[0]['options']);
@@ -141,7 +146,10 @@ final class update_activity_skill_test extends advanced_testcase {
         $this->setUser($student);
 
         $result = (new update_activity_skill())->preflight(
-            ['cmid' => (int)$page->cmid, 'name' => 'X'], $ctxid, (int)$student->id);
+            ['cmid' => (int)$page->cmid, 'name' => 'X'],
+            $ctxid,
+            (int)$student->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
     }

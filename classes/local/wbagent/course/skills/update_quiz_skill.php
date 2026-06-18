@@ -288,12 +288,16 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
-            return $this->clarify('Editing a quiz works inside a course. Please open a course, or name one.',
-                'UPDATE_QUIZ_NO_COURSE');
+            return $this->clarify(
+                'Editing a quiz works inside a course. Please open a course, or name one.',
+                'UPDATE_QUIZ_NO_COURSE'
+            );
         }
         if (!has_capability('moodle/course:manageactivities', $coursecontext, $userid)) {
-            return $this->clarify(get_string('nopermissions', 'error', 'moodle/course:manageactivities'),
-                'NO_NATIVE_CAPABILITY');
+            return $this->clarify(
+                get_string('nopermissions', 'error', 'moodle/course:manageactivities'),
+                'NO_NATIVE_CAPABILITY'
+            );
         }
         $course = get_course($coursecontext->instanceid);
 
@@ -333,8 +337,10 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 }
             }
             if (!$match) {
-                return $this->build_source_clarification($cats,
-                    'I could not find a category called "' . (string)$plan['category'] . '". Choose one:');
+                return $this->build_source_clarification(
+                    $cats,
+                    'I could not find a category called "' . (string)$plan['category'] . '". Choose one:'
+                );
             }
         }
 
@@ -459,8 +465,10 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 return $this->clarify('I could not find an activity with that id here.', 'UPDATE_QUIZ_CM_NOT_FOUND');
             }
             if ($cm->modname !== 'quiz') {
-                return $this->clarify('That activity is not a quiz. Use course.update_activity for other types.',
-                    'UPDATE_QUIZ_NOT_A_QUIZ');
+                return $this->clarify(
+                    'That activity is not a quiz. Use course.update_activity for other types.',
+                    'UPDATE_QUIZ_NOT_A_QUIZ'
+                );
             }
             return $cm;
         }
@@ -521,7 +529,9 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         if (array_key_exists('visible', $input) && $input['visible'] !== '' && $input['visible'] !== null) {
             $changes['visible'] = (is_bool($input['visible']) ? $input['visible'] : !in_array(
                 \core_text::strtolower(trim((string)$input['visible'])),
-                ['0', 'false', 'no', 'hide', 'hidden', 'nein', 'ausblenden'], true)) ? 1 : 0;
+                ['0', 'false', 'no', 'hide', 'hidden', 'nein', 'ausblenden'],
+                true
+            )) ? 1 : 0;
         }
         return $changes;
     }
@@ -543,8 +553,12 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
             $lines[] = '';
             $lines[] = 'Available categories:';
             foreach ($categories as $cat) {
-                $lines[] = sprintf('  - %s › %s (%d question(s))',
-                    (string)$cat['bankname'], (string)$cat['categoryname'], (int)$cat['questioncount']);
+                $lines[] = sprintf(
+                    '  - %s › %s (%d question(s))',
+                    (string)$cat['bankname'],
+                    (string)$cat['categoryname'],
+                    (int)$cat['questioncount']
+                );
                 $options[] = [
                     'categoryid' => (int)$cat['categoryid'],
                     'category' => (string)$cat['categoryname'],

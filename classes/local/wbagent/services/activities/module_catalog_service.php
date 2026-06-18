@@ -115,8 +115,10 @@ class module_catalog_service {
         // 2) Substring match on the human label.
         $partial = [];
         foreach ($addable as $module) {
-            if (str_contains(\core_text::strtolower($module['label']), $needle)
-                || str_contains(\core_text::strtolower($module['modname']), $needle)) {
+            if (
+                str_contains(\core_text::strtolower($module['label']), $needle)
+                || str_contains(\core_text::strtolower($module['modname']), $needle)
+            ) {
                 $partial[] = $module;
             }
         }

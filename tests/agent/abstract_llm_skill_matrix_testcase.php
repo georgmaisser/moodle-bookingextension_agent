@@ -1096,7 +1096,8 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
             }
             $itemskill = trim((string)($item['skill'] ?? ''));
             $status = (string)($item['status'] ?? '');
-            if ($itemskill === '' || !\bookingextension_agent\local\wbagent\services\queue_status_policy::is_succeeded_status($status)) {
+            $succeeded = \bookingextension_agent\local\wbagent\services\queue_status_policy::is_succeeded_status($status);
+            if ($itemskill === '' || !$succeeded) {
                 continue;
             }
             foreach ($candidates as $candidate) {

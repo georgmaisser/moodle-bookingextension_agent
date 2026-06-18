@@ -35,7 +35,12 @@ final class diagnostic_checklist_preview_test extends advanced_testcase {
     public function test_render_rows(): void {
         $rows = [
             ['status' => 'ok', 'check' => 'Enrolled in course', 'finding' => 'since 01.09.'],
-            ['status' => 'fail', 'check' => 'Activity visible', 'finding' => 'hidden until Quiz 2', 'url' => new moodle_url('/mod/quiz/view.php', ['id' => 3])],
+            [
+                'status' => 'fail',
+                'check' => 'Activity visible',
+                'finding' => 'hidden until Quiz 2',
+                'url' => new moodle_url('/mod/quiz/view.php', ['id' => 3]),
+            ],
             ['status' => 'warn', 'check' => 'Group membership', 'finding' => 'no group'],
         ];
         $preview = (new diagnostic_checklist_preview())->render($rows, 'Access check', ['userid' => 5]);

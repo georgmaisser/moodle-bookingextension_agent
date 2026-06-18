@@ -115,7 +115,11 @@ class quiz_question_service {
             return ['mode' => 'ids', 'questionids' => $questionids];
         }
         if ($category !== '') {
-            return ['mode' => 'category', 'category' => $category, 'count' => $randomcount > 0 ? $randomcount : ($count > 0 ? $count : self::DEFAULT_COUNT)];
+            return [
+                'mode' => 'category',
+                'category' => $category,
+                'count' => $randomcount > 0 ? $randomcount : ($count > 0 ? $count : self::DEFAULT_COUNT),
+            ];
         }
 
         // Wanted questions but gave no source → ask, listing the available categories.
@@ -175,7 +179,13 @@ class quiz_question_service {
                 return $this->add_by_ids($quiz, (array)($plan['questionids'] ?? []));
             }
             if ($mode === 'category') {
-                return $this->add_random_from_category($coursecontext, $quiz, (string)$plan['category'], (int)$plan['count'], $userid);
+                return $this->add_random_from_category(
+                    $coursecontext,
+                    $quiz,
+                    (string)$plan['category'],
+                    (int)$plan['count'],
+                    $userid
+                );
             }
         } catch (\Throwable $e) {
             return ['added' => 0, 'questionids' => [], 'mode' => $mode, 'error' => $e->getMessage()];
@@ -222,7 +232,14 @@ class quiz_question_service {
         $feedback = '';
         $lasterror = '';
         for ($attempt = 1; $attempt <= 3; $attempt++) {
-            $generated = $generator->generate_gift($threadid, $ambientcontextid, $userid, (string)($plan['content'] ?? ''), $params, $feedback);
+            $generated = $generator->generate_gift(
+                $threadid,
+                $ambientcontextid,
+                $userid,
+                (string)($plan['content'] ?? ''),
+                $params,
+                $feedback
+            );
             if (empty($generated['success'])) {
                 $lasterror = (string)($generated['error'] ?? 'generation failed');
                 $feedback = $lasterror;
@@ -271,7 +288,12 @@ class quiz_question_service {
             }
         }
         if (empty($valid)) {
-            return ['added' => 0, 'questionids' => [], 'mode' => 'ids', 'error' => 'No valid (non-random) questions found for the given ids.'];
+            return [
+                'added' => 0,
+                'questionids' => [],
+                'mode' => 'ids',
+                'error' => 'No valid (non-random) questions found for the given ids.',
+            ];
         }
         $added = $this->reference_ids_into_quiz($quiz, $valid);
         return ['added' => $added, 'questionids' => $valid, 'mode' => 'ids', 'error' => null];
@@ -287,10 +309,21 @@ class quiz_question_service {
      * @param int $userid
      * @return array{added:int,questionids:array<int,int>,mode:string,error:?string}
      */
-    private function add_random_from_category(context $coursecontext, stdClass $quiz, string $categoryname, int $count, int $userid): array {
+    private function add_random_from_category(
+        context $coursecontext,
+        stdClass $quiz,
+        string $categoryname,
+        int $count,
+        int $userid
+    ): array {
         $categoryid = $this->match_category($coursecontext, $categoryname, $userid);
         if ($categoryid <= 0) {
-            return ['added' => 0, 'questionids' => [], 'mode' => 'category', 'error' => 'No question category matched "' . $categoryname . '".'];
+            return [
+                'added' => 0,
+                'questionids' => [],
+                'mode' => 'category',
+                'error' => 'No question category matched "' . $categoryname . '".',
+            ];
         }
         $filtercondition = [
             'filter' => [

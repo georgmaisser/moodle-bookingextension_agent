@@ -121,6 +121,31 @@ class ai_confirm_run extends external_api {
         }
 
         $store = new conversation_store();
+
+        // Never confirm a run against a thread the caller does not own (sesskey proves intent, not ownership).
+        if (
+            (int)$params['threadid'] > 0
+                && !$store->thread_belongs_to_user((int)$params['threadid'], (int)$USER->id, (int)$context->id)
+        ) {
+            $errormessage = get_string('error_ai_permission_denied', 'bookingextension_agent');
+            return [
+                'success' => false,
+                'runid' => 0,
+                'threadid' => 0,
+                'response_type' => 'error',
+                'message' => ws_message_formatter::format_ws_message($errormessage, $context),
+                'displaymessage' => ws_message_formatter::format_ws_message($errormessage, $context),
+                'privacyapplied' => 0,
+                'autoconfirm' => 0,
+                'commands' => '[]',
+                'resultsjson' => '[]',
+                'issuecodesjson' => json_encode(['PERMISSION_ERROR']),
+                'errorsjson' => json_encode(['permission_denied']),
+                'queueitemid' => '',
+                'previewjson' => '',
+            ];
+        }
+
         $registry = skill_registry::make_default();
         $service = new confirm_run_service($registry, $store, $authz);
 

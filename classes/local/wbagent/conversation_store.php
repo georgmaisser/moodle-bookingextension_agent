@@ -252,6 +252,33 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
+     * Ownership gate: true only when the thread exists, belongs to the given user and lives in the
+     * given context.
+     *
+     * Every webservice entry point that accepts a client-supplied threadid MUST pass it through here
+     * before reading or mutating thread-scoped data — otherwise a caller could address another user's
+     * conversation by guessing the id (the capability check alone only proves access to the context,
+     * not ownership of the thread). The context match is defense-in-depth: callers have already
+     * validated the context, and threads are pinned to the context they were created in.
+     *
+     * @param int $threadid
+     * @param int $userid
+     * @param int $contextid
+     * @return bool
+     */
+    public function thread_belongs_to_user(int $threadid, int $userid, int $contextid): bool {
+        global $DB;
+        if ($threadid <= 0) {
+            return false;
+        }
+        return $DB->record_exists('local_wbagent_ai_threads', [
+            'id' => $threadid,
+            'userid' => $userid,
+            'contextid' => $contextid,
+        ]);
+    }
+
+    /**
      * Return the most recent N messages (for prompt assembly).
      *
      * @param int $threadid

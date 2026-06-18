@@ -285,11 +285,15 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
-            return $this->clarify('Quizzes are created inside a course. Please open a course, or name one.',
-                'ADD_QUIZ_NO_COURSE');
+            return $this->clarify(
+                'Quizzes are created inside a course. Please open a course, or name one.',
+                'ADD_QUIZ_NO_COURSE'
+            );
         }
-        if (!has_capability('moodle/course:manageactivities', $coursecontext, $userid)
-            || !has_capability('mod/quiz:addinstance', $coursecontext, $userid)) {
+        if (
+            !has_capability('moodle/course:manageactivities', $coursecontext, $userid)
+            || !has_capability('mod/quiz:addinstance', $coursecontext, $userid)
+        ) {
             return $this->clarify(get_string('nopermissions', 'error', 'mod/quiz:addinstance'), 'NO_NATIVE_CAPABILITY');
         }
         $course = get_course($coursecontext->instanceid);
@@ -314,8 +318,10 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         if (($plan['mode'] ?? '') === 'clarify') {
             return $this->build_source_clarification((array)($plan['categories'] ?? []));
         }
-        if (($plan['mode'] ?? '') === 'generate'
-            && !has_capability('moodle/question:add', $coursecontext, $userid)) {
+        if (
+            ($plan['mode'] ?? '') === 'generate'
+            && !has_capability('moodle/question:add', $coursecontext, $userid)
+        ) {
             return $this->clarify(get_string('nopermissions', 'error', 'moodle/question:add'), 'ADD_QUIZ_NO_QUESTION_CAP');
         }
         if (($plan['mode'] ?? '') === 'category') {
@@ -329,8 +335,10 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 }
             }
             if (!$match) {
-                return $this->build_source_clarification($cats,
-                    'I could not find a question category called "' . (string)$plan['category'] . '". Choose one:');
+                return $this->build_source_clarification(
+                    $cats,
+                    'I could not find a question category called "' . (string)$plan['category'] . '". Choose one:'
+                );
             }
         }
 
@@ -384,8 +392,13 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
 
         // 2) Create the quiz hull.
         try {
-            $created = $this->create_quiz_hull($course, (int)($preparedinput['sectionnum'] ?? 0), $name,
-                (string)($preparedinput['intro'] ?? ''), (array)($preparedinput['settings'] ?? []));
+            $created = $this->create_quiz_hull(
+                $course,
+                (int)($preparedinput['sectionnum'] ?? 0),
+                $name,
+                (string)($preparedinput['intro'] ?? ''),
+                (array)($preparedinput['settings'] ?? [])
+            );
         } catch (\Throwable $e) {
             $tail = !empty($generatedids)
                 ? ' The ' . count($generatedids) . ' generated question(s) are available in the course question bank.'
@@ -424,7 +437,14 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * @return array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int}
      */
     private function create_quiz_hull(\stdClass $course, int $sectionnum, string $name, string $intro, array $settings): array {
-        $moduleinfo = (new module_form_contract())->build_prepared_moduleinfo($course, 'quiz', $sectionnum, $name, $intro, $settings);
+        $moduleinfo = (new module_form_contract())->build_prepared_moduleinfo(
+            $course,
+            'quiz',
+            $sectionnum,
+            $name,
+            $intro,
+            $settings
+        );
         // Quiz-specific: overall feedback fields add_moduleinfo requires (one empty band = no feedback).
         quiz_question_service::ensure_quiz_feedback($moduleinfo);
         // The quiz form does not export an id-number element headless; default it to avoid an undefined notice.
@@ -453,8 +473,13 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         } catch (\Throwable $e) {
             return null;
         }
-        $html = (new activity_preview_renderer())->render($course, $cmid, 'quiz',
-            (string)($resultentry['created_name'] ?? ''), (string)($resultentry['activity_url'] ?? ''));
+        $html = (new activity_preview_renderer())->render(
+            $course,
+            $cmid,
+            'quiz',
+            (string)($resultentry['created_name'] ?? ''),
+            (string)($resultentry['activity_url'] ?? '')
+        );
         if (trim($html) === '') {
             return null;
         }
@@ -482,8 +507,12 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
             $lines[] = '';
             $lines[] = 'Available categories:';
             foreach ($categories as $cat) {
-                $lines[] = sprintf('  - %s › %s (%d question(s))',
-                    (string)$cat['bankname'], (string)$cat['categoryname'], (int)$cat['questioncount']);
+                $lines[] = sprintf(
+                    '  - %s › %s (%d question(s))',
+                    (string)$cat['bankname'],
+                    (string)$cat['categoryname'],
+                    (int)$cat['questioncount']
+                );
                 $options[] = [
                     'categoryid' => (int)$cat['categoryid'],
                     'category' => (string)$cat['categoryname'],

@@ -124,13 +124,19 @@ final class diagnose_grades_skill_test extends advanced_testcase {
 
         $this->setUser($a);
         $blocked = (new diagnose_grades_skill())->execute(
-            ['courseid' => (int)$course->id, 'userid' => (int)$b->id], $coursecontextid, (int)$a->id);
+            ['courseid' => (int)$course->id, 'userid' => (int)$b->id],
+            $coursecontextid,
+            (int)$a->id
+        );
         $this->assertSame('error', $blocked['status']);
         $this->assertSame('permission_denied', $blocked['error_class']);
 
         $this->setUser($teacher);
         $allowed = (new diagnose_grades_skill())->execute(
-            ['courseid' => (int)$course->id, 'userid' => (int)$b->id], $coursecontextid, (int)$teacher->id);
+            ['courseid' => (int)$course->id, 'userid' => (int)$b->id],
+            $coursecontextid,
+            (int)$teacher->id
+        );
         $this->assertSame('executed', $allowed['status']);
     }
 

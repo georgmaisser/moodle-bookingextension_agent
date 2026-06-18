@@ -30,6 +30,8 @@ use bookingextension_agent\local\wbagent\skill_contract_validator;
 use bookingextension_agent\local\wbagent\services\scaffold\skill_template_generator;
 
 /**
+ * Tests for the skill template generator and the scaffold skill.
+ *
  * @covers \bookingextension_agent\local\wbagent\services\scaffold\skill_template_generator
  * @covers \bookingextension_agent\local\wbagent\agent\skills\scaffold_skill
  */

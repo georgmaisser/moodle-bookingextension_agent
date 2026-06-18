@@ -9,9 +9,31 @@ Der Agent wird von einem reinen Command-Interface zu einem verlässlichen, konte
 - Operative Stabilitaet: reproduzierbare Ablaeufe, starke Tests, gute Beobachtbarkeit.
 - Integrationsfaehigkeit: saubere APIs fuer Preview, Simulation und externe Aufrufer.
 
+## 2a) Umsetzungsstand (Stand 2026-06-18)
+
+Legende: ✅ Erledigt · 🟡 Teilweise · ⏳ Offen · 📋 Nur Blueprint
+
+| Workstream | Prioritaet | Status |
+|---|---|---|
+| WS1 Risk-Class Framework | P0 | ✅ Erledigt |
+| WS2 Benchmarking | P0 | ✅ Erledigt |
+| WS3 Bild-Input / Vision | P0 | 🟡 Teilweise (Upload/PDF ja, Vision-Aufruf offen) |
+| WS4 Preview API und UI | P0 | ✅ Erledigt |
+| WS5 Navigation-Kontext | P1 | ✅ Erledigt |
+| WS6 Real Simulation Mode | P1 | ⏳ Offen |
+| WS7 Semantische Site-Suche | P2 | 📋 Nur Blueprint |
+| WS8 Whisper-Spracheingabe | P1 | ⏳ Offen (neu) |
+| 4.1 Observability / Audit Trail | P0 | 🟡 Teilweise |
+| 4.2 Safety Policy Packs | P1 | ⏳ Offen |
+| 4.3 Prompt/Contract Eval Harness | P1 | ✅ Erledigt |
+| 4.4 API Versioning | P2 | ⏳ Offen |
+| 4.5 Onboarding / Admin Enablement | P2 | ✅ Erledigt |
+
 ## 3) Priorisierte Workstreams
 
-### WS1: Risk-Class Framework (P0)
+### WS1: Risk-Class Framework (P0) — ✅ Erledigt
+**Status (2026-06-18):** Umgesetzt. R0-R3 sind verpflichtend im Skill-Contract (skill_contract_validator, keine stillen Defaults) und durchgaengig in decision/preflight/queue/synchronizer verdrahtet; Contract-Tests fuer Gate-Logik gruen.
+
 Ziel: Einfuehrung eines deklarativen Risikoklassen-Systems (R0-R3) ueber den gesamten Agent-Flow.
 
 Deliverables:
@@ -24,7 +46,9 @@ Definition of Done:
 - Alle produktiven Tasks tragen eine explizite risk_class.
 - Contract-Tests fuer R0-R3 und Gate-Logik gruen.
 
-### WS2: Benchmarking und Performance-Messung (P0)
+### WS2: Benchmarking und Performance-Messung (P0) — ✅ Erledigt
+**Status (2026-06-18):** Umgesetzt. Benchmark-Tabellen (runs/scenarios/baselines/metrics), CLI-Runner inkl. ci-gate/export/import, Report-Seiten (compare/report/run_detail), Baseline-Pinning, Retention-Task und drei Schwellen-Settings (CI-Gate) sind vorhanden. Vertiefte automatische Drift-Erkennung ist noch ausbaufaehig.
+
 Ziel: Modell-Performance und Agent-Performance klar definieren, versioniert speichern und ueber Zeit vergleichbar messen.
 
 Umfang:
@@ -56,7 +80,9 @@ Definition of Done:
 - Kritische Regressionen blockieren den Rollout automatisch.
 - Team kann Trends ueber mehrere Wochen nachvollziehen und erklaeren.
 
-### WS3: Bild-Input und visuelle Verarbeitung (P0)
+### WS3: Bild-Input und visuelle Verarbeitung (P0) — 🟡 Teilweise
+**Status (2026-06-18):** Teilweise. Erledigt sind Upload (Drag-and-Drop/Paste im Chat), Attachment-Token-Service, Ablage als temporaere Moodle-Datei + Cleanup-Task sowie PDF-Textextraktion (Text wird als Dokumentblock injiziert). OFFEN ist der eigentliche multimodale Vision-Aufruf: Bilder werden derzeit nur als Token-Hinweis im Text an den Planner uebergeben (attachment_processor), nicht als Bildinhalt an ein vision-faehiges Modell; die Feld-Extraktion aus Bildinhalt fehlt entsprechend noch.
+
 Ziel: Nutzer koennen Bilder direkt in den Agent-Chat droppen; der Agent verarbeitet den visuellen Inhalt und leitet daraus strukturierte Aktionen ab.
 
 Deliverables:
@@ -72,7 +98,9 @@ Definition of Done:
 - Extrahierte Daten aus Bildern werden als Kontext in nachfolgende Task-Parameter einspeist.
 - Contract-Test sichert Attachment-Handling und Fallback bei fehlendem Vision-Modell ab.
 
-### WS4: Preview API und UI (P0, ehem. WS3)
+### WS4: Preview API und UI (P0, ehem. WS3) — ✅ Erledigt
+**Status (2026-06-18):** Umgesetzt. Skills liefern Preview als Daten (get_result_preview -> html/js_module/payload), die Engine reicht generisch durch; Renderer fuer Aktivitaeten, Fragen und Diagnose-Checklisten vorhanden; Uebergang Preview -> Confirm -> Execute mit queue_item-Referenz steht.
+
 Ziel: Jede mutierende Aktion kann vor Ausfuehrung als belastbare Vorschau dargestellt werden.
 
 Deliverables:
@@ -84,7 +112,9 @@ Definition of Done:
 - Preview fuer alle High-Impact Tasks verfuegbar.
 - Contract-Tests decken Preview-Konsistenz ab.
 
-### WS5: Agent im Kontext der Navigation (P1, ehem. WS4)
+### WS5: Agent im Kontext der Navigation (P1, ehem. WS4) — ✅ Erledigt
+**Status (2026-06-18):** Umgesetzt. Globaler Einstieg via Navbar-Zauberstab (Hook + Fragment), Kontext-Resolver (context_resolver + skill_operating_context_resolver) fuer aktive Entitaeten und "Was kann ich hier tun"-Antworten ueber die Skill-Discovery.
+
 Ziel: Der Agent wird kontextbewusst im UI verankert (Kurs, Option, Rolle, Filter).
 
 Deliverables:
@@ -95,7 +125,9 @@ Deliverables:
 Definition of Done:
 - Kontextsensitive Vorschlaege reduzieren Freitext-Fehleingaenge messbar.
 
-### WS6: Real Simulation Mode (P1, ehem. WS5)
+### WS6: Real Simulation Mode (P1, ehem. WS5) — ⏳ Offen
+**Status (2026-06-18):** Offen. Es existiert nur ein Validierungs-Dry-Run im Preflight (z. B. mform validation() vor add_activity); ein echter Simulationsmodus mit isoliertem Write-Layer und "would change"-Report ist noch nicht implementiert.
+
 Ziel: Trockenlauf fuer mutierende Operationen mit entsorgbarem Ergebnisraum.
 
 Deliverables:
@@ -106,7 +138,9 @@ Deliverables:
 Definition of Done:
 - Simulation liefert fuer Kern-Workflows stabile und nachvollziehbare Differenzen.
 
-### WS7: Semantische Site-Suche (P2, spaeter)
+### WS7: Semantische Site-Suche (P2, spaeter) — 📋 Nur Blueprint
+**Status (2026-06-18):** Noch nicht begonnen. Es liegt nur das Konzeptdokument vor (siehe Blueprint unten); bewusst Phase 3+.
+
 Ziel: Inhalte der ganzen Moodle-Site semantisch ueber den Agent auffindbar machen, ohne pro Plugin zu scrapen.
 
 Ansatz: Moodles Search-Areas (`\core_search\base`) als Korpus nutzen — sie liefern bereits indexierbare,
@@ -123,30 +157,60 @@ Kernpunkte:
 Details + Datenmodell + Indexing-Flow: siehe Blueprint
 `semantische_site_suche_embeddings_adapter_2026-06-10.md`. Bewusst spaeter (Phase 3+), nicht jetzt.
 
+### WS8: Whisper-Spracheingabe (Voice Input) (P1) — ⏳ Offen (neu)
+**Status (2026-06-18):** Neu aufgenommen, noch nicht begonnen.
+
+Ziel: Nutzer koennen ihre Anweisung per Mikrofon einsprechen; die Aufnahme wird per Whisper (Speech-to-Text) transkribiert und als editierbare Chat-Nachricht uebernommen — analog zum bestehenden Attachment-Pfad, aber fuer Audio.
+
+Deliverables:
+- Mikrofon-Button im Chat-UI (aiinstructions) mit Aufnahme-Status, Stop/Abbrechen und Datenschutz-Hinweis.
+- Browser-Audioaufnahme (MediaRecorder), Upload als temporaere Moodle-Datei ueber den bestehenden Attachment-/Token-Pfad (attachment_token_service), keine Persistenz ueber die Transkription hinaus.
+- Server-seitiger Transkriptions-Service: Whisper-/STT-Aufruf ueber den konfigurierten Provider (ai_manager / LiteLLM-Endpoint, analog zu den uebrigen LLM-Aufrufen). Sprache automatisch erkannt oder aus der Moodle-Sprache abgeleitet.
+- Transkript wird in das Eingabefeld geschrieben; der Nutzer korrigiert und sendet selbst — KEIN automatisches Ausfuehren.
+- Privacy: Audio nur temporaer; der bestehende Anonymisierungs-/Privacy-Pfad gilt fuer den transkribierten Text wie fuer Tippeingaben; die Audio-Uebermittlung an den externen STT-Provider wird in der Privacy-API als external_location deklariert.
+- Sicherheit/Fallbacks: MIME- und Groessenlimit fuer Audio; Capability wie der uebrige Agent-Zugang (useaiinstructions); kein konfiguriertes STT-Modell -> Button ausgeblendet + verstaendliche Meldung; verweigerte Mikrofon-Freigabe -> klarer Hinweis (kein stiller Fehler).
+
+Definition of Done:
+- Eine Sprachaufnahme wird transkribiert und erscheint als editierbarer Text im Chat-Eingabefeld.
+- Fallback bei fehlendem STT-Modell und bei verweigerter Mikrofon-Freigabe ist abgedeckt.
+- Privacy-API deklariert die Audio-Uebermittlung an den externen STT-Provider; Audio wird nicht dauerhaft gespeichert.
+
 ## 4) Zusaetzliche sinnvolle Ideen (Vorschlaege)
 
-### 4.1 Observability und Audit Trail (P0)
+### 4.1 Observability und Audit Trail (P0) — 🟡 Teilweise
+**Status (2026-06-18):** Teilweise. LLM-Debug-Logging (Tabelle ai_llm_debug + llm_debug_logger + Debug-Logs-Endpoint), observability-Doku und das trial_consent_given-Event sind vorhanden. Ein vollstaendiges Lifecycle-Dashboard und exportierbare Audit-Events fuer Support/Compliance fehlen noch.
+
 - Thread- und Queue-Lifecycle Dashboard (state transitions, retries, blocker).
 - Korrelation von user action -> planner output -> execution result.
 - Exportierbare Audit-Events fuer Support und Compliance.
 
-### 4.2 Safety Policy Packs (P1)
+### 4.2 Safety Policy Packs (P1) — ⏳ Offen
+**Status (2026-06-18):** Offen. Es gibt eine Skill-Governance-Schicht (skill_governance), aber keine konfigurierbaren Sicherheitsprofile (strict/balanced/fast) pro Installation.
+
 - Konfigurierbare Sicherheitsprofile pro Installation (strict, balanced, fast).
 - Regeln fuer "always require manual confirmation" je Task/Scope.
 
-### 4.3 Prompt/Contract Eval Harness (P1)
+### 4.3 Prompt/Contract Eval Harness (P1) — ✅ Erledigt
+**Status (2026-06-18):** Weitgehend umgesetzt. Umfangreiche Contract-Tests (tests/agent/contracts), Real-LLM-Mehrschritt-Matrix, Benchmark-Golden-Scenarios und CI-Guards gegen Strukturdrift (u. a. ai_error_messaging) sind vorhanden.
+
 - Golden Scenarios fuer typische Buchungsablaeufe.
 - CI-Checks gegen Strukturdrift im Planner/Synchronizer Output.
 
-### 4.4 API Versioning und External Integrations (P2)
+### 4.4 API Versioning und External Integrations (P2) — ⏳ Offen
+**Status (2026-06-18):** Offen. Die Webservice-Endpunkte sind funktional und readiness-gehaertet, aber (noch) nicht versioniert; ein stabiler externer Integrationsvertrag steht aus.
+
 - Versionierte Endpunkte fuer Preview/Confirm/Poll.
 - Stabiler Integrationsvertrag fuer externe Automations-Clients.
 
-### 4.5 Onboarding und Admin Enablement (P2)
+### 4.5 Onboarding und Admin Enablement (P2) — ✅ Erledigt
+**Status (2026-06-18):** Weitgehend umgesetzt. Gefuehrter Trial-Setup-Assistent (request_trial_key / activate_trial_context / trial_provisioner inkl. GDPR-Consent) und eine Health-Check-/Readiness-Anzeige (aiready) fuer fehlende Voraussetzungen sind vorhanden.
+
 - Setup-Wizard fuer erste Inbetriebnahme (Capabilities, Defaults, Logging).
 - "Health Check" Seite fuer fehlende Voraussetzungen.
 
 ## 5) Zeitplan (Vorschlag)
+
+> Hinweis (2026-06-18): Phase 1 ist grossteils abgeschlossen (WS1, WS2, WS4 erledigt; WS3 nur noch der Vision-Aufruf offen — siehe Abschnitt 2a). Aktueller Fokus verschiebt sich auf die offenen Punkte WS3-Vision, WS6, WS8 sowie die Zusatzthemen 4.1/4.2.
 
 ### Phase 1 (0-6 Wochen)
 - WS1 Risk-Class Framework (MVP, durchgaengig verdrahtet)
@@ -155,11 +219,10 @@ Details + Datenmodell + Indexing-Flow: siehe Blueprint
 - WS4 Preview API (MVP fuer Kern-Tasks)
 
 ### Phase 2 (6-12 Wochen)
-- WS2 Benchmark-Reporting + CI-Gates fuer kritische Regressionen
-- WS3 Bild-Extraktion und Kontext-Einspeisung vervollstaendigen
-- WS4 Preview UI vervollstaendigen
-- WS5 Kontextintegration in Navigation
+- WS3 Vision-Aufruf nachziehen (Bild an vision-faehiges Modell, Feld-Extraktion und Kontext-Einspeisung)
+- WS8 Whisper-Spracheingabe (MVP: Aufnahme + Upload + Transkription ins Eingabefeld)
 - Start WS6 Simulation Mode (technischer Prototyp)
+- 4.1 Observability: Lifecycle-Dashboard + exportierbare Audit-Events
 
 ### Phase 3 (12-20 Wochen)
 - Benchmark-Trendanalyse und automatische Drift-Erkennung

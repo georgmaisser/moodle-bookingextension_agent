@@ -218,8 +218,10 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             }
         }
         if ($courseid <= 0) {
-            return $this->error_result('Please tell me which course to check (by name), or open the course first.',
-                'missing_course');
+            return $this->error_result(
+                'Please tell me which course to check (by name), or open the course first.',
+                'missing_course'
+            );
         }
         try {
             $course = get_course($courseid);
@@ -230,8 +232,10 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
 
         // 2) Gate: enrolment configuration is privileged (teacher/manager).
         if (!has_capability('moodle/course:enrolreview', $coursecontext, $userid)) {
-            return $this->error_result(get_string('nopermissions', 'error', 'moodle/course:enrolreview'),
-                'permission_denied');
+            return $this->error_result(
+                get_string('nopermissions', 'error', 'moodle/course:enrolreview'),
+                'permission_denied'
+            );
         }
 
         // 3) Optional target user (only when explicitly named — no implicit self here).
@@ -259,8 +263,12 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         // 4) Enrolment methods.
         $instances = enrol_get_instances($courseid, false);
         if (empty($instances)) {
-            $rows[] = $this->row('fail', 'No enrolment methods on the course',
-                'The course has no enrolment method configured at all.', $links->enrol_instances($courseid));
+            $rows[] = $this->row(
+                'fail',
+                'No enrolment methods on the course',
+                'The course has no enrolment method configured at all.',
+                $links->enrol_instances($courseid)
+            );
         }
         foreach ($instances as $instance) {
             $rows[] = $this->analyse_instance($instance, $coursecontext, $targetuserid, $links, $courseid);
@@ -307,8 +315,12 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             return $this->row('fail', 'Method "' . $label . '" is disabled', 'This enrolment method instance is turned off.', $url);
         }
         if (!enrol_is_enabled($method)) {
-            return $this->row('fail', 'Method "' . $label . '" plugin disabled site-wide',
-                'The ' . $label . ' enrolment plugin is disabled for the whole site.', $url);
+            return $this->row(
+                'fail',
+                'Method "' . $label . '" plugin disabled site-wide',
+                'The ' . $label . ' enrolment plugin is disabled for the whole site.',
+                $url
+            );
         }
 
         if ($method === 'self') {
@@ -318,8 +330,12 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             return $this->analyse_cohort($instance, $label, $targetuserid, $url, $links);
         }
         if ($method === 'manual') {
-            return $this->row('ok', 'Method "' . $label . '" is active',
-                'Manual enrolment is available; teachers/managers add users by hand.', $url);
+            return $this->row(
+                'ok',
+                'Method "' . $label . '" is active',
+                'Manual enrolment is available; teachers/managers add users by hand.',
+                $url
+            );
         }
         // Other methods: name + active only (v1).
         return $this->row('ok', 'Method "' . $label . '" is active', 'Not inspected in detail in this version.', $url);
@@ -364,7 +380,9 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         }
         if ((int)$instance->customint5 > 0) {
             $cohort = $DB->get_record('cohort', ['id' => (int)$instance->customint5], 'id, name, contextid', IGNORE_MISSING);
-            $cohortname = $cohort ? format_string($cohort->name, true, ['context' => \context::instance_by_id($cohort->contextid)]) : ('#' . (int)$instance->customint5);
+            $cohortname = $cohort
+                ? format_string($cohort->name, true, ['context' => \context::instance_by_id($cohort->contextid)])
+                : ('#' . (int)$instance->customint5);
             if ($targetuserid > 0 && !cohort_is_member((int)$instance->customint5, $targetuserid)) {
                 $status = 'fail';
                 $notes[] = 'restricted to members of cohort "' . $cohortname . '" — the person is NOT a member';
@@ -387,7 +405,13 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
      * @param diagnostic_link_builder $links
      * @return array<string,mixed>
      */
-    private function analyse_cohort(\stdClass $instance, string $label, int $targetuserid, \moodle_url $url, diagnostic_link_builder $links): array {
+    private function analyse_cohort(
+        \stdClass $instance,
+        string $label,
+        int $targetuserid,
+        \moodle_url $url,
+        diagnostic_link_builder $links
+    ): array {
         global $DB;
         $cohortid = (int)$instance->customint1;
         $cohort = $cohortid > 0
@@ -399,14 +423,26 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
 
         if ($targetuserid > 0) {
             if ($cohortid > 0 && cohort_is_member($cohortid, $targetuserid)) {
-                return $this->row('ok', 'Cohort sync via "' . $cohortname . '"',
-                    'The person IS a member of this cohort, so cohort sync should enrol them.', $url);
+                return $this->row(
+                    'ok',
+                    'Cohort sync via "' . $cohortname . '"',
+                    'The person IS a member of this cohort, so cohort sync should enrol them.',
+                    $url
+                );
             }
-            return $this->row('fail', 'Cohort sync via "' . $cohortname . '"',
-                'The person is NOT a member of this cohort — cohort sync will not enrol them.', $url);
+            return $this->row(
+                'fail',
+                'Cohort sync via "' . $cohortname . '"',
+                'The person is NOT a member of this cohort — cohort sync will not enrol them.',
+                $url
+            );
         }
-        return $this->row('ok', 'Cohort sync via "' . $cohortname . '"',
-            'Members of this cohort are auto-enrolled.', $url);
+        return $this->row(
+            'ok',
+            'Cohort sync via "' . $cohortname . '"',
+            'Members of this cohort are auto-enrolled.',
+            $url
+        );
     }
 
     /**
@@ -418,7 +454,12 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
      * @param diagnostic_link_builder $links
      * @return array<string,mixed>
      */
-    private function existing_enrolment_row(int $courseid, int $targetuserid, \context $coursecontext, diagnostic_link_builder $links): array {
+    private function existing_enrolment_row(
+        int $courseid,
+        int $targetuserid,
+        \context $coursecontext,
+        diagnostic_link_builder $links
+    ): array {
         global $DB;
         $now = time();
         $sql = "SELECT ue.id, ue.status, ue.timestart, ue.timeend, e.enrol
@@ -428,9 +469,12 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         $records = $DB->get_records_sql($sql, ['courseid' => $courseid, 'userid' => $targetuserid]);
 
         if (empty($records)) {
-            return $this->row('fail', 'No enrolment record for this person',
+            return $this->row(
+                'fail',
+                'No enrolment record for this person',
                 'The person has no enrolment in this course (active, suspended or expired).',
-                $links->user_profile($targetuserid, $courseid));
+                $links->user_profile($targetuserid, $courseid)
+            );
         }
 
         $hasactive = false;
@@ -478,11 +522,19 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         }
         $tasklink = $links->if_admin($links->scheduled_tasks(), $userid);
         if (empty($unhealthy)) {
-            $rows[] = $this->row('ok', 'Enrolment scheduled tasks healthy',
-                'No disabled or failing enrolment tasks (e.g. cohort sync).', $tasklink);
+            $rows[] = $this->row(
+                'ok',
+                'Enrolment scheduled tasks healthy',
+                'No disabled or failing enrolment tasks (e.g. cohort sync).',
+                $tasklink
+            );
         } else {
-            $rows[] = $this->row('fail', 'Enrolment scheduled task problem',
-                implode('; ', $unhealthy), $tasklink);
+            $rows[] = $this->row(
+                'fail',
+                'Enrolment scheduled task problem',
+                implode('; ', $unhealthy),
+                $tasklink
+            );
         }
         return $rows;
     }

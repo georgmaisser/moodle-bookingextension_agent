@@ -90,11 +90,19 @@ final class diagnose_enrolment_skill_test extends advanced_testcase {
 
         $skill = new diagnose_enrolment_skill();
 
-        $active = $skill->execute(['courseid' => (int)$course->id, 'userid' => (int)$enrolled->id], $coursecontextid, (int)$teacher->id);
+        $active = $skill->execute(
+            ['courseid' => (int)$course->id, 'userid' => (int)$enrolled->id],
+            $coursecontextid,
+            (int)$teacher->id
+        );
         $this->assertSame('executed', $active['status']);
         $this->assertStringContainsString('currently enrolled (active)', $active['observation_full']);
 
-        $none = $skill->execute(['courseid' => (int)$course->id, 'userid' => (int)$outsider->id], $coursecontextid, (int)$teacher->id);
+        $none = $skill->execute(
+            ['courseid' => (int)$course->id, 'userid' => (int)$outsider->id],
+            $coursecontextid,
+            (int)$teacher->id
+        );
         $this->assertStringContainsString('No enrolment record', $none['observation_full']);
     }
 
@@ -129,10 +137,18 @@ final class diagnose_enrolment_skill_test extends advanced_testcase {
         $this->setUser($teacher);
         $skill = new diagnose_enrolment_skill();
 
-        $memberresult = $skill->execute(['courseid' => (int)$course->id, 'userid' => (int)$member->id], $coursecontextid, (int)$teacher->id);
+        $memberresult = $skill->execute(
+            ['courseid' => (int)$course->id, 'userid' => (int)$member->id],
+            $coursecontextid,
+            (int)$teacher->id
+        );
         $this->assertStringContainsString('IS a member', $memberresult['observation_full']);
 
-        $nonresult = $skill->execute(['courseid' => (int)$course->id, 'userid' => (int)$nonmember->id], $coursecontextid, (int)$teacher->id);
+        $nonresult = $skill->execute(
+            ['courseid' => (int)$course->id, 'userid' => (int)$nonmember->id],
+            $coursecontextid,
+            (int)$teacher->id
+        );
         $this->assertStringContainsString('NOT a member', $nonresult['observation_full']);
     }
 }

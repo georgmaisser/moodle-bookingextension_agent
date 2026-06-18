@@ -58,7 +58,7 @@ final class permission_capability_anonymizer_test extends \advanced_testcase {
             . 'Her role at the course context is editingteacher. Why can Maria Booking not add options?';
         $sanitized = (string)$anonymizer->anonymize_value_for_llm((int)$thread->id, $message);
 
-        // moodle/question:add never collides with the name and must always survive.
+        // The moodle/question:add capability never collides with the name and must always survive.
         $this->assertStringContainsString('moodle/question:add', $sanitized);
 
         // Self-updating guard: today the STRICT anonymizer splits x/y:z capability tokens when a user

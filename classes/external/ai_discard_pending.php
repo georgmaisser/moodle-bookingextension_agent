@@ -79,6 +79,15 @@ class ai_discard_pending extends external_api {
         self::validate_context($context);
 
         $store = new conversation_store();
+
+        // Never discard queue items of a thread the caller does not own.
+        if (
+            (int)$params['threadid'] > 0
+                && !$store->thread_belongs_to_user((int)$params['threadid'], (int)$USER->id, (int)$context->id)
+        ) {
+            return ['success' => false, 'discardedcount' => 0, 'threadid' => 0, 'message' => ''];
+        }
+
         $pendingintentsvc = new pending_intent_service($store);
         $pendingintentsvc->consume((int)$params['threadid'], (int)$USER->id, (int)$context->id);
 

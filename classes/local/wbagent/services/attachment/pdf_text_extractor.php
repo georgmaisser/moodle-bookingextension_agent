@@ -40,7 +40,7 @@ class pdf_text_extractor {
     /** PSR-4 prefix of the bundled pure-PHP PDF library. */
     private const PDFPARSER_NAMESPACE_PREFIX = 'Smalot\\PdfParser\\';
 
-    /** Whether the bundled pdfparser autoloader has already been registered. */
+    /** @var bool Whether the bundled pdfparser autoloader has already been registered. */
     private static bool $pdfparserautoloaderregistered = false;
 
     /**

@@ -105,7 +105,7 @@ class question_import_service {
         // and rolled back, so the generation step can retry the whole document cleanly.
         $qformat->setStoponerror(true);
 
-        // importpreprocess()/importprocess() echo progress and error markup; capture it.
+        // The importpreprocess and importprocess calls echo progress and error markup; capture it.
         ob_start();
         $ok = $qformat->importpreprocess() && $qformat->importprocess();
         if ($ok) {

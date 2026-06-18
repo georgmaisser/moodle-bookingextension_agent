@@ -194,7 +194,7 @@ final class generate_questions_skill_test extends advanced_testcase {
         $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
         $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
 
-        // add_writable_categories names them "Agent category 0", "Agent category 1".
+        // The add_writable_categories helper names them "Agent category 0", "Agent category 1".
         $result = (new generate_questions_skill())
             ->preflight(['target_category' => 'Agent category 1'], $contextid, (int)$USER->id);
 

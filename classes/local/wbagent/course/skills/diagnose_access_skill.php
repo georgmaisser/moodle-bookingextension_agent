@@ -278,17 +278,27 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         $activeenrolled = is_enrolled($coursecontext, $targetuserid, '', true);
         $anyenrolled = is_enrolled($coursecontext, $targetuserid, '', false);
         if ($activeenrolled) {
-            $rows[] = $this->row('ok', 'Enrolled and active in the course', '',
-                $links->if_capable($links->enrolled_users($courseid), 'moodle/course:enrolreview', $coursecontext, $userid));
+            $rows[] = $this->row(
+                'ok',
+                'Enrolled and active in the course',
+                '',
+                $links->if_capable($links->enrolled_users($courseid), 'moodle/course:enrolreview', $coursecontext, $userid)
+            );
         } else if ($anyenrolled) {
-            $rows[] = $this->row('fail', 'Enrolled but not active',
+            $rows[] = $this->row(
+                'fail',
+                'Enrolled but not active',
                 'The enrolment is suspended or expired — a common "was enrolled once" cause. '
                     . 'Use course.diagnose_enrolment for the enrolment-method details.',
-                $links->if_capable($links->enrol_instances($courseid), 'moodle/course:enrolreview', $coursecontext, $userid));
+                $links->if_capable($links->enrol_instances($courseid), 'moodle/course:enrolreview', $coursecontext, $userid)
+            );
         } else {
-            $rows[] = $this->row('fail', 'Not enrolled in the course',
+            $rows[] = $this->row(
+                'fail',
+                'Not enrolled in the course',
                 'No active or inactive enrolment found for this person.',
-                $links->if_capable($links->enrol_instances($courseid), 'moodle/course:enrolreview', $coursecontext, $userid));
+                $links->if_capable($links->enrol_instances($courseid), 'moodle/course:enrolreview', $coursecontext, $userid)
+            );
         }
 
         // Check 3: role in the course.
@@ -297,8 +307,11 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             $rolenames = array_values(array_unique(array_map(static fn($r): string => (string)$r->shortname, $roles)));
             $rows[] = $this->row('ok', 'Has a role in the course', implode(', ', $rolenames));
         } else {
-            $rows[] = $this->row('warn', 'No role in the course',
-                'The person has no role here; depending on setup this can limit what they can do.');
+            $rows[] = $this->row(
+                'warn',
+                'No role in the course',
+                'The person has no role here; depending on setup this can limit what they can do.'
+            );
         }
 
         // Check 4: activity visibility for the TARGET user (course-wide overview or a named activity).
@@ -324,7 +337,11 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
      * @param diagnostic_link_builder $links
      * @return array<string,mixed>
      */
-    private function activity_visibility_row(\course_modinfo $modinfo, string $activityquery, diagnostic_link_builder $links): array {
+    private function activity_visibility_row(
+        \course_modinfo $modinfo,
+        string $activityquery,
+        diagnostic_link_builder $links
+    ): array {
         $needle = \core_text::strtolower($activityquery);
         $matches = [];
         foreach ($modinfo->get_cms() as $cm) {
@@ -333,23 +350,36 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             }
         }
         if (empty($matches)) {
-            return $this->row('warn', 'Activity "' . $activityquery . '" not found',
-                'No activity with that name in this course (for this user).');
+            return $this->row(
+                'warn',
+                'Activity "' . $activityquery . '" not found',
+                'No activity with that name in this course (for this user).'
+            );
         }
         if (count($matches) > 1) {
             $names = array_map(static fn($cm): string => $cm->name, array_slice($matches, 0, 5));
-            return $this->row('warn', 'Several activities match "' . $activityquery . '"',
-                'Please be more specific: ' . implode('; ', $names));
+            return $this->row(
+                'warn',
+                'Several activities match "' . $activityquery . '"',
+                'Please be more specific: ' . implode('; ', $names)
+            );
         }
         $cm = $matches[0];
         if ($cm->uservisible) {
-            return $this->row('ok', 'Activity "' . $cm->name . '" is visible to the user', '',
-                $links->activity($cm->modname, (int)$cm->id));
+            return $this->row(
+                'ok',
+                'Activity "' . $cm->name . '" is visible to the user',
+                '',
+                $links->activity($cm->modname, (int)$cm->id)
+            );
         }
         $reason = trim(strip_tags((string)$cm->availableinfo));
-        return $this->row('fail', 'Activity "' . $cm->name . '" is NOT visible to the user',
+        return $this->row(
+            'fail',
+            'Activity "' . $cm->name . '" is NOT visible to the user',
             $reason !== '' ? $reason : 'Hidden or restricted (no visible reason is shown for this user).',
-            $links->activity($cm->modname, (int)$cm->id));
+            $links->activity($cm->modname, (int)$cm->id)
+        );
     }
 
     /**
@@ -373,8 +403,11 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         if ($hidden === 0) {
             return $this->row('ok', 'All activities are visible to the user', $total . ' activit(y/ies) checked');
         }
-        return $this->row('warn', $hidden . ' of ' . $total . ' activities not visible to the user',
-            'Name the specific activity (activityquery) to see the exact reason.');
+        return $this->row(
+            'warn',
+            $hidden . ' of ' . $total . ' activities not visible to the user',
+            'Name the specific activity (activityquery) to see the exact reason.'
+        );
     }
 
     /**
@@ -398,9 +431,12 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             return $this->row('ok', 'Group mode: ' . $modelabel, 'The user is a member of at least one group.');
         }
         $status = $groupmode === SEPARATEGROUPS ? 'warn' : 'ok';
-        return $this->row($status, 'Group mode: ' . $modelabel,
+        return $this->row(
+            $status,
+            'Group mode: ' . $modelabel,
             'The user is in no group' . ($groupmode === SEPARATEGROUPS
-                ? ' — with separate groups this can hide group-scoped content/people.' : '.'));
+            ? ' — with separate groups this can hide group-scoped content/people.' : '.')
+        );
     }
 
     /**

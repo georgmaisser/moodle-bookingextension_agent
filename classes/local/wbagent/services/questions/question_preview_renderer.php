@@ -69,6 +69,10 @@ class question_preview_renderer {
      * @return array{html:string,js:string} Rendered HTML and the collected JS, both '' when nothing rendered.
      */
     public function render(array $questionids, int $bankcontextid, string $bankurl = ''): array {
+        // This is a plain service, not a Moodle renderer subclass (it has no $this->page). It uses the
+        // global $PAGE requirements manager on purpose to collect render-time JS via the fragment pattern
+        // documented above, so the renderer-specific "use $this->page" rule does not apply here.
+        // phpcs:disable moodle.PHP.ForbiddenGlobalUse
         global $CFG, $PAGE;
         require_once($CFG->libdir . '/questionlib.php');
 
@@ -106,7 +110,7 @@ class question_preview_renderer {
             $collecting = false;
         }
 
-        // ob_start additionally swallows any stray echo (debug notices) so it can never corrupt the JSON
+        // The ob_start call additionally swallows any stray echo (debug notices) so it can never corrupt the JSON
         // webservice envelope.
         ob_start();
         try {
@@ -157,6 +161,7 @@ class question_preview_renderer {
                 }
             }
         }
+        // phpcs:enable moodle.PHP.ForbiddenGlobalUse
 
         if ($rendered === 0) {
             return $empty;

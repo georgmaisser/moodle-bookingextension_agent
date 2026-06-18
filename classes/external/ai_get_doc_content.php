@@ -464,7 +464,7 @@ class ai_get_doc_content extends external_api {
 
         // Replace documented placeholders with concrete identifiers from the active preview context.
         $raw = preg_replace('/<\s*contextid\s*>/i', (string)$contextid, $raw) ?? $raw;
-        // <cmid> placeholders can only be resolved inside a module context;
+        // The cmid placeholders can only be resolved inside a module context;
         // elsewhere (course/system, e.g. navbar overlay) leave them untouched.
         try {
             $ctx = context::instance_by_id($contextid, MUST_EXIST);

@@ -257,12 +257,16 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
-            return $this->clarify('Editing activities works inside a course. Please open a course, or name one.',
-                'UPDATE_ACTIVITY_NO_COURSE');
+            return $this->clarify(
+                'Editing activities works inside a course. Please open a course, or name one.',
+                'UPDATE_ACTIVITY_NO_COURSE'
+            );
         }
         if (!has_capability('moodle/course:manageactivities', $coursecontext, $userid)) {
-            return $this->clarify(get_string('nopermissions', 'error', 'moodle/course:manageactivities'),
-                'NO_NATIVE_CAPABILITY');
+            return $this->clarify(
+                get_string('nopermissions', 'error', 'moodle/course:manageactivities'),
+                'NO_NATIVE_CAPABILITY'
+            );
         }
         $course = get_course($coursecontext->instanceid);
 
@@ -291,8 +295,10 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         }
         $validation = (new module_form_contract())->validate_update($course, $cmrecord, $changes);
         if (!$validation['ok'] && !empty($validation['errors'])) {
-            return $this->clarify($this->format_field_errors($modname, $validation['errors']),
-                'UPDATE_ACTIVITY_FIELDS_INVALID');
+            return $this->clarify(
+                $this->format_field_errors($modname, $validation['errors']),
+                'UPDATE_ACTIVITY_FIELDS_INVALID'
+            );
         }
 
         return preflight_result_v2::ok([
@@ -404,8 +410,10 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 return $this->clarify('I could not find an activity with that id in this course.', 'UPDATE_ACTIVITY_CM_NOT_FOUND');
             }
             if (!$catalog->is_whitelisted($cm->modname)) {
-                return $this->clarify('Editing "' . $cm->modname . '" activities is not supported yet.',
-                    'UPDATE_ACTIVITY_UNSUPPORTED');
+                return $this->clarify(
+                    'Editing "' . $cm->modname . '" activities is not supported yet.',
+                    'UPDATE_ACTIVITY_UNSUPPORTED'
+                );
             }
             return $cm;
         }
@@ -427,11 +435,15 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 return $matches[0];
             }
             if (count($matches) > 1) {
-                return $this->build_activity_clarification($matches,
-                    'More than one activity matches "' . $query . '". Which one?');
+                return $this->build_activity_clarification(
+                    $matches,
+                    'More than one activity matches "' . $query . '". Which one?'
+                );
             }
-            return $this->clarify('I could not find an editable activity called "' . $query . '" in this course.',
-                'UPDATE_ACTIVITY_NOT_FOUND');
+            return $this->clarify(
+                'I could not find an editable activity called "' . $query . '" in this course.',
+                'UPDATE_ACTIVITY_NOT_FOUND'
+            );
         }
 
         // 3) Ambient module context (editing the activity of the current page).
@@ -447,8 +459,10 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             }
         }
 
-        return $this->clarify('Which activity should I edit? Name it (e.g. "the Welcome page").',
-            'UPDATE_ACTIVITY_TARGET_REQUIRED');
+        return $this->clarify(
+            'Which activity should I edit? Name it (e.g. "the Welcome page").',
+            'UPDATE_ACTIVITY_TARGET_REQUIRED'
+        );
     }
 
     /**

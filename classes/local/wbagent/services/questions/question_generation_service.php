@@ -148,7 +148,8 @@ class question_generation_service {
         if ($raw === '') {
             return '';
         }
-        // Prefer the first fenced code block (```gift ... ``` or ``` ... ```), if any.
+        // Prefer the first fenced code block (a gift-labelled or unlabelled triple-backtick block), if any.
+        // phpcs:ignore moodle.Strings.ForbiddenStrings.Found -- Literal backticks in a Markdown code-fence regex, not shell execution.
         if (preg_match('/```[a-zA-Z0-9_-]*\s*\n(.*?)```/s', $raw, $m)) {
             return trim($m[1]);
         }

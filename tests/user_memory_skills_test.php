@@ -85,7 +85,7 @@ final class user_memory_skills_test extends advanced_testcase {
             'structuredjson' => null,
             'timecreated' => $ts + 60,
         ]);
-        // recall_memory returns a PREVIOUS conversation, not the current active one; mark it archived.
+        // The recall_memory skill returns a PREVIOUS conversation, not the current active one; mark it archived.
         $DB->set_field('local_wbagent_ai_threads', 'status', 'archived', ['id' => (int)$thread->id]);
 
         $result = (new recall_memory_skill())->execute(['mode' => 'last_thread'], $contextid, (int)$user->id);

@@ -99,7 +99,7 @@ class preflight_pipeline {
         $startedat = microtime(true);
         $batchriskclass = $this->resolve_batch_risk_class($commands);
         $context = context::instance_by_id($contextid, MUST_EXIST);
-        // cmid is only needed by booking-style skills; 0 outside a module context.
+        // The cmid is only needed by booking-style skills; 0 outside a module context.
         $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
         // The chat/thread ambient context; a command may resolve a different operating context
         // (cross-context target). Skills that do not opt in keep the ambient context unchanged.

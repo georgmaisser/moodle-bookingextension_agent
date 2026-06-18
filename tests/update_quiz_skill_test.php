@@ -76,7 +76,10 @@ final class update_quiz_skill_test extends advanced_testcase {
         $this->resetAfterTest();
         [$course, $teacher, $quiz, $ctxid] = $this->quiz_course();
         $result = (new update_quiz_skill())->preflight(
-            ['cmid' => (int)$quiz->cmid, 'addquestions' => true], $ctxid, (int)$teacher->id);
+            ['cmid' => (int)$quiz->cmid, 'addquestions' => true],
+            $ctxid,
+            (int)$teacher->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('UPDATE_QUIZ_QUESTION_SOURCE', $result->issuecodes);
     }
@@ -109,7 +112,10 @@ final class update_quiz_skill_test extends advanced_testcase {
 
         $skill = new update_quiz_skill();
         $pf = $skill->preflight(
-            ['cmid' => (int)$quiz->cmid, 'questionids' => [(int)$q1->id]], $ctxid, (int)$teacher->id);
+            ['cmid' => (int)$quiz->cmid, 'questionids' => [(int)$q1->id]],
+            $ctxid,
+            (int)$teacher->id
+        );
         $this->assertSame('pass', $pf->status);
         $result = $skill->execute($pf->preparedinput, $ctxid, (int)$teacher->id);
         $this->assertSame('executed', $result['status']);
@@ -124,7 +130,10 @@ final class update_quiz_skill_test extends advanced_testcase {
         [$course, $teacher, $quiz, $ctxid] = $this->quiz_course();
         $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id, 'name' => 'A page']);
         $result = (new update_quiz_skill())->preflight(
-            ['cmid' => (int)$page->cmid, 'name' => 'X'], $ctxid, (int)$teacher->id);
+            ['cmid' => (int)$page->cmid, 'name' => 'X'],
+            $ctxid,
+            (int)$teacher->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('UPDATE_QUIZ_NOT_A_QUIZ', $result->issuecodes);
     }
@@ -139,7 +148,10 @@ final class update_quiz_skill_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($student->id, $course->id, 'student');
         $this->setUser($student);
         $result = (new update_quiz_skill())->preflight(
-            ['cmid' => (int)$quiz->cmid, 'name' => 'X'], $ctxid, (int)$student->id);
+            ['cmid' => (int)$quiz->cmid, 'name' => 'X'],
+            $ctxid,
+            (int)$student->id
+        );
         $this->assertSame('hard_block', $result->status);
         $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
     }

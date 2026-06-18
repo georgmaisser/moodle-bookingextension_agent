@@ -36,7 +36,7 @@ class cleanup_old_benchmark_runs_task extends scheduled_task {
      * @return string
      */
     public function get_name(): string {
-        return 'Clean up old benchmark runs';
+        return get_string('task_cleanup_old_benchmark_runs', 'bookingextension_agent');
     }
 
     /**

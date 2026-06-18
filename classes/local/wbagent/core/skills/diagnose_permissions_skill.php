@@ -90,6 +90,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             'description' => 'Inspect a person\'s ROLES and CAPABILITIES (permissions) across the context chain '
                 . '(system → category → course → activity). Answers "what roles does X have here", and "may X do '
                 . '<capability> at course Y" including the ALLOW/PREVENT/PROHIBIT overrides on the chain. For a '
+                // phpcs:ignore moodle.Strings.ForbiddenStrings.Found -- Literal backticks in prose describing a parameter name, not shell execution.
                 . 'capability question, pass the technical capability name in `capability` (e.g. mod/booking:addoption). '
                 . 'NOT for "who all has right Z" and not for access/enrolment/grades.',
             'readonly' => true,
@@ -279,10 +280,19 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
         $allcaps = get_all_capabilities();
         if (!isset($allcaps[$capability])) {
             $suggestions = $this->suggest_capabilities($capability, array_keys($allcaps));
-            $rows = [$this->row('warn', 'Unknown capability "' . $capability . '"',
-                empty($suggestions) ? 'No similar capability found.' : 'Did you mean: ' . implode(', ', $suggestions))];
-            return $this->build_result($targetcontext, $targetuser, $isself, $rows,
-                'Capability check', 'unknown_capability');
+            $rows = [$this->row(
+                'warn',
+                'Unknown capability "' . $capability . '"',
+                empty($suggestions) ? 'No similar capability found.' : 'Did you mean: ' . implode(', ', $suggestions)
+            )];
+            return $this->build_result(
+                $targetcontext,
+                $targetuser,
+                $isself,
+                $rows,
+                'Capability check',
+                'unknown_capability'
+            );
         }
 
         $rows = [];
@@ -291,7 +301,12 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             $can ? 'ok' : 'fail',
             ($isself ? 'You' : fullname($targetuser)) . ($can ? ' HAS ' : ' does NOT have ') . $capability,
             'Checked at ' . $targetcontext->get_context_name(),
-            $links->if_capable($links->check_permissions((int)$targetcontext->id), 'moodle/role:review', $targetcontext, $actinguserid)
+            $links->if_capable(
+                $links->check_permissions((int)$targetcontext->id),
+                'moodle/role:review',
+                $targetcontext,
+                $actinguserid
+            )
         );
 
         // Overrides for this capability along the chain, limited to the user's roles.
@@ -355,13 +370,25 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             }
             $anyrole = true;
             $names = array_values(array_unique(array_map(static fn($r): string => (string)$r->shortname, $roles)));
-            $rows[] = $this->row('ok', $ctx->get_context_name(), 'Roles: ' . implode(', ', $names),
-                $links->if_capable($links->check_permissions((int)$ctx->id), 'moodle/role:review', $ctx, $actinguserid));
+            $rows[] = $this->row(
+                'ok',
+                $ctx->get_context_name(),
+                'Roles: ' . implode(', ', $names),
+                $links->if_capable($links->check_permissions((int)$ctx->id), 'moodle/role:review', $ctx, $actinguserid)
+            );
         }
         if (!$anyrole) {
-            $rows[] = $this->row('warn', 'No role assignments found',
+            $rows[] = $this->row(
+                'warn',
+                'No role assignments found',
                 ($isself ? 'You have' : fullname($targetuser) . ' has') . ' no roles along this context chain.',
-                $links->if_capable($links->assign_roles((int)$targetcontext->id), 'moodle/role:assign', $targetcontext, $actinguserid));
+                $links->if_capable(
+                    $links->assign_roles((int)$targetcontext->id),
+                    'moodle/role:assign',
+                    $targetcontext,
+                    $actinguserid
+                )
+            );
         }
         return $this->build_result($targetcontext, $targetuser, $isself, $rows, 'Role assignments', 'roles');
     }

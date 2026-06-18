@@ -35,4 +35,14 @@ $tasks = [
         'dayofweek' => '*',
         'disabled'  => 0,
     ],
+    [
+        'classname' => '\bookingextension_agent\task\cleanup_old_benchmark_runs_task',
+        'blocking'  => 0,
+        'minute'    => '30',
+        'hour'      => '3',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+        'disabled'  => 0,
+    ],
 ];

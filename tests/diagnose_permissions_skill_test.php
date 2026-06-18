@@ -51,7 +51,11 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
         $coursecontextid = (int)context_course::instance($course->id)->id;
         $this->setUser($student);
 
-        $result = (new diagnose_permissions_skill())->execute(['courseid' => (int)$course->id], $coursecontextid, (int)$student->id);
+        $result = (new diagnose_permissions_skill())->execute(
+            ['courseid' => (int)$course->id],
+            $coursecontextid,
+            (int)$student->id
+        );
         $this->assertSame('executed', $result['status']);
         $this->assertSame('roles', $result['diagnosis']['mode']);
         $this->assertStringContainsString('student', $result['observation_full']);
