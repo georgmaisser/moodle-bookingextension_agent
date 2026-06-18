@@ -1149,7 +1149,9 @@ class interpreter implements agent_interpreter {
                     $errors[] = $denymessage !== null
                         ? "$label: " . $denymessage
                         : "$label: skill '" . $selection->skillname . "' denied by governance gate (" . $denyreason . ").";
-                    $issuecodes[] = 'SKILL_DENIED';
+                    $issuecodes[] = ($denyreason === skill_contract_validator::DENY_REQUIRES_PRO)
+                        ? 'REQUIRES_PRO'
+                        : 'SKILL_DENIED';
                 } else {
                     foreach ($selection->errors as $error) {
                         $errors[] = $error;

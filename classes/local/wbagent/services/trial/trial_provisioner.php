@@ -102,6 +102,160 @@ class trial_provisioner {
     }
 
     /**
+     * Configure the Wunderbyte provider from an already-configured third-party provider.
+     *
+     * Reuses the existing (non-Wunderbyte) provider's API key, chat endpoint and chat model for the
+     * agent's custom Wunderbyte aiactions, and adds a default embeddings model
+     * (text-embedding-3-small) since the source endpoint will not serve the wunderbyte-embeddings
+     * alias. No trial key and no call to llm.wunderbyte.at — the user's existing credentials are
+     * reused locally. The full skill set still requires a PRO licence or the Wunderbyte LLM endpoint;
+     * a third-party endpoint keeps the read-only restriction (by design).
+     *
+     * @param int $contextid
+     * @return array{success: bool, message: string}
+     */
+    public function configure_from_existing_provider(int $contextid): array {
+        unset($contextid);
+        $manager = \core\di::get(\core_ai\manager::class);
+
+        $source = null;
+        foreach ((array)$manager->get_provider_instances() as $instance) {
+            if (empty($instance->enabled)) {
+                continue;
+            }
+            if (\bookingextension_agent\local\wbagent\services\agent_access_service::instance_targets_wunderbyte_llm($instance)) {
+                continue;
+            }
+            $settings = $instance->actionconfig['core_ai\\aiactions\\generate_text']['settings'] ?? [];
+            if (empty($instance->config['apikey']) || empty($settings['endpoint'])) {
+                continue;
+            }
+            $source = $instance;
+            break;
+        }
+
+        if ($source === null) {
+            return $this->fail(get_string('aitrial_clone_no_source', 'bookingextension_agent'));
+        }
+
+        $settings = $source->actionconfig['core_ai\\aiactions\\generate_text']['settings'] ?? [];
+        $apikey = (string)$source->config['apikey'];
+        $chatendpoint = (string)$settings['endpoint'];
+        $chatmodel = (string)($settings['model'] ?? '');
+        $sourcename = (string)($source->config['name'] ?? $source->provider);
+
+        $this->upsert_wunderbyte_from_clone($apikey, $chatendpoint, $chatmodel, $sourcename);
+
+        return [
+            'success' => true,
+            'message' => get_string('aitrial_clone_success', 'bookingextension_agent', $sourcename),
+        ];
+    }
+
+    /**
+     * Build a Wunderbyte actionconfig from a third-party chat endpoint/model + default embeddings.
+     *
+     * @param string $chatendpoint
+     * @param string $chatmodel
+     * @return array<string, array<string, mixed>>
+     */
+    private function build_cloned_actionconfig(string $chatendpoint, string $chatmodel): array {
+        $chat = $chatendpoint;
+        // Derive the embeddings endpoint from the chat endpoint (.../chat/completions -> .../embeddings).
+        $embeddings = preg_replace('#/chat/completions/?$#', '/embeddings', $chat);
+        if ($embeddings === null || $embeddings === $chat) {
+            $embeddings = rtrim((string)(preg_replace('#/v1/.*$#', '', $chat) ?: $chat), '/') . '/v1/embeddings';
+        }
+        $model = $chatmodel !== '' ? $chatmodel : 'gpt-4o';
+
+        return [
+            'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [
+                'enabled' => true,
+                'settings' => [
+                    'endpoint' => $embeddings,
+                    // The source endpoint cannot serve the wunderbyte-embeddings alias; default to the
+                    // widely available OpenAI-compatible embeddings model.
+                    'model' => 'text-embedding-3-small',
+                    'dimensions' => 1536,
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
+                'enabled' => true,
+                'modelsettings' => [],
+                'settings' => [
+                    'endpoint' => $chat,
+                    'model' => $model,
+                    'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                ],
+            ],
+            'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
+                'enabled' => true,
+                'modelsettings' => [],
+                'settings' => [
+                    'endpoint' => $chat,
+                    'model' => $model,
+                    'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                ],
+            ],
+            'core_ai\\aiactions\\generate_text' => [
+                'enabled' => true,
+                'modelsettings' => [],
+                'settings' => [
+                    'endpoint' => $chat,
+                    'model' => $model,
+                    'systeminstruction' => '[[action_generate_text_instruction]]',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Create or update the Wunderbyte provider instance from cloned third-party credentials.
+     *
+     * @param string $apikey
+     * @param string $chatendpoint
+     * @param string $chatmodel
+     * @param string $sourcename
+     */
+    private function upsert_wunderbyte_from_clone(
+        string $apikey,
+        string $chatendpoint,
+        string $chatmodel,
+        string $sourcename
+    ): void {
+        $manager = \core\di::get(\core_ai\manager::class);
+        $classname = 'aiprovider_wunderbyte\\provider';
+        $config = ['apikey' => $apikey];
+        $actionconfig = $this->build_cloned_actionconfig($chatendpoint, $chatmodel);
+
+        $existing = array_values(array_filter(
+            (array)$manager->get_provider_instances(),
+            static fn($instance) => (string)($instance->provider ?? '') === $classname
+        ));
+
+        if ($existing) {
+            $instance = reset($existing);
+            $instance = $manager->update_provider_instance(
+                provider: $instance,
+                config: $config,
+                actionconfig: $actionconfig,
+            );
+            if (empty($instance->enabled)) {
+                $manager->enable_provider_instance($instance);
+            }
+            return;
+        }
+
+        $manager->create_provider_instance(
+            classname: $classname,
+            name: 'Wunderbyte (' . $sourcename . ')',
+            enabled: true,
+            config: $config,
+            actionconfig: $actionconfig,
+        );
+    }
+
+    /**
      * Decide which provider plugin to provision against.
      *
      * Wunderbyte is preferred (full action/skill coverage incl. embeddings). The

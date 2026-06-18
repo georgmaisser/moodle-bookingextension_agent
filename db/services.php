@@ -98,6 +98,14 @@ $functions = [
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
+    'bookingextension_agent_configure_provider_from_existing' => [
+        'classname'   => '\\bookingextension_agent\\external\\configure_provider_from_existing',
+        'methodname'  => 'execute',
+        'description' => 'Configure the Wunderbyte provider from an existing third-party provider\'s credentials.',
+        'type'        => 'write',
+        'capabilities' => 'bookingextension/agent:useaiinstructions',
+        'ajax'        => 1,
+    ],
     'bookingextension_agent_ai_upload_attachment' => [
         'classname'   => '\\bookingextension_agent\\external\\ai_upload_attachment',
         'methodname'  => 'execute',
@@ -121,6 +129,7 @@ $services = [
             'bookingextension_agent_ai_get_doc_content',
             'bookingextension_agent_request_trial_key',
             'bookingextension_agent_activate_trial_context',
+            'bookingextension_agent_configure_provider_from_existing',
         ],
         'restrictedusers' => 0,
         'enabled' => 1,

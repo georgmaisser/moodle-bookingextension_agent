@@ -989,6 +989,15 @@ const getDocLinkMeta = (href) => {
 const renderSmartLink = (href, label) => {
     const safeHref = escapeHtml(href);
     const safeLabel = escapeHtml(label);
+
+    // The Get-Pro store link renders as the same pill used in the chat header, so an
+    // upgrade hint composed by the synchronizer looks identical to the header CTA.
+    if (href.indexOf('showroom.wunderbyte.at/course/view.php?id=62') !== -1) {
+        return `<a class="badge badge-warning text-dark booking-ai-getpro-pill" href="${safeHref}"`
+            + ` target="_blank" rel="noopener noreferrer">`
+            + `<i class="fa fa-star mr-1" aria-hidden="true"></i>${safeLabel}</a>`;
+    }
+
     const meta = getDocLinkMeta(href);
 
     if (meta.docpath !== '' && meta.corpusid !== '') {
@@ -1568,8 +1577,10 @@ const showRunStatus = (status, message, results = []) => {
         return;
     }
 
+    // Errors/failures are rendered in the same neutral style as any other message —
+    // never red. A failed run reads as a normal, calm notice, not an alarm.
     const alertClass = (status === 'completed') ? 'alert-success'
-                     : (status === 'failed')    ? 'alert-danger'
+                     : (status === 'failed')    ? 'alert-light'
                      : 'alert-info';
     const statusLabel = escapeHtml(String(status || 'info'));
     let html = `<div class="booking-ai-run-status-inline alert ${alertClass} mb-0">`;
@@ -2434,6 +2445,9 @@ const getTrialUiContext = () => {
     const trialFailedDefault = String((wrapper && wrapper.dataset.trialFailedDefault) || '');
     const trialUnexpectedError = String((wrapper && wrapper.dataset.trialUnexpectedError) || '');
     const trialActivateSuccess = String((wrapper && wrapper.dataset.trialActivateSuccess) || trialSuccessDefault);
+    const readyHeading = String((wrapper && wrapper.dataset.agentReadyHeading) || '');
+    const readyBody = String((wrapper && wrapper.dataset.agentReadyBody) || '');
+    const openAgentLabel = String((wrapper && wrapper.dataset.agentOpenAgent) || '');
 
     return {
         trialBtn,
@@ -2447,19 +2461,25 @@ const getTrialUiContext = () => {
         trialFailedDefault,
         trialUnexpectedError,
         trialActivateSuccess,
+        readyHeading,
+        readyBody,
+        openAgentLabel,
     };
 };
 
 /**
- * Request a trial key and update onboarding UI.
+ * Request a trial key and advance the setup wizard.
+ *
+ * @param {String} strategy Chosen provider path: 'wunderbyte', 'openai', or '' to auto-detect.
  */
-const requestTrialKey = () => {
+const requestTrialKey = (strategy) => {
     const ctx = getTrialUiContext();
-    if (!ctx.trialBtn) {
-        return;
-    }
+    const buttons = Array.prototype.slice.call(document.querySelectorAll('[data-trial-strategy]'));
+    const contextid = Number((ctx.wrapper && ctx.wrapper.dataset.contextid) || 0);
 
-    ctx.trialBtn.disabled = true;
+    buttons.forEach((btn) => {
+        btn.disabled = true;
+    });
     if (ctx.trialSpinner) {
         ctx.trialSpinner.classList.remove('d-none');
     }
@@ -2471,34 +2491,28 @@ const requestTrialKey = () => {
     Ajax.call([{
         methodname: 'bookingextension_agent_request_trial_key',
         // consented:true — requestTrialKey() only runs after the user accepted the consent modal.
-        args: {contextid: Number(ctx.trialBtn.dataset.contextid || 0), consented: true},
+        args: {contextid: contextid, consented: true, strategy: String(strategy || '')},
     }])[0].then((resp) => {
+        if (resp && resp.success) {
+            // Advance the wizard: reload the panel so the server renders the next step
+            // (Activate, or straight to the chat when no activation is needed here).
+            reloadAgentPanel(ctx);
+            return resp;
+        }
         if (ctx.trialSpinner) {
             ctx.trialSpinner.classList.add('d-none');
         }
         if (ctx.trialResult) {
             ctx.trialResult.classList.remove('d-none');
-            if (resp && resp.success) {
-                ctx.trialResult.innerHTML =
-                    '<div class="alert alert-success mb-0">'
-                    + '<i class="fa fa-check-circle mr-2" aria-hidden="true"></i>'
-                    + renderTextWithLinks(resp.message || ctx.trialSuccessDefault)
-                    + '</div>';
-                if (ctx.activateWrap) {
-                    ctx.activateWrap.classList.remove('d-none');
-                }
-                if (ctx.activateBtn) {
-                    ctx.activateBtn.disabled = false;
-                }
-            } else {
-                ctx.trialResult.innerHTML =
-                    '<div class="alert alert-danger mb-0">'
-                    + '<i class="fa fa-exclamation-circle mr-2" aria-hidden="true"></i>'
-                    + renderTextWithLinks((resp && resp.message) || ctx.trialFailedDefault)
-                    + '</div>';
-                ctx.trialBtn.disabled = false;
-            }
+            ctx.trialResult.innerHTML =
+                '<div class="alert alert-danger mb-0">'
+                + '<i class="fa fa-exclamation-circle mr-2" aria-hidden="true"></i>'
+                + renderTextWithLinks((resp && resp.message) || ctx.trialFailedDefault)
+                + '</div>';
         }
+        buttons.forEach((btn) => {
+            btn.disabled = false;
+        });
         return resp;
     }).catch((err) => {
         if (ctx.trialSpinner) {
@@ -2511,7 +2525,9 @@ const requestTrialKey = () => {
                     + renderTextWithLinks(err.message || ctx.trialUnexpectedError)
                 + '</div>';
         }
-        ctx.trialBtn.disabled = false;
+        buttons.forEach((btn) => {
+            btn.disabled = false;
+        });
         Notification.exception(err);
     });
 };
@@ -2571,12 +2587,15 @@ const activateTrialContext = () => {
         if (ctx.trialResult) {
             ctx.trialResult.classList.remove('d-none');
             if (resp && resp.success) {
+                // Step 3 "Ready": explicit confirmation, then the user opens the agent themselves.
                 ctx.trialResult.innerHTML =
                     '<div class="alert alert-success mb-0">'
                     + '<i class="fa fa-check-circle mr-2" aria-hidden="true"></i>'
-                    + renderTextWithLinks(resp.message || ctx.trialActivateSuccess)
-                    + ' <strong>' + escapeHtml(ctx.trialReloadingLabel) + '</strong></div>';
-                setTimeout(() => reloadAgentPanel(ctx), 1800);
+                    + '<strong>' + escapeHtml(ctx.readyHeading) + '</strong> '
+                    + escapeHtml(ctx.readyBody)
+                    + '<div class="mt-2"><button type="button" id="booking-ai-open-agent-btn"'
+                    + ' class="btn btn-primary btn-sm">' + escapeHtml(ctx.openAgentLabel) + '</button></div>'
+                    + '</div>';
             } else {
                 ctx.trialResult.innerHTML =
                     '<div class="alert alert-danger mb-0">'
@@ -2604,64 +2623,116 @@ const activateTrialContext = () => {
 };
 
 /**
- * Show the GDPR consent modal before requesting a trial key.
+ * Auto-configure the Wunderbyte provider from the existing third-party provider's credentials.
  *
- * The trial key request only fires once the user ticks the consent checkbox and
- * confirms. Privacy-mode state is read from the wrapper data attribute so the modal
- * can show whether personal data is anonymised before it reaches the LLM.
- *
- * @returns {Promise<void>}
+ * No consent/trial: reuses the already-configured provider locally. On success the panel reloads
+ * (the Wunderbyte provider is now active).
  */
-const showTrialConsentModal = async () => {
-    const wrapper = document.getElementById('booking-ai-wrapper');
-    const privacyActive = !!(wrapper && wrapper.dataset.privacyModeActive === '1');
-    const title = String((wrapper && wrapper.dataset.trialConsentTitle) || '');
-    const acceptLabel = String((wrapper && wrapper.dataset.trialConsentAccept) || '');
-    const cancelLabel = String((wrapper && wrapper.dataset.trialConsentCancel) || '');
+const configureFromExistingProvider = () => {
+    const ctx = getTrialUiContext();
+    const contextid = Number((ctx.wrapper && ctx.wrapper.dataset.contextid) || 0);
+    const cloneBtn = document.getElementById('booking-ai-config-clone');
 
-    try {
-        const [ModalSaveCancel, ModalEvents] = await Promise.all([
-            import('core/modal_save_cancel'),
-            import('core/modal_events'),
-        ]);
+    if (cloneBtn) {
+        cloneBtn.disabled = true;
+    }
+    if (ctx.trialSpinner) {
+        ctx.trialSpinner.classList.remove('d-none');
+    }
+    if (ctx.trialResult) {
+        ctx.trialResult.classList.add('d-none');
+        ctx.trialResult.innerHTML = '';
+    }
 
-        const body = await Templates.render('bookingextension_agent/trial_consent_modal', {
-            privacy_mode_active: privacyActive,
-        });
-
-        const modal = await ModalSaveCancel.create({
-            title: title,
-            body: body,
-            large: true,
-        });
-
-        if (acceptLabel) {
-            modal.setButtonText('save', acceptLabel);
+    Ajax.call([{
+        methodname: 'bookingextension_agent_configure_provider_from_existing',
+        args: {contextid: contextid},
+    }])[0].then((resp) => {
+        if (resp && resp.success) {
+            reloadAgentPanel(ctx);
+            return resp;
         }
-        if (cancelLabel) {
-            modal.setButtonText('cancel', cancelLabel);
+        if (ctx.trialSpinner) {
+            ctx.trialSpinner.classList.add('d-none');
         }
-
-        const root = modal.getRoot();
-        const saveButton = root.find('[data-action="save"]');
-
-        // Gate the accept button: only enabled once the consent checkbox is ticked.
-        saveButton.prop('disabled', true);
-        root.on('change', '#booking-ai-trial-consent-checkbox', (event) => {
-            saveButton.prop('disabled', !event.currentTarget.checked);
-        });
-
-        root.on(ModalEvents.save, () => {
-            requestTrialKey();
-        });
-        root.on(ModalEvents.hidden, () => {
-            modal.destroy();
-        });
-
-        modal.show();
-    } catch (err) {
-        // If the modal cannot be built, fail safe by not starting the trial silently.
+        if (ctx.trialResult) {
+            ctx.trialResult.classList.remove('d-none');
+            ctx.trialResult.innerHTML =
+                '<div class="alert alert-danger mb-0">'
+                + '<i class="fa fa-exclamation-circle mr-2" aria-hidden="true"></i>'
+                + renderTextWithLinks((resp && resp.message) || ctx.trialFailedDefault)
+                + '</div>';
+        }
+        if (cloneBtn) {
+            cloneBtn.disabled = false;
+        }
+        return resp;
+    }).catch((err) => {
+        if (ctx.trialSpinner) {
+            ctx.trialSpinner.classList.add('d-none');
+        }
+        if (ctx.trialResult) {
+            ctx.trialResult.classList.remove('d-none');
+            ctx.trialResult.innerHTML =
+                '<div class="alert alert-danger mb-0">'
+                + renderTextWithLinks(err.message || ctx.trialUnexpectedError)
+                + '</div>';
+        }
+        if (cloneBtn) {
+            cloneBtn.disabled = false;
+        }
         Notification.exception(err);
+    });
+};
+
+/**
+ * Reveal the inline GDPR consent step (sub-screen of "Connect"), replacing the path decision.
+ *
+ * No nested modal: the consent lives inside the panel. The chosen path is parked on the accept
+ * button; the trial key request only fires once the consent checkbox is ticked and confirmed.
+ *
+ * @param {String} strategy Chosen provider path ('wunderbyte' | 'openai' | '').
+ */
+const showConsentStep = (strategy) => {
+    const decision = document.getElementById('booking-ai-connect-decision');
+    const choice = document.getElementById('booking-ai-config-choice');
+    const consent = document.getElementById('booking-ai-consent-step');
+    const accept = document.getElementById('booking-ai-consent-accept');
+    const checkbox = document.getElementById('booking-ai-trial-consent-checkbox');
+    if (!consent) {
+        return;
+    }
+    if (decision) {
+        decision.classList.add('d-none');
+    }
+    if (choice) {
+        choice.classList.add('d-none');
+    }
+    consent.classList.remove('d-none');
+    if (accept) {
+        accept.dataset.strategy = String(strategy || '');
+        accept.disabled = true;
+    }
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+};
+
+/**
+ * Return from the consent sub-screen to the path decision.
+ */
+const hideConsentStep = () => {
+    const decision = document.getElementById('booking-ai-connect-decision');
+    const choice = document.getElementById('booking-ai-config-choice');
+    const consent = document.getElementById('booking-ai-consent-step');
+    if (consent) {
+        consent.classList.add('d-none');
+    }
+    if (decision) {
+        decision.classList.remove('d-none');
+    }
+    if (choice) {
+        choice.classList.remove('d-none');
     }
 };
 
@@ -2814,16 +2885,52 @@ const handleBodyClick = (event) => {
         return;
     }
 
-    const trialBtn = target.closest('#booking-ai-trial-btn');
-    if (trialBtn instanceof HTMLElement) {
-        // GDPR gate: show the consent modal first; the key request runs only on confirm.
-        showTrialConsentModal();
+    const configurePill = target.closest('#booking-ai-configure-pill');
+    if (configurePill instanceof HTMLElement) {
+        // Reveal the configure choice panel (use existing provider's credentials, or a trial).
+        const choice = document.getElementById('booking-ai-config-choice');
+        if (choice) {
+            choice.classList.toggle('d-none');
+        }
+        return;
+    }
+
+    const cloneBtn = target.closest('#booking-ai-config-clone');
+    if (cloneBtn instanceof HTMLElement) {
+        configureFromExistingProvider();
+        return;
+    }
+
+    const pathBtn = target.closest('[data-trial-strategy]');
+    if (pathBtn instanceof HTMLElement) {
+        // Path chosen -> reveal the inline consent step (no nested modal). The strategy is
+        // parked on the accept button; the key request runs only after consent + confirm.
+        showConsentStep(pathBtn.dataset.trialStrategy || '');
+        return;
+    }
+
+    const consentBack = target.closest('#booking-ai-consent-back');
+    if (consentBack instanceof HTMLElement) {
+        hideConsentStep();
+        return;
+    }
+
+    const consentAccept = target.closest('#booking-ai-consent-accept');
+    if (consentAccept instanceof HTMLElement) {
+        requestTrialKey(consentAccept.dataset.strategy || '');
         return;
     }
 
     const activateBtn = target.closest('#booking-ai-activate-btn');
     if (activateBtn instanceof HTMLElement) {
         activateTrialContext();
+        return;
+    }
+
+    const openAgentBtn = target.closest('#booking-ai-open-agent-btn');
+    if (openAgentBtn instanceof HTMLElement) {
+        // Step 3 -> chat: reload the panel, which now renders the ready chat UI.
+        reloadAgentPanel(getTrialUiContext());
         return;
     }
 
@@ -2914,6 +3021,21 @@ const handleBodyKeydown = (event) => {
 };
 
 /**
+ * Delegated change handler: gate the inline consent "accept" button on the consent checkbox.
+ *
+ * @param {Event} event
+ */
+const handleBodyChange = (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.id === 'booking-ai-trial-consent-checkbox') {
+        const accept = document.getElementById('booking-ai-consent-accept');
+        if (accept instanceof HTMLButtonElement) {
+            accept.disabled = !target.checked;
+        }
+    }
+};
+
+/**
  * Bind one central delegated handler on body for aiinstructions interactions.
  */
 const initCentralBodyHandlers = () => {
@@ -2923,6 +3045,7 @@ const initCentralBodyHandlers = () => {
 
     document.body.addEventListener('click', handleBodyClick);
     document.body.addEventListener('keydown', handleBodyKeydown);
+    document.body.addEventListener('change', handleBodyChange);
     bodyHandlersBound = true;
 };
 

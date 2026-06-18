@@ -95,6 +95,8 @@ class aiready {
         $providersconfigured = false;
         $haswunderbyteprovider = false;
         $provideractive = false;
+        $sourceprovidername = '';
+        $wbinstanceactive = false;
         $courseenabled = false;
         $contextenabled = false;
         $debugmode = !empty(get_config('bookingextension_agent', 'aidebugmode'));
@@ -126,6 +128,33 @@ class aiready {
                 // deliberately excluded. Disabled instances are included so the "activate" path
                 // can still find a configured-but-off trial.
                 $haswunderbyteprovider = !empty(agent_access_service::find_wunderbyte_llm_instances(false));
+
+                // An ENABLED aiprovider_wunderbyte instance, regardless of endpoint — the provider
+                // may be backed by a third-party LLM (e.g. OpenAI). This is "configured", so the
+                // onboarding shows the active state (not the "configure" nudge) for it.
+                foreach ((array)$manager->get_provider_instances() as $inst) {
+                    if (
+                        !empty($inst->enabled)
+                            && strpos((string)($inst->provider ?? ''), 'aiprovider_wunderbyte') !== false
+                    ) {
+                        $wbinstanceactive = true;
+                        break;
+                    }
+                }
+
+                // Name of the active non-Wunderbyte provider instance — used as the label for the
+                // "use credentials from <name>" auto-configuration button (the source can be any
+                // OpenAI-compatible provider, not necessarily literally OpenAI).
+                foreach ((array)$manager->get_provider_instances() as $inst) {
+                    if (
+                        !empty($inst->enabled)
+                            && !agent_access_service::instance_targets_wunderbyte_llm($inst)
+                            && !empty($inst->config['apikey'])
+                    ) {
+                        $sourceprovidername = (string)($inst->config['name'] ?? '');
+                        break;
+                    }
+                }
 
                 // Use shared factory fallback so readiness checks stay available
                 // even when strict skill-governance blocks full registry boot.
@@ -335,9 +364,24 @@ class aiready {
             'privacy_mode_active' => $privacymode !== 'off',
             // Provider-plugin guidance for the onboarding card.
             'wunderbyte_provider_installed' => $wunderbyteprovinstalled,
+            'standard_provider_installed' => $standardprovinstalled,
             'using_standard_fallback' => !$wunderbyteprovinstalled && $standardprovinstalled,
             'no_provider_installed' => !$wunderbyteprovinstalled && !$standardprovinstalled,
             'provider_install_url' => get_string('aitrial_provider_install_url', 'bookingextension_agent'),
+            // Stepper wizard: which step the onboarding card is on. Connect = no working provider yet;
+            // Activate = a provider is active but AI is not enabled in this context (capability already ok).
+            'wizard_connect' => $canrequesttrial && !$provideractive,
+            'wizard_activate' => $canrequesttrial && $provideractive && !$readyforchat && $hascapability,
+            // A non-Wunderbyte provider is doing the work (agent runs, reduced). Two upgrade nudges:
+            // - upgrade: the Wunderbyte provider PLUGIN is not even installed -> link to install it.
+            // - configure: the plugin IS installed but no Wunderbyte instance is active yet -> offer
+            // one-click auto-configuration (the Wunderbyte trial provisioning).
+            'provider_upgrade_available' => $provideractive && !$wbinstanceactive && !$wunderbyteprovinstalled,
+            'provider_configure_available' => $provideractive && !$wbinstanceactive && $wunderbyteprovinstalled,
+            // Active Wunderbyte provider but no full access (not on the Wunderbyte LLM and no PRO
+            // licence) → show the green "active" pill plus a "Get Pro" upgrade link to the store.
+            'show_get_pro' => $wbinstanceactive && !agent_access_service::has_full_access(),
+            'source_provider_name' => $sourceprovidername,
             // Live AI-credit bar: only when a Wunderbyte provider exists and the
             // viewer may see organisation-level spend (managers/admins).
             'show_usage_bar' => $haswunderbyteprovider

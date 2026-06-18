@@ -116,6 +116,25 @@ class synchronizer_input_builder {
             }
         }
 
+        // A task that needs a PRO license or an active Wunderbyte subscription is NOT a malfunction
+        // either. Unlike a plain availability denial it has a concrete next step: the Get-Pro link.
+        // The synchronizer still composes the reply (so it stays in the user's language), but it MUST
+        // relay the exact link verbatim instead of inventing "contact your administrator".
+        if (!empty($issuecodes) && in_array('REQUIRES_PRO', $issuecodes, true)) {
+            $prolink = '[Get Pro](' . get_string('aitrial_pro_license_url', 'bookingextension_agent') . ')';
+            $lines = [];
+            $lines[] = '[UPGRADE_REQUIRED] The requested task is only available with a Wunderbyte PRO '
+                . 'license or an active Wunderbyte subscription. This is NOT an error, bug or malfunction.';
+            $lines[] = 'pro_link_markdown: ' . $prolink;
+            $lines[] = 'Rules: In the user\'s language, state plainly that this task is only available '
+                . 'with a Wunderbyte PRO license or a Wunderbyte subscription, and that both can be '
+                . 'obtained via the link. You MUST include pro_link_markdown above EXACTLY as given — keep '
+                . 'the [Get Pro](URL) markdown link verbatim, do not alter the URL or the label, do not '
+                . 'turn it into plain text. Do NOT suggest contacting an administrator, do NOT call it an '
+                . 'internal error, do NOT invent other causes. Keep it short.';
+            return implode("\n", $lines);
+        }
+
         // A pure governance availability denial is NOT a malfunction: the skill is either not
         // enabled on this system or the user lacks the capability for it. It still travels as
         // response_type=error (so the finalization_classifier humanizes it via the synchronizer,

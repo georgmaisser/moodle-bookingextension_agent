@@ -53,6 +53,12 @@ class request_trial_key extends external_api {
                 VALUE_DEFAULT,
                 false
             ),
+            'strategy' => new external_value(
+                PARAM_ALPHA,
+                'Chosen provider path: "wunderbyte" (full) or "openai" (standard, reduced). Empty = auto-detect.',
+                VALUE_DEFAULT,
+                ''
+            ),
         ]);
     }
 
@@ -61,9 +67,10 @@ class request_trial_key extends external_api {
      *
      * @param int $contextid
      * @param bool $consented
+     * @param string $strategy
      * @return array
      */
-    public static function execute(int $contextid, bool $consented = false): array {
+    public static function execute(int $contextid, bool $consented = false, string $strategy = ''): array {
         global $USER;
 
         require_sesskey();
@@ -71,6 +78,7 @@ class request_trial_key extends external_api {
         $params = self::validate_parameters(self::execute_parameters(), [
             'contextid' => $contextid,
             'consented' => $consented,
+            'strategy' => $strategy,
         ]);
 
         $authz = new authorization_service();
@@ -99,8 +107,10 @@ class request_trial_key extends external_api {
         ])->trigger();
 
         // Full provisioning: mint the trial key and create/enable the provider instance.
-        // Returns {success, message} ready for the external return structure.
-        return (new trial_provisioner())->provision((int)$params['contextid']);
+        // The UI sends the user's explicit path choice; an unknown/empty value falls back to
+        // auto-detection inside the provisioner. Returns {success, message}.
+        $strategy = in_array($params['strategy'], ['wunderbyte', 'openai'], true) ? $params['strategy'] : null;
+        return (new trial_provisioner())->provision((int)$params['contextid'], $strategy);
     }
 
     /**

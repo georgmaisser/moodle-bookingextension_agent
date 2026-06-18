@@ -552,3 +552,17 @@
     --bs-modal-width: min(1400px, 95vw);
     max-width: min(1400px, 95vw);
 }
+
+/* "Nearly green" provider pill: Wunderbyte plugin installed but not configured yet — one click
+   away from the full (green) state. A light/lime green, distinct from the yellow upgrade pill. */
+#booking-ai-wrapper .booking-ai-pill-nearly {
+    background-color: #8bc34a;
+    color: #14361a;
+    cursor: pointer;
+}
+
+#booking-ai-wrapper .booking-ai-pill-nearly:hover,
+#booking-ai-wrapper .booking-ai-pill-nearly:focus {
+    background-color: #7cb342;
+    color: #0f2a14;
+}

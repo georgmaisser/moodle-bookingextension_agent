@@ -161,6 +161,11 @@ class executor implements agent_executor {
                         ?? ('Skill denied by governance gate (' . $denyreason . '): ' . (string)$skillname),
                     'resultid' => null,
                     'deny_reason' => $denyreason,
+                    'issue_codes' => [
+                        $denyreason === skill_contract_validator::DENY_REQUIRES_PRO
+                            ? 'REQUIRES_PRO'
+                            : 'SKILL_DENIED',
+                    ],
                     'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
                 ];
                 continue;
