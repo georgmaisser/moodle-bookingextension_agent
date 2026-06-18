@@ -15,21 +15,23 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version details.
+ * Shortcode definitions for bookingextension_agent.
  *
- * @package     bookingextension_agent
- * @copyright   2026 Wunderbyte GmbH
- * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * Moodle's shortcode filter (filter_shortcodes) reads this file to discover
+ * which shortcode tags the plugin provides and which class/method handles each.
+ * Lets the AI agent be embedded inline anywhere (a label, page or text field)
+ * instead of only via the navbar magic wand.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026061800;
-$plugin->requires  = 2024100700;
-$plugin->component = 'bookingextension_agent';
-$plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.0.0';
-$plugin->supported = [500, 501];
-$plugin->dependencies = [
-    'mod_booking' => 2026020300,
+$shortcodes = [
+    'wbagent' => [
+        'callback' => 'bookingextension_agent\shortcodes::wbagent',
+        'description' => 'aiinstructions_shortcode',
+    ],
 ];

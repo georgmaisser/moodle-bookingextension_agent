@@ -167,6 +167,23 @@ if ($agentenabled) {
         )
     );
 
+    // Auto-generate a security token the first time so the [wbagent] shortcode is
+    // protected out of the box; an admin can rotate it by clearing/editing the field.
+    $shortcodetoken = get_config('bookingextension_agent', 'shortcodetoken');
+    if (empty($shortcodetoken)) {
+        $shortcodetoken = random_string(8);
+        set_config('shortcodetoken', $shortcodetoken, 'bookingextension_agent');
+    }
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'bookingextension_agent/shortcodetoken',
+            get_string('shortcodetoken', 'bookingextension_agent'),
+            get_string('shortcodetoken_desc', 'bookingextension_agent'),
+            $shortcodetoken,
+            PARAM_ALPHANUM
+        )
+    );
+
     $aisettingspage->add(
         new admin_setting_configtext(
             'bookingextension_agent/aidocsroot',
