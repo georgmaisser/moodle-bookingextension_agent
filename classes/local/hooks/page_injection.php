@@ -65,7 +65,7 @@ class page_injection {
             // Modal/templates/fragment load lazily on first click.
             $PAGE->requires->js_call_amd('bookingextension_agent/navbar_magic_wand', 'init', [
                 (int)$context->id,
-                get_string('aiinstructions', 'bookingextension_agent'),
+                get_string('agent_display_name', 'bookingextension_agent'),
             ]);
         } catch (\Throwable $e) {
             // Never break page rendering for a convenience entry point

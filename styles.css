@@ -2,12 +2,75 @@
 
 /* AI Instructions chat interface – aiinstructions.mustache */
 #booking-ai-wrapper .booking-ai-onboarding-card {
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
 }
 
-#booking-ai-wrapper .booking-ai-intro {
-    background: linear-gradient(135deg, #fff9e6 0%, #fff 100%);
-    color: #3f2000;
+/* Onboarding stepper (Connect -> Activate -> Ready): neutral, one accent colour. */
+#booking-ai-wrapper .booking-ai-onboarding-header {
+    background: transparent;
+}
+
+#booking-ai-wrapper .booking-ai-stepper {
+    display: flex;
+    align-items: center;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex-wrap: wrap;
+}
+
+#booking-ai-wrapper .booking-ai-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #6c757d;
+    font-size: 0.95rem;
+}
+
+#booking-ai-wrapper .booking-ai-step:not(:last-child)::after {
+    content: "";
+    width: 2rem;
+    height: 2px;
+    background: #dee2e6;
+    margin: 0 0.75rem;
+}
+
+#booking-ai-wrapper .booking-ai-step-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #6c757d;
+    font-weight: 600;
+    flex: 0 0 auto;
+}
+
+#booking-ai-wrapper .booking-ai-step.is-active {
+    color: #212529;
+    font-weight: 600;
+}
+
+#booking-ai-wrapper .booking-ai-step.is-active .booking-ai-step-no {
+    background: var(--bs-primary, var(--primary, #0f6cbf));
+    color: #fff;
+}
+
+#booking-ai-wrapper .booking-ai-step.is-done {
+    color: #212529;
+}
+
+#booking-ai-wrapper .booking-ai-step.is-done .booking-ai-step-no {
+    background: var(--bs-success, var(--success, #198754));
+    color: #fff;
+}
+
+#booking-ai-wrapper .booking-ai-setup-summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #495057;
 }
 
 #booking-ai-wrapper .booking-ai-body-layout {
