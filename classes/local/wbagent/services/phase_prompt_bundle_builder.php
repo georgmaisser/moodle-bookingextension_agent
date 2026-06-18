@@ -203,15 +203,16 @@ PROMPT;
     /**
      * Build the full prompt string from system prompt + message history + observations.
      *
-     * Observations (from prior internal loop tool executions) are injected after the
-     * conversation history and before the [ASSISTANT] marker so the LLM can incorporate
-     * tool results into its next decision without those results ever being stored as
-     * conversation messages.
+     * Observations (from prior internal loop tool executions) are injected near the [ASSISTANT]
+     * marker so the LLM can incorporate tool results into its next decision without those results
+     * ever being stored as conversation messages.
      *
-     * Cache-friendly ordering: static [SYSTEM], per-thread-stable [SYSTEM_RUNTIME],
-     * append-only history/traces/observations, then the per-request
-     * [SYSTEM_RUNTIME_STATE] (now_iso, skill catalog, execution ledgers) so volatile
-     * content never busts the shared prompt prefix.
+     * Cache-friendly ordering: static [SYSTEM], per-thread-stable [SYSTEM_RUNTIME] (which carries a
+     * STATIC skill catalog so the biggest block joins the cached prefix), append-only history, then
+     * the per-request [SYSTEM_RUNTIME_STATE] (an adaptive catalog + execution ledgers, with now_iso
+     * LAST), and finally the live [PLANNER_TRACE n]/[OBSERVATION n] blocks. Observations sit AFTER the
+     * ledgers — closest to [ASSISTANT] — so decision-critical tool results outrank the "already done"
+     * completed_commands by recency, while volatile content still never busts the shared prefix.
      *
      * @param  string      $systemprompt
      * @param  \stdClass[] $messages
@@ -247,11 +248,15 @@ PROMPT;
             $parts[] = "[{$role}]\n{$content}";
         }
 
-        $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
-
         if ($runtimestate !== '') {
             $parts[] = "[SYSTEM_RUNTIME_STATE]\n{$runtimestate}";
         }
+
+        // Live planner traces + observations come AFTER the state ledgers, i.e. closest to the
+        // [ASSISTANT] slot: the decision-critical tool results must outrank the "already done"
+        // completed_commands by recency (and the now_iso line above them is the only thing they sit
+        // under, which is volatile anyway).
+        $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
 
         if (
             $phase === orchestrator_prompt_profile_service::PHASE_SELECTION

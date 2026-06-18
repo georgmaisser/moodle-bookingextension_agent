@@ -106,6 +106,13 @@ class synchronizer_prompt_builder {
             $parts[] = "[{$role}]\n{$content}";
         }
 
+        if ($runtimestate !== '') {
+            $parts[] = "[SYSTEM_RUNTIME_STATE]\n{$runtimestate}";
+        }
+
+        // Observations come AFTER the state ledgers, closest to [ASSISTANT]: the synchronizer's own
+        // FACT PRIORITY (completed_observations authoritative > completed_commands secondary) is then
+        // reinforced by recency instead of being contradicted by it.
         $observationnumber = 1;
         foreach ($observations as $observation) {
             $trimmed = trim((string)$observation);
@@ -114,10 +121,6 @@ class synchronizer_prompt_builder {
             }
             $parts[] = "[OBSERVATION {$observationnumber}]\n{$trimmed}";
             $observationnumber++;
-        }
-
-        if ($runtimestate !== '') {
-            $parts[] = "[SYSTEM_RUNTIME_STATE]\n{$runtimestate}";
         }
 
         $parts[] = "[OUTPUT_CONTRACT]\n"

@@ -484,7 +484,8 @@ class orchestrator {
             [],
             $messages,
             user_memory_service::SCOPE_SYNCHRONIZATION,
-            $observations
+            $observations,
+            false
         );
         $runtimestate = $runtimeblocks['volatile'];
         // Inject pending planned step intents so the sync never suggests manual workarounds
@@ -916,7 +917,8 @@ class orchestrator {
             $unavailableskillcatalog,
             $messages,
             '',
-            $observations
+            $observations,
+            $this->catalog_mode_is_static($catalogselectionmode)
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $prompt = $this->build_prompt(
@@ -1069,7 +1071,8 @@ class orchestrator {
             $unavailableskillcatalog,
             $messages,
             '',
-            $observations
+            $observations,
+            $this->catalog_mode_is_static($catalogselectionmode)
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $plannedstepintents = (new queue_manager($this->store, $this->registry))
@@ -1311,7 +1314,8 @@ class orchestrator {
             $unavailableskillcatalog,
             $messages,
             '',
-            $constructionobservations
+            $constructionobservations,
+            $this->catalog_mode_is_static($catalogselectionmode)
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $prompt = $this->build_prompt(
@@ -2410,7 +2414,8 @@ PROMPT;
         array $unavailableskillcatalog = [],
         array $messages = [],
         string $memorychannel = '',
-        array $liveobservations = []
+        array $liveobservations = [],
+        bool $catalogisstatic = false
     ): array {
         $timezonename = (string)(get_config('core', 'timezone') ?? '');
         if ($timezonename === '' || $timezonename === '99') {
@@ -2437,17 +2442,16 @@ PROMPT;
         // prompt unique and is the main breaker for upstream prompt-prefix caching.
         $nowiso = (new \DateTime('now', $tz))->format('Y-m-d\TH:iP');
 
-        // Split for prompt-prefix caching: $lines holds per-thread-stable facts emitted
-        // right after the static [SYSTEM] block; $statelines holds volatile per-request
-        // state (timestamp, adaptive catalog, execution ledgers) emitted below the
-        // conversation history as [SYSTEM_RUNTIME_STATE].
+        // Split for prompt-prefix caching: $lines holds per-thread-stable facts emitted right after
+        // the static [SYSTEM] block; $statelines holds volatile per-request state (execution ledgers,
+        // an adaptive catalog, and finally now_iso) emitted below the history as [SYSTEM_RUNTIME_STATE].
+        // A STATIC catalog (see $catalogisstatic) instead joins $lines so it lands in the cached prefix,
+        // and now_iso is appended LAST so it never fronts the cacheable catalog/ledger lines above it.
         $lines = [
             'booking_name: ' . $bookingname,
             'timezone: ' . $timezonename,
         ];
-        $statelines = [
-            'now_iso: ' . $nowiso,
-        ];
+        $statelines = [];
 
         // Rich context awareness: a structured moodle_context block, injected ONLY where
         // it earns its tokens — parameter construction (the constructor needs real ids to
@@ -2486,8 +2490,17 @@ PROMPT;
             if ($phase === self::PHASE_PARAMETER_CONSTRUCTION) {
                 // Construction phase needs full parameter details — keep JSON so the constructor
                 // can read types, descriptions and validation hints for the single selected skill.
+                // It is the selected skill's schema (per-turn), so it stays volatile.
                 $this->append_json_object_section($statelines, 'SKILL CATALOG:', $skillcatalog);
+            } else if ($catalogisstatic) {
+                // Static (slim_all / no-embeddings) catalog: identical every turn, so emit it in the
+                // per-thread-stable block above the history where it joins the cached prompt prefix.
+                $lines[] = '';
+                $lines[] = 'SKILL CATALOG:';
+                $lines[] = $this->render_catalog_as_text($skillcatalog);
             } else {
+                // Adaptive (embeddings top-K) catalog: changes per query, so it stays in the volatile
+                // state — but above the ledgers/now_iso, so it is still cached across a turn's loop.
                 $statelines[] = '';
                 $statelines[] = 'SKILL CATALOG:';
                 $statelines[] = $this->render_catalog_as_text($skillcatalog);
@@ -2495,9 +2508,16 @@ PROMPT;
         }
 
         if (!empty($unavailableskillcatalog)) {
-            $statelines[] = '';
-            $statelines[] = 'UNAVAILABLE SKILLS (exist but not currently executable):';
-            $statelines[] = $this->render_catalog_as_text($unavailableskillcatalog);
+            // Travels with the catalog: stable when the catalog is static, volatile otherwise.
+            if ($catalogisstatic) {
+                $lines[] = '';
+                $lines[] = 'UNAVAILABLE SKILLS (exist but not currently executable):';
+                $lines[] = $this->render_catalog_as_text($unavailableskillcatalog);
+            } else {
+                $statelines[] = '';
+                $statelines[] = 'UNAVAILABLE SKILLS (exist but not currently executable):';
+                $statelines[] = $this->render_catalog_as_text($unavailableskillcatalog);
+            }
         }
 
         $privacy = new privacy_anonymizer($this->store);
@@ -2550,10 +2570,27 @@ PROMPT;
         }
         $this->append_json_list_section($statelines, 'completed_observations:', $rows);
 
+        // The now_iso line is the single most volatile token (changes every request); keep it the LAST
+        // state line so it never fronts the cacheable catalog/ledger content above it in the state block.
+        $statelines[] = 'now_iso: ' . $nowiso;
+
         return [
             'stable' => implode("\n", $lines),
             'volatile' => implode("\n", $statelines),
         ];
+    }
+
+    /**
+     * Whether the active skill catalog is static across turns (no embeddings / slim_all family).
+     *
+     * A static catalog is identical every turn, so it belongs in the per-thread-stable prompt block
+     * (cached prefix); an adaptive embeddings top-K catalog changes per query and stays volatile.
+     *
+     * @param string $catalogselectionmode the resolved catalog selection mode
+     * @return bool
+     */
+    private function catalog_mode_is_static(string $catalogselectionmode): bool {
+        return str_starts_with($catalogselectionmode, 'slim');
     }
 
     /**
