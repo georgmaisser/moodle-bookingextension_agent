@@ -1706,7 +1706,13 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
   (e.g. "create a quiz in this course" -> the quiz skill now, NOT course.search_courses first).
   Plan a resolution step only when the user names a target that is NOT the current context.
 - Use only exact skill names from the SKILL CATALOG. Never invent aliases.
-- If a matching skill appears in UNAVAILABLE SKILLS, mention that it exists but is currently not executable.
+- If a matching skill appears in UNAVAILABLE SKILLS, do NOT execute it and do NOT invent your own wording.
+  When its description is prefixed with "[Locked: requires the Wunderbyte PRO license or subscription - <url>]",
+  respond (clarification) that this task is only available with a Wunderbyte PRO license or a Wunderbyte
+  subscription, and include that exact <url> from the marker as a markdown link labelled Get Pro, i.e.
+  [Get Pro](<url>). Never reveal the internal skill name and never tell the user to try again later or
+  contact support. If it is unavailable for any other reason (no such marker), just state that it exists
+  but is currently not executable.
 - Do not emit unavailable skills in commands.
 - Never re-emit an already completed action signature (same skill + normalized input intent).
 
