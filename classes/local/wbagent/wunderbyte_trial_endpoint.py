@@ -290,11 +290,11 @@ async def _create_trial_key(site_id: str, wwwroot: str, client_ip: str) -> str:
         # Key lifetime. LiteLLM sets expiry from `duration` (e.g. "30d") — a raw `expires`
         # timestamp is ignored, which is why earlier keys came back with expires=null.
         "duration": f"{TRIAL_DAYS}d",
-        # Allow the key to read its OWN budget/usage via GET /key/info (the Moodle
-        # usage bar self-looks-up with this key). Without this, keys default to
-        # "llm_api_routes" only and every /key/info call is rejected with 403.
-        # "llm_api_routes" must stay listed, otherwise the key can no longer chat.
-        "allowed_routes": ["llm_api_routes", "/key/info"],
+        # Usage is read via the privacy-preserving gateway (POST /api/shop/usage,
+        # master-key lookup), NOT by the key itself — so deliberately NO /key/info:
+        # a customer must not be able to read the raw euro spend/budget. Only
+        # "llm_api_routes" (chat) stays.
+        "allowed_routes": ["llm_api_routes"],
         "metadata": {
             "moodle_site": str(wwwroot),
             "site_id": site_id,
