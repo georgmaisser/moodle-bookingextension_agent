@@ -391,7 +391,10 @@ class conversation_store implements agent_conversation_store {
     ): array {
         global $DB;
 
-        $sql = 'SELECT DISTINCT t.id
+        // With SELECT DISTINCT, ordering by a column that is not in the select list is invalid on
+        // PostgreSQL (and MySQL under ONLY_FULL_GROUP_BY); MariaDB tolerates it. Selecting t.timemodified
+        // keeps the query portable. t.id is the PK, so DISTINCT (id, timemodified) yields the same threads.
+        $sql = 'SELECT DISTINCT t.id, t.timemodified
                   FROM {local_wbagent_ai_threads} t
                   JOIN {local_wbagent_ai_messages} m
                     ON m.threadid = t.id
