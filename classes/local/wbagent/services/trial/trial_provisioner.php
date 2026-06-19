@@ -123,7 +123,10 @@ class trial_provisioner {
             if (empty($instance->enabled)) {
                 continue;
             }
-            if (\bookingextension_agent\local\wbagent\services\agent_access_service::instance_targets_wunderbyte_llm($instance)) {
+            // Skip only ACTUAL Wunderbyte provider instances. A provider of another
+            // type (e.g. OpenAI) whose endpoint merely points at the Wunderbyte LLM is
+            // exactly what we want to clone the key from, so it must NOT be excluded.
+            if (strpos((string)($instance->provider ?? ''), 'aiprovider_wunderbyte') !== false) {
                 continue;
             }
             $settings = $instance->actionconfig['core_ai\\aiactions\\generate_text']['settings'] ?? [];
