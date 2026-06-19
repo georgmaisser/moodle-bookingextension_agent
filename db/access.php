@@ -100,6 +100,7 @@ $teacherskills = [
     'core_diagnose_permissions',
     'core_diagnose_notifications',
     'course_diagnose_grades',
+    'course_analyze_course_structure',
     'wbagent_explain_docs',
     'booking_explain_skill_schema',
     'core_get_current_user',
