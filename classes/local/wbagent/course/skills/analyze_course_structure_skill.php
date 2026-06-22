@@ -22,6 +22,7 @@ use bookingextension_agent\local\wbagent\dto\target_selector;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wbagent\services\activities\course_structure_preview;
 use bookingextension_agent\local\wbagent\services\activities\course_structure_service;
+use bookingextension_agent\local\wbagent\services\security\operating_context_target_registry;
 use context;
 
 /**
@@ -236,7 +237,23 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
      * @return array
      */
     public function execute(array $input, int $contextid, int $userid): array {
-        // 1) Resolve the course from the operating context (Path A already resolved a named/explicit course).
+        // R0/readonly skills skip preflight, so the engine has NOT applied cross-context
+        // resolution. When the user named a course (courseid/coursequery), resolve it here
+        // the same way the engine does for non-readonly skills; otherwise fall back to the
+        // operating context.
+        $selector = $this->get_target_selector($input);
+        if ($selector !== null) {
+            $resolution = (new operating_context_target_registry())->resolve($selector, $userid);
+            if (!$resolution->is_resolved() || $resolution->context() === null) {
+                return $this->error_result(
+                    'I could not find a single course matching that name. Please check the course name.',
+                    'course_not_found'
+                );
+            }
+            $contextid = (int)$resolution->context()->id;
+        }
+
+        // 1) Resolve the course from the (possibly cross-resolved) operating context.
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {

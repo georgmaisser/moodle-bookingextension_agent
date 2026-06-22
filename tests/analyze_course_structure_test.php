@@ -143,6 +143,52 @@ final class analyze_course_structure_test extends advanced_testcase {
     }
 
     /**
+     * Regression: an R0 skill skips preflight, so cross-context resolution must happen in execute().
+     * A NAMED course must be analysed — not the ambient/current one.
+     */
+    public function test_execute_resolves_a_named_course_not_the_ambient_one(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+
+        // Ambient ("current") course A and a distinct, named target course B.
+        $coursea = $gen->create_course(['fullname' => 'Ambient Course A']);
+        $gen->create_module('page', ['course' => $coursea->id, 'section' => 0, 'name' => 'A-only page']);
+        $courseb = $gen->create_course(['fullname' => 'Zielkurs Mathematik XYZ']);
+        $gen->create_module('page', ['course' => $courseb->id, 'section' => 0, 'name' => 'B-only page']);
+
+        $teacher = $gen->create_user();
+        $gen->enrol_user($teacher->id, $coursea->id, 'editingteacher');
+        $gen->enrol_user($teacher->id, $courseb->id, 'editingteacher');
+        rebuild_course_cache($coursea->id, true);
+        rebuild_course_cache($courseb->id, true);
+
+        $skill = new analyze_course_structure_skill();
+        // Ambient context is course A, but the user names course B.
+        $ambientcontextid = (int)context_course::instance($coursea->id)->id;
+        $result = $skill->execute(['coursequery' => 'Zielkurs Mathematik XYZ'], $ambientcontextid, (int)$teacher->id);
+
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame((int)$courseb->id, $result['resultid'], 'must analyse the NAMED course, not the ambient one');
+        $this->assertStringContainsString('B-only page', $result['observation_full']);
+        $this->assertStringNotContainsString('A-only page', $result['observation_full']);
+    }
+
+    /**
+     * A named course that resolves to no (or several) matches yields a clean error, not the ambient course.
+     */
+    public function test_execute_errors_on_unresolvable_named_course(): void {
+        $this->resetAfterTest();
+        [$course, $teacher] = $this->build_course();
+
+        $skill = new analyze_course_structure_skill();
+        $contextid = (int)context_course::instance($course->id)->id;
+        $result = $skill->execute(['coursequery' => 'NoSuchCourseNameZZZ'], $contextid, (int)$teacher->id);
+
+        $this->assertSame('error', $result['status']);
+        $this->assertSame('course_not_found', $result['error_class']);
+    }
+
+    /**
      * Build a course with: a visible activity + a hidden activity in section 1, and a hidden section 2.
      *
      * @return array{0:\stdClass,1:\stdClass,2:\stdClass}
