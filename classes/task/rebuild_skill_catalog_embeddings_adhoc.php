@@ -26,6 +26,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\task;
 
+use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
+use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_index_service;
 use bookingextension_agent\local\wbagent\skill_registry_factory;
 
@@ -78,5 +80,27 @@ class rebuild_skill_catalog_embeddings_adhoc extends \core\task\adhoc_task {
                 mtrace(' - ' . $state . ' ' . $skillname);
             }
         }
+
+        // Sanity check: the rebuild must leave a complete, round-trip-valid catalog. The repository
+        // already rejects a corrupt serialization at write time, but we additionally re-evaluate the
+        // canonical readiness status here, which also catches missing skills and content-hash drift.
+        // Failing the task on a not-ready result lets Moodle's scheduler apply faildelay backoff
+        // instead of looping expensive embeddings rebuilds on a persistent defect.
+        $settings = (new embeddings_action_config_resolver())->resolve();
+        $status = (new embeddings_readiness_service())->get_catalog_status(
+            $registry,
+            isset($customdata['model']) ? (string)$customdata['model'] : (string)$settings['model'],
+            isset($customdata['dimensions']) ? (int)$customdata['dimensions'] : (int)$settings['dimensions']
+        );
+        if (empty($status['ready'])) {
+            throw new \moodle_exception(
+                'embeddingscatalogrebuildfailed',
+                'bookingextension_agent',
+                '',
+                (string)($status['status'] ?? 'unknown')
+            );
+        }
+
+        mtrace('bookingextension_agent embeddings rebuild: catalog verified ready.');
     }
 }

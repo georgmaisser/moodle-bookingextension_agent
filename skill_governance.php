@@ -144,6 +144,48 @@ foreach ($contracts as $skillname => $meta) {
     $evaluations[(string)$skillname] = $evaluator->evaluate_skill((string)$skillname, $evaluserid, $evalcontextid);
 }
 
+// Embeddings-catalog presence per skill. A skill can be governance-"Available" yet have no current
+// embedding in the catalog (missing row, empty vector, or a content-hash that drifted) — which
+// silently removes it from semantic discovery even though the planner reports it as available.
+// We surface that as a warning ("current"|"stale"|"empty"|"missing") in the status column.
+$embeddingstatusbyskill = [];
+$missingembeddingcount = 0;
+try {
+    $embsettings = (new \bookingextension_agent\local\wbagent\embeddings_action_config_resolver())->resolve();
+    $catalogbyskill = [];
+    foreach ((new \bookingextension_agent\local\wbagent\embeddings_csv_repository())->read_rows() as $catalogrow) {
+        $catalogbyskill[(string)($catalogrow['skill'] ?? '')] = $catalogrow;
+    }
+    $expectedhashbyskill = [];
+    $expectedrows = (new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_catalog_builder_service())
+        ->build_full_catalog_rows($registry, (string)$embsettings['model'], (int)$embsettings['dimensions']);
+    foreach ($expectedrows as $expectedrow) {
+        $expectedhashbyskill[(string)($expectedrow['skill'] ?? '')] = (string)($expectedrow['content_hash'] ?? '');
+    }
+    foreach ($contracts as $skillname => $meta) {
+        $catalogrow = $catalogbyskill[(string)$skillname] ?? null;
+        $vector = is_array($catalogrow) ? trim((string)($catalogrow['embedding_json'] ?? '')) : '';
+        $expectedhash = $expectedhashbyskill[(string)$skillname] ?? '';
+        if (!is_array($catalogrow)) {
+            $state = 'missing';
+        } else if ($vector === '' || $vector === '[]') {
+            $state = 'empty';
+        } else if ($expectedhash !== '' && (string)($catalogrow['content_hash'] ?? '') !== $expectedhash) {
+            $state = 'stale';
+        } else {
+            $state = 'current';
+        }
+        $embeddingstatusbyskill[(string)$skillname] = $state;
+        if ($state !== 'current') {
+            $missingembeddingcount++;
+        }
+    }
+} catch (\Throwable $e) {
+    // If the catalog cannot be read, leave the map empty: the status column then behaves as before.
+    $embeddingstatusbyskill = [];
+    $missingembeddingcount = 0;
+}
+
 // Resolve the evaluation context label and a readable user label for the header note.
 $evalcontextlabel = 'context #' . $evalcontextid;
 try {
@@ -253,6 +295,13 @@ if ($highcollisioncount > 0) {
             ' high-similarity embedding collision pair(s) detected. ' .
             'This may cause prompt selection confusion in the planner.';
         echo $OUTPUT->notification($message, 'warning');
+}
+
+if ($missingembeddingcount > 0) {
+    echo $OUTPUT->notification(
+        get_string('skillgovernance_missing_embeddings_warning', 'bookingextension_agent', $missingembeddingcount),
+        'warning'
+    );
 }
 
 echo html_writer::start_div('row mb-4 align-items-center');
@@ -379,7 +428,16 @@ foreach ($contracts as $skillname => $meta) {
     // Status (real governance gate result for the chosen user + context).
     $evaluation = $evaluations[(string)$skillname] ?? ['executable_state' => 'deny', 'deny_reason' => ''];
     $isexecutable = (string)($evaluation['executable_state'] ?? '') === 'allow';
-    if ($isexecutable) {
+    $embstate = $embeddingstatusbyskill[(string)$skillname] ?? 'current';
+    $hascurrentembedding = $embstate === 'current';
+    if ($isexecutable && !$hascurrentembedding) {
+        // Governance-allowed but not (currently) in the embeddings catalog, so the planner cannot
+        // retrieve it semantically. Flag the "Available" state yellow with the precise reason.
+        $embhint = get_string('skillgovernance_gate_no_embeddings_' . $embstate, 'bookingextension_agent');
+        $statushtml = '<span class="badge badge-warning" title="' . s($embhint) . '" style="cursor: help;">&#9888; '
+            . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>'
+            . '<br/><small class="text-warning">' . s($embhint) . '</small>';
+    } else if ($isexecutable) {
         $statushtml = '<span class="badge badge-success">&#10003; '
             . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>';
     } else {

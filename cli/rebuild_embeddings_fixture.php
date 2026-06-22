@@ -275,31 +275,9 @@ if (!empty($deletedskills)) {
  * @return array<int,array<string,string>>
  */
 function read_fixture_rows(string $path): array {
-    if (!is_readable($path)) {
-        return [];
-    }
-
-    $handle = fopen($path, 'rb');
-    if ($handle === false) {
-        return [];
-    }
-
-    $headers = fgetcsv($handle);
-    if (!is_array($headers) || $headers !== embeddings_csv_repository::HEADERS) {
-        fclose($handle);
-        return [];
-    }
-
-    $rows = [];
-    while (($cols = fgetcsv($handle)) !== false) {
-        if (!is_array($cols) || count($cols) !== count(embeddings_csv_repository::HEADERS)) {
-            continue;
-        }
-        $rows[] = array_combine(embeddings_csv_repository::HEADERS, $cols);
-    }
-
-    fclose($handle);
-    return $rows;
+    // Delegate to the repository so reading uses the same RFC-4180 (escape-free) parsing as the
+    // runtime; a bespoke reader here previously diverged and silently dropped JSON-bearing rows.
+    return (new embeddings_csv_repository($path))->read_rows();
 }
 
 /**
@@ -317,25 +295,11 @@ function write_fixture_rows(string $path, array $rows): void {
         }
     }
 
-    $tmppath = $path . '.tmp';
-    $handle = fopen($tmppath, 'wb');
-    if ($handle === false) {
-        cli_error('Cannot write temporary fixture file: ' . $tmppath);
-    }
-
-    fputcsv($handle, embeddings_csv_repository::HEADERS);
-    foreach ($rows as $row) {
-        $line = [];
-        foreach (embeddings_csv_repository::HEADERS as $header) {
-            $line[] = (string)($row[$header] ?? '');
-        }
-        fputcsv($handle, $line);
-    }
-
-    fclose($handle);
-
-    if (!rename($tmppath, $path)) {
-        @unlink($tmppath);
-        cli_error('Cannot move temporary fixture to final path: ' . $path);
+    // Delegate to the repository: identical escape-free serialization plus the atomic
+    // write -> round-trip-validate -> swap guarantee (throws if the output is not lossless).
+    try {
+        (new embeddings_csv_repository($path))->write_rows($rows);
+    } catch (\moodle_exception $e) {
+        cli_error($e->getMessage());
     }
 }
