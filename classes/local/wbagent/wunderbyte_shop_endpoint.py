@@ -77,6 +77,7 @@ from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,11 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 LITELLM_BASE_URL: str = os.environ.get("LITELLM_BASE_URL", "http://localhost:4000").rstrip("/")
 LITELLM_TRIALCREATE_KEY: str = os.environ.get("LITELLM_TRIALCREATE_KEY", "")
+
+# Public base URL customers use to reach the proxy (e.g. https://llm.wunderbyte.at).
+# LITELLM_BASE_URL is the INTERNAL docker URL for our own management calls and must NOT
+# be handed to customers; falls back to it only when SHOP_PUBLIC_ENDPOINT is unset.
+SHOP_PUBLIC_ENDPOINT: str = os.environ.get("SHOP_PUBLIC_ENDPOINT", LITELLM_BASE_URL).rstrip("/")
 
 SHOP_API_SECRET: str = os.environ.get("SHOP_API_SECRET", "")
 SHOP_HMAC_SECRET: str = os.environ.get("SHOP_HMAC_SECRET", "")
@@ -161,6 +167,10 @@ class IssueKeyRequest(BaseModel):
     order_id: str                      # shop order/subscription reference (unique)
     customer_email: str | None = None  # metadata only
     customer_id: str | None = None     # metadata only
+    # Response shape. Default is the JSON IssueKeyResponse. Set "text" (alias "key"/"plain")
+    # to get ONLY the bare key as text/plain, so a caller (e.g. a Moodle after-booking REST
+    # action) can drop it straight into an e-mail without parsing JSON.
+    response_format: str | None = None
 
 
 class IssueKeyResponse(BaseModel):
@@ -174,6 +184,10 @@ class IssueKeyResponse(BaseModel):
 
 class RevokeKeyRequest(BaseModel):
     order_id: str
+    # Must match the e-mail used at issue time: the key alias is wb-shop-<email>-<order_id>,
+    # and the management key can only look a key up by its exact alias. Omit only if the key
+    # was issued without an e-mail.
+    customer_email: str | None = None
 
 
 class RevokeKeyResponse(BaseModel):
@@ -202,10 +216,20 @@ def _slug(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]", "-", value.strip())[:120]
 
 
-def _alias(order_id: str) -> str:
-    """Deterministic key alias from the order id, so issue (dedupe) and revoke
-    can both look the key up by alias without scanning metadata."""
-    return f"wb-shop-{_slug(order_id)}"
+ALIAS_PREFIX = "wb-shop-"
+
+
+def _alias(order_id: str, email: str | None = None) -> str:
+    """Key alias = the LiteLLM display name AND the lookup key: wb-shop-<email>-<order_id>,
+    e.g. "wb-shop-buyer-example.com-233". It is deterministic, so issue-dedupe and revoke
+    rebuild the SAME alias from email+order_id and find the key via _find_key_by_alias
+    (the management key can query a specific alias but not enumerate all keys). When no
+    email is given it falls back to wb-shop-<order_id>; revoke must then also omit it."""
+    parts = [ALIAS_PREFIX.rstrip("-")]
+    if email and email.strip():
+        parts.append(_slug(email))
+    parts.append(_slug(order_id))
+    return "-".join(p for p in parts if p)
 
 
 async def _litellm_headers() -> dict:
@@ -265,7 +289,11 @@ def _resolve_config(product: str, size: str) -> dict:
 
 
 async def _find_key_by_alias(alias: str) -> dict | None:
-    """Return the LiteLLM key object for an alias, or None if there is none."""
+    """Return the LiteLLM key object for an exact key_alias, or None.
+
+    We filter server-side by key_alias (the management key may query a specific alias
+    but is not necessarily allowed to enumerate the whole key store), so issue-dedupe
+    and revoke both rebuild the same alias from email+order_id and look it up here."""
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
@@ -349,8 +377,8 @@ async def _block_key(key_token: str) -> None:
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
-@router.post("/issue-key", response_model=IssueKeyResponse)
-async def issue_key(request: Request) -> IssueKeyResponse:
+@router.post("/issue-key")
+async def issue_key(request: Request):
     """
     Issue a paid subscription or package key for a shop order.
 
@@ -372,7 +400,7 @@ async def issue_key(request: Request) -> IssueKeyResponse:
         raise HTTPException(status_code=400, detail="order_id is required.")
 
     cfg = _resolve_config(body.product, body.size)
-    alias = _alias(order_id)
+    alias = _alias(order_id, body.customer_email)
 
     if await _find_key_by_alias(alias) is not None:
         raise HTTPException(
@@ -393,9 +421,14 @@ async def issue_key(request: Request) -> IssueKeyResponse:
 
     logger.info("Issued %s/%s key for order %s", body.product, body.size, order_id)
 
+    # When the caller asked for the bare key, return only the key as text/plain so it can
+    # be inserted directly into a message (no JSON parsing on the caller side).
+    if (body.response_format or "").strip().lower() in ("text", "key", "plain"):
+        return PlainTextResponse(apikey)
+
     return IssueKeyResponse(
         apikey=apikey,
-        endpoint=LITELLM_BASE_URL,
+        endpoint=SHOP_PUBLIC_ENDPOINT,
         model=SHOP_MODELS[0] if SHOP_MODELS else "",
         product=body.product,
         size=body.size,
@@ -421,7 +454,7 @@ async def revoke_key(request: Request) -> RevokeKeyResponse:
     if not order_id:
         raise HTTPException(status_code=400, detail="order_id is required.")
 
-    alias = _alias(order_id)
+    alias = _alias(order_id, body.customer_email)
     key = await _find_key_by_alias(alias)
     if key is None:
         return RevokeKeyResponse(order_id=order_id, revoked=True, found=False)
