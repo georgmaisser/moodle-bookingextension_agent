@@ -1717,7 +1717,7 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - Never re-emit an already completed action signature (same skill + normalized input intent).
 
 SKILL CONTRACT FIRST (highest priority):
-- Follow skill-level routing hints from the SKILL CATALOG (WHEN, REQUIRED, OPTIONAL, TRIGGERS).
+- Follow skill-level routing hints from the SKILL CATALOG (WHEN, REQUIRED, TRIGGERS).
 - Keep global routing generic; do not hardcode special behavior for individual skill names.
 
 PROMPT;
@@ -2084,21 +2084,11 @@ PROMPT;
                 $lines[] = 'REQUIRED: ' . implode(', ', array_values($minimal));
             }
 
-            // OPTIONAL: additional example_input fields not already in minimal_input.
-            // example_input reaches this renderer as a compacted list of property names, but may
-            // also still be a raw {field: sample} map; take names from the values of a list and
-            // from the keys of a map. (Using array_keys() on the compacted list would yield numeric
-            // indices, and array_filter() would then drop the falsy "0" — rendering "OPTIONAL: 1, 2, 3".)
-            $exampleraw = (array)($entry['example_input'] ?? []);
-            $examplenames = array_is_list($exampleraw) ? array_values($exampleraw) : array_keys($exampleraw);
-            $examplekeys = array_values(array_filter(
-                array_map('strval', $examplenames),
-                static fn($name) => $name !== ''
-            ));
-            $optionalkeys = array_values(array_diff($examplekeys, array_values($minimal)));
-            if (!empty($optionalkeys)) {
-                $lines[] = 'OPTIONAL: ' . implode(', ', array_slice($optionalkeys, 0, 8));
-            }
+            // OPTIONAL parameters are deliberately NOT listed in the selection catalog: selection must
+            // not construct parameters (the selector picks exactly one skill and omits input), so optional
+            // field names carry no routing value and are pure token noise across all skills every turn.
+            // The full parameter schema (incl. optional fields, types, descriptions) is provided separately
+            // to the constructor as JSON for the single selected skill (see PHASE_PARAMETER_CONSTRUCTION).
 
             // TRIGGERS: trigger IDs as readable keywords (strip namespace prefix for brevity).
             $triggerids = [];
