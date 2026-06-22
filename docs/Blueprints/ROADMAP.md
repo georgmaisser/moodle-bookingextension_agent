@@ -23,6 +23,7 @@ Legende: ✅ Erledigt · 🟡 Teilweise · ⏳ Offen · 📋 Nur Blueprint
 | WS6 Real Simulation Mode | P1 | ⏳ Offen |
 | WS7 Semantische Site-Suche | P2 | 📋 Nur Blueprint |
 | WS8 Whisper-Spracheingabe | P1 | ⏳ Offen (neu) |
+| WS9 Event-getriggerte Agent-Aktionen | P2 | ⏳ Offen (neu) |
 | 4.1 Observability / Audit Trail | P0 | 🟡 Teilweise |
 | 4.2 Safety Policy Packs | P1 | ⏳ Offen |
 | 4.3 Prompt/Contract Eval Harness | P1 | ✅ Erledigt |
@@ -175,6 +176,30 @@ Definition of Done:
 - Fallback bei fehlendem STT-Modell und bei verweigerter Mikrofon-Freigabe ist abgedeckt.
 - Privacy-API deklariert die Audio-Uebermittlung an den externen STT-Provider; Audio wird nicht dauerhaft gespeichert.
 
+### WS9: Event-getriggerte Agent-Aktionen / Automationen (P2) — ⏳ Offen (neu)
+**Status (2026-06-22):** Neu aufgenommen, noch nicht begonnen.
+
+Ziel: Nutzer koennen in natuerlicher Sprache Automationen definieren, bei denen der Agent auf mod_booking-Events reagiert und daraufhin (ggf. mehrstufige, kontextabhaengige) Aktionen ausfuehrt. Beispiele:
+- "Immer wenn eine Mail verschickt wird, schreib auch mir eine Mail."
+- "Wenn eine Buchung storniert wird, schau in den Dienstplan und benachrichtige die Person, die gerade Dienst hat."
+- "Wenn jemand auf die Warteliste kommt, informiere den Kursverantwortlichen."
+
+Abgrenzung zu den bestehenden booking_rules: Die `rule_react_on_event`-Engine deckt feste Condition->Action-Muster ab. WS9 zielt auf **agentisch definierte und ausgefuehrte** Reaktionen mit echtem Reasoning (z. B. Dienstplan/Teacher-Assignments auslesen, Empfaenger dynamisch ermitteln, Inhalt formulieren) — ueber starre Conditions hinaus. Die bestehende Rules-/Observer-Schicht ('*'-Observer -> rules_info) ist der natuerliche Eintrittspunkt; die Agent-Engine bleibt frei von Skill-Wissen.
+
+Deliverables:
+- Natuerlichsprachliche Erfassung einer Automation (Trigger-Event + gewuenschte Aktion) -> strukturierte, persistierte Automations-Definition, mit Preview/Bestaetigung VOR Aktivierung.
+- Event-Anbindung: getriggerte Ausfuehrung ueber den vorhandenen Event-/Rules-Eintrittspunkt, ohne die Engine zu verschmutzen (Automation als Skill-/Datenschicht).
+- Sichere Ausfuehrung: jede getriggerte Aktion laeuft durch denselben Risk-Class/Preflight/Confirm-Pfad (WS1); mutierende Aktionen (R>=1) erfordern eine vorab erteilte, scope-begrenzte Genehmigung — kein unkontrolliertes autonomes Versenden.
+- Reasoning-Schritte: read-only Datenlookups (Dienstplan, Verantwortliche, Teilnehmende) -> Empfaenger-/Inhaltsbestimmung -> Aktion (z. B. send_mail).
+- Schutzmechanismen: Loop-/Rekursionsschutz (z. B. "Mail bei Mail" darf sich nicht selbst triggern), Rate-Limit, Idempotenz pro Event; klare Pausierung/Deaktivierung je Automation.
+- Audit: jede automatische Ausfuehrung nachvollziehbar (welches Event -> welche Automation -> welche Aktion/Empfaenger), siehe 4.1.
+
+Definition of Done:
+- Eine natuerlichsprachlich definierte Automation laesst sich anlegen, in einer Vorschau pruefen, aktivieren und loest bei ihrem Event zuverlaessig die korrekte Aktion aus.
+- Loop-Schutz, Rate-Limit und Audit greifen; mutierende Aktionen sind durch Risk-Class/Confirmation abgesichert.
+
+Risiken/Gegenmassnahmen: Endlos-Trigger und unbeabsichtigter Massenversand -> Loop-/Rate-Schutz + Idempotenz; Datenschutz bei automatischer Empfaengerwahl und falsche Empfaenger durch fehlerhaftes Reasoning -> Confirmation-Gating, read-only-Lookups, Audit. Baut sinnvoll auf WS1 (Risk-Class), 4.1 (Observability) und 4.2 (Safety Policy Packs) auf.
+
 ## 4) Zusaetzliche sinnvolle Ideen (Vorschlaege)
 
 ### 4.1 Observability und Audit Trail (P0) — 🟡 Teilweise
@@ -230,6 +255,7 @@ Definition of Done:
 - Observability/Audit Trail
 - Safety Policy Packs und Eval Harness
 - WS7 Semantische Site-Suche (Analyse/Prototyp; Option A vs. `\core_search\engine`)
+- WS9 Event-getriggerte Agent-Aktionen (Analyse/Prototyp; baut auf WS1 + 4.1 + 4.2 auf)
 
 ## 6) Messbare Erfolgskriterien
 - -30% Rueckfragen vor mutierenden Aktionen (durch bessere Preview/Context).
