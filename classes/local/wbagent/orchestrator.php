@@ -894,6 +894,16 @@ class orchestrator {
         // queries so the selector can choose it instead of, say, analyze_rules.
         if ($shouldincludeskillcatalog && isset($allpromptcontracts) && is_array($allpromptcontracts)) {
             $runtimecatalog = $this->ensure_doc_skill_for_doc_intent($runtimecatalog, $allpromptcontracts, $messages);
+            // Capability/"what can you do" questions must always be able to reach wbagent.list_skills,
+            // which returns the authoritative, complete capability list. Without this the embedding
+            // top-k discovery surfaces recently-used domain skills and the planner answers the question
+            // freely from partial context (producing an incomplete list). Force it in for capability
+            // intent; the selector still decides.
+            $runtimecatalog = $this->ensure_list_skills_for_capability_intent(
+                $runtimecatalog,
+                $allpromptcontracts,
+                $messages
+            );
         }
 
         $systemprompt = $this->build_system_prompt(
@@ -1716,6 +1726,14 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - Do not emit unavailable skills in commands.
 - Never re-emit an already completed action signature (same skill + normalized input intent).
 
+GROUNDING (prefer skills over free-form answers):
+- If a skill in the SKILL CATALOG can fulfil OR answer the request, select it (response_type=skill_call)
+  instead of answering from your own knowledge. This explicitly includes questions about your own
+  capabilities or which actions exist: prefer the catalog's introspection/listing skill over composing
+  such a list yourself (a self-composed list is partial and goes stale).
+- Only answer directly (response_type=sufficient) for pure conversation/acknowledgement, or when no
+  catalog skill applies.
+
 SKILL CONTRACT FIRST (highest priority):
 - Follow skill-level routing hints from the SKILL CATALOG (WHEN, REQUIRED, TRIGGERS).
 - Keep global routing generic; do not hardcode special behavior for individual skill names.
@@ -1959,6 +1977,92 @@ PROMPT;
             // English.
             'explain', 'what is', 'what are', 'how does', 'how do i', 'documentation', 'docs',
             'guide', 'tell me about', 'what does',
+        ];
+
+        foreach ($markers as $marker) {
+            if (mb_strpos($haystack, $marker) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Force wbagent.list_skills into the candidate catalog when the latest user message looks like a
+     * capability/"what can you do" question.
+     *
+     * wbagent.list_skills returns the authoritative, complete list of available skills. Embedding
+     * top-k discovery otherwise ranks recently-used domain skills above it, so the selector never sees
+     * it and the planner answers the capability question freely from partial context (an incomplete
+     * list - see thread 518). This guarantees it is offered; the selector still decides. No-op when it
+     * is already present, when intent does not look capability-like, or when the skill is not registered.
+     *
+     * @param array<int,array<string,mixed>> $runtimecatalog Final (post-filter) candidate catalog.
+     * @param array<int,array<string,mixed>> $allcontracts   Full skill contracts (source of the row).
+     * @param array<int,object> $messages                    Conversation messages (latest user text).
+     * @return array<int,array<string,mixed>>
+     */
+    private function ensure_list_skills_for_capability_intent(
+        array $runtimecatalog,
+        array $allcontracts,
+        array $messages
+    ): array {
+        $listskill = \bookingextension_agent\local\wbagent\wbagent\skills\list_skills_skill::SKILL_NAME;
+
+        foreach ($runtimecatalog as $row) {
+            if (trim((string)($row['skill'] ?? '')) === $listskill) {
+                return $runtimecatalog;
+            }
+        }
+
+        $usertext = '';
+        foreach (array_reverse($messages) as $msg) {
+            if (($msg->role ?? '') === 'user') {
+                $usertext = trim((string)($msg->content ?? ''));
+                break;
+            }
+        }
+        if ($usertext === '' || !$this->looks_like_capability_intent($usertext)) {
+            return $runtimecatalog;
+        }
+
+        foreach ($allcontracts as $entry) {
+            if (!is_array($entry) || trim((string)($entry['skill'] ?? '')) !== $listskill) {
+                continue;
+            }
+            $sanitized = $this->sanitize_runtime_catalog_for_prompt([$entry]);
+            if (!empty($sanitized)) {
+                $runtimecatalog[] = $sanitized[0];
+            }
+            break;
+        }
+
+        return $runtimecatalog;
+    }
+
+    /**
+     * Heuristic: does the text read like a "what can you do / which features / can you ..." question
+     * about the agent's own capabilities (as opposed to a concrete entity lookup)?
+     *
+     * Language-agnostic-ish marker set (de + en), deliberately small and high-precision; misses still
+     * fall back to wbagent.search_skills.
+     *
+     * @param string $text
+     * @return bool
+     */
+    private function looks_like_capability_intent(string $text): bool {
+        $haystack = \core_text::strtolower($text);
+
+        $markers = [
+            // German.
+            'was kannst du', 'was kannst du alles', 'was kann der agent', 'was kann ich hier',
+            'welche funktionen', 'welche fähigkeiten', 'welche faehigkeiten', 'welche aktionen',
+            'welche skills', 'welche befehle', 'wobei kannst du', 'wozu bist du', 'hilfst du',
+            // English.
+            'what can you do', 'what can you', 'which features', 'what are you capable',
+            'what skills', 'which skills', 'which actions', 'what actions', 'list your skills',
+            'how can you help', 'what can the agent',
         ];
 
         foreach ($markers as $marker) {
