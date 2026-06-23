@@ -270,33 +270,41 @@ if ($agentenabled) {
     // not an admin setting — it stays off by default and can be forced via set_config in CI.
     // Preflight audit logging was retired (wrote to thread metadata, never surfaced) — no setting.
 
+    // These agent admin pages are kept out of the mod/booking settings category page (and the admin
+    // tree) via hidden=true, so the category view only shows "AI settings". They stay reachable by URL
+    // through the "Agent admin pages" table of contents inside the AI settings page.
     $adminroot->add('modbookingfolder', new admin_externalpage(
         'bookingextension_agent_skillgovernance',
         get_string('skillgovernance', 'bookingextension_agent'),
         $skillgovurl,
-        'moodle/site:config'
+        'moodle/site:config',
+        true
     ));
 
     $adminroot->add('modbookingfolder', new admin_externalpage(
         'bookingextension_agent_skillselectiondebug',
         get_string('skillselectiondebug', 'bookingextension_agent'),
         $skillselectiondebugurl,
-        'bookingextension/agent:debugskillselection'
+        'bookingextension/agent:debugskillselection',
+        true
     ));
 
     $adminroot->add('modbookingfolder', new admin_externalpage(
         'bookingextension_agent_benchmarkreport',
         get_string('benchmark_report_nav', 'bookingextension_agent'),
         $benchmarkreporturl,
-        'bookingextension/agent:viewbenchmarks'
+        'bookingextension/agent:viewbenchmarks',
+        true
     ));
 
     // Benchmark settings.
+    // Hidden from the category/tree (reachable via the AI settings table of contents); the category
+    // page should only show "AI settings".
     $benchmarkpage = new admin_settingpage(
         'bookingextension_agent_benchmark',
         get_string('benchmark_settings_nav', 'bookingextension_agent'),
         'moodle/site:config',
-        !$hassiteconfig
+        true
     );
 
     $benchmarkpage->add(new admin_setting_configtext(
