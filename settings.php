@@ -99,6 +99,12 @@ $aisettingspage->add(
 $agentenabledraw = get_config('bookingextension_agent', 'agent_enabled');
 $agentenabled = $agentenabledraw === false || !empty($agentenabledraw);
 
+// Register the AI settings page now, before the agent's other (benchmark) page is registered below,
+// so "AI settings" is listed first — including on the post-install "new settings" review page, which
+// shows settings in page-registration order. Settings added to $aisettingspage further down are
+// reflected because the admin tree keeps the page object by reference.
+$adminroot->add('modbookingfolder', $aisettingspage);
+
 if ($agentenabled) {
     // Admin pages that belong to the agent. Listed right below the enable
     // checkbox so it is clear they are only available while the agent is on.
@@ -363,5 +369,3 @@ if ($agentenabled) {
 
     $adminroot->add('modbookingfolder', $benchmarkpage);
 }
-
-$adminroot->add('modbookingfolder', $aisettingspage);
