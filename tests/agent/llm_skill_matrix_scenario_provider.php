@@ -893,6 +893,22 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'course.analyze_course_structure' => [
+                'prompt' => 'Analysiere bitte die Struktur dieses Kurses (Abschnitte und Aktivitäten).',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'course.diagnose_enrolment' => [
                 'prompt' => 'Diagnose enrolment issues for {{teacher_fullname}} in this course.',
                 'allow_direct_answer' => true,
