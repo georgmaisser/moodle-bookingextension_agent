@@ -172,8 +172,18 @@ const buildButton = (label) => {
  *
  * @param {Number} contextid current page context id (from the PHP hook)
  * @param {String} label localised button label (from the PHP hook)
+ * @param {Object} pagecontext free $PAGE snapshot (pagetype, url, course, activity) from the PHP hook
  */
-export const init = (contextid, label) => {
+export const init = (contextid, label, pagecontext = {}) => {
+    // Stash the current-page snapshot (per tab, via sessionStorage) so aiinstructions can send it with
+    // each message. Written on every page load before any early return, so it always reflects the page
+    // the user is actually on. Best-effort: failures here never affect the wand.
+    try {
+        window.sessionStorage.setItem('wbagent_pagecontext', JSON.stringify(pagecontext || {}));
+    } catch (e) {
+        window.console.log('wbagent: page context not stored', e);
+    }
+
     if (document.getElementById(BUTTON_ID)) {
         return;
     }

@@ -2065,6 +2065,15 @@ const sendMessage = (message) => {
         pendingAttachments = [];
         renderAttachmentTray();
 
+        // Current-page snapshot stashed by the navbar hook (per tab); relayed so the agent knows where
+        // the user is. Best-effort: an empty object is fine when sessionStorage is unavailable.
+        let pagecontextPayload = '{}';
+        try {
+            pagecontextPayload = window.sessionStorage.getItem('wbagent_pagecontext') || '{}';
+        } catch (e) {
+            pagecontextPayload = '{}';
+        }
+
         return Ajax.call([{
             methodname: 'bookingextension_agent_ai_send_message',
             args: {
@@ -2072,6 +2081,7 @@ const sendMessage = (message) => {
                 message: sanitizedMessage,
                 threadid: Number(currentThreadId || 0),
                 attachments: attachmentsPayload,
+                pagecontext: pagecontextPayload,
             },
         }])[0].then((resp) => {
         // Stop step polling and remove ephemeral step bubbles before showing final answer.

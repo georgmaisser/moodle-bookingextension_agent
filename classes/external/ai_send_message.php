@@ -80,6 +80,13 @@ class ai_send_message extends external_api {
                 VALUE_DEFAULT,
                 '[]'
             ),
+            'pagecontext' => new external_value(
+                PARAM_RAW,
+                'Optional JSON object describing the user\'s current page (pagetype, url, course, activity). '
+                    . 'Best-effort hint only; sanitised server-side and never used for authorization.',
+                VALUE_DEFAULT,
+                '{}'
+            ),
         ]);
     }
 
@@ -91,19 +98,32 @@ class ai_send_message extends external_api {
      * @param int    $threadid
      * @return array
      */
-    public static function execute(int $contextid, string $message, int $threadid = 0, string $attachments = '[]'): array {
+    public static function execute(
+        int $contextid,
+        string $message,
+        int $threadid = 0,
+        string $attachments = '[]',
+        string $pagecontext = '{}'
+    ): array {
         global $USER;
 
         require_sesskey();
 
         $params = self::validate_parameters(
             self::execute_parameters(),
-            ['contextid' => $contextid, 'message' => $message, 'threadid' => $threadid, 'attachments' => $attachments]
+            [
+                'contextid' => $contextid,
+                'message' => $message,
+                'threadid' => $threadid,
+                'attachments' => $attachments,
+                'pagecontext' => $pagecontext,
+            ]
         );
         $contextid   = (int)$params['contextid'];
         $message     = trim($params['message']);
         $threadid    = (int)($params['threadid'] ?? 0);
         $attachments = (string)($params['attachments'] ?? '[]');
+        $pagecontext = (string)($params['pagecontext'] ?? '{}');
         $authz = new authorization_service();
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $contextid = (int)$context->id;
@@ -224,6 +244,11 @@ class ai_send_message extends external_api {
             $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
         }
         $threadid = (int)$thread->id;
+
+        // Record the user's current page (sanitised, best-effort) so the runtime context can tell the
+        // agent WHERE the user is. Overwritten every message so it stays fresh as the user navigates.
+        $store->set_thread_metadata_value($threadid, '_page_context', self::sanitize_page_context($pagecontext));
+
         $anonymizer = new privacy_anonymizer($store);
         $store->set_thread_metadata_value($threadid, '_confirm_previews', []);
 
@@ -411,6 +436,43 @@ class ai_send_message extends external_api {
 
         $encoded = json_encode($phasetrace);
         return is_string($encoded) ? $encoded : '[]';
+    }
+
+    /**
+     * Sanitise the client-supplied current-page descriptor before it enters the prompt.
+     *
+     * The payload is server-generated (the navbar hook) but relayed by the browser, so it is treated as
+     * untrusted: whitelist keys, coerce types, strip markup/control characters and cap lengths so it can
+     * never inject prompt lines or bloat the context. Informational only — never an authorization source.
+     *
+     * @param string $json
+     * @return array<string,mixed>
+     */
+    private static function sanitize_page_context(string $json): array {
+        $raw = json_decode($json, true);
+        if (!is_array($raw)) {
+            return [];
+        }
+        $clean = static function ($value): string {
+            $text = strip_tags((string)$value);
+            $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+            return \core_text::substr($text, 0, 200);
+        };
+        $out = [];
+        foreach (['pagetype', 'url', 'heading', 'coursename', 'modname', 'activityname'] as $key) {
+            if (isset($raw[$key]) && (string)$raw[$key] !== '') {
+                $cleaned = $clean($raw[$key]);
+                if ($cleaned !== '') {
+                    $out[$key] = $cleaned;
+                }
+            }
+        }
+        foreach (['contextlevel', 'courseid', 'cmid'] as $key) {
+            if (isset($raw[$key]) && (int)$raw[$key] > 0) {
+                $out[$key] = (int)$raw[$key];
+            }
+        }
+        return $out;
     }
 
     /**

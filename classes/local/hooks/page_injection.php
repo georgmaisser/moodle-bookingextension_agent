@@ -62,15 +62,63 @@ class page_injection {
 
             // Keep the per-page footprint minimal: only this tiny AMD module is
             // loaded; the label travels along so the JS needs no string AJAX.
+            // The current-page snapshot is built from FREE $PAGE scalars already in
+            // memory (no queries, no block loading), so the always-on hook stays cost-free.
             // Modal/templates/fragment load lazily on first click.
             $PAGE->requires->js_call_amd('bookingextension_agent/navbar_magic_wand', 'init', [
                 (int)$context->id,
                 get_string('agent_display_name', 'bookingextension_agent'),
+                self::current_page_context($PAGE),
             ]);
         } catch (\Throwable $e) {
             // Never break page rendering for a convenience entry point
             // (e.g. $PAGE->context not initialised during install/upgrade).
             debugging('bookingextension_agent navbar injection skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
+    }
+
+    /**
+     * Build a compact descriptor of the user's current page from FREE $PAGE scalars only.
+     *
+     * Everything read here is already resolved in memory by the page's own setup (require_login /
+     * set_url / set_cm), so it adds NO queries and no block loading — safe for an always-on hook.
+     * It covers every page family (course, activity, dashboard, user profile, admin, …) via pagetype,
+     * and is a best-effort hint for the agent's runtime context, never an authorization source.
+     *
+     * @param \moodle_page $page
+     * @return array<string,mixed>
+     */
+    private static function current_page_context(\moodle_page $page): array {
+        // Each access is guarded: a page that has not set a url/context must never break injection.
+        $try = static function (callable $get) {
+            try {
+                return $get();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
+
+        $pc = [];
+        $pc['pagetype'] = (string)($try(static fn() => $page->pagetype) ?? '');
+        $pc['url'] = (string)($try(static fn() => $page->url->out(false)) ?? '');
+        $pc['heading'] = (string)($try(static fn() => $page->title) ?? '');
+
+        $context = $try(static fn() => $page->context);
+        $pc['contextlevel'] = $context ? (int)$context->contextlevel : 0;
+
+        $course = $try(static fn() => $page->course);
+        if ($course && (int)$course->id !== (int)SITEID) {
+            $pc['courseid'] = (int)$course->id;
+            $pc['coursename'] = format_string($course->fullname);
+        }
+
+        $cm = $try(static fn() => $page->cm);
+        if ($cm) {
+            $pc['cmid'] = (int)$cm->id;
+            $pc['modname'] = (string)$cm->modname;
+            $pc['activityname'] = format_string($cm->name);
+        }
+
+        return $pc;
     }
 }

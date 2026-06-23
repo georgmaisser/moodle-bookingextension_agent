@@ -2566,6 +2566,14 @@ PROMPT;
             $this->append_moodle_context_section($lines, $blockcontext);
         }
 
+        // Current-page hint (VOLATILE): where the user actually is right now — pagetype, course,
+        // activity, or a non-course family (dashboard, user profile, admin/report). Sourced from the
+        // navbar snapshot via thread metadata, so it changes as the user navigates and therefore lives
+        // in [SYSTEM_RUNTIME_STATE], never the cached prefix. Best-effort hint, not authorization.
+        if ($fullcontextblock) {
+            $this->append_page_context_section($statelines, $threadid);
+        }
+
         // Keep first-turn language enforcement in SYSTEM_RUNTIME so static SYSTEM
         // prompt prefixes remain cache-friendly across requests.
         if ($phase === self::PHASE_DISCOVERY && $isfirstassistantturn && !$hasobservations) {
@@ -2762,6 +2770,95 @@ PROMPT;
         } catch (\Throwable $e) {
             debugging('moodle_context block skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
+    }
+
+    /**
+     * Append the user's current-page hint to the volatile runtime state, if one was captured.
+     *
+     * Reads the sanitised page descriptor recorded at message time (the navbar snapshot, stored as thread
+     * metadata) and renders a compact current_page block. It distinguishes every page family via pagetype
+     * (course, activity, dashboard, user profile, admin/report, …), so the agent knows where the user is —
+     * not just the bare Moodle context. Informational only; emits nothing when no snapshot is present.
+     *
+     * @param array $statelines
+     * @param int $threadid
+     */
+    private function append_page_context_section(array &$statelines, int $threadid): void {
+        try {
+            $pc = $this->store->get_thread_metadata_value($threadid, '_page_context');
+            if (!is_array($pc) || empty($pc)) {
+                return;
+            }
+            $yamlsafe = static fn($v): string =>
+                '"' . str_replace(['\\', '"', "\n", "\r"], ['\\\\', '\\"', ' ', ' '], (string)$v) . '"';
+
+            $pagetype = (string)($pc['pagetype'] ?? '');
+            $statelines[] = 'current_page:';
+            $statelines[] = '  page: ' . $yamlsafe($this->describe_page_family($pagetype, (int)($pc['contextlevel'] ?? 0)));
+            if ($pagetype !== '') {
+                $statelines[] = '  pagetype: ' . $yamlsafe($pagetype);
+            }
+            if (!empty($pc['url'])) {
+                $statelines[] = '  url: ' . $yamlsafe($pc['url']);
+            }
+            if (!empty($pc['courseid'])) {
+                $coursename = trim((string)($pc['coursename'] ?? ''));
+                $statelines[] = '  course: '
+                    . $yamlsafe(($coursename !== '' ? $coursename . ' ' : '') . '(id ' . (int)$pc['courseid'] . ')');
+            }
+            if (!empty($pc['cmid'])) {
+                $activity = trim((string)($pc['modname'] ?? '') . ' ' . (string)($pc['activityname'] ?? ''));
+                $statelines[] = '  activity: '
+                    . $yamlsafe(($activity !== '' ? $activity . ' ' : '') . '(cmid ' . (int)$pc['cmid'] . ')');
+            }
+            if (!empty($pc['heading'])) {
+                $statelines[] = '  heading: ' . $yamlsafe($pc['heading']);
+            }
+        } catch (\Throwable $e) {
+            debugging('current_page block skipped: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Map a Moodle pagetype to a human-readable page family so the agent can say where the user is.
+     *
+     * @param string $pagetype
+     * @param int $contextlevel
+     * @return string
+     */
+    private function describe_page_family(string $pagetype, int $contextlevel): string {
+        $pt = strtolower(trim($pagetype));
+        $exact = [
+            'my-index' => 'Dashboard',
+            'site-index' => 'Site front page',
+            'user-profile' => 'User profile page',
+            'course-index' => 'Course list',
+        ];
+        if (isset($exact[$pt])) {
+            return $exact[$pt];
+        }
+        if (str_starts_with($pt, 'course-view')) {
+            return 'Course page';
+        }
+        if (str_starts_with($pt, 'course-edit') || str_starts_with($pt, 'course-management')) {
+            return 'Course management page';
+        }
+        if (preg_match('/^mod-[a-z0-9]+-index$/', $pt)) {
+            return 'Activity index (list)';
+        }
+        if (str_starts_with($pt, 'mod-')) {
+            return 'Activity page';
+        }
+        if (str_starts_with($pt, 'grade-')) {
+            return 'Gradebook page';
+        }
+        if (str_starts_with($pt, 'user-')) {
+            return 'User page';
+        }
+        if (str_starts_with($pt, 'admin-') || str_starts_with($pt, 'report-') || $contextlevel === CONTEXT_SYSTEM) {
+            return 'Admin/report page';
+        }
+        return $pagetype !== '' ? $pagetype : 'Unknown page';
     }
 
     /**
