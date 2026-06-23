@@ -155,42 +155,6 @@ if (!empty($chartdata['labels'])) {
             'charthtml' => $charthtml,
         ]);
     }
-
-    // Compact trend table (C3c — no-JS fallback + quick scan).
-    echo html_writer::tag('h4', get_string('benchmark_trend_table', 'bookingextension_agent'));
-
-    $table = new html_table();
-    $table->head = [
-        get_string('benchmark_run', 'bookingextension_agent'),
-        get_string('benchmark_success', 'bookingextension_agent'),
-        get_string('benchmark_skill_hit', 'bookingextension_agent'),
-        get_string('benchmark_json_valid', 'bookingextension_agent'),
-    ];
-    $table->attributes['class'] = 'table table-sm table-bordered';
-    $table->attributes['style'] = 'font-size:0.85em';
-    $table->data = [];
-
-    foreach ($chartdata['labels'] as $idx => $lbl) {
-        $suc = $chartdata['success'][$idx];
-        $tsk = $chartdata['skillhit'][$idx];
-        $jsn = $chartdata['jsonok'][$idx];
-        $sucfmt = $suc !== null ? $suc . '%' : '—';
-        $tskfmt = $tsk !== null ? $tsk . '%' : '—';
-        $jsnfmt = $jsn !== null ? $jsn . '%' : '—';
-        $succlass = $suc === null ? '' : ($suc < 85 ? 'table-danger' : ($suc < 95 ? 'table-warning' : 'table-success'));
-
-        $row = new html_table_row([
-            $lbl,
-            $sucfmt,
-            $tskfmt,
-            $jsnfmt,
-        ]);
-        if ($succlass) {
-            $row->cells[1]->attributes['class'] = $succlass;
-        }
-        $table->data[] = $row;
-    }
-    echo html_writer::table($table);
 }
 
 // Runs table.

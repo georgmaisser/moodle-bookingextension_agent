@@ -873,7 +873,6 @@ $string['benchmark_threshold_skill_hit_rate'] = 'Threshold: skill_hit_rate (%)';
 $string['benchmark_threshold_skill_hit_rate_desc'] = 'Minimum acceptable skill hit rate. Runs below this are flagged as regression.';
 $string['benchmark_tokens'] = 'Tokens';
 $string['benchmark_trend'] = 'Trend ({$a} runs)';
-$string['benchmark_trend_table'] = 'Trend Table';
 $string['benchmark_uuid'] = 'UUID';
 $string['benchmark_value'] = 'Value';
 $string['cachedef_aiprivacynames'] = 'AI privacy names (cache)';

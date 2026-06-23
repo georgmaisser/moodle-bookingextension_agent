@@ -873,7 +873,6 @@ $string['benchmark_threshold_skill_hit_rate'] = 'Schwellenwert: skill_hit_rate (
 $string['benchmark_threshold_skill_hit_rate_desc'] = 'Minimal akzeptable Skill-Trefferrate. Durchläufe darunter werden als Regression markiert.';
 $string['benchmark_tokens'] = 'Tokens';
 $string['benchmark_trend'] = 'Trend ({$a} Durchläufe)';
-$string['benchmark_trend_table'] = 'Trend-Tabelle';
 $string['benchmark_uuid'] = 'UUID';
 $string['benchmark_value'] = 'Wert';
 $string['cachedef_aiprivacynames'] = 'KI-Datenschutznamen (Cache)';
