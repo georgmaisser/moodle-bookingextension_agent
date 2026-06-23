@@ -92,7 +92,10 @@ class trial_provisioner {
             );
         } catch (\Throwable $e) {
             debugging('trial_provisioner: provider instance creation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
-            return $this->fail(get_string('aitrial_provision_failed', 'bookingextension_agent'));
+            return $this->fail(
+                get_string('aitrial_provision_failed', 'bookingextension_agent'),
+                'provider instance creation failed: ' . $e->getMessage()
+            );
         }
 
         return [
@@ -304,7 +307,10 @@ class trial_provisioner {
         } catch (GuzzleException $e) {
             // Cannot even reach the service from here (often a firewall on the Moodle side).
             debugging('trial_provisioner: trial endpoint unreachable: ' . $e->getMessage(), DEBUG_DEVELOPER);
-            return $this->fail(get_string('aitrial_support_firewall', 'bookingextension_agent'));
+            return $this->fail(
+                get_string('aitrial_support_firewall', 'bookingextension_agent'),
+                'trial endpoint unreachable: ' . $e->getMessage()
+            );
         }
 
         $status = $response->getStatusCode();
@@ -347,8 +353,13 @@ class trial_provisioner {
                 : get_string('aitrial_provision_failed', 'bookingextension_agent'));
         }
 
-        debugging('trial_provisioner: unexpected trial response HTTP ' . $status, DEBUG_DEVELOPER);
-        return $this->fail(get_string('aitrial_provision_failed', 'bookingextension_agent'));
+        $detail = (is_array($body) && !empty($body['detail'])) ? (string)$body['detail'] : '';
+        debugging('trial_provisioner: unexpected trial response HTTP ' . $status
+            . ($detail !== '' ? ': ' . $detail : ''), DEBUG_DEVELOPER);
+        return $this->fail(
+            get_string('aitrial_provision_failed', 'bookingextension_agent'),
+            'trial endpoint HTTP ' . $status . ($detail !== '' ? ': ' . $detail : '')
+        );
     }
 
     /**
@@ -466,10 +477,19 @@ class trial_provisioner {
     /**
      * Shorthand for a failed result.
      *
-     * @param string $message
+     * In developer debug mode the technical detail (HTTP status, endpoint detail or exception
+     * message) is appended to the user-facing message so a trial failure is self-diagnosing —
+     * the generic "could not be set up" otherwise hides the real cause (e.g. an HTTP 502 from
+     * the trial endpoint when LiteLLM key creation fails).
+     *
+     * @param string $message User-facing message.
+     * @param string $debugdetail Technical detail, only shown when developer debugging is on.
      * @return array{success: bool, message: string}
      */
-    private function fail(string $message): array {
+    private function fail(string $message, string $debugdetail = ''): array {
+        if ($debugdetail !== '' && debugging('', DEBUG_DEVELOPER)) {
+            $message .= ' [' . $debugdetail . ']';
+        }
         return ['success' => false, 'message' => $message];
     }
 }

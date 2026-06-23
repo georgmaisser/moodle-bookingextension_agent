@@ -391,7 +391,17 @@ async def request_moodle_trial(body: TrialRequest, request: Request) -> TrialRes
         apikey = await _create_trial_key(site_id, wwwroot_str, client_ip)
     except httpx.HTTPStatusError as exc:
         logger.error("LiteLLM key creation failed: %s", exc.response.text)
-        raise HTTPException(status_code=502, detail="Failed to create trial key in LiteLLM : " + str(LITELLM_BASE_URL))
+        # Surface the upstream status + (truncated) LiteLLM message so the calling Moodle can show
+        # the real cause in developer-debug mode (e.g. an invalid LITELLM_TRIALCREATE_KEY admin
+        # token, a missing/forbidden TRIAL_TEAM_ID, or a trial model alias the proxy does not serve)
+        # instead of only a generic "could not be set up" message.
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"LiteLLM key creation failed (HTTP {exc.response.status_code}): "
+                f"{exc.response.text[:300]}"
+            ),
+        )
 
     logger.info("Issued trial key for site %s (id=%s)", wwwroot_str, site_id)
 
