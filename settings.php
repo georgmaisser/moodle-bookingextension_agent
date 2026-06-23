@@ -61,6 +61,28 @@ $aisettingspage->add(
     )
 );
 
+// One-time announcement of the Wunderbyte Agent. Shown at the top of the AI settings page until an
+// admin dismisses it by ticking the hide checkbox (hgideupdatehint = 1); an unset value counts as
+// "not yet dismissed", so it appears once after the feature ships. Kept entirely in settings.php
+// (no upgrade/version hook) so it stays self-contained.
+if ((int)get_config('bookingextension_agent', 'hgideupdatehint') !== 1) {
+    $aisettingspage->add(
+        new admin_setting_heading(
+            'bookingextension_agent_updatehint',
+            get_string('updatehint_heading', 'bookingextension_agent'),
+            get_string('updatehint_body', 'bookingextension_agent')
+        )
+    );
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'bookingextension_agent/hgideupdatehint',
+            get_string('hgideupdatehint', 'bookingextension_agent'),
+            get_string('hgideupdatehint_desc', 'bookingextension_agent'),
+            0
+        )
+    );
+}
+
 $aisettingspage->add(
     new admin_setting_configcheckbox(
         'bookingextension_agent/agent_enabled',
