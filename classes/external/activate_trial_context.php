@@ -92,13 +92,13 @@ class activate_trial_context extends external_api {
         // Previously this endpoint only flipped course/module toggles and told
         // the admin "no active provider" for the disabled-instance case.
         try {
-            $manager = \core\di::get(\core_ai\manager::class);
             // Endpoint-based detection (no provider name heuristic): enable every instance whose
             // action endpoint actually targets the Wunderbyte LLM gateway, including disabled ones.
+            // provider_compat::enable_provider_view enables the instance on 5.x and the plugin on 4.5.
             $candidates = \bookingextension_agent\local\wbagent\services\agent_access_service::find_wunderbyte_llm_instances(false);
             foreach ($candidates as $instance) {
                 if (empty($instance->enabled)) {
-                    $manager->enable_provider_instance($instance);
+                    \bookingextension_agent\local\wbagent\services\provider_compat::enable_provider_view($instance);
                 }
             }
         } catch (\Throwable $e) {

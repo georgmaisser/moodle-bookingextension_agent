@@ -79,6 +79,148 @@ class provider_compat {
     }
 
     /**
+     * Create or update a provider's configuration, version-agnostically.
+     *
+     * On Moodle 5.x this updates the supplied existing instance (or creates a new one) via the
+     * multi-instance manager API. On Moodle 4.5 there are no instances: the configuration is
+     * written as flat plugin config (apikey + per-action endpoint/model/systeminstruction keys),
+     * the actions are enabled via manager::set_action_state, and the provider plugin is enabled.
+     *
+     * NOTE on 4.5: a provider plugin has a single config slot, so configuring e.g. aiprovider_openai
+     * for the agent overwrites that plugin's existing site configuration. This is the documented
+     * trade-off of the reduced 4.5 mode (no separate per-instance config exists there).
+     *
+     * @param string $providerclass The provider class, e.g. 'aiprovider_openai\\provider'.
+     * @param array $config Top-level provider config (e.g. ['apikey' => '...']). 'name' is display-only.
+     * @param array $actionconfig 5.x-shaped action map: [ACTIONCLASS => ['enabled'=>bool,'settings'=>[...]]].
+     * @param string $displayname Instance display name (5.x only; 4.5 has no per-instance name).
+     * @param object|null $existing The existing instance to update (5.x); ignored on 4.5.
+     */
+    public static function configure_provider(
+        string $providerclass,
+        array $config,
+        array $actionconfig,
+        string $displayname,
+        ?object $existing = null
+    ): void {
+        $manager = di::get(ai_manager::class);
+
+        if (method_exists($manager, 'get_provider_instances')) {
+            if ($existing !== null) {
+                $instance = $manager->update_provider_instance(
+                    provider: $existing,
+                    config: $config,
+                    actionconfig: $actionconfig,
+                );
+                if (empty($instance->enabled)) {
+                    $manager->enable_provider_instance($instance);
+                }
+                return;
+            }
+            $manager->create_provider_instance(
+                classname: $providerclass,
+                name: $displayname,
+                enabled: true,
+                config: $config,
+                actionconfig: $actionconfig,
+            );
+            return;
+        }
+
+        self::configure_legacy_provider($providerclass, $config, $actionconfig);
+    }
+
+    /**
+     * Enable a provider that a provider view describes, version-agnostically.
+     *
+     * 5.x: enable the instance. 4.5: enable the provider plugin.
+     *
+     * @param object $view A provider instance (5.x) or synthesised view (4.5).
+     */
+    public static function enable_provider_view(object $view): void {
+        $manager = di::get(ai_manager::class);
+        if (method_exists($manager, 'enable_provider_instance')) {
+            $manager->enable_provider_instance($view);
+            return;
+        }
+        $component = self::component_from_providerclass((string)($view->provider ?? ''));
+        $shortname = self::short_name_from_component($component);
+        if ($shortname !== '' && \core_component::get_plugin_directory('aiprovider', $shortname)) {
+            \core\plugininfo\aiprovider::enable_plugin($shortname, 1);
+        }
+    }
+
+    /**
+     * Write a 5.x-shaped provider config to 4.5 flat plugin config.
+     *
+     * @param string $providerclass
+     * @param array $config
+     * @param array $actionconfig
+     */
+    private static function configure_legacy_provider(string $providerclass, array $config, array $actionconfig): void {
+        $component = self::component_from_providerclass($providerclass);
+        $shortname = self::short_name_from_component($component);
+        if ($shortname === '' || !\core_component::get_plugin_directory('aiprovider', $shortname)) {
+            throw new \coding_exception('provider_compat: aiprovider plugin not installed: ' . $component);
+        }
+
+        // Top-level provider config (apikey, etc.). 'name' is a 5.x display label with no 4.5 equivalent.
+        foreach ($config as $key => $value) {
+            if ($key === 'name') {
+                continue;
+            }
+            set_config($key, is_scalar($value) ? (string)$value : json_encode($value), $component);
+        }
+
+        // Per-action settings -> flat config keys, plus per-action enabled state.
+        foreach ($actionconfig as $actionclass => $cfg) {
+            if (!is_string($actionclass) || !class_exists($actionclass)) {
+                // A 4.5-absent action (e.g. a Wunderbyte custom action) has no home here -> skip.
+                continue;
+            }
+            $basename = $actionclass::get_basename();
+            $settings = (array)(($cfg['settings'] ?? []));
+            foreach (['endpoint', 'model', 'systeminstruction'] as $settingkey) {
+                if (isset($settings[$settingkey]) && $settings[$settingkey] !== '') {
+                    set_config("action_{$basename}_{$settingkey}", (string)$settings[$settingkey], $component);
+                }
+            }
+            if (method_exists(ai_manager::class, 'set_action_state')) {
+                ai_manager::set_action_state($component, $basename, !empty($cfg['enabled']) ? 1 : 0);
+            }
+        }
+
+        // Finally enable the provider plugin itself.
+        \core\plugininfo\aiprovider::enable_plugin($shortname, 1);
+    }
+
+    /**
+     * Derive the component name from a provider class name.
+     *
+     * @param string $providerclass e.g. 'aiprovider_openai\\provider'
+     * @return string e.g. 'aiprovider_openai'
+     */
+    private static function component_from_providerclass(string $providerclass): string {
+        $providerclass = ltrim($providerclass, '\\');
+        $pos = strpos($providerclass, '\\');
+        return $pos === false ? $providerclass : substr($providerclass, 0, $pos);
+    }
+
+    /**
+     * Derive the aiprovider short name (without the 'aiprovider_' prefix) from a component.
+     *
+     * @param string $component e.g. 'aiprovider_openai'
+     * @return string e.g. 'openai' ('' if not an aiprovider component)
+     */
+    private static function short_name_from_component(string $component): string {
+        $prefix = 'aiprovider_';
+        if (strpos($component, $prefix) !== 0) {
+            return '';
+        }
+        return substr($component, strlen($prefix));
+    }
+
+    /**
      * Build instance-shaped views from 4.5 flat plugin config.
      *
      * Mirrors 5.x semantics where only *created* instances are returned: a plugin is only

@@ -430,6 +430,7 @@ $string['agent_configure_intro'] = 'Configure the Wunderbyte provider for the fu
 $string['agent_configure_provider'] = 'Configure Wunderbyte provider';
 $string['agent_connect_have_key'] = 'I already have a key';
 $string['agent_debug_logs'] = 'Debug logs';
+$string['agent_reduced_mode_note'] = 'On this Moodle version the agent runs in reduced mode: it uses your standard AI provider for chat, without semantic skill search (embeddings). All skills remain available.';
 $string['agent_debug_sitewide'] = 'site-wide';
 $string['agent_key_invalid'] = 'This key was rejected by the Wunderbyte AI service (invalid or expired). Please check the key and try again.';
 $string['agent_key_label'] = 'AI API key';

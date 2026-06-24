@@ -343,6 +343,13 @@ class aiready {
         $wunderbyteprovinstalled = (bool)\core_component::get_plugin_directory('aiprovider', 'wunderbyte');
         $standardprovinstalled = (bool)\core_component::get_plugin_directory('aiprovider', 'openai');
 
+        // Moodle 4.5 has the pre-instance core_ai model: multi-instance providers (and thus the
+        // Wunderbyte provider plugin) are unavailable, so the agent permanently runs in reduced
+        // mode (core generate_text + full-catalog, no embeddings/RAG). Used to suppress the
+        // "install/upgrade the Wunderbyte provider" nudges that cannot succeed there.
+        $supportsinstances = provider_compat::supports_provider_instances();
+        $reducedmodepermanent = !$supportsinstances;
+
         // Privacy mode drives the GDPR consent modal shown before a trial is requested.
         // Default mirrors the admin setting default ('strict'); an unset config is treated as enabled.
         $privacymode = (string)get_config('bookingextension_agent', 'aiprivacymode');
@@ -380,8 +387,14 @@ class aiready {
             // - upgrade: the Wunderbyte provider PLUGIN is not even installed -> link to install it.
             // - configure: the plugin IS installed but no Wunderbyte instance is active yet -> offer
             // one-click auto-configuration (the Wunderbyte trial provisioning).
-            'provider_upgrade_available' => $provideractive && !$wbinstanceactive && !$wunderbyteprovinstalled,
+            // On Moodle 4.5 the Wunderbyte provider plugin cannot be installed, so the "upgrade
+            // provider" nudge would link to an install that can never succeed — suppress it there.
+            'provider_upgrade_available' => $provideractive && !$wbinstanceactive
+                && !$wunderbyteprovinstalled && $supportsinstances,
             'provider_configure_available' => $provideractive && !$wbinstanceactive && $wunderbyteprovinstalled,
+            // True on Moodle versions without multi-instance core_ai (4.5): the agent runs in
+            // permanent reduced mode; the UI explains this instead of nudging a WB-provider install.
+            'reduced_mode_permanent' => $reducedmodepermanent,
             // Manual key entry (purchased key) + admin gear. The key store needs the WB provider plugin
             // and the trial/onboarding capability; the debug toggle is a site-config (admin) action; the
             // gear shows if at least one of those is available. provider_configured drives the overwrite

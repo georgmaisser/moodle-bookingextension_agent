@@ -1,6 +1,7 @@
 # Moodle 4.5 core_ai compatibility — plan
 
-Status: Phase 1 in progress (2026-06-24)
+Status: Phases 1-4 implemented (2026-06-24). Code complete + verified on 5.x;
+live 4.5 end-to-end (deploy to the 4.5 box + run a real trial) pending Georg's go.
 Context: Moodle 4.5 is supported until October 2027, so the agent must run on it.
 Verified against a live 4.5.10 instance (training.wunderbyte.at).
 
@@ -57,7 +58,7 @@ New `services/provider_compat.php` with `get_provider_views(): object[]`:
 
 Reroute the read-sites: `aiready` (3×), `orchestrator`, `agent_access_service::find_wunderbyte_llm_instances`.
 
-### Phase 2 — `provider_compat` write shim (provisioning)
+### Phase 2 — `provider_compat` write shim (provisioning) — DONE
 `configure_provider(component, apikey, perActionSettings, enableActions)`:
 - **5.x:** `create/update/enable_provider_instance`.
 - **4.5:** `set_config(apikey)` + `set_config('action_{basename}_endpoint/_model/_systeminstruction')`
@@ -69,16 +70,23 @@ Route `trial_provisioner` (incl. its instance reads at lines ~125/327) and
 (`generate_text` only, model `wunderbyte-privat` against llm.wunderbyte.at —
 OpenAI-compatible).
 
-### Phase 3 — readiness / UX for reduced mode
+### Phase 3 — readiness / UX for reduced mode — DONE
 `aiready` flags hinge on `$wunderbyteprovinstalled` (always false on 4.5). Adjust
 so 4.5 shows a clear **reduced-mode** state (no embeddings/RAG, generate_text only)
 and lets trial/connect configure the core provider, instead of an empty/hybrid panel.
 
-### Phase 4 — verification
-`ai_action_register` column parity (usage bar, diagnostics) on 4.5 (table lives in
-core `lib/db/install.xml` on 4.5 — confirmed present). End-to-end on the 4.5 box:
-trial → openai gets WB config → agent answers via `generate_text` + full-catalog.
-Grep-clean for remaining instance-only API leaks.
+### Phase 4 — verification — DONE (non-destructive); live 4.5 E2E pending go
+- `ai_action_register` column parity **confirmed** against the live 4.5 box: all columns
+  the agent reads (`id, userid, contextid, actionname, success, timecompleted, errorcode,
+  errormessage`) exist; `ai_error_classifier::classify_from_db` is `table_exists`-guarded.
+- **Grep-clean confirmed:** no direct `*_provider_instance` / `get_provider_instances`
+  calls remain outside `provider_compat`.
+- **Lint clean** on all changed files; **5.x agent suite green** (521 passed, 51 skipped).
+- All 4.5 facts verified on the live box: no `get_provider_instances`, flat config keys,
+  `plugininfo\aiprovider::enable_plugin($shortname,1)`, `manager::set_action_state`.
+- **Pending Georg's go:** deploy these changes to the 4.5 box + run a real trial
+  (writes config, mints a real LiteLLM key) → openai gets WB config → agent answers via
+  `generate_text` + full-catalog.
 
 ## Effort & risk
 ~3–5 dev-days total (no provider-plugin rework, no second repo). Risks are low:

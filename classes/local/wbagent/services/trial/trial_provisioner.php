@@ -119,10 +119,9 @@ class trial_provisioner {
      */
     public function configure_from_existing_provider(int $contextid): array {
         unset($contextid);
-        $manager = \core\di::get(\core_ai\manager::class);
 
         $source = null;
-        foreach ((array)$manager->get_provider_instances() as $instance) {
+        foreach (\bookingextension_agent\local\wbagent\services\provider_compat::get_provider_views() as $instance) {
             if (empty($instance->enabled)) {
                 continue;
             }
@@ -318,35 +317,21 @@ class trial_provisioner {
         string $chatmodel,
         string $sourcename
     ): void {
-        $manager = \core\di::get(\core_ai\manager::class);
         $classname = 'aiprovider_wunderbyte\\provider';
         $config = ['apikey' => $apikey];
         $actionconfig = $this->build_cloned_actionconfig($chatendpoint, $chatmodel);
 
         $existing = array_values(array_filter(
-            (array)$manager->get_provider_instances(),
+            \bookingextension_agent\local\wbagent\services\provider_compat::get_provider_views(),
             static fn($instance) => (string)($instance->provider ?? '') === $classname
         ));
 
-        if ($existing) {
-            $instance = reset($existing);
-            $instance = $manager->update_provider_instance(
-                provider: $instance,
-                config: $config,
-                actionconfig: $actionconfig,
-            );
-            if (empty($instance->enabled)) {
-                $manager->enable_provider_instance($instance);
-            }
-            return;
-        }
-
-        $manager->create_provider_instance(
-            classname: $classname,
-            name: 'Wunderbyte (' . $sourcename . ')',
-            enabled: true,
-            config: $config,
-            actionconfig: $actionconfig,
+        \bookingextension_agent\local\wbagent\services\provider_compat::configure_provider(
+            $classname,
+            $config,
+            $actionconfig,
+            'Wunderbyte (' . $sourcename . ')',
+            $existing ? reset($existing) : null,
         );
     }
 
@@ -459,8 +444,6 @@ class trial_provisioner {
      * @param string $endpoint LiteLLM base URL (e.g. https://llm.wunderbyte.at)
      */
     private function upsert_provider_instance(string $strategy, string $apikey, string $endpoint): void {
-        $manager = \core\di::get(\core_ai\manager::class);
-
         $classname = $strategy === 'wunderbyte'
             ? 'aiprovider_wunderbyte\\provider'
             : 'aiprovider_openai\\provider';
@@ -470,30 +453,18 @@ class trial_provisioner {
 
         // Re-find OUR instance by endpoint (targets the Wunderbyte LLM) + provider class — not by
         // display name. INSTANCE_NAME below is only the label we give a freshly created instance.
+        // On Moodle 4.5 (no instances) this list is empty and configure_provider writes flat config.
         $existing = array_values(array_filter(
             \bookingextension_agent\local\wbagent\services\agent_access_service::find_wunderbyte_llm_instances(false),
             static fn($instance) => (string)($instance->provider ?? '') === $classname
         ));
 
-        if ($existing) {
-            $instance = reset($existing);
-            $instance = $manager->update_provider_instance(
-                provider: $instance,
-                config: $config,
-                actionconfig: $actionconfig,
-            );
-            if (empty($instance->enabled)) {
-                $manager->enable_provider_instance($instance);
-            }
-            return;
-        }
-
-        $manager->create_provider_instance(
-            classname: $classname,
-            name: self::INSTANCE_NAME,
-            enabled: true,
-            config: $config,
-            actionconfig: $actionconfig,
+        \bookingextension_agent\local\wbagent\services\provider_compat::configure_provider(
+            $classname,
+            $config,
+            $actionconfig,
+            self::INSTANCE_NAME,
+            $existing ? reset($existing) : null,
         );
     }
 

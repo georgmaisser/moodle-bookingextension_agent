@@ -262,11 +262,20 @@
                 </p>
                 {{/wunderbyte_provider_installed}}
                 {{^wunderbyte_provider_installed}}
+                {{#reduced_mode_permanent}}
+                {{! Moodle 4.5: the Wunderbyte provider plugin is not installable here. Explain the
+                    permanent reduced mode instead of linking to an install that cannot succeed. }}
+                <p class="booking-ai-provider-status text-muted mb-2">
+                    <i class="fa fa-info-circle mr-1" aria-hidden="true"></i>{{#str}}agent_reduced_mode_note, bookingextension_agent{{/str}}
+                </p>
+                {{/reduced_mode_permanent}}
+                {{^reduced_mode_permanent}}
                 <p class="booking-ai-provider-status text-muted mb-2">
                     {{#str}}aitrial_provider_install_hint, bookingextension_agent{{/str}}
                     <a href="{{provider_install_url}}" target="_blank" rel="noopener noreferrer">
                         <i class="fa fa-external-link mr-1" aria-hidden="true"></i>{{#str}}aitrial_provider_install_link_label, bookingextension_agent{{/str}}</a>
                 </p>
+                {{/reduced_mode_permanent}}
                 {{/wunderbyte_provider_installed}}
 
                 {{! Sub-screen A: the path-decision buttons (hidden once a path is chosen). }}
