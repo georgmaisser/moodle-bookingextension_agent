@@ -17,14 +17,10 @@
 namespace bookingextension_agent\local\wbagent\wbagent\skills;
 
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
-use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
+use bookingextension_agent\local\wbagent\interfaces\skill_discovery_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
-use bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service;
-use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wbagent\services\discovery\skill_discovery_service;
 
 /**
  * Skill definition for wbagent.search_skills (Dynamic Skill Discovery).
@@ -37,11 +33,42 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
     /** Skill name constant. */
     public const SKILL_NAME = 'wbagent.search_skills';
 
+    /** @var skill_discovery_provider_interface|null Engine-injected discovery provider. */
+    private ?skill_discovery_provider_interface $discovery = null;
+
     /**
      * Constructor.
      */
     public function __construct() {
         parent::__construct(true, skill_risk_class::R0);
+    }
+
+    /**
+     * Inject the engine discovery provider (duck-typed; called by the executor before execute).
+     *
+     * @param skill_discovery_provider_interface $provider
+     * @return void
+     */
+    public function set_discovery_provider(skill_discovery_provider_interface $provider): void {
+        $this->discovery = $provider;
+    }
+
+    /**
+     * Map a discovery status code to the skill's user-facing failure message.
+     *
+     * @param string $status
+     * @return string
+     */
+    private function discovery_failure_message(string $status): string {
+        return match ($status) {
+            skill_discovery_provider_interface::STATUS_EMBEDDINGS_UNAVAILABLE =>
+                'Skill discovery is unavailable because embeddings are disabled.',
+            skill_discovery_provider_interface::STATUS_CATALOG_NOT_READY =>
+                'Skill catalog embeddings are not ready.',
+            skill_discovery_provider_interface::STATUS_EMBEDDING_FAILED =>
+                'Failed to generate embedding for the query.',
+            default => 'Skill discovery failed.',
+        };
     }
 
     /**
@@ -145,74 +172,17 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
             ];
         }
 
-        $registry = skill_registry_factory::get_default();
-        $readiness = new embeddings_readiness_service();
-
-        if (!$readiness->is_wunderbyte_embeddings_available()) {
+        // Discovery (embeddings + LLM retrieval) is engine machinery — it is injected by the executor
+        // as a contract; this skill only maps its status to a user-facing message and formats output.
+        $discovery = ($this->discovery ?? new skill_discovery_service())->discover($query, $contextid, $userid, 5);
+        if ($discovery['status'] !== skill_discovery_provider_interface::STATUS_OK) {
             return [
                 'status' => 'failed',
-                'message' => 'Skill discovery is unavailable because embeddings are disabled.',
+                'message' => $this->discovery_failure_message((string)$discovery['status']),
                 'discovered_skills' => [],
             ];
         }
-
-        $embeddingsettings = (new embeddings_action_config_resolver())->resolve();
-        $embeddingmodel = (string)($embeddingsettings['model'] ?? 'text-embedding-3-small');
-        $embeddingdimensions = (int)($embeddingsettings['dimensions'] ?? 1536);
-
-        $status = $readiness->get_catalog_status($registry, $embeddingmodel, $embeddingdimensions);
-        if (empty($status['ready']) || empty($status['rows']) || !is_array($status['rows'])) {
-            return [
-                'status' => 'failed',
-                'message' => 'Skill catalog embeddings are not ready.',
-                'discovered_skills' => [],
-            ];
-        }
-
-        $store = new conversation_store();
-        $llm = new llm_call_service($store);
-
-        $embeddingcall = $llm->invoke_embeddings_for_context(
-            0, // Thread ID 0 indicates internal retrieval lookup without thread context.
-            $contextid,
-            $userid,
-            'wbagent.search_skills',
-            $query,
-            $embeddingdimensions
-        );
-
-        if (empty($embeddingcall['success']) || empty($embeddingcall['embedding'])) {
-            return [
-                'status' => 'failed',
-                'message' => 'Failed to generate embedding for the query.',
-                'discovered_skills' => [],
-            ];
-        }
-
-        $retrieval = new embeddings_retrieval_service();
-        $toprows = $retrieval->search_top_k(
-            (array)$embeddingcall['embedding'],
-            $status['rows'],
-            5 // Top-k 5 is enough to inject into the next RAG iteration.
-        );
-
-        $discovered = [];
-        foreach ($toprows as $row) {
-            $skillname = trim((string)($row['skill'] ?? ''));
-            if ($skillname === '') {
-                continue;
-            }
-            try {
-                $skill = $registry->get_skill($skillname);
-                $discovered[] = [
-                    'skill' => $skillname,
-                    'schema' => $skill->get_schema(),
-                ];
-            } catch (\Exception $e) {
-                // Ignore missing skills.
-                unset($e);
-            }
-        }
+        $discovered = $discovery['discovered_skills'];
 
         // Surface the discovered skills as an authoritative observation so the next planner turn can
         // select one of them — they are registered/allowed skills even if they were not in the slim

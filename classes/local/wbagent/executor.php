@@ -28,6 +28,8 @@ use context_module;
 use core\context;
 use bookingextension_agent\local\wbagent\interfaces\agent_executor;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wbagent\services\discovery\skill_discovery_service;
+use bookingextension_agent\local\wbagent\services\introspection\skill_introspection_service;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
@@ -223,6 +225,15 @@ class executor implements agent_executor {
             // skill-agnostic) - e.g. recall_memory re-anchors recalled tokens into this thread's map.
             if (method_exists($skill, 'set_runtime_threadid')) {
                 $skill->set_runtime_threadid($threadid);
+            }
+
+            // Inject the engine-provided introspection/discovery services (duck-typed) so the
+            // list_skills/search_skills skills depend on contracts, not on engine machinery.
+            if (method_exists($skill, 'set_introspection_provider')) {
+                $skill->set_introspection_provider(new skill_introspection_service());
+            }
+            if (method_exists($skill, 'set_discovery_provider')) {
+                $skill->set_discovery_provider(new skill_discovery_service());
             }
 
             $result = $skill->execute($input, $operatingcontextid, $userid);

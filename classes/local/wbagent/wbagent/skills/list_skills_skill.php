@@ -19,12 +19,11 @@ namespace bookingextension_agent\local\wbagent\wbagent\skills;
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use context_module;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
+use bookingextension_agent\local\wbagent\interfaces\skill_introspection_provider_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wbagent\services\introspection\skill_introspection_service;
 use bookingextension_agent\local\wbagent\skill_contract_validator;
-use bookingextension_agent\local\wbagent\skill_executability_evaluator;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
 
 /**
  * Skill definition for wbagent.list_skills.
@@ -37,11 +36,24 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /** Skill name constant. */
     public const SKILL_NAME = 'wbagent.list_skills';
 
+    /** @var skill_introspection_provider_interface|null Engine-injected introspection provider. */
+    private ?skill_introspection_provider_interface $introspection = null;
+
     /**
      * Constructor.
      */
     public function __construct() {
         parent::__construct(true, skill_risk_class::R0);
+    }
+
+    /**
+     * Inject the engine introspection provider (duck-typed; called by the executor before execute).
+     *
+     * @param skill_introspection_provider_interface $provider
+     * @return void
+     */
+    public function set_introspection_provider(skill_introspection_provider_interface $provider): void {
+        $this->introspection = $provider;
     }
 
     /**
@@ -190,52 +202,17 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
         $question = trim((string)($input['question'] ?? ''));
         $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
-        $actions = [];
+
+        // Introspection (registry + executability evaluation) is engine machinery — it is injected by
+        // the executor as a contract; only the localized deny-reason label is a presentation concern
+        // and stays here.
+        $listing = ($this->introspection ?? new skill_introspection_service())
+            ->list_actions($userid, $contextid, $scope);
+        $actions = $listing['available'];
         $unavailableactions = [];
-        $registry = skill_registry_factory::get_default();
-        $evaluator = new skill_executability_evaluator($registry, new authorization_service());
-        foreach ($registry->get_skill_names_for_context($evaluator, $userid, $contextid, true) as $name) {
-            $skill = $registry->get_skill($name);
-            if (!$skill) {
-                continue;
-            }
-
-            $schema = $skill->get_schema();
-            $evaluation = $evaluator->evaluate_skill($name, $userid, $contextid);
-            $isallowed = (string)($evaluation['executable_state'] ?? '') === 'allow';
-
-            if ($isallowed) {
-                if ($scope === 'readonly' && !$registry->is_read_only_skill($name)) {
-                    continue;
-                }
-                if ($scope === 'mutating' && $registry->is_read_only_skill($name)) {
-                    continue;
-                }
-
-                $actions[] = [
-                    'skill' => $name,
-                    'label' => $name,
-                    'description' => (string)($schema['description'] ?? ''),
-                    'readonly' => $skill->is_read_only(),
-                    'provider' => (string)($registry->get_skill_contract($name)['component'] ?? 'unknown'),
-                ];
-                continue;
-            }
-
-            if ($scope !== 'all' && $scope !== 'readonly' && $scope !== 'mutating') {
-                continue;
-            }
-
-            $unavailableactions[] = [
-                'skill' => $name,
-                'label' => $name,
-                'description' => (string)($schema['description'] ?? ''),
-                'readonly' => $skill->is_read_only(),
-                'provider' => (string)($registry->get_skill_contract($name)['component'] ?? 'unknown'),
-                'deny_reason' => (string)($evaluation['deny_reason'] ?? ''),
-                'deny_reason_label' => $this->describe_deny_reason((string)($evaluation['deny_reason'] ?? '')),
-                'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
-            ];
+        foreach ($listing['unavailable'] as $unavailable) {
+            $unavailable['deny_reason_label'] = $this->describe_deny_reason((string)($unavailable['deny_reason'] ?? ''));
+            $unavailableactions[] = $unavailable;
         }
 
         $capabilities = $this->build_user_capabilities($actions);
