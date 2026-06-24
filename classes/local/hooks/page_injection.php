@@ -22,9 +22,11 @@ use core\hook\output\before_standard_head_html_generation;
  * Injects the navbar magic-wand entry point on every Moodle page.
  *
  * Gated by the inject_in_navbar admin setting (default off), a logged-in
- * non-guest user and the agent use-capability checked at the current page
- * context (NOT the system context — teachers usually hold the capability via
- * course/module roles only). No CSS is injected here: the plugin's styles.css
+ * non-guest user and the manager-only agent:seemagicwand capability checked at
+ * the current page context. The wand is a site-wide entry point, so it is
+ * deliberately restricted to managers; per-module agent usage stays at teacher
+ * level via useaiinstructions, which is still enforced server-side on every
+ * call. No CSS is injected here: the plugin's styles.css
  * is already aggregated into the theme stylesheet on all pages. The
  * authoritative permission checks happen server-side on every agent call.
  *
@@ -56,7 +58,7 @@ class page_injection {
             }
 
             $context = $PAGE->context;
-            if (!has_capability('bookingextension/agent:useaiinstructions', $context)) {
+            if (!has_capability('bookingextension/agent:seemagicwand', $context)) {
                 return;
             }
 

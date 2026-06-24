@@ -31,6 +31,21 @@ $capabilities = [
         'contextlevel' => CONTEXT_MODULE,
         'archetypes' => [
             'editingteacher' => CAP_ALLOW,
+            // Managers can use the agent too, so the global navbar magic wand (gated by
+            // agent:seemagicwand, manager-only) is functional for them.
+            'manager' => CAP_ALLOW,
+        ],
+    ],
+    // Visibility of the GLOBAL navbar "magic wand" entry point. It appears on every page and is a
+    // more privileged, site-wide entry than the per-module Booking Wizard (useaiinstructions), so
+    // its visibility is restricted to managers (site admins pass via moodle/site:doanything). This
+    // only governs whether the wand is shown; actual agent usage is still gated by
+    // useaiinstructions on every server-side call.
+    'bookingextension/agent:seemagicwand' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
         ],
     ],
     'bookingextension/agent:debugskillselection' => [

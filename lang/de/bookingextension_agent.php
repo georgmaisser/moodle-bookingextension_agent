@@ -26,6 +26,7 @@ $string['agent:debugskillselection'] = 'Skill-Selection-Debug-Tool verwenden';
 $string['agent:ignoreaiavailability'] = 'Kurs-/Modul-KI-Verfügbarkeitsschalter für den Booking Wizard ignorieren';
 $string['agent:managebenchmarks'] = 'KI-Benchmark-Durchläufe verwalten';
 $string['agent:requesttrial'] = 'KI-Testversion einrichten';
+$string['agent:seemagicwand'] = 'Den globalen Booking-Wizard-Zauberstab sehen';
 $string['agent:skill_booking_add_price_category'] = 'Preiskategorie hinzufügen';
 $string['agent:skill_booking_analyze_rules'] = 'Buchungsregeln analysieren';
 $string['agent:skill_booking_book_users'] = 'Benutzer in eine Buchungsoption buchen';
