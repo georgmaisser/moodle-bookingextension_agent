@@ -16,19 +16,19 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\services\orchestrator_routing_service;
+use bookingextension_agent\local\wizard\agent_runtime;
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\services\orchestrator_routing_service;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for centralized runtime feature flags.
  *
- * @covers \bookingextension_agent\local\wbagent\config\runtime_feature_flags
+ * @covers \bookingextension_agent\local\wizard\config\runtime_feature_flags
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -2045,7 +2045,7 @@ const sendMessage = (message) => {
         // the user is. Best-effort: an empty object is fine when sessionStorage is unavailable.
         let pagecontextPayload = '{}';
         try {
-            pagecontextPayload = window.sessionStorage.getItem('wbagent_pagecontext') || '{}';
+            pagecontextPayload = window.sessionStorage.getItem('wizard_pagecontext') || '{}';
         } catch (e) {
             pagecontextPayload = '{}';
         }

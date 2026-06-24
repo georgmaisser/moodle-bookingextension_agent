@@ -16,28 +16,28 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use bookingextension_agent\local\wbagent\contracts\skill_family_contract;
-use bookingextension_agent\local\wbagent\interfaces\skill_interface;
-use bookingextension_agent\local\wbagent\services\discovery\context_prior_builder;
-use bookingextension_agent\local\wbagent\services\discovery\core_family_set;
-use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
-use bookingextension_agent\local\wbagent\services\skill_prompt_contract;
-use bookingextension_agent\local\wbagent\skill_contract_validator;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\contracts\skill_family_contract;
+use bookingextension_agent\local\wizard\interfaces\skill_interface;
+use bookingextension_agent\local\wizard\services\discovery\context_prior_builder;
+use bookingextension_agent\local\wizard\services\discovery\core_family_set;
+use bookingextension_agent\local\wizard\services\discovery\family_registry_service;
+use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\skill_contract_validator;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for phase-1 family discovery foundation.
  *
- * @covers \bookingextension_agent\local\wbagent\contracts\skill_family_contract
- * @covers \bookingextension_agent\local\wbagent\services\skill_prompt_contract
- * @covers \bookingextension_agent\local\wbagent\skill_contract_validator
- * @covers \bookingextension_agent\local\wbagent\services\discovery\family_registry_service
- * @covers \bookingextension_agent\local\wbagent\services\discovery\core_family_set
- * @covers \bookingextension_agent\local\wbagent\services\discovery\context_prior_builder
+ * @covers \bookingextension_agent\local\wizard\contracts\skill_family_contract
+ * @covers \bookingextension_agent\local\wizard\services\skill_prompt_contract
+ * @covers \bookingextension_agent\local\wizard\skill_contract_validator
+ * @covers \bookingextension_agent\local\wizard\services\discovery\family_registry_service
+ * @covers \bookingextension_agent\local\wizard\services\discovery\core_family_set
+ * @covers \bookingextension_agent\local\wizard\services\discovery\context_prior_builder
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -49,8 +49,8 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
      */
     public function test_skill_family_contract_derives_family_from_skill_name(): void {
         $this->assertSame('mod_booking.general', skill_family_contract::from_skill_name('mod_booking.create_option'));
-        $this->assertSame('wbagent.general', skill_family_contract::from_skill_name('wbagent.recall_memory'));
-        $this->assertSame('wbagent.general', skill_family_contract::from_skill_name('not_namespaced'));
+        $this->assertSame('wizard.general', skill_family_contract::from_skill_name('wizard.recall_memory'));
+        $this->assertSame('wizard.general', skill_family_contract::from_skill_name('not_namespaced'));
     }
 
     /**
@@ -111,7 +111,7 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
         $contracts = [
             ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options'],
             ['skill' => 'mod_booking.create_slotbooking_option', 'family' => 'mod_booking.options'],
-            ['skill' => 'wbagent.recall_memory', 'family' => 'wbagent.general'],
+            ['skill' => 'wizard.recall_memory', 'family' => 'wizard.general'],
             ['skill' => 'local_entities.lookup', 'family' => 'local_entities.general'],
         ];
 
@@ -120,7 +120,7 @@ final class phase1_discovery_foundation_contract_test extends TestCase {
         $result = $registry->discover($contracts, $contextprior)->to_array();
 
         $this->assertSame(['mod_booking.options'], $result['context_families']);
-        $this->assertContains('wbagent.general', $result['core_families']);
+        $this->assertContains('wizard.general', $result['core_families']);
         $this->assertContains('mod_booking.options', $result['families']);
         $this->assertArrayHasKey('context_prior', $result);
     }

@@ -17,8 +17,8 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
-use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
+use bookingextension_agent\local\wizard\orchestrator;
 
 /**
  * Tests the shared model/dimensions resolution that both index services delegate to (S4).
@@ -26,7 +26,7 @@ use bookingextension_agent\local\wbagent\orchestrator;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\embeddings_action_config_resolver
+ * @covers     \bookingextension_agent\local\wizard\embeddings_action_config_resolver
  */
 final class embeddings_config_resolver_test extends advanced_testcase {
     /**

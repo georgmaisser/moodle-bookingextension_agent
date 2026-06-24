@@ -25,7 +25,7 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wizard\conversation_store;
 
 /**
  * IDOR regression: a client-supplied threadid must only resolve when it belongs to the calling
@@ -35,7 +35,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\conversation_store::thread_belongs_to_user
+ * @covers     \bookingextension_agent\local\wizard\conversation_store::thread_belongs_to_user
  */
 final class thread_ownership_gate_test extends \advanced_testcase {
     /**

@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\interfaces\issue_code_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
-use bookingextension_agent\local\wbagent\skill_registry;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\interfaces\issue_code_provider_interface;
+use bookingextension_agent\local\wizard\interfaces\skill_provider_interface;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -56,7 +56,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that skill_provider interface supports optional issue code provider.
      */
     public function test_skill_provider_interface_supports_issue_code_provider(): void {
-        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $provider = new \bookingextension_agent\local\wizard\skill_provider();
 
         // Verify interface methods exist.
         $this->assertTrue(
@@ -77,7 +77,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that skill_provider interface supports optional prompt guidance.
      */
     public function test_skill_provider_interface_supports_prompt_guidance(): void {
-        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $provider = new \bookingextension_agent\local\wizard\skill_provider();
 
         // Verify interface methods exist.
         $this->assertTrue(
@@ -94,15 +94,15 @@ final class integration_agent_framework_test extends TestCase {
      * Test that issue code provider is used by agent decision service.
      */
     public function test_issue_code_provider_injected_into_agent_runtime(): void {
-        $provider = new \bookingextension_agent\local\wbagent\booking_issue_code_provider();
+        $provider = new \bookingextension_agent\local\wizard\booking_issue_code_provider();
         $registry = skill_registry_factory::get_default();
-        $store = new \bookingextension_agent\local\wbagent\conversation_store();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
-        $orchestrator = new \bookingextension_agent\local\wbagent\orchestrator($registry, $interpreter, $store);
-        $authz = new \bookingextension_agent\local\wbagent\services\security\authorization_service();
+        $store = new \bookingextension_agent\local\wizard\conversation_store();
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
+        $orchestrator = new \bookingextension_agent\local\wizard\orchestrator($registry, $interpreter, $store);
+        $authz = new \bookingextension_agent\local\wizard\services\security\authorization_service();
 
         // Create agent_runtime with custom provider (test dependency injection).
-        $runtime = new \bookingextension_agent\local\wbagent\agent_runtime(
+        $runtime = new \bookingextension_agent\local\wizard\agent_runtime(
             $registry,
             $orchestrator,
             $store,
@@ -110,7 +110,7 @@ final class integration_agent_framework_test extends TestCase {
         );
 
         // Verify that runtime accepts the provider (no exception thrown).
-        $this->assertInstanceOf(\bookingextension_agent\local\wbagent\agent_runtime::class, $runtime);
+        $this->assertInstanceOf(\bookingextension_agent\local\wizard\agent_runtime::class, $runtime);
     }
 
     /**
@@ -121,9 +121,9 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_construction_catalog_includes_skill_guidance_unconditionally(): void {
         $registry = skill_registry_factory::get_default();
-        $store = new \bookingextension_agent\local\wbagent\conversation_store();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
-        $orchestrator = new \bookingextension_agent\local\wbagent\orchestrator($registry, $interpreter, $store);
+        $store = new \bookingextension_agent\local\wizard\conversation_store();
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
+        $orchestrator = new \bookingextension_agent\local\wizard\orchestrator($registry, $interpreter, $store);
 
         $skill = $registry->get_skill('mod_booking.update_option');
         if ($skill === null) {
@@ -220,11 +220,11 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_slim_catalog_keeps_examples_separate_from_minimals(): void {
         $registry = skill_registry_factory::get_default();
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
         $assistantsummaryprop = $orchestratorreflection->getProperty('assistantsummariesvc');
         $assistantsummaryprop->setAccessible(true);
-        $assistantsummarysvc = new \bookingextension_agent\local\wbagent\services\assistant_state_guidance_service($registry);
+        $assistantsummarysvc = new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service($registry);
         $assistantsummaryprop->setValue($orchestrator, $assistantsummarysvc);
         $method = $orchestratorreflection->getMethod('slim_prompt_catalog_for_planner');
         $method->setAccessible(true);
@@ -251,7 +251,7 @@ final class integration_agent_framework_test extends TestCase {
      * Runtime catalog payload injected into prompts must never contain embedding vectors.
      */
     public function test_runtime_catalog_prompt_sanitizer_removes_embedding_json(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
         $method = $orchestratorreflection->getMethod('sanitize_runtime_catalog_for_prompt');
         $method->setAccessible(true);
@@ -315,7 +315,7 @@ final class integration_agent_framework_test extends TestCase {
      * Selection output without an explicit single skill yields no forced selection.
      */
     public function test_selection_without_explicit_skill_returns_empty_selection(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
 
         $selectedskillmethod = $orchestratorreflection->getMethod('extract_selected_skill_from_selection_phase_output');
@@ -328,7 +328,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that embedding-selected planner subsets keep full skill descriptions.
      */
     public function test_embedding_subset_keeps_full_descriptions(): void {
-        $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
+        $retrieval = new \bookingextension_agent\local\wizard\services\embeddings\embeddings_retrieval_service();
         $csvdescription = 'Persisted CSV description that should not win over live skill schema metadata.';
         $livedescription = 'Live skill description from get_schema that must win ' .
             'when embed skill selection is mapped back to skills.';
@@ -372,10 +372,10 @@ final class integration_agent_framework_test extends TestCase {
     public function test_embedding_subset_includes_property_descriptions(): void {
         skill_registry_factory::reset();
 
-        $retrieval = new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service();
+        $retrieval = new \bookingextension_agent\local\wizard\services\embeddings\embeddings_retrieval_service();
         $subset = $retrieval->build_planner_catalog_subset([
             [
-                'skill' => 'wbagent.recreate_skill_catalog',
+                'skill' => 'wizard.recreate_skill_catalog',
                 'intent' => 'mutate',
                 'readonly' => '0',
                 'description' => 'stale csv description',
@@ -405,7 +405,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_orchestrator_prompts_are_generic(): void {
         // Use the live planner fallback template instead of the removed generic one-step template.
-        $template = \bookingextension_agent\local\wbagent\orchestrator::get_default_initial_prompt_template_for_action(
+        $template = \bookingextension_agent\local\wizard\orchestrator::get_default_initial_prompt_template_for_action(
             \core_ai\aiactions\summarise_text::class
         );
 
@@ -422,7 +422,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that action-specific prompts in orchestrator are generic.
      */
     public function test_action_specific_prompts_generic(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $method = $reflection->getMethod('get_default_initial_prompt_template_for_action');
         $method->setAccessible(true);
 
@@ -467,13 +467,13 @@ final class integration_agent_framework_test extends TestCase {
      * Test that booking base class is properly renamed.
      */
     public function test_discovered_skills_implement_skill_interface(): void {
-        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $provider = new \bookingextension_agent\local\wizard\skill_provider();
         $skills = $provider->get_skills();
 
         $this->assertNotEmpty($skills, 'Provider should discover at least one skill');
         foreach ($skills as $skill) {
             $this->assertInstanceOf(
-                \bookingextension_agent\local\wbagent\interfaces\skill_interface::class,
+                \bookingextension_agent\local\wizard\interfaces\skill_interface::class,
                 $skill
             );
         }
@@ -509,18 +509,18 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Test that skill discovery scans all direct skill namespaces under local/wbagent.
+     * Test that skill discovery scans all direct skill namespaces under local/wizard.
      */
-    public function test_skill_discovery_scans_all_wbagent_skill_namespaces(): void {
+    public function test_skill_discovery_scans_all_wizard_skill_namespaces(): void {
         skill_registry_factory::reset();
 
-        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $provider = new \bookingextension_agent\local\wizard\skill_provider();
         $skillnames = array_map(static fn($skill): string => $skill->get_name(), $provider->get_skills());
 
         $this->assertContains('core.get_current_user', $skillnames);
-        $this->assertContains('wbagent.recreate_skill_catalog', $skillnames);
+        $this->assertContains('wizard.recreate_skill_catalog', $skillnames);
 
-        $exampleskillclass = '\\bookingextension_agent\\local\\wbagent\\examples\\skills\\readonly_example_skill';
+        $exampleskillclass = '\\bookingextension_agent\\local\\wizard\\examples\\skills\\readonly_example_skill';
         if (class_exists($exampleskillclass)) {
             $this->assertContains('examples.readonly_example', $skillnames);
         }
@@ -532,7 +532,7 @@ final class integration_agent_framework_test extends TestCase {
     public function test_skill_discovery_deduplicates_same_skill_name(): void {
         skill_registry_factory::reset();
 
-        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $provider = new \bookingextension_agent\local\wizard\skill_provider();
         $skillnames = array_map(static fn($skill): string => $skill->get_name(), $provider->get_skills());
 
         $this->assertSame($skillnames, array_values(array_unique($skillnames)));
@@ -542,14 +542,14 @@ final class integration_agent_framework_test extends TestCase {
      * Test that trigger-provider discovery ignores non-trigger classes without failing.
      */
     public function test_trigger_provider_discovery_ignores_non_trigger_classes(): void {
-        $providers = \bookingextension_agent\local\wbagent\skill_discovery::get_trigger_provider_instances(
+        $providers = \bookingextension_agent\local\wizard\skill_discovery::get_trigger_provider_instances(
             'bookingextension_agent'
         );
 
         $this->assertNotEmpty($providers);
         foreach ($providers as $provider) {
             $this->assertInstanceOf(
-                \bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface::class,
+                \bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface::class,
                 $provider
             );
         }
@@ -559,7 +559,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that language-specific logic is removed from skills.
      */
     public function test_skills_no_language_specific_logic(): void {
-        $provider = new \bookingextension_agent\local\wbagent\skill_provider();
+        $provider = new \bookingextension_agent\local\wizard\skill_provider();
         $skills = $provider->get_skills();
 
         $this->assertNotEmpty($skills, 'Provider should discover skills for reflection checks');
@@ -598,7 +598,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_backward_compatibility_constants(): void {
         // Verify old constants still exist (marked @deprecated).
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
 
         // The old constants should still be accessible for backward compat.
         $this->assertTrue(true, 'Backward compatibility checks passed');
@@ -608,7 +608,7 @@ final class integration_agent_framework_test extends TestCase {
      * R3 guardrail: planner loop retry must be blocked when R3_NO_RETRY is present.
      */
     public function test_agent_runtime_retry_resolver_blocks_retry_when_r3_issue_present(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('resolve_framework_retry_issue_code');
         $method->setAccessible(true);
@@ -627,7 +627,7 @@ final class integration_agent_framework_test extends TestCase {
      * Synchronizer gate issue codes must not be interpreted as planner-retryable contract errors.
      */
     public function test_agent_runtime_retry_resolver_ignores_synchronizer_gate_issue_codes(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('resolve_framework_retry_issue_code');
         $method->setAccessible(true);
@@ -649,7 +649,7 @@ final class integration_agent_framework_test extends TestCase {
      * R3 guardrail: planner loop retry must be blocked when command risk class is R3.
      */
     public function test_agent_runtime_retry_resolver_blocks_retry_when_command_risk_is_r3(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('resolve_framework_retry_issue_code');
         $method->setAccessible(true);
@@ -660,7 +660,7 @@ final class integration_agent_framework_test extends TestCase {
             'commands' => [
                 [
                     'skill' => 'mod_booking.book_users',
-                    'risk_class' => \bookingextension_agent\local\wbagent\dto\skill_risk_class::R3,
+                    'risk_class' => \bookingextension_agent\local\wizard\dto\skill_risk_class::R3,
                     'input' => [],
                 ],
             ],
@@ -674,7 +674,7 @@ final class integration_agent_framework_test extends TestCase {
      * Control check: retry remains enabled for retryable planner contract errors without R3 blockers.
      */
     public function test_agent_runtime_retry_resolver_allows_retry_without_r3_blocker(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('resolve_framework_retry_issue_code');
         $method->setAccessible(true);
@@ -693,7 +693,7 @@ final class integration_agent_framework_test extends TestCase {
      * Guardrail: same error class may not open retry in a third distinct layer.
      */
     public function test_queue_transition_retry_layer_guard_blocks_third_distinct_layer(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\queue_transition_service::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\queue_transition_service::class);
         $service = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('evaluate_retry_layer_guard');
         $method->setAccessible(true);
@@ -714,7 +714,7 @@ final class integration_agent_framework_test extends TestCase {
      * Guardrail: retry layer sequence resets when error class changes.
      */
     public function test_queue_transition_retry_layer_guard_resets_for_new_error_class(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\queue_transition_service::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\queue_transition_service::class);
         $service = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('evaluate_retry_layer_guard');
         $method->setAccessible(true);
@@ -735,7 +735,7 @@ final class integration_agent_framework_test extends TestCase {
      * Retry policy maps contract/parse signals to TECHNICAL category.
      */
     public function test_retry_policy_maps_contract_errors_to_technical(): void {
-        $policy = new \bookingextension_agent\local\wbagent\services\retry_policy_service();
+        $policy = new \bookingextension_agent\local\wizard\services\retry_policy_service();
         $category = $policy->resolve_retry_hint_category(
             '',
             ['CONTRACT_PARSE_ERROR'],
@@ -743,7 +743,7 @@ final class integration_agent_framework_test extends TestCase {
         );
 
         $this->assertSame(
-            \bookingextension_agent\local\wbagent\services\retry_policy_service::CATEGORY_TECHNICAL,
+            \bookingextension_agent\local\wizard\services\retry_policy_service::CATEGORY_TECHNICAL,
             $category
         );
         $this->assertTrue($policy->is_retryable_category($category));
@@ -753,7 +753,7 @@ final class integration_agent_framework_test extends TestCase {
      * Retry policy classifies domain conflicts as non-retryable.
      */
     public function test_retry_policy_marks_domain_category_not_retryable(): void {
-        $policy = new \bookingextension_agent\local\wbagent\services\retry_policy_service();
+        $policy = new \bookingextension_agent\local\wizard\services\retry_policy_service();
         $category = $policy->resolve_retry_hint_category(
             'domain_conflict',
             ['DOMAIN_CONFLICT'],
@@ -761,7 +761,7 @@ final class integration_agent_framework_test extends TestCase {
         );
 
         $this->assertSame(
-            \bookingextension_agent\local\wbagent\services\retry_policy_service::CATEGORY_DOMAIN,
+            \bookingextension_agent\local\wizard\services\retry_policy_service::CATEGORY_DOMAIN,
             $category
         );
         $this->assertFalse($policy->is_retryable_category($category));
@@ -771,7 +771,7 @@ final class integration_agent_framework_test extends TestCase {
      * Provider auth failures open the provider circuit breaker.
      */
     public function test_retry_policy_provider_circuit_breaker_blocks_auth(): void {
-        $policy = new \bookingextension_agent\local\wbagent\services\retry_policy_service();
+        $policy = new \bookingextension_agent\local\wizard\services\retry_policy_service();
         $decision = $policy->evaluate_provider_circuit_breaker(
             'auth_error',
             ['PROVIDER_AUTH_FAILED']
@@ -779,7 +779,7 @@ final class integration_agent_framework_test extends TestCase {
 
         $this->assertFalse((bool)($decision['allow'] ?? true));
         $this->assertContains(
-            \bookingextension_agent\local\wbagent\services\retry_policy_service::ISSUE_PROVIDER_CIRCUIT_OPEN_AUTH,
+            \bookingextension_agent\local\wizard\services\retry_policy_service::ISSUE_PROVIDER_CIRCUIT_OPEN_AUTH,
             (array)($decision['issue_codes'] ?? [])
         );
     }
@@ -788,7 +788,7 @@ final class integration_agent_framework_test extends TestCase {
      * Planner retry must be blocked when queue/execution retry is already active.
      */
     public function test_agent_runtime_blocks_planner_retry_on_non_planner_signal(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('has_active_non_planner_retry_signal');
         $method->setAccessible(true);
@@ -805,7 +805,7 @@ final class integration_agent_framework_test extends TestCase {
      * Constructor JSON parse retries must exhaust exactly at configured limit.
      */
     public function test_agent_runtime_constructor_parse_retry_exhaustion_is_deterministic(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
 
         $retrymethod = $reflection->getMethod('resolve_framework_retry_issue_code');
@@ -828,7 +828,7 @@ final class integration_agent_framework_test extends TestCase {
      * Budget guard must stop deterministically at the loop boundary.
      */
     public function test_agent_runtime_budget_guard_stops_at_limit_boundary(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\agent_runtime::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
         $runtime = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('budget_guard_allows_next_llm_call');
         $method->setAccessible(true);
@@ -841,7 +841,7 @@ final class integration_agent_framework_test extends TestCase {
      * Template finalization must keep technical root-cause messages explicit.
      */
     public function test_finalization_template_message_reflects_technical_cause(): void {
-        $templates = new \bookingextension_agent\local\wbagent\services\finalization_template_service();
+        $templates = new \bookingextension_agent\local\wizard\services\finalization_template_service();
 
         $budget = $templates->resolve_message([
             'issue_codes' => ['BUDGET_EXCEEDED'],
@@ -859,7 +859,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_decision_service_mutability_split_preserves_readonly_vs_mutating(): void {
         $reflection = new \ReflectionClass(
-            \bookingextension_agent\local\wbagent\services\decision\agent_decision_service::class
+            \bookingextension_agent\local\wizard\services\decision\agent_decision_service::class
         );
         $service = $reflection->newInstanceWithoutConstructor();
 
@@ -892,7 +892,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_pending_confirmation_message_is_not_blocked_as_new_intent(): void {
         $reflection = new \ReflectionClass(
-            \bookingextension_agent\local\wbagent\services\decision\agent_decision_service::class
+            \bookingextension_agent\local\wizard\services\decision\agent_decision_service::class
         );
         $service = $reflection->newInstanceWithoutConstructor();
         $method = $reflection->getMethod('should_block_new_intent_while_pending');
@@ -917,7 +917,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that the planner result composer preserves the construction payload.
      */
     public function test_planner_result_composer_preserves_construction_payload(): void {
-        $composer = new \bookingextension_agent\local\wbagent\services\planner_result_composer();
+        $composer = new \bookingextension_agent\local\wizard\services\planner_result_composer();
 
         $result = $composer->compose(
             [
@@ -958,7 +958,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpret_phase_output_tags_phase(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $result = $interpreter->interpret_phase_output(
             '{"response_type":"clarification","message":"Need more info","used_triggers":[]}',
@@ -980,7 +980,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_phase_contract_accepts_single_selector_skill_in_selection(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
         $selectionpayload = '{"response_type":"skill_call","message":"Selecting skill","used_triggers":[],'
             . '"commands":[{"skill":"mod_booking.create_option","version":1,"input":{}}]}';
 
@@ -1004,7 +1004,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that selection handoff strips parameter payload and keeps only one selected skill command.
      */
     public function test_orchestrator_selection_handoff_normalization_strips_payload(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
 
         $method = $orchestratorreflection->getMethod('normalize_selection_phase_output_for_handoff');
@@ -1036,7 +1036,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that selection handoff normalization rejects multi-command skill_call payloads.
      */
     public function test_orchestrator_selection_handoff_normalization_rejects_multi_command_payload(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
 
         $method = $orchestratorreflection->getMethod('normalize_selection_phase_output_for_handoff');
@@ -1063,7 +1063,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_rejects_non_json_payload(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $result = $interpreter->interpret('this is not json', 0, 0, '');
 
@@ -1076,7 +1076,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_rejects_unknown_response_type(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $result = $interpreter->interpret(
             '{"response_type":"unexpected_type","message":"x","commands":[]}',
@@ -1093,7 +1093,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that orchestrator executes two planner invoke calls (selection + construction).
      */
     public function test_orchestrator_process_uses_two_phase_invokes(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
@@ -1107,7 +1107,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_construction_phase_accepts_multi_command_batch_in_allow_list(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
         $method = $reflection->getMethod('enforce_phase_contract');
@@ -1133,7 +1133,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_construction_phase_rejects_skill_outside_allow_list(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
         $method = $reflection->getMethod('enforce_phase_contract');
@@ -1146,7 +1146,7 @@ final class integration_agent_framework_test extends TestCase {
             ],
             'message' => 'Executing.',
         ], 'parameter_construction', [
-            'allowed_skills' => ['wbagent.recreate_skill_catalog'],
+            'allowed_skills' => ['wizard.recreate_skill_catalog'],
         ]);
 
         $this->assertSame('error', $result['response_type']);
@@ -1158,7 +1158,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_selection_phase_rejects_selected_skill_mismatch(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
         $method = $reflection->getMethod('enforce_phase_contract');
@@ -1169,7 +1169,7 @@ final class integration_agent_framework_test extends TestCase {
             'commands' => [
                 ['skill' => 'core.get_current_user', 'version' => 1, 'input' => []],
             ],
-            'selected_skill' => 'wbagent.recreate_skill_catalog',
+            'selected_skill' => 'wizard.recreate_skill_catalog',
             'message' => 'Selecting.',
         ], 'selection');
 
@@ -1182,7 +1182,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_normalize_commands_payload_keeps_raw_skill_name(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
         $method = $reflection->getMethod('normalize_commands_payload');
@@ -1204,7 +1204,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_interpreter_normalize_commands_payload_ignores_unknown_command_keys(): void {
         $registry = skill_registry_factory::get_default();
-        $interpreter = new \bookingextension_agent\local\wbagent\interpreter($registry);
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $reflection = new \ReflectionClass($interpreter);
         $method = $reflection->getMethod('normalize_commands_payload');
@@ -1238,7 +1238,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that preflight pipeline supports skipping duplicate schema checks for interpreter-validated commands.
      */
     public function test_preflight_pipeline_supports_structural_validation_skip_flag(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\preflight_pipeline::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\preflight_pipeline::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
@@ -1250,7 +1250,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that synchronizer input includes phase trace and execution feedback blocks.
      */
     public function test_synchronizer_input_builder_includes_phase_trace_and_execution_feedback(): void {
-        $builder = new \bookingextension_agent\local\wbagent\services\synchronizer_input_builder();
+        $builder = new \bookingextension_agent\local\wizard\services\synchronizer_input_builder();
 
         $observations = $builder->build_observations([
             'response_type' => 'execution_result',
@@ -1262,7 +1262,7 @@ final class integration_agent_framework_test extends TestCase {
             ],
             'results' => [
                 ['skill' => 'core.get_current_user', 'status' => 'ok'],
-                ['skill' => 'wbagent.recreate_skill_catalog', 'status' => 'error'],
+                ['skill' => 'wizard.recreate_skill_catalog', 'status' => 'error'],
             ],
         ]);
 
@@ -1276,7 +1276,7 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_synchronizer_routing_uses_dedicated_orchestrator_path(): void {
         $reflection = new \ReflectionClass(
-            \bookingextension_agent\local\wbagent\services\synchronizer_routing_service::class
+            \bookingextension_agent\local\wizard\services\synchronizer_routing_service::class
         );
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
@@ -1289,13 +1289,13 @@ final class integration_agent_framework_test extends TestCase {
      * Test that synchronizer output contract never mutates command payloads.
      */
     public function test_synchronizer_output_contract_preserves_source_commands(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'confirmation_request',
             'message' => 'Original',
             'commands' => [
-                ['skill' => 'wbagent.recreate_skill_catalog', 'version' => 1, 'input' => ['force' => true]],
+                ['skill' => 'wizard.recreate_skill_catalog', 'version' => 1, 'input' => ['force' => true]],
             ],
             'lang' => 'de',
         ];
@@ -1317,7 +1317,7 @@ final class integration_agent_framework_test extends TestCase {
      * Synchronizer must reject stale fact drift when source evidence and polished text disagree.
      */
     public function test_synchronizer_output_contract_rejects_option_id_fact_conflict(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'sufficient',
@@ -1349,7 +1349,7 @@ final class integration_agent_framework_test extends TestCase {
      * Synchronizer must emit deterministic issue code + telemetry for contract rejects.
      */
     public function test_synchronizer_output_contract_sets_issue_code_for_contract_reject(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'sufficient',
@@ -1375,7 +1375,7 @@ final class integration_agent_framework_test extends TestCase {
      * Synchronizer must never replace source message when source response_type is error.
      */
     public function test_synchronizer_output_contract_rejects_message_replace_for_source_error(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'error',
@@ -1400,7 +1400,7 @@ final class integration_agent_framework_test extends TestCase {
      * Synchronizer must preserve source message for failed postcondition outcomes.
      */
     public function test_synchronizer_output_contract_rejects_message_replace_for_failed_postcondition(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'execution_result',
@@ -1426,7 +1426,7 @@ final class integration_agent_framework_test extends TestCase {
      * Synchronizer must reject success polishing when the latest source result is an error.
      */
     public function test_synchronizer_output_contract_rejects_success_when_latest_result_is_error(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'execution_result',
@@ -1455,7 +1455,7 @@ final class integration_agent_framework_test extends TestCase {
      * Source-of-truth merge behavior must remain deterministic for identical inputs.
      */
     public function test_synchronizer_output_contract_merge_is_deterministic_for_same_input(): void {
-        $contract = new \bookingextension_agent\local\wbagent\services\synchronizer_output_contract();
+        $contract = new \bookingextension_agent\local\wizard\services\synchronizer_output_contract();
 
         $source = [
             'response_type' => 'sufficient',
@@ -1483,7 +1483,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that dedicated synchronizer prompt builder is wired in orchestrator.
      */
     public function test_orchestrator_uses_dedicated_synchronizer_prompt_builder(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
@@ -1495,7 +1495,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that discovery stage controller is wired into the live orchestrator flow.
      */
     public function test_orchestrator_discovery_uses_live_stage_controller(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
@@ -1508,7 +1508,7 @@ final class integration_agent_framework_test extends TestCase {
      * Test that family filter helper no longer falls back to full catalog.
      */
     public function test_orchestrator_family_filter_is_strict_without_full_catalog_fallback(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 

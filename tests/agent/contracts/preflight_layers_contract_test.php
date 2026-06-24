@@ -14,18 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\preflight_domain_check_runner;
-use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
-use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wizard\services\preflight_domain_check_runner;
+use bookingextension_agent\local\wizard\services\preflight_execution_gate;
+use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for preflight L2/L3 layers.
  *
- * @covers \bookingextension_agent\local\wbagent\services\preflight_domain_check_runner
- * @covers \bookingextension_agent\local\wbagent\services\preflight_execution_gate
+ * @covers \bookingextension_agent\local\wizard\services\preflight_domain_check_runner
+ * @covers \bookingextension_agent\local\wizard\services\preflight_execution_gate
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

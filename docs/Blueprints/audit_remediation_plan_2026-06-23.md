@@ -82,7 +82,7 @@ Empfohlene Reihenfolge: **S7 → S1 → S9b/S10b → S4 → S5 → S6 → S2 →
 - [ ] **§7 D1** Finalization-Classifier-Sets = Supersets der LG_MATRIX.
 - [ ] **§7 D2** R1-Domain-Timeout-Retry außerhalb des L3-Gates.
 - [ ] **§7 D3** R2/R3-Synchronizer-Notices nur prompt-seitig (kein Post-Check).
-- [ ] **§7 D4** User-Memory-Namespace `wbagent.*` vs `core.*`.
+- [ ] **§7 D4** User-Memory-Namespace `wizard.*` vs `core.*`.
 - [ ] **§7 D5** Family-first vs Skill-Top-K-Reihenfolge.
 - [ ] **§7 D6** `state.currentstep` nie gesetzt.
 

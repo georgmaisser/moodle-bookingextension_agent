@@ -17,8 +17,8 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\activities\activity_creation_service;
-use bookingextension_agent\local\wbagent\services\activities\module_form_contract;
+use bookingextension_agent\local\wizard\services\activities\activity_creation_service;
+use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use context_course;
 use stdClass;
 
@@ -26,7 +26,7 @@ use stdClass;
  * Tests for the module-neutral activity creation service.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\activities\activity_creation_service
+ * @covers     \bookingextension_agent\local\wizard\services\activities\activity_creation_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

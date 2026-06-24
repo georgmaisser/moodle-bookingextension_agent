@@ -15,7 +15,7 @@ Set **`aidebugmode`** (admin setting) to capture every raw LLM exchange.
 `llm_debug_logger::is_enabled()` reads it; `log_exchange()` writes a row to the table
 
 ```
-local_wbagent_ai_llm_debug   →  physical: m_local_wbagent_ai_llm_debug
+local_wizard_ai_llm_debug   →  physical: m_local_wizard_ai_llm_debug
 ```
 
 Each row records `threadid`, `userid`, `contextid`, a `source` label (which call site:
@@ -75,7 +75,7 @@ discovery → selection → construction → decision → preflight → queue �
 
 | Question | Source |
 |----------|--------|
-| What exactly did the model receive/return? | `aidebugmode` → `local_wbagent_ai_llm_debug` |
+| What exactly did the model receive/return? | `aidebugmode` → `local_wizard_ai_llm_debug` |
 | Why was *this* skill chosen? | phase trace + routing decision log + [skill-selection debug](governance.md#4-skill-selection-debugging) |
 | Why was a mutation blocked/retried? | `_preflight_audit_log` (preflight) + queue retry metadata ([ch. 10](../architecture/10-shadow-queue.md)) |
 | Did a regression slip in? | the [benchmark](benchmarking.md) trend + CI gate |

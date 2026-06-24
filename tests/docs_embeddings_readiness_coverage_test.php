@@ -17,9 +17,9 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_csv_repository;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readiness_service;
+use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_csv_repository;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_readiness_service;
 
 /**
  * Cheap coverage check on the synchronous skill-use path (Phase B3).
@@ -27,7 +27,7 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readine
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_readiness_service
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\docs_embeddings_readiness_service
  */
 final class docs_embeddings_readiness_coverage_test extends advanced_testcase {
     /**

@@ -19,17 +19,17 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use context_course;
 use ReflectionMethod;
-use bookingextension_agent\local\wbagent\skill_registry;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\decision\agent_decision_service;
 
 /**
  * The confirmation for a mutating command must always name the target course (with its id), so a
  * mis-resolved course is visible before the write happens.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\decision\agent_decision_service
+ * @covers     \bookingextension_agent\local\wizard\services\decision\agent_decision_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

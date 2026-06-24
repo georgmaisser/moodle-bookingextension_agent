@@ -12,12 +12,12 @@ a provider. The engine does the planning, gating, confirming, queuing, and reply
 it.
 
 > **Quick start (scaffold).** You don't have to write the boilerplate by hand. Ask the agent
-> for a skill template — the `wbagent.scaffold_skill` skill turns a natural-language description
+> for a skill template — the `wizard.scaffold_skill` skill turns a natural-language description
 > plus a target `component` into a downloadable ZIP containing a fully-commented skill class
 > (contract filled in, `preflight()`/`execute()` left as guided `TODO`s), a `db/access.php`
 > capability snippet, a lang snippet and a README with the exact wiring steps. The generated
 > file is contract-valid by construction and auto-discovered once dropped under
-> `<yourplugin>/classes/local/wbagent/<domain>/skills/` (no provider needed). Use this guide to
+> `<yourplugin>/classes/local/wizard/<domain>/skills/` (no provider needed). Use this guide to
 > then implement the behaviour.
 
 ---
@@ -25,11 +25,11 @@ it.
 ## 1. Anatomy
 
 ```php
-namespace yourcomponent\local\wbagent\skills;
+namespace yourcomponent\local\wizard\skills;
 
-use bookingextension_agent\local\wbagent\base_skill;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\services\preflight_result_v2;
+use bookingextension_agent\local\wizard\base_skill;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\services\preflight_result_v2;
 
 class do_something_skill extends base_skill {
     public const SKILL_NAME = 'yourcomponent.do_something';
@@ -181,7 +181,7 @@ A skill may also implement:
 
 ## 8. Registering & activating
 
-Expose your skills through a `\{component}\local\wbagent\skill_provider` implementing
+Expose your skills through a `\{component}\local\wizard\skill_provider` implementing
 `skill_provider_interface` (see
 [skill-providers-and-families.md](skill-providers-and-families.md)). A newly discovered
 skill is **default-off** until enabled via `aiskillenabled_<name>` (or "Enable all" on the

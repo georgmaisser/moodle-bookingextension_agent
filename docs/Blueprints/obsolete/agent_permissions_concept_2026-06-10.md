@@ -1,4 +1,4 @@
-# Rechte-Konzept für den wbagent — Admin → Teacher → Student
+# Rechte-Konzept für den wizard — Admin → Teacher → Student
 
 **Datum:** 2026-06-10
 **Status:** Konzept (zur Diskussion mit Georg)
@@ -87,7 +87,7 @@ Rechte beantworten „darf", nicht „wie viel". Vor Teacher-/Studenten-Rollout 
 2. ✅ Bypass zentral in `orchestrator::get_runtime_provider_status()`: `has_capability(ignoreaiavailability, $context)` für den aktuellen User → überspringt Kurs- **und** CM-Toggle (O2); Status-Array trägt neu `availabilitybypassed`.
 3. ✅ Entry-Points erben automatisch — `aiready`, `ai_send_message`, `activate_trial_context` konsumieren alle denselben Status; Anzeige und Verhalten sind per Konstruktion konsistent. `aiready` zeigt übersprungene Toggle-Zeilen mit ehrlichem Hinweis (`aiready_check_availability_bypassed`) statt „enabled" vorzutäuschen.
 4. Phase 3 (Studenten-Skill-Tier) und Quota-Schicht: weiterhin offen, siehe §5/§6.
-5. `local_wbagent`-Auskopplung: Caps werden 1:1 zu `local/wbagent:*` — Konzept unabhängig davon.
+5. `local_wizard`-Auskopplung: Caps werden 1:1 zu `local/wizard:*` — Konzept unabhängig davon.
 
 Doku: [architecture/02 §3a](../architecture/02-authorization-and-context.md) (Verfügbarkeitsschicht) + Flowchart (AUTHZ-Knoten `AZ4`, Legende `LG_AVAIL`, `AZ2` mit Kontextleveln inkl. USER/COURSECAT).
 

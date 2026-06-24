@@ -18,8 +18,8 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
       endpoints = https://llm.wunderbyte.at)
 ```
 
-- **Moodle side** (this repo): `classes/external/request_trial_key.php` (capability `requesttrial` + GDPR consent gate → `trial_consent_given` event) → `classes/local/wbagent/services/trial/trial_provisioner.php` → core_ai provider instance. The trial endpoint is **hardcoded** as `trial_provisioner::BASE_URL = https://llm.wunderbyte.at`; the former admin setting `trial_endpoint_base_url` was removed (the upgrade unsets the orphaned config).
-- **Trial service** (separate server, container `litellm_trial_api`): `classes/local/wbagent/wunderbyte_trial_endpoint.py` is the **reference copy**. The running service has its own copy baked into its image — apply changes there and **rebuild**, not just restart.
+- **Moodle side** (this repo): `classes/external/request_trial_key.php` (capability `requesttrial` + GDPR consent gate → `trial_consent_given` event) → `classes/local/wizard/services/trial/trial_provisioner.php` → core_ai provider instance. The trial endpoint is **hardcoded** as `trial_provisioner::BASE_URL = https://llm.wunderbyte.at`; the former admin setting `trial_endpoint_base_url` was removed (the upgrade unsets the orphaned config).
+- **Trial service** (separate server, container `litellm_trial_api`): `classes/local/wizard/wunderbyte_trial_endpoint.py` is the **reference copy**. The running service has its own copy baked into its image — apply changes there and **rebuild**, not just restart.
 - **LiteLLM proxy** (container `litellm_proxy`, `127.0.0.1:4000`): mints/serves keys and models.
 
 ## Trial service environment (docker-compose.yml on the trial server)
@@ -170,5 +170,5 @@ curl -X POST "$P/key/delete" -H "$H" -H 'Content-Type: application/json' \
 
 ## Pointers
 - Design + decisions: [`../Blueprints/todo/oneclick_ai_setup_blueprint_2026-06-15.md`](../Blueprints/todo/oneclick_ai_setup_blueprint_2026-06-15.md)
-- Moodle provisioner: [`../../classes/local/wbagent/services/trial/trial_provisioner.php`](../../classes/local/wbagent/services/trial/trial_provisioner.php)
-- Trial service reference: [`../../classes/local/wbagent/wunderbyte_trial_endpoint.py`](../../classes/local/wbagent/wunderbyte_trial_endpoint.py)
+- Moodle provisioner: [`../../classes/local/wizard/services/trial/trial_provisioner.php`](../../classes/local/wizard/services/trial/trial_provisioner.php)
+- Trial service reference: [`../../classes/local/wizard/wunderbyte_trial_endpoint.py`](../../classes/local/wizard/wunderbyte_trial_endpoint.py)

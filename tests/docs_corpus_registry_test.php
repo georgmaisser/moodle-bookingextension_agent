@@ -17,7 +17,7 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
+use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
 
 /**
  * Tests the config-driven docs corpus registry (textarea parsing, declared vs resolvable).
@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry
  */
 final class docs_corpus_registry_test extends advanced_testcase {
     /**

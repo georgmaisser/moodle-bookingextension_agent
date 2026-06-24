@@ -8,16 +8,16 @@
 
 A **skill** is one capability the agent can invoke. The engine-provided skills are split by
 responsibility across four namespaces (all registered by
-`bookingextension_agent\local\wbagent\skill_provider` and discovered from the matching
-`classes/local/wbagent/<namespace>/skills/` directory):
+`bookingextension_agent\local\wizard\skill_provider` and discovered from the matching
+`classes/local/wizard/<namespace>/skills/` directory):
 
-- **`wbagent.*`** — agent-specific engine skills (memory, doc-Q&A, skill discovery), in
-  `classes/local/wbagent/wbagent/skills/`. This namespace is the engine's always-on discovery
+- **`wizard.*`** — agent-specific engine skills (memory, doc-Q&A, skill discovery), in
+  `classes/local/wizard/wizard/skills/`. This namespace is the engine's always-on discovery
   baseline (see [discovery](../architecture/06-discovery-families-embeddings.md)).
-- **`core.*`** — Moodle-core (user) skills, in `classes/local/wbagent/core/skills/`. `core` is
+- **`core.*`** — Moodle-core (user) skills, in `classes/local/wizard/core/skills/`. `core` is
   reserved here for genuine Moodle-core domain, matching its meaning in Moodle itself.
-- **`course.*`** — Moodle-course skills, in `classes/local/wbagent/course/skills/`.
-- **`question.*`** — Moodle question-bank skills, in `classes/local/wbagent/question/skills/`.
+- **`course.*`** — Moodle-course skills, in `classes/local/wizard/course/skills/`.
+- **`question.*`** — Moodle question-bank skills, in `classes/local/wizard/question/skills/`.
 
 Booking-domain skills live under **`mod_booking.*`** (discovered from the `mod_booking`
 component, base class `booking_skill_base`).
@@ -31,21 +31,21 @@ engine skills regardless of namespace.
 
 ---
 
-## Agent engine skills (`wbagent.*`)
+## Agent engine skills (`wizard.*`)
 
 | Skill | Risk | Read-only | Purpose | Key inputs |
 |-------|:---:|:---:|---------|-----------|
-| `wbagent.explain_docs` | R0 | ✓ | Search the documentation corpora and return a relevant excerpt (any language) | `question`, `outputlang`, `doc_path`, `corpus_id`, `line_start` |
-| `wbagent.list_skills` | R0 | ✓ | List the agent's capabilities / skill names | `question`, `scope`, `outputlang` |
-| `wbagent.recall_memory` | R0 | ✓ | Recall the user's own earlier conversation (last thread / date window) | `mode`, `date_hint`, `query` |
-| `wbagent.remember` | R0 | ✓ | Store a user-stated fact/preference | `memory`, `scopes` |
-| `wbagent.forget` | R0 | ✓ | Remove a stored user memory | `query` |
-| `wbagent.list_memories` | R0 | ✓ | List the user's stored memories | `outputlang` |
-| `wbagent.search_skills` | R0 | ✓ | RAG fallback — search the registry for capabilities discovery missed | `query` |
-| `wbagent.recreate_skill_catalog` | **R2** | ✗ | Rebuild the skill-catalog embeddings CSV | `force`, `model`, `dimensions` |
+| `wizard.explain_docs` | R0 | ✓ | Search the documentation corpora and return a relevant excerpt (any language) | `question`, `outputlang`, `doc_path`, `corpus_id`, `line_start` |
+| `wizard.list_skills` | R0 | ✓ | List the agent's capabilities / skill names | `question`, `scope`, `outputlang` |
+| `wizard.recall_memory` | R0 | ✓ | Recall the user's own earlier conversation (last thread / date window) | `mode`, `date_hint`, `query` |
+| `wizard.remember` | R0 | ✓ | Store a user-stated fact/preference | `memory`, `scopes` |
+| `wizard.forget` | R0 | ✓ | Remove a stored user memory | `query` |
+| `wizard.list_memories` | R0 | ✓ | List the user's stored memories | `outputlang` |
+| `wizard.search_skills` | R0 | ✓ | RAG fallback — search the registry for capabilities discovery missed | `query` |
+| `wizard.recreate_skill_catalog` | **R2** | ✗ | Rebuild the skill-catalog embeddings CSV | `force`, `model`, `dimensions` |
 
-`wbagent.explain_docs` is preview-capable (`get_result_preview`). All are R0 **except**
-`wbagent.recreate_skill_catalog`, which mutates the embeddings index (R2).
+`wizard.explain_docs` is preview-capable (`get_result_preview`). All are R0 **except**
+`wizard.recreate_skill_catalog`, which mutates the embeddings index (R2).
 
 ## Moodle-core skills (`core.*`)
 
@@ -122,7 +122,7 @@ always requires manual confirmation and never auto-retries (see
   declares `'governance' => ['always_available' => true]` in `get_schema()` (how domain skills
   like `mod_booking.update_option_trainer` and `mod_booking.book_users` opt in), or when its
   name matches an engine-level keyword in `MANDATORY_SKILL_KEYWORDS` (which keeps
-  `wbagent.search_skills` reachable). The engine hardcodes **no** concrete skill names — see
+  `wizard.search_skills` reachable). The engine hardcodes **no** concrete skill names — see
   [discovery](../architecture/06-discovery-families-embeddings.md#4-the-embedding-query).
 - **`override`** appears on most mutating booking skills: it is how the agent confirms past a
   soft block (e.g. a duplicate-title `DOMAIN_CONFLICT`).

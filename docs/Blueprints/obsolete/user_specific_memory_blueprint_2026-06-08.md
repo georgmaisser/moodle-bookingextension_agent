@@ -82,7 +82,7 @@ To ensure database queries remain cheap and user memories do not exceed the cont
 - **Maximum characters per single fact:** 500.
 - **Maximum total memory size per user:** 4096 characters.
 
-These checks will be implemented in a new `bookingextension_agent\local\wbagent\services\user_memory_service` class. If a user exceeds these thresholds, the `remember_fact` skill will inform the user of the budget limits and suggest forgetting outdated records.
+These checks will be implemented in a new `bookingextension_agent\local\wizard\services\user_memory_service` class. If a user exceeds these thresholds, the `remember_fact` skill will inform the user of the budget limits and suggest forgetting outdated records.
 
 ---
 
@@ -150,7 +150,7 @@ Three new skills will be introduced inside `bookingextension_agent` and register
 Memory data must be injected automatically on each planner iteration to guide the model.
 
 ### 5.1 Orchestration Hook
-We will hook into the prompt building pipeline in `bookingextension_agent\local\wbagent\services\phase_prompt_bundle_builder.php`.
+We will hook into the prompt building pipeline in `bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder.php`.
 
 During bundle generation:
 1. Retrieve all stored memory statements for the current user ID:
@@ -176,19 +176,19 @@ During bundle generation:
   - [ ] Bump version details in [version.php](file:///var/www/moodle/public/mod/booking/bookingextension/agent/version.php).
 
 - [ ] **Task 2: Core Memory Service (`user_memory_service`)**
-  - [ ] Create class `bookingextension_agent\local\wbagent\services\user_memory_service` under `classes/local/wbagent/services/user_memory_service.php`.
+  - [ ] Create class `bookingextension_agent\local\wizard\services\user_memory_service` under `classes/local/wizard/services/user_memory_service.php`.
   - [ ] Implement `add_memory($userid, $text)` with limit checks (fact count < 15, single length < 500, total length < 4096).
   - [ ] Implement `remove_memory_by_query($userid, $query)` to perform substring deletion matching.
   - [ ] Implement `get_all_memories($userid)` to fetch memory records.
 
 - [ ] **Task 3: AI Memory Skills Integration**
-  - [ ] Implement skill `agent.remember_fact` inside a new skill class under `classes/local/wbagent/options/skills/remember_fact.php`.
-  - [ ] Implement skill `agent.forget_fact` under `classes/local/wbagent/options/skills/forget_fact.php`.
-  - [ ] Implement skill `agent.list_memories` under `classes/local/wbagent/options/skills/list_memories.php`.
-  - [ ] Register the new skills in the skill catalog mapping (e.g. `classes/local/wbagent/skill_registry.php`).
+  - [ ] Implement skill `agent.remember_fact` inside a new skill class under `classes/local/wizard/options/skills/remember_fact.php`.
+  - [ ] Implement skill `agent.forget_fact` under `classes/local/wizard/options/skills/forget_fact.php`.
+  - [ ] Implement skill `agent.list_memories` under `classes/local/wizard/options/skills/list_memories.php`.
+  - [ ] Register the new skills in the skill catalog mapping (e.g. `classes/local/wizard/skill_registry.php`).
 
 - [ ] **Task 4: Prompt Context Injection Hook**
-  - [ ] Integrate memory fetching in `bookingextension_agent\local\wbagent\services\phase_prompt_bundle_builder.php`.
+  - [ ] Integrate memory fetching in `bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder.php`.
   - [ ] Construct the memory block context string.
   - [ ] Inject the memory block directly into the planner system prompts prior to LLM submission.
 

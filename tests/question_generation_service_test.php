@@ -17,13 +17,13 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\questions\question_generation_service;
+use bookingextension_agent\local\wizard\services\questions\question_generation_service;
 
 /**
  * Tests for the deterministic parts of the question generation service.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\questions\question_generation_service
+ * @covers     \bookingextension_agent\local\wizard\services\questions\question_generation_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

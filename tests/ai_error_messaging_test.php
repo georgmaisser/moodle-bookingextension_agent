@@ -25,9 +25,9 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\services\finalization_classifier;
-use bookingextension_agent\local\wbagent\services\finalization_template_service;
-use bookingextension_agent\local\wbagent\services\synchronizer_input_builder;
+use bookingextension_agent\local\wizard\services\finalization_classifier;
+use bookingextension_agent\local\wizard\services\finalization_template_service;
+use bookingextension_agent\local\wizard\services\synchronizer_input_builder;
 
 /**
  * The provider catch-all must never masquerade as the message for other causes.
@@ -35,9 +35,9 @@ use bookingextension_agent\local\wbagent\services\synchronizer_input_builder;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\finalization_template_service
- * @covers     \bookingextension_agent\local\wbagent\services\finalization_classifier
- * @covers     \bookingextension_agent\local\wbagent\services\synchronizer_input_builder
+ * @covers     \bookingextension_agent\local\wizard\services\finalization_template_service
+ * @covers     \bookingextension_agent\local\wizard\services\finalization_classifier
+ * @covers     \bookingextension_agent\local\wizard\services\synchronizer_input_builder
  */
 final class ai_error_messaging_test extends \advanced_testcase {
     /**
@@ -149,7 +149,7 @@ final class ai_error_messaging_test extends \advanced_testcase {
      */
     public function test_provider_catchall_only_in_template_fallback(): void {
         $root = dirname(__DIR__) . '/classes';
-        $allowed = ['/local/wbagent/services/finalization_template_service.php'];
+        $allowed = ['/local/wizard/services/finalization_template_service.php'];
 
         $offenders = [];
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root));

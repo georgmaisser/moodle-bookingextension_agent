@@ -89,12 +89,12 @@ class shortcodes {
         // aiready + the aiinstructions template are the same entry point the inline
         // booking view and the navbar fragment use; the template self-bootstraps its
         // AMD chat module, so rendering it is enough.
-        if (empty($PAGE->context) || !\class_exists('\\bookingextension_agent\\local\\wbagent\\aiready')) {
+        if (empty($PAGE->context) || !\class_exists('\\bookingextension_agent\\local\\wizard\\aiready')) {
             return '';
         }
 
         try {
-            $aiready = new \bookingextension_agent\local\wbagent\aiready((int)$PAGE->context->id, (int)$USER->id);
+            $aiready = new \bookingextension_agent\local\wizard\aiready((int)$PAGE->context->id, (int)$USER->id);
             return $OUTPUT->render_from_template('bookingextension_agent/aiinstructions', $aiready->export_for_template());
         } catch (\Throwable $e) {
             // Never let a misplaced shortcode (e.g. an unsupported context) break the page.

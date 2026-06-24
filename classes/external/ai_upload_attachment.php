@@ -36,8 +36,8 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\services\attachment\attachment_token_service;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\attachment\attachment_token_service;
 
 /**
  * Upload a file attachment for use with the AI agent.
@@ -157,7 +157,7 @@ class ai_upload_attachment extends external_api {
         // Write to temp file.
         $tmpdir  = make_temp_directory('bookingextension_agent/uploads');
         $ext     = self::safe_extension($actualmime);
-        $tmpname = 'wbagent_' . bin2hex(random_bytes(12)) . '.' . $ext;
+        $tmpname = 'wizard_' . bin2hex(random_bytes(12)) . '.' . $ext;
         $tmppath = $tmpdir . '/' . $tmpname;
 
         if (file_put_contents($tmppath, $binary) === false) {

@@ -18,7 +18,7 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use ReflectionClass;
-use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 
 /**
  * Pins the anonymization token / email grammar that was consolidated into class constants (S9).
@@ -30,7 +30,7 @@ use bookingextension_agent\local\wbagent\privacy_anonymizer;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\privacy_anonymizer
+ * @covers     \bookingextension_agent\local\wizard\privacy_anonymizer
  */
 final class privacy_anonymizer_regex_test extends advanced_testcase {
     /**

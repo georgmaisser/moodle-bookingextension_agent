@@ -12,18 +12,18 @@ contributor this means: change `install.xml`, bump `version.php`, and rely on a 
 
 ## 2. Table prefix
 
-All agent tables use the **`local_wbagent_`** prefix (a legacy of the engine namespace),
+All agent tables use the **`local_wizard_`** prefix (a legacy of the engine namespace),
 **not** `bookingextension_agent_`. With the Moodle DB prefix `m_`, the physical table for
-LLM debug logs is e.g. `m_local_wbagent_ai_llm_debug`.
+LLM debug logs is e.g. `m_local_wizard_ai_llm_debug`.
 
 ## 3. Conversation tables
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
-| `local_wbagent_ai_threads` | one conversation per (user, context) | `id`, `userid`, `contextid`, `status` (`active`/archived), `metadatajson`, `timecreated`, `timemodified` |
-| `local_wbagent_ai_messages` | messages in a thread | `id`, `threadid`→threads, `userid`, `role` (`user`/`assistant`/`system`/`step`), `content`, `structuredjson`, `timecreated` |
-| `local_wbagent_ai_runs` | a confirmed/executed command set (unit of idempotency) | `id`, `threadid`, `userid`, `contextid`, `status` (`pending`→`completed`/`failed`), `idempotencykey` (sha256), `commandsjson`, `timecreated`, `timemodified` |
-| `local_wbagent_ai_llm_debug` | raw LLM exchanges (debug mode) | `id`, `threadid`, `userid`, `contextid`, `source`, `success`, request/response text, `timecreated` |
+| `local_wizard_ai_threads` | one conversation per (user, context) | `id`, `userid`, `contextid`, `status` (`active`/archived), `metadatajson`, `timecreated`, `timemodified` |
+| `local_wizard_ai_messages` | messages in a thread | `id`, `threadid`→threads, `userid`, `role` (`user`/`assistant`/`system`/`step`), `content`, `structuredjson`, `timecreated` |
+| `local_wizard_ai_runs` | a confirmed/executed command set (unit of idempotency) | `id`, `threadid`, `userid`, `contextid`, `status` (`pending`→`completed`/`failed`), `idempotencykey` (sha256), `commandsjson`, `timecreated`, `timemodified` |
+| `local_wizard_ai_llm_debug` | raw LLM exchanges (debug mode) | `id`, `threadid`, `userid`, `contextid`, `source`, `success`, request/response text, `timecreated` |
 
 ## 4. Where the queue, pending intent, and traces live
 
@@ -31,7 +31,7 @@ There is **no queue table**. The [shadow queue](../architecture/10-shadow-queue.
 persisted **inside the thread's `metadatajson`** (`queue_manager` reads/writes the
 `META_QUEUE_ITEMS` key via `conversation_store::get/set_thread_metadata_value`). The atomic
 "one running item per thread" lock is a `SELECT … FOR UPDATE` on
-`local_wbagent_ai_threads`.
+`local_wizard_ai_threads`.
 
 The same `metadatajson` blob also holds the well-known keys documented in
 [ch. 03 §5](../architecture/03-conversation-store.md#5-thread-metadata): `pending_intent`,
@@ -46,10 +46,10 @@ The same `metadatajson` blob also holds the well-known keys documented in
 
 | Table | Purpose |
 |-------|---------|
-| `local_wbagent_benchmark_runs` | one row per benchmark run (model, success rate, tokens, cost, duration, baseline flags) |
-| `local_wbagent_benchmark_scenarios` | per-scenario results (passed, json_valid, contract_compliant, expected/actual, tokens) |
-| `local_wbagent_benchmark_metrics` | aggregated metric snapshots per run (key/value/unit/scenario_class) |
-| `local_wbagent_benchmark_baselines` | pinned baselines for regression comparison |
+| `local_wizard_benchmark_runs` | one row per benchmark run (model, success rate, tokens, cost, duration, baseline flags) |
+| `local_wizard_benchmark_scenarios` | per-scenario results (passed, json_valid, contract_compliant, expected/actual, tokens) |
+| `local_wizard_benchmark_metrics` | aggregated metric snapshots per run (key/value/unit/scenario_class) |
+| `local_wizard_benchmark_baselines` | pinned baselines for regression comparison |
 
 See [operations/benchmarking.md](../operations/benchmarking.md).
 
@@ -71,9 +71,9 @@ scheduled/ad-hoc tasks in [`db/tasks.php`](../operations/tasks-and-async.md).
 ## 8. Entity sketch
 
 ```
-local_wbagent_ai_threads (1) ──< local_wbagent_ai_messages (N)
+local_wizard_ai_threads (1) ──< local_wizard_ai_messages (N)
         │  └─ metadatajson: { queue items, pending_intent, traces, … }
-        └──< local_wbagent_ai_runs (N) ── idempotencykey
-local_wbagent_ai_llm_debug ── threadid (debug mode)
-local_wbagent_benchmark_runs (1) ──< scenarios / metrics ; baselines
+        └──< local_wizard_ai_runs (N) ── idempotencykey
+local_wizard_ai_llm_debug ── threadid (debug mode)
+local_wizard_benchmark_runs (1) ──< scenarios / metrics ; baselines
 ```

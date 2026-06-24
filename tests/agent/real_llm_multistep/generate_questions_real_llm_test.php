@@ -30,8 +30,8 @@ defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
 use bookingextension_agent\external\ai_send_message;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\services\questions\question_bank_target_resolver;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver;
 
 /**
  * Drives the full PDF->questions flow with a live model.

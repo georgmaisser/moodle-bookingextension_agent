@@ -17,7 +17,7 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\lookup\markdown_renderer;
+use bookingextension_agent\local\wizard\services\lookup\markdown_renderer;
 
 /**
  * Characterization tests for the markdown renderer extracted from ai_get_doc_content (S7).
@@ -27,7 +27,7 @@ use bookingextension_agent\local\wbagent\services\lookup\markdown_renderer;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\markdown_renderer
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\markdown_renderer
  */
 final class markdown_renderer_test extends advanced_testcase {
     /**

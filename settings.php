@@ -24,10 +24,10 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wizard\orchestrator;
 use core_ai\aiactions\summarise_text;
 
-if (class_exists('bookingextension_agent\local\wbagent\orchestrator')) {
+if (class_exists('bookingextension_agent\local\wizard\orchestrator')) {
     $defaultsummarypromptprefix = orchestrator::get_default_summary_prompt_prefix();
     $defaultplannerprompttemplate = orchestrator::get_default_initial_prompt_template_for_action(summarise_text::class);
 } else {
@@ -165,7 +165,7 @@ if ($agentenabled) {
     // endpoint (active trial or subscription at llm.wunderbyte.at), make clear that a Pro license
     // is not currently required. Note: trial vs. subscription cannot be distinguished Moodle-side -
     // both simply route through the Wunderbyte endpoint; enforcement happens at the gateway.
-    $accessservice = '\\bookingextension_agent\\local\\wbagent\\services\\agent_access_service';
+    $accessservice = '\\bookingextension_agent\\local\\wizard\\services\\agent_access_service';
     if (
         class_exists('bookingextension_agent\\local\\wb_license')
         && class_exists($accessservice)
@@ -195,7 +195,7 @@ if ($agentenabled) {
         )
     );
 
-    // Auto-generate a security token the first time so the [wbagent] shortcode is
+    // Auto-generate a security token the first time so the [wizard] shortcode is
     // protected out of the box; an admin can rotate it by clearing/editing the field.
     $shortcodetoken = get_config('bookingextension_agent', 'shortcodetoken');
     if (empty($shortcodetoken)) {
@@ -222,7 +222,7 @@ if ($agentenabled) {
     // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a
     // link to the skill governance page where it is toggled.
     $docsskillgovurl = new moodle_url('/mod/booking/bookingextension/agent/skill_governance.php');
-    if (\bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate::is_docs_skill_active()) {
+    if (\bookingextension_agent\local\wizard\services\lookup\docs_embeddings_gate::is_docs_skill_active()) {
         $docsskillindicator = get_string('aidocsroot_skill_active', 'bookingextension_agent');
     } else {
         $docsskillindicator = get_string(
@@ -243,7 +243,7 @@ if ($agentenabled) {
     );
     // Fast path: a corpus change schedules an (gated) incremental rebuild straight away.
     $docscorpora->set_updatedcallback(
-        '\\bookingextension_agent\\local\\wbagent\\services\\lookup\\docs_embeddings_readiness_service::on_corpus_setting_updated'
+        '\\bookingextension_agent\\local\\wizard\\services\\lookup\\docs_embeddings_readiness_service::on_corpus_setting_updated'
     );
     $aisettingspage->add($docscorpora);
 

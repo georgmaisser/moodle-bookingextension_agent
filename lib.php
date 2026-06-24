@@ -41,7 +41,7 @@ function bookingextension_agent_output_fragment_aipanel($args): string {
 
     require_capability('bookingextension/agent:useaiinstructions', $context);
 
-    $aiready = new \bookingextension_agent\local\wbagent\aiready($contextid, (int)$USER->id);
+    $aiready = new \bookingextension_agent\local\wizard\aiready($contextid, (int)$USER->id);
 
     return $OUTPUT->render_from_template('bookingextension_agent/aiinstructions', $aiready->export_for_template());
 }

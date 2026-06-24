@@ -14,15 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\finalization_template_service;
+use bookingextension_agent\local\wizard\services\finalization_template_service;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for deterministic template-only finalization messages.
  *
- * @covers \bookingextension_agent\local\wbagent\services\finalization_template_service
+ * @covers \bookingextension_agent\local\wizard\services\finalization_template_service
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -45,7 +45,7 @@ Die Schulden konzentrieren sich auf **fünf wiederkehrende Muster**:
 | 1033 | `conversation_store.php` | 🟢 sauber, keine God-Methode |
 | 913 | `queue/queue_manager.php` | 🟢 sauber |
 
-LOC pro Top-Verzeichnis: `local/wbagent` (root) 13.741 · `services/*` ~9.225 + Unterordner · `course/skills` 5.129 · `wbagent/skills` 3.009 · `core/skills` 2.351.
+LOC pro Top-Verzeichnis: `local/wizard` (root) 13.741 · `services/*` ~9.225 + Unterordner · `course/skills` 5.129 · `wizard/skills` 3.009 · `core/skills` 2.351.
 
 ---
 
@@ -73,7 +73,7 @@ LOC pro Top-Verzeichnis: `local/wbagent` (root) 13.741 · `services/*` ~9.225 + 
 | DB-Rollout (install.xml + guarded upgrade.php, LG_DB) | 🟢 | Alle create_table guarded ✓ |
 | Skill-Interface / Risk-Declaration (TI, TCV) | 🟢 | Vollständig, Risk⇔read_only validiert, kein fehlendes Risk |
 | Provider-first Wiring (TRFAC) | 🟢 | Korrekt |
-| USERMEM (remember R0 / forget R2 / list R0) | 🟡 | Semantik korrekt, aber **Namespace `wbagent.*` statt `core.*`** wie im Flowchart → §7-D4 |
+| USERMEM (remember R0 / forget R2 / list R0) | 🟡 | Semantik korrekt, aber **Namespace `wizard.*` statt `core.*`** wie im Flowchart → §7-D4 |
 
 ---
 
@@ -153,13 +153,13 @@ LOC pro Top-Verzeichnis: `local/wbagent` (root) 13.741 · `services/*` ~9.225 + 
 
 - **[HIGH] Hartkodierte Showroom-URLs** — `booking_issue_code_provider.php:81,90` liefern literal `https://showroom.wunderbyte.at/.../optionview.php?optionid=73&cmid=938&userid=1`. Provider-seitig zwar akzeptabel, aber Demo-Hardcodes mit fixen IDs gehören in Config/Settings.
 
-- **[LOW] Engine-Default `new booking_issue_code_provider()`** in `agent_decision_service.php:140` + `preflight_domain_check_runner.php:46` — injizierbar & dokumentiert, aber der konkrete Klassenname ist einkompiliert. **Bei der geplanten `local_wbagent`-Auskopplung invertieren.**
+- **[LOW] Engine-Default `new booking_issue_code_provider()`** in `agent_decision_service.php:140` + `preflight_domain_check_runner.php:46` — injizierbar & dokumentiert, aber der konkrete Klassenname ist einkompiliert. **Bei der geplanten `local_wizard`-Auskopplung invertieren.**
 
 ### 5.D — Misplaced Logic in dünnen Schichten
 
 - **[HIGH] `ai_get_doc_content` enthält ~380 Zeilen handgerollten Markdown→HTML-Renderer** (`:145–523`) im WS-Layer (soll gate→delegate sein). Inkl. sicherheitskritischer Traversal-Guard. **→ `services/lookup/markdown_renderer`.**
 - **[MED] `ai_discard_pending` inlined die Queue-Skip-Business-Loop** (`:94–124`) statt zu delegieren wie `ai_confirm_run`. **→ `confirm_run_service::discard` / `discard_pending_service`.**
-- **[MED] `ai_send_message` trägt Result-Shaping/Orchestrierung** — `resolve_response_commands` (`:377–416`) liest Queue-Item neu und rekonstruiert das Command-Envelope inkl. guard_token; `:230` raw `$DB->get_record` auf `local_wbagent_ai_threads` statt über `conversation_store`.
+- **[MED] `ai_send_message` trägt Result-Shaping/Orchestrierung** — `resolve_response_commands` (`:377–416`) liest Queue-Item neu und rekonstruiert das Command-Envelope inkl. guard_token; `:230` raw `$DB->get_record` auf `local_wizard_ai_threads` statt über `conversation_store`.
 - **[MED] `agent_runtime` besitzt Clarification-Chain-Thread-Bookkeeping** (`:295–347`) — Discovery-Input-State, gehört in Discovery/Store, nicht in den Loop-Koordinator (dessen Docblock „loop steering only" sagt).
 
 ### 5.E — Toter Code (Bestätigt via grep, ~kein Caller)
@@ -227,7 +227,7 @@ LOC pro Top-Verzeichnis: `local/wbagent` (root) 13.741 · `services/*` ~9.225 + 
 - **D1 — Finalization-Classifier-Sets sind Supersets der LG_MATRIX.** `finalization_classifier.php:48–91`: `DIRECT_ISSUE_CODES` enthält 4 zusätzliche `CONTRACT_PHASE_*` über Matrix-Regel 3 hinaus; `TEMPLATE_ISSUE_CODES` 8 zusätzliche (`CONTRACT_SELECTION_SKILL_MISSING` + 7 `SYNC_*`) über Regel 4; `TEMPLATE_ERROR_CLASSES` `provider_error`+`internal_status` über Regel 5. Deterministisch & testbar (LG_CLASS erfüllt), aber Flowchart veraltet. **Frage: Matrix im Flowchart nachziehen, oder sind die Extras unbeabsichtigt?**
 - **D2 — Domain-Timeout-Retry für R1 außerhalb des L3-Gates.** `preflight_domain_check_runner.php:58–67` liefert `retry_hint` bei >500ms unabhängig vom Risk; für R1-Batches fließt das via `apply_preflight_decision` direkt nach `Q_RETRY`, obwohl der Flowchart Execution-Gate/Retry auf R2/R3 gated. **Frage: R1-Timeout-Retry intendiert oder durch das Risk-Gate routen?**
 - **D3 — R2/R3-Synchronizer-Notices nur prompt-seitig.** SCONTRACT/LG_SYNC fordern „R3 irreversibility_notice / R2 affected_scope_summary"; `synchronizer_output_contract::merge` validiert deren Präsenz **nicht** post-hoc (nur no-commands/no-drift/fact-conflict). Sie leben als Prompt-Instruktion in `synchronizer_prompt_builder`. **Frage: harter Contract (Präsenz-Check ergänzen) oder bewusst prompt-enforced?**
-- **D4 — User-Memory-Namespace.** Flowchart USERMEM nennt `core.remember/forget/list_memories` unter `core_skill_base`; Code liefert `wbagent.remember/forget/list_memories` unter `wbagent/skills/`. Semantik (R0/R0/R2, direct/confirm) stimmt; nur Naming/Placement divergiert.
+- **D4 — User-Memory-Namespace.** Flowchart USERMEM nennt `core.remember/forget/list_memories` unter `core_skill_base`; Code liefert `wizard.remember/forget/list_memories` unter `wizard/skills/`. Semantik (R0/R0/R2, direct/confirm) stimmt; nur Naming/Placement divergiert.
 - **D5 — Family-first vs Skill-Top-K-Reihenfolge.** Flowchart: „Family-level retrieval first, concrete skill later (lazy)". Code berechnet Skill-Top-K (`search_top_k`) teils *vor* dem Family-Ranking und nutzt `family_embeddings_retrieval_service` als Boosting-Helper über bereits geholte Skill-Rows statt als reinen Family-Retriever. Funktional nah, Ordnung invertiert.
 - **D6 — `state.currentstep`/Step-Messaging.** LOOP_STEP beschreibt `state.currentstep = step+1`; im Code nie gesetzt (§5.F). Klären, ob die Invariante noch gewollt ist (sonst Flowchart-Note entfernen).
 

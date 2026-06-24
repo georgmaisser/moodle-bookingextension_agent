@@ -18,8 +18,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\tests\agent\contracts;
 
-use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use bookingextension_agent\local\wbagent\services\telemetry\routing_decision_log_service;
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service;
 use advanced_testcase;
 
 /**
@@ -38,7 +38,7 @@ final class routing_decision_log_service_test extends advanced_testcase {
     /**
      * Verifies that embedding comparison snapshots expose live-vs-shadow deltas.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\telemetry\routing_decision_log_service::build_embeddings_comparison
+     * @covers \bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service::build_embeddings_comparison
      */
     public function test_build_embeddings_comparison_reports_deltas(): void {
         $comparison = routing_decision_log_service::build_embeddings_comparison([

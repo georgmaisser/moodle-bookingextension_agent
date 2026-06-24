@@ -14,21 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\interfaces\skill_interface;
-use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
-use bookingextension_agent\local\wbagent\services\language_policy_service;
-use bookingextension_agent\local\wbagent\services\skill_prompt_contract;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\interfaces\skill_interface;
+use bookingextension_agent\local\wizard\interfaces\skill_provider_interface;
+use bookingextension_agent\local\wizard\services\language_policy_service;
+use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for explicit prompt contracts and language policy.
  *
- * @covers \bookingextension_agent\local\wbagent\skill_registry
- * @covers \bookingextension_agent\local\wbagent\services\language_policy_service
+ * @covers \bookingextension_agent\local\wizard\skill_registry
+ * @covers \bookingextension_agent\local\wizard\services\language_policy_service
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

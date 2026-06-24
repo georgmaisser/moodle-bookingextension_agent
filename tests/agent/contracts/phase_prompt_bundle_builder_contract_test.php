@@ -19,14 +19,14 @@ declare(strict_types=1);
 namespace bookingextension_agent\tests\agent\contracts;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
-use bookingextension_agent\local\wbagent\services\phase_prompt_bundle_builder;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service;
+use bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder;
+use bookingextension_agent\local\wizard\skill_registry;
 
 /**
  * Contracts for phase-local output prompt constraints.
  *
- * @covers \bookingextension_agent\local\wbagent\services\phase_prompt_bundle_builder
+ * @covers \bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -82,5 +82,5 @@
   → [12](../architecture/12-synchronizer.md)
 - **Trigger** — a server-derived signal about what a turn is (e.g. lookup); never routes to a
   skill. → [16](../architecture/16-support-services.md)
-- **wbagent** — the engine's internal name (Wunderbyte agent); the `local/wbagent` namespace.
+- **wizard** — the engine's internal name (Wunderbyte agent); the `local/wizard` namespace.
   → [overview](../architecture/README.md)

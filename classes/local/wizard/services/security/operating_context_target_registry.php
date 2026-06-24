@@ -1,0 +1,136 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+declare(strict_types=1);
+
+namespace bookingextension_agent\local\wizard\services\security;
+
+use bookingextension_agent\local\wizard\dto\context_target_resolution;
+use bookingextension_agent\local\wizard\dto\target_selector;
+use bookingextension_agent\local\wizard\interfaces\operating_context_target_provider_interface;
+use context_course;
+use core_course_category;
+
+/**
+ * Resolves a {@see target_selector} to a concrete operating context.
+ *
+ * Generic by design: the target's context LEVEL decides the strategy.
+ *  - CONTEXT_COURSE is resolved here, in the engine core, using only Moodle core course APIs
+ *    (courses are a core concept, so this introduces no domain dependency).
+ *  - Any other level is delegated to a domain provider implementing
+ *    {@see operating_context_target_provider_interface}, discovered duck-typed so the engine
+ *    keeps no compile-time link to a concrete domain.
+ *
+ * Resolving a context is NOT a permission grant — Gate 2 (require_capability at the resolved
+ * operating context) is enforced separately by the caller.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class operating_context_target_registry {
+    /** @var array<int,operating_context_target_provider_interface> Providers for non-core levels. */
+    private array $providers;
+
+    /**
+     * Constructor.
+     *
+     * @param array<int,operating_context_target_provider_interface> $providers Optional explicit
+     *        providers (mainly for tests). When omitted, no non-core providers are active yet —
+     *        provider discovery is wired in a later phase.
+     */
+    public function __construct(array $providers = []) {
+        $this->providers = $providers;
+    }
+
+    /**
+     * Resolve a target selector to a concrete operating context.
+     *
+     * @param target_selector $target
+     * @param int             $userid Acting user id (for visibility-aware resolution).
+     * @return context_target_resolution
+     */
+    public function resolve(target_selector $target, int $userid = 0): context_target_resolution {
+        if ($target->is_empty()) {
+            return context_target_resolution::not_found();
+        }
+
+        if ($target->level() === CONTEXT_COURSE) {
+            return $this->resolve_course($target);
+        }
+
+        foreach ($this->providers as $provider) {
+            if ($provider->supports_level($target->level())) {
+                return $provider->resolve_target($target, $userid);
+            }
+        }
+
+        return context_target_resolution::unsupported();
+    }
+
+    /**
+     * Resolve a course-level target using core course APIs only.
+     *
+     * @param target_selector $target
+     * @return context_target_resolution
+     */
+    private function resolve_course(target_selector $target): context_target_resolution {
+        // An explicit, valid course id wins.
+        $id = $target->id();
+        if ($id !== null) {
+            $context = context_course::instance($id, IGNORE_MISSING);
+            return $context ? context_target_resolution::resolved($context) : context_target_resolution::not_found();
+        }
+
+        $query = (string)$target->query();
+
+        // A purely numeric query is treated as a course id.
+        if (preg_match('/^\d+$/', $query)) {
+            $context = context_course::instance((int)$query, IGNORE_MISSING);
+            return $context ? context_target_resolution::resolved($context) : context_target_resolution::not_found();
+        }
+
+        // Free-text: match against the visible course list (respects the acting user's visibility).
+        $courses = core_course_category::search_courses(
+            ['search' => $query],
+            ['limit' => 25, 'sort' => ['fullname' => 1]]
+        );
+
+        $candidates = [];
+        foreach ($courses as $course) {
+            $courseid = (int)($course->id ?? 0);
+            if ($courseid <= 1) {
+                // Skip invalid ids and the site course (id 1).
+                continue;
+            }
+            $candidates[] = [
+                'id' => $courseid,
+                'name' => (string)($course->fullname ?? $course->shortname ?? ('#' . $courseid)),
+            ];
+        }
+
+        if (empty($candidates)) {
+            return context_target_resolution::not_found();
+        }
+
+        if (count($candidates) === 1) {
+            $context = context_course::instance($candidates[0]['id'], IGNORE_MISSING);
+            return $context ? context_target_resolution::resolved($context) : context_target_resolution::not_found();
+        }
+
+        return context_target_resolution::ambiguous($candidates);
+    }
+}

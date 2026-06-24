@@ -155,7 +155,7 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   `booking_issue_code_provider`, mirroring `agent_decision_service`) and sources confirmable
   codes from `get_prevalidation_confirmable_issue_codes()`, keeping only the engine-generic
   `DOMAIN_CONFLICT`. Removed a domain leak (one of the "5 leaks", see
-  `project_wbagent_local_plugin_extraction`). Behaviour-neutral; covered by
+  `project_wizard_local_plugin_extraction`). Behaviour-neutral; covered by
   `preflight_layers_contract_test`. The `PF_L2D` node was updated accordingly.
   **⚠ Needs verification in an environment with PHP:** run `preflight_layers_contract_test`
   + the `duplicate_prevention` benchmark before merging.
@@ -188,7 +188,7 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
   `preflight_execution_gate::verify_guard_token`), `PRV2` (guard_token not on the DTO).
   The remaining ✏ items stay in the log pending review; the ❓ items remain open questions.
 - ✅ **Docs corpus self-registration.** Added
-  `bookingextension_agent\local\wbagent\docs_provider` (corpus id `bookingextension_agent`)
+  `bookingextension_agent\local\wizard\docs_provider` (corpus id `bookingextension_agent`)
   so `core.explain_docs` serves this corpus directly — matching the README claim, no admin
   `aidocsroot` needed.
 

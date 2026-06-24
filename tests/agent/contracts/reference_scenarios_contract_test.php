@@ -14,17 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\preflight_schema_validator;
-use bookingextension_agent\local\wbagent\services\spawn_contract_service;
+use bookingextension_agent\local\wizard\services\preflight_schema_validator;
+use bookingextension_agent\local\wizard\services\spawn_contract_service;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract-level reference scenarios for the example target flows.
  *
- * @covers \bookingextension_agent\local\wbagent\services\spawn_contract_service
- * @covers \bookingextension_agent\local\wbagent\services\preflight_schema_validator
+ * @covers \bookingextension_agent\local\wizard\services\spawn_contract_service
+ * @covers \bookingextension_agent\local\wizard\services\preflight_schema_validator
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

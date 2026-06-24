@@ -377,7 +377,7 @@ Um fünf Einzelbaustellen zu vermeiden, vorab drei kleine geteilte Komponenten:
    aus `diagnose_booking_issue` extrahieren (targetuserid > userquery > self,
    Gate-Capability als Parameter), statt sie ein viertes Mal zu kopieren. (S–M;
    Achtung Engine-Grenze: gehört in die Skill-Schicht/Support, NICHT in
-   Engine-Services — local_wbagent-Extraktion!)
+   Engine-Services — local_wizard-Extraktion!)
 
 ---
 

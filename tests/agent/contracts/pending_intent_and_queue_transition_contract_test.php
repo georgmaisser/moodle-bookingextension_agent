@@ -14,21 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\services\pending_intent_service;
-use bookingextension_agent\local\wbagent\services\queue_transition_service;
-use bookingextension_agent\local\wbagent\services\queue_status_policy;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\services\pending_intent_service;
+use bookingextension_agent\local\wizard\services\queue_transition_service;
+use bookingextension_agent\local\wizard\services\queue_status_policy;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for pending intent and queue transition services.
  *
- * @covers \bookingextension_agent\local\wbagent\services\pending_intent_service
- * @covers \bookingextension_agent\local\wbagent\services\queue_transition_service
+ * @covers \bookingextension_agent\local\wizard\services\pending_intent_service
+ * @covers \bookingextension_agent\local\wizard\services\queue_transition_service
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

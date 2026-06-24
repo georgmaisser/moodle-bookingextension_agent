@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 use context_module;
 use mod_booking\local\testing\booking_advanced_testcase;
 use mod_booking\singleton_service;
@@ -24,13 +24,13 @@ use mod_booking\singleton_service;
 /**
  * Contracts for canonical mod_booking option skill discovery and behavior.
  *
- * @covers \mod_booking\local\wbagent\options\skills\create_option_skill
- * @covers \mod_booking\local\wbagent\options\skills\create_selflearning_option_skill
- * @covers \mod_booking\local\wbagent\options\skills\create_slotbooking_option_skill
- * @covers \mod_booking\local\wbagent\options\skills\update_option_skill
- * @covers \mod_booking\local\wbagent\options\skills\update_option_trainer_skill
- * @covers \bookingextension_agent\local\wbagent\skill_registry
- * @covers \bookingextension_agent\local\wbagent\skill_registry_factory
+ * @covers \mod_booking\local\wizard\options\skills\create_option_skill
+ * @covers \mod_booking\local\wizard\options\skills\create_selflearning_option_skill
+ * @covers \mod_booking\local\wizard\options\skills\create_slotbooking_option_skill
+ * @covers \mod_booking\local\wizard\options\skills\update_option_skill
+ * @covers \mod_booking\local\wizard\options\skills\update_option_trainer_skill
+ * @covers \bookingextension_agent\local\wizard\skill_registry
+ * @covers \bookingextension_agent\local\wizard\skill_registry_factory
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -305,12 +305,12 @@ final class mod_booking_option_skills_contract_test extends booking_advanced_tes
             ],
         ];
 
-        $warnings = \mod_booking\local\wbagent\options\skills\option_input_verification::verify_common_fields($input, $settings);
+        $warnings = \mod_booking\local\wizard\options\skills\option_input_verification::verify_common_fields($input, $settings);
         $joined = implode(' ', $warnings);
         $this->assertStringContainsString('Postcondition failed', $joined);
         $this->assertStringContainsString('trainer id 1006', $joined);
 
-        $structured = \mod_booking\local\wbagent\options\skills\option_input_verification::verify_common_fields_structured(
+        $structured = \mod_booking\local\wizard\options\skills\option_input_verification::verify_common_fields_structured(
             $input,
             $settings
         );

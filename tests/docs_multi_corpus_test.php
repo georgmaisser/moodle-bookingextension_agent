@@ -19,9 +19,9 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use context_module;
 use bookingextension_agent\external\ai_get_doc_content;
-use bookingextension_agent\local\wbagent\doc_markdown_preview_renderer;
-use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
-use bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service;
+use bookingextension_agent\local\wizard\doc_markdown_preview_renderer;
+use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
+use bookingextension_agent\local\wizard\services\lookup\docs_lookup_service;
 
 /**
  * End-to-end resolution of documentation across multiple corpora.
@@ -32,8 +32,8 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry
- * @covers \bookingextension_agent\local\wbagent\services\lookup\docs_lookup_service
+ * @covers \bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry
+ * @covers \bookingextension_agent\local\wizard\services\lookup\docs_lookup_service
  * @covers \bookingextension_agent\external\ai_get_doc_content
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later

@@ -32,8 +32,8 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\services\trial\trial_provisioner;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\trial\trial_provisioner;
 
 /**
  * Store a customer-supplied (purchased) LiteLLM key on the aiprovider_wunderbyte instance.

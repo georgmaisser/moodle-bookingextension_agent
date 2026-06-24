@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\synchronizer_output_contract;
-use bookingextension_agent\local\wbagent\services\finalization_classifier;
+use bookingextension_agent\local\wizard\services\synchronizer_output_contract;
+use bookingextension_agent\local\wizard\services\finalization_classifier;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -28,8 +28,8 @@ use PHPUnit\Framework\TestCase;
  * - Sync fact conflicts produce deterministic issue_codes (SYNC_FACT_CONFLICT_REJECTED).
  * - All SYNC_* issue_codes route to template_only (never llm_polish → no retry loop).
  *
- * @covers \bookingextension_agent\local\wbagent\services\synchronizer_output_contract
- * @covers \bookingextension_agent\local\wbagent\services\finalization_classifier
+ * @covers \bookingextension_agent\local\wizard\services\synchronizer_output_contract
+ * @covers \bookingextension_agent\local\wizard\services\finalization_classifier
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

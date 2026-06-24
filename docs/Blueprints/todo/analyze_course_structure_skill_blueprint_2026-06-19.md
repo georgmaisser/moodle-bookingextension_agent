@@ -24,7 +24,7 @@ Konkret heißt das (Begründung in §4): Der Agent handelt **immer als der reale
 
 ## 2. Einordnung in die Skill-Architektur (verifiziert 2026-06-19)
 
-- **Ort / Auto-Discovery:** Neue Datei `bookingextension/agent/classes/local/wbagent/course/skills/analyze_course_structure_skill.php`. `skill_discovery::get_skill_instances()` scannt `<plugin>/classes/local/wbagent/*/skills/*.php` und instanziiert jede nicht-abstrakte Klasse mit **parameterlosem Konstruktor** (`skill_discovery.php:44-77`). Keine manuelle Registry-Pflege.
+- **Ort / Auto-Discovery:** Neue Datei `bookingextension/agent/classes/local/wizard/course/skills/analyze_course_structure_skill.php`. `skill_discovery::get_skill_instances()` scannt `<plugin>/classes/local/wizard/*/skills/*.php` und instanziiert jede nicht-abstrakte Klasse mit **parameterlosem Konstruktor** (`skill_discovery.php:44-77`). Keine manuelle Registry-Pflege.
 - **Basisklasse:** `extends core_skill_base` (`core/skills/core_skill_base.php`) → erbt `resolve_courseid()`, `can_access_user()`, Observation-Formatter etc.
 - **R0-Deklaration:** `parent::__construct(true, skill_risk_class::R0)` (`dto/skill_risk_class.php:30`). Der Contract-Validator erzwingt die Kopplung R0 ⇔ `is_read_only()===true` (`skill_contract_validator.php:186-192`).
 - **Kein Preflight nötig:** Für R0 überspringt die Engine den Preflight; `core_skill_base::preflight()` ist ein reiner Pass-Through (`core_skill_base.php:281-295`). **Alle Guards leben in `execute()`** — wie bei `diagnose_access_skill`.

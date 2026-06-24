@@ -25,7 +25,7 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Provides one reusable skill scenario matrix for real and simulated LLM suites.
@@ -108,7 +108,7 @@ final class llm_skill_matrix_scenario_provider {
      */
     private static function get_scenario_definitions(): array {
         return [
-            'wbagent.scaffold_skill' => [
+            'wizard.scaffold_skill' => [
                 'prompt' => 'Ich möchte einen eigenen Skill für mein Plugin mod/myplugin bauen, der einen '
                     . 'Eintrag archiviert. Gib mir bitte eine Vorlage zum Herunterladen.',
                 'assertions' => [
@@ -136,7 +136,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.list_skills' => [
+            'wizard.list_skills' => [
                 'prompt' => 'Welche Aktionen stehen mir hier im Buchungskontext zur Verfuegung? Bitte nenne sie mir geordnet.',
                 'assertions' => [
                     [
@@ -152,7 +152,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.search_skills' => [
+            'wizard.search_skills' => [
                 'prompt' => 'Ich brauche eine bestimmte Aktion, die du wahrscheinlich nicht standardmäßig geladen hast. ' .
                     'Suche in deinem Skill-Katalog nach einem Tool zum Herunterladen von Zertifikaten (download certificate).',
                 'assertions' => [
@@ -169,7 +169,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.recall_memory' => [
+            'wizard.recall_memory' => [
                 'prompt' => 'What did we talk about last time about "{{memory_token}}"?',
                 'setup' => 'prepare_recall_memory_scenario',
                 'assertions' => [
@@ -192,8 +192,8 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.remember' => [
-                'prompt' => 'Nutze deine Merk-Funktion (wbagent.remember) und speichere dauerhaft als Notiz '
+            'wizard.remember' => [
+                'prompt' => 'Nutze deine Merk-Funktion (wizard.remember) und speichere dauerhaft als Notiz '
                     . 'ueber mich, gueltig fuer alle Aufgaben und Situationen (keine Rueckfrage noetig): '
                     . 'Ich moechte, dass du Buchungsoptionen immer mit Datum und Uhrzeit zusammenfasst.',
                 'assertions' => [
@@ -210,7 +210,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.list_memories' => [
+            'wizard.list_memories' => [
                 'setup' => 'prepare_user_memory_scenario',
                 'prompt' => 'Welche Notizen hast du dir bisher ueber mich gemerkt? Bitte liste alle auf.',
                 'assertions' => [
@@ -233,7 +233,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.forget' => [
+            'wizard.forget' => [
                 'setup' => 'prepare_user_memory_scenario',
                 'prompt' => 'Vergiss bitte dauerhaft meine gespeicherte Notiz ueber "{{memory_token}}".',
                 'assertions' => [
@@ -273,8 +273,8 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.recreate_skill_catalog' => [
-                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wbagent.recreate_skill_catalog aus ' .
+            'wizard.recreate_skill_catalog' => [
+                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wizard.recreate_skill_catalog aus ' .
                     'und plane den Neuaufbau des Skill-Katalogs.',
                 'assertions' => [
                     [
@@ -738,7 +738,7 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'wbagent.explain_docs' => [
+            'wizard.explain_docs' => [
                 'prompt' => 'Explain how to create a booking option using the plugin documentation.',
                 'skip_reason' => 'Temporarily skipped: docs embeddings index may not be built in CI.',
                 'assertions' => [

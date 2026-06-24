@@ -9,7 +9,7 @@ rückwärtskompatible Optional-Parameter zu stapeln.
 
 > Grundlage: [`agent_cmid_context_decoupling_und_kontextwechsel_pruefung_2026-06-09.md`](agent_cmid_context_decoupling_und_kontextwechsel_pruefung_2026-06-09.md)
 > (Ist-Analyse + vollständige Datei/Methoden-Inventur). Plugin-Auskopplung: separat in
-> [`wbagent_local_plugin_extraction_plan_2026-06-08.md`](wbagent_local_plugin_extraction_plan_2026-06-08.md).
+> [`wizard_local_plugin_extraction_plan_2026-06-08.md`](wizard_local_plugin_extraction_plan_2026-06-08.md).
 
 ---
 
@@ -49,7 +49,7 @@ rückwärtskompatible Optional-Parameter zu stapeln.
 ## 3. Zielarchitektur
 
 ### 3.1 `agent_context` — das zentrale Value-Object (NEU)
-Datei: `classes/local/wbagent/dto/agent_context.php`
+Datei: `classes/local/wizard/dto/agent_context.php`
 
 ```
 final class agent_context {
@@ -81,7 +81,7 @@ Methodenebenen gereicht. `agent_context` löst **einmal** auf, cached lazy, und 
 *optionalen Detail* statt zur tragenden Achse.
 
 ### 3.2 Generalisierte Autorisierung
-`classes/local/wbagent/services/security/authorization_service.php` +
+`classes/local/wizard/services/security/authorization_service.php` +
 `interfaces/agent_authorization_service.php`:
 - `require_valid_context(int $contextid, array $allowedlevels = [CONTEXT_MODULE, CONTEXT_COURSE, CONTEXT_SYSTEM]): agent_context`
   (gibt direkt das Value-Object zurück → Entry-Points bekommen den Kontext fertig validiert).
@@ -92,7 +92,7 @@ Methodenebenen gereicht. `agent_context` löst **einmal** auf, cached lazy, und 
 - `require_booking_module_context()` **entfällt**.
 
 ### 3.3 Kontextwechsel (Operating-Kontext)
-- **NEU** `classes/local/wbagent/services/security/context_resolver.php`
+- **NEU** `classes/local/wizard/services/security/context_resolver.php`
   - `resolve(agent_context $ambient, int $requiredlevel): agent_context` — läuft die echte
     Context-Hierarchie des Ambient-Kontexts hinauf (Modul → Kurs → Kategorie → System) bis zum
     geforderten Level; liefert ein `agent_context` mit dem Operating-`\context`.
@@ -102,7 +102,7 @@ Methodenebenen gereicht. `agent_context` löst **einmal** auf, cached lazy, und 
   `authorization_service::require_capability_at()` → Skill-`execute()` mit dem **Operating**-Kontext.
 
 ### 3.4 Persistenz ohne `bookingid`
-- `db/install.xml`: Feld `bookingid` aus `local_wbagent_ai_threads` **entfernen** (Z. 12).
+- `db/install.xml`: Feld `bookingid` aus `local_wizard_ai_threads` **entfernen** (Z. 12).
 - `conversation_store::get_or_create_thread(int $userid, int $contextid)` /
   `create_fresh_thread(int $userid, int $contextid)` — `bookingid`-Parameter entfernen; keine
   `$record->bookingid`-Zuweisung mehr.
@@ -194,10 +194,10 @@ Einheitliches Muster: `$ctx = $authz->require_valid_context($contextid);` (liefe
 | `ai_confirm_run.php`, `ai_discard_pending.php`, `ai_get_thread_debug_logs.php` | nur generisches Gate; `require_sesskey()` bei Debug-Logs ergänzen. |
 | `ai_get_doc_content.php` | nur generisches Gate; + `require_sesskey()`. |
 | `ai_upload_attachment.php` | nur generisches Gate; + `require_sesskey()` (Write!). |
-| `db/services.php` | Capability-Einträge ggf. (bei Plugin-Migration) auf `local/wbagent:*`. |
+| `db/services.php` | Capability-Einträge ggf. (bei Plugin-Migration) auf `local/wizard:*`. |
 
 ### 4.5 Persistenz / Schema
-- `db/install.xml`: `local_wbagent_ai_threads.bookingid` (Z. 12) **entfernen**. (Kein upgrade.php nötig.)
+- `db/install.xml`: `local_wizard_ai_threads.bookingid` (Z. 12) **entfernen**. (Kein upgrade.php nötig.)
 - `conversation_store.php`: `get_or_create_thread()` (Z. 84-109), `create_fresh_thread()` (Z. 119-148):
   `bookingid`-Parameter + Zuweisungen (Z. 101, 140) entfernen.
 
@@ -270,7 +270,7 @@ Einheitliches Muster: `$ctx = $authz->require_valid_context($contextid);` (liefe
 
 **Thread-Scoping:** Der **Ambient-Thread bleibt** (Konversation zusammenhängend). Der Operating-Kontext
 ist nur Ausführungs-/Autorisierungs-Scope der Operation; im Run-/Debug-Log wird der Operating-`contextid`
-mitgeschrieben (`local_wbagent_ai_runs.contextid` kann das aufnehmen — prüfen, ob separates Feld nötig).
+mitgeschrieben (`local_wizard_ai_runs.contextid` kann das aufnehmen — prüfen, ob separates Feld nötig).
 
 **Skill-Vertrag/Discovery:** `get_required_context_level()` fließt optional in die Selection-Metadaten
 (damit der Planner weiß, dass ein Skill „nach oben" wirkt). Discovery/Embeddings-Pipeline bleibt sonst
@@ -362,5 +362,5 @@ Risk-Class ↔ Zwei-Gate-Autorisierung), **README.md** (Topic-Note).
 ai_confirm_run,ai_discard_pending,ai_get_thread_debug_logs,ai_get_doc_content,ai_upload_attachment}.php`;
 `db/services.php`.
 **Verwandte Docs:** Ist-Analyse (oben verlinkt), Extraction-Plan, `neue_skills_und_pdf_fragegenerierung_analyse_2026-06-09.md`.
-**Memory:** project-wbagent-local-plugin-extraction, project-agent-skill-discovery-visibility,
+**Memory:** project-wizard-local-plugin-extraction, project-agent-skill-discovery-visibility,
 project-agent-guidance-injection, feedback-flowchart-policy.

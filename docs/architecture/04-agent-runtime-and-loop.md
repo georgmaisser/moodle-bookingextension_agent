@@ -10,7 +10,7 @@ It does not plan (that's the [orchestrator](05-planner-orchestrator.md)), route 
 [synchronizer](12-synchronizer.md)). It decides **how many times** to run a step, **when to
 stop**, and **how to persist** the final answer.
 
-**Files:** `classes/local/wbagent/agent_runtime.php`, `agent_state.php`,
+**Files:** `classes/local/wizard/agent_runtime.php`, `agent_state.php`,
 `services/attempt_budget_dto.php`, `result_payload_summarizer.php`.
 
 ---

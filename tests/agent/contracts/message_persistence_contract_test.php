@@ -16,16 +16,16 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\services\messaging\message_persistence_service;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\services\messaging\message_persistence_service;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for assistant message persistence semantics.
  *
- * @covers \bookingextension_agent\local\wbagent\services\messaging\message_persistence_service
+ * @covers \bookingextension_agent\local\wizard\services\messaging\message_persistence_service
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

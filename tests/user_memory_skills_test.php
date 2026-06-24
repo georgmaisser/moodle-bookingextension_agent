@@ -17,26 +17,26 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\wbagent\skills\forget_skill;
-use bookingextension_agent\local\wbagent\wbagent\skills\recall_memory_skill;
-use bookingextension_agent\local\wbagent\wbagent\skills\list_memories_skill;
-use bookingextension_agent\local\wbagent\wbagent\skills\remember_skill;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\services\user_memory_service;
-use bookingextension_agent\local\wbagent\skill_contract_validator;
-use bookingextension_agent\local\wbagent\skill_discovery;
-use bookingextension_agent\local\wbagent\skill_executability_evaluator;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\wizard\skills\forget_skill;
+use bookingextension_agent\local\wizard\wizard\skills\recall_memory_skill;
+use bookingextension_agent\local\wizard\wizard\skills\list_memories_skill;
+use bookingextension_agent\local\wizard\wizard\skills\remember_skill;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\user_memory_service;
+use bookingextension_agent\local\wizard\skill_contract_validator;
+use bookingextension_agent\local\wizard\skill_discovery;
+use bookingextension_agent\local\wizard\skill_executability_evaluator;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Contract + behaviour tests for the user-memory skills.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\wbagent\skills\remember_skill
- * @covers     \bookingextension_agent\local\wbagent\wbagent\skills\forget_skill
- * @covers     \bookingextension_agent\local\wbagent\wbagent\skills\list_memories_skill
+ * @covers     \bookingextension_agent\local\wizard\wizard\skills\remember_skill
+ * @covers     \bookingextension_agent\local\wizard\wizard\skills\forget_skill
+ * @covers     \bookingextension_agent\local\wizard\wizard\skills\list_memories_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -46,16 +46,16 @@ final class user_memory_skills_test extends advanced_testcase {
      */
     public function test_skills_are_discovered(): void {
         $names = array_keys(skill_discovery::get_skill_instances('bookingextension_agent'));
-        $this->assertContains('wbagent.remember', $names);
-        $this->assertContains('wbagent.forget', $names);
-        $this->assertContains('wbagent.list_memories', $names);
+        $this->assertContains('wizard.remember', $names);
+        $this->assertContains('wizard.forget', $names);
+        $this->assertContains('wizard.list_memories', $names);
     }
 
     /**
      * recall_memory surfaces a readable, timezone-adjusted timestamp per message in its observation,
      * so temporal recalls keep the "when", not just the "what".
      *
-     * @covers \bookingextension_agent\local\wbagent\wbagent\skills\recall_memory_skill
+     * @covers \bookingextension_agent\local\wizard\wizard\skills\recall_memory_skill
      */
     public function test_recall_memory_observation_includes_readable_timestamps(): void {
         global $DB;
@@ -69,7 +69,7 @@ final class user_memory_skills_test extends advanced_testcase {
         $thread = $store->get_or_create_thread((int)$user->id, $contextid);
 
         $ts = make_timestamp(2026, 6, 1, 10, 0);
-        $DB->insert_record('local_wbagent_ai_messages', (object)[
+        $DB->insert_record('local_wizard_ai_messages', (object)[
             'threadid' => (int)$thread->id,
             'userid' => (int)$user->id,
             'role' => 'user',
@@ -77,7 +77,7 @@ final class user_memory_skills_test extends advanced_testcase {
             'structuredjson' => null,
             'timecreated' => $ts,
         ]);
-        $DB->insert_record('local_wbagent_ai_messages', (object)[
+        $DB->insert_record('local_wizard_ai_messages', (object)[
             'threadid' => (int)$thread->id,
             'userid' => (int)$user->id,
             'role' => 'assistant',
@@ -86,7 +86,7 @@ final class user_memory_skills_test extends advanced_testcase {
             'timecreated' => $ts + 60,
         ]);
         // The recall_memory skill returns a PREVIOUS conversation, not the current active one; mark it archived.
-        $DB->set_field('local_wbagent_ai_threads', 'status', 'archived', ['id' => (int)$thread->id]);
+        $DB->set_field('local_wizard_ai_threads', 'status', 'archived', ['id' => (int)$thread->id]);
 
         $result = (new recall_memory_skill())->execute(['mode' => 'last_thread'], $contextid, (int)$user->id);
 
@@ -113,7 +113,7 @@ final class user_memory_skills_test extends advanced_testcase {
         $registry = skill_registry_factory::get_default();
         $evaluator = new skill_executability_evaluator($registry, new authorization_service());
 
-        foreach (['wbagent.remember', 'wbagent.forget', 'wbagent.list_memories'] as $name) {
+        foreach (['wizard.remember', 'wizard.forget', 'wizard.list_memories'] as $name) {
             $capability = skill_contract_validator::build_skill_capability_name('bookingextension/agent', $name);
             $this->assertNotEmpty(
                 get_capability_info($capability),
@@ -136,23 +136,23 @@ final class user_memory_skills_test extends advanced_testcase {
      */
     public function test_risk_class_contract(): void {
         $remember = new remember_skill();
-        $this->assertSame('wbagent.remember', $remember->get_name());
+        $this->assertSame('wizard.remember', $remember->get_name());
         $this->assertTrue($remember->is_read_only());
         $this->assertSame(skill_risk_class::R0, $remember->get_risk_class());
 
         $forget = new forget_skill();
-        $this->assertSame('wbagent.forget', $forget->get_name());
+        $this->assertSame('wizard.forget', $forget->get_name());
         $this->assertFalse($forget->is_read_only());
         $this->assertSame(skill_risk_class::R2, $forget->get_risk_class());
 
         $list = new list_memories_skill();
-        $this->assertSame('wbagent.list_memories', $list->get_name());
+        $this->assertSame('wizard.list_memories', $list->get_name());
         $this->assertTrue($list->is_read_only());
         $this->assertSame(skill_risk_class::R0, $list->get_risk_class());
     }
 
     /**
-     * remember and list_memories explicitly name wbagent.recall_memory to keep the
+     * remember and list_memories explicitly name wizard.recall_memory to keep the
      * selector from confusing stored facts with past-conversation recall.
      */
     public function test_descriptions_disambiguate_from_recall_memory(): void {

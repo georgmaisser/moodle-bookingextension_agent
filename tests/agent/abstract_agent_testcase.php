@@ -30,16 +30,16 @@ use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use bookingextension_agent\external\ai_confirm_run;
-use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\executor;
-use bookingextension_agent\local\wbagent\interpreter;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\agent_runtime;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\executor;
+use bookingextension_agent\local\wizard\interpreter;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\services\preflight_execution_gate;
+use bookingextension_agent\local\wizard\skill_registry;
 use mod_booking\singleton_service;
 use stdClass;
 
@@ -482,14 +482,14 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
         // Skill-catalog embeddings are stored per variant (model + dimensions). Pick the fixture for
         // the currently active embeddings variant — which follows the BOOKING_TEST_AI_EMBEDDING_MODEL
         // env (via the registered provider) — so a model change reads its own fixture file.
-        $variant = (new \bookingextension_agent\local\wbagent\embeddings_action_config_resolver())->variant_key();
+        $variant = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->variant_key();
         $filename = 'skill_catalog_embeddings__' . $variant . '.csv';
         $fixturepath = __DIR__ . '/fixtures/' . $filename;
         if (!file_exists($fixturepath)) {
             return; // No fixture for the active embeddings variant.
         }
 
-        $runtimedir = make_temp_directory('bookingextension_agent/wbagent');
+        $runtimedir = make_temp_directory('bookingextension_agent/wizard');
         $runtimepath = $runtimedir . '/' . $filename;
 
         if (!copy($fixturepath, $runtimepath)) {
@@ -893,8 +893,8 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     protected function assert_generate_text_logged_for_thread(int $threadid): void {
         global $DB;
 
-        $entries = $DB->get_records('local_wbagent_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
-        $this->assertNotEmpty($entries, 'local_wbagent_ai_llm_debug must contain entries for thread ' . $threadid . '.');
+        $entries = $DB->get_records('local_wizard_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
+        $this->assertNotEmpty($entries, 'local_wizard_ai_llm_debug must contain entries for thread ' . $threadid . '.');
 
         $hasgenerate = false;
         foreach ($entries as $entry) {
@@ -907,7 +907,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         $this->assertTrue(
             $hasgenerate,
-            'Expected at least one generate_text LLM debug entry (source contains ac=gen or ac=wpl) in local_wbagent_ai_llm_debug.'
+            'Expected at least one generate_text LLM debug entry (source contains ac=gen or ac=wpl) in local_wizard_ai_llm_debug.'
         );
     }
 

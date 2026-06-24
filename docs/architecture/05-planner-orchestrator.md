@@ -10,7 +10,7 @@ The orchestrator is where the engine talks to the model — but never in one sho
 constructor call. The split exists so the model never conflates *which skill* with *what
 arguments*, and so each decision is independently validated.
 
-**Files:** `classes/local/wbagent/orchestrator.php`, `interpreter.php`,
+**Files:** `classes/local/wizard/orchestrator.php`, `interpreter.php`,
 `services/phase_prompt_bundle_builder.php`, `services/orchestrator_routing_service.php`,
 `services/orchestrator_prompt_profile_service.php`, `services/planner_result_composer.php`,
 `services/llm/llm_call_service.php`, `prompts/*`.

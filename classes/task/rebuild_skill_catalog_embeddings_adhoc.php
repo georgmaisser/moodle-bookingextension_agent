@@ -26,10 +26,10 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\task;
 
-use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
-use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
-use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_index_service;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
+use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service;
+use bookingextension_agent\local\wizard\services\embeddings\family_embeddings_index_service;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Rebuilds embeddings for the full skill catalog.

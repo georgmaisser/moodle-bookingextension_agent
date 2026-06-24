@@ -1,6 +1,6 @@
 # Doku-Corpus & Inkrementelle Embeddings — Refactoring-Konzept (2026-06-23)
 
-**Plugin:** `bookingextension_agent` (alle Pfade unten relativ zu dessen Wurzel; `classes/local/wbagent/...` ist der **interne** Namespace dieses Plugins, kein eigenes Plugin).
+**Plugin:** `bookingextension_agent` (alle Pfade unten relativ zu dessen Wurzel; `classes/local/wizard/...` ist der **interne** Namespace dieses Plugins, kein eigenes Plugin).
 **Autoritative Quelle:** `flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd` (Knoten EMB_CATALOG / EMB_READY / EMB_REBUILD beschreiben den Schwester-Stack „Skill-Katalog-Embeddings").
 **Status:** KONZEPT — noch nichts umgesetzt.
 
@@ -30,7 +30,7 @@ Dieses Refactoring betrifft **nicht nur die Docs**, sondern gleichermaßen den *
 ## 2. Status quo (verifiziert)
 
 ### Was bereits funktioniert
-- **Component-agnostische Discovery** via `\{component}\local\wbagent\docs_provider::get_doc_corpora(): array<corpus_id,root>`. Heute zwei Provider: Agent (`classes/local/wbagent/docs_provider.php` → corpus `bookingextension_agent`, Root `…/docs`) und mod_booking (`mod/booking/classes/local/wbagent/docs_provider.php` → corpus `mod_booking`, Root `mod/booking/docs`).
+- **Component-agnostische Discovery** via `\{component}\local\wizard\docs_provider::get_doc_corpora(): array<corpus_id,root>`. Heute zwei Provider: Agent (`classes/local/wizard/docs_provider.php` → corpus `bookingextension_agent`, Root `…/docs`) und mod_booking (`mod/booking/classes/local/wizard/docs_provider.php` → corpus `mod_booking`, Root `mod/booking/docs`).
 - **Registry** `services/lookup/docs_corpus_registry.php` als „single source of truth" corpus_id → absoluter Root; alle Pfade (Index, Lookup, Preview, `ai_get_doc_content`) lösen ausschließlich hierüber auf, jeder File-Read ist auf den Root confined.
 - **Per-Datei-Inkrementalität**: `docs_embeddings_index_service::rebuild` (`:120–133`) berechnet `content_hash = sha1(content|model|dims)`; unveränderte Datei mit vorhandenem Embedding wird **reused** statt neu embedded → günstige Retries.
 
@@ -96,7 +96,7 @@ intern  = /srv/handbuch/docs        # expliziter corpus_id + absoluter Pfad
   - [ ] `discover()` + Provider-Konstanten raus
   - [ ] `resolve_all()` → Parser-`resolvable`; neue `declared_corpus_ids()`
   - [ ] bestehende Registry-Tests anpassen
-- **A4 `docs_provider`-Klassen löschen.** `classes/local/wbagent/docs_provider.php` **und** `mod/booking/classes/local/wbagent/docs_provider.php` entfernen (Defaults laufen jetzt über den geseedeten Textarea-Default). grep: keine `get_doc_corpora`-Referenz mehr.
+- **A4 `docs_provider`-Klassen löschen.** `classes/local/wizard/docs_provider.php` **und** `mod/booking/classes/local/wizard/docs_provider.php` entfernen (Defaults laufen jetzt über den geseedeten Textarea-Default). grep: keine `get_doc_corpora`-Referenz mehr.
   - [ ] beide `docs_provider.php` löschen
   - [ ] grep-Verifikation (0 Referenzen)
 - **A5 Settings-Change-Trigger (proaktiver Fast-Path, optional aber empfohlen).** `aidocsroot`-Setting bekommt `set_updatedcallback`, der einen `rebuild_docs_embeddings_adhoc` schedult (Debounce teilen mit B3). Das ist nur der *schnelle* Pfad, damit ein frisch hinzugefügter Corpus nicht erst auf den nächsten Skill-Aufruf warten muss; der Skill-Use-Check (B3) bleibt das Sicherheitsnetz. Der eigentliche Diff/Prune passiert im Task (B1/B2), nicht im Callback.
@@ -144,9 +144,9 @@ intern  = /srv/handbuch/docs        # expliziter corpus_id + absoluter Pfad
 
 ### Phase E — Skill-Aktiv-Gate: kein Embedding ohne aktiven `explain_docs`-Skill `[M]`
 
-> Anforderung (Georg): Ist der `wbagent.explain_docs`-Skill **nicht aktiv**, werden Doku-Embeddings **nie** erzeugt — der Task wird gar nicht erst gescheduled, und falls er doch läuft (Altbestand/manuell), **opted er sofort out**. Zusätzlich ein grünes Häkchen / rotes Kreuz im `aidocsroot`-Settings-Hinweis mit Verweis auf den Skill.
+> Anforderung (Georg): Ist der `wizard.explain_docs`-Skill **nicht aktiv**, werden Doku-Embeddings **nie** erzeugt — der Task wird gar nicht erst gescheduled, und falls er doch läuft (Altbestand/manuell), **opted er sofort out**. Zusätzlich ein grünes Häkchen / rotes Kreuz im `aidocsroot`-Settings-Hinweis mit Verweis auf den Skill.
 
-- **E0 Eine Gate-Quelle.** Kleiner statischer Helper `docs_embeddings_gate::is_docs_skill_active(): bool` (in `services/lookup/`), der `skill_registry::is_skill_active(explain_docs_skill::SKILL_NAME)` kapselt. Für den billigen, registry-freien Pfad (settings.php) liest er direkt `aiskillenableall` ODER `get_config('bookingextension_agent', skill_registry::get_skill_toggle_setting_name('wbagent.explain_docs'))` (default-off) — identische Semantik wie `is_skill_active`, ohne die Registry zu bauen. **Genau ein** Ort definiert „aktiv?".
+- **E0 Eine Gate-Quelle.** Kleiner statischer Helper `docs_embeddings_gate::is_docs_skill_active(): bool` (in `services/lookup/`), der `skill_registry::is_skill_active(explain_docs_skill::SKILL_NAME)` kapselt. Für den billigen, registry-freien Pfad (settings.php) liest er direkt `aiskillenableall` ODER `get_config('bookingextension_agent', skill_registry::get_skill_toggle_setting_name('wizard.explain_docs'))` (default-off) — identische Semantik wie `is_skill_active`, ohne die Registry zu bauen. **Genau ein** Ort definiert „aktiv?".
   - [ ] `docs_embeddings_gate::is_docs_skill_active()` + Unit-Test (enableall, per-skill on/off, default-off)
 - **E1 Scheduling-Guard (nie schedulen).** `docs_embeddings_readiness_service::ensure_rebuild_scheduled_if_needed()` ganz oben: `if (!docs_embeddings_gate::is_docs_skill_active()) return false;`. Damit greift das Gate für **alle** Trigger, die hierüber schedulen — Skill-Use (B3) **und** Settings-Save (A5). Optional: `get_status()` meldet `status='skill_inactive'`.
   - [ ] Guard in `ensure_rebuild_scheduled_if_needed` (vor Debounce/Coverage)
@@ -156,7 +156,7 @@ intern  = /srv/handbuch/docs        # expliziter corpus_id + absoluter Pfad
   - [ ] Test: inaktiver Skill + gequeuter Task → No-op, keine LLM-/Embedding-Calls
 - **E3 Defense-in-depth im Index-Service.** `docs_embeddings_index_service::rebuild()` gibt bei inaktivem Skill `['status'=>'skipped','reason'=>'skill_inactive', …]` zurück (analog zum vorhandenen `embeddings_provider_unavailable`-Pfad `:64`). So ist auch jeder Direktaufruf (Tests, künftige Caller) abgesichert.
   - [ ] früher `skill_inactive`-Return in `rebuild()`
-- **E4 Settings-Indikator.** Im `aidocsroot`-Settings-Hinweis (A1) dynamisch anhängen: bei aktivem Skill „✓ <Skill aktiv>", sonst „✗ <Skill inaktiv — Doku-Suche & Indexierung sind deaktiviert>" mit **Link auf die Skill-Governance** (`skill_governance.php` bzw. den Toggle `aiskillenabled_wbagent.explain_docs`). Quelle = `docs_embeddings_gate` (kein Registry-Bau im Settings-Render).
+- **E4 Settings-Indikator.** Im `aidocsroot`-Settings-Hinweis (A1) dynamisch anhängen: bei aktivem Skill „✓ <Skill aktiv>", sonst „✗ <Skill inaktiv — Doku-Suche & Indexierung sind deaktiviert>" mit **Link auf die Skill-Governance** (`skill_governance.php` bzw. den Toggle `aiskillenabled_wizard.explain_docs`). Quelle = `docs_embeddings_gate` (kein Registry-Bau im Settings-Render).
   - [ ] Hinweis-String dynamisch (✓/✗ + Link zum Skill-Toggle)
   - [ ] Lang-Strings `aidocsroot_skill_active` / `aidocsroot_skill_inactive`
 
@@ -225,7 +225,7 @@ Antwort: Es braucht keinerlei migration, wir sind noch nicht produktiv und werde
 - **Schwester-Stack-Angleichung:** Der Skill-Katalog-Stack (EMB_CATALOG/EMB_READY/EMB_REBUILD) macht bereits genau das, was hier für Docs fehlt — content_hash-Reuse, Drift-Erkennung, geplanter Rebuild, gehärtetes CSV. Dieses Konzept zieht den Docs-Stack **auf dieselbe Form** (gemeinsame CSV-Basis §D2, Drift→Schedule §B3). Das ist Annäherung an den dokumentierten Soll-Zustand, kein neues Pattern → **stimmig**.
 - **Agnostik:** Provider-Abbau + Textarea entfernt die Notwendigkeit, dass fremde Plugins Code mitbringen, und hält die Engine domänen-agnostisch (Corpora sind reine Config). Konsistent mit LG_AGN/LG_3P. **stimmig.**
 - **Registry-Invariante bleibt:** corpus_id → Root als „single source of truth", Reads auf Root confined — unverändert. **stimmig.**
-- **Kein Konflikt mit der `local_wbagent`-Auskopplung:** Dieses Vorhaben betrifft nur den Doku-Corpus innerhalb `bookingextension_agent`; die geplante Plugin-Auskopplung ist ein separates Thema.
+- **Kein Konflikt mit der `local_wizard`-Auskopplung:** Dieses Vorhaben betrifft nur den Doku-Corpus innerhalb `bookingextension_agent`; die geplante Plugin-Auskopplung ist ein separates Thema.
 - **Varianten-Files je Modell (F) sind eine konsequente Fortführung von EMB_READY.** Der Flowchart-Knoten EMB_REBUILD sagt schon „reuses valid embeddings by content_hash (re-embeds only empty/changed → cheap retries)". Das Reuse-Prinzip nur innerhalb *einer* Variante anzuwenden ist der Status quo; es **über** Modellwechsel hinaus zu erhalten (eigenes File je Variante) erweitert dieselbe Idee, ohne sie zu verletzen. Gleichzeitig wird der latente Retrieval-Korrektheitspunkt (kein Modell-Filter heute) strukturell ausgeschlossen. **stimmig.**
 - **Skill-Aktiv-Gate ist konzept-konform (LG_CAP).** Der Flowchart nennt „Skill release gates: runtime + active + context + capability". Embeddings nur für einen aktiven Skill zu erzeugen, zieht diese Gate-Logik konsequent in den Hintergrund-Aufwand: ein deaktivierter Skill verursacht keine Index-Kosten. Das Gate hat **eine** Quelle (`docs_embeddings_gate`) und wird an allen Eintrittspunkten (Scheduling, Task, Index, Settings-Anzeige) konsultiert → keine divergierende „aktiv?"-Logik. **stimmig.**
 

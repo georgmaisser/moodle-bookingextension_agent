@@ -64,7 +64,7 @@ For each skill, a bootstrap collapsible row (`<div class="collapse">`) will expo
 
 To keep the codebase lean and maintainable, we must strictly reuse existing classes and logic:
 1. **Skill Discovery**: Do not query the DB or scan plugin files directly. Always use `skill_registry_factory::get_default()` to get the current list of skills and their registered schemas/contracts.
-2. **Embedding Collision Analyzer**: Do not duplicate the cosine similarity logic, the lexical/vector ranking system, or classification thresholds. Directly instantiate `bookingextension_agent\local\wbagent\services\debug\skill_selection_debug_service` and use its `analyze_collisions()` method.
+2. **Embedding Collision Analyzer**: Do not duplicate the cosine similarity logic, the lexical/vector ranking system, or classification thresholds. Directly instantiate `bookingextension_agent\local\wizard\services\debug\skill_selection_debug_service` and use its `analyze_collisions()` method.
 3. **Rebuild Task Queueing**: Do not write new ad-hoc task dispatch logic. Queue the existing `rebuild_skill_catalog_embeddings_adhoc` task.
 4. **UI Components**: Rely on Moodle's built-in `html_writer`, `html_table`, and core Bootstrap collapsible widgets instead of writing raw custom HTML widgets or duplicate styling scripts.
 

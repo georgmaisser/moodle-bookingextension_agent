@@ -20,7 +20,7 @@
  * Moodle scans db/hooks.php of every installed plugin — subplugins included —
  * which is what lets this booking subplugin act on global page generation
  * (navbar magic wand) without a separate local plugin. When the agent is
- * extracted into local_wbagent, this registration moves there.
+ * extracted into local_wizard, this registration moves there.
  *
  * @package     bookingextension_agent
  * @copyright   2026 Wunderbyte GmbH <info@wunderbyte.at>

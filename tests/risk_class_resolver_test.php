@@ -17,9 +17,9 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
-use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\skill_registry_factory;
+use bookingextension_agent\local\wizard\services\risk\risk_class_resolver;
 
 /**
  * Tests for the centralized risk-class resolver (S1).
@@ -27,7 +27,7 @@ use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\risk\risk_class_resolver
+ * @covers     \bookingextension_agent\local\wizard\services\risk\risk_class_resolver
  */
 final class risk_class_resolver_test extends advanced_testcase {
     /**

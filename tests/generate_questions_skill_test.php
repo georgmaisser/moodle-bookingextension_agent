@@ -17,15 +17,15 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\question\skills\generate_questions_skill;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\question\skills\generate_questions_skill;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
 
 /**
  * Contract tests for the generate_questions core skill (deterministic parts).
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\question\skills\generate_questions_skill
+ * @covers     \bookingextension_agent\local\wizard\question\skills\generate_questions_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

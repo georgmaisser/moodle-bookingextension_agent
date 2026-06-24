@@ -30,9 +30,9 @@ defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/abstract_agent_testcase.php');
 
 use bookingextension_agent\external\ai_confirm_run;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\services\pending_intent_service;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\services\pending_intent_service;
 
 /**
  * Contract-level E2E check for R3 queue execution semantics.

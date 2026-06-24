@@ -18,13 +18,13 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_course;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
 
 /**
  * Tests the graceful readiness check that webservice entry points use instead of throwing.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\security\authorization_service
+ * @covers     \bookingextension_agent\local\wizard\services\security\authorization_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

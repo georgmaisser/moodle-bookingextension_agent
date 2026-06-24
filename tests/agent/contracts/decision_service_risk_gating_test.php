@@ -16,20 +16,20 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\interfaces\skill_interface;
-use bookingextension_agent\local\wbagent\services\decision\agent_decision_service;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\interfaces\skill_interface;
+use bookingextension_agent\local\wizard\services\decision\agent_decision_service;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for risk-class driven decision gating helpers.
  *
- * @covers \bookingextension_agent\local\wbagent\services\decision\agent_decision_service
+ * @covers \bookingextension_agent\local\wizard\services\decision\agent_decision_service
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -128,10 +128,10 @@ final class decision_service_risk_gating_test extends TestCase {
                     /**
                      * Get prompt contract.
                      *
-                     * @return \bookingextension_agent\local\wbagent\services\skill_prompt_contract
+                     * @return \bookingextension_agent\local\wizard\services\skill_prompt_contract
                      */
-                    public function get_prompt_contract(): \bookingextension_agent\local\wbagent\services\skill_prompt_contract {
-                         return new \bookingextension_agent\local\wbagent\services\skill_prompt_contract([
+                    public function get_prompt_contract(): \bookingextension_agent\local\wizard\services\skill_prompt_contract {
+                         return new \bookingextension_agent\local\wizard\services\skill_prompt_contract([
                              'intent' => 'demo',
                              'anchors' => [],
                              'minimal_input' => [],
@@ -169,14 +169,14 @@ final class decision_service_risk_gating_test extends TestCase {
                      * @param array $input
                      * @param int $contextid
                      * @param int $userid
-                     * @return \bookingextension_agent\local\wbagent\services\preflight_result_v2
+                     * @return \bookingextension_agent\local\wizard\services\preflight_result_v2
                      */
                     public function preflight(
                         array $input,
                         int $contextid,
                         int $userid
-                    ): \bookingextension_agent\local\wbagent\services\preflight_result_v2 {
-                        return \bookingextension_agent\local\wbagent\services\preflight_result_v2::ok($input);
+                    ): \bookingextension_agent\local\wizard\services\preflight_result_v2 {
+                        return \bookingextension_agent\local\wizard\services\preflight_result_v2::ok($input);
                     }
 
                     /**

@@ -17,9 +17,9 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\skill_registry;
-use bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\wizard\skills\explain_docs_skill;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_gate;
 
 /**
  * Tests for the documentation skill gate.
@@ -27,7 +27,7 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\docs_embeddings_gate
  */
 final class docs_embeddings_gate_test extends advanced_testcase {
     /**

@@ -17,12 +17,12 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\course\skills\add_activity_skill;
-use bookingextension_agent\local\wbagent\course\skills\add_quiz_skill;
-use bookingextension_agent\local\wbagent\course\skills\analyze_course_structure_skill;
-use bookingextension_agent\local\wbagent\course\skills\update_activity_skill;
-use bookingextension_agent\local\wbagent\course\skills\update_quiz_skill;
-use bookingextension_agent\local\wbagent\question\skills\generate_questions_skill;
+use bookingextension_agent\local\wizard\course\skills\add_activity_skill;
+use bookingextension_agent\local\wizard\course\skills\add_quiz_skill;
+use bookingextension_agent\local\wizard\course\skills\analyze_course_structure_skill;
+use bookingextension_agent\local\wizard\course\skills\update_activity_skill;
+use bookingextension_agent\local\wizard\course\skills\update_quiz_skill;
+use bookingextension_agent\local\wizard\question\skills\generate_questions_skill;
 
 /**
  * S6: the course-scoped skills share their cross-context targeting via course_targeted_skill, so all
@@ -30,7 +30,7 @@ use bookingextension_agent\local\wbagent\question\skills\generate_questions_skil
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\course_targeted_skill
+ * @covers \bookingextension_agent\local\wizard\course_targeted_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

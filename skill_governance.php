@@ -41,7 +41,7 @@ try {
 
 require_capability('moodle/site:config', $context);
 
-$registry = \bookingextension_agent\local\wbagent\skill_registry_factory::get_default();
+$registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_default();
 $contracts = $registry->get_skill_contracts();
 ksort($contracts);
 
@@ -63,7 +63,7 @@ if (data_submitted() && confirm_sesskey()) {
         }
     } else if ($bulk === 'enableall') {
         foreach ($contracts as $skillname => $meta) {
-            $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
+            $settingname = \bookingextension_agent\local\wizard\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             set_config($settingname, '1', 'bookingextension_agent');
         }
         // Per-skill toggles are now the source of truth; drop the global override.
@@ -71,14 +71,14 @@ if (data_submitted() && confirm_sesskey()) {
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     } else if ($bulk === 'disableall') {
         foreach ($contracts as $skillname => $meta) {
-            $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
+            $settingname = \bookingextension_agent\local\wizard\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             set_config($settingname, '0', 'bookingextension_agent');
         }
         // Per-skill toggles are now the source of truth; drop the global override.
         set_config('aiskillenableall', '0', 'bookingextension_agent');
         redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     } else {
-        // Save individual toggles. Skill names contain dots (e.g. "wbagent.list_skills") and
+        // Save individual toggles. Skill names contain dots (e.g. "wizard.list_skills") and
         // Moodle's optional_param_array() silently drops array KEYS that are not [a-z0-9_-]+,
         // so the dotted skill name is carried as the checkbox VALUE (numeric keys) and matched
         // against the known contracts here. Only checked skills are posted; everything else is
@@ -86,7 +86,7 @@ if (data_submitted() && confirm_sesskey()) {
         $enabledposted = optional_param_array('enabledskills', [], PARAM_RAW);
         $enabledset = array_flip(array_map('strval', $enabledposted));
         foreach ($contracts as $skillname => $meta) {
-            $settingname = \bookingextension_agent\local\wbagent\skill_registry::get_skill_toggle_setting_name((string)$skillname);
+            $settingname = \bookingextension_agent\local\wizard\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             $value = isset($enabledset[(string)$skillname]) ? '1' : '0';
             set_config($settingname, $value, 'bookingextension_agent');
         }
@@ -99,7 +99,7 @@ if (data_submitted() && confirm_sesskey()) {
 }
 
 // Fetch Collision analyzer results.
-$collisionanalyzer = new \bookingextension_agent\local\wbagent\services\debug\skill_selection_debug_service();
+$collisionanalyzer = new \bookingextension_agent\local\wizard\services\debug\skill_selection_debug_service();
 $collisionresult = $collisionanalyzer->analyze_collisions(250);
 $hasembeddings = !empty($collisionresult['has_embeddings']);
 $skillcollisions = [];
@@ -134,9 +134,9 @@ if ($hasembeddings && !empty($collisionresult['pairs'])) {
 $evaluserid = optional_param('evaluserid', (int)$USER->id, PARAM_INT);
 $evalcontextid = optional_param('evalcontextid', (int)$context->id, PARAM_INT);
 
-$evaluator = new \bookingextension_agent\local\wbagent\skill_executability_evaluator(
+$evaluator = new \bookingextension_agent\local\wizard\skill_executability_evaluator(
     $registry,
-    new \bookingextension_agent\local\wbagent\services\security\authorization_service()
+    new \bookingextension_agent\local\wizard\services\security\authorization_service()
 );
 
 $evaluations = [];
@@ -151,13 +151,13 @@ foreach ($contracts as $skillname => $meta) {
 $embeddingstatusbyskill = [];
 $missingembeddingcount = 0;
 try {
-    $embsettings = (new \bookingextension_agent\local\wbagent\embeddings_action_config_resolver())->resolve();
+    $embsettings = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->resolve();
     $catalogbyskill = [];
-    foreach ((new \bookingextension_agent\local\wbagent\embeddings_csv_repository())->read_rows() as $catalogrow) {
+    foreach ((new \bookingextension_agent\local\wizard\embeddings_csv_repository())->read_rows() as $catalogrow) {
         $catalogbyskill[(string)($catalogrow['skill'] ?? '')] = $catalogrow;
     }
     $expectedhashbyskill = [];
-    $expectedrows = (new \bookingextension_agent\local\wbagent\services\embeddings\embeddings_catalog_builder_service())
+    $expectedrows = (new \bookingextension_agent\local\wizard\services\embeddings\embeddings_catalog_builder_service())
         ->build_full_catalog_rows($registry, (string)$embsettings['model'], (int)$embsettings['dimensions']);
     foreach ($expectedrows as $expectedrow) {
         $expectedhashbyskill[(string)($expectedrow['skill'] ?? '')] = (string)($expectedrow['content_hash'] ?? '');
@@ -203,17 +203,17 @@ $describedeny = static function (array $evaluation) use ($evalcontextid): string
     $reason = (string)($evaluation['deny_reason'] ?? '');
     $diagnostics = (array)($evaluation['diagnostics'] ?? []);
     switch ($reason) {
-        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_NOT_REGISTERED:
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_NOT_REGISTERED:
             return get_string('skillgovernance_gate_deny_not_registered', 'bookingextension_agent');
-        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_RUNTIME_DISABLED:
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_RUNTIME_DISABLED:
             return get_string('skillgovernance_gate_deny_runtime_disabled', 'bookingextension_agent');
-        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_INACTIVE:
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_INACTIVE:
             return get_string('skillgovernance_gate_deny_inactive', 'bookingextension_agent');
-        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_CONTEXT_INVALID:
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_CONTEXT_INVALID:
             return get_string('skillgovernance_gate_deny_context_invalid', 'bookingextension_agent', $evalcontextid);
-        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_SKILL_VERSION_UNSUPPORTED:
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_SKILL_VERSION_UNSUPPORTED:
             return get_string('skillgovernance_gate_deny_version_unsupported', 'bookingextension_agent');
-        case \bookingextension_agent\local\wbagent\skill_contract_validator::DENY_MISSING_CAPABILITY:
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_MISSING_CAPABILITY:
             $caps = (array)($diagnostics['required_capabilities'] ?? []);
             if (empty($caps)) {
                 return get_string('skillgovernance_gate_deny_no_capability', 'bookingextension_agent');
@@ -533,7 +533,7 @@ foreach ($contracts as $skillname => $meta) {
 
     // Message Triggers.
     $triggershtml = '<span class="text-muted">No message triggers.</span>';
-    if ($skill instanceof \bookingextension_agent\local\wbagent\interfaces\skill_trigger_provider_interface) {
+    if ($skill instanceof \bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface) {
         try {
             $triggers = $skill->get_message_triggers();
             if (!empty($triggers)) {

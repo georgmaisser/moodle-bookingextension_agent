@@ -31,7 +31,7 @@ function xmldb_bookingextension_agent_ensure_ai_messages_userid(): void {
     global $DB;
 
     $dbman = $DB->get_manager();
-    $table = new xmldb_table('local_wbagent_ai_messages');
+    $table = new xmldb_table('local_wizard_ai_messages');
     $field = new xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'threadid');
 
     if (!$dbman->field_exists($table, $field)) {
@@ -40,14 +40,14 @@ function xmldb_bookingextension_agent_ensure_ai_messages_userid(): void {
 
     $records = $DB->get_recordset_sql(
         'SELECT m.id, t.userid
-           FROM {local_wbagent_ai_messages} m
-           JOIN {local_wbagent_ai_threads} t
+           FROM {local_wizard_ai_messages} m
+           JOIN {local_wizard_ai_threads} t
              ON t.id = m.threadid
           WHERE m.userid = :emptyuserid',
         ['emptyuserid' => 0]
     );
     foreach ($records as $record) {
-        $DB->set_field('local_wbagent_ai_messages', 'userid', (int)$record->userid, ['id' => (int)$record->id]);
+        $DB->set_field('local_wizard_ai_messages', 'userid', (int)$record->userid, ['id' => (int)$record->id]);
     }
     $records->close();
 
@@ -84,7 +84,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         $dbman = $DB->get_manager(); // phpcs:ignore
 
         // Benchmark runs table.
-        $table = new xmldb_table('local_wbagent_benchmark_runs');
+        $table = new xmldb_table('local_wizard_benchmark_runs');
         if (!$dbman->table_exists($table)) {
             $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
             $table->add_field('run_uuid', XMLDB_TYPE_CHAR, '36', null, XMLDB_NOTNULL, null, '');
@@ -115,7 +115,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         }
 
         // Benchmark scenario results table.
-        $table = new xmldb_table('local_wbagent_benchmark_scenarios');
+        $table = new xmldb_table('local_wizard_benchmark_scenarios');
         if (!$dbman->table_exists($table)) {
             $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
             $table->add_field('run_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -142,7 +142,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         }
 
         // Benchmark baselines table.
-        $table = new xmldb_table('local_wbagent_benchmark_baselines');
+        $table = new xmldb_table('local_wizard_benchmark_baselines');
         if (!$dbman->table_exists($table)) {
             $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
             $table->add_field('run_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -156,7 +156,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         }
 
         // Benchmark metric snapshots table.
-        $table = new xmldb_table('local_wbagent_benchmark_metrics');
+        $table = new xmldb_table('local_wizard_benchmark_metrics');
         if (!$dbman->table_exists($table)) {
             $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
             $table->add_field('run_id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -178,7 +178,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         $dbman = $DB->get_manager(); // phpcs:ignore
 
         // User-stated memories/instructions for the AI agent (global per user).
-        $table = new xmldb_table('local_wbagent_user_memory');
+        $table = new xmldb_table('local_wizard_user_memory');
         if (!$dbman->table_exists($table)) {
             $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
             $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
@@ -199,7 +199,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
 
         // Per-memory injection channels (selection,construction,synchronization); empty = all.
         // Guarded by field_exists so it is a no-op where install.xml/an earlier run already added it.
-        $table = new xmldb_table('local_wbagent_user_memory');
+        $table = new xmldb_table('local_wizard_user_memory');
         $field = new xmldb_field('scopes', XMLDB_TYPE_CHAR, '120', null, null, null, null, 'memory');
         if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);

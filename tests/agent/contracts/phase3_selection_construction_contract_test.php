@@ -16,23 +16,23 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\interfaces\skill_interface;
-use bookingextension_agent\local\wbagent\services\construction\parameter_constructor;
-use bookingextension_agent\local\wbagent\services\construction\parameter_contract_validator;
-use bookingextension_agent\local\wbagent\services\selection\lazy_skill_loader;
-use bookingextension_agent\local\wbagent\services\selection\skill_selector;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\interfaces\skill_interface;
+use bookingextension_agent\local\wizard\services\construction\parameter_constructor;
+use bookingextension_agent\local\wizard\services\construction\parameter_contract_validator;
+use bookingextension_agent\local\wizard\services\selection\lazy_skill_loader;
+use bookingextension_agent\local\wizard\services\selection\skill_selector;
+use bookingextension_agent\local\wizard\skill_registry;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for phase-3 selection and parameter construction.
  *
- * @covers \bookingextension_agent\local\wbagent\services\selection\lazy_skill_loader
- * @covers \bookingextension_agent\local\wbagent\services\selection\skill_selector
- * @covers \bookingextension_agent\local\wbagent\services\construction\parameter_constructor
- * @covers \bookingextension_agent\local\wbagent\services\construction\parameter_contract_validator
+ * @covers \bookingextension_agent\local\wizard\services\selection\lazy_skill_loader
+ * @covers \bookingextension_agent\local\wizard\services\selection\skill_selector
+ * @covers \bookingextension_agent\local\wizard\services\construction\parameter_constructor
+ * @covers \bookingextension_agent\local\wizard\services\construction\parameter_contract_validator
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

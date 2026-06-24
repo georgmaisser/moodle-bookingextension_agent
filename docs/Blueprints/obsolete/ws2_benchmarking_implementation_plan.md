@@ -25,7 +25,7 @@ Benchmark Runner (CLI)
 
 ## A — DB-Schema
 
-### A1 — Tabelle `local_wbagent_benchmark_runs`
+### A1 — Tabelle `local_wizard_benchmark_runs`
 
 Einen Eintrag pro Benchmark-Lauf (eine Run = ein vollständiges Durchlaufen aller Szenarien).
 
@@ -53,7 +53,7 @@ Einen Eintrag pro Benchmark-Lauf (eine Run = ein vollständiges Durchlaufen alle
 | environment | VARCHAR(80) | "ci", "local", "staging" |
 | git_ref | VARCHAR(80) | Git commit SHA or branch |
 
-### A2 — Tabelle `local_wbagent_benchmark_scenario_results`
+### A2 — Tabelle `local_wizard_benchmark_scenario_results`
 
 Ein Eintrag pro Szenario pro Run.
 
@@ -79,7 +79,7 @@ Ein Eintrag pro Szenario pro Run.
 | result_json | MEDIUMTEXT | Full normalized result payload |
 | timecreated | BIGINT | Unix timestamp |
 
-### A3 — Tabelle `local_wbagent_benchmark_baselines`
+### A3 — Tabelle `local_wizard_benchmark_baselines`
 
 Pinned baselines als Referenzpunkte für Vergleiche.
 
@@ -93,7 +93,7 @@ Pinned baselines als Referenzpunkte für Vergleiche.
 | timecreated | BIGINT | Unix timestamp |
 | createdby | INT | Moodle userid |
 
-### A4 — Tabelle `local_wbagent_benchmark_metric_snapshots`
+### A4 — Tabelle `local_wizard_benchmark_metric_snapshots`
 
 Aggregierte Metriken pro Run (für schnelle Trend-Abfragen ohne JSON-Parsing).
 
@@ -117,7 +117,7 @@ Aggregierte Metriken pro Run (für schnelle Trend-Abfragen ohne JSON-Parsing).
 php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet-4-6] [--env=local] [--baseline=auto]
 ```
 
-- [x] **B1a** `classes/local/wbagent/benchmark/benchmark_runner.php` — Haupt-Entry-Point:
+- [x] **B1a** `classes/local/wizard/benchmark/benchmark_runner.php` — Haupt-Entry-Point:
   - Lädt Scenario-Set
   - Iteriert Szenarien
   - Ruft LLM auf (live oder stub)
@@ -125,12 +125,12 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
   - Schreibt in DB (benchmark_runs + scenario_results + metric_snapshots)
   - Gibt Exit-Code 0 (kein Regression) oder 1 (Regression) zurück
 
-- [x] **B1b** `classes/local/wbagent/benchmark/benchmark_result_collector.php` — Result-Aggregation:
+- [x] **B1b** `classes/local/wizard/benchmark/benchmark_result_collector.php` — Result-Aggregation:
   - Vergleicht actual vs. expected per Szenario
   - Berechnet Gesamt-Metriken
   - Erkennt Regressionen gegenüber Baseline
 
-- [x] **B1c** `classes/local/wbagent/benchmark/benchmark_db_writer.php` — DB-Persistierung:
+- [x] **B1c** `classes/local/wizard/benchmark/benchmark_db_writer.php` — DB-Persistierung:
   - Schreibt run + scenario_results + metric_snapshots atomar
   - Gibt run_id zurück
 
@@ -225,7 +225,7 @@ php benchmark_runner.php [--scenario-set=core_booking_v1] [--model=claude-sonnet
 
 ## D — Historische Datenspeicherung
 
-- [x] **D1** `db/install.xml` — 4 neue Tabellen: `local_wbagent_benchmark_runs`, `_scenario_results`, `_baselines`, `_metric_snapshots`
+- [x] **D1** `db/install.xml` — 4 neue Tabellen: `local_wizard_benchmark_runs`, `_scenario_results`, `_baselines`, `_metric_snapshots`
 - [x] **D2** Retention-Policy: Runs älter als N Tage (konfigurierbar, default 365) werden automatisch bereinigt — außer Baselines (immer permanent)
 - [x] **D3** `task/cleanup_old_benchmark_runs_task.php` — Scheduled Task für Retention-Policy
 - [x] **D4** Export-Funktion: Run als JSON exportieren (für CI-Artefakte und manuelle Archivierung)

@@ -4,25 +4,25 @@
 **Author:** Claude (review requested by Georg)
 **Status:** ✅ Actioned 2026-06-10 — all of Tier 1 (2.1–2.5), Tier 2, and Tier 3 implemented in
 one sprint. See the [completion log](#7-completion-log-2026-06-10).
-**Related:** `project_wbagent_local_plugin_extraction`, the "executor stays clean" rule,
+**Related:** `project_wizard_local_plugin_extraction`, the "executor stays clean" rule,
 `AGENT_IMPLEMENTATION_FLOWCHART.mmd` (legends `LG_3P`, `LG_AGN`, `LG_DET`)
 
 ---
 
 ## 0. Why this document exists
 
-The agent engine (the part destined to be extracted as `local_wbagent`) must be **fully
+The agent engine (the part destined to be extracted as `local_wizard`) must be **fully
 domain-agnostic**: it knows about *contracts* (skill_interface, risk classes, triggers,
 prompt-contracts, provider interfaces), never about *concrete skills or domains*
 (`mod_booking.*`, booking options, trainers, …). Domain behaviour enters **only** through
 provider/skill interfaces and hooks.
 
 This register lists every place where that boundary is currently crossed, so it can be cleaned
-before/along with the `local_wbagent` extraction. Two flavours:
+before/along with the `local_wizard` extraction. Two flavours:
 
 - **Tier 1 — Engine carries concrete skill/domain knowledge** (true boundary violations; the
   "this entry in the selector makes no sense" league). These are hard blockers for extraction.
-- **Tier 2 — Domain code physically inside the engine tree** (`classes/local/wbagent/...`).
+- **Tier 2 — Domain code physically inside the engine tree** (`classes/local/wizard/...`).
   Not "the engine knowing domain", but domain logic packaged with the engine; must be split
   out so the engine can ship without booking.
 
@@ -48,7 +48,7 @@ the review.
 ## 2. Tier 1 — Engine carries concrete skill/domain knowledge (fix first)
 
 ### 2.1 Selector catalog hard-codes domain skill names  ← the example Georg flagged
-- **Where:** [classes/local/wbagent/services/catalog/adaptive_skill_catalog_service.php:61-67](../../classes/local/wbagent/services/catalog/adaptive_skill_catalog_service.php)
+- **Where:** [classes/local/wizard/services/catalog/adaptive_skill_catalog_service.php:61-67](../../classes/local/wizard/services/catalog/adaptive_skill_catalog_service.php)
 - **Leak:** `ALWAYS_INCLUDE_SKILL_NAMES = ['mod_booking.update_option_trainer', 'mod_booking.book_users', 'core.search_skills']`.
   The engine catalog force-injects two **booking** skills into every post-discovery selector
   catalog. The selector does not need — and must not encode — which concrete domain skills are
@@ -62,7 +62,7 @@ the review.
 - **Severity:** High. **Origin:** pre-existing (commit `8d31838d`).
 
 ### 2.2 Planner prompt builder hard-codes a booking skill as the worked example
-- **Where:** [classes/local/wbagent/services/phase_prompt_bundle_builder.php:306-309](../../classes/local/wbagent/services/phase_prompt_bundle_builder.php)
+- **Where:** [classes/local/wizard/services/phase_prompt_bundle_builder.php:306-309](../../classes/local/wizard/services/phase_prompt_bundle_builder.php)
 - **Leak:** the "Valid example" embedded in the planner prompt uses
   `{"skill":"mod_booking.create_option", …}`.
 - **Why wrong:** the engine's prompt scaffolding teaches the model a specific domain skill.
@@ -71,13 +71,13 @@ the review.
 - **Severity:** Medium. **Origin:** pre-existing.
 
 ### 2.3 Static system prompt hard-codes a booking skill example
-- **Where:** [classes/local/wbagent/prompts/initial_system_prompt.md:48](../../classes/local/wbagent/prompts/initial_system_prompt.md)
+- **Where:** [classes/local/wizard/prompts/initial_system_prompt.md:48](../../classes/local/wizard/prompts/initial_system_prompt.md)
 - **Leak:** example command uses `"skill": "booking.create_option"`.
 - **Fix:** same as 2.2 — neutral example string.
 - **Severity:** Low/Medium. **Origin:** pre-existing.
 
 ### 2.4 Executor knows a specific skill's sensitive fields
-- **Where:** [classes/local/wbagent/executor.php:51-53](../../classes/local/wbagent/executor.php)
+- **Where:** [classes/local/wizard/executor.php:51-53](../../classes/local/wizard/executor.php)
 - **Leak:** `SENSITIVE_EXECUTED_INPUT_SUFFIX_FIELDS = ['recall_memory' => ['query']]`.
   The engine executor hard-codes one skill name and which of its input fields to redact.
 - **Why wrong:** privacy redaction policy for a skill is the skill's own concern; the executor
@@ -88,7 +88,7 @@ the review.
 - **Severity:** Medium. **Origin:** pre-existing (predates the memory feature).
 
 ### 2.5 Decision service defines a booking-domain trigger constant
-- **Where:** [classes/local/wbagent/services/decision/agent_decision_service.php:91](../../classes/local/wbagent/services/decision/agent_decision_service.php)
+- **Where:** [classes/local/wizard/services/decision/agent_decision_service.php:91](../../classes/local/wizard/services/decision/agent_decision_service.php)
 - **Leak:** `private const TRIGGER_ALLOW_MISSING_USER_AUTOCREATE = 'booking.create_user_allowed_if_missing';`
   A booking-specific trigger id baked into the engine decision service (appears **defined but
   unused** — verify; if dead, delete).
@@ -102,22 +102,22 @@ the review.
 
 ## 3. Tier 2 — Domain code packaged inside the engine tree
 
-These are booking/entities domain services and DTOs living under `classes/local/wbagent/...`.
+These are booking/entities domain services and DTOs living under `classes/local/wizard/...`.
 They are *correctly* domain code, but sit in the engine tree, so the engine cannot be extracted
 without dragging booking along. They are **not** called by the engine pipeline (verified — only
 by domain skills), which is good; they just need to move to the domain/provider side on
 extraction.
 
-- **Booking option mutation glue:** [services/mutation/option_mutation_service.php](../../classes/local/wbagent/services/mutation/option_mutation_service.php)
+- **Booking option mutation glue:** [services/mutation/option_mutation_service.php](../../classes/local/wizard/services/mutation/option_mutation_service.php)
   (`booking.create_option`, `booking.update_option`, `booking.bulk_update_options`).
-- **Entity mutation glue:** [services/mutation/entity_mutation_service.php](../../classes/local/wbagent/services/mutation/entity_mutation_service.php)
+- **Entity mutation glue:** [services/mutation/entity_mutation_service.php](../../classes/local/wizard/services/mutation/entity_mutation_service.php)
   (entities domain).
-- **Booking option lookup:** [services/lookup/option_lookup_service.php](../../classes/local/wbagent/services/lookup/option_lookup_service.php)
+- **Booking option lookup:** [services/lookup/option_lookup_service.php](../../classes/local/wizard/services/lookup/option_lookup_service.php)
   (`mod_booking.search_options`, `mod_booking.update_option`).
-- **Canonical booking DTOs:** [dto/create_option_input_dto.php](../../classes/local/wbagent/dto/create_option_input_dto.php),
-  [dto/update_option_input_dto.php](../../classes/local/wbagent/dto/update_option_input_dto.php),
-  [dto/bulk_update_options_input_dto.php](../../classes/local/wbagent/dto/bulk_update_options_input_dto.php).
-- **Readiness reaches into booking internals:** [aiready.php:32,371](../../classes/local/wbagent/aiready.php)
+- **Canonical booking DTOs:** [dto/create_option_input_dto.php](../../classes/local/wizard/dto/create_option_input_dto.php),
+  [dto/update_option_input_dto.php](../../classes/local/wizard/dto/update_option_input_dto.php),
+  [dto/bulk_update_options_input_dto.php](../../classes/local/wizard/dto/bulk_update_options_input_dto.php).
+- **Readiness reaches into booking internals:** [aiready.php:32,371](../../classes/local/wizard/aiready.php)
   uses `mod_booking\singleton_service::get_instance_of_booking_option_settings()`. Engine
   readiness should query availability through a provider hook, not a booking class.
 
@@ -127,7 +127,7 @@ extraction.
 
 ## 4. Tier 3 — Domain defaults in engine config (low)
 
-- **Docs corpus default:** [services/lookup/docs_embeddings_index_service.php:44,48](../../classes/local/wbagent/services/lookup/docs_embeddings_index_service.php)
+- **Docs corpus default:** [services/lookup/docs_embeddings_index_service.php:44,48](../../classes/local/wizard/services/lookup/docs_embeddings_index_service.php)
   `DEFAULT_CORPUS_ID = 'mod_booking'` and the `aidocs_corpusid` config default. The engine
   should default to a provider-supplied corpus id rather than naming `mod_booking`.
 - **Severity:** Low. **Origin:** pre-existing.
@@ -158,7 +158,7 @@ extraction.
 3. **2.5** (decision trigger) — delete if dead, else route via provider.
 4. **2.2 / 2.3** (prompt examples) — neutralise.
 5. **Tier 3** corpus default — provider-supplied default.
-6. **Tier 2** — fold into the `local_wbagent` extraction (move domain services/DTOs to the
+6. **Tier 2** — fold into the `local_wizard` extraction (move domain services/DTOs to the
    booking side; `aiready` availability via provider hook).
 
 ~~No code changed yet — this is the register only.~~ **Superseded — all items actioned, see below.**
@@ -167,7 +167,7 @@ extraction.
 
 ## 7. Completion log (2026-06-10)
 
-All items implemented in one sprint. Engine tree (`classes/local/wbagent/`) now carries **no**
+All items implemented in one sprint. Engine tree (`classes/local/wizard/`) now carries **no**
 concrete `mod_booking.*` skill name.
 
 **Tier 1**
@@ -188,10 +188,10 @@ concrete `mod_booking.*` skill name.
 
 **Tier 2 — domain code moved to `mod_booking`** (not to a new namespace inside the agent
 plugin — that was a wrong first attempt, corrected per Georg). DTOs and services now live under
-`mod_booking\local\wbagent\{dto,services\mutation,services\lookup}`; the engine-tree stubs were
+`mod_booking\local\wizard\{dto,services\mutation,services\lookup}`; the engine-tree stubs were
 **deleted** (no class_alias shims). The 4 unused `classes/external/booking_*` endpoints (never
 registered in `db/services.php`, no callers) were deleted entirely. `aiready.php` resolves
-booking statistics via duck-typed `mod_booking\local\wbagent\booking\booking_readiness_provider`
+booking statistics via duck-typed `mod_booking\local\wizard\booking\booking_readiness_provider`
 (class_exists/method_exists), so the engine has no compile-time `mod_booking` dependency.
 
 **Tier 3 — corpus default** — removed `docs_embeddings_index_service::DEFAULT_CORPUS_ID`;

@@ -55,9 +55,9 @@ bzw. Modellwahl prüfen. Reines Modellverhalten, kein Skill-Defekt.
 
 **O4 — `namespace_hint` = Popularität statt echtem Kontext** (H7-Folgeschritt).
 Funktioniert dank Intent-Guard bereits, ist aber unsauber → Hint aus dem realen
-ambienten cm/Kurs ableiten ([orchestrator.php:2888](../../../classes/local/wbagent/orchestrator.php#L2888)).
+ambienten cm/Kurs ableiten ([orchestrator.php:2888](../../../classes/local/wizard/orchestrator.php#L2888)).
 
-**O5 — `oneclick.create_instance` / `wbagent.explain_docs`** → bewusst `skip_reason`
+**O5 — `oneclick.create_instance` / `wizard.explain_docs`** → bewusst `skip_reason`
 (Provisioner-Templates bzw. Docs-Embedding-Index im CI nicht vorhanden).
 
 **O6 — H6 offene Frage:** Zielkurs-Hinweis auch bei session-auto-confirmten
@@ -236,8 +236,8 @@ Es war also nie eine Kursliste — sie wurde nur wie eine gelesen.
 | Turn | User-Eingabe | Verlauf | Ergebnis |
 |------|--------------|---------|----------|
 | 1 (18:13) | „erstelle im Kurs ai ein neues Quiz mit fünf Fragen zu Agentic AI" | Selector → `course.add_quiz`, Constructor baut saubere Params (`course:11, count:5`), aber Construction liefert `SKILL_DENIED` | Sync (korrekt): „Funktion nicht aktiviert, an Admin wenden" |
-| 2 (18:13) | „zeig mir alles, was du kannst" | `wbagent.list_skills` | ok |
-| 3 (18:16) | „schau nochmal, welche skills du hast" | `wbagent.list_skills` | ok |
+| 2 (18:13) | „zeig mir alles, was du kannst" | `wizard.list_skills` | ok |
+| 3 (18:16) | „schau nochmal, welche skills du hast" | `wizard.list_skills` | ok |
 | 4 (18:17) | „ich glaube du hast jetzt die Möglichkeit … probiere es nochmal" | Selector → `course.search_courses` (Schritt 1 eines Multi-Step-Plans). **Constructor emittiert aber `question.generate_questions`** | **harter `error`, keine User-Antwort** |
 
 ### Root Cause — Constructor-Skill-Drift (Construction-Phase)
@@ -258,13 +258,13 @@ Der Engine-Guard greift (Message 1507):
 
 **Mechanik (verifiziert im Code):**
 - Die Construction-Allow-List ist exakt das selektierte Skill:
-  `$constructionallowedskills = [$selectedskill];` ([orchestrator.php:1362](../../../classes/local/wbagent/orchestrator.php#L1362)).
+  `$constructionallowedskills = [$selectedskill];` ([orchestrator.php:1362](../../../classes/local/wizard/orchestrator.php#L1362)).
 - Der Guard verwirft jedes `command.skill`, das davon abweicht
-  ([interpreter.php:495-534](../../../classes/local/wbagent/interpreter.php#L495-L534)).
+  ([interpreter.php:495-534](../../../classes/local/wizard/interpreter.php#L495-L534)).
 - Der Constructor-Prompt **enthält die Regel bereits**:
   *„This phase is constructor-only … Do not perform skill switching … Every
   command.skill MUST match selected_skill from phase handoff."*
-  ([prompt_policy_builder.php:107-112](../../../classes/local/wbagent/prompt_policy_builder.php#L107-L112)).
+  ([prompt_policy_builder.php:107-112](../../../classes/local/wizard/prompt_policy_builder.php#L107-L112)).
 
 → **Kernbefund:** Die Regel existiert, wird aber genau dann ignoriert, wenn das
 selektierte Schritt-1-Skill (`search_courses`) **nicht zum Aktionsverb des Users
@@ -305,11 +305,11 @@ markiert, damit das Prompt-Refactoring keine Domänenlogik nachbaut.
   Zielsog nicht robust.
 - **Prompt-Änderung:** Constructor-Output-Contract auf **nur `parameters`** (plus
   `response_type`, `message`) reduzieren. Den canonical-command-Block aus
-  [prompt_policy_builder.php:107-112](../../../classes/local/wbagent/prompt_policy_builder.php#L107-L112)
+  [prompt_policy_builder.php:107-112](../../../classes/local/wizard/prompt_policy_builder.php#L107-L112)
   so umformulieren, dass das Modell **kein** `skill`-Feld mehr produziert.
 - **Komplementär (Code, kein Prompt):** Die Engine setzt `skill`/`version`
   deterministisch aus `$selectedskill` (Stelle ist bereits vorhanden:
-  [orchestrator.php:1362](../../../classes/local/wbagent/orchestrator.php#L1362)),
+  [orchestrator.php:1362](../../../classes/local/wizard/orchestrator.php#L1362)),
   der Guard bleibt als Sicherheitsnetz. → Skill-Drift wird **strukturell
   unmöglich**, nicht nur „verboten".
 - **Flowchart:** deckt sich mit `SELSKILL` („selected_skill handoff — exactly one
@@ -325,7 +325,7 @@ markiert, damit das Prompt-Refactoring keine Domänenlogik nachbaut.
   oder wird falsch als „aktueller Kurs" gedeutet.
 - **Ursache:** Schema-Beschreibung von `coursequery` lädt zum Weglassen ein
   („Leave empty to use the current course"); Feld nicht in
-  `input_fields_for_prompt` (laut 347-Analyse, [add_activity_skill.php:184-187](../../../classes/local/wbagent/course/skills/add_activity_skill.php#L184-L187)).
+  `input_fields_for_prompt` (laut 347-Analyse, [add_activity_skill.php:184-187](../../../classes/local/wizard/course/skills/add_activity_skill.php#L184-L187)).
 - **Prompt-Änderung:** (a) `coursequery`/Ziel-Felder in `input_fields_for_prompt`
   aufnehmen; (b) Feldbeschreibung schärfen: *„Wenn der Nutzer in dieser oder einer
   vorherigen Nachricht einen Kurs-/Zielnamen nennt, MUSS er hier eingetragen
@@ -405,21 +405,21 @@ markiert, damit das Prompt-Refactoring keine Domänenlogik nachbaut.
 - **Ursachenkette (verifiziert im Code):**
   1. `namespace_hint` = **häufigste** Skill-Namespace (Popularität), nicht der echte
      Kontext → immer `mod_booking`
-     ([orchestrator.php:2888](../../../classes/local/wbagent/orchestrator.php#L2888)).
+     ([orchestrator.php:2888](../../../classes/local/wizard/orchestrator.php#L2888)).
   2. `family_registry_service` verengte die **Ranking-Gesamtmenge** hart auf
      `context∪core` → course/diagnose-Familien wurden **vor** dem Ranking gedroppt.
-  3. `core_family_set` nimmt nur `wbagent.*` als always-on → core/course nicht baseline.
+  3. `core_family_set` nimmt nur `wizard.*` als always-on → core/course nicht baseline.
   4. Stage-A-Kurzschluss bei Score ≥ 0.60 (Booking-Prior) → nie Eskalation auf B/C.
   5. Family-Embeddings-Fixture im Test **veraltet** (Namespace-Split) → semantischer
      Pfad aus → Intent-Signal fehlte.
 - **Umgesetzt:**
   - **(1) Intent-bewusster Gate** in
-    [discovery_stage_controller.php](../../../classes/local/wbagent/services/discovery/discovery_stage_controller.php):
+    [discovery_stage_controller.php](../../../classes/local/wizard/services/discovery/discovery_stage_controller.php):
     Stage A gilt nur als „sufficient", wenn die **top-semantische (Intent-)Familie**
     in Stage A liegt; sonst Eskalation (`escalation_reason=stage_a_intent_outside`).
     Ohne Embeddings inert (graceful, `INTENT_SEMANTIC_MIN`).
   - **(Kontext-als-Prior, notwendige Begleitkorrektur)** in
-    [family_registry_service.php](../../../classes/local/wbagent/services/discovery/family_registry_service.php):
+    [family_registry_service.php](../../../classes/local/wizard/services/discovery/family_registry_service.php):
     Ranking-Universe = **alle** Familien; `namespace_hint` markiert nur noch den
     Stage-A-Prior, verengt das Universe nicht mehr. Bringt Code auf den
     Flowchart-Vertrag „context = ranking prior, not hard filter" (LG_DET).
@@ -505,31 +505,31 @@ Reihenfolge nach Schadenshöhe × Aufwand. P = Prompt, S = Skill-Code, F = Frame
 ### Umsetzungsdetails (2026-06-15)
 
 **H6 — bereits implementiert (verifiziert, keine Änderung):**
-[`agent_decision_service::build_operating_context_note()`](../../../classes/local/wbagent/services/decision/agent_decision_service.php#L399)
+[`agent_decision_service::build_operating_context_note()`](../../../classes/local/wizard/services/decision/agent_decision_service.php#L399)
 hängt den Zielkurs (`agent_confirm_target_course`, Name + ID) an **jede** mutierende
 `confirmation_request` — auch im ambienten Fall (Fallback `operating_contextid ≤ 0 →
-ambient`, [Zeile 405-410](../../../classes/local/wbagent/services/decision/agent_decision_service.php#L405-L410),
+ambient`, [Zeile 405-410](../../../classes/local/wizard/services/decision/agent_decision_service.php#L405-L410),
 Kommentar nennt explizit „the case point 4 must catch"). Aufrufer:
-[Zeile 1005-1013](../../../classes/local/wbagent/services/decision/agent_decision_service.php#L1005-L1013)
+[Zeile 1005-1013](../../../classes/local/wizard/services/decision/agent_decision_service.php#L1005-L1013)
 („Always name WHERE the write will be carried out").
 *Restbeobachtung (nicht geändert):* Der Hinweis erscheint an der `confirmation_request`;
 bei session-auto-confirmten Schreibvorgängen sieht der User die Bestätigung ggf. nicht.
 Das ist der offene H6-Klärungspunkt — **nicht** eigenmächtig angefasst.
 
 **H5 — Synchronizer (Prompt):**
-[`synchronizer_prompt_builder::build_prompt()`](../../../classes/local/wbagent/services/synchronizer_prompt_builder.php#L144)
+[`synchronizer_prompt_builder::build_prompt()`](../../../classes/local/wizard/services/synchronizer_prompt_builder.php#L144)
 — neue `ENTITY TYPE POLICY` direkt nach der `LINK POLICY`: Entitätstyp explizit benennen,
 Buchungsaktivität/-option **nie** als Kurs darstellen, Eltern-Kurs getrennt halten
 („activity 'selflearning' (course: Booking)"), Link-Ziel pro Typ aus den Observations.
 
 **H4 — Selektor (Prompt):**
-[`orchestrator.php` ACTION-SPECIFIC GUIDANCE FOR ROUTING](../../../classes/local/wbagent/orchestrator.php#L1699)
+[`orchestrator.php` ACTION-SPECIFIC GUIDANCE FOR ROUTING](../../../classes/local/wizard/orchestrator.php#L1699)
 — neue Regel `CONTEXT-AWARE PLANNING`: keinen Such-/Auflösungsschritt für ein Ziel
 planen, das bereits in `SYSTEM_RUNTIME.moodle_context` benannt ist; dann direkt das
 Aktionsskill wählen. Auflösungsschritt nur bei einem **nicht** dem Kontext entsprechenden Ziel.
 
 **H2 — `add_activity_skill` (Prompt/Schema) — mit bewusster Abweichung:**
-- [`coursequery`-Beschreibung geschärft](../../../classes/local/wbagent/course/skills/add_activity_skill.php#L169):
+- [`coursequery`-Beschreibung geschärft](../../../classes/local/wizard/course/skills/add_activity_skill.php#L169):
   ein in dieser oder einer früheren Nachricht genannter Kurs MUSS verbatim ins Feld;
   ein benannter Kurs ist **nie** „der aktuelle Kurs"; leer nur, wenn gar kein Kurs genannt
   wurde. Diese Beschreibung erreicht die Construction über das Voll-Schema des selektierten
@@ -538,7 +538,7 @@ Aktionsskill wählen. Auflösungsschritt nur bei einem **nicht** dem Kontext ent
   `input_fields_for_prompt` aufzunehmen (was es im Kompakt-Katalog als **`REQUIRED:`**
   rendert → Selektor würde laut Routing-Regel bei **jeder** Aktivität nach dem Kurs fragen
   = die Clarification-Schleife aus **Thread 324**), wird `coursequery` über
-  [`get_example_input()`](../../../classes/local/wbagent/course/skills/add_activity_skill.php#L196)
+  [`get_example_input()`](../../../classes/local/wizard/course/skills/add_activity_skill.php#L196)
   als **`OPTIONAL:`** sichtbar gemacht. Gleiches Ziel (Feld nicht still verlieren), ohne
   die Regression. **→ Falls Georg die REQUIRED-Variante bevorzugt: bitte melden.**
 - *Offen (bewusst nicht im Scope):* analoge Ziel-Felder in `add_quiz` /
@@ -640,7 +640,7 @@ Modellverhalten — relevant für Modellwahl/Sprach-Contract, nicht für die Ski
   + 2 Seed-Setups (`prepare_course_activity_scenario`, `prepare_course_quiz_scenario`)
   in [abstract_llm_skill_matrix_testcase.php](../../../tests/agent/abstract_llm_skill_matrix_testcase.php).
   `oneclick.create_instance` bewusst mit `skip_reason` (braucht Provisioner-Config,
-  wie `wbagent.explain_docs`).
+  wie `wizard.explain_docs`).
 - ⚠️ **Ehrlicher Restbefund:** Die neuen course/diagnose-Szenarien laufen real_llm
   **nicht alle grün** — sie decken Muster A/B (Discovery/Routing) auf. Das ist **kein
   Test-Bug**, sondern ein reales Produktthema; bewusst **nicht** durch Test-Tricks

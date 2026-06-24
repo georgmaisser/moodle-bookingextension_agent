@@ -1,6 +1,6 @@
 # Architecture Overview — bookingextension_agent
 
-This is the central reference for how the **wbagent** engine works. Read it top to
+This is the central reference for how the **wizard** engine works. Read it top to
 bottom once to get the whole loop; then follow the links into each subsystem chapter for
 depth.
 
@@ -42,8 +42,8 @@ non-LLM guardrails: schema validation, capability checks, a confirmation gate ke
 risk, an idempotent execution queue, and a separate "polish the reply" step. The model
 *decides what to do*; deterministic code *decides whether it is allowed and safe*.
 
-The engine code lives under the `wbagent` namespace
-(`classes/local/wbagent/…`). The name "wbagent" (Wunderbyte agent) is used throughout the
+The engine code lives under the `wizard` namespace
+(`classes/local/wizard/…`). The name "wizard" (Wunderbyte agent) is used throughout the
 code and the design diagram; "the agent" and "the engine" mean the same thing in this
 corpus.
 
@@ -252,7 +252,7 @@ mod/booking/bookingextension/agent/
 │   ├── agent.php
 │   ├── external/        # web services (the entry layer)        ch. 01
 │   ├── task/            # scheduled + ad-hoc tasks              operations
-│   └── local/wbagent/   # the engine
+│   └── local/wizard/   # the engine
 │       ├── agent_runtime.php · agent_state.php                 ch. 04
 │       ├── orchestrator.php · interpreter.php                  ch. 05
 │       ├── conversation_store.php                              ch. 03

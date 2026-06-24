@@ -16,17 +16,17 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\queue\queue_manager;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for queue risk-class TTL and expiry behavior.
  *
- * @covers \bookingextension_agent\local\wbagent\queue\queue_manager
+ * @covers \bookingextension_agent\local\wizard\queue\queue_manager
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

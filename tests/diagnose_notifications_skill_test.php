@@ -18,14 +18,14 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_system;
-use bookingextension_agent\local\wbagent\core\skills\diagnose_notifications_skill;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\core\skills\diagnose_notifications_skill;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
 
 /**
  * Tests for the core.diagnose_notifications skill.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\core\skills\diagnose_notifications_skill
+ * @covers     \bookingextension_agent\local\wizard\core\skills\diagnose_notifications_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

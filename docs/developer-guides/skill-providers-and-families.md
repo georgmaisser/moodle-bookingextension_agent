@@ -15,21 +15,21 @@ some contracts — never by editing engine code.
 `skill_registry::make_default()` discovers skills **provider-first** (see
 [architecture/14-skill-layer.md §5](../architecture/14-skill-layer.md#5-provider-first-wiring)):
 
-1. for each Moodle component it looks for `\{component}\local\wbagent\skill_provider`;
+1. for each Moodle component it looks for `\{component}\local\wizard\skill_provider`;
 2. if that class exists, it is instantiated and registered (its `skill_provider_interface`
    lists the skill instances);
 3. **only if no provider class exists** does it fall back to scanning
-   `…/local/wbagent/*/skills` directly (`skill_discovery`);
+   `…/local/wizard/*/skills` directly (`skill_discovery`);
 4. the engine's own `bookingextension_agent` provider is always registered.
 
 So the minimum to add skills is: implement `skill_provider_interface` in
-`\{component}\local\wbagent\skill_provider` and return your skill instances. The "no fallback
+`\{component}\local\wizard\skill_provider` and return your skill instances. The "no fallback
 scan when a provider exists" rule keeps your skill set explicit.
 
 ```php
-namespace yourcomponent\local\wbagent;
+namespace yourcomponent\local\wizard;
 
-use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
+use bookingextension_agent\local\wizard\interfaces\skill_provider_interface;
 
 class skill_provider implements skill_provider_interface {
     public function get_skills(): array {
@@ -55,10 +55,10 @@ participates automatically.
 
 ## 3. Serving your documentation (`docs_provider`)
 
-Expose a docs corpus so `wbagent.explain_docs` can answer questions about your plugin:
+Expose a docs corpus so `wizard.explain_docs` can answer questions about your plugin:
 
 ```php
-namespace yourcomponent\local\wbagent;
+namespace yourcomponent\local\wizard;
 
 class docs_provider {
     public const CORPUS_ID = 'yourcomponent';
@@ -128,8 +128,8 @@ No engine files change. That is the whole point of the contract.
 ## This corpus is self-served
 
 The agent plugin ships its own `docs_provider`
-(`classes/local/wbagent/docs_provider.php`, corpus id `bookingextension_agent`) exposing this
-`docs/` folder, so `wbagent.explain_docs` answers questions about the engine itself directly
+(`classes/local/wizard/docs_provider.php`, corpus id `bookingextension_agent`) exposing this
+`docs/` folder, so `wizard.explain_docs` answers questions about the engine itself directly
 from these pages — no admin `aidocsroot` needed. Only the `mod_booking` corpus currently has
 a public web route for a clickable source link; other corpora (including this one) still
 render fully in the inline preview pane.

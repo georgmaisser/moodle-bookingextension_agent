@@ -22,7 +22,7 @@ Das ändert die Risikolage massiv, weil der **gesamte Abschnitt 4 (Schicht B —
 
 ## 1. Executive Summary
 
-Eine Grep-Hochrechnung über `bookingextension/agent/` und `mod_booking/classes/local/wbagent/` zeigt **~230 Dateien** mit Treffern für "task" (case-insensitive), davon **~60 Dateien**, deren Dateiname selbst "task" enthält. Der Begriff ist auf **fünf unterschiedlichen Schichten** verankert:
+Eine Grep-Hochrechnung über `bookingextension/agent/` und `mod_booking/classes/local/wizard/` zeigt **~230 Dateien** mit Treffern für "task" (case-insensitive), davon **~60 Dateien**, deren Dateiname selbst "task" enthält. Der Begriff ist auf **fünf unterschiedlichen Schichten** verankert:
 
 | Schicht | Beispiel | Aufwandscharakter |
 |---|---|---|
@@ -83,9 +83,9 @@ Ursprüngliche Einschätzung (gilt für eine produktive Installation, **hier nic
 ### 4.1 DB-Schema-Felder (`db/install.xml`)
 Drei Felder in den Benchmark-Tabellen:
 ```
-local_wbagent_benchmark_runs.skill_set
-local_wbagent_benchmark_scenarios.skill_expected
-local_wbagent_benchmark_scenarios.skill_selected
+local_wizard_benchmark_runs.skill_set
+local_wizard_benchmark_scenarios.skill_expected
+local_wizard_benchmark_scenarios.skill_selected
 ```
 → Migration via `$dbman->rename_field()` in `db/upgrade.php`, neuer Upgrade-Step mit `upgrade_plugin_savepoint()`. Risiko: gering (reine Spaltenumbenennung, keine Datenkonvertierung), aber **muss** als Upgrade-Step erfolgen, sonst brechen produktive Installationen.
 
@@ -108,7 +108,7 @@ Beispiele: `aiskillenabled`, `aiskillenableall`, `aiskillgovernanceheading`, `ai
 
 ### 4.4 Registry-Namen / persistierte Skill-Identifier
 `skill_registry::get_task_names()` liefert Strings wie `"booking.create_option"`, `"core.search_users"` — diese werden:
-- in `commandsjson` (`local_wbagent_ai_runs`) und `structuredjson` (`local_wbagent_ai_messages`) als JSON persistiert
+- in `commandsjson` (`local_wizard_ai_runs`) und `structuredjson` (`local_wizard_ai_messages`) als JSON persistiert
 - in Queue-Items (`queue_manager::enqueue_command()` → Feld `'task' => $taskname`) gespeichert
 - im `command_schema.json` validiert (Property-Key `"task"`)
 
@@ -130,7 +130,7 @@ Das ist die kritischste Schicht, weil sie das **Protokoll zwischen Server und LL
 ### Warum ursprünglich als riskant eingestuft? (Kontext für die Einschätzung)
 - **Lebende LLM-Verträge**: Eine Änderung des JSON-Schlüssels `"task"` → `"skill"` oder des Enum-Werts `"skill_call"` → `"skill_call"` bedeutet, dass **alle Prompts neu formuliert**, das **JSON-Schema geändert**, der **Interpreter angepasst** und die **gesamte Real-LLM-Testsuite** (7 Dateien, benötigt Live-Provider) neu verifiziert werden müssen — das ist Prompt-Engineering-Arbeit mit empirischem Charakter, nicht reines Refactoring. *(Dieser Arbeitsaufwand bleibt bestehen — nur das zusätzliche Daten-Kompatibilitätsrisiko entfällt, s. u.)*
 - ~~**Kompatibilität mit laufenden Threads**: Threads, die mitten in einem mehrstufigen Run stecken (`planner_trace_history`, `phase_trace`, gespeicherte `next_step_intent`), enthalten u. U. den alten Envelope. Der Interpreter müsste beide Formate parsen können.~~ → **entfällt vorproduktiv**: keine laufenden Threads mit alten Envelopes vorhanden.
-- **Benchmark-Baselines**: `local_wbagent_benchmark_baselines` und Scenario-Fixtures referenzieren `response_type_expected = 'skill_call'` — diese werden im Zuge des Renames **mit aktualisiert** (Teil des Vorhabens, kein externes Kompatibilitätsproblem, da es sich um eigene Test-Fixtures handelt, nicht um Produktivdaten).
+- **Benchmark-Baselines**: `local_wizard_benchmark_baselines` und Scenario-Fixtures referenzieren `response_type_expected = 'skill_call'` — diese werden im Zuge des Renames **mit aktualisiert** (Teil des Vorhabens, kein externes Kompatibilitätsproblem, da es sich um eigene Test-Fixtures handelt, nicht um Produktivdaten).
 
 ### Empfehlung (revidiert durch Update-Box)
 Die ursprüngliche Empfehlung *"Schicht C zunächst nicht anfassen"* basierte auf dem Risiko **"laufende Konversationen mit Bestandsdaten brechen"**. Da wir **vorproduktiv** sind, entfällt genau dieses Risiko — es gibt keine "in-flight"-Threads, die durch ein geändertes Wire-Format kollabieren könnten. Damit bleibt von Schicht C nur noch der **Arbeitsaufwand** übrig (Prompt neu formulieren, Schema ändern, Interpreter anpassen, Real-LLM-Tests neu verifizieren) — kein strukturelles Risiko mehr. Das ist nicht trivial, aber planbar und gehört nach Georgs Vorgabe explizit mit ins radikale Gesamtvorhaben (s. Abschnitt 11). Wichtig bleibt: **Real-LLM-Tests müssen nach der Umbenennung vollständig neu laufen**, da sich das Vertragsformat ändert, auf das die LLM reagiert.

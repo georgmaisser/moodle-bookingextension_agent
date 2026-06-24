@@ -24,8 +24,8 @@
 | 2 | Preflight audit logging retired | `e9695d4` | `PAL` (l.190) | Medium | Flowchart shows an active (conditional) step that is now inert → remove/mark retired |
 | 3 | Anonymizer behaviour expanded | `58ea94e`, `d61dca0` | `ANON` (l.253), `OBS_ACCUM` (l.63) | Medium | Node is now incomplete (missing re-anchoring + two fail-closed gates) → expand |
 | 4 | Queue DAG validation + blocked-TTL no longer toggleable | `e9695d4` | `Q_DAG`/`Q_DAGFAIL`/`Q_BLOCKED`/`Q_FAIL_TTL` | None (improves alignment) | Flowchart already depicted these as unconditional → no change |
-| 5 | Memory/recall skill namespace `core.*` vs `wbagent.*` | (adjacent) | l.119, l.581 | Low | Naming mismatch, likely predates this week → verify & correct names |
-| 6 | New `wbagent.scaffold_skill`; trial/onboarding subsystem | `2883775`, trial commits | — | Low / out of scope | Below the runtime flowchart's granularity → note only |
+| 5 | Memory/recall skill namespace `core.*` vs `wizard.*` | (adjacent) | l.119, l.581 | Low | Naming mismatch, likely predates this week → verify & correct names |
+| 6 | New `wizard.scaffold_skill`; trial/onboarding subsystem | `2883775`, trial commits | — | Low / out of scope | Below the runtime flowchart's granularity → note only |
 
 ---
 
@@ -104,22 +104,22 @@ does not appear in the flowchart at all.
 
 **Discrepancy.** None. Removing the toggles makes the code match the diagram. **No flowchart change.**
 
-## 5. Memory/recall skill namespace: `core.*` vs `wbagent.*`  ·  **Low (likely pre-existing)**
+## 5. Memory/recall skill namespace: `core.*` vs `wizard.*`  ·  **Low (likely pre-existing)**
 
 **Observation.** The flowchart labels the memory/recall skills `core.recall_memory`, `core.remember`,
-`core.forget`, `core.list_memories` (l.119, l.581). The code uses the **`wbagent.`** namespace
-(`wbagent.recall_memory`, `wbagent.remember`, …) — reinforced this week by `wbagent.scaffold_skill`.
+`core.forget`, `core.list_memories` (l.119, l.581). The code uses the **`wizard.`** namespace
+(`wizard.recall_memory`, `wizard.remember`, …) — reinforced this week by `wizard.scaffold_skill`.
 
 This week's recall change (`f5f31fe`, temporal context in the observation) did **not** rename
 anything, so this mismatch most likely **predates** the review window. Flagged here because it sits
 right next to this week's recall work.
 
 **Recommendation (for Georg).** Verify the intended namespace and correct the names in the flowchart
-(and/or the `LG_MEM` legend) if `wbagent.*` is canonical.
+(and/or the `LG_MEM` legend) if `wizard.*` is canonical.
 
 ## 6. Below-granularity / out-of-scope items (note only)
 
-- **`wbagent.scaffold_skill`** (`2883775`, `3b0e219`, `ff470cd`): a new third-party-scaffolding skill.
+- **`wizard.scaffold_skill`** (`2883775`, `3b0e219`, `ff470cd`): a new third-party-scaffolding skill.
   The flowchart enumerates skill *families/legends*, not individual skills, so no node is required; it
   fits conceptually under `LG_3P` ("Third-party onboarding"). No deviation.
 - **Trial/onboarding subsystem** (`e85cbdb`, `9e53fa1`, `adc30f8`, `3d0671e`, `1994573`, `3b70c0e`,

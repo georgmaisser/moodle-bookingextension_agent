@@ -17,7 +17,7 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\lookup\corpus_source_parser;
+use bookingextension_agent\local\wizard\services\lookup\corpus_source_parser;
 
 /**
  * Tests for the documentation corpus textarea parser.
@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\services\lookup\corpus_source_parser;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\corpus_source_parser
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\corpus_source_parser
  */
 final class corpus_source_parser_test extends advanced_testcase {
     /**

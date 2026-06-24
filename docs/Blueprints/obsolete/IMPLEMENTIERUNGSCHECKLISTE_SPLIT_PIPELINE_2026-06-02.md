@@ -8,16 +8,16 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 
 ### Bereits vorhanden (verifiziert)
 - [x] Family-Ranking-Services implementiert:
-	- classes/local/wbagent/services/discovery/family_registry_service.php
-	- classes/local/wbagent/services/discovery/family_signal_ranker.php
-	- classes/local/wbagent/services/discovery/family_ranker.php
-	- classes/local/wbagent/services/discovery/discovery_stage_controller.php
-	- classes/local/wbagent/services/discovery/discovery_budget_policy.php
-	- classes/local/wbagent/services/discovery/discovery_confidence_policy.php
+	- classes/local/wizard/services/discovery/family_registry_service.php
+	- classes/local/wizard/services/discovery/family_signal_ranker.php
+	- classes/local/wizard/services/discovery/family_ranker.php
+	- classes/local/wizard/services/discovery/discovery_stage_controller.php
+	- classes/local/wizard/services/discovery/discovery_budget_policy.php
+	- classes/local/wizard/services/discovery/discovery_confidence_policy.php
 - [x] Family-Embeddings implementiert:
-	- classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
-	- classes/local/wbagent/services/embeddings/family_embeddings_index_service.php
-- [x] Runtime-Flags vorhanden (family_discovery_enabled, staged_discovery_enabled, family_embeddings_enabled, synchronizer_strict_contract) in classes/local/wbagent/config/runtime_feature_flags.php
+	- classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php
+	- classes/local/wizard/services/embeddings/family_embeddings_index_service.php
+- [x] Runtime-Flags vorhanden (family_discovery_enabled, staged_discovery_enabled, family_embeddings_enabled, synchronizer_strict_contract) in classes/local/wizard/config/runtime_feature_flags.php
 - [x] Stage-A/B/C-Logik vorhanden und im Shadow-Telemetriepfad verdrahtet
 - [x] Contract-Tests fuer Family-Bausteine vorhanden
 
@@ -45,25 +45,25 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] Neue Phasen-Telemetrie im Entry-Kontext mitgeben
 - [x] Keine Legacy-Loeschung noetig
 
-### classes/local/wbagent/agent_runtime.php
+### classes/local/wizard/agent_runtime.php
 - [x] run_internal auf orchestrator-Phasenlauf umstellen
 - [x] phase_trace pro loop_step (A/B/C, route, issue_codes) persistieren
 - [x] Semantische Planner-Entscheidungen aus Runtime entfernen
 - [x] Versteckte Planner-Heuristiken entfernen
 
-### classes/local/wbagent/agent_state.php
+### classes/local/wizard/agent_state.php
 - [x] Cache-Struktur phase-aware machen (discovery/selection/construction)
 - [x] Cache in family_cache/selected_skill_cache/params_cache trennen
 - [x] Alten monolithischen planner_catalog_cache payload entfernen
 
-### classes/local/wbagent/conversation_store.php
+### classes/local/wizard/conversation_store.php
 - [x] planner_trace_history pro Turn konsistent persistieren
 - [x] phase_trace (discovery/selection/construction) als auswertbare Metadaten persistieren
 - [x] Legacy-Metadatenformate ohne Phasenbezug entfernen
 
 ## 2.2 Orchestrator und Routing
 
-### classes/local/wbagent/orchestrator.php
+### classes/local/wizard/orchestrator.php
 - [x] process() in run_discovery_phase()/run_selection_phase()/run_construction_phase() aufteilen
 - [x] Pro Phase eigenen Prompt-Build und eigenen invoke()-Call erzwingen
 - [x] Discovery mit Family-Ranking als Pflichtschritt vor Selection ausfuehren
@@ -71,136 +71,136 @@ Migrationspolitik: keine Ruecksicht auf Migration oder Backward Compatibility. A
 - [x] Monolithischen Einmal-Call-Pfad entfernen
 - [x] Legacy-Mischlogik Taskwahl+Parametrisierung in einem Output entfernen
 
-### classes/local/wbagent/services/orchestrator_routing_service.php
+### classes/local/wizard/services/orchestrator_routing_service.php
 - [x] API auf resolve_action_class_for_phase(phase) umstellen
 - [x] Fallback-Ketten je Phase trennen
 - [x] routepolicy auf phase-spezifische Tokens umstellen
 - [x] step_type-only Routing als Hauptsteuerung entfernen
 - [x] Implizite OpenAI-Step-Heuristik fuer Planner entfernen
 
-### classes/local/wbagent/services/orchestrator_prompt_profile_service.php
+### classes/local/wizard/services/orchestrator_prompt_profile_service.php
 - [x] Phase-Profile (discovery/selection/parameter_construction) einfuehren
 - [x] Getrennte Config-Keys und Defaults pro Phase einfuehren
 - [x] step-type Foldback auf tool_call_parse entfernen
 
-### classes/local/wbagent/services/phase_prompt_bundle_builder.php (neu oder bestehende Logik extrahieren)
+### classes/local/wizard/services/phase_prompt_bundle_builder.php (neu oder bestehende Logik extrahieren)
 - [x] Prompt-Build strikt phasengetrennt (discovery/selection/construction) kapseln
 - [x] Keine gemischten Legacy-Prompts in einem Builder-Pfad zulassen
 
-### classes/local/wbagent/services/llm/llm_call_service.php
+### classes/local/wizard/services/llm/llm_call_service.php
 - [x] Als einzige LLM-Call-Schicht beibehalten
 - [x] source-Konvention fuer Phasen vereinheitlichen (z.B. p=disc/sel/cons)
 - [x] Provider-spezifische Instanziierung ausserhalb der Klasse entfernen
 
 ## 2.3 Discovery und Family Ranking
 
-### classes/local/wbagent/services/discovery/family_registry_service.php
+### classes/local/wizard/services/discovery/family_registry_service.php
 - [x] Als verbindlichen Discovery-Einstieg setzen
 - [x] Stage-A/B/C Expansion mit discovery_stage_controller/discovery_budget_policy live verdrahten
 - [x] Full-Task-Dump-Fallback ohne Family-Vorselektion entfernen
 
-### classes/local/wbagent/services/discovery/family_signal_ranker.php
+### classes/local/wizard/services/discovery/family_signal_ranker.php
 - [x] Als language-agnostische Basis beibehalten
 - [x] Gewichte zentral konfigurierbar machen
 - [x] Sprachspezifische Keyword-/Token-Routingregeln entfernen
 
-### classes/local/wbagent/services/discovery/family_ranker.php
+### classes/local/wizard/services/discovery/family_ranker.php
 - [x] Als autoritative Ranking-Stelle setzen
 - [x] Low-score tail kontrolliert an Selection weiterreichen
 - [x] Ad-hoc Scoring ausserhalb des Dienstes entfernen
 
-### classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
+### classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php
 - [x] In Discovery-Phase verbindlich einhaengen (wenn Embeddings verfuegbar)
 - [x] Nur aktivieren, wenn aiprovider_wunderbyte + Embeddings-Readiness beide true sind
 - [x] ranking output live wirksam machen (kein reines shadow_only)
 - [x] Embedding-TopK als isolierte Nebenrechnung ohne Phasenwirkung entfernen
 
-### classes/local/wbagent/services/discovery/context_prior_builder.php
+### classes/local/wizard/services/discovery/context_prior_builder.php
 - [x] Als verpflichtenden Ranking-Prior verwenden
 - [x] Harte Context-Filter (Ausschluss statt Ranking) entfernen
 
-### classes/local/wbagent/services/embeddings/embeddings_readiness_service.php
+### classes/local/wizard/services/embeddings/embeddings_readiness_service.php
 - [x] Gate fuer Wunderbyte+Embeddings-Verfuegbarkeit explizit im Discovery-Pfad nutzen
 - [x] Bei false deterministisch auf slim non-semantische Family-Discovery fallen
 - [x] Telemetrie fuer Pfadwahl (with_embeddings vs no_embeddings) konsistent schreiben
 
 ## 2.4 Selection und Construction
 
-### classes/local/wbagent/services/selection/lazy_skill_loader.php
+### classes/local/wizard/services/selection/lazy_skill_loader.php
 - [x] Nur Tasks aus gerankten Families laden
 - [x] Erst schlanke Contracts, volles Schema nur on-demand laden
 - [x] Globales Voll-Laden aller Task-Schemata entfernen
 
-### classes/local/wbagent/services/selection/skill_selector.php
+### classes/local/wizard/services/selection/skill_selector.php
 - [x] Als eigene Selection-Phase nutzen
 - [x] Genau eine selektierte Task + version liefern
 - [x] Implizite Task-Normalisierung ausserhalb des Selectors entfernen
 
-### classes/local/wbagent/services/construction/parameter_constructor.php
+### classes/local/wizard/services/construction/parameter_constructor.php
 - [x] Als exklusive Parameter-Phase nutzen
 - [x] Task-Wahl in Construction verhindern
 - [x] Selection-fremde Plausibilitaetsentscheidungen entfernen
 
-### classes/local/wbagent/services/construction/parameter_contract_validator.php
+### classes/local/wizard/services/construction/parameter_contract_validator.php
 - [x] Als verpflichtenden Abschluss jeder Construction-Phase setzen
 - [x] recoverable input sauber auf clarification/retry_hint mappen
 - [x] Doppelte spaetere Schema-Checks entfernen
 
 ## 2.5 Interpreter
 
-### classes/local/wbagent/interpreter.php
+### classes/local/wizard/interpreter.php
 - [x] Auf interpret_phase_output(raw, phase, context) umbauen
 - [x] Phase-Contracts (Discovery/Selection/Construction) explizit normalisieren
 - [x] Unified planner result erst nach Phasen-Interpretation komponieren
 - [x] Sicherheitsgrenzen (strict JSON, allowed response_type) beibehalten
 - [x] Monolithische Annahme "Taskwahl + Input-Finalisierung in einer Antwort" entfernen
 
-### classes/local/wbagent/services/planner_result_composer.php (neu oder bestehende Logik extrahieren)
+### classes/local/wizard/services/planner_result_composer.php (neu oder bestehende Logik extrahieren)
 - [x] Drei Phasenoutputs deterministisch zu einem planner_result komponieren
 - [x] planner_trace_history + phase_trace zentral schreiben
 - [x] Keine nachgelagerte implizite Re-Komposition in Runtime/Decision zulassen
 
 ## 2.6 Decision, Preflight, Queue, Executor
 
-### classes/local/wbagent/services/decision/agent_decision_service.php
+### classes/local/wizard/services/decision/agent_decision_service.php
 - [x] Beibehalten, aber nur Inputs aus neuer Pipeline konsumieren
 - [x] Planner-spezifische Heuristik hier ausschliessen
 - [x] Rueckwirkende Korrekturlogik fuer alte Planner-Formate entfernen
 
-### classes/local/wbagent/services/preflight_pipeline.php
+### classes/local/wizard/services/preflight_pipeline.php
 - [x] Als einzige Preflight-Quelle fuer Mutationen erzwingen
 - [x] Planner-Entscheidung strikt durch diese Pipeline validieren
 - [x] Parallele/duplizierte Preflight-Pfade entfernen
 
-### classes/local/wbagent/queue/queue_manager.php
+### classes/local/wizard/queue/queue_manager.php
 - [x] Unveraendert beibehalten
 - [ ] Optional phase_trace-Metadaten je queue item erweitern
 - [ ] Legacy-Queue-Strukturen nebenher ausschliessen
 
-### classes/local/wbagent/executor.php
+### classes/local/wizard/executor.php
 - [x] Unveraendert beibehalten
 - [x] Keine fachliche Neuinterpretation von Commands zulassen
 
 ## 2.7 Synchronizer und Finalisierung
 
-### classes/local/wbagent/services/finalization_classifier.php
+### classes/local/wizard/services/finalization_classifier.php
 - [x] Als Pflicht-Gate unveraendert beibehalten
 - [x] Heuristische LLM-Finalisierungsentscheidung entfernen
 
-### classes/local/wbagent/services/synchronizer_routing_service.php
+### classes/local/wizard/services/synchronizer_routing_service.php
 - [x] Vom Planner-Step-Konzept entkoppeln
 - [x] Dedizierten synchronizer invoke-Pfad nutzen (eigener prompt/profile/action)
 - [x] Reuse von simple_retrieval als Synchronizer-Ersatz entfernen
 
-### classes/local/wbagent/services/synchronizer_prompt_builder.php (neu oder bestehende Logik extrahieren)
+### classes/local/wizard/services/synchronizer_prompt_builder.php (neu oder bestehende Logik extrahieren)
 - [x] Eigenes Synchronizer-Profil kapseln (kein Planner-Prompt-Reuse)
 - [x] Sprach-/Präsentationsregeln nur im Synchronizer-Build pflegen
 
-### classes/local/wbagent/services/synchronizer_input_builder.php
+### classes/local/wizard/services/synchronizer_input_builder.php
 - [x] phase_trace (A/B/C) und execution_feedback standardisiert einbauen
 - [x] Task-Discovery-Daten aus Sync-Input fernhalten
 
-### classes/local/wbagent/services/synchronizer_output_contract.php
+### classes/local/wizard/services/synchronizer_output_contract.php
 - [x] Als Pflicht-Contract unveraendert erzwingen
 - [x] Bypass-Pfade fuer Sync-Output entfernen
 

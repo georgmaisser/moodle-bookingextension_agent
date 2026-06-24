@@ -14,20 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\services\synchronizer_output_contract;
-use bookingextension_agent\local\wbagent\skill_registry;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
+use bookingextension_agent\local\wizard\agent_runtime;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\services\synchronizer_output_contract;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Runtime finalization contract tests.
  *
- * @covers \bookingextension_agent\local\wbagent\agent_runtime
+ * @covers \bookingextension_agent\local\wizard\agent_runtime
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -17,14 +17,14 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\questions\question_bank_target_resolver;
-use bookingextension_agent\local\wbagent\services\questions\question_import_service;
+use bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver;
+use bookingextension_agent\local\wizard\services\questions\question_import_service;
 
 /**
  * Tests for the course question bank target resolver.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\questions\question_bank_target_resolver
+ * @covers     \bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

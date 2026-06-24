@@ -23,11 +23,11 @@ This document outlines the final plan to:
 The following components are 100% booking-option-specific or legacy boilerplate and will be **completely removed**:
 
 ### 2.1 PHP Files & Classes to Delete
-- **`classes/local/wbagent/preview_policy.php`**: Deprecated. The allowlist logic is replaced by individual renderer registrations.
+- **`classes/local/wizard/preview_policy.php`**: Deprecated. The allowlist logic is replaced by individual renderer registrations.
 - **`classes/external/ai_render_command_preview.php`**: Deprecated. Replaced by the generic `ai_get_preview` Webservice.
 - **`interfaces/preview_option_memory_interface.php`**: Deprecated. General session/thread preview memory is used instead.
 - **`interfaces/preview_option_memory_provider_interface.php`**: Deprecated.
-- **`classes/local/wbagent/services/confirm_preview_option_service.php`**: Deprecated. Replaced by generic preview payload merging.
+- **`classes/local/wizard/services/confirm_preview_option_service.php`**: Deprecated. Replaced by generic preview payload merging.
 
 ### 2.2 Obsolete Webservice Return Parameters to Remove
 The following keys will be completely removed from `execute_returns()` in `ai_send_message.php` and `ai_confirm_run.php`:
@@ -51,7 +51,7 @@ These will be replaced by a single, generic `previewjson` (PARAM_RAW) field.
 Skills that support a preview implement this interface:
 
 ```php
-namespace bookingextension_agent\local\wbagent\interfaces;
+namespace bookingextension_agent\local\wizard\interfaces;
 
 interface skill_preview_provider_interface {
     /**
@@ -74,7 +74,7 @@ interface skill_preview_provider_interface {
 PHP renderers must implement this interface:
 
 ```php
-namespace bookingextension_agent\local\wbagent\interfaces;
+namespace bookingextension_agent\local\wizard\interfaces;
 
 interface skill_preview_renderer_interface {
     /**
@@ -95,9 +95,9 @@ interface skill_preview_renderer_interface {
 The `preview_type_registry` dynamically maps preview type strings to their respective PHP and JS handlers. It is populated during skill discovery.
 
 ```php
-namespace bookingextension_agent\local\wbagent;
+namespace bookingextension_agent\local\wizard;
 
-use bookingextension_agent\local\wbagent\interfaces\skill_preview_renderer_interface;
+use bookingextension_agent\local\wizard\interfaces\skill_preview_renderer_interface;
 
 class preview_type_registry {
     private array $renderers = [];

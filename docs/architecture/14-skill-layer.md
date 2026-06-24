@@ -95,7 +95,7 @@ otherwise checks the per-skill `aiskillenabled_<name>` config — newly discover
 `skill_registry::make_default()` (via `skill_registry_factory`) discovers skills
 **provider-first**:
 
-1. for each Moodle component, if a `\{component}\local\wbagent\skill_provider` class exists,
+1. for each Moodle component, if a `\{component}\local\wizard\skill_provider` class exists,
    it is instantiated and registered;
 2. **only if no provider exists** does it fall back to a direct scan
    (`skill_discovery::get_skill_instances($component)` over `…/skills`), wrapping the found

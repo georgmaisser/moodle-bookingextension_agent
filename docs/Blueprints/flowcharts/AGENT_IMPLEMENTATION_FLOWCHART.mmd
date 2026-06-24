@@ -117,11 +117,11 @@ flowchart TD
     %% USER MEMORY (user-stated facts/preferences)
     %% =========================================================
     subgraph USERMEM["User Memory — user-stated facts/preferences (global per user)"]
-        UM_TABLE["local_wbagent_user_memory\n(userid, memory, scopes, timecreated, timemodified)\nglobal per user — no contextid\nscopes = LLM-tagged channels (selection,construction,synchronization); empty = all\ninstall.xml + upgrade.php (matches benchmark tables)"]
+        UM_TABLE["local_wizard_user_memory\n(userid, memory, scopes, timecreated, timemodified)\nglobal per user — no contextid\nscopes = LLM-tagged channels (selection,construction,synchronization); empty = all\ninstall.xml + upgrade.php (matches benchmark tables)"]
         UM_SVC["user_memory_service\nadd / get_all / delete / find\nlimits: 15 facts · 500 chars/fact · 4096 total\nnormalize + case-insensitive dedupe\nskills never touch DB directly"]
-        UM_REMEMBER["core.remember (R0, readonly-treated → executes directly, no confirm)\nstore a fact the user told the agent to remember\n(write only to the user's OWN preference store; forget stays R2)\nLLM tags relevant_for[]: selection | construction | synchronization\nNOT past conversation (= core.recall_memory)"]
-        UM_FORGET["core.forget (R2, broad_write → always explicit confirm)\nquery → find() candidates → confirm → delete-by-id\nzero match: inform · multi match: list ids, never silent multi-delete"]
-        UM_LIST["core.list_memories (R0, read_only)\nnumbered list + ids in observation_full\n(for a follow-up forget by id)"]
+        UM_REMEMBER["wizard.remember (R0, readonly-treated → executes directly, no confirm)\nstore a fact the user told the agent to remember\n(write only to the user's OWN preference store; forget stays R2)\nLLM tags relevant_for[]: selection | construction | synchronization\nNOT past conversation (= wizard.recall_memory)"]
+        UM_FORGET["wizard.forget (R2, broad_write → always explicit confirm)\nquery → find() candidates → confirm → delete-by-id\nzero match: inform · multi match: list ids, never silent multi-delete"]
+        UM_LIST["wizard.list_memories (R0, read_only)\nnumbered list + ids in observation_full\n(for a follow-up forget by id)"]
         UM_INJECT["orchestrator::build_runtime_context_block\nper-channel injection via get_for_scope(userid, channel):\n  selection → planner selection call (PHASE_SELECTION)\n  construction → planner param call (PHASE_PARAMETER_CONSTRUCTION)\n  synchronization → synchronizer (explicit $memorychannel; it also uses PHASE_SELECTION)\nuntagged memory (empty scopes) = all channels · discovery has no channel\nresolves thread owner via store->get_thread(threadid)\nNOT in static SYSTEM prompt · budget-capped 4096 · empty when none"]
         UM_PRIVACY["bookingextension_agent\\privacy\\provider\nmetadata + plugin\\provider @ CONTEXT_USER\nexport_user_data / delete_data_for_*"]
     end
@@ -238,7 +238,7 @@ flowchart TD
     %% =========================================================
     subgraph SKILLS["Skill Layer"]
         TR["skill_registry\nregister(provider)\nget_skill(name)\nis_read_only_skill()\nis_skill_active()\nget_skill_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()"]
-        TRFAC["skill_registry_factory\n→ provider-first wiring of skill_provider_interface\n  implementations (auto-discovery)\n→ if no provider exists: direct skill discovery\n  under classes/local/wbagent/*/skills\n→ if provider exists: no additional fallback scan"]
+        TRFAC["skill_registry_factory\n→ provider-first wiring of skill_provider_interface\n  implementations (auto-discovery)\n→ if no provider exists: direct skill discovery\n  under classes/local/wizard/*/skills\n→ if provider exists: no additional fallback scan"]
         TI["skill_interface\nget_name() · get_schema()\nget_prompt_contract()\nget_risk_class(): skill_risk_class\ncheck_structure(input)\npreflight(input,contextid,userid): preflight_result_v2\nexecute(prepared_input,contextid,userid): array\nis_read_only(): bool"]
         TPC["skill_prompt_contract DTO\nintent · anchors · minimal_input · example_input\nnamespace · version · capabilities · context scopes\nrisk_class: skill_risk_class\nvalidated by skill_contract_validator"]
         TRC["skill_risk_class (enum/DTO)\nR0: read_only\nR1: scoped_write\nR2: broad_write\nR3: irreversible_or_external"]
@@ -576,7 +576,7 @@ flowchart TD
     subgraph LEGEND["Legend"]
         direction TB
         LG_DB["DB rollout policy\nnew schema via install.xml + matching upgrade.php step\n(guarded create_table; see benchmark + user_memory tables)"]
-        LG_MEM["User memory contract\nuser-stated facts/preferences, global per user\n(local_wbagent_user_memory, no contextid)\ncore.remember (R0, direct, no confirm; LLM tags relevant_for[]) · core.forget (R2, explicit confirm, all=true mode)\n· core.list_memories (R0, shows relevant_for)\ndistinct from core.recall_memory (= past conversation)\nchannel-filtered injection: selection / construction / synchronization\n(untagged = all channels); budget-capped 4096 chars\nlimits: 15 facts · 500/fact · 4096 total · dedupe\nprivacy provider @ CONTEXT_USER mandatory"]
+        LG_MEM["User memory contract\nuser-stated facts/preferences, global per user\n(local_wizard_user_memory, no contextid)\nwizard.remember (R0, direct, no confirm; LLM tags relevant_for[]) · wizard.forget (R2, explicit confirm, all=true mode)\n· wizard.list_memories (R0, shows relevant_for)\ndistinct from wizard.recall_memory (= past conversation)\nchannel-filtered injection: selection / construction / synchronization\n(untagged = all channels); budget-capped 4096 chars\nlimits: 15 facts · 500/fact · 4096 total · dedupe\nprivacy provider @ CONTEXT_USER mandatory"]
         LG_CTX["Context authority\nRuntime uses Moodle contextid\nas the scope key\ncontext-level-agnostic: module / course /\ncoursecat / user / system (navbar wand)"]
         LG_RCTX["Rich context awareness (SYSTEM_RUNTIME)\nbase lines every phase: booking_name / timezone /\nnow_iso (minute-granular = cache-friendly)\nmoodle_context YAML (ids, course, module) ONLY in\nparameter construction + synchronizer —\nselection stays slim (token economy)\nsources cache-backed: agent_context + get_fast_modinfo\n(no DB load); defensive: failure drops the block"]
         LG_AVAIL["Availability ≠ permission\ncourse/cm enableaitools = availability layer\nfor non-privileged users (teachers, students)\nagent:ignoreaiavailability bypasses both toggles\n(admins implicit via doanything, manager default)\nGate 1 (use + skill caps) and Gate 2 (native caps\nin preflight) stay untouched by the bypass"]

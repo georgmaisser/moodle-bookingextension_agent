@@ -57,7 +57,7 @@ gesetzt.
 
 ### 1.3 Der echte Key-Minter ist nicht verdrahtet
 
-`classes/local/wbagent/wunderbyte_trial_endpoint.py` ist ein **eigenständiger FastAPI-Service**:
+`classes/local/wizard/wunderbyte_trial_endpoint.py` ist ein **eigenständiger FastAPI-Service**:
 - Route **POST `/api/moodle-trial`** (`:167`) mit `{wwwroot, nonce}`,
 - Origin-Check per Back-Channel auf `{wwwroot}/mod/booking/bookingextension/agent/trial_challenge.php?token={nonce}`
   (`:74-97`, **derzeit deaktiviert**, `return True` in `:80`),
@@ -172,7 +172,7 @@ return [
 
 ### Schritt B — Nonce → Key-Exchange in PHP (die fehlende Verdrahtung)
 
-**Neu:** Service-Klasse `classes/local/wbagent/services/trial/trial_provisioner.php` mit
+**Neu:** Service-Klasse `classes/local/wizard/services/trial/trial_provisioner.php` mit
 `provision(int $contextid, string $strategy): array` (`strategy ∈ {wunderbyte, openai}`):
 
 1. Nonce erzeugen + cachen (wie heute in `request_trial_key`).
@@ -339,11 +339,11 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 | Bereich | Datei | Änderung |
 |---|---|---|
 | Detection-WS | `classes/external/get_setup_status.php` (neu) | Checkliste + recommended_path |
-| Provisioning | `classes/local/wbagent/services/trial/trial_provisioner.php` (neu) | Nonce→Key→Instanz |
+| Provisioning | `classes/local/wizard/services/trial/trial_provisioner.php` (neu) | Nonce→Key→Instanz |
 | Trial-WS | `classes/external/request_trial_key.php` | ruft Provisioner statt nur Nonce |
 | Aktivierung | `classes/external/activate_trial_context.php` | diagnostische Fehlerpfade |
 | Settings | `settings.php` | ~~`trial_endpoint_base_url`~~ → hardcodiert (`trial_provisioner::BASE_URL`); Setting entfernt |
-| Python | `classes/local/wbagent/wunderbyte_trial_endpoint.py` | Challenge reaktivieren (`:80`) |
+| Python | `classes/local/wizard/wunderbyte_trial_endpoint.py` | Challenge reaktivieren (`:80`) |
 | UI | `templates/aiinstructions.mustache`, `amd/src/aiinstructions.js` | Todo-Liste + Pfad-Buttons |
 | WS-Registrierung | `db/services.php` | neue Funktion(en) eintragen |
 | Strings | `lang/en`, `lang/de` | neue Labels/Hinweise |
@@ -376,7 +376,7 @@ Antwort: die Liste kommt später. Wir müssen dafür noch ein wenig testen, wie 
 - ~~`settings.php` — Setting `trial_endpoint_base_url`~~ → **2026-06-18 wieder entfernt**; der Endpoint
   ist jetzt **hardcodiert** (`trial_provisioner::BASE_URL = https://llm.wunderbyte.at`), das Upgrade
   entfernt die Altconfig per `unset_config`.
-- `classes/local/wbagent/services/trial/trial_provisioner.php` (**neu**) — Kern:
+- `classes/local/wizard/services/trial/trial_provisioner.php` (**neu**) — Kern:
   Nonce cachen → `POST {base}/api/moodle-trial` → `{apikey,endpoint}` → `create/update_provider_instance()`
   mit 3-Alias-actionconfig (Wunderbyte) bzw. `generate_text`-only (OpenAI-Fallback) → enablen.
   Fehler-Mapping: Verbindungsfehler/403 → Firewall-Text, 409 → „already exists", sonst → „provision failed".

@@ -9,10 +9,10 @@ möglich ist — der Agent kann für eine Operation auf einen breiteren Kontext 
 um dort die nötigen Berechtigungen zu nutzen (z. B. Fragen in die Kurs-Fragebank schreiben).
 **Mit Benennung aller betroffenen Dateien/Klassen/Methoden** (Stand verifiziert 2026-06-09).
 
-> Baut auf [`wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md`](wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md)
+> Baut auf [`wizard_local_plugin_context_decoupling_analysis_2026-06-08.md`](wizard_local_plugin_context_decoupling_analysis_2026-06-08.md)
 > auf und **aktualisiert** dessen Inventar (neue Entry-Points, neue Zeilennummern) sowie ergänzt das
 > dort fehlende Thema **Laufzeit-Kontextwechsel/Elevation**. Migration des Plugins selbst (Subplugin →
-> `local_wbagent`): siehe [`wbagent_local_plugin_extraction_plan_2026-06-08.md`](wbagent_local_plugin_extraction_plan_2026-06-08.md).
+> `local_wizard`): siehe [`wizard_local_plugin_extraction_plan_2026-06-08.md`](wizard_local_plugin_extraction_plan_2026-06-08.md).
 
 ---
 
@@ -60,19 +60,19 @@ Niemals ein beliebiger fremder Kontext.
 ## 2. Verifizierter Ist-Zustand (2026-06-09)
 
 ### 2.1 Die gute Basis (bereits agnostisch)
-- **Scope-Key = `contextid`** in allen Tabellen (`db/install.xml`): `local_wbagent_ai_threads.contextid`
+- **Scope-Key = `contextid`** in allen Tabellen (`db/install.xml`): `local_wizard_ai_threads.contextid`
   (Z. 11), `…_runs`/`…_messages`/`…_llm_debug` hängen an `threadid`/`contextid`. Index `useridcontextid`
   (Z. 22) → Thread-Lookup ist rein context-basiert.
 - **Provider-Discovery** komponenten-agnostisch: `skill_registry::make_default()` scannt alle Plugins
-  nach `\{component}\local\wbagent\skill_provider`. Drei Provider existieren (`mod_booking`,
+  nach `\{component}\local\wizard\skill_provider`. Drei Provider existieren (`mod_booking`,
   `bookingextension_agent`, **`local_entities`**).
-- **Generisches Auth-Interface** vorhanden: `classes/local/wbagent/interfaces/agent_authorization_service.php`
+- **Generisches Auth-Interface** vorhanden: `classes/local/wizard/interfaces/agent_authorization_service.php`
   (Docblock bereits context-generisch; nur die Impl ist booking-spezifisch).
 - **WS-/JS-Schicht führt `contextid`**, nicht `cmid` (alle AJAX-Calls in `amd/src/aiinstructions.js`
   übergeben `contextid`).
 
 ### 2.2 Der zentrale Engpass (positiv: zentralisiert)
-`classes/local/wbagent/services/security/authorization_service.php`:
+`classes/local/wizard/services/security/authorization_service.php`:
 - `require_booking_module_context(int $contextid): context_module` **(private, Z. 65-75)** — wirft
   `moodle_exception('invalidcontext')` wenn nicht `context_module`; wirft `invalidcoursemodule` wenn
   `get_coursemodule_from_id('booking', $context->instanceid)` (Z. 70) leer ist.
@@ -84,13 +84,13 @@ Niemals ein beliebiger fremder Kontext.
 ### 2.3 Direkte `get_coursemodule_from_id('booking', …)` — vollständige Liste (aktuell)
 | Datei | Zeile | Methode |
 |---|---|---|
-| `classes/local/wbagent/services/security/authorization_service.php` | 70 | `require_booking_module_context()` |
+| `classes/local/wizard/services/security/authorization_service.php` | 70 | `require_booking_module_context()` |
 | `classes/external/ai_send_message.php` | 159 | `execute()` (+ `get_or_create_thread(…, $cm->instance)` Z. 225) |
 | `classes/external/ai_poll_thread.php` | 96 | `execute()` |
 | `classes/external/ai_privacy_precheck.php` | 112 | `execute()` |
 | `classes/external/activate_trial_context.php` | 106 | `execute()` |
-| `classes/local/wbagent/orchestrator.php` | 2273 | `build_runtime_context_block()` |
-| `classes/local/wbagent/aiready.php` | 113 | `export_for_template()` |
+| `classes/local/wizard/orchestrator.php` | 2273 | `build_runtime_context_block()` |
+| `classes/local/wizard/aiready.php` | 113 | `export_for_template()` |
 
 ### 2.4 Capabilities (alle modul-/system-gebunden)
 `db/access.php`:
@@ -112,10 +112,10 @@ Niemals ein beliebiger fremder Kontext.
 - `conversation_store::get_or_create_thread(int $userid, int $contextid, int $bookingid)` (Z. 84-109,
   schreibt `bookingid` Z. 101) und `create_fresh_thread(… , int $bookingid)` (Z. 119-148, Z. 140).
   `get_active_thread(userid, contextid)` (Z. 64-74) ist bereits bookingid-frei.
-- `db/install.xml:12` — `local_wbagent_ai_threads.bookingid` `TYPE="int" NOTNULL="true" DEFAULT="0"`.
+- `db/install.xml:12` — `local_wizard_ai_threads.bookingid` `TYPE="int" NOTNULL="true" DEFAULT="0"`.
 
 ### 2.7 Readiness ist booking-spezifisch
-`classes/local/wbagent/aiready.php`:
+`classes/local/wizard/aiready.php`:
 - `use mod_booking\singleton_service;` (Z. 32); Constructor `__construct(int $cmid, int $userid, int $bookingid)`
   (Z. 70-73, speichert `$this->bookingid`).
 - `export_for_template()` (Z. 113 `get_coursemodule_from_id('booking')`); `get_booking_statistics()`
@@ -158,7 +158,7 @@ Bereits generisch (keine Änderung nötig): `services/discovery/context_prior_bu
 ## 3. Vollständige Änderungsliste (Datei → Klasse → Methode)
 
 ### 3.1 Auth-Schicht (Fundament beider Ziele)
-- **`classes/local/wbagent/services/security/authorization_service.php`**
+- **`classes/local/wizard/services/security/authorization_service.php`**
   - `require_booking_module_context()` (Z. 65-75) → **ersetzen/umbenennen** durch generisches
     `require_valid_context(int $contextid, array $allowedlevels = [CONTEXT_MODULE]): \context`.
     Default = heutiges Verhalten (nur Modul); Booking-`cm`-Pflicht entfällt.
@@ -167,11 +167,11 @@ Bereits generisch (keine Änderung nötig): `services/discovery/context_prior_bu
   - `can_use()` (Z. 101-112), `require_valid_context()` (Z. 120-122) → an die generische Gate-Methode anpassen.
   - **NEU:** `require_capability_at(int $userid, int $contextid, string $capability): \context` — für den
     Kontextwechsel (Re-Check am Zielkontext, s. §4).
-- **`classes/local/wbagent/interfaces/agent_authorization_service.php`** — Signaturen der o. g. Methoden
+- **`classes/local/wizard/interfaces/agent_authorization_service.php`** — Signaturen der o. g. Methoden
   generisch fassen (Docblock ist bereits generisch); neue `require_capability_at()` deklarieren.
 - **`db/access.php`** — `useaiinstructions` und die per-Skill-`skill_*`-Caps von `CONTEXT_MODULE` auf
   mehrere Levels heben (z. B. `CONTEXT_MODULE, CONTEXT_COURSE, CONTEXT_SYSTEM`). Bei Plugin-Migration:
-  unter `local/wbagent:*` neu definieren. **Backward-compat:** Modul-Level bleibt enthalten.
+  unter `local/wizard:*` neu definieren. **Backward-compat:** Modul-Level bleibt enthalten.
 
 ### 3.2 Entry-Points (`classes/external/*`)
 Gemeinsamer Umbau: `context::instance_by_id($contextid)` nutzen, **kein** erzwungenes
@@ -187,34 +187,34 @@ Gemeinsamer Umbau: `context::instance_by_id($contextid)` nutzen, **kein** erzwun
 | `ai_confirm_run.php`, `ai_discard_pending.php`, `ai_get_thread_debug_logs.php` | `execute()` | Nur generisches Gate (kein eigener cm-Lookup). Fehlendes `require_sesskey()` ergänzen (Debug-Logs). |
 | `ai_get_doc_content.php` | `execute()` | Nur generisches Gate; `cmid` optional. + `require_sesskey()`. (Read-only, context-logisch unabhängig.) |
 | `ai_upload_attachment.php` | `execute()` | Nur generisches Gate (nutzt schon `contextid` für Token). + `require_sesskey()`. |
-| `db/services.php` | — | Capability-Einträge ggf. auf neue `local/wbagent:*` umstellen (bei Migration). |
+| `db/services.php` | — | Capability-Einträge ggf. auf neue `local/wizard:*` umstellen (bei Migration). |
 
 ### 3.3 Runtime-Kern
-- **`classes/local/wbagent/agent_runtime.php`** — `resolve_cmid_from_contextid()` (Z. 261-271) →
+- **`classes/local/wizard/agent_runtime.php`** — `resolve_cmid_from_contextid()` (Z. 261-271) →
   `?int` zurückgeben (null wenn kein Modul), **keine** Exception; `run()`/`run_loop()` (Z. 154/169)
   führen `cmid` nur noch optional weiter.
-- **`classes/local/wbagent/orchestrator.php`**
+- **`classes/local/wizard/orchestrator.php`**
   - `build_runtime_context_block()` (Z. 2251-2281): `get_coursemodule_from_id('booking')` (Z. 2273) →
     `context::instance_by_id($contextid)->get_context_name()`; `booking_name` → generisches
     `context_name` (Booking-Name nur als Spezialfall, wenn Modul = booking).
   - `get_runtime_provider_status()`/`process()` (Z. 201/355): `context_module::instance($cmid)`-Zwang
     lockern (core_ai-Status ist nicht modulgebunden).
   - Z. 2010 Kommentar/Trigger-Strip: rein kosmetisch.
-- **`classes/local/wbagent/executor.php`** — `execute_commands()` (Z. 95-107): Modul-Zwang (Z. 97-99)
+- **`classes/local/wizard/executor.php`** — `execute_commands()` (Z. 95-107): Modul-Zwang (Z. 97-99)
   ersetzen durch Context-Level-Whitelist; `$cmid` optional. **Hier andockt der Kontextwechsel** (§4):
   pro Command den Operating-Kontext auflösen + autorisieren.
 
 ### 3.4 Persistenz / Datenmodell
-- **`classes/local/wbagent/conversation_store.php`** — `get_or_create_thread()` (Z. 84-109) und
+- **`classes/local/wizard/conversation_store.php`** — `get_or_create_thread()` (Z. 84-109) und
   `create_fresh_thread()` (Z. 119-148): Signatur `…, ?int $bookingid = null`; `bookingid` nur setzen,
   wenn vorhanden.
-- **`db/install.xml`** — `local_wbagent_ai_threads.bookingid` (Z. 12) auf `NOTNULL="false"`
+- **`db/install.xml`** — `local_wizard_ai_threads.bookingid` (Z. 12) auf `NOTNULL="false"`
   (oder entfernen/umdeuten als generische „domain scope id"). **⚠ DB-Policy** „new schema via
   install.xml only, no upgrade.php" (Flowchart LG_DB) kollidiert mit einer Spaltenänderung an
   Bestandsinstallationen → **mit Georg klären** (Default `0`/nullable als verträglichster Weg).
 
 ### 3.5 Readiness
-- **`classes/local/wbagent/aiready.php`** — `use mod_booking\singleton_service` (Z. 32) entfernen;
+- **`classes/local/wizard/aiready.php`** — `use mod_booking\singleton_service` (Z. 32) entfernen;
   Constructor → `__construct(int $contextid, int $userid)`; `export_for_template()` (Z. 113) generisch;
   `get_booking_statistics()` (Z. 350, 367-369) als **optionalen, booking-seitigen Hook** auslagern
   (generischer Core-AI-/Provider-Readiness bleibt im Plugin). Aufrufer `mod/booking/view.php:203-211`
@@ -228,7 +228,7 @@ Gemeinsamer Umbau: `context::instance_by_id($contextid)` nutzen, **kein** erzwun
 - **`services/phase_prompt_bundle_builder.php`** (Z. 145, 308, 311) — `{{bookingname}}` →
   `{{contextname}}`; Prompt-Beispiele provider-agnostisch.
 - **`skill_contract_validator.php`** (Z. 39, 302-315) — `RESERVED_NAMESPACES`/`component_may_register_namespace()`
-  bei Migration auf `['core', 'local_wbagent']` aktualisieren.
+  bei Migration auf `['core', 'local_wizard']` aktualisieren.
 
 ### 3.7 UI / Navigation (für Hosting in beliebigem Kontext)
 - **`bookingextension/agent/lib.php`** (heute leer) — Navigation-Hook(s) ergänzen
@@ -250,11 +250,11 @@ Gemeinsamer Umbau: `context::instance_by_id($contextid)` nutzen, **kein** erzwun
 re-autorisiert, nicht eskaliert.
 
 ### 4.1 Neue Komponenten (zu erstellen)
-- **`classes/local/wbagent/dto/context_requirement.php`** (DTO) — `{minlevel, prefer}` o. ä.
+- **`classes/local/wizard/dto/context_requirement.php`** (DTO) — `{minlevel, prefer}` o. ä.
 - **Skill-Vertrag erweitern:** Methode `get_required_context_level(): int` (Default `CONTEXT_MODULE`)
   in `interfaces/skill_interface.php` + `base_skill` (Default-Impl). Damit deklariert ein Skill seinen
   Bedarf. Fließt in den Embeddings-/Selection-Katalog ein (Discovery bleibt unverändert nutzbar).
-- **`classes/local/wbagent/services/security/context_resolver.php`** (NEU) —
+- **`classes/local/wizard/services/security/context_resolver.php`** (NEU) —
   `resolve(int $ambientcontextid, int $requiredlevel): \context` läuft den Context-Baum des
   Ambient-Kontexts hinauf (Modul → Kurs → Kategorie → System) bis zum geforderten Level;
   `authorize(int $userid, \context $operatingcontext, string $capability): void` ruft
@@ -306,7 +306,7 @@ re-autorisiert, nicht eskaliert.
 2. **DB-Policy vs. `bookingid`-Änderung:** „install.xml only, kein upgrade.php" (Flowchart LG_DB) ↔
    Spaltenänderung an Bestandsdaten. Mit Georg klären (nullable als verträglichster Weg).
 3. **Per-Skill-Capability-Fläche:** Die `skill_*`-Caps sind heute alle CONTEXT_MODULE. Auf mehrere
-   Levels heben oder auf ein einziges `local/wbagent:execute_skill` + per-Skill-Risk konsolidieren?
+   Levels heben oder auf ein einziges `local/wizard:execute_skill` + per-Skill-Risk konsolidieren?
 4. **Operating-Context-Auswahl:** Wer entscheidet den Zielkontext — Skill-Required-Level + Resolver
    (automatisch nach oben) genügt meist; bei Mehrdeutigkeit (mehrere Kurse?) braucht es eine
    Disambiguierung. Für Modul→Kurs eindeutig.
@@ -328,7 +328,7 @@ re-autorisiert, nicht eskaliert.
   Caps auf Multi-Level.
 - **Phase 4 — Kontextwechsel:** `context_requirement`-DTO, Skill-`get_required_context_level()`,
   `context_resolver`, `executor`/`preflight`/Confirm-Integration. Erst-Konsument: `core.generate_questions`.
-- **Phase 5 — UI/Nav + Plugin-Migration** (`local_wbagent`): additiver Nav-Einstieg; Rename gem.
+- **Phase 5 — UI/Nav + Plugin-Migration** (`local_wizard`): additiver Nav-Einstieg; Rename gem.
   Extraction-Plan.
 
 ---
@@ -352,9 +352,9 @@ ai_get_doc_content · ai_upload_attachment}`; `db/services.php`.
 **UI:** `lib.php` (leer), `templates/aiinstructions.mustache:29`, `amd/src/aiinstructions.js` (init/WS-Args),
 `settings.php` (`aidocsroot`/`aidocsentry`), `version.php`.
 
-**Verwandte Blueprints:** [`wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md`](wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md),
-[`wbagent_local_plugin_extraction_plan_2026-06-08.md`](wbagent_local_plugin_extraction_plan_2026-06-08.md),
+**Verwandte Blueprints:** [`wizard_local_plugin_context_decoupling_analysis_2026-06-08.md`](wizard_local_plugin_context_decoupling_analysis_2026-06-08.md),
+[`wizard_local_plugin_extraction_plan_2026-06-08.md`](wizard_local_plugin_extraction_plan_2026-06-08.md),
 [`neue_skills_und_pdf_fragegenerierung_analyse_2026-06-09.md`](neue_skills_und_pdf_fragegenerierung_analyse_2026-06-09.md)
 (Erst-Konsument des Kontextwechsels: Fragen → Kurs-Fragebank).
-**Memory:** project-wbagent-local-plugin-extraction, project-agent-skill-discovery-visibility,
+**Memory:** project-wizard-local-plugin-extraction, project-agent-skill-discovery-visibility,
 project-agent-guidance-injection, feedback-flowchart-policy.

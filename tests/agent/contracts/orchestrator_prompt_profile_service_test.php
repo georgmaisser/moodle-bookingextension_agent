@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\tests\agent\contracts;
 
-use bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service;
+use bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service;
 use advanced_testcase;
 
 /**
@@ -32,8 +32,8 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
     /**
      * Verifies that phase-based prompt-profile keys remain stable.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::get_planner_initial_prompt_config_key_for_phase
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::get_history_limit_for_phase
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service::get_planner_initial_prompt_config_key_for_phase
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service::get_history_limit_for_phase
      */
     public function test_phase_profiles_use_expected_config_keys(): void {
         $service = new orchestrator_prompt_profile_service();
@@ -59,7 +59,7 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
     /**
      * Short threads pass through unchanged.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service::select_history_messages
      */
     public function test_select_history_returns_all_for_short_thread(): void {
         $service = new orchestrator_prompt_profile_service();
@@ -73,7 +73,7 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
     /**
      * Long threads keep the original request plus the most-recent tail (max N + 1).
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service::select_history_messages
      */
     public function test_select_history_preserves_first_user_message(): void {
         $service = new orchestrator_prompt_profile_service();
@@ -93,7 +93,7 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
     /**
      * When the first user message already sits inside the tail window, no duplicate is prepended.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service::select_history_messages
      */
     public function test_select_history_no_duplicate_when_first_user_in_tail(): void {
         $service = new orchestrator_prompt_profile_service();
@@ -111,7 +111,7 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
     /**
      * Threads without any user message fall back to the plain tail.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service::select_history_messages
      */
     public function test_select_history_tail_only_without_user_message(): void {
         $service = new orchestrator_prompt_profile_service();

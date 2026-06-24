@@ -114,11 +114,11 @@ Zieldelta fuer [docs/Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd](d
 
 Betroffene Hauptdateien:
 
-- classes/local/wbagent/orchestrator.php
-- classes/local/wbagent/services/orchestrator_routing_service.php
-- classes/local/wbagent/services/orchestrator_prompt_profile_service.php
-- classes/local/wbagent/services/phase_prompt_bundle_builder.php
-- classes/local/wbagent/services/planner_result_composer.php
+- classes/local/wizard/orchestrator.php
+- classes/local/wizard/services/orchestrator_routing_service.php
+- classes/local/wizard/services/orchestrator_prompt_profile_service.php
+- classes/local/wizard/services/phase_prompt_bundle_builder.php
+- classes/local/wizard/services/planner_result_composer.php
 
 Vorgaben:
 
@@ -263,81 +263,81 @@ Hinweis zur Nutzung:
 	Abnahme: Ausgangsstand reproduzierbar, damit Delta klar messbar bleibt.
 
 - [x] A2 Feature-Flag- und Fallback-Verhalten dokumentiert validieren.
-	Dateien: [classes/local/wbagent/services/discovery/discovery_stage_controller.php](../../classes/local/wbagent/services/discovery/discovery_stage_controller.php), [classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php](../../classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php), [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php).
+	Dateien: [classes/local/wizard/services/discovery/discovery_stage_controller.php](../../classes/local/wizard/services/discovery/discovery_stage_controller.php), [classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php](../../classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php), [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php).
 	Abnahme: dualer Discovery-Pfad (mit/ohne Embeddings) als Invariante vor Refactor bestaetigt.
 
 ### Block B - Discovery von LLM entkoppeln (Hard Cut)
 
 - [x] B1 Discovery-LLM-Invoke entfernen.
-	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php).
+	Datei: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php).
 	Zielaenderung: in `run_discovery_phase()` kein `llm_call_service::invoke()` fuer Discovery mehr.
 	Abnahme: kein `planner_discovery` source call mehr erreichbar.
 
 - [x] B2 Discovery-Interpreterpfad entfernen.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/interpreter.php](../../classes/local/wbagent/interpreter.php).
+	Dateien: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php), [classes/local/wizard/interpreter.php](../../classes/local/wizard/interpreter.php).
 	Zielaenderung: kein `interpret_phase_output(..., discovery, ...)` und keine Discovery-spezifische Parse-Branch mehr.
 	Abnahme: Discovery liefert nur deterministische Datenstruktur, kein LLM-Output-Parsing.
 
 - [x] B3 Discovery-Ausgabe als deterministisches DTO stabilisieren.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/discovery/context_prior_builder.php](../../classes/local/wbagent/services/discovery/context_prior_builder.php), [classes/local/wbagent/services/discovery/family_registry_service.php](../../classes/local/wbagent/services/discovery/family_registry_service.php), [classes/local/wbagent/services/discovery/family_signal_ranker.php](../../classes/local/wbagent/services/discovery/family_signal_ranker.php), [classes/local/wbagent/services/discovery/family_ranker.php](../../classes/local/wbagent/services/discovery/family_ranker.php), [classes/local/wbagent/services/discovery/discovery_stage_controller.php](../../classes/local/wbagent/services/discovery/discovery_stage_controller.php).
+	Dateien: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php), [classes/local/wizard/services/discovery/context_prior_builder.php](../../classes/local/wizard/services/discovery/context_prior_builder.php), [classes/local/wizard/services/discovery/family_registry_service.php](../../classes/local/wizard/services/discovery/family_registry_service.php), [classes/local/wizard/services/discovery/family_signal_ranker.php](../../classes/local/wizard/services/discovery/family_signal_ranker.php), [classes/local/wizard/services/discovery/family_ranker.php](../../classes/local/wizard/services/discovery/family_ranker.php), [classes/local/wizard/services/discovery/discovery_stage_controller.php](../../classes/local/wizard/services/discovery/discovery_stage_controller.php).
 	Abnahme: Discovery liefert ranked families, selected families, slim task candidates, stage/confidence/escalation.
 
 ### Block C - Dualpfad mit/ohne Embeddings absichern
 
 - [x] C1 Embeddings-Pfad (semantisch + Kontextgewichtung) erhalten.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php](../../classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php), [classes/local/wbagent/services/discovery/family_ranker.php](../../classes/local/wbagent/services/discovery/family_ranker.php).
+	Dateien: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php), [classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php](../../classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php), [classes/local/wizard/services/discovery/family_ranker.php](../../classes/local/wizard/services/discovery/family_ranker.php).
 	Abnahme: semantische Scores bleiben optionaler Input in Ranking, kombiniert mit signal/context.
 
 - [x] C2 No-Embeddings-Pfad explizit funktionsfaehig halten.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/discovery/core_family_set.php](../../classes/local/wbagent/services/discovery/core_family_set.php), [classes/local/wbagent/services/discovery/family_signal_ranker.php](../../classes/local/wbagent/services/discovery/family_signal_ranker.php).
+	Dateien: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php), [classes/local/wizard/services/discovery/core_family_set.php](../../classes/local/wizard/services/discovery/core_family_set.php), [classes/local/wizard/services/discovery/family_signal_ranker.php](../../classes/local/wizard/services/discovery/family_signal_ranker.php).
 	Abnahme: ohne Embeddings weiterhin family derivation aus Moodle-Kontext + core families + signals, ohne semantischen Call.
 
 - [x] C3 Telemetrie-Invarianten beibehalten.
-	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php).
+	Datei: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php).
 	Abnahme: `catalogselectionmode`, `discovery_stage`, `confidence_score`, `escalation_reason` weiterhin gesetzt.
 
 ### Block D - Selection auf schlanke Kandidaten haerten
 
 - [x] D1 Selection-Eingang auf slim contracts begrenzen.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/selection/lazy_skill_loader.php](../../classes/local/wbagent/services/selection/lazy_skill_loader.php), [classes/local/wbagent/services/selection/skill_selector.php](../../classes/local/wbagent/services/selection/skill_selector.php).
+	Dateien: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php), [classes/local/wizard/services/selection/lazy_skill_loader.php](../../classes/local/wizard/services/selection/lazy_skill_loader.php), [classes/local/wizard/services/selection/skill_selector.php](../../classes/local/wizard/services/selection/skill_selector.php).
 	Abnahme: Selection-Prompt enthaelt keine full schemas.
 
 - [x] D2 Promptvertrag der Selection-Phase nachziehen.
-	Dateien: [classes/local/wbagent/services/phase_prompt_bundle_builder.php](../../classes/local/wbagent/services/phase_prompt_bundle_builder.php), [classes/local/wbagent/prompt_policy_builder.php](../../classes/local/wbagent/prompt_policy_builder.php).
+	Dateien: [classes/local/wizard/services/phase_prompt_bundle_builder.php](../../classes/local/wizard/services/phase_prompt_bundle_builder.php), [classes/local/wizard/prompt_policy_builder.php](../../classes/local/wizard/prompt_policy_builder.php).
 	Abnahme: Selection ist ein echter Tool-Selector-Call und liefert genau eine Taskwahl, aber keine finalen strukturierten Parameter.
 
 ### Block E - Construction strikt Single-Task Full-Schema
 
 - [x] E1 Handoff Selection -> Construction auf genau eine Task begrenzen.
-	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php).
+	Datei: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php).
 	Abnahme: Construction bekommt genau den vom Selector gewaehlten Task-Kontext.
 
 - [x] E2 Full-Schema nur in Construction laden.
-	Dateien: [classes/local/wbagent/services/construction/parameter_constructor.php](../../classes/local/wbagent/services/construction/parameter_constructor.php), [classes/local/wbagent/services/construction/parameter_contract_validator.php](../../classes/local/wbagent/services/construction/parameter_contract_validator.php).
+	Dateien: [classes/local/wizard/services/construction/parameter_constructor.php](../../classes/local/wizard/services/construction/parameter_constructor.php), [classes/local/wizard/services/construction/parameter_contract_validator.php](../../classes/local/wizard/services/construction/parameter_contract_validator.php).
 	Abnahme: Konstruktion validiert strukturiert gegen Full-Schema, keine Schema-Aufblaehung in Selection.
 
 ### Block F - Routing, Prompt-Profile, Composer auf 2 Planner-Phasen umstellen
 
 - [x] F1 Routing-Service ohne Discovery-Action-Routing fuer Planner-Invoke.
-	Datei: [classes/local/wbagent/services/orchestrator_routing_service.php](../../classes/local/wbagent/services/orchestrator_routing_service.php).
+	Datei: [classes/local/wizard/services/orchestrator_routing_service.php](../../classes/local/wizard/services/orchestrator_routing_service.php).
 	Abnahme: Planner-Routing nur noch Selection und Parameter-Construction.
 
 - [x] F2 Prompt-Profile ohne Discovery-Key fuer Plannerphase.
-	Datei: [classes/local/wbagent/services/orchestrator_prompt_profile_service.php](../../classes/local/wbagent/services/orchestrator_prompt_profile_service.php).
+	Datei: [classes/local/wizard/services/orchestrator_prompt_profile_service.php](../../classes/local/wizard/services/orchestrator_prompt_profile_service.php).
 	Abnahme: kein aktiver Discovery-Prompt-Key im Plannerpfad.
 
 - [x] F3 Phase-Prompt-Bundle auf 2 Planner-Phasen reduzieren.
-	Datei: [classes/local/wbagent/services/phase_prompt_bundle_builder.php](../../classes/local/wbagent/services/phase_prompt_bundle_builder.php).
+	Datei: [classes/local/wizard/services/phase_prompt_bundle_builder.php](../../classes/local/wizard/services/phase_prompt_bundle_builder.php).
 	Abnahme: lokale Output-Contracts sauber fuer Selection/Construction getrennt.
 
 - [x] F4 Planner-Result-Composer ohne Discovery-Payload/Trace.
-	Datei: [classes/local/wbagent/services/planner_result_composer.php](../../classes/local/wbagent/services/planner_result_composer.php).
+	Datei: [classes/local/wizard/services/planner_result_composer.php](../../classes/local/wizard/services/planner_result_composer.php).
 	Abnahme: `planner_result` und `phase_trace` enthalten nur `selection` + `parameter_construction`.
 
 ### Block G - Delete Pass (alte Discovery-LLM-Reste entfernen)
 
 - [x] G1 Symbolischer Delete-Pass auf Legacy-Reste.
-	Dateien: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php), [classes/local/wbagent/services/orchestrator_routing_service.php](../../classes/local/wbagent/services/orchestrator_routing_service.php), [classes/local/wbagent/services/orchestrator_prompt_profile_service.php](../../classes/local/wbagent/services/orchestrator_prompt_profile_service.php), [classes/local/wbagent/services/phase_prompt_bundle_builder.php](../../classes/local/wbagent/services/phase_prompt_bundle_builder.php), [classes/local/wbagent/services/planner_result_composer.php](../../classes/local/wbagent/services/planner_result_composer.php).
+	Dateien: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php), [classes/local/wizard/services/orchestrator_routing_service.php](../../classes/local/wizard/services/orchestrator_routing_service.php), [classes/local/wizard/services/orchestrator_prompt_profile_service.php](../../classes/local/wizard/services/orchestrator_prompt_profile_service.php), [classes/local/wizard/services/phase_prompt_bundle_builder.php](../../classes/local/wizard/services/phase_prompt_bundle_builder.php), [classes/local/wizard/services/planner_result_composer.php](../../classes/local/wizard/services/planner_result_composer.php).
 	Abnahme: keine nutzbaren Referenzen auf `planner_discovery`, `router_discover_family`, Discovery-Interpreterpfad.
 
 ### Block H - Testabschluss und Freigabe
@@ -394,37 +394,37 @@ Ziel dieses Nachtrags:
 ### Offene Checkboxen
 
 - [x] N1 Selection-Output als echte Taskwahl fest verdrahten.
-	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php)
+	Datei: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php)
 	Methode: `run_selection_phase()`
 	Aenderung: `phase_output` und `selected_skill` muessen eine explizite Tool-Selector-Entscheidung tragen; keine versteckte Mehrfach-Auswahl, keine Parameterpayload.
 	Abnahme: Selection liefert genau eine gewaehlte Task fuer den Constructor-Handoff.
 
 - [x] N2 Construction-Phase strikt auf die selektierte Task begrenzen.
-	Datei: [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php)
+	Datei: [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php)
 	Methode: `run_construction_phase()`
 	Aenderung: `allowed_skills` und Prompt-Kontext duerfen nur die vom Selector gewaehlte Task enthalten; keine Rueckfaelle auf weitere Katalogeintraege.
 	Abnahme: Construction baut nur Parameter fuer genau eine Task.
 
 - [x] N3 Phase-Prompt der Selection auf Tool-Selector trimmen.
-	Datei: [classes/local/wbagent/services/phase_prompt_bundle_builder.php](../../classes/local/wbagent/services/phase_prompt_bundle_builder.php)
+	Datei: [classes/local/wizard/services/phase_prompt_bundle_builder.php](../../classes/local/wizard/services/phase_prompt_bundle_builder.php)
 	Methode: `build_local_output_contract_block()`
 	Aenderung: Selection-Contract muss den Selector als command-bearing Task-Wahl explizit beschreiben; Full-Schemas bleiben ausgeschlossen.
 	Abnahme: erster Call ist als Tool-Selector lesbar und testbar.
 
 - [x] N4 Routing-/Prompt-Policies an Selector/Constructor-Rollen angleichen.
-	Datei: [classes/local/wbagent/prompt_policy_builder.php](../../classes/local/wbagent/prompt_policy_builder.php)
+	Datei: [classes/local/wizard/prompt_policy_builder.php](../../classes/local/wizard/prompt_policy_builder.php)
 	Methode: `build_response_contract_policy()` und `build_routing_determinism_policy()`
 	Aenderung: Routing-Text muss Selection als echte Taskwahl und Construction als Parameter-only-Phase beschreiben; keine widerspruechlichen Non-Command-Formulierungen.
 	Abnahme: Prompt-Pflichten sind konsistent mit dem Tool-Selector-Zielbild.
 
 - [x] N5 Interpreter-Contract an die Selector/Constructor-Trennung angleichen.
-	Datei: [classes/local/wbagent/interpreter.php](../../classes/local/wbagent/interpreter.php)
+	Datei: [classes/local/wizard/interpreter.php](../../classes/local/wizard/interpreter.php)
 	Methode: `enforce_phase_contract()`
 	Aenderung: Selection muss den Selector-Output als explizite Taskwahl akzeptieren; Construction bleibt bei genau einem Command und dem Allow-List-Check.
 	Abnahme: Phase-Contracts reflektieren die 2-Call-Rollen ohne stillen Semantikbruch.
 
 - [x] N6 Planner-Result nur mit Selection- und Construction-Trace ausgeben.
-	Datei: [classes/local/wbagent/services/planner_result_composer.php](../../classes/local/wbagent/services/planner_result_composer.php)
+	Datei: [classes/local/wizard/services/planner_result_composer.php](../../classes/local/wizard/services/planner_result_composer.php)
 	Methode: `compose()`
 	Aenderung: `phase_trace` bleibt auf `selection` + `parameter_construction` reduziert und traegt die selektierte Task sichtbar im Selection-Teil.
 	Abnahme: Trace macht den Selector-Handoff fuer Debugging und Tests sichtbar.

@@ -26,8 +26,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\task;
 
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_index_service;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_gate;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_index_service;
 
 /**
  * Rebuilds embeddings for the registered documentation corpora.

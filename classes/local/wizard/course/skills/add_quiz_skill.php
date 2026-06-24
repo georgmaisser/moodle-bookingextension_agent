@@ -1,0 +1,543 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace bookingextension_agent\local\wizard\course\skills;
+
+use bookingextension_agent\local\wizard\course_targeted_skill;
+use bookingextension_agent\local\wizard\preflight_clarification;
+
+use bookingextension_agent\local\wizard\core\skills\core_skill_base;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\dto\target_selector;
+use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wizard\services\activities\activity_creation_service;
+use bookingextension_agent\local\wizard\services\activities\activity_preview_renderer;
+use bookingextension_agent\local\wizard\services\activities\module_form_contract;
+use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
+use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
+use bookingextension_agent\local\wizard\services\preflight_result_v2;
+use context;
+use context_course;
+
+/**
+ * Dedicated skill: create a quiz and (optionally) populate it with questions (course.add_quiz).
+ *
+ * The quiz hull is built on the shared activity foundation (module_form_contract + activity_creation_service)
+ * with a thin quiz-specific patch (overall-feedback defaults). Questions come via the shared
+ * quiz_question_service from three sources (generate / specific ids / random from a category). It is smart
+ * about incomplete requests: an empty quiz is allowed ("create the quiz now, add questions later"), and when
+ * questions are wanted but the source is unclear it asks (generate from a document / make them up / use an
+ * existing category — listing the available categories).
+ *
+ * Generation-first: questions are generated into the bank BEFORE the quiz is created, so a later failure
+ * never loses the generated questions. R2 (confirm). No engine changes.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class add_quiz_skill extends core_skill_base implements skill_trigger_provider_interface {
+    use course_targeted_skill;
+    use preflight_clarification;
+    /** Skill name. */
+    public const SKILL_NAME = 'course.add_quiz';
+
+    /**
+     * Constructor. Mutating skill (creates a quiz) — broad write, requires confirmation.
+     */
+    public function __construct() {
+        parent::__construct(false, skill_risk_class::R2);
+    }
+
+    /**
+     * Skill name.
+     *
+     * @return string
+     */
+    public function get_name(): string {
+        return self::SKILL_NAME;
+    }
+
+    /**
+     * Quizzes live in a course.
+     *
+     * @return int
+     */
+    public function get_required_context_level(): int {
+        return CONTEXT_COURSE;
+    }
+
+
+    /**
+     * The cross-context target is a course.
+     *
+     * @return int
+     */
+    public function get_target_context_level(): int {
+        return CONTEXT_COURSE;
+    }
+
+
+    /**
+     * Native capability required to add a quiz (Gate 2). Question generation additionally needs
+     * moodle/question:add, checked in preflight when that source is chosen.
+     *
+     * @return string[]
+     */
+    public function get_required_native_capabilities(): array {
+        return ['moodle/course:manageactivities'];
+    }
+
+    /**
+     * Return skill schema.
+     *
+     * @return array
+     */
+    public function get_schema(): array {
+        return [
+            'version' => 1,
+            'description' => 'Create a quiz/test in a course and optionally fill it with questions. Use for '
+                . '"create a quiz", "erstelle ein Quiz/Test", "mach ein Quiz aus diesem PDF". The quiz can be '
+                . 'created empty (add questions later) or populated from one of three sources: newly generated '
+                . 'questions (from a document/PDF or a topic), specific existing questions, or random questions from '
+                . 'a question category. To only add questions to the bank (no quiz) use question.generate_questions.',
+            'readonly' => false,
+            'properties' => [
+                'name' => [
+                    'type' => 'string',
+                    'description' => 'The quiz name/title. Required.',
+                    'required' => false,
+                ],
+                'intro' => [
+                    'type' => 'string',
+                    'description' => 'Optional quiz description/intro.',
+                    'required' => false,
+                ],
+                'section' => [
+                    'type' => 'string',
+                    'description' => 'Optional placement ("top"/"bottom"/section name). Defaults to the top.',
+                    'required' => false,
+                ],
+                'addquestions' => [
+                    'type' => 'boolean',
+                    'description' => 'Set true when the user wants questions but has not said from where — the system '
+                        . 'then asks which source to use. Leave false/empty to create an empty quiz.',
+                    'required' => false,
+                ],
+                'content' => [
+                    'type' => 'string',
+                    'description' => 'SOURCE MATERIAL to GENERATE questions from: a topic, facts, or document text the '
+                        . 'user provided. Setting this generates questions. Do not author the questions yourself.',
+                    'required' => false,
+                ],
+                'count' => [
+                    'type' => 'integer',
+                    'description' => 'How many questions to generate / add (default 5).',
+                    'required' => false,
+                ],
+                'qtypes' => [
+                    'type' => 'array',
+                    'description' => 'Question types for generation: multichoice, truefalse, shortanswer.',
+                    'items' => ['type' => 'string'],
+                    'required' => false,
+                ],
+                'difficulty' => [
+                    'type' => 'string',
+                    'description' => 'Difficulty for generation: easy, medium or hard.',
+                    'required' => false,
+                ],
+                'questionids' => [
+                    'type' => 'array',
+                    'description' => 'Ids of specific existing questions to add to the quiz.',
+                    'items' => ['type' => 'integer'],
+                    'required' => false,
+                ],
+                'category' => [
+                    'type' => 'string',
+                    'description' => 'Name of a question category to take existing questions from (random). Pass the '
+                        . 'user\'s wording; the system lists the available categories if it is unclear.',
+                    'required' => false,
+                ],
+                'randomcount' => [
+                    'type' => 'integer',
+                    'description' => 'How many random questions to take from the category (default 5).',
+                    'required' => false,
+                ],
+                'coursequery' => [
+                    'type' => 'string',
+                    'description' => 'Target a DIFFERENT course, ONLY when the user names one. Resolve via '
+                        . 'course.search_courses first if only the name is known. Leave empty for the current course.',
+                    'required' => false,
+                ],
+                'courseid' => [
+                    'type' => 'integer',
+                    'description' => 'Numeric target course id when known. Leave empty for the current course.',
+                    'required' => false,
+                ],
+            ],
+            'prompt_meta' => [
+                'input_fields_for_prompt' => ['name', 'intro', 'content', 'count', 'category', 'addquestions'],
+                'anchor_fields' => ['coursequery', 'category'],
+            ],
+        ];
+    }
+
+    /**
+     * Example input.
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        return ['name' => 'Chapter 1 quiz', 'content' => 'Photosynthesis basics', 'count' => 5];
+    }
+
+    /**
+     * Message triggers.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_message_triggers(): array {
+        return [
+            [
+                'id' => 'course.add_quiz_request',
+                'description' => 'User wants to CREATE a quiz/test activity in a course (optionally with questions: '
+                    . 'generated, from a category, or specific ones). E.g. "create a quiz", "erstelle ein Quiz", '
+                    . '"mach ein Quiz aus diesem PDF", "leg einen Test mit 10 Fragen an". To only put questions in '
+                    . 'the bank, that is question.generate_questions.',
+            ],
+        ];
+    }
+
+    /**
+     * Contextual guidance.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function get_contextual_prompt_packs(): array {
+        return [
+            [
+                'id' => 'course.add_quiz',
+                'triggers' => [
+                    'create a quiz', 'create a test', 'make a quiz', 'quiz erstellen', 'test erstellen',
+                    'quiz anlegen', 'quiz aus pdf', 'quiz mit fragen', 'erstelle einen test', 'neues quiz',
+                ],
+                'guidance' => [
+                    '- course.add_quiz CREATES the quiz activity; question.generate_questions only adds questions to',
+                    '  the bank (no quiz). For "make a quiz from this PDF" use course.add_quiz with input.content.',
+                    '- The quiz may be created EMPTY (add questions later) — do not force a question source.',
+                    '- If the user wants questions but no source is clear, set input.addquestions=true; the system then',
+                    '  asks (generate / specific / from a category, listing categories). Put generation material into',
+                    '  input.content; do not write the questions yourself.',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Structural validation (pure).
+     *
+     * @param array $input
+     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     */
+    public function check_structure(array $input): array {
+        return ['valid' => true, 'errors' => [], 'ambiguities' => []];
+    }
+
+    /**
+     * Resolve course + name + section + question source (read-only).
+     *
+     * @param array $input
+     * @param int   $contextid
+     * @param int   $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+        $context = context::instance_by_id($contextid, IGNORE_MISSING);
+        $coursecontext = $context ? $context->get_course_context(false) : false;
+        if (!$coursecontext) {
+            return $this->clarify(
+                'Quizzes are created inside a course. Please open a course, or name one.',
+                'ADD_QUIZ_NO_COURSE'
+            );
+        }
+        if (
+            !has_capability('moodle/course:manageactivities', $coursecontext, $userid)
+            || !has_capability('mod/quiz:addinstance', $coursecontext, $userid)
+        ) {
+            return $this->clarify(get_string('nopermissions', 'error', 'mod/quiz:addinstance'), 'NO_NATIVE_CAPABILITY');
+        }
+        $course = get_course($coursecontext->instanceid);
+
+        $name = trim((string)($input['name'] ?? ''));
+        if ($name === '') {
+            return $this->clarify('What should the quiz be called?', 'ADD_QUIZ_NAME_REQUIRED');
+        }
+
+        $sectionnum = 0;
+        $sectionquery = trim((string)($input['section'] ?? ''));
+        if ($sectionquery !== '') {
+            $resolved = (new section_resolver_service())->resolve_placement($course, $sectionquery);
+            if (is_int($resolved)) {
+                $sectionnum = $resolved;
+            }
+        }
+
+        $service = new quiz_question_service();
+        $plan = $service->resolve_source($input, $coursecontext, $userid);
+
+        if (($plan['mode'] ?? '') === 'clarify') {
+            return $this->build_source_clarification((array)($plan['categories'] ?? []));
+        }
+        if (
+            ($plan['mode'] ?? '') === 'generate'
+            && !has_capability('moodle/question:add', $coursecontext, $userid)
+        ) {
+            return $this->clarify(get_string('nopermissions', 'error', 'moodle/question:add'), 'ADD_QUIZ_NO_QUESTION_CAP');
+        }
+        if (($plan['mode'] ?? '') === 'category') {
+            $cats = $service->list_available_categories($coursecontext, $userid);
+            $needle = \core_text::strtolower((string)$plan['category']);
+            $match = false;
+            foreach ($cats as $cat) {
+                if (str_contains(\core_text::strtolower((string)$cat['categoryname']), $needle)) {
+                    $match = true;
+                    break;
+                }
+            }
+            if (!$match) {
+                return $this->build_source_clarification(
+                    $cats,
+                    'I could not find a question category called "' . (string)$plan['category'] . '". Choose one:'
+                );
+            }
+        }
+
+        return preflight_result_v2::ok([
+            'courseid' => (int)$course->id,
+            'sectionnum' => $sectionnum,
+            'name' => $name,
+            'intro' => trim((string)($input['intro'] ?? '')),
+            'settings' => is_array($input['settings'] ?? null) ? (array)$input['settings'] : [],
+            'plan' => $plan,
+            'ambientcontextid' => (int)$contextid,
+        ]);
+    }
+
+    /**
+     * Create the quiz (generation-first) and populate it.
+     *
+     * @param array $preparedinput
+     * @param int   $contextid
+     * @param int   $userid
+     * @return array
+     */
+    public function execute(array $preparedinput, int $contextid, int $userid): array {
+        $courseid = (int)($preparedinput['courseid'] ?? 0);
+        $name = (string)($preparedinput['name'] ?? '');
+        if ($courseid <= 0 || $name === '') {
+            return $this->build_error_result('Missing prepared course or quiz name.');
+        }
+        try {
+            $course = get_course($courseid);
+        } catch (\Throwable $e) {
+            return $this->build_error_result('Target course could not be loaded.');
+        }
+        $coursecontext = context_course::instance($courseid);
+        $plan = (array)($preparedinput['plan'] ?? ['mode' => 'none']);
+        $mode = (string)($plan['mode'] ?? 'none');
+        $ambient = (int)($preparedinput['ambientcontextid'] ?? $contextid);
+        $service = new quiz_question_service();
+        $stages = [];
+
+        // 1) Generation-first: questions land in the bank before the quiz exists (durable on later failure).
+        $generatedids = [];
+        if ($mode === 'generate') {
+            $gen = $service->generate_into_bank($course, $coursecontext, $plan, $userid, $ambient);
+            if ($gen['error'] !== null) {
+                return $this->build_error_result('No quiz was created — question generation failed: ' . $gen['error']);
+            }
+            $generatedids = $gen['questionids'];
+            $stages[] = 'generated ' . count($generatedids) . ' question(s) in the course bank';
+        }
+
+        // 2) Create the quiz hull.
+        try {
+            $created = $this->create_quiz_hull(
+                $course,
+                (int)($preparedinput['sectionnum'] ?? 0),
+                $name,
+                (string)($preparedinput['intro'] ?? ''),
+                (array)($preparedinput['settings'] ?? [])
+            );
+        } catch (\Throwable $e) {
+            $tail = !empty($generatedids)
+                ? ' The ' . count($generatedids) . ' generated question(s) are available in the course question bank.'
+                : '';
+            return $this->build_error_result('Could not create the quiz: ' . $e->getMessage() . $tail);
+        }
+        $stages[] = 'created quiz "' . $created['name'] . '"';
+        $quizinstance = (int)$created['instance'];
+
+        // 3) Populate.
+        $population = ['added' => 0, 'error' => null];
+        if ($mode === 'generate') {
+            $population = $service->reference_existing($course, $quizinstance, $generatedids);
+        } else if (in_array($mode, ['ids', 'category'], true)) {
+            $population = $service->add_questions_to_quiz($course, $coursecontext, $quizinstance, $plan, $userid, $ambient);
+        }
+        if (($population['error'] ?? null) !== null) {
+            $stages[] = 'WARNING: questions could not be added: ' . $population['error'];
+        } else if ((int)($population['added'] ?? 0) > 0) {
+            $stages[] = 'added ' . (int)$population['added'] . ' question(s) to the quiz';
+        } else if ($mode === 'none') {
+            $stages[] = 'no questions added (empty quiz — add some later)';
+        }
+
+        return $this->build_success_result($created, $stages, (int)($population['added'] ?? 0));
+    }
+
+    /**
+     * Build + persist the quiz hull (generic build + quiz-specific overall-feedback defaults).
+     *
+     * @param \stdClass $course
+     * @param int $sectionnum
+     * @param string $name
+     * @param string $intro
+     * @param array<string,mixed> $settings
+     * @return array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int}
+     */
+    private function create_quiz_hull(\stdClass $course, int $sectionnum, string $name, string $intro, array $settings): array {
+        $moduleinfo = (new module_form_contract())->build_prepared_moduleinfo(
+            $course,
+            'quiz',
+            $sectionnum,
+            $name,
+            $intro,
+            $settings
+        );
+        // Quiz-specific: overall feedback fields add_moduleinfo requires (one empty band = no feedback).
+        quiz_question_service::ensure_quiz_feedback($moduleinfo);
+        // The quiz form does not export an id-number element headless; default it to avoid an undefined notice.
+        if (!isset($moduleinfo->cmidnumber)) {
+            $moduleinfo->cmidnumber = '';
+        }
+        return (new activity_creation_service())->create($moduleinfo, $course);
+    }
+
+    /**
+     * Render the created quiz inline for the preview pane.
+     *
+     * @param array $resultentry
+     * @param int   $contextid
+     * @param int   $userid
+     * @return array{type:string,html:string,payload:array}|null
+     */
+    public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
+        $cmid = (int)($resultentry['created_cmid'] ?? 0);
+        $courseid = (int)($resultentry['created_courseid'] ?? 0);
+        if ($cmid <= 0 || $courseid <= 0) {
+            return null;
+        }
+        try {
+            $course = get_course($courseid);
+        } catch (\Throwable $e) {
+            return null;
+        }
+        $html = (new activity_preview_renderer())->render(
+            $course,
+            $cmid,
+            'quiz',
+            (string)($resultentry['created_name'] ?? ''),
+            (string)($resultentry['activity_url'] ?? '')
+        );
+        if (trim($html) === '') {
+            return null;
+        }
+        return [
+            'type' => 'created_activity',
+            'html' => $html,
+            'payload' => ['cmid' => $cmid, 'activity_url' => (string)($resultentry['activity_url'] ?? '')],
+        ];
+    }
+
+    /**
+     * Build the question-source clarification (the three options + available categories).
+     *
+     * @param array<int,array<string,mixed>> $categories
+     * @param string $lead
+     * @return preflight_result_v2
+     */
+    private function build_source_clarification(array $categories, string $lead = ''): preflight_result_v2 {
+        $lead = $lead !== '' ? $lead : 'Which questions should I add to the quiz?';
+        $content = quiz_question_service::build_source_clarification($categories, $lead);
+        return $this->clarify($content['message'], 'ADD_QUIZ_QUESTION_SOURCE', $content['options']);
+    }
+
+
+    /**
+     * Build the success result payload with staged feedback.
+     *
+     * @param array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int} $created
+     * @param array<int,string> $stages
+     * @param int $added
+     * @return array<string,mixed>
+     */
+    private function build_success_result(array $created, array $stages, int $added): array {
+        $cmid = (int)($created['cmid'] ?? 0);
+        $name = (string)($created['name'] ?? '');
+        $url = (string)($created['url'] ?? '');
+        $courseid = 0;
+        if (!empty($created['coursecontextid'])) {
+            $cc = \context::instance_by_id((int)$created['coursecontextid'], IGNORE_MISSING);
+            $courseid = $cc ? (int)$cc->instanceid : 0;
+        }
+
+        $message = 'Created the quiz "' . $name . '"'
+            . ($added > 0 ? ' with ' . $added . ' question(s)' : ' (empty — you can add questions any time)') . '.';
+
+        $observation = array_merge(['Quiz creation steps:'], array_map(static fn($s): string => '- ' . $s, $stages));
+        $observation[] = 'Quiz URL: ' . $url;
+
+        return [
+            'status' => 'executed',
+            'detail' => $message,
+            'usermessage' => $message . ($url !== '' ? ' ' . $url : ''),
+            'resultid' => null,
+            'created_cmid' => $cmid,
+            'created_courseid' => $courseid,
+            'created_name' => $name,
+            'activity_url' => $url,
+            'question_count' => $added,
+            'observation_full' => implode("\n", $observation),
+        ];
+    }
+
+    /**
+     * Build an error result payload.
+     *
+     * @param string $message
+     * @return array<string,mixed>
+     */
+    private function build_error_result(string $message): array {
+        return [
+            'status' => 'error',
+            'detail' => $message,
+            'usermessage' => $message,
+            'resultid' => null,
+            'observation_full' => $message,
+        ];
+    }
+}

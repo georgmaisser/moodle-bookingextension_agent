@@ -17,7 +17,7 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\embeddings\vector_math;
+use bookingextension_agent\local\wizard\services\embeddings\vector_math;
 
 /**
  * Tests for the shared cosine-similarity helper (LR3 dedup).
@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\services\embeddings\vector_math;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\embeddings\vector_math
+ * @covers     \bookingextension_agent\local\wizard\services\embeddings\vector_math
  */
 final class vector_math_test extends advanced_testcase {
     /**

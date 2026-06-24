@@ -4,7 +4,7 @@
 > pages. It exists to catch regressions in routing/selection/execution behavior before they
 > ship.
 
-**Files:** `classes/local/wbagent/benchmark/*` (+ `scenarios/*`), `benchmark_report.php`,
+**Files:** `classes/local/wizard/benchmark/*` (+ `scenarios/*`), `benchmark_report.php`,
 `benchmark_compare.php`, `benchmark_run_detail.php`, `cli/benchmark_*`,
 `task/cleanup_old_benchmark_runs_task.php`.
 

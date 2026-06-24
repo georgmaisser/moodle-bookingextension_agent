@@ -18,9 +18,9 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_module;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\services\discard_pending_service;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\services\discard_pending_service;
 
 /**
  * Tests the discard-pending business logic that was extracted from the ai_discard_pending
@@ -28,7 +28,7 @@ use bookingextension_agent\local\wbagent\services\discard_pending_service;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\services\discard_pending_service
+ * @covers \bookingextension_agent\local\wizard\services\discard_pending_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

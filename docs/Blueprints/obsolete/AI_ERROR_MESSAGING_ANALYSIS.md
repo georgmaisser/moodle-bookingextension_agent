@@ -56,6 +56,6 @@ Wir benötigen neue bzw. aktualisierte Strings für die präzisen Fehler.
 ### `bookingextension_agent\external\ai_send_message` & `ai_confirm_run`
 Ersetzung von `$authz->require_use_capability(...)` durch `$authz->can_use(...)` und Rückgabe strukturierter Fehlermeldungen bei `false`.
 
-### `bookingextension_agent\local\wbagent\orchestrator`
+### `bookingextension_agent\local\wizard\orchestrator`
 1. In `get_runtime_provider_status()` einen detaillierten `failurereason` String im Rückgabe-Array setzen.
 2. In `build_provider_error_result()` den Key `error_class` setzen, damit der Finalizer die Synchronizer-LLM-Polishing-Phase überspringt.

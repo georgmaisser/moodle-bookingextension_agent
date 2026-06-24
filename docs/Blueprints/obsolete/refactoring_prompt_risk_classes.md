@@ -260,8 +260,8 @@ Geprüft gegen die aktuelle Codebasis des bookingextension_agent-Frameworks. Zei
 | `queue_transition_service` | `services/queue_transition_service.php` | vorhanden, Statusmapping ohne Risikoklasse |
 | `confirm_run_service` + `build_retry_decision` | `services/confirm_run_service.php` | vorhanden, Retry generisch via `preflight_execution_gate` |
 | Finalisierung/Synchronizer | `agent_runtime.php` + `services/finalization_classifier.php` | vorhanden als Final Synthesis (kein separates Synchronizer-Objekt) |
-| `booking_task_base` (mod_booking) | `mod/booking/classes/local/wbagent/options/tasks/booking_task_base.php` | vorhanden |
-| `base_entities_task` (local_entities) | `local/entities/classes/local/wbagent/tasks/base_entities_task.php` | vorhanden |
+| `booking_task_base` (mod_booking) | `mod/booking/classes/local/wizard/options/tasks/booking_task_base.php` | vorhanden |
+| `base_entities_task` (local_entities) | `local/entities/classes/local/wizard/tasks/base_entities_task.php` | vorhanden |
 | `core_task_base` (bookingextension_agent) | `core/tasks/core_task_base.php` | vorhanden |
 
 ### Noch nicht vorhanden (Implementierungslücken)
@@ -284,25 +284,25 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 ### Phase 1 — Vertragsgrundlage (DTO + Interface)
 
-**Neue Datei:** `classes/local/wbagent/dto/task_risk_class.php`
+**Neue Datei:** `classes/local/wizard/dto/task_risk_class.php`
 - [x] Klasse `task_risk_class` anlegen mit Klassenkonstanten: `R0 = 'read_only'`, `R1 = 'scoped_write'`, `R2 = 'broad_write'`, `R3 = 'irreversible_or_external'`
 - [x] `is_valid(string $class): bool` als statische Hilfsmethode bereitstellen
 
-**Datei:** `classes/local/wbagent/interfaces/task_interface.php`
+**Datei:** `classes/local/wizard/interfaces/task_interface.php`
 - [x] Methode `get_risk_class(): string` in `task_interface` deklarieren (Return-Wert: eine der `task_risk_class`-Konstanten)
 
-**Datei:** `classes/local/wbagent/base_task.php`
+**Datei:** `classes/local/wizard/base_task.php`
 - [x] `protected string $riskclass` Property einführen (kein Default; fehlendes Setzen im Konstruktor führt zu Validator-Fehler)
 - [x] `__construct(bool $readonly, string $riskclass)` Signatur anpassen
 - [x] `get_risk_class(): string` implementieren
 
-**Datei:** `classes/local/wbagent/services/skill_prompt_contract.php`
+**Datei:** `classes/local/wizard/services/skill_prompt_contract.php`
 - [x] `risk_class` in `to_array()` ergänzen
 - [x] Validierung: leerer risk_class-Wert → normalisiert auf `''` (der Validator prüft Vollständigkeit, nicht hier)
 
 ### Phase 2 — Governance-Validator
 
-**Datei:** `classes/local/wbagent/skill_contract_validator.php`
+**Datei:** `classes/local/wizard/skill_contract_validator.php`
 - [x] `build_task_metadata()` um `risk_class` aus `$task->get_risk_class()` erweitern
 - [x] `validate_task_metadata()` um Pflichtfeld-Prüfung für `risk_class` erweitern (leer → Fehler)
 - [x] `verify_risk_class_consistency()` implementieren:
@@ -311,13 +311,13 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
   - [x] R2/R3 ohne `context_scopes`-Deklaration im Prompt-Contract → Warnung (kein hard deny, aber Diagnostic)
   - [x] Unbekannter Wert (nicht R0–R3) → Fehler
 
-**Datei:** `classes/local/wbagent/skill_registry.php`
+**Datei:** `classes/local/wizard/skill_registry.php`
 - [x] `build_prompt_contract()` um `risk_class` aus `task->get_risk_class()` ergänzen
 - [x] `get_task_contracts()` transportiert `risk_class` in Metadaten
 
 ### Phase 3 — Decision Service Gating
 
-**Datei:** `classes/local/wbagent/services/decision/agent_decision_service.php`
+**Datei:** `classes/local/wizard/services/decision/agent_decision_service.php`
 
 - [x] `split_commands_by_mutability()` zu `split_commands_by_risk_class()` erweitern; Rückgabe enthält vier Gruppen (`r0`, `r1`, `r2`, `r3`)
 - [x] `has_mutating_commands()` bleibt erhalten, liest künftig aus risk_class (nicht aus is_read_only)
@@ -331,7 +331,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 ### Phase 4 — Preflight Pipeline
 
-**Datei:** `classes/local/wbagent/services/preflight_pipeline.php`
+**Datei:** `classes/local/wizard/services/preflight_pipeline.php`
 
 - [x] Pro Command risk_class aus Registry lesen (`$task->get_risk_class()`)
 - [x] Layer-Aktivierungslogik implementieren:
@@ -340,15 +340,15 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
   - [x] R2: L1 + L2 + L3
   - [x] R3: L1 + L2 + L3 + `PF_L3_EXT`
 - [x] `PF_L3_EXT` Interface definieren:
-  - [x] **Neue Datei:** `classes/local/wbagent/interfaces/external_dependency_checker_interface.php`
+  - [x] **Neue Datei:** `classes/local/wizard/interfaces/external_dependency_checker_interface.php`
   - [x] Methode: `check(array $command, int $contextid, int $userid): preflight_result_v2`
 - [x] Default-Stub-Implementierung:
-  - [x] **Neue Datei:** `classes/local/wbagent/services/noop_external_dependency_checker.php`
+  - [x] **Neue Datei:** `classes/local/wizard/services/noop_external_dependency_checker.php`
   - [x] Gibt immer `preflight_result_v2::ok($input)` zurück
 
 ### Phase 5 — Queue Manager
 
-**Datei:** `classes/local/wbagent/queue/queue_manager.php`
+**Datei:** `classes/local/wizard/queue/queue_manager.php`
 
 - [x] `enqueue_command()`: `risk_class`-Feld in das Queue-Item schreiben (aus `$command['risk_class']` lesen, geliefert vom Decision Service)
 - [x] `resolve_blocked_expires_at(string $status, int $now)` zu `resolve_blocked_expires_at(string $status, int $now, string $riskclass = '')` erweitern:
@@ -360,7 +360,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 ### Phase 6 — Queue Transition Service
 
-**Datei:** `classes/local/wbagent/services/queue_transition_service.php`
+**Datei:** `classes/local/wizard/services/queue_transition_service.php`
 
 - [x] `apply_preflight_decision()`: risk_class aus Queue-Item lesen (`$item['risk_class']`)
 - [x] Bei R3 + `$autoconfirmmode = true`: autoconfirm ignorieren, trotzdem `blocked_confirmation`
@@ -368,7 +368,7 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 ### Phase 7 — Confirm Run Service / Execution Retry
 
-**Datei:** `classes/local/wbagent/services/confirm_run_service.php`
+**Datei:** `classes/local/wizard/services/confirm_run_service.php`
 
 - [x] `build_retry_decision()`: risk_class aus Queue-Item lesen
 - [x] R3 + retryable error class → direkt `queue_status = 'failed'` (kein `retry_hint` für R3)
@@ -376,14 +376,14 @@ Vollständiger Arbeitsplan bereit für spätere Ausführung. Jeder Abschnitt ent
 
 ### Phase 8 — Finalisierung / Synchronizer-Contract
 
-**Datei:** `classes/local/wbagent/services/finalization_classifier.php`
+**Datei:** `classes/local/wizard/services/finalization_classifier.php`
 
 - [x] `classify()` um risk_class-Routing erweitern:
   - [x] R3 + sufficient: `STRATEGY_LLM_POLISH` mit `irreversibility_notice`-Flag
   - [x] R2 + sufficient: `STRATEGY_LLM_POLISH` mit `affected_scope_summary`-Flag
   - [x] Strukturfehler (alle Klassen): immer `STRATEGY_DIRECT_FINAL`
 
-**Datei:** `classes/local/wbagent/agent_runtime.php`
+**Datei:** `classes/local/wizard/agent_runtime.php`
 
 - [x] `merge_synchronized_message()` um Rollback-Guard erweitern:
   - [x] Wenn Sync-Output Commands enthält → rollback (bereits vorhanden, erweitern)

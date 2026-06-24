@@ -30,8 +30,8 @@ define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/../../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
-use bookingextension_agent\local\wbagent\benchmark\benchmark_metrics_calculator;
-use bookingextension_agent\local\wbagent\benchmark\benchmark_db_writer;
+use bookingextension_agent\local\wizard\benchmark\benchmark_metrics_calculator;
+use bookingextension_agent\local\wizard\benchmark\benchmark_db_writer;
 
 [$options, ] = cli_get_params(['run-id' => 0, 'help' => false], ['h' => 'help']);
 
@@ -46,10 +46,10 @@ $calc   = new benchmark_metrics_calculator();
 
 if ($runid <= 0) {
     $run = $GLOBALS['DB']->get_record_sql(
-        'SELECT * FROM {local_wbagent_benchmark_runs} ORDER BY timecreated DESC LIMIT 1'
+        'SELECT * FROM {local_wizard_benchmark_runs} ORDER BY timecreated DESC LIMIT 1'
     );
 } else {
-    $run = $GLOBALS['DB']->get_record('local_wbagent_benchmark_runs', ['id' => $runid]);
+    $run = $GLOBALS['DB']->get_record('local_wizard_benchmark_runs', ['id' => $runid]);
 }
 
 if (!$run) {
@@ -57,7 +57,7 @@ if (!$run) {
     exit(2);
 }
 
-$metrics = $GLOBALS['DB']->get_records('local_wbagent_benchmark_metrics', ['run_id' => $run->id]);
+$metrics = $GLOBALS['DB']->get_records('local_wizard_benchmark_metrics', ['run_id' => $run->id]);
 $metricsmap = [];
 foreach ($metrics as $m) {
     $metricsmap[$m->metric_key] = (float)$m->metric_value;
@@ -66,7 +66,7 @@ foreach ($metrics as $m) {
 $comparison = [];
 $baseline = $writer->get_latest_baseline();
 if ($baseline) {
-    $basemetrics = $GLOBALS['DB']->get_records('local_wbagent_benchmark_metrics', ['run_id' => $baseline->id]);
+    $basemetrics = $GLOBALS['DB']->get_records('local_wizard_benchmark_metrics', ['run_id' => $baseline->id]);
     $baselinemap = [];
     foreach ($basemetrics as $m) {
         $baselinemap[$m->metric_key] = (float)$m->metric_value;

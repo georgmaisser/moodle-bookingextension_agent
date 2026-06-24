@@ -18,13 +18,13 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use moodle_url;
-use bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview;
+use bookingextension_agent\local\wizard\diagnostics\diagnostic_checklist_preview;
 
 /**
  * Tests for the shared diagnostic checklist preview builder.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview
+ * @covers     \bookingextension_agent\local\wizard\diagnostics\diagnostic_checklist_preview
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

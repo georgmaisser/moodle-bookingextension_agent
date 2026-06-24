@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\tests\agent\contracts;
 
-use bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service;
+use bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service;
 use advanced_testcase;
 
 /**
@@ -32,7 +32,7 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
     /**
      * Verifies that family scores can re-rank skill rows.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service::boost_skill_rows
+     * @covers \bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service::boost_skill_rows
      */
     public function test_boost_skill_rows_uses_family_scores(): void {
         $service = new family_embeddings_retrieval_service();
@@ -57,7 +57,7 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
     /**
      * Verifies that only requested families receive semantic scores.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\embeddings\family_embeddings_retrieval_service::score_families
+     * @covers \bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service::score_families
      */
     public function test_score_families_returns_requested_families_only(): void {
         $service = new family_embeddings_retrieval_service();

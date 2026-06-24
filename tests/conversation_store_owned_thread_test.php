@@ -18,7 +18,7 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_module;
-use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wizard\conversation_store;
 
 /**
  * Ownership scoping of conversation_store::get_owned_active_thread (S8: raw $DB read moved out of
@@ -26,7 +26,7 @@ use bookingextension_agent\local\wbagent\conversation_store;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\conversation_store
+ * @covers \bookingextension_agent\local\wizard\conversation_store
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

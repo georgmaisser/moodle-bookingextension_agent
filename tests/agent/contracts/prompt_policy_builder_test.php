@@ -18,13 +18,13 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\tests\agent\contracts;
 
-use bookingextension_agent\local\wbagent\prompt_policy_builder;
+use bookingextension_agent\local\wizard\prompt_policy_builder;
 use advanced_testcase;
 
 /**
  * Tests for planner policy extraction and phase-specific response contracts.
  *
- * @covers \bookingextension_agent\local\wbagent\prompt_policy_builder
+ * @covers \bookingextension_agent\local\wizard\prompt_policy_builder
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -25,8 +25,8 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 
 /**
  * Thread-288 regression: a user whose lastname collides with a skill-name word
@@ -35,7 +35,7 @@ use bookingextension_agent\local\wbagent\privacy_anonymizer;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\privacy_anonymizer
+ * @covers     \bookingextension_agent\local\wizard\privacy_anonymizer
  */
 final class privacy_anonymizer_code_token_test extends \advanced_testcase {
     /**
@@ -58,14 +58,14 @@ final class privacy_anonymizer_code_token_test extends \advanced_testcase {
         $thread = $store->get_or_create_thread((int)$USER->id, (int)\context_system::instance()->id);
         $anonymizer = new privacy_anonymizer($store);
 
-        $message = 'Use wbagent.forget (trigger wbagent.forget_request) or mod_booking.book_users. '
+        $message = 'Use wizard.forget (trigger wizard.forget_request) or mod_booking.book_users. '
             . 'Command payload: {"forget": true, "memory": "x"}. '
             . 'Estorgan Forget asked us to forget his stored preference.';
         $sanitized = (string)$anonymizer->anonymize_value_for_llm((int)$thread->id, $message);
 
         // Code tokens must survive verbatim.
-        $this->assertStringContainsString('wbagent.forget', $sanitized);
-        $this->assertStringContainsString('wbagent.forget_request', $sanitized);
+        $this->assertStringContainsString('wizard.forget', $sanitized);
+        $this->assertStringContainsString('wizard.forget_request', $sanitized);
         $this->assertStringContainsString('mod_booking.book_users', $sanitized);
         $this->assertStringContainsString('{"forget": true', $sanitized);
         $this->assertStringNotContainsString('core.ANON_USER', $sanitized);

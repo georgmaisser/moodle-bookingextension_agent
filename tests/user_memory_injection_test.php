@@ -17,11 +17,11 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\interpreter;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\services\user_memory_service;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\interpreter;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\services\user_memory_service;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Tests that stored user memories are injected into the runtime context at the
@@ -29,7 +29,7 @@ use bookingextension_agent\local\wbagent\skill_registry_factory;
  * and nowhere a memory would never reach a model.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\orchestrator
+ * @covers     \bookingextension_agent\local\wizard\orchestrator
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

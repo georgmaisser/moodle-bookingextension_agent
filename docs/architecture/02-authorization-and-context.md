@@ -10,8 +10,8 @@ Two ideas drive this chapter:
    session allowances, confirmations. Since the context consolidation the engine is
    context-level-agnostic: module, course and system contexts are all valid hosts.
 
-**Files:** `classes/local/wbagent/services/security/authorization_service.php`,
-`classes/local/wbagent/aiready.php`, `db/access.php`.
+**Files:** `classes/local/wizard/services/security/authorization_service.php`,
+`classes/local/wizard/aiready.php`, `db/access.php`.
 
 ---
 

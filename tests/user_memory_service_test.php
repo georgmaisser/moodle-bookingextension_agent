@@ -17,13 +17,13 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\user_memory_service;
+use bookingextension_agent\local\wizard\services\user_memory_service;
 
 /**
  * Tests for user_memory_service (limits, dedupe, delete ownership, find).
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\user_memory_service
+ * @covers     \bookingextension_agent\local\wizard\services\user_memory_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

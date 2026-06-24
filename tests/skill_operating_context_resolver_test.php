@@ -19,17 +19,17 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use context_course;
 use context_module;
-use bookingextension_agent\local\wbagent\dto\agent_context;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\dto\target_selector;
-use bookingextension_agent\local\wbagent\base_skill;
-use bookingextension_agent\local\wbagent\services\security\skill_operating_context_resolver;
+use bookingextension_agent\local\wizard\dto\agent_context;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\dto\target_selector;
+use bookingextension_agent\local\wizard\base_skill;
+use bookingextension_agent\local\wizard\services\security\skill_operating_context_resolver;
 
 /**
  * Tests for the skill → operating-context seam (cross-context Phase 1a).
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\security\skill_operating_context_resolver
+ * @covers     \bookingextension_agent\local\wizard\services\security\skill_operating_context_resolver
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

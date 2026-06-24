@@ -2,7 +2,7 @@
 
 > **Art:** Defensives, read-only Code-Audit des eigenen Plugins (autorisiert).
 > **Scope:** `mod/booking/bookingextension/agent` (+ die ausführende Engine/Skills unter
-> `mod/booking/classes/local/wbagent/`, die der Agent aufruft).
+> `mod/booking/classes/local/wizard/`, die der Agent aufruft).
 > **Methodik:** Vier parallele, adversariale Tiefen-Audits (AuthZ/Kontext-Isolation, Injection,
 > LLM-spezifische Risiken, Daten-Exposure/Secrets/Entry-Points) + manuelle Verifikation aller High/Medium-Funde
 > am Quellcode.
@@ -95,7 +95,7 @@ Diese Punkte wurden aktiv geprüft und sind korrekt — wichtig für die Einordn
 
 ### SEC-01 — IDOR: fremde LLM-Debug-Logs lesbar · **Hoch** · Bestätigt
 **Ort:** `classes/external/ai_get_thread_debug_logs.php:68-101` →
-`classes/local/wbagent/conversation_store.php:993-999`
+`classes/local/wizard/conversation_store.php:993-999`
 
 **Schwachstelle:** `execute()` prüft nur `require_use_capability($USER->id, $context->id)` (Z.87) auf dem
 **vom Client übergebenen** `contextid` und ruft dann `get_llm_debug_entries($params['threadid'], …)` (Z.98)
@@ -110,7 +110,7 @@ Threads: komplette Prompts inkl. Nutzereingaben anderer Personen, ggf. (de-anony
 
 **Fix:** Vor dem Abruf Thread laden und Ownership erzwingen (analog `ai_send_message.php:211-222`):
 `userid === $USER->id && contextid === $context->id`; `require_sesskey()` ergänzen; idealerweise
-`get_llm_debug_entries` selbst per JOIN auf `local_wbagent_ai_threads.userid` scopen (Defense-in-Depth).
+`get_llm_debug_entries` selbst per JOIN auf `local_wizard_ai_threads.userid` scopen (Defense-in-Depth).
 
 ### SEC-02 — IDOR: fremde Thread-Step-Messages lesbar · **Mittel** · Bestätigt
 **Ort:** `classes/external/ai_poll_thread.php:93-102` → `conversation_store.php:221-227`
@@ -143,7 +143,7 @@ gültiges (nutzergebundenes) Intent zurückgab.
 
 ### SEC-04 — Fehlender Privacy-Provider trotz PII-Speicherung · **Hoch (Compliance)** · Bestätigt
 **Ort:** kein `classes/privacy/provider.php` vorhanden; PII-Tabellen in `db/install.xml`:
-`local_wbagent_ai_threads`, `local_wbagent_ai_messages`, `local_wbagent_ai_runs`, `local_wbagent_ai_llm_debug`
+`local_wizard_ai_threads`, `local_wizard_ai_messages`, `local_wizard_ai_runs`, `local_wizard_ai_llm_debug`
 (alle mit `userid` + Freitext-Konversationen/Roh-Logs).
 
 **Schwachstelle:** Das Plugin speichert personenbezogene Konversationen, LLM-Roh-Logs und Runs, deklariert
@@ -156,7 +156,7 @@ aber **keinen** Privacy-Provider. Diese Daten werden damit weder im Datenschutz-
 Benchmark-Tabellen entweder als nicht-personenbezogen begründen oder einbeziehen (`baselines.pinned_by`).
 
 ### SEC-05 — Trial-Origin-Verifikation deaktiviert + triviale Challenge · **Mittel** · Bestätigt
-**Ort:** `classes/local/wbagent/wunderbyte_trial_endpoint.py:80` (Backend, im Repo),
+**Ort:** `classes/local/wizard/wunderbyte_trial_endpoint.py:80` (Backend, im Repo),
 `classes/external/request_trial_key.php:90-92`, `trial_challenge.php`
 
 **Schwachstelle:**
@@ -176,7 +176,7 @@ interne URL nicht im Fehlertext ausgeben. *Hinweis:* Dies ist die Vendor-Backend
 Moodle), liegt aber im Repo.
 
 ### SEC-06 — Indirekte Prompt-Injection: keine Daten/Instruktions-Trennung · **Mittel (mitigiert)** · Bestätigt
-**Ort:** Prompt-Aufbau in `classes/local/wbagent/.../orchestrator.php` (User-Message verbatim als `user`-Role,
+**Ort:** Prompt-Aufbau in `classes/local/wizard/.../orchestrator.php` (User-Message verbatim als `user`-Role,
 ~Z.628-633; Tool-Observations ungemarkt in den Planner-Prompt gemischt); keine Anti-Injection-Policy in
 `prompt_policy_builder`.
 
@@ -243,7 +243,7 @@ die Skills, nicht über diese Klassen). **Fix:** entfernen oder als deprecated k
 // in conversation_store oder einem authz-Helper:
 public function require_thread_owned_by(int $threadid, int $userid, int $contextid): void {
     global $DB;
-    if (!$DB->record_exists('local_wbagent_ai_threads',
+    if (!$DB->record_exists('local_wizard_ai_threads',
             ['id' => $threadid, 'userid' => $userid, 'contextid' => $contextid])) {
         throw new \required_capability_exception($context, '...', 'nopermissions', '');
     }

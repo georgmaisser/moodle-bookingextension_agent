@@ -224,7 +224,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
      * @return bool
      */
     private function is_skill_available(string $skillname): bool {
-        $registry = \bookingextension_agent\local\wbagent\skill_registry_factory::get_default();
+        $registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_default();
         return $registry->get_skill($skillname) !== null;
     }
 }

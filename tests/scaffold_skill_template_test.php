@@ -25,15 +25,15 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\wbagent\skills\scaffold_skill;
-use bookingextension_agent\local\wbagent\skill_contract_validator;
-use bookingextension_agent\local\wbagent\services\scaffold\skill_template_generator;
+use bookingextension_agent\local\wizard\wizard\skills\scaffold_skill;
+use bookingextension_agent\local\wizard\skill_contract_validator;
+use bookingextension_agent\local\wizard\services\scaffold\skill_template_generator;
 
 /**
  * Tests for the skill template generator and the scaffold skill.
  *
- * @covers \bookingextension_agent\local\wbagent\services\scaffold\skill_template_generator
- * @covers \bookingextension_agent\local\wbagent\agent\skills\scaffold_skill
+ * @covers \bookingextension_agent\local\wizard\services\scaffold\skill_template_generator
+ * @covers \bookingextension_agent\local\wizard\agent\skills\scaffold_skill
  */
 final class scaffold_skill_template_test extends \advanced_testcase {
     /**
@@ -62,7 +62,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         $this->assertSame('scaffolddemo.archive_item.zip', $bundle['zip_filename']);
         $this->assertArrayHasKey('README.md', $bundle['files']);
         $this->assertArrayHasKey(
-            'classes/local/wbagent/scaffolddemo/skills/archive_item_skill.php',
+            'classes/local/wizard/scaffolddemo/skills/archive_item_skill.php',
             $bundle['files']
         );
 
@@ -71,11 +71,11 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         file_put_contents($tmp, base64_decode($bundle['zip_base64']));
         $zip = new \ZipArchive();
         $this->assertTrue($zip->open($tmp) === true);
-        $this->assertNotFalse($zip->locateName('classes/local/wbagent/scaffolddemo/skills/archive_item_skill.php'));
+        $this->assertNotFalse($zip->locateName('classes/local/wizard/scaffolddemo/skills/archive_item_skill.php'));
         $zip->close();
 
         // The generated PHP loads, instantiates and passes the runtime skill contract validator.
-        $skillsource = $bundle['files']['classes/local/wbagent/scaffolddemo/skills/archive_item_skill.php'];
+        $skillsource = $bundle['files']['classes/local/wizard/scaffolddemo/skills/archive_item_skill.php'];
         // Method docblocks must carry correct @param/@return tags, not just prose.
         $this->assertStringContainsString('@param array $input', $skillsource);
         $this->assertStringContainsString('@return preflight_result_v2', $skillsource);
@@ -85,7 +85,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         file_put_contents($skillfile, $skillsource);
         require($skillfile);
 
-        $fqcn = 'mod_scaffolddemo\\local\\wbagent\\scaffolddemo\\skills\\archive_item_skill';
+        $fqcn = 'mod_scaffolddemo\\local\\wizard\\scaffolddemo\\skills\\archive_item_skill';
         $this->assertTrue(class_exists($fqcn), 'Generated skill class must be loadable');
 
         $skill = new $fqcn();
@@ -112,12 +112,12 @@ final class scaffold_skill_template_test extends \advanced_testcase {
             'risk_class' => 'read_only',
         ]);
 
-        $relative = 'classes/local/wbagent/scaffolddemo/skills/peek_item_skill.php';
+        $relative = 'classes/local/wizard/scaffolddemo/skills/peek_item_skill.php';
         $skillfile = make_request_directory() . '/peek_item_skill.php';
         file_put_contents($skillfile, $bundle['files'][$relative]);
         require($skillfile);
 
-        $fqcn = 'mod_scaffolddemo\\local\\wbagent\\scaffolddemo\\skills\\peek_item_skill';
+        $fqcn = 'mod_scaffolddemo\\local\\wizard\\scaffolddemo\\skills\\peek_item_skill';
         $skill = new $fqcn();
 
         $result = $skill->execute([], \context_system::instance()->id, 0);
@@ -137,7 +137,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         $this->setAdminUser();
 
         $skill = new scaffold_skill();
-        $this->assertSame('wbagent.scaffold_skill', $skill->get_name());
+        $this->assertSame('wizard.scaffold_skill', $skill->get_name());
         $this->assertTrue($skill->is_read_only());
 
         $result = $skill->execute(
@@ -158,19 +158,19 @@ final class scaffold_skill_template_test extends \advanced_testcase {
     }
 
     /**
-     * When the namespace derived from the component is reserved (booking/core/wbagent), the
+     * When the namespace derived from the component is reserved (booking/core/wizard), the
      * generator falls back to the full component name instead of rejecting it.
      */
     public function test_generator_falls_back_for_reserved_namespace(): void {
         $this->resetAfterTest();
 
         $bundle = skill_template_generator::generate([
-            'component' => 'local/wbagent',
+            'component' => 'local/wizard',
             'description' => 'Do a custom thing.',
-            // No skillname: derived namespace would be the reserved "wbagent" -> falls back.
+            // No skillname: derived namespace would be the reserved "wizard" -> falls back.
         ]);
 
-        $this->assertStringStartsWith('local_wbagent.', $bundle['skillname']);
+        $this->assertStringStartsWith('local_wizard.', $bundle['skillname']);
         $this->assertSame($bundle['skillname'] . '.zip', $bundle['zip_filename']);
     }
 

@@ -25,8 +25,8 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 
 /**
  * Thread-358 regression: anonymization placeholders surfaced from another thread (via
@@ -36,8 +36,8 @@ use bookingextension_agent\local\wbagent\privacy_anonymizer;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\privacy_anonymizer::reanchor_value_for_thread
- * @covers     \bookingextension_agent\local\wbagent\privacy_anonymizer::deanonymize_message_for_display
+ * @covers     \bookingextension_agent\local\wizard\privacy_anonymizer::reanchor_value_for_thread
+ * @covers     \bookingextension_agent\local\wizard\privacy_anonymizer::deanonymize_message_for_display
  */
 final class privacy_anonymizer_reanchor_test extends \advanced_testcase {
     /**
@@ -162,7 +162,7 @@ final class privacy_anonymizer_reanchor_test extends \advanced_testcase {
      * Command input with a token that resolves in this thread is clean; a token minted in another
      * thread stays unresolved after de-anonymization and is detected (so the executor can fail closed).
      *
-     * @covers \bookingextension_agent\local\wbagent\privacy_anonymizer::has_unresolved_anon_tokens
+     * @covers \bookingextension_agent\local\wizard\privacy_anonymizer::has_unresolved_anon_tokens
      */
     public function test_unresolved_command_input_token_is_detected(): void {
         global $USER;

@@ -28,7 +28,7 @@ Instead of hiding the search in the orchestrator, the agent executes it visibly 
 ## 3. Implementation Steps
 
 1. **Add `core.search_skills` to Core Family**
-   - Create `classes/local/wbagent/skills/core/search_skills.php`.
+   - Create `classes/local/wizard/skills/core/search_skills.php`.
    - Ensure it is loaded in the `core_family_set`.
 
 2. **Implement the Executor Logic**

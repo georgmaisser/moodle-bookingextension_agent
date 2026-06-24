@@ -19,7 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\tests\agent\contracts;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\orchestrator_routing_service;
+use bookingextension_agent\local\wizard\services\orchestrator_routing_service;
 
 /**
  * Contract tests for routing debug source telemetry.
@@ -32,8 +32,8 @@ final class orchestrator_routing_service_test extends advanced_testcase {
     /**
      * Ensures phase telemetry is emitted and can be rewritten on existing sources.
      *
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_routing_service::build_debug_source
-     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_routing_service::with_phase_in_debug_source
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_routing_service::build_debug_source
+     * @covers \bookingextension_agent\local\wizard\services\orchestrator_routing_service::with_phase_in_debug_source
      */
     public function test_debug_source_contains_phase_and_phase_can_be_upserted(): void {
         $service = new orchestrator_routing_service(

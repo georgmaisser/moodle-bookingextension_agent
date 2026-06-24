@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\synchronizer_output_contract;
-use bookingextension_agent\local\wbagent\services\finalization_classifier;
-use bookingextension_agent\local\wbagent\services\queue_status_policy;
+use bookingextension_agent\local\wizard\services\synchronizer_output_contract;
+use bookingextension_agent\local\wizard\services\finalization_classifier;
+use bookingextension_agent\local\wizard\services\queue_status_policy;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -29,9 +29,9 @@ use PHPUnit\Framework\TestCase;
  * - Retry finalization codes (BUDGET_EXCEEDED, RETRY_EXHAUSTED) still route to template_only.
  * - No additional LLM calls introduced by gate in standard cases (gate is sync-side only).
  *
- * @covers \bookingextension_agent\local\wbagent\services\synchronizer_output_contract
- * @covers \bookingextension_agent\local\wbagent\services\finalization_classifier
- * @covers \bookingextension_agent\local\wbagent\services\queue_status_policy
+ * @covers \bookingextension_agent\local\wizard\services\synchronizer_output_contract
+ * @covers \bookingextension_agent\local\wizard\services\finalization_classifier
+ * @covers \bookingextension_agent\local\wizard\services\queue_status_policy
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

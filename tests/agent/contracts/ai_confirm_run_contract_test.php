@@ -21,9 +21,9 @@ defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../abstract_agent_testcase.php');
 
 use bookingextension_agent\external\ai_confirm_run;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\skill_registry;
 
 /**
  * Contract tests for ai_confirm_run state handling.
@@ -120,7 +120,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         ]);
         $this->assertCount(1, $created, 'Terminal confirm path must execute the queued mutation exactly once.');
 
-        $entries = $DB->get_records('local_wbagent_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
+        $entries = $DB->get_records('local_wizard_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
         $this->assertNotEmpty($entries, 'Expected LLM debug entries for terminal confirm thread.');
 
         $hassynchronizercall = false;

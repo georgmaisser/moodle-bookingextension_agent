@@ -10,7 +10,7 @@ Declared: ../../thirdpartylibs.xml
 Why it is bundled
 -----------------
 The agent extracts plain text from uploaded PDFs (see
-classes/local/wbagent/services/attachment/pdf_text_extractor.php). The fast path uses
+classes/local/wizard/services/attachment/pdf_text_extractor.php). The fast path uses
 the poppler-utils `pdftotext` binary when present. This pure-PHP library is the
 self-contained fallback so the feature works on any Moodle server with no system
 binary and without PHP exec() — which is required for a distributable plugin.

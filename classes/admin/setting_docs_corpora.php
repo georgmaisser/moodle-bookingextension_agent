@@ -26,7 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\admin;
 
-use bookingextension_agent\local\wbagent\services\lookup\corpus_source_parser;
+use bookingextension_agent\local\wizard\services\lookup\corpus_source_parser;
 
 /**
  * Textarea setting that validates each documentation corpus line.

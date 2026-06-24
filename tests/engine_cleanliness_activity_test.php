@@ -35,7 +35,7 @@ final class engine_cleanliness_activity_test extends advanced_testcase {
      */
     public function test_engine_files_are_activity_agnostic(): void {
         global $CFG;
-        $base = $CFG->dirroot . '/mod/booking/bookingextension/agent/classes/local/wbagent';
+        $base = $CFG->dirroot . '/mod/booking/bookingextension/agent/classes/local/wizard';
 
         $enginefiles = [
             $base . '/executor.php',

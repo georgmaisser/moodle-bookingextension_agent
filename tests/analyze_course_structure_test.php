@@ -17,10 +17,10 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\course\skills\analyze_course_structure_skill;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\services\activities\course_structure_service;
-use bookingextension_agent\local\wbagent\skill_discovery;
+use bookingextension_agent\local\wizard\course\skills\analyze_course_structure_skill;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\services\activities\course_structure_service;
+use bookingextension_agent\local\wizard\skill_discovery;
 use context_course;
 
 /**
@@ -31,8 +31,8 @@ use context_course;
  * sees them, flagged hidden.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\course\skills\analyze_course_structure_skill
- * @covers     \bookingextension_agent\local\wbagent\services\activities\course_structure_service
+ * @covers     \bookingextension_agent\local\wizard\course\skills\analyze_course_structure_skill
+ * @covers     \bookingextension_agent\local\wizard\services\activities\course_structure_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

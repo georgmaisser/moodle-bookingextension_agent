@@ -19,7 +19,7 @@
  *
  * This test simulates the scenario where the LLM is asked to perform an action
  * for which it currently lacks the specific tool in its payload, but it does
- * have access to a 'wbagent.search_skills' fallback tool.
+ * have access to a 'wizard.search_skills' fallback tool.
  *
  * @package   bookingextension_agent
  * @category  test
@@ -53,7 +53,7 @@ final class search_skills_real_llm_test extends abstract_agent_testcase {
 
         $prompt = 'Ich möchte das goldene Zertifikat für den Kurs herunterladen. '
             . 'Wenn du den passenden Skill dafür nicht in deiner aktuellen Liste siehst, '
-            . 'nutze bitte unbedingt "wbagent.search_skills" mit einer passenden Query, um danach zu suchen.';
+            . 'nutze bitte unbedingt "wizard.search_skills" mit einer passenden Query, um danach zu suchen.';
 
         $response = $this->chat($prompt, $threadid, $store, $runtime);
 
@@ -68,7 +68,7 @@ final class search_skills_real_llm_test extends abstract_agent_testcase {
         foreach ((array)($response['loop_results'] ?? []) as $loopstep) {
             foreach ((array)($loopstep['tool_calls'] ?? []) as $cmd) {
                 $skillcalled = (string)($cmd['skill'] ?? '');
-                if ($skillcalled === 'wbagent.search_skills' || strpos($skillcalled, 'search_skills') !== false) {
+                if ($skillcalled === 'wizard.search_skills' || strpos($skillcalled, 'search_skills') !== false) {
                     $searched = true;
                     $query = (string)($cmd['input']['query'] ?? '');
                 }

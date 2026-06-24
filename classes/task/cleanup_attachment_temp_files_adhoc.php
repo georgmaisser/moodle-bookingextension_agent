@@ -16,7 +16,7 @@
 
 namespace bookingextension_agent\task;
 
-use bookingextension_agent\local\wbagent\services\attachment\attachment_token_service;
+use bookingextension_agent\local\wizard\services\attachment\attachment_token_service;
 
 /**
  * Scheduled task: remove expired attachment temp files.

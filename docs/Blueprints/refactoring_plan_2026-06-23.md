@@ -18,7 +18,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 
 ### 0.1 — Semantic doc-search reanimieren `[S]`
 - **Problem (Audit §4-Bug-1):** `docs_lookup_service.php:151` liest `$hit['_similarity']`; `embeddings_retrieval_service::search_top_k` schreibt nur `'score'` (`:57,69`). Score ist immer 0.0, `SEMANTIC_MIN_SCORE=0.30` verwirft alles → semantische Suche tot.
-- **Genaue Stelle:** `classes/local/wbagent/services/lookup/docs_lookup_service.php:151`.
+- **Genaue Stelle:** `classes/local/wizard/services/lookup/docs_lookup_service.php:151`.
 - **Vorgehen:** `'_similarity'` → `'score'` ändern. Skalierung prüfen: `search_top_k` liefert Cosine ∈ [0,1]; `:169` macht `round($score*1000)` — sicherstellen, dass `SEMANTIC_MIN_SCORE` (0.30, roh) **vor** der *1000-Skalierung greift (tut es, Filter ist bei `:152`). Keine weitere Anpassung nötig, nur Key-Fix.
 - [ ] Key `_similarity`→`score` in `docs_lookup_service.php:151`
 - [ ] Unit-Test: `search_semantic()` mit gemocktem `search_top_k`-Rückgabewert (score 0.5) liefert ≥1 Treffer über Schwelle
@@ -46,7 +46,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 
 ### 0.4 — Stille Queue-Blockade verhindern `[S]`
 - **Problem (Audit §5.F):** `queue_manager::try_mark_running` (`:446`) fängt `\Throwable` und gibt `false` zurück ohne Log → ein DB-Fehler ist ununterscheidbar von „Slot belegt" und kann die Queue still stehenlassen.
-- **Genaue Stelle:** `classes/local/wbagent/queue/queue_manager.php:446–449`.
+- **Genaue Stelle:** `classes/local/wizard/queue/queue_manager.php:446–449`.
 - **Vorgehen:** `debugging('try_mark_running failed: '.$e->getMessage(), DEBUG_DEVELOPER)` im catch ergänzen (Rückgabe `false` bleibt).
 - [ ] `debugging()` in `try_mark_running`-catch
 - [ ] gleiche Behandlung für `build_input_signature_details` (`:761`) prüfen
@@ -66,7 +66,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 
 ### 1.1 — `risk_class_resolver`-Service (zentralisiert 6 Kopien) `[M]`
 - **Problem (Audit §5.B-HIGH):** Risk-Class-Auflösung 6×: `agent_decision_service.php:1495` + `preflight_pipeline.php:336` (mit Registry-Lookup + R3-Fallback) und schlanke `normalize_risk_class` in `queue_manager.php:874`, `confirm_run_service.php:926`, `queue_command_mapper.php:109` (static), `queue_transition_service.php:597`. LG_RISK fordert genau hier Zentralisierung.
-- **Neue Datei:** `classes/local/wbagent/services/risk_class_resolver.php` mit:
+- **Neue Datei:** `classes/local/wizard/services/risk_class_resolver.php` mit:
   - `normalize(string $riskclass): string` — trim + `skill_risk_class::is_valid` + R3-Fallback (ersetzt die 4 `normalize_risk_class`).
   - `resolve_command_risk_class(array $command, skill_registry $registry): string` — Registry-Lookup, unbekannter Skill → R3 (ersetzt die 2 vollen Resolver). Nutzt intern `normalize`.
 - **Vorgehen:** Service + Unit-Test zuerst; dann die 6 Callsites auf Delegation umstellen; private Methoden entfernen. `queue_command_mapper`-static-Aufruf: Service via DI oder statische Fassade.
@@ -79,7 +79,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 
 ### 1.2 — `confirm_run_service::confirm` zerlegen + Runtime-Re-Loop zurückdelegieren `[L]`
 - **Problem (Audit §5.A-HIGH):** `confirm()` = 563 Zeilen (`:95–658`); konstruiert intern `orchestrator`/`interpreter`/`agent_runtime` und ruft `run_loop()` (`:449–484`) + eigenes response_type-Rewriting (`:490–534`); zwei gespiegelte catch-Blöcke (`:332–407` ≈ `:574–657`). Decision/Runtime-Logik leckt in einen Application-Service.
-- **Genaue Stellen:** `classes/local/wbagent/services/confirm_run_service.php:95–658`.
+- **Genaue Stellen:** `classes/local/wizard/services/confirm_run_service.php:95–658`.
 - **Vorgehen (zwei Schritte):**
   1. **Re-Loop zurückgeben an Runtime:** in `agent_runtime` eine öffentliche Methode `run_followup_loop(threadid, contextid, userid): array` ergänzen, die die Inline-Konstruktion (`:449–484`) kapselt. `confirm()` ruft sie statt selbst zu newen. Das spiegelt die Flowchart-Kante `CONF_FOLLOW → RUNLOOP`.
   2. **`confirm()` in private Helfer splitten:** `resolve_run_target()` (Queue-Item/Intent/Commands) · `execute_confirmed_run()` (Run-Erzeugung + Executor) · `classify_execution_outcome()` (Erfolg/Retry/Fehler — nutzt 1.1 + bestehende `build_retry_decision`, siehe 1.3-Hinweis) · `build_followup_response()` (response_type-Rewriting + Follow-up-confirmation). Die zwei catch-Blöcke auf einen gemeinsamen `build_error_payload`-Pfad zusammenführen.
@@ -127,7 +127,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 ### 1.6 — Embeddings-Basisklassen (fixt zugleich Docs-RFC-4180/atomic) `[L]`
 - **Problem (Audit §5.B-HIGH + §5-C2-HIGH):** Zwei ~80% identische Stacks. Der RFC-4180-escape=''-Fix + atomarer Write existiert **nur** im Skill-Katalog-Repo; das Docs-Repo (`docs_embeddings_csv_repository`) nutzt PHP-Defaults (`fgetcsv($handle)` `:84,91`, `fputcsv($handle,…)` `:164,170`) ohne Round-Trip-Validierung → **latenter Datenverlust** bei `embedding_json` mit `\/`, `\"`, `\uXXXX`.
 - **Genaue Stellen:** `embeddings_csv_repository.php` (gehärtet) vs `services/lookup/docs_embeddings_csv_repository.php` (ungehärtet). Identische `headers_match()` (`:264`≡`:209`), `get_default_file_permissions()` (`:283`≡`:228`).
-- **Neue Datei:** `classes/local/wbagent/services/embeddings_csv_repository_base.php` (abstract):
+- **Neue Datei:** `classes/local/wizard/services/embeddings_csv_repository_base.php` (abstract):
   - `protected const CSV_ESCAPE = ''`; `abstract protected function headers(): array`; `abstract protected function key_field(): string` (bzw. Schema-Check-Hook).
   - gemeinsam: `read_rows`/`parse_file` (escape=''), `write_rows` (atomar: temp → round-trip-validate → swap), `is_valid_schema`, `exists`, `get_csv_path`, `headers_match`, `get_default_file_permissions`.
   - `embeddings_csv_repository` und `docs_embeddings_csv_repository` extends base; Docs ergänzt `read_rows_for_corpus`/`delete_corpus`.
@@ -140,9 +140,9 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 - [ ] (optional) `embeddings_readiness_base` + `embeddings_index_base`
 
 ### 1.7 — `list_skills`/`search_skills` von Engine-Interna entkoppeln `[L]` 🟡
-- **Problem (Audit §5.C-HIGH):** `list_skills_skill.php:179` newt `skill_registry_factory::get_default()` + `new skill_executability_evaluator(... new authorization_service())`; `search_skills_skill.php:148–216` newt zusätzlich `embeddings_readiness_service`/`embeddings_retrieval_service`/`llm_call_service`/`conversation_store`. Verstößt gegen „Skills referenzieren die Engine nicht" (Memory `project_wbagent_local_plugin_extraction`).
+- **Problem (Audit §5.C-HIGH):** `list_skills_skill.php:179` newt `skill_registry_factory::get_default()` + `new skill_executability_evaluator(... new authorization_service())`; `search_skills_skill.php:148–216` newt zusätzlich `embeddings_readiness_service`/`embeddings_retrieval_service`/`llm_call_service`/`conversation_store`. Verstößt gegen „Skills referenzieren die Engine nicht" (Memory `project_wizard_local_plugin_extraction`).
 - **Vorgehen:** Engine-seitig je einen schlanken, injizierbaren Service bereitstellen: `skill_introspection_service` (Capability-Snapshot) und `skill_discovery_service` (RAG-Lookup). Die Skills erhalten ihn via Konstruktor/Setter (wie `recall_memory_skill` `set_runtime_threadid`) statt selbst zu newen.
-- **Hinweis:** relevant für die geplante `local_wbagent`-Auskopplung (Skills dürfen Engine nicht referenzieren) — daher hier mitgeplant, aber **Reihenfolge mit dem Auskopplungs-Blueprint abstimmen**.
+- **Hinweis:** relevant für die geplante `local_wizard`-Auskopplung (Skills dürfen Engine nicht referenzieren) — daher hier mitgeplant, aber **Reihenfolge mit dem Auskopplungs-Blueprint abstimmen**.
 - [ ] `skill_introspection_service` + Injection in `list_skills_skill`
 - [ ] `skill_discovery_service` + Injection in `search_skills_skill`
 - [ ] grep: keine `*_factory::get_default()`/`new *_service()` mehr in `*/skills/*`
@@ -208,7 +208,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 
 ### 2.7 — Domain-Feldnamen aus der Engine per Hook `[L]` 🟡
 - **Problem (Audit §5.C-MED):** Booking-Feldnamen in Engine-Klassen: `privacy_anonymizer.php:59–61` (`optionquery`/`teacherquery`/`targetuserquery`), `result_payload_summarizer.php:149–178,191,421` (booking-Kategorien), `parameter_constructor.php:58–69,78` (Booking-Timestamps/User-Felder).
-- **Vorgehen:** Klassifikation/Normalisierung über `domain_normalizer_hook` (DNORM) bzw. provider-deklarierte Feldlisten statt Literale. Relevant für `local_wbagent`-Auskopplung.
+- **Vorgehen:** Klassifikation/Normalisierung über `domain_normalizer_hook` (DNORM) bzw. provider-deklarierte Feldlisten statt Literale. Relevant für `local_wizard`-Auskopplung.
 - **⚠️ Berührt Anonymizer (sicherheitskritisch) + Construction:** sorgfältig, mit Anonymizer-Tests; **Reihenfolge/Umfang mit Georg & Auskopplungs-Blueprint abstimmen.**
 - [ ] Provider-Feldlisten-Hook definieren
 - [ ] `privacy_anonymizer` Feldlisten über Hook (Anonymizer-Tests!)
@@ -236,7 +236,7 @@ Diese stammen aus Audit §7 (Code↔Flowchart-Diskrepanzen) bzw. sind verhaltens
 - **D1** Finalization-Classifier-Sets sind Supersets der LG_MATRIX → Flowchart nachziehen oder Code reduzieren?
 - **D2** R1-Domain-Timeout-Retry außerhalb des L3-Gates → intendiert?
 - **D3** R2/R3-Synchronizer-Notices nur prompt-seitig, nicht post-validiert → harter Contract?
-- **D4** Memory-Namespace `wbagent.*` vs `core.*` im Flowchart.
+- **D4** Memory-Namespace `wizard.*` vs `core.*` im Flowchart.
 - **D5** Family-first vs Skill-Top-K-Reihenfolge.
 - **D6** `state.currentstep` nie gesetzt (LOOP_STEP).
 - **1.5 / 2.6 / 2.7** sind zwar geplant, aber verhaltens-/sicherheitssensibel → vor Umsetzung Go.

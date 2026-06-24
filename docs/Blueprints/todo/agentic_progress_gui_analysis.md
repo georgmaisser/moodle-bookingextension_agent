@@ -151,7 +151,7 @@ Inside `agent_runtime::run_loop()` at the end of each iteration:
 ### Non-Blocking Concurrency via `write_close()`
 Before entering the runtime loop, Moodle's session lock is closed using `\core\session\manager::write_close()`. Because the session file is not locked:
 * The frontend can fire concurrent AJAX calls to `ai_poll_thread` every 1.5 seconds.
-* `ai_poll_thread` runs concurrently and queries `local_wbagent_ai_messages` for the active thread.
+* `ai_poll_thread` runs concurrently and queries `local_wizard_ai_messages` for the active thread.
 * Each new step message inserted during the running loop is fetched instantly.
 
 ### Frontend Rendering

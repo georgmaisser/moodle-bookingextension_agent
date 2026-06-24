@@ -16,7 +16,7 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\services\trial\trial_provisioner;
+use bookingextension_agent\local\wizard\services\trial\trial_provisioner;
 
 /**
  * Tests for storing a purchased API key via the provisioner.
@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\services\trial\trial_provisioner;
  * @category   test
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\trial\trial_provisioner::configure_from_apikey
+ * @covers     \bookingextension_agent\local\wizard\services\trial\trial_provisioner::configure_from_apikey
  */
 final class configure_from_apikey_test extends \advanced_testcase {
     /**

@@ -40,7 +40,7 @@ Diese Analyse arbeitet die drei Optionen durch, bewertet das vorhandene Altdesig
 
 ## 3. Review des Altdesigns: `explain_docs_topic_skill` + `docs_lookup_service`
 
-Wie von Georg gewünscht, wurde die vorhandene (aktuell inaktive) Implementierung vollständig gelesen — sowohl der Skill (`mod_booking/classes/local/wbagent/options/skills/explain_docs_topic_skill.php`, 814 Zeilen) als auch sein Backend `docs_lookup_service` (1094 Zeilen, **historisch** über `git show be942dc:…` rekonstruiert, da die Datei in der aktuellen HEAD **nicht mehr existiert** — siehe unten).
+Wie von Georg gewünscht, wurde die vorhandene (aktuell inaktive) Implementierung vollständig gelesen — sowohl der Skill (`mod_booking/classes/local/wizard/options/skills/explain_docs_topic_skill.php`, 814 Zeilen) als auch sein Backend `docs_lookup_service` (1094 Zeilen, **historisch** über `git show be942dc:…` rekonstruiert, da die Datei in der aktuellen HEAD **nicht mehr existiert** — siehe unten).
 
 ### 3.1 Wichtiger Befund: Der Skill ist nicht nur "ungenutzt", sondern **strukturell kaputt**
 
@@ -89,7 +89,7 @@ Mit anderen Worten: Das Altdesign hätte **selbst wenn `docs_lookup_service` nic
 
 Der Agent betreibt bereits eine produktive Embeddings-Pipeline für die **Skill-Katalog-Auswahl** (Planner-Routing). Das ist hochrelevant, weil sie exakt die Bausteine liefert, die ein semantischer Doku-Such-Ansatz bräuchte — und weil "konsistent zur bestehenden Architektur" (Anforderung 2) hier sehr konkret bedeutet: *dieselbe Pipeline für einen zweiten Anwendungsfall nutzen statt eine zweite zu bauen*.
 
-Vorhandene Bausteine (alle in `bookingextension_agent/classes/local/wbagent/services/embeddings/` bzw. angrenzend):
+Vorhandene Bausteine (alle in `bookingextension_agent/classes/local/wizard/services/embeddings/` bzw. angrenzend):
 
 | Baustein | Funktion | Übertragbarkeit auf Doku-Suche |
 |---|---|---|

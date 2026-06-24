@@ -2,7 +2,7 @@
 
 > **Datum:** 2026-06-06
 > **Blueprint-Referenz:** `docs/Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd`
-> **Verzeichnisse:** `bookingextension/agent/classes/`, `tests/`, `lang/`, Root, `mod_booking/classes/local/wbagent/`
+> **Verzeichnisse:** `bookingextension/agent/classes/`, `tests/`, `lang/`, Root, `mod_booking/classes/local/wizard/`
 
 ---
 
@@ -263,11 +263,11 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## AGENT RUNTIME: `classes/local/wbagent/`
+## AGENT RUNTIME: `classes/local/wizard/`
 
 ### `agent_runtime.php` ✅
 **Zweck:** Zentraler Loop-Koordinator — run() und run_loop() steuern den gesamten Agenten-Durchlauf
-**Klasse:** `bookingextension_agent\local\wbagent\agent_runtime`
+**Klasse:** `bookingextension_agent\local\wizard\agent_runtime`
 **Methoden:**
 - `get_runtime_feature_flags_snapshot()` ✅ (static)
 - `run()` ✅ — Einzel-Schritt-Entrypoint
@@ -294,7 +294,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `agent_state.php` ✅
 **Zweck:** Immutable value object fuer den Loop-State (Observations, Steps, Caches)
-**Klasse:** `bookingextension_agent\local\wbagent\agent_state` (final)
+**Klasse:** `bookingextension_agent\local\wizard\agent_state` (final)
 **Methoden:**
 - `make()` ✅ (static) — Neuen State erzeugen
 - `make_resumed()` ✅ (static) — State mit existing Observations (fuer Resume)
@@ -313,7 +313,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `conversation_store.php` ✅
 **Zweck:** DB-backed Persistence fuer Threads, Messages, Runs, Pending Intents, Session-Allowlist
-**Klasse:** `bookingextension_agent\local\wbagent\conversation_store`
+**Klasse:** `bookingextension_agent\local\wizard\conversation_store`
 **Methoden:**
 - `get_active_thread()` ✅
 - `get_or_create_thread()` ✅ — CS1
@@ -355,7 +355,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `orchestrator.php` ✅
 **Zweck:** 3-Phasen Planner: Discovery -> Selection -> Parameter-Construction. LLM-Calls orchestrieren
-**Klasse:** `bookingextension_agent\local\wbagent\orchestrator`
+**Klasse:** `bookingextension_agent\local\wizard\orchestrator`
 **Methoden (public):**
 - `get_runtime_feature_flags_snapshot()` ✅ (static)
 - `get_runtime_provider_status()` ✅
@@ -378,7 +378,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `interpreter.php` ✅
 **Zweck:** LLM-Output parsen, normalisieren und auf Contract pruefen
-**Klasse:** `bookingextension_agent\local\wbagent\interpreter`
+**Klasse:** `bookingextension_agent\local\wizard\interpreter`
 **Methoden:**
 - `interpret()` ✅ — Legacy-Entrypoint
 - `interpret_phase_output()` ✅ — Phase-spezifisches Output parsen
@@ -396,7 +396,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `executor.php` ✅
 **Zweck:** Command-Dispatcher: Guard-Verify, Task-Executability, execute(), Result sammeln
-**Klasse:** `bookingextension_agent\local\wbagent\executor`
+**Klasse:** `bookingextension_agent\local\wizard\executor`
 **Methoden:**
 - `execute_commands()` ✅ — Idempotenz-Guard, Guard-Token-Verify, task::execute()
 - `build_safe_executed_input()` ✅ (private) — Privacy-Safe Input-Echo
@@ -404,12 +404,12 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `base_task.php` ✅
 **Zweck:** Abstrakte Basis-Klasse fuer alle AI-Tasks
-**Klasse:** `bookingextension_agent\local\wbagent\base_task` (abstract)
+**Klasse:** `bookingextension_agent\local\wizard\base_task` (abstract)
 **Methoden:** `is_read_only()` ✅, `get_risk_class()` ✅, `check_structure()` ✅, `preflight()` ✅, `get_example_input()` ✅, `execute()` ✅ (abstract)
 
 ### `skill_registry.php` ✅
 **Zweck:** Zentrales Registry fuer alle Tasks, Schema-Aggregation, Provider-Wiring
-**Klasse:** `bookingextension_agent\local\wbagent\skill_registry`
+**Klasse:** `bookingextension_agent\local\wizard\skill_registry`
 **Methoden:**
 - `register()` ✅, `get_task()` ✅, `get_provider_for_task()` ✅
 - `normalize_task_input()` ✅, `get_preview_option_memory_for_task()` ✅
@@ -441,7 +441,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 - `verify_risk_class_declaration()` ✅ + private Helfer ✅
 
 ### `skill_discovery.php` ✅
-**Zweck:** Auto-Discovers Task-Klassen in local/wbagent ohne Provider
+**Zweck:** Auto-Discovers Task-Klassen in local/wizard ohne Provider
 **Methoden:** `get_task_instances()` ✅ (static), `get_last_diagnostics()` ✅ (static)
 
 ### `skill_executability_evaluator.php` ✅
@@ -509,7 +509,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## INTERFACES: `classes/local/wbagent/interfaces/`
+## INTERFACES: `classes/local/wizard/interfaces/`
 
 ### `task_interface.php` ✅
 **Zweck:** Core-Interface fuer alle Tasks
@@ -567,7 +567,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## DTOs: `classes/local/wbagent/dto/`
+## DTOs: `classes/local/wizard/dto/`
 
 ### `task_risk_class.php` ✅
 **Zweck:** DTO/Enum fuer Risk-Classes R0-R3
@@ -601,7 +601,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## CONTRACTS: `classes/local/wbagent/contracts/`
+## CONTRACTS: `classes/local/wizard/contracts/`
 
 ### `task_family_contract.php` ✅
 **Zweck:** Deklariert und normalisiert Task-Family-Namen fuer Discovery
@@ -609,7 +609,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## CONFIG: `classes/local/wbagent/config/`
+## CONFIG: `classes/local/wizard/config/`
 
 ### `command_schema.json` ✅
 **Zweck:** JSON-Schema fuer Command-Validation in Preflight-L1 (PF_L1 aus Blueprint)
@@ -621,7 +621,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## CORE TASKS: `classes/local/wbagent/core/tasks/`
+## CORE TASKS: `classes/local/wizard/core/tasks/`
 
 ### `core_task_base.php` ✅
 **Zweck:** Basis fuer Core-Tasks (non-booking domain, abstract)
@@ -646,11 +646,11 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## QUEUE: `classes/local/wbagent/queue/`
+## QUEUE: `classes/local/wizard/queue/`
 
 ### `queue_manager.php` ✅
 **Zweck:** Shadow-Queue-Management: Enqueue, Status-Updates, DAG-Validierung, Placeholder, Idempotenz
-**Klasse:** `bookingextension_agent\local\wbagent\queue\queue_manager`
+**Klasse:** `bookingextension_agent\local\wizard\queue\queue_manager`
 **Methoden:**
 - `enqueue_command()` ✅ — Q_ENQUEUE: Idempotenz + DAG-Check
 - `update_status()` ✅ — Q_UPDST
@@ -674,11 +674,11 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## SERVICES: `classes/local/wbagent/services/`
+## SERVICES: `classes/local/wizard/services/`
 
 ### `services/decision/agent_decision_service.php` ✅
 **Zweck:** Deterministische Routing-Logik nach Planner-Output (DECIDSVC aus Blueprint)
-**Klasse:** `bookingextension_agent\local\wbagent\services\decision\agent_decision_service`
+**Klasse:** `bookingextension_agent\local\wizard\services\decision\agent_decision_service`
 **Methoden:**
 - `process()` ✅ — D_PREVIEW → D_PENDING → D_LOOKUP_GUARD → D_PROMOTE → D_ROUTE
 - `handle_confirm_pending()` ✅ (private) — D_CONFIRM_PENDING
@@ -957,7 +957,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## SUMMARIZER: `classes/local/wbagent/summarizer/`
+## SUMMARIZER: `classes/local/wizard/summarizer/`
 
 ### `basic_collection_result_summary_contributor.php` ✅
 ### `diagnosis_result_summary_contributor.php` ✅
@@ -967,7 +967,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## BENCHMARK: `classes/local/wbagent/benchmark/`
+## BENCHMARK: `classes/local/wizard/benchmark/`
 
 ### `abstract_benchmark_scenario.php` ✅
 ### `benchmark_db_writer.php` ✅
@@ -982,7 +982,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## PROMPTS: `classes/local/wbagent/prompts/`
+## PROMPTS: `classes/local/wizard/prompts/`
 
 ### `initial_system_prompt.md` ✅
 **Zweck:** Standard-System-Prompt Template (klein, 5 KB — Prompt wird dynamisch gebaut)
@@ -1032,21 +1032,21 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ---
 
-## mod_booking wbagent Tasks: `mod_booking/classes/local/wbagent/`
+## mod_booking wizard Tasks: `mod_booking/classes/local/wizard/`
 
 ### `skill_provider.php` ✅
 **Zweck:** Provider fuer mod_booking — registriert alle booking Tasks
-**Klasse:** `mod_booking\local\wbagent\skill_provider`
+**Klasse:** `mod_booking\local\wizard\skill_provider`
 **Methoden:** `get_component()` ✅, `get_tasks()` ✅, `get_discovery_diagnostics()` ✅, `get_contextual_prompt_packs()` ✅, `get_issue_code_provider()` ✅, `get_prompt_guidance()` ✅, `get_task_input_normalizer()` ✅, `get_preview_option_memory()` ✅
 
 ### `booking/booking_skill_provider.php` ✅
 **Zweck:** Extends booking_task_support — eigentlicher Provider-Einstiegspunkt
-**Klasse:** `mod_booking\local\wbagent\booking\booking_skill_provider`
+**Klasse:** `mod_booking\local\wizard\booking\booking_skill_provider`
 **Anmerkung:** Duenne Klasse die auf booking_task_support aufbaut.
 
 ### `booking/booking_task_support.php` ⚠️
 **Zweck:** Zentrale Support-Klasse: Schema-Access, Execute, User/Option/Course-Resolution, Datetime-Normalisierung
-**Klasse:** `mod_booking\local\wbagent\booking\booking_task_support`
+**Klasse:** `mod_booking\local\wizard\booking\booking_task_support`
 **Methoden:**
 - `get_task_names()` ✅, `get_contextual_prompt_packs()` ✅
 - `get_task_schema()` ✅, `check_structure()` ✅
@@ -1067,7 +1067,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `booking/booking_task_mutation_execute_service.php` ✅
 **Zweck:** Fuehrt tatsaechliche Mutations aus (create/update option, book users etc.)
-**Klasse:** `mod_booking\local\wbagent\booking\booking_task_mutation_execute_service`
+**Klasse:** `mod_booking\local\wizard\booking\booking_task_mutation_execute_service`
 **Methoden:**
 - `execute()` ✅ — Haupt-Dispatcher fuer Mutations (52 KB)
 - `preflight_validate()` ✅ — L2-Preflight fuer booking tasks
@@ -1097,7 +1097,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 ### `options/tasks/booking_task_base.php` ✅
 **Zweck:** Abstrakte Basis fuer alle mod_booking-spezifischen Tasks (BTASK aus Blueprint)
-**Klasse:** `mod_booking\local\wbagent\options\tasks\booking_task_base` (abstract, extends base_task)
+**Klasse:** `mod_booking\local\wizard\options\tasks\booking_task_base` (abstract, extends base_task)
 **Methoden:** `get_schema()` ✅, `get_example_input()` ✅, `enrich_schema_with_prompt_meta()` ✅ (protected), `validate_common_mutation_structure()` ✅ (protected), `execute()` ✅, `get_contextual_prompt_packs()` ✅, `verify_persisted_option_state()` ✅, `apply_service_preflight()` ✅ (protected), `get_output_language()` ✅ (protected), `localized_string()` ✅ (protected), `enforce_max_chars()` ✅ (protected)
 
 ### `options/tasks/create_option_task.php` ✅
@@ -1180,7 +1180,7 @@ Das `bookingextension_agent`-Plugin ist strukturell hervorragend aufgebaut und z
 
 | Datei | Begründung |
 |---|---|
-| `classes/local/wbagent/wunderbyte_trial_endpoint.py` | 🗑️ Python-Datei im PHP-Verzeichnis — muss raus |
+| `classes/local/wizard/wunderbyte_trial_endpoint.py` | 🗑️ Python-Datei im PHP-Verzeichnis — muss raus |
 | `services/planning/` (leer) | 🗑️ Leeres Verzeichnis — loeschen oder fuellen |
 | `external/booking_create_option.php` | ⚠️ Evaluieren: Ist diese API noch aktiv genutzt? |
 | `external/booking_update_option.php` | ⚠️ Evaluieren |

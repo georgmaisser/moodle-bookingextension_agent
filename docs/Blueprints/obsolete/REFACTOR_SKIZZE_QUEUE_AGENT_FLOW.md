@@ -110,28 +110,28 @@ Hinweis: Diese Liste ist bewusst aggressiv und auf Redundanzabbau ausgelegt.
 
 ## D) Konkrete Dateiziele fuer den Umbau
 
-1. classes/local/wbagent/services/decision/agent_decision_service.php
+1. classes/local/wizard/services/decision/agent_decision_service.php
 - auf Pipeline-Verantwortung reduzieren
 - redundante persistenznahe und queue-nahe Verzweigungen abbauen
 
-2. classes/local/wbagent/services/confirm_run_service.php
+2. classes/local/wizard/services/confirm_run_service.php
 - auf bestaetigen + ausfuehren fokussieren
 - doppelte intent-/retry-/fallback-Pfade reduzieren
 
-3. classes/local/wbagent/services/pending_intent_service.php
+3. classes/local/wizard/services/pending_intent_service.php
 - Pointer-Modell erzwingen
 
-4. classes/local/wbagent/conversation_store.php
+4. classes/local/wizard/conversation_store.php
 - pending_intent Speicherstruktur vereinfachen
 
-5. classes/local/wbagent/services/queue_transition_service.php
+5. classes/local/wizard/services/queue_transition_service.php
 - reason_code Pflicht je Transition
 - state/event Trennung
 
-6. classes/local/wbagent/queue/queue_manager.php
+6. classes/local/wizard/queue/queue_manager.php
 - ready/running/retry Übergangsgruende konsistent speichern
 
-7. classes/local/wbagent/agent_runtime.php
+7. classes/local/wizard/agent_runtime.php
 - attempt_budget_dto zentral integrieren
 
 ---

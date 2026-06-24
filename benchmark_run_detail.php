@@ -27,11 +27,11 @@ require_once(__DIR__ . '/../../../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
-use bookingextension_agent\local\wbagent\benchmark\benchmark_metrics_calculator;
+use bookingextension_agent\local\wizard\benchmark\benchmark_metrics_calculator;
 
 $id = required_param('id', PARAM_INT);
 
-$run = $DB->get_record('local_wbagent_benchmark_runs', ['id' => $id], '*', MUST_EXIST);
+$run = $DB->get_record('local_wizard_benchmark_runs', ['id' => $id], '*', MUST_EXIST);
 
 $PAGE->set_context(context_system::instance());
 $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/benchmark_run_detail.php', ['id' => $id]));
@@ -44,8 +44,8 @@ $PAGE->set_pagelayout('admin');
 
 echo $OUTPUT->header();
 
-$scenarios = $DB->get_records('local_wbagent_benchmark_scenarios', ['run_id' => $id], 'scenario_key ASC');
-$metrics   = $DB->get_records('local_wbagent_benchmark_metrics', ['run_id' => $id], 'metric_key ASC');
+$scenarios = $DB->get_records('local_wizard_benchmark_scenarios', ['run_id' => $id], 'scenario_key ASC');
+$metrics   = $DB->get_records('local_wizard_benchmark_metrics', ['run_id' => $id], 'metric_key ASC');
 
 $calc       = new benchmark_metrics_calculator();
 $thresholds = $calc->get_thresholds();

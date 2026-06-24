@@ -14,15 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
+use bookingextension_agent\local\wizard\services\attempt_budget_dto;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for attempt budget DTO.
  *
- * @covers \bookingextension_agent\local\wbagent\services\attempt_budget_dto
+ * @covers \bookingextension_agent\local\wizard\services\attempt_budget_dto
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

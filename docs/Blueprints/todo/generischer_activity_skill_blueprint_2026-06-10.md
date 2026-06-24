@@ -2,13 +2,13 @@
 
 *Stand: 2026-06-10 · Verifiziert gegen Code-Stand 2026-06-13 (Plugin-Version 2026061201) · Status: Analyse abgeschlossen, gegen Flowchart + realen Code geprüft, umsetzungsbereit — noch keine Umsetzung*
 
-> **Namens-Korrektur (2026-06-13):** Der Skill heißt **`course.add_activity`** (nicht `core.add_activity`). Begründung in §0.5 — passt zum bestehenden `course.*`-Namespace (`course.search_courses`) und zur Discovery-Konvention `classes/local/wbagent/course/skills/`.
+> **Namens-Korrektur (2026-06-13):** Der Skill heißt **`course.add_activity`** (nicht `core.add_activity`). Begründung in §0.5 — passt zum bestehenden `course.*`-Namespace (`course.search_courses`) und zur Discovery-Konvention `classes/local/wizard/course/skills/`.
 
 ---
 
 ## 0.5 Verifikation gegen realen Code-Stand (2026-06-13)
 
-Geprüft wurde die Kern-These „**kein einziger Engine-Touch nötig**" gegen den tatsächlichen Code und gegen das autoritative `AGENT_IMPLEMENTATION_FLOWCHART.mmd`. **Ergebnis: Die These hält.** Es existiert ein nahezu vollständiges Präzedenz-Skill, das exakt dieses Muster ohne Engine-Änderung umsetzt: **`question.generate_questions`** (`classes/local/wbagent/question/skills/generate_questions_skill.php`).
+Geprüft wurde die Kern-These „**kein einziger Engine-Touch nötig**" gegen den tatsächlichen Code und gegen das autoritative `AGENT_IMPLEMENTATION_FLOWCHART.mmd`. **Ergebnis: Die These hält.** Es existiert ein nahezu vollständiges Präzedenz-Skill, das exakt dieses Muster ohne Engine-Änderung umsetzt: **`question.generate_questions`** (`classes/local/wizard/question/skills/generate_questions_skill.php`).
 
 ### Bestätigt (1:1 im Code vorhanden)
 
@@ -20,7 +20,7 @@ Geprüft wurde die Kern-These „**kein einziger Engine-Touch nötig**" gegen de
 | Native Caps deklarierbar (Gate 2) | `base_skill::get_required_native_capabilities()` + `require_native_capabilities()` vorhanden |
 | Cross-Context (Ziel-Kurs ≠ aktueller Kurs) **gratis** | `supports_target_context()`/`get_target_selector()`/`get_target_context_level()` in `base_skill`; generate_questions nutzt es bereits für einen abweichenden Ziel-Kurs |
 | R2 + Confirm-Flow | `parent::__construct(false, skill_risk_class::R2)` |
-| Skill-Discovery findet neuen Ordner automatisch | `skill_discovery::get_skill_directories()` scannt **jeden** `classes/local/wbagent/<dir>/skills/`; `course/skills/` existiert bereits (`search_courses_skill.php`) |
+| Skill-Discovery findet neuen Ordner automatisch | `skill_discovery::get_skill_directories()` scannt **jeden** `classes/local/wizard/<dir>/skills/`; `course/skills/` existiert bereits (`search_courses_skill.php`) |
 | Family entsteht ohne Registry-Edit | `family_registry_service::discover()` leitet Families **dynamisch aus den Skill-Prompt-Contracts** ab (Namespace). Ein `course.*`-Skill ergibt automatisch die `course`-Family — **kein** hardcodierter Map-Eintrag |
 | Cap-Registrierung deterministisch | `skill_contract_validator::build_skill_capability_name()` → `course.add_activity` ⇒ `bookingextension/agent:skill_course_add_activity` |
 | Core-Funktionen vorhanden | `add_moduleinfo()` (`course/modlib.php:49`), `get_module_types_names()` (`course/lib.php:402`), `course_allowed_module()` (`course/lib.php:1648`) |
@@ -28,7 +28,7 @@ Geprüft wurde die Kern-These „**kein einziger Engine-Touch nötig**" gegen de
 ### Präzisierungen / Korrekturen am Blueprint (wichtig für die Umsetzung)
 
 1. **Gate-2-Caps werden NICHT automatisch von der Engine erzwungen.** `get_required_native_capabilities()` wird im gesamten Engine-Code **nur** vom base_skill-eigenen Helfer `require_native_capabilities()` konsumiert — es gibt keinen Engine-Schritt, der die deklarierten Caps eigenständig prüft. Konsequenz: Der Skill **muss selbst** prüfen — entweder graceful als `needs_clarification` (wie generate_questions es mit `moodle/question:add` tut) oder via `require_native_capabilities()` (wirft `require_capability`). Sowohl `moodle/course:manageactivities` **als auch** `mod/<modname>:addinstance` werden im Preflight des Skills selbst geprüft. Das Deklarieren in `get_required_native_capabilities()` bleibt sinnvoll als Contract/Doku.
-2. **Namespace `course.*` statt `core.*`** → Skill-Datei nach `classes/local/wbagent/course/skills/add_activity_skill.php`, Cap `skill_course_add_activity` (siehe korrigiertes §2 und §6).
+2. **Namespace `course.*` statt `core.*`** → Skill-Datei nach `classes/local/wizard/course/skills/add_activity_skill.php`, Cap `skill_course_add_activity` (siehe korrigiertes §2 und §6).
 3. **Aktivierung ist operativ, nicht Code.** Neu entdeckte Skills sind **default-off** (`skill_registry::is_skill_active()` → „Default-off for newly discovered skills"). Nach dem Merge: System-Setting `aiskillenabled_course_add_activity` einschalten (oder dev: `aiskillenableall`) **und** Skill-Katalog-Embeddings neu bauen (`rebuild_skill_catalog_embeddings_adhoc` / Skill `core.recreate_skill_catalog`). Beides sind Betriebsschritte, **keine** Engine-Änderung.
 
 ### Flowchart-Abgleich
@@ -75,9 +75,9 @@ bereitstellen: `get_name`, `get_schema`, `check_structure`, `preflight`, `execut
 ## 2. Datei-Layout (alles skill-eigen)
 
 ```
-classes/local/wbagent/course/skills/
+classes/local/wizard/course/skills/
   add_activity_skill.php                # course.add_activity — der einzige Skill (course/skills/ existiert bereits)
-classes/local/wbagent/services/activities/
+classes/local/wizard/services/activities/
   module_catalog_service.php            # addbare Module im Kurs ermitteln (Caps-gefiltert)
   module_form_contract.php              # mform headless bauen + validation() (Dry-Run) + kuratierte Felder
   activity_creation_service.php         # add_moduleinfo(...) in execute, transaktional, mit Rollback
@@ -87,7 +87,7 @@ db/access.php                           # Gate-1-Cap: 'course_add_activity' in $
 ```
 
 > **Verortung verifiziert (2026-06-13):** `skill_discovery::get_skill_directories()` scannt jeden
-> `classes/local/wbagent/<dir>/skills/`-Ordner (und rekursiv darunter). Der `course/`-Namespace existiert
+> `classes/local/wizard/<dir>/skills/`-Ordner (und rekursiv darunter). Der `course/`-Namespace existiert
 > bereits (`course/skills/search_courses_skill.php`), daher ist `course/skills/add_activity_skill.php` die
 > natürliche, konventionskonforme Heimat. Services gruppiert unter `services/activities/`. → Offene Frage #4
 > ist damit entschieden (kein `core/skills/course/`-Sonderfall nötig).
@@ -328,7 +328,7 @@ Schritt eine Engine-Datei anfassen will, ist das ein Stop-Signal und zuerst mit 
 > **Regressionscheck:** voller `bookingextension_agent_testsuite`-Lauf = 362 Tests; **1 Failure
 > (`phase2_discovery_staging_contract_test::test_family_registry_uses_prior_without_hard_exclusion`) ist
 > VORBESTEHEND** — reproduziert identisch, wenn der neue Skill+Services beiseitegelegt werden (nicht meine
-> Änderung; `core_family_set` liefert `wbagent.general` als mandatory Family, was dieser hartkodierte
+> Änderung; `core_family_set` liefert `wizard.general` als mandatory Family, was dieser hartkodierte
 > Discovery-Test nicht erwartet).
 >
 > **P5 ERLEDIGT auf VM (2026-06-13, mit Georgs Go):** Upgrade auf 2026061300; Setting

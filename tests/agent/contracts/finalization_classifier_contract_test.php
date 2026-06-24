@@ -14,16 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
-use bookingextension_agent\local\wbagent\services\finalization_classifier;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\services\finalization_classifier;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for deterministic finalization classifier.
  *
- * @covers \bookingextension_agent\local\wbagent\services\finalization_classifier
+ * @covers \bookingextension_agent\local\wizard\services\finalization_classifier
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

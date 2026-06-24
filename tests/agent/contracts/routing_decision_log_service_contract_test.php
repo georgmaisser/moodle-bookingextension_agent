@@ -16,16 +16,16 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\config\runtime_feature_flags;
-use bookingextension_agent\local\wbagent\services\telemetry\routing_decision_log_service;
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for routing decision telemetry normalization and shadow mode.
  *
- * @covers \bookingextension_agent\local\wbagent\services\telemetry\routing_decision_log_service
+ * @covers \bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -77,7 +77,7 @@ final class routing_decision_log_service_contract_test extends TestCase {
         ], [
             'promptcontracts' => [
                 ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options', 'namespace' => 'mod_booking'],
-                ['skill' => 'wbagent.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
+                ['skill' => 'wizard.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
             ],
             'contextprior' => ['namespace_hint' => 'mod_booking'],
             'recent_skill_names' => ['mod_booking.create_option'],

@@ -17,10 +17,10 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\interfaces\skill_discovery_provider_interface;
-use bookingextension_agent\local\wbagent\interfaces\skill_introspection_provider_interface;
-use bookingextension_agent\local\wbagent\wbagent\skills\list_skills_skill;
-use bookingextension_agent\local\wbagent\wbagent\skills\search_skills_skill;
+use bookingextension_agent\local\wizard\interfaces\skill_discovery_provider_interface;
+use bookingextension_agent\local\wizard\interfaces\skill_introspection_provider_interface;
+use bookingextension_agent\local\wizard\wizard\skills\list_skills_skill;
+use bookingextension_agent\local\wizard\wizard\skills\search_skills_skill;
 
 /**
  * S5b: list_skills/search_skills depend on injected contracts, not on engine machinery.
@@ -31,8 +31,8 @@ use bookingextension_agent\local\wbagent\wbagent\skills\search_skills_skill;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\wbagent\skills\list_skills_skill
- * @covers \bookingextension_agent\local\wbagent\wbagent\skills\search_skills_skill
+ * @covers \bookingextension_agent\local\wizard\wizard\skills\list_skills_skill
+ * @covers \bookingextension_agent\local\wizard\wizard\skills\search_skills_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

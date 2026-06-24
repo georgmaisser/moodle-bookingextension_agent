@@ -16,15 +16,15 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\synchronizer_input_builder;
+use bookingextension_agent\local\wizard\services\synchronizer_input_builder;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for synchronizer input shaping.
  *
- * @covers \bookingextension_agent\local\wbagent\services\synchronizer_input_builder
+ * @covers \bookingextension_agent\local\wizard\services\synchronizer_input_builder
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

@@ -17,7 +17,7 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_csv_repository;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_csv_repository;
 
 /**
  * Round-trip integrity tests for the documentation embeddings CSV repository.
@@ -29,8 +29,8 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_csv_rep
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\embeddings_csv_repository_base
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_csv_repository
+ * @covers     \bookingextension_agent\local\wizard\embeddings_csv_repository_base
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\docs_embeddings_csv_repository
  */
 final class docs_embeddings_csv_repository_test extends advanced_testcase {
     /**

@@ -18,13 +18,13 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_course;
-use bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder;
+use bookingextension_agent\local\wizard\diagnostics\diagnostic_link_builder;
 
 /**
  * Tests for the diagnostic link builder.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder
+ * @covers     \bookingextension_agent\local\wizard\diagnostics\diagnostic_link_builder
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

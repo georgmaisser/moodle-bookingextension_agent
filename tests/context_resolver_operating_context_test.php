@@ -20,20 +20,20 @@ use advanced_testcase;
 use context_course;
 use context_module;
 use context_system;
-use bookingextension_agent\local\wbagent\dto\agent_context;
-use bookingextension_agent\local\wbagent\dto\context_target_resolution;
-use bookingextension_agent\local\wbagent\dto\target_selector;
-use bookingextension_agent\local\wbagent\services\security\context_resolver;
-use bookingextension_agent\local\wbagent\services\security\context_target_unresolved_exception;
-use bookingextension_agent\local\wbagent\services\security\operating_context_target_registry;
+use bookingextension_agent\local\wizard\dto\agent_context;
+use bookingextension_agent\local\wizard\dto\context_target_resolution;
+use bookingextension_agent\local\wizard\dto\target_selector;
+use bookingextension_agent\local\wizard\services\security\context_resolver;
+use bookingextension_agent\local\wizard\services\security\context_target_unresolved_exception;
+use bookingextension_agent\local\wizard\services\security\operating_context_target_registry;
 
 /**
  * Tests for operating-context resolution (cross-context target course, Phase 0).
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\services\security\context_resolver
- * @covers     \bookingextension_agent\local\wbagent\services\security\operating_context_target_registry
- * @covers     \bookingextension_agent\local\wbagent\dto\target_selector
+ * @covers     \bookingextension_agent\local\wizard\services\security\context_resolver
+ * @covers     \bookingextension_agent\local\wizard\services\security\operating_context_target_registry
+ * @covers     \bookingextension_agent\local\wizard\dto\target_selector
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

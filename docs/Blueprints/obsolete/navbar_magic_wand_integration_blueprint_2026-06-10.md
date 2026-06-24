@@ -17,7 +17,7 @@
 | **§5 Rich Context Awareness (Kontext-Block für Constructor/Synchronizer)** | ✅ ERLEDIGT & benchmark-verifiziert (Commit `639f190`; Isolations-Läufe ID 11/12: identische 8/15 mit und ohne Block → §5 kostet nichts) | §5 |
 | P4b-Produktfrage: Welche Skills sind außerhalb Booking *nützlich*? | ⚠️ Teilweise (Framework bereinigt via `3d76f05`; kontextgenerische Skills = Produktarbeit) | Konsolidierungs-Blueprints |
 | Quota-/Kostenschicht (vor Teacher-/Studenten-Rollout) | ❌ OFFEN (Entscheidung O4) | Permissions-Konzept §6 |
-| Umzug Hook+JS ins künftige `local_wbagent` | ❌ OFFEN (bewusste Übergangslösung im Subplugin) | `wbagent_local_plugin_extraction_plan_2026-06-08.md` |
+| Umzug Hook+JS ins künftige `local_wizard` | ❌ OFFEN (bewusste Übergangslösung im Subplugin) | `wizard_local_plugin_extraction_plan_2026-06-08.md` |
 
 ---
 
@@ -28,7 +28,7 @@ Die ursprüngliche These „sind wir schon so weit?" ist beantwortet: **Ja — u
 1. **Frontend-Laufzeit (Hürde 1): GELÖST** über Moodles Hook-System direkt aus dem Subplugin — Moodle scannt `db/hooks.php` aller Subplugins, ein separates local-Plugin war nicht nötig (§4.2/4.3).
 2. **Backend-Gating (Hürde 2): GELÖST** durch die Kontext-Konsolidierung (P1–P4a) plus die Kontext-Härtung vom 2026-06-10 (§4.6). Das Backend ist vollständig context-agnostisch: MODULE / COURSE / COURSECAT / USER / SYSTEM.
 
-**Einordnung:** Die Hook-Konstruktion im Subplugin ist eine bewusste **Übergangslösung** — nach der `local_wbagent`-Auskopplung wandern `db/hooks.php` und das Navbar-JS dorthin. Und weiterhin gilt: **„Stürzt nicht ab" ≠ „ist nützlich"** — welche Skills außerhalb eines Booking-Kontexts sinnvoll arbeiten, ist Produktarbeit (Skill-Tiers, siehe Permissions-Konzept) und Voraussetzung für eine Default-Aktivierung des Settings. Die Default-Einstellung bleibt deshalb **aus**.
+**Einordnung:** Die Hook-Konstruktion im Subplugin ist eine bewusste **Übergangslösung** — nach der `local_wizard`-Auskopplung wandern `db/hooks.php` und das Navbar-JS dorthin. Und weiterhin gilt: **„Stürzt nicht ab" ≠ „ist nützlich"** — welche Skills außerhalb eines Booking-Kontexts sinnvoll arbeiten, ist Produktarbeit (Skill-Tiers, siehe Permissions-Konzept) und Voraussetzung für eine Default-Aktivierung des Settings. Die Default-Einstellung bleibt deshalb **aus**.
 
 ---
 

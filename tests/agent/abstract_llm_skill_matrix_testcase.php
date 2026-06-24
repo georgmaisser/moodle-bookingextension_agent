@@ -27,14 +27,14 @@ namespace bookingextension_agent;
 
 defined('MOODLE_INTERNAL') || die();
 
-use bookingextension_agent\local\wbagent\agent_runtime;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\interpreter;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\skill_executability_evaluator;
-use bookingextension_agent\local\wbagent\skill_registry;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\agent_runtime;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\interpreter;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\skill_executability_evaluator;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 require_once(__DIR__ . '/abstract_agent_testcase.php');
 require_once(__DIR__ . '/llm_skill_matrix_scenario_provider.php');
@@ -422,7 +422,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
-     * Seed a same-thread memory snippet for wbagent.recall_memory.
+     * Seed a same-thread memory snippet for wizard.recall_memory.
      *
      * @return array<string,mixed>
      */
@@ -460,7 +460,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     }
 
     /**
-     * Seed one stored user memory (user_memory table) for wbagent.forget / wbagent.list_memories.
+     * Seed one stored user memory (user_memory table) for wizard.forget / wizard.list_memories.
      *
      * Distinct from prepare_recall_memory_scenario, which seeds past CONVERSATION
      * content — user memories are explicit stored facts, global per user.
@@ -469,7 +469,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
      */
     protected function prepare_user_memory_scenario(): array {
         $token = 'matrix-fact-' . substr(sha1(uniqid('', true)), 0, 8);
-        (new \bookingextension_agent\local\wbagent\services\user_memory_service())->add(
+        (new \bookingextension_agent\local\wizard\services\user_memory_service())->add(
             (int)$this->teacher->id,
             'Always mention the token ' . $token . ' when summarising bookings.'
         );
@@ -616,8 +616,8 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
      */
     protected function prepare_booking_rules_service_scenario(): array {
         $candidates = [
-            '\\mod_booking\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
-            '\\bookingextension_agent\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
+            '\\mod_booking\\local\\wizard\\booking\\support\\booking_rules_agent_service',
+            '\\bookingextension_agent\\local\\wizard\\booking\\support\\booking_rules_agent_service',
         ];
 
         foreach ($candidates as $classname) {
@@ -645,8 +645,8 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     protected function prepare_booking_rule_update_scenario(): array {
         $serviceclass = '';
         $candidates = [
-            '\\mod_booking\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
-            '\\bookingextension_agent\\local\\wbagent\\booking\\support\\booking_rules_agent_service',
+            '\\mod_booking\\local\\wizard\\booking\\support\\booking_rules_agent_service',
+            '\\bookingextension_agent\\local\\wizard\\booking\\support\\booking_rules_agent_service',
         ];
         foreach ($candidates as $classname) {
             if (class_exists($classname)) {
@@ -898,7 +898,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         global $DB;
 
         $record = $DB->get_record_sql(
-            'SELECT source FROM {local_wbagent_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
+            'SELECT source FROM {local_wizard_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
             [$threadid],
             IGNORE_MULTIPLE
         );
@@ -926,7 +926,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         }
 
         $records = $DB->get_records_sql(
-            'SELECT source FROM {local_wbagent_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
+            'SELECT source FROM {local_wizard_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
             [$threadid]
         );
 
@@ -1089,14 +1089,14 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         }
 
         $candidates = $this->skill_result_candidate_names($skillname);
-        $queue = new \bookingextension_agent\local\wbagent\queue\queue_manager($store);
+        $queue = new \bookingextension_agent\local\wizard\queue\queue_manager($store);
         foreach ($queue->get_queue_items($threadid) as $item) {
             if (!is_array($item)) {
                 continue;
             }
             $itemskill = trim((string)($item['skill'] ?? ''));
             $status = (string)($item['status'] ?? '');
-            $succeeded = \bookingextension_agent\local\wbagent\services\queue_status_policy::is_succeeded_status($status);
+            $succeeded = \bookingextension_agent\local\wizard\services\queue_status_policy::is_succeeded_status($status);
             if ($itemskill === '' || !$succeeded) {
                 continue;
             }

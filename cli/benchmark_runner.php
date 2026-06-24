@@ -40,15 +40,15 @@ define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/../../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
-use bookingextension_agent\local\wbagent\benchmark\benchmark_envkey_manager;
-use bookingextension_agent\local\wbagent\benchmark\benchmark_scenario_registry;
-use bookingextension_agent\local\wbagent\benchmark\benchmark_result_collector;
-use bookingextension_agent\local\wbagent\benchmark\benchmark_metrics_calculator;
-use bookingextension_agent\local\wbagent\benchmark\benchmark_db_writer;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\interpreter;
+use bookingextension_agent\local\wizard\benchmark\benchmark_envkey_manager;
+use bookingextension_agent\local\wizard\benchmark\benchmark_scenario_registry;
+use bookingextension_agent\local\wizard\benchmark\benchmark_result_collector;
+use bookingextension_agent\local\wizard\benchmark\benchmark_metrics_calculator;
+use bookingextension_agent\local\wizard\benchmark\benchmark_db_writer;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\skill_registry_factory;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\interpreter;
 use core\di;
 use core_ai\manager as ai_manager;
 
@@ -193,7 +193,7 @@ foreach ($scenarios as $i => $scenario) {
             // Get the raw selector LLM response directly from the debug log —
             // this is the actual JSON the model emitted, before any parsing.
             $logrow = $DB->get_record_sql(
-                "SELECT requesttext, responsetext FROM {local_wbagent_ai_llm_debug}
+                "SELECT requesttext, responsetext FROM {local_wizard_ai_llm_debug}
                   WHERE threadid = :tid AND source LIKE 'orc|p=sel%'
                   ORDER BY id DESC LIMIT 1",
                 ['tid' => $threadid]
@@ -203,7 +203,7 @@ foreach ($scenarios as $i => $scenario) {
             $tokenscompletion = $logrow ? (int)round(strlen($logrow->responsetext ?? '') / 4) : 0;
 
             // Archive the temporary thread to avoid polluting the user's history.
-            $DB->set_field('local_wbagent_ai_threads', 'status', 'archived', ['id' => $threadid]);
+            $DB->set_field('local_wizard_ai_threads', 'status', 'archived', ['id' => $threadid]);
         } catch (\Throwable $ex) {
             $durationms = (int)round((microtime(true) - $t0) * 1000);
             cli_writeln('ERROR — ' . $ex->getMessage());

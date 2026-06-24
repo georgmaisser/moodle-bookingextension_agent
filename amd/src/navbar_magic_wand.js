@@ -179,9 +179,9 @@ export const init = (contextid, label, pagecontext = {}) => {
     // each message. Written on every page load before any early return, so it always reflects the page
     // the user is actually on. Best-effort: failures here never affect the wand.
     try {
-        window.sessionStorage.setItem('wbagent_pagecontext', JSON.stringify(pagecontext || {}));
+        window.sessionStorage.setItem('wizard_pagecontext', JSON.stringify(pagecontext || {}));
     } catch (e) {
-        window.console.log('wbagent: page context not stored', e);
+        window.console.log('wizard: page context not stored', e);
     }
 
     if (document.getElementById(BUTTON_ID)) {

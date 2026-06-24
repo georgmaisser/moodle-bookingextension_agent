@@ -18,14 +18,14 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use moodle_url;
-use bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder;
+use bookingextension_agent\local\wizard\diagnostics\diagnostic_result_builder;
 
 /**
  * S6: the diagnose_* skills' shared row/glyph/error builders.
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder
+ * @covers \bookingextension_agent\local\wizard\diagnostics\diagnostic_result_builder
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -18,7 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\task;
 
-use bookingextension_agent\local\wbagent\benchmark\benchmark_db_writer;
+use bookingextension_agent\local\wizard\benchmark\benchmark_db_writer;
 use core\task\scheduled_task;
 
 /**

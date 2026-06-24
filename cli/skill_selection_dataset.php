@@ -27,7 +27,7 @@ define('CLI_SCRIPT', true);
 require_once(__DIR__ . '/../../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
-use bookingextension_agent\local\wbagent\services\debug\skill_selection_debug_service;
+use bookingextension_agent\local\wizard\services\debug\skill_selection_debug_service;
 
 [$options, $unrecognized] = cli_get_params([
     'help' => false,

@@ -101,7 +101,7 @@ Wir bauen keinen zweiten grossen Orchestrator neben den bestehenden Code. Stattd
 ### Phase 1: Deterministischen Finalization Classifier einfuehren
 
 Neu hinzufuegen:
-- `classes/local/wbagent/services/finalization_classifier.php`
+- `classes/local/wizard/services/finalization_classifier.php`
 
 Aufgabe:
 - Eingabe: normalized result array
@@ -123,8 +123,8 @@ Tests:
 ### Phase 2: Minimalen Synchronizer ausserhalb des Planners einfuehren
 
 Neu hinzufuegen:
-- `classes/local/wbagent/services/synchronizer_service.php`
-- optional `classes/local/wbagent/services/synchronizer_input_builder.php`
+- `classes/local/wizard/services/synchronizer_service.php`
+- optional `classes/local/wizard/services/synchronizer_input_builder.php`
 
 Reuse:
 - `llm_call_service`
@@ -162,7 +162,7 @@ Dateien / Bereiche zum Aufraeumen:
 1. alte Runtime-Policy-Logik (bereits geloescht)
 - komplett loeschen
 
-2. `classes/local/wbagent/orchestrator.php`
+2. `classes/local/wizard/orchestrator.php`
 - alte Finalisierungs-Step-Typen loeschen
 - `STEP_TYPE_FINAL_SYNTHESIS` loeschen
 - `WB_ACTION_GENERATE_AGENT_REPLY` nur behalten, falls Orchestrator weiterhin shared constants liefern soll; sonst in neuen Synchronizer verschieben
@@ -171,22 +171,22 @@ Dateien / Bereiche zum Aufraeumen:
 - `build_local_output_contract_block()` von final_synthesis entkoppeln
 - alle nicht mehr benoetigten prompt/profile branches entfernen
 
-3. `classes/local/wbagent/services/orchestrator_routing_service.php`
+3. `classes/local/wizard/services/orchestrator_routing_service.php`
 - finalreasoning/finalsynthesis properties entfernen
 - routing nur noch fuer planner steps behalten
 - final-reply routing in neuen `synchronizer_routing_service` verschieben
 
-4. `classes/local/wbagent/services/orchestrator_prompt_profile_service.php`
+4. `classes/local/wizard/services/orchestrator_prompt_profile_service.php`
 - finalreasoning/finalsynthesis properties entfernen
 - step-type Normalisierung nur fuer planner steps behalten
 - final prompt config keys in Synchronizer-Service verschieben
 
-5. `classes/local/wbagent/prompt_policy_builder.php`
+5. `classes/local/wizard/prompt_policy_builder.php`
 - final_synthesis policy branches loeschen
 - obsolete follow-up policy in Synchronizer/Input-Builder verschieben oder entfallen lassen
 - Planner-Policy auf tool_call_parse + simple_retrieval reduzieren
 
-6. `classes/local/wbagent/services/catalog/adaptive_task_catalog_service.php`
+6. `classes/local/wizard/services/catalog/adaptive_task_catalog_service.php`
 - recency branches fuer alte Finalisierungs-Step-Typen entfernen, falls nach Migration ungenutzt
 
 7. Tests

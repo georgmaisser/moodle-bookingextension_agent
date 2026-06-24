@@ -14,17 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\queue_command_mapper;
-use bookingextension_agent\local\wbagent\services\queue_status_policy;
+use bookingextension_agent\local\wizard\services\queue_command_mapper;
+use bookingextension_agent\local\wizard\services\queue_status_policy;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for queue status policy and queue command mapping.
  *
- * @covers \bookingextension_agent\local\wbagent\services\queue_status_policy
- * @covers \bookingextension_agent\local\wbagent\services\queue_command_mapper
+ * @covers \bookingextension_agent\local\wizard\services\queue_status_policy
+ * @covers \bookingextension_agent\local\wizard\services\queue_command_mapper
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>

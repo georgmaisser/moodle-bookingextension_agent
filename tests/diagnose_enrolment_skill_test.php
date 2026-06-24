@@ -18,14 +18,14 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_course;
-use bookingextension_agent\local\wbagent\course\skills\diagnose_enrolment_skill;
-use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\course\skills\diagnose_enrolment_skill;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
 
 /**
  * Tests for the course.diagnose_enrolment skill.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\course\skills\diagnose_enrolment_skill
+ * @covers     \bookingextension_agent\local\wizard\course\skills\diagnose_enrolment_skill
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

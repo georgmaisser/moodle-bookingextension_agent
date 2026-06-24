@@ -55,101 +55,101 @@ Hinweis zur Einordnung:
 - Behalten: classes/external/ai_discard_pending.php
 - Behalten: classes/external/ai_poll_thread.php
 - Behalten: classes/external/ai_render_command_preview.php
-- Refactor: classes/local/wbagent/agent_runtime.php
+- Refactor: classes/local/wizard/agent_runtime.php
   Ziel: klarer Runtime-Loop mit explizitem Übergang in finalization_classifier/synchronizer
-- Refactor: classes/local/wbagent/orchestrator.php
+- Refactor: classes/local/wizard/orchestrator.php
   Ziel: nur Planner-Phasen, keine Legacy-Finalization-Zweige
-- Refactor: classes/local/wbagent/services/orchestrator_routing_service.php
+- Refactor: classes/local/wizard/services/orchestrator_routing_service.php
   Ziel: nur Discovery/Selection/Construction-Routing
-- Refactor: classes/local/wbagent/services/orchestrator_prompt_profile_service.php
+- Refactor: classes/local/wizard/services/orchestrator_prompt_profile_service.php
   Ziel: nur Planner-Profiles, Final-Branches entfernen
-- Refactor: classes/local/wbagent/prompt_policy_builder.php
+- Refactor: classes/local/wizard/prompt_policy_builder.php
   Ziel: nur Planner-Policies
 
 ### B. Discovery (Family-first)
 
-- Behalten/Refactor: classes/local/wbagent/services/discovery/context_prior_builder.php
-- Behalten/Refactor: classes/local/wbagent/services/discovery/family_registry_service.php
-- Behalten/Refactor: classes/local/wbagent/services/discovery/core_family_set.php
-- Behalten/Refactor: classes/local/wbagent/services/discovery/family_signal_ranker.php
-- Behalten/Refactor: classes/local/wbagent/services/discovery/family_ranker.php
-- Behalten/Refactor: classes/local/wbagent/services/discovery/discovery_stage_controller.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/context_prior_builder.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/family_registry_service.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/core_family_set.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/family_signal_ranker.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/family_ranker.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/discovery_stage_controller.php
   Aufgabe: Stage A/B/C Gate-Entscheidungen mit Budget- und Confidence-Regeln
-- Behalten/Refactor: classes/local/wbagent/services/discovery/discovery_budget_policy.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/discovery_budget_policy.php
   Aufgabe: harte Obergrenzen je Stage
-- Behalten/Refactor: classes/local/wbagent/services/discovery/discovery_confidence_policy.php
+- Behalten/Refactor: classes/local/wizard/services/discovery/discovery_confidence_policy.php
   Aufgabe: eindeutige Schwellwerte fuer Eskalation
-- Behalten/Refactor: classes/local/wbagent/dto/discovery_result.php
+- Behalten/Refactor: classes/local/wizard/dto/discovery_result.php
 
 ### C. Embeddings auf Family-Ebene
 
-- Refactor: classes/local/wbagent/services/embeddings/embeddings_readiness_service.php
+- Refactor: classes/local/wizard/services/embeddings/embeddings_readiness_service.php
   Ziel: readiness fuer Family-Embeddings nutzbar machen
-- Behalten/Refactor: classes/local/wbagent/services/embeddings/family_embeddings_retrieval_service.php
-- Behalten/Refactor: classes/local/wbagent/services/embeddings/family_embeddings_index_service.php
+- Behalten/Refactor: classes/local/wizard/services/embeddings/family_embeddings_retrieval_service.php
+- Behalten/Refactor: classes/local/wizard/services/embeddings/family_embeddings_index_service.php
   Aufgabe: Build/Refresh/Status des Family-Index
-- Neu (optional): classes/local/wbagent/dto/family_embedding_hit.php
-- Refactor: classes/local/wbagent/services/embeddings/embeddings_retrieval_service.php
+- Neu (optional): classes/local/wizard/dto/family_embedding_hit.php
+- Refactor: classes/local/wizard/services/embeddings/embeddings_retrieval_service.php
   Ziel: Task-top-k nicht mehr als primäre Planner-Strategie
 - Entfernen oder de-priorisieren nach Umschaltung: direkte Task-Top-K-Routingpfade als Hauptentscheidungsweg
 
 ### D. Selection und Parameter Construction
 
-- Neu: classes/local/wbagent/services/selection/lazy_skill_loader.php
-- Neu: classes/local/wbagent/services/selection/skill_selector.php
-- Neu: classes/local/wbagent/services/selection/skill_selection_overlap_policy.php
-- Neu: classes/local/wbagent/services/construction/parameter_constructor.php
-- Neu: classes/local/wbagent/services/construction/parameter_contract_validator.php
-- Neu: classes/local/wbagent/dto/skill_selection_result.php
-- Neu: classes/local/wbagent/dto/parameter_construction_result.php
-- Refactor: classes/local/wbagent/interpreter.php
+- Neu: classes/local/wizard/services/selection/lazy_skill_loader.php
+- Neu: classes/local/wizard/services/selection/skill_selector.php
+- Neu: classes/local/wizard/services/selection/skill_selection_overlap_policy.php
+- Neu: classes/local/wizard/services/construction/parameter_constructor.php
+- Neu: classes/local/wizard/services/construction/parameter_contract_validator.php
+- Neu: classes/local/wizard/dto/skill_selection_result.php
+- Neu: classes/local/wizard/dto/parameter_construction_result.php
+- Refactor: classes/local/wizard/interpreter.php
   Ziel: phasenbasierte Interpretation und Normierung
 
 ### E. Synchronizer und Finalisierung
 
-- Behalten: classes/local/wbagent/services/finalization_classifier.php
-- Neu oder erweitern: classes/local/wbagent/services/synchronizer_service.php
-- Neu oder erweitern: classes/local/wbagent/services/synchronizer_input_builder.php
-- Neu oder erweitern: classes/local/wbagent/services/synchronizer_routing_service.php
-- Neu oder erweitern: classes/local/wbagent/services/synchronizer_output_contract.php
-- Refactor: classes/local/wbagent/agent_runtime.php
+- Behalten: classes/local/wizard/services/finalization_classifier.php
+- Neu oder erweitern: classes/local/wizard/services/synchronizer_service.php
+- Neu oder erweitern: classes/local/wizard/services/synchronizer_input_builder.php
+- Neu oder erweitern: classes/local/wizard/services/synchronizer_routing_service.php
+- Neu oder erweitern: classes/local/wizard/services/synchronizer_output_contract.php
+- Refactor: classes/local/wizard/agent_runtime.php
   Ziel: classifier-basierter final path als einziger user-facing Abschluss
 - Entfernen: Legacy-Final-Synthesis/FInal-Reasoning-Pfade im Planner
 
 ### F. Decision, Preflight, Queue, Executor (Guardrails)
 
-- Behalten: classes/local/wbagent/services/agent_decision_service.php
-- Behalten/Refactor: classes/local/wbagent/services/preflight_pipeline.php
-- Behalten: classes/local/wbagent/queue/queue_manager.php
-- Behalten: classes/local/wbagent/executor.php
-- Behalten: classes/local/wbagent/skill_executability_evaluator.php
-- Neu (optional, empfohlen): classes/local/wbagent/services/preflight/preflight_result_mapper.php
+- Behalten: classes/local/wizard/services/agent_decision_service.php
+- Behalten/Refactor: classes/local/wizard/services/preflight_pipeline.php
+- Behalten: classes/local/wizard/queue/queue_manager.php
+- Behalten: classes/local/wizard/executor.php
+- Behalten: classes/local/wizard/skill_executability_evaluator.php
+- Neu (optional, empfohlen): classes/local/wizard/services/preflight/preflight_result_mapper.php
   Aufgabe: einheitliche Fehler- und Retry-Mappings
 
 ### G. Task Layer und Contracts
 
-- Behalten: classes/local/wbagent/skill_registry.php
-- Behalten: classes/local/wbagent/skill_registry_factory.php
-- Behalten: classes/local/wbagent/skill_contract_validator.php
-- Behalten: classes/local/wbagent/task_interface.php
-- Behalten: classes/local/wbagent/base_task.php
-- Behalten: classes/local/wbagent/booking_task_base.php
-- Behalten: classes/local/wbagent/core_task_base.php
+- Behalten: classes/local/wizard/skill_registry.php
+- Behalten: classes/local/wizard/skill_registry_factory.php
+- Behalten: classes/local/wizard/skill_contract_validator.php
+- Behalten: classes/local/wizard/task_interface.php
+- Behalten: classes/local/wizard/base_task.php
+- Behalten: classes/local/wizard/booking_task_base.php
+- Behalten: classes/local/wizard/core_task_base.php
 - Refactor: Prompt-Contracts der Tasks
   Ziel: Family-Zuordnung explizit und maschinenlesbar
-- Neu: classes/local/wbagent/contracts/task_family_contract.php
+- Neu: classes/local/wizard/contracts/task_family_contract.php
   Aufgabe: eindeutige Family-Metadaten je Task
 
 ### H. Support, Sprache, Trigger, Observability
 
-- Behalten: classes/local/wbagent/services/language_policy_service.php
-- Behalten: classes/local/wbagent/services/message_trigger_registry.php
-- Behalten: classes/local/wbagent/services/privacy_anonymizer.php
-- Refactor: classes/local/wbagent/conversation_store.php
+- Behalten: classes/local/wizard/services/language_policy_service.php
+- Behalten: classes/local/wizard/services/message_trigger_registry.php
+- Behalten: classes/local/wizard/services/privacy_anonymizer.php
+- Refactor: classes/local/wizard/conversation_store.php
   Ziel: persistente planner_trace_history und discovery telemetry
-- Neu: classes/local/wbagent/services/telemetry/discovery_telemetry_service.php
-- Neu: classes/local/wbagent/services/telemetry/routing_decision_log_service.php
-- Neu: classes/local/wbagent/dto/discovery_trace_entry.php
+- Neu: classes/local/wizard/services/telemetry/discovery_telemetry_service.php
+- Neu: classes/local/wizard/services/telemetry/routing_decision_log_service.php
+- Neu: classes/local/wizard/dto/discovery_trace_entry.php
 
 ## Migrationspfad mit Checkboxen
 
@@ -404,12 +404,12 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Runtime-Flags zentral einfuehren und lesbar machen.
 - Zielklassen:
-  classes/local/wbagent/agent_runtime.php
-  classes/local/wbagent/orchestrator.php
-  classes/local/wbagent/conversation_store.php
-  classes/local/wbagent/services/orchestrator_routing_service.php
+  classes/local/wizard/agent_runtime.php
+  classes/local/wizard/orchestrator.php
+  classes/local/wizard/conversation_store.php
+  classes/local/wizard/services/orchestrator_routing_service.php
 - Neue Artefakte (falls noetig):
-  classes/local/wbagent/config/runtime_feature_flags.php
+  classes/local/wizard/config/runtime_feature_flags.php
 - Abnahme:
   - [ ] Flags sind zentral definiert.
   - [ ] Default ist sicher (altes Verhalten bleibt aktiv).
@@ -424,11 +424,11 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Discovery- und Routing-Entscheidungen strukturiert loggen.
 - Zielklassen:
-  classes/local/wbagent/conversation_store.php
-  classes/local/wbagent/agent_runtime.php
-  classes/local/wbagent/orchestrator.php
+  classes/local/wizard/conversation_store.php
+  classes/local/wizard/agent_runtime.php
+  classes/local/wizard/orchestrator.php
 - Neue Artefakte:
-  classes/local/wbagent/services/telemetry/routing_decision_log_service.php
+  classes/local/wizard/services/telemetry/routing_decision_log_service.php
 - Pflichtfelder:
   catalogselectionmode, discovery_stage, confidence_score, escalation_reason
 - Abnahme:
@@ -445,9 +445,9 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Neue Discovery-Entscheidungen erst shadow-only berechnen, ohne Live-Routing zu beeinflussen.
 - Zielklassen:
-  classes/local/wbagent/orchestrator.php
-  classes/local/wbagent/agent_runtime.php
-  classes/local/wbagent/services/orchestrator_routing_service.php
+  classes/local/wizard/orchestrator.php
+  classes/local/wizard/agent_runtime.php
+  classes/local/wizard/services/orchestrator_routing_service.php
 - Abnahme:
   - [x] Shadow-Pfad produziert Telemetrie, aber keine Verhaltensaenderung.
   - [x] Rollback ist ein Flag-Flip ohne Code-Revert.
@@ -464,11 +464,11 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Family-Zuordnung maschinenlesbar pro Task-Contract machen.
 - Zielklassen:
-  classes/local/wbagent/skill_contract_validator.php
-  classes/local/wbagent/skill_registry.php
-  classes/local/wbagent/skill_registry_factory.php
+  classes/local/wizard/skill_contract_validator.php
+  classes/local/wizard/skill_registry.php
+  classes/local/wizard/skill_registry_factory.php
 - Neue Artefakte:
-  classes/local/wbagent/contracts/task_family_contract.php
+  classes/local/wizard/contracts/task_family_contract.php
 - Abnahme:
   - [x] Jeder Kern-Task liefert gueltige Family-Metadaten.
   - [x] Validation scheitert klar bei fehlender Family.
@@ -483,8 +483,8 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Domain/Context zu Family-Kandidaten deterministisch aufbauen.
 - Neue Artefakte:
-  classes/local/wbagent/services/discovery/family_registry_service.php
-  classes/local/wbagent/dto/discovery_result.php
+  classes/local/wizard/services/discovery/family_registry_service.php
+  classes/local/wizard/dto/discovery_result.php
 - Abnahme:
   - [x] Kontexte liefern reproduzierbare Family-Sets.
   - [x] Keine Sprachheuristik fuer Routing verwendet.
@@ -499,7 +499,7 @@ Ziel dieses Arbeitsboards:
 - Scope:
   immer aktive Basisfamilien fuer robuste Mindestabdeckung einziehen.
 - Neue Artefakte:
-  classes/local/wbagent/services/discovery/core_family_set.php
+  classes/local/wizard/services/discovery/core_family_set.php
 - Abnahme:
   - [x] Core-Familien werden immer in Stage A aufgenommen.
   - [x] Konfigurierbare, kleine Obergrenze fuer Core-Liste.
@@ -514,7 +514,7 @@ Ziel dieses Arbeitsboards:
 - Scope:
   Kontextsignale als Ranking-Prior bereitstellen, nicht als harte Ausschlussregel.
 - Neue Artefakte:
-  classes/local/wbagent/services/discovery/context_prior_builder.php
+  classes/local/wizard/services/discovery/context_prior_builder.php
 - Abnahme:
   - [x] Prior wird im Discovery-Result explizit ausgegeben.
   - [x] Kein Kandidat wird nur wegen Prior ausgeschlossen.
@@ -651,20 +651,20 @@ Ziel von P0-S1:
 
 Branch-Empfehlung:
 
-- `feature/wbagent-p0-s1-runtime-flags`
+- `feature/wizard-p0-s1-runtime-flags`
 
 #### A. Dateien (konkret)
 
 Neu:
 
-- `classes/local/wbagent/config/runtime_feature_flags.php`
+- `classes/local/wizard/config/runtime_feature_flags.php`
 
 Anpassen (minimal):
 
-- `classes/local/wbagent/agent_runtime.php`
-- `classes/local/wbagent/orchestrator.php`
-- `classes/local/wbagent/conversation_store.php`
-- `classes/local/wbagent/services/orchestrator_routing_service.php`
+- `classes/local/wizard/agent_runtime.php`
+- `classes/local/wizard/orchestrator.php`
+- `classes/local/wizard/conversation_store.php`
+- `classes/local/wizard/services/orchestrator_routing_service.php`
 
 Tests (neu):
 
@@ -672,7 +672,7 @@ Tests (neu):
 
 #### B. Minimal-Diff-Strategie je Datei
 
-1. `classes/local/wbagent/config/runtime_feature_flags.php`
+1. `classes/local/wizard/config/runtime_feature_flags.php`
 
 - neue zentrale Resolver-Klasse fuer Flags, z. B. `runtime_feature_flags`
 - nur statische, rein lesende API
@@ -681,24 +681,24 @@ Tests (neu):
   - `staged_discovery_enabled`
   - `synchronizer_strict_contract`
 
-2. `classes/local/wbagent/agent_runtime.php`
+2. `classes/local/wizard/agent_runtime.php`
 
 - nur Einbindung des zentralen Resolvers
 - keine Verhaltensaenderung, nur vorbereitende Lesepunkte
 - optionale Debug-Metadaten: aktive Flag-Snapshot-Werte (read-only)
 
-3. `classes/local/wbagent/orchestrator.php`
+3. `classes/local/wizard/orchestrator.php`
 
 - nur Einbindung des zentralen Resolvers
 - aktuelle Legacy-Entscheidungslogik bleibt unveraendert
 - keine neuen Routingzweige in P0-S1 aktivieren
 
-4. `classes/local/wbagent/conversation_store.php`
+4. `classes/local/wizard/conversation_store.php`
 
 - optionaler persistenter Slot fuer Flag-Snapshot je Run/Thread-Meta
 - kein Einfluss auf Entscheidungslogik
 
-5. `classes/local/wbagent/services/orchestrator_routing_service.php`
+5. `classes/local/wizard/services/orchestrator_routing_service.php`
 
 - nur zentralen Resolver konsumieren (keine eigene Flag-Quelle)
 - Verhalten bleibt identisch, solange Flags default `false` sind

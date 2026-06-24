@@ -27,7 +27,7 @@ declare(strict_types=1);
 require_once(__DIR__ . '/../../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
-use bookingextension_agent\local\wbagent\services\debug\skill_selection_debug_service;
+use bookingextension_agent\local\wizard\services\debug\skill_selection_debug_service;
 
 $context = context_system::instance();
 

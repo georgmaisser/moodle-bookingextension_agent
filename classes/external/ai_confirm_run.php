@@ -31,11 +31,11 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\privacy_anonymizer;
-use bookingextension_agent\local\wbagent\skill_registry;
-use bookingextension_agent\local\wbagent\services\confirm_run_service;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\services\confirm_run_service;
 
 /**
  * Confirm a proposed AI run and execute directly or via async skill.

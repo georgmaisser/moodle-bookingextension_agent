@@ -45,7 +45,7 @@ This behavior is steered entirely from the skill, not from any core renderer or 
 `format_text` configuration. The instruction is a guidance line in the
 `core.explain_docs` skill:
 
-`mod/booking/bookingextension/agent/classes/local/wbagent/core/skills/explain_docs_skill.php`
+`mod/booking/bookingextension/agent/classes/local/wizard/core/skills/explain_docs_skill.php`
 → `get_contextual_prompt_packs()`
 
 Keeping it skill-local means only the documentation-explaining flow carries the

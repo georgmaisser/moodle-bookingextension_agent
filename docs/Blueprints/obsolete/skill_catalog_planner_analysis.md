@@ -26,15 +26,15 @@ Aus Risiko-Sicht ist der robusteste Teil der Pfad ohne embeddings. Der embedding
 
 Die Analyse bezieht sich insbesondere auf diese Dateien:
 
-- [classes/local/wbagent/orchestrator.php](../../classes/local/wbagent/orchestrator.php)
-- [classes/local/wbagent/services/catalog/adaptive_task_catalog_service.php](../../classes/local/wbagent/services/catalog/adaptive_task_catalog_service.php)
-- [classes/local/wbagent/skill_registry.php](../../classes/local/wbagent/skill_registry.php)
-- [classes/local/wbagent/skill_executability_evaluator.php](../../classes/local/wbagent/skill_executability_evaluator.php)
-- [classes/local/wbagent/services/embeddings/embeddings_retrieval_service.php](../../classes/local/wbagent/services/embeddings/embeddings_retrieval_service.php)
-- [classes/local/wbagent/services/embeddings/embeddings_readiness_service.php](../../classes/local/wbagent/services/embeddings/embeddings_readiness_service.php)
-- [classes/local/wbagent/services/finalization_classifier.php](../../classes/local/wbagent/services/finalization_classifier.php)
-- [classes/local/wbagent/agent_runtime.php](../../classes/local/wbagent/agent_runtime.php)
-- [classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php](../../classes/local/wbagent/core/tasks/recreate_skill_catalog_task.php)
+- [classes/local/wizard/orchestrator.php](../../classes/local/wizard/orchestrator.php)
+- [classes/local/wizard/services/catalog/adaptive_task_catalog_service.php](../../classes/local/wizard/services/catalog/adaptive_task_catalog_service.php)
+- [classes/local/wizard/skill_registry.php](../../classes/local/wizard/skill_registry.php)
+- [classes/local/wizard/skill_executability_evaluator.php](../../classes/local/wizard/skill_executability_evaluator.php)
+- [classes/local/wizard/services/embeddings/embeddings_retrieval_service.php](../../classes/local/wizard/services/embeddings/embeddings_retrieval_service.php)
+- [classes/local/wizard/services/embeddings/embeddings_readiness_service.php](../../classes/local/wizard/services/embeddings/embeddings_readiness_service.php)
+- [classes/local/wizard/services/finalization_classifier.php](../../classes/local/wizard/services/finalization_classifier.php)
+- [classes/local/wizard/agent_runtime.php](../../classes/local/wizard/agent_runtime.php)
+- [classes/local/wizard/core/tasks/recreate_skill_catalog_task.php](../../classes/local/wizard/core/tasks/recreate_skill_catalog_task.php)
 - [classes/task/rebuild_skill_catalog_embeddings_adhoc.php](../../classes/task/rebuild_skill_catalog_embeddings_adhoc.php)
 
 ## Architektur in einem Satz

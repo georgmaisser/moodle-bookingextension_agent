@@ -99,9 +99,9 @@ Form-Submit verarbeitet serverseitig:
 
 Neue Services (Vorschlag):
 
-- classes/local/wbagent/services/debug/skill_selection_debug_service.php
-- classes/local/wbagent/services/debug/task_similarity_analyzer.php
-- classes/local/wbagent/services/debug/skill_selection_dataset_runner.php
+- classes/local/wizard/services/debug/skill_selection_debug_service.php
+- classes/local/wizard/services/debug/task_similarity_analyzer.php
+- classes/local/wizard/services/debug/skill_selection_dataset_runner.php
 
 Service-Aufgaben:
 

@@ -29,11 +29,11 @@ define('CLI_SCRIPT', true);
 require(__DIR__ . '/../../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
-use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
-use bookingextension_agent\local\wbagent\services\embeddings\embeddings_catalog_builder_service;
-use bookingextension_agent\local\wbagent\embeddings_csv_repository;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\skill_registry_factory;
+use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
+use bookingextension_agent\local\wizard\services\embeddings\embeddings_catalog_builder_service;
+use bookingextension_agent\local\wizard\embeddings_csv_repository;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 use core\di;
 use core_ai\manager as ai_manager;
 

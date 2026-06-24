@@ -41,10 +41,10 @@ if ($options['help'] || !$options['run-id']) {
 }
 
 $runid = (int)$options['run-id'];
-$run   = $DB->get_record('local_wbagent_benchmark_runs', ['id' => $runid], '*', MUST_EXIST);
-$scenarios = $DB->get_records('local_wbagent_benchmark_scenarios', ['run_id' => $runid], 'scenario_key ASC');
-$metrics   = $DB->get_records('local_wbagent_benchmark_metrics', ['run_id' => $runid], 'metric_key ASC');
-$baselines = $DB->get_records('local_wbagent_benchmark_baselines', ['run_id' => $runid]);
+$run   = $DB->get_record('local_wizard_benchmark_runs', ['id' => $runid], '*', MUST_EXIST);
+$scenarios = $DB->get_records('local_wizard_benchmark_scenarios', ['run_id' => $runid], 'scenario_key ASC');
+$metrics   = $DB->get_records('local_wizard_benchmark_metrics', ['run_id' => $runid], 'metric_key ASC');
+$baselines = $DB->get_records('local_wizard_benchmark_baselines', ['run_id' => $runid]);
 
 $export = [
     '_export_version' => 1,

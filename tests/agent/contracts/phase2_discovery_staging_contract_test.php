@@ -16,27 +16,27 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wbagent\tests;
+namespace bookingextension_agent\local\wizard\tests;
 
-use bookingextension_agent\local\wbagent\services\discovery\discovery_budget_policy;
-use bookingextension_agent\local\wbagent\services\discovery\discovery_confidence_policy;
-use bookingextension_agent\local\wbagent\services\discovery\discovery_stage_controller;
-use bookingextension_agent\local\wbagent\services\discovery\context_prior_builder;
-use bookingextension_agent\local\wbagent\services\discovery\family_ranker;
-use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
-use bookingextension_agent\local\wbagent\services\discovery\family_signal_ranker;
+use bookingextension_agent\local\wizard\services\discovery\discovery_budget_policy;
+use bookingextension_agent\local\wizard\services\discovery\discovery_confidence_policy;
+use bookingextension_agent\local\wizard\services\discovery\discovery_stage_controller;
+use bookingextension_agent\local\wizard\services\discovery\context_prior_builder;
+use bookingextension_agent\local\wizard\services\discovery\family_ranker;
+use bookingextension_agent\local\wizard\services\discovery\family_registry_service;
+use bookingextension_agent\local\wizard\services\discovery\family_signal_ranker;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Contract tests for phase-2 staged discovery policies and escalation.
  *
- * @covers \bookingextension_agent\local\wbagent\services\discovery\discovery_budget_policy
- * @covers \bookingextension_agent\local\wbagent\services\discovery\discovery_confidence_policy
- * @covers \bookingextension_agent\local\wbagent\services\discovery\family_signal_ranker
- * @covers \bookingextension_agent\local\wbagent\services\discovery\family_ranker
- * @covers \bookingextension_agent\local\wbagent\services\discovery\context_prior_builder
- * @covers \bookingextension_agent\local\wbagent\services\discovery\family_registry_service
- * @covers \bookingextension_agent\local\wbagent\services\discovery\discovery_stage_controller
+ * @covers \bookingextension_agent\local\wizard\services\discovery\discovery_budget_policy
+ * @covers \bookingextension_agent\local\wizard\services\discovery\discovery_confidence_policy
+ * @covers \bookingextension_agent\local\wizard\services\discovery\family_signal_ranker
+ * @covers \bookingextension_agent\local\wizard\services\discovery\family_ranker
+ * @covers \bookingextension_agent\local\wizard\services\discovery\context_prior_builder
+ * @covers \bookingextension_agent\local\wizard\services\discovery\family_registry_service
+ * @covers \bookingextension_agent\local\wizard\services\discovery\discovery_stage_controller
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -170,11 +170,11 @@ final class phase2_discovery_staging_contract_test extends TestCase {
             $contextfamilies
         );
         // The merged family set is a superset of the context families plus the always-on core
-        // baseline (core_family_set seeds wbagent.general), so it is never narrower than the context set.
+        // baseline (core_family_set seeds wizard.general), so it is never narrower than the context set.
         foreach ($contextfamilies as $contextfamily) {
             $this->assertContains($contextfamily, $families);
         }
-        $this->assertContains('wbagent.general', $families);
+        $this->assertContains('wizard.general', $families);
         $this->assertSame($prior, (array)($result['context_prior'] ?? []));
     }
 

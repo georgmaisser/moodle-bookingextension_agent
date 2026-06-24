@@ -40,7 +40,7 @@
 ## 2. `booking_task_support.php` aufteilen (Punkt 4 — mehr Planung gewünscht)
 
 ### Ist-Zustand
-2895 Zeilen / 102 KB, Klasse `mod_booking\local\wbagent\booking\booking_task_support`. Mischt mindestens vier Verantwortlichkeiten:
+2895 Zeilen / 102 KB, Klasse `mod_booking\local\wizard\booking\booking_task_support`. Mischt mindestens vier Verantwortlichkeiten:
 
 1. **Task-Registry-Funktionen**: `get_task_names()`, `get_contextual_prompt_packs()`, `get_task_instances()`, `has_task_name()`
 2. **Schema-Access**: `get_task_schema()`, `check_structure()`
@@ -54,7 +54,7 @@ Die Inventur schlägt vor: `booking_resolution_service`, `booking_datetime_servi
 ### Vorgeschlagene Zielstruktur
 
 ```
-mod_booking/classes/local/wbagent/booking/
+mod_booking/classes/local/wizard/booking/
 ├── booking_skill_provider.php              (bleibt — dünner Provider-Entry)
 ├── booking_task_support.php                (bleibt — schrumpft auf Registry/Execute-Delegation)
 ├── support/
@@ -110,7 +110,7 @@ Aktuell ist diese Logik **inline im `orchestrator.php`** (96 KB / 2397 Zeilen) v
 Neue Klasse: `services/discovery/embedding_query_builder.php`
 
 ```
-namespace bookingextension_agent\local\wbagent\services\discovery;
+namespace bookingextension_agent\local\wizard\services\discovery;
 
 class embedding_query_builder {
     public static function build(
@@ -147,11 +147,11 @@ Vier Dateien bilden ein eigenständiges, nicht im Blueprint vorkommendes Sub-Sys
 - `classes/external/activate_trial_context.php`
 - `classes/external/request_trial_key.php`
 - `trial_challenge.php` (Root, 1.5 KB)
-- `classes/local/wbagent/wunderbyte_trial_endpoint.py` (Python-Referenzimplementierung — **bleibt vorerst, auf deinen Wunsch**)
+- `classes/local/wizard/wunderbyte_trial_endpoint.py` (Python-Referenzimplementierung — **bleibt vorerst, auf deinen Wunsch**)
 
 ### Vorschlag (für später, wenn ihr die Python-Datei verschiebt)
 ```
-bookingextension/agent/classes/local/wbagent/trial/
+bookingextension/agent/classes/local/wizard/trial/
 ├── (ggf. PHP-Hilfsklassen, falls welche entstehen)
 docs/reference/
 └── wunderbyte_trial_endpoint.py    (Python-Referenzimpl. gehört in Doku, nicht ins PHP-Classes-Verzeichnis)
@@ -197,8 +197,8 @@ Eine Integration in `ai_send_message` würde bedeuten, dass der Privacy-Check **
 ## 7. Quick-Wins (sofort umsetzbar, sehr geringes Risiko)
 
 ### 7.1 `embeddings_csv_repository.php` verschieben
-- **Von:** `classes/local/wbagent/embeddings_csv_repository.php`
-- **Nach:** `classes/local/wbagent/services/embeddings/embeddings_csv_repository.php`
+- **Von:** `classes/local/wizard/embeddings_csv_repository.php`
+- **Nach:** `classes/local/wizard/services/embeddings/embeddings_csv_repository.php`
 - Reine Namespace-/Pfad-Verschiebung (Moodle-Autoloading via PSR-4 erfordert Pfad = Namespace), alle `use`-Statements der Aufrufer müssen mitgezogen werden (`grep -rl embeddings_csv_repository`)
 - Aufwand: < 1 Stunde inkl. Grep-Verifikation
 

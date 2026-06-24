@@ -16,8 +16,8 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\privacy_anonymizer;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 
 /**
  * Verifies that capability tokens (x/y:z, e.g. mod/booking:addoption) survive STRICT-mode name
@@ -29,7 +29,7 @@ use bookingextension_agent\local\wbagent\privacy_anonymizer;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers     \bookingextension_agent\local\wbagent\privacy_anonymizer
+ * @covers     \bookingextension_agent\local\wizard\privacy_anonymizer
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -33,11 +33,11 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\interpreter;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\skill_registry;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\interpreter;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\skill_registry;
 
 /**
  * Activate trial context by enabling AI at course and module level.
@@ -95,10 +95,10 @@ class activate_trial_context extends external_api {
             // Endpoint-based detection (no provider name heuristic): enable every instance whose
             // action endpoint actually targets the Wunderbyte LLM gateway, including disabled ones.
             // provider_compat::enable_provider_view enables the instance on 5.x and the plugin on 4.5.
-            $candidates = \bookingextension_agent\local\wbagent\services\agent_access_service::find_wunderbyte_llm_instances(false);
+            $candidates = \bookingextension_agent\local\wizard\services\agent_access_service::find_wunderbyte_llm_instances(false);
             foreach ($candidates as $instance) {
                 if (empty($instance->enabled)) {
-                    \bookingextension_agent\local\wbagent\services\provider_compat::enable_provider_view($instance);
+                    \bookingextension_agent\local\wizard\services\provider_compat::enable_provider_view($instance);
                 }
             }
         } catch (\Throwable $e) {

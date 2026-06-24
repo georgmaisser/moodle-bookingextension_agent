@@ -25,7 +25,7 @@
 
 namespace bookingextension_agent;
 
-use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\privacy\provider;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
@@ -51,11 +51,11 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
             $names[] = $item->get_name();
         }
 
-        $this->assertContains('local_wbagent_user_memory', $names);
-        $this->assertContains('local_wbagent_ai_threads', $names);
-        $this->assertContains('local_wbagent_ai_messages', $names);
-        $this->assertContains('local_wbagent_ai_runs', $names);
-        $this->assertContains('local_wbagent_ai_llm_debug', $names);
+        $this->assertContains('local_wizard_user_memory', $names);
+        $this->assertContains('local_wizard_ai_threads', $names);
+        $this->assertContains('local_wizard_ai_messages', $names);
+        $this->assertContains('local_wizard_ai_runs', $names);
+        $this->assertContains('local_wizard_ai_llm_debug', $names);
         // The external LLM provider transmission must be declared.
         $this->assertContains('llm_provider', $names);
     }
@@ -88,7 +88,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $store->add_message($otherthread, 'user', 'Other user message.');
 
         // Seed user-stated memory at the user context.
-        $DB->insert_record('local_wbagent_user_memory', (object)[
+        $DB->insert_record('local_wizard_user_memory', (object)[
             'userid' => (int)$user->id,
             'memory' => 'Call me Alex.',
             'scopes' => 'synchronization',
@@ -114,15 +114,15 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         provider::delete_data_for_user($approved);
 
         // The user's rows are gone...
-        $this->assertFalse($DB->record_exists('local_wbagent_ai_threads', ['userid' => $user->id]));
-        $this->assertFalse($DB->record_exists('local_wbagent_ai_messages', ['threadid' => $threadid]));
-        $this->assertFalse($DB->record_exists('local_wbagent_ai_runs', ['userid' => $user->id]));
-        $this->assertFalse($DB->record_exists('local_wbagent_ai_llm_debug', ['userid' => $user->id]));
-        $this->assertFalse($DB->record_exists('local_wbagent_user_memory', ['userid' => $user->id]));
+        $this->assertFalse($DB->record_exists('local_wizard_ai_threads', ['userid' => $user->id]));
+        $this->assertFalse($DB->record_exists('local_wizard_ai_messages', ['threadid' => $threadid]));
+        $this->assertFalse($DB->record_exists('local_wizard_ai_runs', ['userid' => $user->id]));
+        $this->assertFalse($DB->record_exists('local_wizard_ai_llm_debug', ['userid' => $user->id]));
+        $this->assertFalse($DB->record_exists('local_wizard_user_memory', ['userid' => $user->id]));
 
         // ...but the other user's data in the same context is untouched.
-        $this->assertTrue($DB->record_exists('local_wbagent_ai_threads', ['userid' => $other->id]));
-        $this->assertTrue($DB->record_exists('local_wbagent_ai_messages', ['threadid' => $otherthread]));
+        $this->assertTrue($DB->record_exists('local_wizard_ai_threads', ['userid' => $other->id]));
+        $this->assertTrue($DB->record_exists('local_wizard_ai_messages', ['threadid' => $otherthread]));
     }
 
     /**
@@ -150,7 +150,7 @@ final class privacy_provider_test extends \core_privacy\tests\provider_testcase 
         $this->assertContains((int)$user2->id, $found);
 
         provider::delete_data_for_all_users_in_context($coursectx);
-        $this->assertFalse($DB->record_exists('local_wbagent_ai_threads', ['contextid' => $coursectx->id]));
-        $this->assertEquals(0, $DB->count_records('local_wbagent_ai_messages'));
+        $this->assertFalse($DB->record_exists('local_wizard_ai_threads', ['contextid' => $coursectx->id]));
+        $this->assertEquals(0, $DB->count_records('local_wizard_ai_messages'));
     }
 }

@@ -17,7 +17,7 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\activities\quiz_question_service;
+use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
 
 /**
  * The shared quiz "question source" clarification content builder (S6 small follow-up: deduped out
@@ -25,7 +25,7 @@ use bookingextension_agent\local\wbagent\services\activities\quiz_question_servi
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\services\activities\quiz_question_service
+ * @covers \bookingextension_agent\local\wizard\services\activities\quiz_question_service
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

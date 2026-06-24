@@ -18,14 +18,14 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_system;
-use bookingextension_agent\local\wbagent\core\skills\get_current_user_skill;
+use bookingextension_agent\local\wizard\core\skills\get_current_user_skill;
 
 /**
  * Tests the activity/recency signals added to the shared user payload (lastaccess/lastlogin/emailstop +
  * per-course lastaccess), surfaced via core.get_current_user.
  *
  * @package    bookingextension_agent
- * @covers     \bookingextension_agent\local\wbagent\core\skills\core_skill_base
+ * @covers     \bookingextension_agent\local\wizard\core\skills\core_skill_base
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

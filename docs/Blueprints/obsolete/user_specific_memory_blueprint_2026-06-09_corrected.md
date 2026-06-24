@@ -13,12 +13,12 @@ Operational follow-ups remaining: run plugin upgrade + rebuild skill embeddings 
 Same goal, fixed against the actual codebase:
 
 1. Skill location/namespace corrected: agent-core skills live in `core/skills/`
-   (`bookingextension_agent\local\wbagent\core\skills`), **not** in mod_booking's
+   (`bookingextension_agent\local\wizard\core\skills`), **not** in mod_booking's
    `options/skills/`.
 2. Naming corrected to the `core.*` convention. Term **"memory" kept** (Georg, 2026-06-09);
    the clash with the existing `core.recall_memory` is resolved by distinct verbs + sharp
    descriptions, not by renaming (see §1 / §5).
-3. Table renamed `local_wbagent_user_memory` to match the existing `local_wbagent_*` family
+3. Table renamed `local_wizard_user_memory` to match the existing `local_wizard_*` family
    (Georg, 2026-06-09).
 4. **Privacy provider added** (was missing entirely — blocker for storing user PII).
 5. `forget` is a **list → confirm → delete-by-id** flow, **always explicitly confirmed**
@@ -54,13 +54,13 @@ Scope decisions:
 
 ## 2. Database Schema & Persistence
 
-Table family follows the existing plugin tables (`local_wbagent_ai_*`,
-`local_wbagent_benchmark_*`). New table: **`local_wbagent_user_memory`** (25 chars, under
+Table family follows the existing plugin tables (`local_wizard_ai_*`,
+`local_wizard_benchmark_*`). New table: **`local_wizard_user_memory`** (25 chars, under
 the 28-char XMLDB limit).
 
 ### 2.1 `db/install.xml`
 ```xml
-<TABLE NAME="local_wbagent_user_memory" COMMENT="User-stated memories/instructions for the AI agent">
+<TABLE NAME="local_wizard_user_memory" COMMENT="User-stated memories/instructions for the AI agent">
     <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Owning user"/>
@@ -101,8 +101,8 @@ forget an outdated entry (no silent eviction).
 
 ## 4. Core Service: `user_memory_service`
 
-`bookingextension_agent\local\wbagent\services\user_memory_service`
-(`classes/local/wbagent/services/user_memory_service.php`):
+`bookingextension_agent\local\wizard\services\user_memory_service`
+(`classes/local/wizard/services/user_memory_service.php`):
 
 - `add(int $userid, string $text): array` — normalize, run all three limit checks, dedupe,
   insert; returns `['status' => 'ok'|'limit'|'duplicate', 'message' => ..., 'id' => ?]`.
@@ -156,7 +156,7 @@ embeddings (§8). Each description must explicitly contrast with `recall_memory`
 ## 6. Automated Context Injection
 
 **Hook:** `orchestrator::build_runtime_context_block()`
-([orchestrator.php:2159](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wbagent/orchestrator.php)),
+([orchestrator.php:2159](file:///var/www/moodle/public/mod/booking/bookingextension/agent/classes/local/wizard/orchestrator.php)),
 which assembles the `[SYSTEM_RUNTIME]` lines and is explicitly kept out of the cache-friendly
 static SYSTEM prompt.
 
@@ -185,7 +185,7 @@ free text makes a real provider mandatory.
 - Create `bookingextension_agent\privacy\provider` implementing
   `\core_privacy\local\metadata\provider` and
   `\core_privacy\local\request\plugin\provider`.
-- Declare `local_wbagent_user_memory` in `get_metadata()` (fields `userid`, `memory`,
+- Declare `local_wizard_user_memory` in `get_metadata()` (fields `userid`, `memory`,
   `timecreated`, `timemodified` + purpose string).
 - Implement `get_contexts_for_userid` / `export_user_data` / `delete_data_for_user` /
   `delete_data_for_all_users_in_context` / `get_users_in_context` at `CONTEXT_USER`.
@@ -222,7 +222,7 @@ free text makes a real provider mandatory.
 
 ## 10. Implementation Checklist
 
-- [x] **DB:** `install.xml` + `upgrade.php` (step `2026061001`) create `local_wbagent_user_memory`; `version.php` bumped to `2026061001`. NOTE: the standalone `userid` index from the draft was dropped — the `userid_fk` foreign key already provides it, and a duplicate-field index makes `xmldb_table::addIndex()` throw.
+- [x] **DB:** `install.xml` + `upgrade.php` (step `2026061001`) create `local_wizard_user_memory`; `version.php` bumped to `2026061001`. NOTE: the standalone `userid` index from the draft was dropped — the `userid_fk` foreign key already provides it, and a duplicate-field index makes `xmldb_table::addIndex()` throw.
 - [x] **Service:** `user_memory_service` (add/get_all/delete/find + limits + dedupe).
 - [x] **Skills:** `core.remember` (R1), `core.forget` (R2, preflight resolve → R2 confirm → delete-by-id), `core.list_memories` (R0) in `core/skills/`. Registration is automatic via directory auto-discovery — no `skill_provider` edit needed.
 - [x] **Injection:** memory block in `orchestrator::build_runtime_context_block` (discovery-only, owner resolved via `store->get_thread()`, budget-capped, empty when none).
@@ -255,7 +255,7 @@ at storage time and injection is filtered deterministically per channel.
 - **Tagging:** `core.remember` gains an optional `relevant_for[]` param with enum
   `selection` | `construction` | `synchronization`. The constructor LLM classifies by effect:
   selection = which action/skill; construction = field values/parameters; synchronization =
-  reply wording/presentation. Stored in a new `local_wbagent_user_memory.scopes` column
+  reply wording/presentation. Stored in a new `local_wizard_user_memory.scopes` column
   (comma-separated; **empty = all channels**, also the back-compat default for older rows).
 - **Injection (`build_runtime_context_block`)** filters via
   `user_memory_service::get_for_scope($userid, $channel)`:

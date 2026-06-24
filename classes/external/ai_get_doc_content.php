@@ -32,9 +32,9 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use bookingextension_agent\local\wbagent\services\security\authorization_service;
-use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
-use bookingextension_agent\local\wbagent\services\lookup\markdown_renderer;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
+use bookingextension_agent\local\wizard\services\lookup\markdown_renderer;
 
 /**
  * Read one booking/docs markdown file and return it as safe HTML.

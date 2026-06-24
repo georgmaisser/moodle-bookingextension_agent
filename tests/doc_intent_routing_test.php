@@ -19,11 +19,11 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use ReflectionMethod;
 use stdClass;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\wizard\skills\explain_docs_skill;
 
 /**
- * Documentation-intent routing: wbagent.explain_docs is forced into the candidate catalog for
+ * Documentation-intent routing: wizard.explain_docs is forced into the candidate catalog for
  * doc-intent questions so the selector can pick it over domain skills (thread-209: "explain the
  * booking rules" was routed to analyze_rules because explain_docs never reached the candidate set).
  *
@@ -34,7 +34,7 @@ use bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\orchestrator
+ * @covers \bookingextension_agent\local\wizard\orchestrator
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -30,9 +30,9 @@ Das Framework (Orchestrator, Runtime, conversation_store) weiß nichts von Attac
 | Datei | Klasse | Zweck |
 |---|---|---|
 | `classes/external/ai_upload_attachment.php` | `ai_upload_attachment` | Neuer WS-Endpunkt für Upload |
-| `classes/local/wbagent/services/attachment/attachment_token_service.php` | `attachment_token_service` | Token-Lifecycle (erstellen, auflösen, invalidieren) |
-| `classes/local/wbagent/services/attachment/attachment_processor.php` | `attachment_processor` | PDF-Text-Extraktion + Nachricht augmentieren |
-| `classes/local/wbagent/services/attachment/pdf_text_extractor.php` | `pdf_text_extractor` | PHP: pdftotext shell + smalot/pdfparser Fallback |
+| `classes/local/wizard/services/attachment/attachment_token_service.php` | `attachment_token_service` | Token-Lifecycle (erstellen, auflösen, invalidieren) |
+| `classes/local/wizard/services/attachment/attachment_processor.php` | `attachment_processor` | PDF-Text-Extraktion + Nachricht augmentieren |
+| `classes/local/wizard/services/attachment/pdf_text_extractor.php` | `pdf_text_extractor` | PHP: pdftotext shell + smalot/pdfparser Fallback |
 | `classes/task/cleanup_attachment_temp_files_adhoc.php` | `cleanup_attachment_temp_files_adhoc` | Temp-Dateien nach TTL löschen |
 
 ### 2.2 Geänderte Dateien
@@ -49,7 +49,7 @@ Das Framework (Orchestrator, Runtime, conversation_store) weiß nichts von Attac
 ### 2.3 Skill-seitige Änderungen (exemplarisch — nicht im Framework)
 
 Wenn `booking.update_option` Bilder unterstützen soll:
-- `mod_booking/classes/local/wbagent/options/skills/update_option_skill.php` → Schema + execute() erweitern
+- `mod_booking/classes/local/wizard/options/skills/update_option_skill.php` → Schema + execute() erweitern
 
 Das ist ein **Beispiel**, nicht Teil des Framework-Werks.
 
@@ -57,8 +57,8 @@ Das ist ein **Beispiel**, nicht Teil des Framework-Werks.
 
 ## 3. Neue Datei: `attachment_token_service.php`
 
-**Pfad:** `classes/local/wbagent/services/attachment/attachment_token_service.php`  
-**Namespace:** `bookingextension_agent\local\wbagent\services\attachment`
+**Pfad:** `classes/local/wizard/services/attachment/attachment_token_service.php`  
+**Namespace:** `bookingextension_agent\local\wizard\services\attachment`
 
 ### Klasse: `attachment_token_service`
 
@@ -109,8 +109,8 @@ $definitions = [
 
 ## 4. Neue Datei: `pdf_text_extractor.php`
 
-**Pfad:** `classes/local/wbagent/services/attachment/pdf_text_extractor.php`  
-**Namespace:** `bookingextension_agent\local\wbagent\services\attachment`
+**Pfad:** `classes/local/wizard/services/attachment/pdf_text_extractor.php`  
+**Namespace:** `bookingextension_agent\local\wizard\services\attachment`
 
 ### Klasse: `pdf_text_extractor`
 
@@ -143,8 +143,8 @@ public function extract(string $filepath): string
 
 ## 5. Neue Datei: `attachment_processor.php`
 
-**Pfad:** `classes/local/wbagent/services/attachment/attachment_processor.php`  
-**Namespace:** `bookingextension_agent\local\wbagent\services\attachment`
+**Pfad:** `classes/local/wizard/services/attachment/attachment_processor.php`  
+**Namespace:** `bookingextension_agent\local\wizard\services\attachment`
 
 ### Klasse: `attachment_processor`
 
@@ -208,7 +208,7 @@ Die Datei selbst kommt als `$_FILES['file']` (multipart POST) — nicht über ex
    - Bei unbekanntem Typ: `['success'=>false, 'message'=>get_string('ai_upload_invalid_type')]`
 6. Größenprüfung: max konfigurierbar via `get_config('bookingextension_agent', 'max_upload_bytes')`, Default 10 MB Bild / 20 MB PDF
 7. Temp-Datei verschieben: `move_uploaded_file($_FILES['file']['tmp_name'], $tmpdir . '/' . $safename)`
-   - `$safename` = `uniqid('wbagent_', true) . '.' . $ext` (keine Nutzereingaben im Dateinamen)
+   - `$safename` = `uniqid('wizard_', true) . '.' . $ext` (keine Nutzereingaben im Dateinamen)
 8. Token erstellen via `attachment_token_service::create()`
 9. Thumbnail für Bilder:
    - GD: `imagecreatefromjpeg/png/webp()` → resize auf max 120×80 → base64-PNG
@@ -515,7 +515,7 @@ Ein Skill, der ein Bild verarbeiten will, deklariert in seinem Schema:
 
 In `execute()`:
 ```php
-use bookingextension_agent\local\wbagent\services\attachment\attachment_token_service;
+use bookingextension_agent\local\wizard\services\attachment\attachment_token_service;
 
 $imagetoken = trim((string)($input['image_token'] ?? ''));
 if ($imagetoken !== '') {

@@ -1,7 +1,7 @@
 # bookingextension_agent — Documentation
 
 This `docs/` directory is the documentation corpus for the **bookingextension_agent**
-plugin — the *wbagent* engine and its skills. It is scoped to the **agent itself**:
+plugin — the *wizard* engine and its skills. It is scoped to the **agent itself**:
 how it receives a message, plans, decides, confirms, executes, and replies. For the
 underlying booking feature set (booking rules, options, conditions, placeholders, …)
 see [`mod/booking/docs`](../../../docs/README.md).

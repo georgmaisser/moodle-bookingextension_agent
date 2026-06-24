@@ -17,8 +17,8 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\services\issue_code_normalizer;
-use bookingextension_agent\local\wbagent\services\phase_trace_normalizer;
+use bookingextension_agent\local\wizard\services\issue_code_normalizer;
+use bookingextension_agent\local\wizard\services\phase_trace_normalizer;
 
 /**
  * Tests for the consolidated issue-code and phase-trace normalizers (S10a).
@@ -31,8 +31,8 @@ use bookingextension_agent\local\wbagent\services\phase_trace_normalizer;
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\issue_code_normalizer
- * @covers     \bookingextension_agent\local\wbagent\services\phase_trace_normalizer
+ * @covers     \bookingextension_agent\local\wizard\services\issue_code_normalizer
+ * @covers     \bookingextension_agent\local\wizard\services\phase_trace_normalizer
  */
 final class result_normalizers_test extends advanced_testcase {
     /**

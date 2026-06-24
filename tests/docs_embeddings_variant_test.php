@@ -17,10 +17,10 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
-use bookingextension_agent\local\wbagent\embeddings_csv_repository_base;
-use bookingextension_agent\local\wbagent\services\lookup\docs_corpus_registry;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_csv_repository;
-use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_index_service;
+use bookingextension_agent\local\wizard\embeddings_csv_repository_base;
+use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_csv_repository;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_index_service;
 
 /**
  * Per-variant (model + dimensions) isolation of the docs embeddings store (Phase F2).
@@ -31,8 +31,8 @@ use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_index_s
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_index_service
- * @covers     \bookingextension_agent\local\wbagent\embeddings_csv_repository_base
+ * @covers     \bookingextension_agent\local\wizard\services\lookup\docs_embeddings_index_service
+ * @covers     \bookingextension_agent\local\wizard\embeddings_csv_repository_base
  */
 final class docs_embeddings_variant_test extends advanced_testcase {
     /**

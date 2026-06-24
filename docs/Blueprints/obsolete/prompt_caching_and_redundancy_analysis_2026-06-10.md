@@ -1,7 +1,7 @@
 # Prompt-Caching & Redundanz-Analyse (LLM Debug-Audit)
 
 **Datum:** 2026-06-10  
-**Status:** Analyse & Report (Basierend auf den letzten 50 Einträgen aus `local_wbagent_ai_llm_debug`)  
+**Status:** Analyse & Report (Basierend auf den letzten 50 Einträgen aus `local_wizard_ai_llm_debug`)  
 **Ziel:** Untersuchung der aktuellen Prompt-Zusammensetzung, Identifikation von Redundanzen, Cache-Breaker-Analysen und Vorschläge zur Optimierung von Prompt-Caching und Token-Effizienz.
 
 ---

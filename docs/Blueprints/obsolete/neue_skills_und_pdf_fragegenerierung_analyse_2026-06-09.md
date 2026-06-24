@@ -3,10 +3,10 @@
 **Datum:** 2026-06-09
 **Status:** Reine Ist-Analyse. **Keine Code-Änderung.** Grundlage für eine spätere
 Umsetzungsentscheidung.
-**Scope:** Was ist nötig, um dem wbagent weitere Skills zu geben — generell und konkret
+**Scope:** Was ist nötig, um dem wizard weitere Skills zu geben — generell und konkret
 am Beispiel „erzeuge Moodle-Fragen aus einem hochgeladenen PDF". Mit Blick auf die
 bestehende **Family-Discovery** und die geplante **Content-/Context-Spezifik** (siehe
-Blueprints `wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md`,
+Blueprints `wizard_local_plugin_context_decoupling_analysis_2026-06-08.md`,
 `skill_catalog_planner_analysis.md`, `docs_lookup_skill_analysis_2026-06-08.md`).
 
 ---
@@ -43,7 +43,7 @@ Blueprints `wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md`,
     gehört** und mittelfristig die Context-Generalisierung braucht.
 - **Empfehlung der Einordnung:** „PDF → Fragen" ist ein **content-/context-spezifischer
   Engine-Skill**, kein Booking-Skill. Er sollte an der **Contract-Surface** (interfaces +
-  dto + base_skill) hängen und perspektivisch im `local_wbagent`-Engine (bzw. als eigener
+  dto + base_skill) hängen und perspektivisch im `local_wizard`-Engine (bzw. als eigener
   Provider) leben — nicht in `mod_booking`.
 
 ---
@@ -68,8 +68,8 @@ Blueprints angelegt.
 ### 3.1 Vertrag (was ein Skill implementieren MUSS)
 
 Basisklassen:
-`classes/local/wbagent/base_skill.php` → Core-Skills zusätzlich über
-`classes/local/wbagent/core/skills/core_skill_base.php`.
+`classes/local/wizard/base_skill.php` → Core-Skills zusätzlich über
+`classes/local/wizard/core/skills/core_skill_base.php`.
 
 Pflicht-/Vertragsmethoden (aus `skill_interface` / `base_skill`):
 
@@ -96,12 +96,12 @@ Skill nie gewählt.
 
 - **Provider-Modell:** `skill_registry::make_default()` iteriert
   `core_component::get_component_names()` und lädt aus jeder Komponente die Klasse
-  `\{component}\local\wbagent\skill_provider`. Existiert keiner, greift eine
+  `\{component}\local\wizard\skill_provider`. Existiert keiner, greift eine
   **provider-lose Fallback-Discovery**.
-  Datei: `classes/local/wbagent/skill_registry.php` (`make_default()` ~Z. 641 ff.).
+  Datei: `classes/local/wizard/skill_registry.php` (`make_default()` ~Z. 641 ff.).
 - **Discovery-Scan:** `skill_discovery::get_skill_instances($component)` scannt
-  `{plugindir}/classes/local/wbagent/**` rekursiv und instanziiert jede Skill-Klasse
-  (`classes/local/wbagent/skill_discovery.php` ~Z. 44 ff.).
+  `{plugindir}/classes/local/wizard/**` rekursiv und instanziiert jede Skill-Klasse
+  (`classes/local/wizard/skill_discovery.php` ~Z. 44 ff.).
   → **Eine neue Datei im richtigen Namespace genügt; kein manueller Registry-Eintrag.**
 - **Provider heute:** `bookingextension_agent` (eigener `skill_provider.php`,
   Component `bookingextension/agent`). Es gibt bereits einen **Nicht-Booking-Provider**
@@ -115,7 +115,7 @@ Skill nie gewählt.
   Registry auf einen kompakten Routing-View (mandatory + recency, Top-N). Konstante
   `ALWAYS_INCLUDE_SKILL_NAMES` erzwingt immer-sichtbare Skills (heute u. a.
   `core.search_skills`).
-  Datei: `classes/local/wbagent/services/catalog/adaptive_skill_catalog_service.php`.
+  Datei: `classes/local/wizard/services/catalog/adaptive_skill_catalog_service.php`.
 - **Auswählbarkeit ≠ Slim-Katalog:** `allowed_skills` = volle Registry-for-context. Ein per
   `core.search_skills` **entdeckter** (registrierter) Skill ist im Folge-Turn wählbar,
   auch wenn er nicht im Slim-Katalog stand (siehe [project-agent-skill-discovery-visibility]).
@@ -218,7 +218,7 @@ Confirm-/TTL-/Retry-Gates (Risk-Class-Framework, ROADMAP P0).
   `authorization_service::require_booking_module_context()` verlangt `context_module` +
   `get_coursemodule_from_id('booking')`; die Entry-Points (`ai_send_message`,
   `ai_poll_thread`) lösen `cmid` booking-spezifisch auf
-  (siehe `wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md`).
+  (siehe `wizard_local_plugin_context_decoupling_analysis_2026-06-08.md`).
 - **Damit ist „PDF → Fragen" der Beweis-Use-Case für die Context-Generalisierung:** Der Skill
   ist seiner Natur nach **kurs-/content-spezifisch**, nicht booking-spezifisch. Solange der
   Agent nur im Booking-Modul lebt, kann er bestenfalls in den **Kurs** des Booking-Moduls
@@ -277,7 +277,7 @@ properties:
 ## 6. Verallgemeinerung — Checkliste „neuen Skill hinzufügen"
 
 1. Klasse von `base_skill`/`core_skill_base` ableiten, im **richtigen Namespace**
-   (`\{component}\local\wbagent\…`) ablegen → **Auto-Discovery**.
+   (`\{component}\local\wizard\…`) ablegen → **Auto-Discovery**.
 2. `get_name()` mit sauberem Namespace-Präfix; **keine** Engine-Internas importieren — nur
    **Contract-Surface** (interfaces + dto + base_skill).
 3. **Selector-Sichtbarkeit:** Capability klar in `description` + `message_triggers`.
@@ -295,11 +295,11 @@ properties:
 
 - **Gehört in die Engine, nicht in Booking.** „PDF → Fragen" hat mit Buchungen nichts zu tun.
   Es ist der erste klare **content-spezifische** Skill und damit ein Kandidat für das
-  künftige `local_wbagent`-Engine bzw. einen **eigenen Provider** (Family-Discovery findet
+  künftige `local_wizard`-Engine bzw. einen **eigenen Provider** (Family-Discovery findet
   ihn unabhängig vom Plugin). Solange er in `bookingextension_agent` lebt, muss er trotzdem
   **nur** an der Contract-Surface hängen, damit die spätere Auskopplung ihn nicht zurück in
-  die Engine zieht (siehe `wbagent_local_plugin_extraction_plan_2026-06-08.md`,
-  [project-wbagent-local-plugin-extraction]).
+  die Engine zieht (siehe `wizard_local_plugin_extraction_plan_2026-06-08.md`,
+  [project-wizard-local-plugin-extraction]).
 - **Treiber für die Context-Generalisierung.** Der Skill macht den im Decoupling-Blueprint
   beschriebenen Bedarf **akut**: `require_booking_module_context()` →
   `require_valid_context()`, kontext-agnostische Entry-Points, `context_name` statt
@@ -343,10 +343,10 @@ properties:
 ## 9. Referenzen
 
 **Code (Ist-Zustand):**
-- Family-Discovery: `classes/local/wbagent/skill_registry.php` (`make_default()`),
-  `classes/local/wbagent/skill_discovery.php`, `classes/local/wbagent/skill_provider.php`.
-- Basis/Contract: `classes/local/wbagent/base_skill.php`,
-  `classes/local/wbagent/core/skills/core_skill_base.php`, `dto/skill_risk_class.php`.
+- Family-Discovery: `classes/local/wizard/skill_registry.php` (`make_default()`),
+  `classes/local/wizard/skill_discovery.php`, `classes/local/wizard/skill_provider.php`.
+- Basis/Contract: `classes/local/wizard/base_skill.php`,
+  `classes/local/wizard/core/skills/core_skill_base.php`, `dto/skill_risk_class.php`.
 - Katalog/Embeddings: `services/catalog/adaptive_skill_catalog_service.php`
   (`ALWAYS_INCLUDE_SKILL_NAMES`), `services/embeddings/embeddings_catalog_builder_service.php`,
   `services/embeddings/family_embeddings_index_service.php`,
@@ -361,8 +361,8 @@ properties:
   bzw. `question/format/xml/`.
 
 **Blueprints:**
-- `wbagent_local_plugin_context_decoupling_analysis_2026-06-08.md` (Context-Gate, Decoupling).
-- `wbagent_local_plugin_extraction_plan_2026-06-08.md` (Contract-Surface, Provider, Migration).
+- `wizard_local_plugin_context_decoupling_analysis_2026-06-08.md` (Context-Gate, Decoupling).
+- `wizard_local_plugin_extraction_plan_2026-06-08.md` (Contract-Surface, Provider, Migration).
 - `skill_catalog_planner_analysis.md` (Slim-Katalog, Discovery-Stages, Embeddings).
 - `skill_selection_debug_tool_blueprint.md` (Kollisions-/Selektions-Debugging neuer Skills).
 - `docs_lookup_skill_analysis_2026-06-08.md` (Muster: neuen Skill + Embeddings korrekt anbinden).
@@ -371,4 +371,4 @@ properties:
 - `ROADMAP.md` (Risk-Class-Framework, Context-Awareness, Bild-/Multimodal-Input).
 
 **Memory:** project-agent-skill-discovery-visibility, project-agent-guidance-injection,
-project-agent-post-mutation-verification, project-wbagent-local-plugin-extraction.
+project-agent-post-mutation-verification, project-wizard-local-plugin-extraction.

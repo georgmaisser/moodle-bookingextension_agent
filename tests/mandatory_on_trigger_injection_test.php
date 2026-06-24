@@ -19,9 +19,9 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use ReflectionMethod;
 use stdClass;
-use bookingextension_agent\local\wbagent\orchestrator;
-use bookingextension_agent\local\wbagent\skill_contract_validator;
-use bookingextension_agent\local\wbagent\wbagent\skills\list_skills_skill;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\skill_contract_validator;
+use bookingextension_agent\local\wizard\wizard\skills\list_skills_skill;
 
 /**
  * The generic, skill-agnostic intent-trigger injection (S5a): the engine carries no skill names and
@@ -30,8 +30,8 @@ use bookingextension_agent\local\wbagent\wbagent\skills\list_skills_skill;
  *
  * @package    bookingextension_agent
  * @category   test
- * @covers \bookingextension_agent\local\wbagent\orchestrator
- * @covers \bookingextension_agent\local\wbagent\skill_contract_validator
+ * @covers \bookingextension_agent\local\wizard\orchestrator
+ * @covers \bookingextension_agent\local\wizard\skill_contract_validator
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -109,7 +109,7 @@ final class mandatory_on_trigger_injection_test extends advanced_testcase {
     }
 
     /**
-     * Capability questions inject the real wbagent.list_skills (its declared markers), regular
+     * Capability questions inject the real wizard.list_skills (its declared markers), regular
      * mutation requests do not — through the same generic injector.
      */
     public function test_real_list_skills_capability_routing(): void {

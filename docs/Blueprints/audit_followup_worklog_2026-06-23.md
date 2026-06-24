@@ -38,7 +38,7 @@ Sicherheits-/Korrektheits-Fixes**, die jenen Bereich **nicht** berühren.
   (Audit-Empfehlung: „ergänzen oder dokumentieren"). Kein Verhaltenswechsel.
 
 ### 3. §5.F — Token-Entropie gehärtet
-- **Datei:** `classes/local/wbagent/services/attachment/attachment_token_service.php`
+- **Datei:** `classes/local/wizard/services/attachment/attachment_token_service.php`
 - **Vorher:** `sha1($userid.':'.$contextid.':'.$tmppath.':'.microtime(true).':'.random_int(...))`.
 - **Nachher:** `bin2hex(random_bytes(32))` (256 Bit, krypto-stark, unguessable).
 - **Kompatibilität geprüft:** Token ist reiner Cache-Key; `resolve()`/`invalidate()` machen nur
@@ -46,14 +46,14 @@ Sicherheits-/Korrektheits-Fixes**, die jenen Bereich **nicht** berühren.
   erfüllt (Hex). Kein Konsument parst das Format.
 
 ### 4. §5.F — Toter, unerreichbarer `else if`-Zweig entfernt
-- **Datei:** `classes/local/wbagent/services/preflight_version_validator.php`
+- **Datei:** `classes/local/wizard/services/preflight_version_validator.php`
   (`resolve_requested_version`)
 - **Vorher:** zwei identische `else if (array_key_exists('skill_version', $command))` —
   der zweite Zweig unerreichbar (Copy-paste).
 - **Nachher:** Duplikat entfernt. Reine Code-Hygiene, **kein** Verhaltenswechsel.
 
 ### 5. §5.F / §6-P0.4 — Geschluckte Exception in `try_mark_running` geloggt
-- **Datei:** `classes/local/wbagent/queue/queue_manager.php`
+- **Datei:** `classes/local/wizard/queue/queue_manager.php`
 - **Vorher:** `catch (\Throwable $e) { return false; }` — ein echter DB-Fehler war nicht von
   „Slot bereits belegt" unterscheidbar → konnte die Queue still blockieren.
 - **Nachher:** `debugging('try_mark_running failed: '.$e->getMessage(), DEBUG_DEVELOPER)` vor
@@ -67,8 +67,8 @@ geprüft; nach jeder Entfernung Gegen-grep auf Restreferenzen (alle leer). Plugi
 Git → wiederherstellbar.
 
 **Ganze Dateien (`git rm`):**
-- `classes/local/wbagent/loop_finalizer.php` (~250 LOC) — kein Caller, keine Task-Registrierung.
-- `classes/local/wbagent/services/runtime_step_analysis_service.php` (~171 LOC) — kein Caller,
+- `classes/local/wizard/loop_finalizer.php` (~250 LOC) — kein Caller, keine Task-Registrierung.
+- `classes/local/wizard/services/runtime_step_analysis_service.php` (~171 LOC) — kein Caller,
   dupliziert zudem den Signatur-Normalizer.
 
 **Methoden (in geteilten Dateien, je 0 Caller):**
