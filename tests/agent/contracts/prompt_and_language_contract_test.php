@@ -16,7 +16,6 @@
 
 namespace bookingextension_agent\local\wbagent\tests;
 
-use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\interfaces\skill_interface;
 use bookingextension_agent\local\wbagent\interfaces\skill_provider_interface;
@@ -91,28 +90,13 @@ final class prompt_and_language_contract_test extends TestCase {
     }
 
     /**
-     * Ensure language authority prefers persisted user input language over model language hints.
+     * The selector-emitted user_lang is the top language authority and wins over the model `lang` hint.
      */
-    public function test_language_policy_prefers_user_input_language(): void {
-        $store = $this->getMockBuilder(conversation_store::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['get_thread_metadata_value'])
-            ->getMock();
-
-        $store->method('get_thread_metadata_value')
-            ->willReturnCallback(static function (int $threadid, string $key) {
-                if ($key === 'user_input_lang') {
-                    return 'de';
-                }
-                if ($key === 'last_output_lang') {
-                    return 'en';
-                }
-                return '';
-            });
-
+    public function test_language_policy_prefers_selector_user_lang(): void {
         $service = new language_policy_service();
-        $resolved = $service->resolve_output_language($store, 42, [
-            'user_lang' => 'fr',
+
+        $resolved = $service->resolve_output_language([
+            'user_lang' => 'de',
             'lang' => 'it',
         ]);
 
@@ -136,28 +120,21 @@ final class prompt_and_language_contract_test extends TestCase {
     }
 
     /**
-     * Ensure language-policy authority behaves consistently for de/en/zh inputs.
+     * Policy order: selector user_lang -> model lang -> current UI language -> technical fallback (en),
+     * with each candidate normalized to a 2-letter ISO code.
      */
-    public function test_language_policy_matrix_de_en_zh(): void {
-        $store = $this->getMockBuilder(conversation_store::class)
-            ->disableOriginalConstructor()
-            ->onlyMethods(['get_thread_metadata_value'])
-            ->getMock();
-
+    public function test_language_policy_order_and_normalization(): void {
         $service = new language_policy_service();
 
-        $store->method('get_thread_metadata_value')
-            ->willReturnMap([
-                [11, 'user_input_lang', 'de'],
-                [11, 'last_output_lang', 'en'],
-                [12, 'user_input_lang', 'en'],
-                [12, 'last_output_lang', 'de'],
-                [13, 'user_input_lang', 'zh'],
-                [13, 'last_output_lang', 'en'],
-            ]);
-
-        $this->assertSame('de', $service->resolve_output_language($store, 11, ['user_lang' => 'fr', 'lang' => 'it']));
-        $this->assertSame('en', $service->resolve_output_language($store, 12, ['user_lang' => 'fr', 'lang' => 'it']));
-        $this->assertSame('zh', $service->resolve_output_language($store, 13, ['user_lang' => 'fr', 'lang' => 'it']));
+        // 1) user_lang present -> wins, even against a model `lang` hint.
+        $this->assertSame('de', $service->resolve_output_language(['user_lang' => 'de', 'lang' => 'it']));
+        // 2) user_lang blank -> falls through to the model `lang` hint.
+        $this->assertSame('it', $service->resolve_output_language(['user_lang' => '', 'lang' => 'it']));
+        // 3) neither present -> current UI language ('en' in the test runner).
+        $this->assertSame(current_language(), $service->resolve_output_language([]));
+        // Locale-ish values are reduced to their 2-letter code...
+        $this->assertSame('zh', $service->resolve_output_language(['user_lang' => 'ZH-CN', 'lang' => 'it']));
+        // ...and non-ISO junk is dropped so the next candidate wins.
+        $this->assertSame('it', $service->resolve_output_language(['user_lang' => '!!', 'lang' => 'it']));
     }
 }

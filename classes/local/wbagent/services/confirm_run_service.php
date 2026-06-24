@@ -254,10 +254,10 @@ class confirm_run_service {
             'CONFIRMATION_ACCEPTED'
         );
 
-        $outputlang = trim((string)$this->store->get_thread_metadata_value($threadid, 'last_output_lang'));
-        if ($outputlang === '') {
-            $outputlang = current_language();
-        }
+        // The confirm-run path replays an already-confirmed command without a fresh selector turn,
+        // so the user's UI language is the only available signal (the turn language is emitted by
+        // the selector each turn and never persisted as thread metadata).
+        $outputlang = current_language();
 
         $idempotencykey = hash('sha256', $userid . ':' . $contextid . ':' . $threadid
             . ':' . json_encode($commandsforrun) . ':' . microtime(true));

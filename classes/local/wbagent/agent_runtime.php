@@ -719,7 +719,7 @@ class agent_runtime {
      * @return array
      */
     private function build_budget_exceeded_result(int $threadid, array $result, agent_state $state, int $limit): array {
-        $lang = $this->resolve_output_language($threadid, $result);
+        $lang = $this->resolve_output_language($result);
         $message = localized_string_service::get('ai_agent_loop_continue_question', 'bookingextension_agent', (object)[
             'steps' => $limit,
         ], $lang);
@@ -831,7 +831,7 @@ class agent_runtime {
             $result['runid'] = 0;
         }
 
-        $result['lang'] = $this->resolve_output_language($threadid, $result);
+        $result['lang'] = $this->resolve_output_language($result);
 
         return $result;
     }
@@ -871,7 +871,7 @@ class agent_runtime {
      * @return string
      */
     private function build_contract_fallback_message(string $responsetype, int $threadid): string {
-        $lang = $this->resolve_output_language($threadid, ['response_type' => $responsetype]);
+        $lang = $this->resolve_output_language(['response_type' => $responsetype]);
 
         if ($responsetype === 'confirmation_request') {
             $message = localized_string_service::get('ai_confirm_needed', 'bookingextension_agent', null, $lang);
@@ -989,7 +989,7 @@ class agent_runtime {
 
         unset($result['_planner_raw_response']);
 
-        $outputlang = $this->resolve_output_language($threadid, $result);
+        $outputlang = $this->resolve_output_language($result);
         $result['used_triggers'] = $triggerregistry->normalize_used_triggers($result['used_triggers'] ?? []);
 
         $rawresponsetype = trim((string)($result['response_type'] ?? ''));
@@ -1092,11 +1092,10 @@ class agent_runtime {
     /**
      * Resolve output language.
      *
-     * @param int $threadid
      * @param array $result
      * @return string
      */
-    private function resolve_output_language(int $threadid, array $result): string {
-        return $this->languagepolicy->resolve_output_language($this->store, $threadid, $result);
+    private function resolve_output_language(array $result): string {
+        return $this->languagepolicy->resolve_output_language($result);
     }
 }

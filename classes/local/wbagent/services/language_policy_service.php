@@ -16,19 +16,19 @@
 
 namespace bookingextension_agent\local\wbagent\services;
 
-use bookingextension_agent\local\wbagent\conversation_store;
 use core_text;
 
 /**
  * Central language authority for runtime/decision framework responses.
  *
+ * The turn language is determined by the selector LLM call (it emits user_lang, derived from the
+ * latest user message) and carried in the planner result — it is NOT persisted as thread metadata.
+ *
  * Policy order:
- * 1) persisted user_input_lang (derived from latest user request)
- * 2) model-declared user_lang
- * 3) model lang
- * 4) current UI language
- * 5) persisted last_output_lang
- * 6) technical fallback en
+ * 1) selector-emitted user_lang (from the latest user request)
+ * 2) model lang
+ * 3) current UI language
+ * 4) technical fallback en
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -56,14 +56,15 @@ class language_policy_service {
 
     /**
      * Resolve output language via the shared authority order.
+     *
+     * @param array<string,mixed> $result Planner/selection result carrying the selector's user_lang.
+     * @return string
      */
-    public function resolve_output_language(conversation_store $store, int $threadid, array $result): string {
+    public function resolve_output_language(array $result): string {
         $candidates = [
-            $this->normalize_iso_language((string)$store->get_thread_metadata_value($threadid, 'user_input_lang')),
             $this->normalize_iso_language((string)($result['user_lang'] ?? '')),
             $this->normalize_iso_language((string)($result['lang'] ?? '')),
             $this->normalize_iso_language((string)current_language()),
-            $this->normalize_iso_language((string)$store->get_thread_metadata_value($threadid, 'last_output_lang')),
         ];
 
         foreach ($candidates as $candidate) {
