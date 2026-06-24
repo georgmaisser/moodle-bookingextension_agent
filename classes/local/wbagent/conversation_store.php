@@ -253,6 +253,31 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
+     * Return an active thread only when it belongs to the given user and context.
+     *
+     * Ownership-scoped fetch for webservice entry points that resume a client-supplied thread id, so
+     * the raw, security-relevant scoping lives in the store rather than in the webservice layer.
+     *
+     * @param int $threadid
+     * @param int $userid
+     * @param int $contextid
+     * @return stdClass|null
+     */
+    public function get_owned_active_thread(int $threadid, int $userid, int $contextid): ?stdClass {
+        global $DB;
+        if ($threadid <= 0) {
+            return null;
+        }
+        $thread = $DB->get_record('local_wbagent_ai_threads', [
+            'id' => $threadid,
+            'userid' => $userid,
+            'contextid' => $contextid,
+            'status' => 'active',
+        ]);
+        return $thread ?: null;
+    }
+
+    /**
      * Ownership gate: true only when the thread exists, belongs to the given user and lives in the
      * given context.
      *

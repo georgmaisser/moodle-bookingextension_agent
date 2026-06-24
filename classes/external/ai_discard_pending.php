@@ -32,10 +32,7 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wbagent\conversation_store;
-use bookingextension_agent\local\wbagent\queue\queue_manager;
-use bookingextension_agent\local\wbagent\services\pending_intent_service;
-use bookingextension_agent\local\wbagent\services\queue_status_policy;
-use bookingextension_agent\local\wbagent\services\queue_transition_service;
+use bookingextension_agent\local\wbagent\services\discard_pending_service;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
@@ -88,50 +85,17 @@ class ai_discard_pending extends external_api {
             return ['success' => false, 'discardedcount' => 0, 'threadid' => 0, 'message' => ''];
         }
 
-        $pendingintentsvc = new pending_intent_service($store);
-        $pendingintentsvc->consume((int)$params['threadid'], (int)$USER->id, (int)$context->id);
-
-        $queuesvc = new queue_manager($store);
-        $queuetransitionsvc = new queue_transition_service();
-        $discardedcount = 0;
-        foreach ($queuesvc->get_queue_items((int)$params['threadid']) as $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-            $queueitemid = trim((string)($item['queue_item_id'] ?? ''));
-            if ($queueitemid === '') {
-                continue;
-            }
-            if ((string)($item['mutability'] ?? '') !== 'mutating') {
-                continue;
-            }
-
-            $status = trim((string)($item['status'] ?? ''));
-            if (!queue_status_policy::is_actionable_mutating_status($status)) {
-                continue;
-            }
-
-            $queuetransitionsvc->to_skipped(
-                $queuesvc,
-                (int)$params['threadid'],
-                $queueitemid,
-                'USER_DISCARDED_PENDING_CONFIRMATION',
-                ['USER_DISCARDED', 'LOGICAL_SKIP'],
-                'user_discarded',
-                'Skipped because the user discarded the pending confirmation.'
-            );
-            $discardedcount++;
-        }
-
-        $message = $discardedcount > 0
-            ? 'Pending confirmation and active queue items were discarded.'
-            : 'No actionable mutating queue items to discard.';
+        $result = (new discard_pending_service($store))->discard(
+            (int)$params['threadid'],
+            (int)$USER->id,
+            (int)$context->id
+        );
 
         return [
             'success' => true,
-            'discardedcount' => $discardedcount,
+            'discardedcount' => (int)$result['discardedcount'],
             'threadid' => (int)$params['threadid'],
-            'message' => $message,
+            'message' => (string)$result['message'],
         ];
     }
 

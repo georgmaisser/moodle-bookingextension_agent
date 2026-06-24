@@ -226,20 +226,7 @@ class ai_send_message extends external_api {
             ];
         }
 
-        $thread = null;
-        if ($threadid > 0) {
-            global $DB;
-            $candidate = $DB->get_record('local_wbagent_ai_threads', [
-                'id' => $threadid,
-                'userid' => (int)$USER->id,
-                'contextid' => $contextid,
-                'status' => 'active',
-            ]);
-            if ($candidate) {
-                $thread = $candidate;
-            }
-        }
-
+        $thread = $store->get_owned_active_thread($threadid, (int)$USER->id, $contextid);
         if ($thread === null) {
             $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
         }
