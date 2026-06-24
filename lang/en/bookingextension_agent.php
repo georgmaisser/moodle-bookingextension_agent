@@ -429,6 +429,7 @@ $string['agent_booking_verify_field_text_failed'] = 'Field "text" could not be c
 $string['agent_configure_intro'] = 'Configure the Wunderbyte provider for the full feature set:';
 $string['agent_configure_provider'] = 'Configure Wunderbyte provider';
 $string['agent_connect_have_key'] = 'I already have a key';
+$string['agent_debug_logs'] = 'Debug logs';
 $string['agent_debug_sitewide'] = 'site-wide';
 $string['agent_key_invalid'] = 'This key was rejected by the Wunderbyte AI service (invalid or expired). Please check the key and try again.';
 $string['agent_key_label'] = 'Wunderbyte API key';

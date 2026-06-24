@@ -1937,35 +1937,11 @@ const initAttachmentHandlers = () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a debug logs refresh button in the UI.
+ * The "Debug logs" button is now rendered server-side inside the manage gear (gated on
+ * llm_debug_enabled, hidden while debug mode is off) and live-toggled by setDebugMode().
+ * No DOM injection here — kept as a no-op so existing init call sites stay valid.
  */
-const initDebugRefreshButton = () => {
-    if (!debugModeEnabled || !llmDebugEnabled) {
-        return;
-    }
-
-    const wrapper = document.getElementById('booking-ai-wrapper');
-    if (!wrapper) {
-        return;
-    }
-
-    const inputGroup = wrapper.querySelector('.input-group');
-    if (!inputGroup) {
-        return;
-    }
-
-    const refreshBtn = document.createElement('button');
-    refreshBtn.type = 'button';
-    refreshBtn.className = 'btn btn-outline-secondary btn-sm';
-    refreshBtn.id = 'booking-ai-debug-refresh';
-    refreshBtn.title = 'Refresh all LLM debug logs for this thread';
-    refreshBtn.textContent = '🔍 Debug Logs';
-
-    const inputGroupAppend = inputGroup.querySelector('.input-group-append');
-    if (inputGroupAppend) {
-        inputGroupAppend.appendChild(refreshBtn);
-    }
-};
+const initDebugRefreshButton = () => {};
 
 /**
  * Stop the step-progress polling interval.
@@ -2642,6 +2618,14 @@ const setDebugMode = (toggle) => {
         toggle.disabled = false;
         if (!resp || !resp.success) {
             toggle.checked = !enabled;
+            return resp;
+        }
+        // Keep the in-page debug state and the "Debug logs" button in sync with the new setting,
+        // so the logs button appears/disappears with the toggle (only when LLM debug logging is on).
+        debugModeEnabled = enabled;
+        const logsbtn = document.getElementById('booking-ai-debug-refresh');
+        if (logsbtn && llmDebugEnabled) {
+            logsbtn.classList.toggle('d-none', !enabled);
         }
         return resp;
     }).catch((err) => {

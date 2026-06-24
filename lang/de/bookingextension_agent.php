@@ -429,6 +429,7 @@ $string['agent_booking_verify_field_text_failed'] = 'Feld "text" konnte nach dem
 $string['agent_configure_intro'] = 'Wunderbyte-Provider für den vollen Funktionsumfang einrichten:';
 $string['agent_configure_provider'] = 'Wunderbyte-Provider konfigurieren';
 $string['agent_connect_have_key'] = 'Ich habe bereits einen Key';
+$string['agent_debug_logs'] = 'Debug-Logs';
 $string['agent_debug_sitewide'] = 'site-weit';
 $string['agent_key_invalid'] = 'Dieser Key wurde vom Wunderbyte-KI-Dienst abgelehnt (ungültig oder abgelaufen). Bitte prüfe den Key und versuche es erneut.';
 $string['agent_key_label'] = 'Wunderbyte-API-Key';

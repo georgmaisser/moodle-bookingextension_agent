@@ -89,6 +89,13 @@
                             <label class="custom-control-label small" for="booking-ai-debug-toggle">{{#str}}aidebugmode, bookingextension_agent{{/str}} <span class="text-muted">({{#str}}agent_debug_sitewide, bookingextension_agent{{/str}})</span></label>
                         </div>
                         {{/can_toggle_debug}}
+                        {{! Per-thread LLM debug logs: only meaningful when LLM debug logging is on, and
+                            only shown while debug mode is enabled (live-toggled by the switch above). }}
+                        {{#llm_debug_enabled}}
+                        <button type="button" id="booking-ai-debug-refresh" class="btn btn-outline-secondary btn-sm btn-block mb-2 {{^debug_mode}}d-none{{/debug_mode}}">
+                            <i class="fa fa-search mr-1" aria-hidden="true"></i>{{#str}}agent_debug_logs, bookingextension_agent{{/str}}
+                        </button>
+                        {{/llm_debug_enabled}}
                         <a class="small" href="{{wwwroot}}/admin/settings.php?section=bookingextension_agent_aisettings">{{#str}}agent_manage_settings_link, bookingextension_agent{{/str}}</a>
                     </div>
                 </div>
