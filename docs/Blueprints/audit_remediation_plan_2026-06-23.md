@@ -82,7 +82,7 @@ Empfohlene Reihenfolge: **S7 → S1 → S9b/S10b → S4 → S5 → S6 → S2 →
 - [ ] **§7 D1** Finalization-Classifier-Sets = Supersets der LG_MATRIX.
 - [ ] **§7 D2** R1-Domain-Timeout-Retry außerhalb des L3-Gates.
 - [ ] **§7 D3** R2/R3-Synchronizer-Notices nur prompt-seitig (kein Post-Check).
-- [ ] **§7 D4** User-Memory-Namespace `wizard.*` vs `core.*`.
+- [x] **§7 D4** ~~User-Memory-Namespace `wizard.*` vs `core.*`.~~ **Erledigt** (Georg 2026-06-24): Standalone heißt nun `local_wizard` → kompletter Rename `wbagent` → `wizard` über 3 Repos (Engine-Namespace `\local\wizard`, Verzeichnisse inkl. nested family-Ordner, DB-Tabellen `local_wizard_*`, Skill-Tokens `wizard.*`, Engine-Baseline `wizard.general`/RESERVED_NAMESPACES). Flowchart-Memory-Skills `core.*` → `wizard.*` reconciled. **Ausnahme:** Lizenz-Produkt-Token `'wbagent'` (`wb_license::PRODUCT_AGENT` + Lizenz-Lang-Strings/Kommentare) bleibt — extern ausgestellte Keys. Keine DB-Migration (pre-produktiv). Commits: agent `5d77524`, oneclick `bdf2d10`, booking `2c374c69f`.
 - [ ] **§7 D5** Family-first vs Skill-Top-K-Reihenfolge.
 - [ ] **§7 D6** `state.currentstep` nie gesetzt.
 
