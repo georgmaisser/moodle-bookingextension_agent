@@ -78,6 +78,20 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
+     * Whether this skill must be enabled explicitly by an admin, even though it is read-only.
+     *
+     * Read-only skills are active out of the box (see skill_registry::is_skill_active). A skill
+     * overrides this to true when it depends on supporting infrastructure an admin has to set up
+     * first (e.g. a documentation corpus / embeddings index) and would otherwise run in a degraded,
+     * not-useful state until then. Default: false (auto-enabled when read-only).
+     *
+     * @return bool
+     */
+    public function requires_explicit_activation(): bool {
+        return false;
+    }
+
+    /**
      * Minimum Moodle context level this skill needs to operate (runtime context switch).
      *
      * Default CONTEXT_MODULE = behaves exactly as today. A skill that must act on a broader
