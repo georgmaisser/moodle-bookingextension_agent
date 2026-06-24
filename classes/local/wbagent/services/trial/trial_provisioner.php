@@ -576,7 +576,12 @@ class trial_provisioner {
      * @return array{success: bool, message: string}
      */
     private function fail(string $message, string $debugdetail = ''): array {
-        if ($debugdetail !== '' && debugging('', DEBUG_DEVELOPER)) {
+        // Surface the technical detail when EITHER core developer debugging OR the agent's own
+        // debug mode (aidebugmode) is on — admins typically flip the agent toggle and expect the
+        // detail, not only the site-wide DEVELOPER debug level.
+        $showdetail = debugging('', DEBUG_DEVELOPER)
+            || (int)get_config('bookingextension_agent', 'aidebugmode') === 1;
+        if ($debugdetail !== '' && $showdetail) {
             $message .= ' [' . $debugdetail . ']';
         }
         return ['success' => false, 'message' => $message];

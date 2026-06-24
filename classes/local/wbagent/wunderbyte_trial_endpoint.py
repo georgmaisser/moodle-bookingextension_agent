@@ -203,7 +203,11 @@ async def _find_existing_key(site_id: str) -> str | None:
             resp.raise_for_status()
             keys = resp.json().get("keys", [])
             if keys:
-                return keys[0].get("key")
+                # LiteLLM never returns the plaintext key after creation (only a hash), so we cannot
+                # hand the existing key back. Return a truthy marker (the alias) to SIGNAL existence,
+                # so the caller responds with a clean 409 ("trial already issued") instead of falling
+                # through to /key/generate, which would 400 on the duplicate alias.
+                return f"wunderbyte-privat-{site_id}"
     except Exception as exc:
         logger.warning("Could not query existing keys: %s", exc)
     return None
