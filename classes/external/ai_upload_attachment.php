@@ -91,6 +91,9 @@ class ai_upload_attachment extends external_api {
     public static function execute(int $contextid, string $filename, string $mimetype, string $filedata): array {
         global $USER;
 
+        // CSRF protection: this is a write endpoint (stores a temp file and mints a token).
+        require_sesskey();
+
         $params = self::validate_parameters(self::execute_parameters(), [
             'contextid' => $contextid,
             'filename'  => $filename,

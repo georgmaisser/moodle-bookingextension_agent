@@ -54,7 +54,7 @@ class docs_embeddings_readiness_service {
             return false;
         }
 
-        $repo = new docs_embeddings_csv_repository();
+        $repo = docs_embeddings_csv_repository::for_active_variant();
         if (!$repo->exists()) {
             return false;
         }
@@ -64,7 +64,20 @@ class docs_embeddings_readiness_service {
     }
 
     /**
-     * Return full readiness status including provider and index checks.
+     * Cheap coverage check used on the synchronous skill-use path.
+     *
+     * Unlike {@see is_index_ready()} (schema only), this also asks "does every currently resolvable
+     * corpus have at least one row?". It detects a freshly added corpus without any per-file hashing,
+     * so the expensive diff/prune can be deferred to the adhoc task (eventual consistency).
+     *
+     * @return bool
+     */
+    public function is_index_covered(): bool {
+        return $this->get_status()['ready'];
+    }
+
+    /**
+     * Return full readiness status including provider, schema and corpus-coverage checks.
      *
      * @return array{ready:bool,status:string,reason:string}
      */
@@ -73,7 +86,7 @@ class docs_embeddings_readiness_service {
             return ['ready' => false, 'status' => 'unavailable', 'reason' => 'embeddings_provider_missing'];
         }
 
-        $repo = new docs_embeddings_csv_repository();
+        $repo = docs_embeddings_csv_repository::for_active_variant();
         if (!$repo->exists()) {
             return ['ready' => false, 'status' => 'missing', 'reason' => 'index_csv_not_found'];
         }
@@ -83,7 +96,60 @@ class docs_embeddings_readiness_service {
             return ['ready' => false, 'status' => 'invalid', 'reason' => 'index_csv_invalid_schema'];
         }
 
+        if (!$this->declared_corpora_covered($rows)) {
+            return ['ready' => false, 'status' => 'incomplete', 'reason' => 'corpora_not_covered'];
+        }
+
         return ['ready' => true, 'status' => 'ready', 'reason' => ''];
+    }
+
+    /**
+     * Whether every currently resolvable corpus has at least one row in the index.
+     *
+     * Coverage is measured against the *resolvable* set (existing roots), not the full *declared*
+     * set: a declared-but-unreadable corpus can never be indexed, so demanding a row for it would
+     * reschedule the rebuild forever. Pruning, by contrast, is measured against the declared set
+     * (see docs_embeddings_index_service::rebuild()), so such a corpus is kept, just not required.
+     *
+     * @param array<int,array<string,string>> $rows Already-read index rows.
+     * @return bool
+     */
+    private function declared_corpora_covered(array $rows): bool {
+        $resolvable = array_keys((new docs_corpus_registry())->list());
+        if (empty($resolvable)) {
+            return true;
+        }
+
+        $present = [];
+        foreach ($rows as $row) {
+            $cid = trim((string)($row['corpus_id'] ?? ''));
+            if ($cid !== '') {
+                $present[$cid] = true;
+            }
+        }
+
+        foreach ($resolvable as $cid) {
+            if (empty($present[$cid])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Settings updated-callback: schedule a rebuild when the corpus textarea changes.
+     *
+     * This is only the proactive fast path so a freshly added corpus does not have to wait for the
+     * next skill invocation; the cheap skill-use coverage check remains the safety net, and the
+     * expensive per-file diff/prune happens inside the task. The scheduling itself is gated on the
+     * docs skill being active (see {@see ensure_rebuild_scheduled_if_needed()}).
+     *
+     * @param string $name The full setting name Moodle passes to updated-callbacks (unused).
+     * @return void
+     */
+    public static function on_corpus_setting_updated(string $name = ''): void {
+        (new self())->ensure_rebuild_scheduled_if_needed();
     }
 
     /**
@@ -96,6 +162,12 @@ class docs_embeddings_readiness_service {
      * @return bool True when a task was queued.
      */
     public function ensure_rebuild_scheduled_if_needed(int $debounceseconds = 300): bool {
+        // E1 gate: when the docs skill is inactive, never schedule any embedding work. This covers
+        // every trigger that routes through here — skill use (B3) and the settings save (A5).
+        if (!docs_embeddings_gate::is_docs_skill_active()) {
+            return false;
+        }
+
         $status = $this->get_status();
         if ($status['ready']) {
             return false;

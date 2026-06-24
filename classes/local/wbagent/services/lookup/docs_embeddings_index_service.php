@@ -27,7 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\lookup;
 
 use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
-use bookingextension_agent\local\wbagent\orchestrator;
+use bookingextension_agent\local\wbagent\embeddings_csv_repository_base;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
 use context_system;
@@ -39,27 +39,43 @@ use context_system;
  * for .md files. Each file becomes one chunk. Content hashes prevent redundant
  * re-embedding on unchanged files.
  *
- * Corpus registry is driven by docs_corpus_registry, which discovers provider-declared
- * corpora and merges the admin-configured corpus (aidocsroot / aidocs_corpusid) on top.
+ * Corpus registry is driven by docs_corpus_registry, which parses the admin "documentation
+ * corpora" textarea (aidocsroot) into the resolvable corpus_id → root map.
  */
 class docs_embeddings_index_service {
+    /** Maximum characters per chunk before an oversized section is split on a size budget. */
+    private const MAX_CHUNK_CHARS = 4000;
+
     /**
-     * Rebuild the documentation embeddings index.
+     * Rebuild the documentation embeddings index (incremental, non-destructive).
      *
-     * Scans all registered corpus roots, computes content hashes for .md files,
-     * skips unchanged chunks (hash match + existing embedding), generates new
-     * embeddings for new/changed files, removes stale entries.
+     * Scans the in-scope corpus roots, computes content hashes for .md files, reuses unchanged
+     * chunks (hash match + existing embedding), and embeds new/changed files. Pruning is measured
+     * against the *declared* corpus set: a row is removed only when its corpus_id is no longer
+     * declared, or its file vanished from a scanned corpus. A declared corpus whose root is
+     * momentarily unreadable is left untouched — never wiped.
      *
-     * @param string|null $model    Override embedding model (uses config if null).
+     * @param string|null $corpusid   Restrict the rebuild to this corpus (fast path); null = all.
+     * @param string|null $model      Override embedding model (uses config if null).
      * @param int|null    $dimensions Override dimensions (uses config if null).
-     * @param bool        $force    Force re-embedding of all chunks.
+     * @param bool        $force      Force re-embedding of all scanned chunks.
      * @return array<string,mixed>  Summary: status, embedded, reused, deleted, written.
      */
     public function rebuild(
+        ?string $corpusid = null,
         ?string $model = null,
         ?int $dimensions = null,
         bool $force = false
     ): array {
+        // E3 gate (defense-in-depth): any direct caller — tests, future callers — is covered too.
+        if (!docs_embeddings_gate::is_docs_skill_active()) {
+            return [
+                'status' => 'skipped',
+                'reason' => 'skill_inactive',
+                'written' => 0, 'embedded' => 0, 'reused' => 0, 'deleted' => 0,
+            ];
+        }
+
         if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
             return [
                 'status' => 'skipped',
@@ -68,31 +84,42 @@ class docs_embeddings_index_service {
             ];
         }
 
-        $settings = (new embeddings_action_config_resolver())->resolve();
-        $resolvedmodel = trim((string)($model ?? ($settings['model'] ?? orchestrator::EMBEDDINGS_DEFAULT_MODEL)));
-        if ($resolvedmodel === '') {
-            $resolvedmodel = orchestrator::EMBEDDINGS_DEFAULT_MODEL;
-        }
-        $resolveddimensions = (int)($dimensions ?? ($settings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS));
-        if ($resolveddimensions < 1) {
-            $resolveddimensions = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
+        $resolved = (new embeddings_action_config_resolver())->resolve_with_overrides($model, $dimensions);
+        $resolvedmodel = $resolved['model'];
+        $resolveddimensions = $resolved['dimensions'];
+
+        $registry = new docs_corpus_registry();
+        $resolvable = $registry->list();
+        $declared = array_flip($registry->declared_corpus_ids());
+
+        // Pick the corpora to (re)scan this run. A scoped fast-path run only touches its own corpus;
+        // an unscoped run scans every currently resolvable corpus.
+        if ($corpusid !== null && trim($corpusid) !== '') {
+            $corpusid = trim($corpusid);
+            $scan = isset($resolvable[$corpusid]) ? [$corpusid => $resolvable[$corpusid]] : [];
+        } else {
+            $scan = $resolvable;
         }
 
-        $corpora = $this->get_registered_corpora();
-        if (empty($corpora)) {
+        // Variant-scoped store: embeddings for the active model live in their own file, so a model
+        // switch never invalidates the others (F2). Respects the model/dimensions overrides above.
+        $variant = embeddings_csv_repository_base::normalize_variant_key($resolvedmodel . '__' . $resolveddimensions);
+        $repo = new docs_embeddings_csv_repository(null, $variant);
+        $existingrows = $repo->read_rows();
+
+        // Nothing to scan and nothing on disk yet → genuinely empty.
+        if (empty($scan) && empty($existingrows)) {
             return [
                 'status' => 'empty',
                 'reason' => 'no_corpora_registered',
                 'written' => 0, 'embedded' => 0, 'reused' => 0, 'deleted' => 0,
             ];
         }
-
-        $repo = new docs_embeddings_csv_repository();
-        $existingrows = $repo->read_rows();
+        // Key by (corpus, path, start line) so each chunk of a multi-chunk file reuses independently.
         $existingbykey = [];
         foreach ($existingrows as $row) {
-            $key = ($row['corpus_id'] ?? '') . '||' . ($row['chunk_path'] ?? '');
-            if ($key !== '||') {
+            $key = ($row['corpus_id'] ?? '') . '||' . ($row['chunk_path'] ?? '') . '||' . ($row['line_start'] ?? '');
+            if ($key !== '||||') {
                 $existingbykey[$key] = $row;
             }
         }
@@ -102,11 +129,11 @@ class docs_embeddings_index_service {
         $userid = !empty($admin->id) ? (int)$admin->id : 2;
         $llm = new llm_call_service(new conversation_store());
 
-        $newrows = [];
+        $scannedrows = [];
         $embedded = 0;
         $reused = 0;
 
-        foreach ($corpora as $corpusid => $docsroot) {
+        foreach ($scan as $corpusid => $docsroot) {
             $files = $this->scan_md_files($docsroot);
             foreach ($files as $abspath) {
                 $relpath = ltrim(substr($abspath, strlen($docsroot)), '/\\');
@@ -115,62 +142,90 @@ class docs_embeddings_index_service {
                     continue;
                 }
 
-                $title = $this->extract_title($content);
-                $lines = substr_count($content, "\n") + 1;
-                $contenthash = sha1($content . '|m=' . $resolvedmodel . '|d=' . $resolveddimensions);
-                $key = $corpusid . '||' . $relpath;
-                $existing = $existingbykey[$key] ?? null;
+                // Split into heading/size-bounded chunks so large docs are fully embedded (no 6000-
+                // char truncation) and retrieval is per-section precise.
+                foreach (markdown_chunker::chunk($content, self::MAX_CHUNK_CHARS) as $chunk) {
+                    $chunktext = (string)$chunk['text'];
+                    $contenthash = sha1($chunktext . '|m=' . $resolvedmodel . '|d=' . $resolveddimensions);
+                    $key = $corpusid . '||' . $relpath . '||' . (string)$chunk['line_start'];
+                    $existing = $existingbykey[$key] ?? null;
 
-                if (
-                    !$force
-                    && is_array($existing)
-                    && trim((string)($existing['content_hash'] ?? '')) === $contenthash
-                    && trim((string)($existing['embedding_json'] ?? '')) !== ''
-                ) {
-                    $newrows[] = $existing;
-                    $reused++;
-                    continue;
+                    if (
+                        !$force
+                        && is_array($existing)
+                        && trim((string)($existing['content_hash'] ?? '')) === $contenthash
+                        && trim((string)($existing['embedding_json'] ?? '')) !== ''
+                    ) {
+                        $scannedrows[] = $existing;
+                        $reused++;
+                        continue;
+                    }
+
+                    $inputtext = $this->build_embedding_input(
+                        $corpusid,
+                        $relpath,
+                        (string)$chunk['title'],
+                        $chunktext
+                    );
+                    $embeddingcall = $llm->invoke_embeddings_for_context(
+                        0,
+                        (int)$context->id,
+                        $userid,
+                        'docs_idx|corpus=' . $corpusid,
+                        $inputtext,
+                        $resolveddimensions
+                    );
+
+                    if (empty($embeddingcall['success']) || empty($embeddingcall['embedding'])) {
+                        continue;
+                    }
+
+                    $scannedrows[] = [
+                        'corpus_id' => $corpusid,
+                        'chunk_path' => $relpath,
+                        'chunk_title' => (string)$chunk['title'],
+                        'line_start' => (string)$chunk['line_start'],
+                        'line_end' => (string)$chunk['line_end'],
+                        'embedding_model' => $resolvedmodel,
+                        'embedding_dimensions' => (string)$resolveddimensions,
+                        'content_hash' => $contenthash,
+                        'embedding_json' => (string)json_encode($embeddingcall['embedding'], JSON_UNESCAPED_UNICODE),
+                    ];
+                    $embedded++;
                 }
-
-                $inputtext = $this->build_embedding_input($corpusid, $relpath, $title, $content);
-                $embeddingcall = $llm->invoke_embeddings_for_context(
-                    0,
-                    (int)$context->id,
-                    $userid,
-                    'docs_idx|corpus=' . $corpusid,
-                    $inputtext,
-                    $resolveddimensions
-                );
-
-                if (empty($embeddingcall['success']) || empty($embeddingcall['embedding'])) {
-                    continue;
-                }
-
-                $newrows[] = [
-                    'corpus_id' => $corpusid,
-                    'chunk_path' => $relpath,
-                    'chunk_title' => $title,
-                    'line_start' => '1',
-                    'line_end' => (string)$lines,
-                    'embedding_model' => $resolvedmodel,
-                    'embedding_dimensions' => (string)$resolveddimensions,
-                    'content_hash' => $contenthash,
-                    'embedding_json' => (string)json_encode($embeddingcall['embedding'], JSON_UNESCAPED_UNICODE),
-                ];
-                $embedded++;
             }
         }
 
-        $deleted = count($existingrows) - $reused;
+        // Non-destructive merge: keep existing rows of declared corpora that were NOT scanned this
+        // run (out-of-scope or momentarily unreadable); drop rows of corpora that are no longer
+        // declared. Rows of scanned corpora are wholly replaced by the freshly built set, so a file
+        // that vanished from a scanned corpus naturally falls out.
+        $mergedrows = [];
+        $keptexisting = 0;
+        foreach ($existingrows as $row) {
+            $cid = trim((string)($row['corpus_id'] ?? ''));
+            if (isset($scan[$cid])) {
+                continue;
+            }
+            if (!isset($declared[$cid])) {
+                continue;
+            }
+            $mergedrows[] = $row;
+            $keptexisting++;
+        }
+
+        $finalrows = array_merge($mergedrows, $scannedrows);
+
+        $deleted = count($existingrows) - $reused - $keptexisting;
         if ($deleted < 0) {
             $deleted = 0;
         }
 
-        $repo->write_rows($newrows);
+        $repo->write_rows($finalrows);
 
         return [
             'status' => 'ok',
-            'written' => count($newrows),
+            'written' => count($finalrows),
             'embedded' => $embedded,
             'reused' => $reused,
             'deleted' => $deleted,
@@ -180,9 +235,9 @@ class docs_embeddings_index_service {
     /**
      * Return registered corpus roots keyed by corpus_id.
      *
-     * Delegates to the docs_corpus_registry (the single corpus_id → root authority): all corpora
-     * declared by component docs_providers plus the admin-configured corpus. Every one of them is
-     * scanned and indexed (rows are tagged with their corpus_id).
+     * Delegates to the docs_corpus_registry (the single corpus_id → root authority): every corpus
+     * declared in the admin textarea whose root is currently resolvable. Each is scanned and
+     * indexed (rows are tagged with their corpus_id).
      *
      * @return array<string,string>  corpus_id => absolute docs root path
      */
@@ -263,7 +318,7 @@ class docs_embeddings_index_service {
         if ($title !== '') {
             $parts[] = 'title: ' . $title;
         }
-        // Truncate content to ~6000 chars to stay within typical embedding token limits.
+        // Safety cap (chunks are already size-bounded; this guards the prepended header too).
         $trimmedcontent = mb_substr($content, 0, 6000);
         $parts[] = $trimmedcontent;
 

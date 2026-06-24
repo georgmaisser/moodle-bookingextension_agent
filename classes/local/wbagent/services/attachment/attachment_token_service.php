@@ -51,7 +51,8 @@ class attachment_token_service {
      * @return string Opaque token string.
      */
     public function create(int $userid, int $contextid, string $tmppath, string $mime, string $filename): string {
-        $token = sha1($userid . ':' . $contextid . ':' . $tmppath . ':' . microtime(true) . ':' . random_int(0, PHP_INT_MAX));
+        // Cryptographically strong, unguessable token (256 bits). PARAM_ALPHANUMEXT-safe (hex).
+        $token = bin2hex(random_bytes(32));
 
         $cache = \cache::make(self::CACHE_COMPONENT, self::CACHE_AREA);
         $cache->set($token, [

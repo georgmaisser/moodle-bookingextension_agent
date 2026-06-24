@@ -202,7 +202,7 @@ class assistant_state_guidance_service {
                 continue;
             }
 
-            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            $skill = trim((string)($entry['skill'] ?? ''));
             $status = trim((string)($entry['status'] ?? ''));
             if ($skill !== '' || $status !== '') {
                 $facts[] = trim('result=' . $skill . ' status=' . $status);

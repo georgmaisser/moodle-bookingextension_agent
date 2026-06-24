@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services\messaging;
 
 use bookingextension_agent\local\wbagent\conversation_store;
+use bookingextension_agent\local\wbagent\services\phase_trace_normalizer;
 
 /**
  * Persists normalized assistant payloads to conversation storage.
@@ -77,7 +78,7 @@ class message_persistence_service {
 
         $normalizedphasetrace = [];
         if (isset($result['phase_trace']) && is_array($result['phase_trace'])) {
-            $normalizedphasetrace = $this->normalize_phase_trace((array)$result['phase_trace']);
+            $normalizedphasetrace = phase_trace_normalizer::normalize((array)$result['phase_trace']);
             $structured['phase_trace'] = $normalizedphasetrace;
         }
         if (isset($result['planner_result']) && is_array($result['planner_result'])) {
@@ -105,42 +106,5 @@ class message_persistence_service {
         }
 
         $this->store->add_message($threadid, 'assistant', $result['message'] ?? '', $structured);
-    }
-
-    /**
-     * Normalize phase-trace payload to canonical phase keys.
-     *
-     * @param array<string,mixed> $phasetrace
-     * @return array<string,array<string,mixed>>
-     */
-    private function normalize_phase_trace(array $phasetrace): array {
-        $normalized = [
-            'discovery' => [],
-            'selection' => [],
-            'parameter_construction' => [],
-        ];
-
-        if (isset($phasetrace['discovery']) && is_array($phasetrace['discovery'])) {
-            $normalized['discovery'] = $phasetrace['discovery'];
-        }
-        if (isset($phasetrace['selection']) && is_array($phasetrace['selection'])) {
-            $normalized['selection'] = $phasetrace['selection'];
-        }
-        if (isset($phasetrace['parameter_construction']) && is_array($phasetrace['parameter_construction'])) {
-            $normalized['parameter_construction'] = $phasetrace['parameter_construction'];
-        }
-
-        foreach ($phasetrace as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $phase = trim((string)($entry['phase'] ?? ''));
-            if ($phase !== '' && isset($normalized[$phase]) && empty($normalized[$phase])) {
-                $normalized[$phase] = $entry;
-            }
-        }
-
-        return $normalized;
     }
 }

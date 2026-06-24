@@ -352,7 +352,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                 foreach ((array)$groups[$accesslevel] as $capability) {
                     $skilllabel = trim((string)($capability['label'] ?? ''));
                     $description = trim((string)($capability['description'] ?? ''));
-                    $skillname = trim((string)($capability['skill'] ?? $capability['skill'] ?? ''));
+                    $skillname = trim((string)($capability['skill'] ?? ''));
 
                     $line = '    - ';
                     if ($skilllabel !== '') {
@@ -376,7 +376,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
             $lines[] = '';
             $lines[] = get_string('ai_list_actions_summary_unavailable_heading', 'bookingextension_agent');
             foreach ($unavailableactions as $action) {
-                $skillname = trim((string)($action['skill'] ?? $action['skill'] ?? ''));
+                $skillname = trim((string)($action['skill'] ?? ''));
                 $reason = trim((string)($action['deny_reason_label'] ?? ''));
                 $reasoncode = trim((string)($action['deny_reason'] ?? ''));
                 $detail = $this->build_unavailable_action_detail((array)$action);
@@ -484,7 +484,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
             }
 
             $grouped[$provider]['groups'][$readonly][] = [
-                'skill' => (string)($action['skill'] ?? $action['skill'] ?? ''),
+                'skill' => (string)($action['skill'] ?? ''),
                 'label' => (string)($action['label'] ?? ''),
                 'description' => (string)($action['description'] ?? ''),
             ];
@@ -498,8 +498,8 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                     static function (array $left, array $right): int {
                         $leftlabel = trim((string)($left['label'] ?? ''));
                         $rightlabel = trim((string)($right['label'] ?? ''));
-                        $leftskill = trim((string)($left['skill'] ?? $left['skill'] ?? ''));
-                        $rightskill = trim((string)($right['skill'] ?? $right['skill'] ?? ''));
+                        $leftskill = trim((string)($left['skill'] ?? ''));
+                        $rightskill = trim((string)($right['skill'] ?? ''));
 
                         $leftkey = $leftlabel !== '' ? $leftlabel : $leftskill;
                         $rightkey = $rightlabel !== '' ? $rightlabel : $rightskill;

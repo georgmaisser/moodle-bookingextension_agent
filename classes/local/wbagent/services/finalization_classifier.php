@@ -99,11 +99,10 @@ class finalization_classifier {
     public function classify(array $result): string {
         $responsetype = trim((string)($result['response_type'] ?? ''));
         $hascommands = $this->has_commands($result);
-        $issuecodes = $this->normalize_issue_codes($result);
+        $issuecodes = issue_code_normalizer::from_result($result);
         $errorclass = trim((string)($result['error_class'] ?? ''));
         $errorclass = strtolower($errorclass);
         $structuralfailure = !empty($result['structural_failure']);
-        $riskclass = $this->resolve_risk_class($result);
 
         if ($hascommands) {
             return self::STRATEGY_DIRECT_FINAL;
@@ -127,13 +126,9 @@ class finalization_classifier {
 
         if ($responsetype === 'sufficient' || $responsetype === 'clarification') {
             // Clarifications and sufficient results are always finalized by the synchronizer so the answer
-            // is composed in the user's language. The synchronizer is made FAITHFUL to a blocking
-            // clarification (relay the question + options, never fabricate closure) via its prompt/contract,
-            // not by bypassing it here.
-            if (in_array($riskclass, [skill_risk_class::R2, skill_risk_class::R3], true)) {
-                return self::STRATEGY_LLM_POLISH;
-            }
-
+            // is composed in the user's language (independent of risk class). The synchronizer is made
+            // FAITHFUL to a blocking clarification (relay the question + options, never fabricate closure)
+            // via its prompt/contract, not by bypassing it here.
             return self::STRATEGY_LLM_POLISH;
         }
 
@@ -216,29 +211,6 @@ class finalization_classifier {
     }
 
     /**
-     * Normalize issue codes to unique uppercase values.
-     *
-     * @param array<string,mixed> $result
-     * @return string[]
-     */
-    private function normalize_issue_codes(array $result): array {
-        $raw = $result['issue_codes'] ?? [];
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        $codes = [];
-        foreach ($raw as $code) {
-            $value = strtoupper(trim((string)$code));
-            if ($value !== '') {
-                $codes[] = $value;
-            }
-        }
-
-        return array_values(array_unique($codes));
-    }
-
-    /**
      * Returns true when at least one needle exists in haystack.
      *
      * @param string[] $haystack
@@ -255,27 +227,4 @@ class finalization_classifier {
         return false;
     }
 
-    /**
-     * Resolve the effective risk class from the result payload.
-     *
-     * @param array<string,mixed> $result
-     * @return string
-     */
-    private function resolve_risk_class(array $result): string {
-        $riskclass = trim((string)($result['risk_class'] ?? ''));
-        if (skill_risk_class::is_valid($riskclass)) {
-            return $riskclass;
-        }
-
-        $commands = $result['commands'] ?? [];
-        if (is_array($commands)) {
-            $firstcommand = array_is_list($commands) ? (array)($commands[0] ?? []) : $commands;
-            $riskclass = trim((string)($firstcommand['risk_class'] ?? ''));
-            if (skill_risk_class::is_valid($riskclass)) {
-                return $riskclass;
-            }
-        }
-
-        return skill_risk_class::R3;
-    }
 }

@@ -91,6 +91,25 @@ final class embeddings_csv_repository_test extends advanced_testcase {
     }
 
     /**
+     * Each model/dimensions variant maps to its own file; the default variant matches the committed
+     * fixture name so non-live tests read deterministic data.
+     */
+    public function test_for_variant_scopes_the_filename(): void {
+        $this->resetAfterTest();
+
+        $default = embeddings_csv_repository::for_variant('text-embedding-3-small', 1536);
+        $other = embeddings_csv_repository::for_variant('other-model', 8);
+
+        $this->assertStringEndsWith(
+            '/skill_catalog_embeddings__text-embedding-3-small__1536.csv',
+            $default->get_csv_path(),
+            'The default variant must match the committed fixture file name.'
+        );
+        $this->assertStringEndsWith('/skill_catalog_embeddings__other-model__8.csv', $other->get_csv_path());
+        $this->assertNotSame($default->get_csv_path(), $other->get_csv_path());
+    }
+
+    /**
      * A file with rows that do not parse to the schema column count is reported as unreadable
      * (so readiness checks force a rebuild) and the malformed rows are never silently served.
      */

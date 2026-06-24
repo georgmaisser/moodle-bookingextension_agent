@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\task;
 
+use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate;
 use bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_index_service;
 
 /**
@@ -38,6 +39,13 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
      * @return void
      */
     public function execute(): void {
+        // E2 gate: opt out before doing any work, in case the task was queued before the docs skill
+        // was disabled (legacy queue / manual enqueue / CLI). No embedding call is made.
+        if (!docs_embeddings_gate::is_docs_skill_active()) {
+            mtrace('bookingextension_agent docs embeddings rebuild: skipped (docs skill inactive)');
+            return;
+        }
+
         if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
             mtrace('bookingextension_agent docs embeddings rebuild: skipped (embeddings provider unavailable)');
             return;
@@ -46,6 +54,7 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
         $customdata = (array)$this->get_custom_data();
         $service = new docs_embeddings_index_service();
         $summary = $service->rebuild(
+            isset($customdata['corpus_id']) ? (string)$customdata['corpus_id'] : null,
             isset($customdata['model']) ? (string)$customdata['model'] : null,
             isset($customdata['dimensions']) ? (int)$customdata['dimensions'] : null,
             !empty($customdata['force'])

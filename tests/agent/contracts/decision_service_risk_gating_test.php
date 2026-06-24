@@ -37,22 +37,10 @@ use PHPUnit\Framework\TestCase;
  */
 final class decision_service_risk_gating_test extends TestCase {
     /**
-     * Risk resolution must fall back to the skill registry when the command omits risk_class.
-     */
-    public function test_resolve_command_risk_class_falls_back_to_registry_skill_value(): void {
-        $service = $this->build_service([
-            'demo.write' => skill_risk_class::R2,
-        ]);
-
-        $riskclass = $this->invoke_private_method($service, 'resolve_command_risk_class', [
-            ['skill' => 'demo.write', 'input' => []],
-        ]);
-
-        $this->assertSame(skill_risk_class::R2, $riskclass);
-    }
-
-    /**
      * Command batches must be split and annotated by risk class before routing.
+     *
+     * Note: single-command risk resolution itself now lives in (and is unit-tested via)
+     * risk_class_resolver; this test still asserts the decision service wires it correctly.
      */
     public function test_split_commands_by_risk_class_injects_resolved_risk_classes(): void {
         $service = $this->build_service([

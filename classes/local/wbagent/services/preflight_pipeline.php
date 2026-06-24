@@ -22,6 +22,7 @@ use core\context;
 use context_module;
 use bookingextension_agent\local\wbagent\interfaces\external_dependency_checker_interface;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\privacy_anonymizer;
 use bookingextension_agent\local\wbagent\skill_registry;
@@ -52,9 +53,6 @@ class preflight_pipeline {
     /** @var preflight_execution_gate */
     private preflight_execution_gate $executiongate;
 
-    /** @var preflight_audit_logger */
-    private preflight_audit_logger $auditlogger;
-
     /** @var external_dependency_checker_interface */
     private external_dependency_checker_interface $externaldependencychecker;
 
@@ -75,7 +73,6 @@ class preflight_pipeline {
         $this->contractvalidator = new preflight_contract_validator($registry);
         $this->domainrunner = new preflight_domain_check_runner();
         $this->executiongate = new preflight_execution_gate();
-        $this->auditlogger = new preflight_audit_logger($store);
         $this->externaldependencychecker = $externaldependencychecker ?? new noop_external_dependency_checker();
     }
 
@@ -114,7 +111,7 @@ class preflight_pipeline {
                 continue;
             }
 
-            $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            $skillname = trim((string)($command['skill'] ?? ''));
             if ($skillname === '') {
                 $errors[] = $label . ': missing skill.';
                 $issuecodes[] = 'SCHEMA_ERROR';
@@ -140,20 +137,6 @@ class preflight_pipeline {
                         0,
                         (int)max(0, (microtime(true) - $startedat) * 1000)
                     );
-
-                    $this->auditlogger->append($threadid, 0, [
-                        'contextid' => $contextid,
-                        'skillname' => $skillname,
-                        'skill_version' => max(1, (int)($command['version'] ?? 1)),
-                        'layer' => preflight_result_v2::BLOCKING_LAYER_SCHEMA,
-                        'status' => $result->status,
-                        'reason_code' => 'PREFLIGHT_SCHEMA_INVALID',
-                        'issue_codes' => $result->issuecodes,
-                        'retry_count' => 0,
-                        'retry_after_ms' => 0,
-                        'duration_ms' => $result->durationms,
-                        'error_class' => (string)($schemavalidation['error_class'] ?? 'schema_error'),
-                    ]);
 
                     return $this->build_output(
                         false,
@@ -207,7 +190,7 @@ class preflight_pipeline {
                 continue;
             }
 
-            $skillriskclass = $this->resolve_command_risk_class($command);
+            $skillriskclass = risk_class_resolver::resolve_for_command($command, $this->registry);
             if ($skillriskclass === skill_risk_class::R3) {
                 $externalresult = $this->externaldependencychecker->check($command, $contextid, $userid);
                 foreach ($externalresult->issuecodes as $code) {
@@ -273,19 +256,6 @@ class preflight_pipeline {
             );
         }
 
-        $this->auditlogger->append($threadid, 0, array_merge($this->build_audit_command_context($commands), [
-            'contextid' => $contextid,
-            'risk_class' => $batchriskclass,
-            'layer' => $result->blockinglayer !== '' ? $result->blockinglayer : 'preflight',
-            'status' => $result->status,
-            'reason_code' => $this->resolve_preflight_reason_code($result),
-            'issue_codes' => $result->issuecodes,
-            'retry_count' => $result->retrycount,
-            'retry_after_ms' => $result->retryafterms,
-            'duration_ms' => $result->durationms,
-            'error_class' => $errorclass,
-        ]));
-
         $valid = $result->status === 'pass' && $legacyvalid;
         if ($result->status === 'retry_hint') {
             $errors[] = 'Preflight retry requested. Please retry after backoff.';
@@ -318,8 +288,8 @@ class preflight_pipeline {
             if (!is_array($command)) {
                 continue;
             }
-            $skillriskclass = $this->resolve_command_risk_class($command);
-            if ($this->risk_class_rank($skillriskclass) > $this->risk_class_rank($highest)) {
+            $skillriskclass = risk_class_resolver::resolve_for_command($command, $this->registry);
+            if (risk_class_resolver::rank($skillriskclass) > risk_class_resolver::rank($highest)) {
                 $highest = $skillriskclass;
             }
         }
@@ -327,46 +297,6 @@ class preflight_pipeline {
         return $highest;
     }
 
-    /**
-     * Resolve the effective risk class for one command.
-     *
-     * @param array<string,mixed> $command
-     * @return string
-     */
-    private function resolve_command_risk_class(array $command): string {
-        $riskclass = trim((string)($command['risk_class'] ?? ''));
-        if (skill_risk_class::is_valid($riskclass)) {
-            return $riskclass;
-        }
-
-        $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
-        if ($skillname !== '') {
-            $skill = $this->registry->get_skill($skillname);
-            if ($skill !== null) {
-                $skillriskclass = trim($skill->get_risk_class());
-                if (skill_risk_class::is_valid($skillriskclass)) {
-                    return $skillriskclass;
-                }
-            }
-        }
-
-        return skill_risk_class::R3;
-    }
-
-    /**
-     * Rank risk classes from least to most restrictive.
-     *
-     * @param string $riskclass
-     * @return int
-     */
-    private function risk_class_rank(string $riskclass): int {
-        return match ($riskclass) {
-            skill_risk_class::R0 => 0,
-            skill_risk_class::R1 => 1,
-            skill_risk_class::R2 => 2,
-            default => 3,
-        };
-    }
 
     /**
      * Map internal values to the public preflight batch output shape.
@@ -404,37 +334,4 @@ class preflight_pipeline {
         ]);
     }
 
-    /**
-     * Return unambiguous skill audit fields for single-command preflight runs.
-     *
-     * @param array<int,array<string,mixed>> $commands
-     * @return array{skillname:string,skill_version:int}
-     */
-    private function build_audit_command_context(array $commands): array {
-        if (count($commands) !== 1 || !is_array($commands[0] ?? null)) {
-            return ['skillname' => '', 'skill_version' => 0];
-        }
-
-        $command = (array)$commands[0];
-        return [
-            'skillname' => trim((string)($command['skill'] ?? $command['skill'] ?? '')),
-            'skill_version' => max(1, (int)($command['version'] ?? 1)),
-        ];
-    }
-
-    /**
-     * Resolve preflight reason code from v2 result.
-     *
-     * @param preflight_result_v2 $result
-     * @return string
-     */
-    private function resolve_preflight_reason_code(preflight_result_v2 $result): string {
-        $status = trim((string)$result->status);
-        return match ($status) {
-            'pass' => 'PREFLIGHT_PASS',
-            'soft_block' => 'PREFLIGHT_SOFT_BLOCK',
-            'retry_hint' => 'PREFLIGHT_RETRY_HINT',
-            default => 'PREFLIGHT_HARD_BLOCK',
-        };
-    }
 }

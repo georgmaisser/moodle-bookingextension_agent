@@ -55,7 +55,7 @@ class family_registry_service {
                 continue;
             }
 
-            $skillname = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            $skillname = trim((string)($contract['skill'] ?? ''));
             $family = skill_family_contract::resolve_from_prompt_contract($contract, $skillname);
             $allfamilies[] = $family;
         }

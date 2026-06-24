@@ -34,30 +34,22 @@ namespace bookingextension_agent\local\wbagent\services\lookup;
  * absolute root exclusively through this registry, and every file read is confined to the
  * resolved root of that corpus_id.
  *
- * Corpora are discovered component-agnostically: any plugin may expose a class
- *   \{component}\local\wbagent\docs_provider
- * with a static method get_doc_corpora(): array<string,string>  (corpus_id => absolute root).
- * An admin-configured corpus (aidocsroot / aidocs_corpusid) is added on top.
+ * Corpora come exclusively from the admin "documentation corpora" textarea (the aidocsroot
+ * setting), parsed by {@see corpus_source_parser}. There is no component provider scan: the two
+ * defaults (the agent's own docs and mod_booking) are seeded as component lines in the setting's
+ * default value, so they are available out of the box without absolute paths.
+ *
+ * The registry distinguishes the *declared* corpus_ids (every syntactically valid line) from the
+ * *resolvable* ones (root exists right now and lies under $CFG->dirroot). list()/resolve_root()
+ * expose the resolvable set; {@see declared_corpus_ids()} exposes the declared set so the index
+ * prune (B1) never deletes a declared-but-momentarily-unreadable corpus.
  */
 class docs_corpus_registry {
-    /** Provider class (relative to a component frankenstyle namespace). */
-    private const PROVIDER_CLASS_SUFFIX = '\\local\\wbagent\\docs_provider';
-
-    /** Provider method that returns corpus_id => absolute root. */
-    private const PROVIDER_METHOD = 'get_doc_corpora';
-
-    /**
-     * Fallback corpus_id when admin sets aidocsroot but leaves aidocs_corpusid empty.
-     * Kept as 'mod_booking' for back-compat with existing indexed data on sites that
-     * never set aidocs_corpusid explicitly. New deployments should configure it.
-     */
-    private const FALLBACK_ADMIN_CORPUS_ID = 'mod_booking';
-
     /** @var array<string,string>|null Per-instance resolved map (corpus_id => abs root). */
     private ?array $corpora = null;
 
-    /** @var array<string,string>|null Request-level cache of discovered corpora. */
-    private static ?array $discovered = null;
+    /** @var array{declared: string[], resolvable: array<string,string>, warnings: string[], notices: string[]}|null */
+    private ?array $parsed = null;
 
     /** @var array<string,string>|null Test override (only honoured under PHPUNIT_TEST). */
     private static ?array $testcorpora = null;
@@ -66,8 +58,8 @@ class docs_corpus_registry {
      * Constructor.
      *
      * @param array<string,string>|null $corpora Explicit corpus_id => absolute root map (bypasses
-     *                                           discovery; mainly for callers that already know the
-     *                                           set). When null, the registry discovers + config.
+     *                                           parsing; mainly for callers that already know the
+     *                                           set). When null, the registry parses the setting.
      */
     public function __construct(?array $corpora = null) {
         if ($corpora !== null) {
@@ -76,7 +68,7 @@ class docs_corpus_registry {
     }
 
     /**
-     * Return all known corpora as corpus_id => absolute root.
+     * Return all resolvable corpora as corpus_id => absolute root.
      *
      * @return array<string,string>
      */
@@ -87,21 +79,40 @@ class docs_corpus_registry {
         if (self::$testcorpora !== null) {
             return $this->corpora = $this->sanitize(self::$testcorpora);
         }
-        return $this->corpora = $this->resolve_all();
+        return $this->corpora = $this->parsed()['resolvable'];
+    }
+
+    /**
+     * Return every declared corpus_id, including those whose root is currently unreadable.
+     *
+     * Prune decisions measure "superfluous" against this set (not against is_dir), so a declared
+     * but momentarily unreadable corpus is never deleted from the index.
+     *
+     * @return string[]
+     */
+    public function declared_corpus_ids(): array {
+        // An explicit corpus map (constructor / testing) is authoritative for both sets.
+        if ($this->corpora !== null) {
+            return array_keys($this->corpora);
+        }
+        if (self::$testcorpora !== null) {
+            return array_keys($this->sanitize(self::$testcorpora));
+        }
+        return $this->parsed()['declared'];
     }
 
     /**
      * Resolve the absolute docs root for a corpus_id.
      *
      * @param string $corpusid
-     * @return string|null Absolute root, or null when the corpus is unknown.
+     * @return string|null Absolute root, or null when the corpus is unknown / unresolvable.
      */
     public function resolve_root(string $corpusid): ?string {
         return $this->list()[trim($corpusid)] ?? null;
     }
 
     /**
-     * Whether a corpus_id is registered.
+     * Whether a corpus_id is registered (resolvable).
      *
      * @param string $corpusid
      * @return bool
@@ -111,7 +122,7 @@ class docs_corpus_registry {
     }
 
     /**
-     * Return the primary corpus_id (first registered), or null when none.
+     * Return the primary corpus_id (first resolvable), or null when none.
      *
      * @return string|null
      */
@@ -123,59 +134,16 @@ class docs_corpus_registry {
     }
 
     /**
-     * Discover provider corpora and merge the admin-configured corpus on top.
+     * Parse the configured textarea once per instance.
      *
-     * @return array<string,string>
+     * @return array{declared: string[], resolvable: array<string,string>, warnings: string[], notices: string[]}
      */
-    private function resolve_all(): array {
-        $corpora = $this->discover();
-
-        // Admin-configured corpus (points at an arbitrary root) wins over a provider with the same id.
-        $configuredroot = trim((string)get_config('bookingextension_agent', 'aidocsroot'));
-        if ($configuredroot !== '' && is_dir($configuredroot)) {
-            $corpusid = trim((string)get_config('bookingextension_agent', 'aidocs_corpusid'));
-            if ($corpusid === '') {
-                $corpusid = self::FALLBACK_ADMIN_CORPUS_ID;
-            }
-            $corpora[$corpusid] = rtrim($configuredroot, '/\\');
+    private function parsed(): array {
+        if ($this->parsed === null) {
+            $textarea = (string)get_config('bookingextension_agent', 'aidocsroot');
+            $this->parsed = corpus_source_parser::parse($textarea);
         }
-
-        return $corpora;
-    }
-
-    /**
-     * Scan all components for a docs_provider and collect their declared corpora.
-     *
-     * @return array<string,string>
-     */
-    private function discover(): array {
-        if (self::$discovered !== null) {
-            return self::$discovered;
-        }
-
-        $corpora = [];
-        foreach (\core_component::get_component_names() as $component) {
-            $class = '\\' . $component . self::PROVIDER_CLASS_SUFFIX;
-            if (!class_exists($class) || !method_exists($class, self::PROVIDER_METHOD)) {
-                continue;
-            }
-            try {
-                $declared = (array) $class::{self::PROVIDER_METHOD}();
-            } catch (\Throwable $e) {
-                continue;
-            }
-            foreach ($declared as $corpusid => $root) {
-                $corpusid = trim((string)$corpusid);
-                $root = rtrim((string)$root, '/\\');
-                // First declaration wins; only existing directories are registered.
-                if ($corpusid === '' || $root === '' || isset($corpora[$corpusid]) || !is_dir($root)) {
-                    continue;
-                }
-                $corpora[$corpusid] = $root;
-            }
-        }
-
-        return self::$discovered = $corpora;
+        return $this->parsed;
     }
 
     /**
@@ -199,7 +167,7 @@ class docs_corpus_registry {
     /**
      * Override the corpus set for unit tests (e.g. temp-dir corpora).
      *
-     * @param array<string,string>|null $corpora Map to use, or null to restore discovery.
+     * @param array<string,string>|null $corpora Map to use, or null to restore parsing.
      * @return void
      */
     public static function set_corpora_for_testing(?array $corpora): void {
@@ -207,6 +175,5 @@ class docs_corpus_registry {
             throw new \coding_exception('set_corpora_for_testing() is only available under PHPUNIT_TEST.');
         }
         self::$testcorpora = $corpora;
-        self::$discovered = null;
     }
 }

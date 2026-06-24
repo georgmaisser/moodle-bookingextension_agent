@@ -49,7 +49,7 @@ class embeddings_catalog_builder_service {
                 continue;
             }
 
-            $skill = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            $skill = trim((string)($contract['skill'] ?? ''));
             if ($skill === '') {
                 continue;
             }
@@ -126,7 +126,7 @@ class embeddings_catalog_builder_service {
         $contextualpromptpacks = json_encode($canonicalrow['contextual_prompt_packs'] ?? [], JSON_UNESCAPED_UNICODE);
 
         return implode("\n", [
-            'skill: ' . (string)($canonicalrow['skill'] ?? $canonicalrow['skill'] ?? ''),
+            'skill: ' . (string)($canonicalrow['skill'] ?? ''),
             'intent: ' . (string)($canonicalrow['intent'] ?? ''),
             'readonly: ' . (string)($canonicalrow['readonly'] ?? '0'),
             'description: ' . (string)($canonicalrow['description'] ?? ''),

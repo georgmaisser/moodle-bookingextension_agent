@@ -153,13 +153,13 @@ class adaptive_skill_catalog_service {
         // Build exclude set for quick lookup.
         $excludenameset = [];
         foreach ($exclude as $skill) {
-            $excludenameset[(string)($skill['skill'] ?? $skill['skill'] ?? '')] = true;
+            $excludenameset[(string)($skill['skill'] ?? '')] = true;
         }
 
         // Score skills by recency rank.
         $scored = [];
         foreach ($fullcatalog as $idx => $skill) {
-            $skillname = (string)($skill['skill'] ?? $skill['skill'] ?? '');
+            $skillname = (string)($skill['skill'] ?? '');
 
             // Skip if in exclude set.
             if (isset($excludenameset[$skillname])) {

@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 
 /**
@@ -99,7 +100,7 @@ class queue_transition_service {
             if ((string)($item['mutability'] ?? '') !== 'mutating') {
                 continue;
             }
-            $riskclass = $this->normalize_risk_class((string)($item['risk_class'] ?? ''));
+            $riskclass = risk_class_resolver::normalize((string)($item['risk_class'] ?? ''));
             if (
                 queue_status_policy::is_failed_status((string)($item['status'] ?? ''))
                 && !empty((array)($item['issue_codes'] ?? []))
@@ -586,20 +587,5 @@ class queue_transition_service {
         }
 
         return array_values(array_unique($normalized));
-    }
-
-    /**
-     * Normalize a risk class value.
-     *
-     * @param string $riskclass
-     * @return string
-     */
-    private function normalize_risk_class(string $riskclass): string {
-        $riskclass = trim($riskclass);
-        if (skill_risk_class::is_valid($riskclass)) {
-            return $riskclass;
-        }
-
-        return skill_risk_class::R3;
     }
 }

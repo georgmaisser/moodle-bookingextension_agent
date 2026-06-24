@@ -55,7 +55,7 @@ class preflight_version_validator {
      * @return array{valid:bool,error_class:string,issue_codes:array<int,string>,errors:array<int,string>}
      */
     public function validate(array $command): array {
-        $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        $skillname = trim((string)($command['skill'] ?? ''));
         if ($skillname === '') {
             return [
                 'valid' => true,
@@ -126,8 +126,6 @@ class preflight_version_validator {
     private function resolve_requested_version(array $command, array $contract): int {
         if (array_key_exists('version', $command)) {
             $value = $command['version'];
-        } else if (array_key_exists('skill_version', $command)) {
-            $value = $command['skill_version'];
         } else if (array_key_exists('skill_version', $command)) {
             $value = $command['skill_version'];
         } else {

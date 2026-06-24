@@ -46,9 +46,6 @@ class explain_docs_skill extends core_skill_base implements
     /** Skill name constant. */
     public const SKILL_NAME = 'wbagent.explain_docs';
 
-    /** Minimum cosine-similarity score (×1000) to trust a semantic result directly. */
-    private const PLANNER_DIRECT_DOC_SCORE = 720;
-
     /** Default lines per read window. */
     private const DEFAULT_LINE_COUNT = 80;
 
@@ -327,9 +324,11 @@ class explain_docs_skill extends core_skill_base implements
             }
         }
 
-        // Trigger async rebuild if the index was empty (not ready yet).
+        // Trigger an async rebuild when the index is missing, corrupt, or does not yet cover every
+        // resolvable corpus (e.g. a freshly added one). Cheap coverage check; the expensive per-file
+        // diff/prune runs in the task.
         $readiness = new docs_embeddings_readiness_service();
-        if (!$readiness->is_index_ready()) {
+        if (!$readiness->is_index_covered()) {
             $readiness->ensure_rebuild_scheduled_if_needed();
         }
 

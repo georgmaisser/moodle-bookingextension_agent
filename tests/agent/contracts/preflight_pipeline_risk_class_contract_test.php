@@ -55,21 +55,8 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
         $this->assertSame(skill_risk_class::R3, $riskclass);
     }
 
-    /**
-     * Command risk resolution must fall back to the registry when the command omits the field.
-     */
-    public function test_resolve_command_risk_class_falls_back_to_registry_risk_class(): void {
-        $service = $this->build_pipeline_service([
-            'demo.write' => skill_risk_class::R2,
-        ]);
-
-        $riskclass = $this->invoke_private_method($service, 'resolve_command_risk_class', [[
-            'skill' => 'demo.write',
-            'input' => [],
-        ]]);
-
-        $this->assertSame(skill_risk_class::R2, $riskclass);
-    }
+    // Note: single-command risk resolution now lives in risk_class_resolver (unit-tested in
+    // risk_class_resolver_test); the batch test above still asserts the pipeline wires it correctly.
 
     /**
      * Build a pipeline service with a skill registry mock that returns risk-class aware skills.

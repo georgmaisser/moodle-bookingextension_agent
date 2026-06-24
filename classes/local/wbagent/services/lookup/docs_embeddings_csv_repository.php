@@ -26,13 +26,19 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wbagent\services\lookup;
 
+use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
+use bookingextension_agent\local\wbagent\embeddings_csv_repository_base;
+
 /**
  * Handles storage and retrieval of documentation chunk embeddings in CSV format.
  *
- * Each row represents one documentation chunk (currently one .md file = one chunk).
- * The corpus_id field groups chunks by their source corpus (e.g. 'mod_booking').
+ * Each row represents one documentation chunk (one .md heading/size chunk). The corpus_id field
+ * groups chunks by their source corpus (e.g. 'mod_booking').
+ *
+ * Parsing, validation and the atomic round-trip-verified write are inherited from
+ * {@see embeddings_csv_repository_base}; this class adds corpus-scoped read/delete helpers.
  */
-class docs_embeddings_csv_repository {
+class docs_embeddings_csv_repository extends embeddings_csv_repository_base {
     /** Ordered CSV header columns. */
     public const HEADERS = [
         'corpus_id',
@@ -47,56 +53,52 @@ class docs_embeddings_csv_repository {
     ];
 
     /**
-     * Return the absolute CSV path.
+     * Build a repository bound to the currently active embeddings variant (model + dimensions).
+     *
+     * Read paths (lookup, readiness) use this so they open the same file the rebuild writes for the
+     * active model.
+     *
+     * @return self
+     */
+    public static function for_active_variant(): self {
+        return new self(null, (new embeddings_action_config_resolver())->variant_key());
+    }
+
+    /**
+     * Ordered CSV header columns.
+     *
+     * @return string[]
+     */
+    protected function headers(): array {
+        return self::HEADERS;
+    }
+
+    /**
+     * Columns that must be non-empty for a row to be valid.
+     *
+     * @return string[]
+     */
+    protected function required_nonempty_columns(): array {
+        return ['corpus_id', 'chunk_path', 'content_hash'];
+    }
+
+    /**
+     * Short label for corruption diagnostics.
      *
      * @return string
      */
-    public function get_csv_path(): string {
+    protected function store_label(): string {
+        return 'documentation embeddings';
+    }
+
+    /**
+     * Default (un-suffixed) CSV path; the variant suffix is applied by the base.
+     *
+     * @return string
+     */
+    protected function default_csv_path(): string {
         $dir = make_temp_directory('bookingextension_agent/wbagent');
         return $dir . '/docs_embeddings.csv';
-    }
-
-    /**
-     * Whether the CSV file exists and is readable.
-     *
-     * @return bool
-     */
-    public function exists(): bool {
-        return is_readable($this->get_csv_path());
-    }
-
-    /**
-     * Read all CSV rows as associative arrays.
-     *
-     * @return array<int,array<string,string>>
-     */
-    public function read_rows(): array {
-        $path = $this->get_csv_path();
-        if (!is_readable($path)) {
-            return [];
-        }
-
-        $handle = fopen($path, 'rb');
-        if ($handle === false) {
-            return [];
-        }
-
-        $headers = fgetcsv($handle);
-        if (!is_array($headers) || !$this->headers_match($headers)) {
-            fclose($handle);
-            return [];
-        }
-
-        $rows = [];
-        while (($cols = fgetcsv($handle)) !== false) {
-            if (!is_array($cols) || count($cols) !== count(self::HEADERS)) {
-                continue;
-            }
-            $rows[] = array_combine(self::HEADERS, $cols);
-        }
-
-        fclose($handle);
-        return $rows;
     }
 
     /**
@@ -114,65 +116,6 @@ class docs_embeddings_csv_repository {
         return array_values(array_filter($rows, static function (array $row) use ($corpusid): bool {
             return trim((string)($row['corpus_id'] ?? '')) === $corpusid;
         }));
-    }
-
-    /**
-     * Validate that rows have the required schema and non-empty key fields.
-     *
-     * @param array<int,array<string,string>> $rows
-     * @return bool
-     */
-    public function is_valid_schema(array $rows): bool {
-        if (empty($rows)) {
-            return false;
-        }
-
-        foreach ($rows as $row) {
-            foreach (self::HEADERS as $key) {
-                if (!array_key_exists($key, $row)) {
-                    return false;
-                }
-            }
-
-            if (
-                trim((string)($row['corpus_id'] ?? '')) === ''
-                || trim((string)($row['chunk_path'] ?? '')) === ''
-                || trim((string)($row['content_hash'] ?? '')) === ''
-            ) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Atomically write rows to CSV.
-     *
-     * @param array<int,array<string,string>> $rows
-     * @return void
-     */
-    public function write_rows(array $rows): void {
-        $path = $this->get_csv_path();
-        $tmppath = $path . '.tmp';
-
-        $handle = fopen($tmppath, 'wb');
-        if ($handle === false) {
-            throw new \moodle_exception('cannotwritetempfile', 'error');
-        }
-
-        fputcsv($handle, self::HEADERS);
-        foreach ($rows as $row) {
-            $line = [];
-            foreach (self::HEADERS as $header) {
-                $line[] = (string)($row[$header] ?? '');
-            }
-            fputcsv($handle, $line);
-        }
-
-        fclose($handle);
-        @chmod($tmppath, $this->get_default_file_permissions());
-        rename($tmppath, $path);
     }
 
     /**
@@ -198,40 +141,5 @@ class docs_embeddings_csv_repository {
         }
 
         return $removed;
-    }
-
-    /**
-     * Compare CSV headers against the expected schema.
-     *
-     * @param array<int,string> $headers
-     * @return bool
-     */
-    private function headers_match(array $headers): bool {
-        if (count($headers) !== count(self::HEADERS)) {
-            return false;
-        }
-
-        foreach (self::HEADERS as $idx => $name) {
-            if ((string)($headers[$idx] ?? '') !== $name) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * Get default file permissions from Moodle config.
-     *
-     * @return int
-     */
-    private function get_default_file_permissions(): int {
-        global $CFG;
-
-        if (!empty($CFG->filepermissions)) {
-            return (int)$CFG->filepermissions;
-        }
-
-        return 0644;
     }
 }

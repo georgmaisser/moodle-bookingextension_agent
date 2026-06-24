@@ -41,8 +41,6 @@ class privacy_anonymizer {
 
     /** @var string Thread metadata key for token map. */
     private const TOKEN_MAP_METADATA_KEY = 'privacy_anon_map';
-    /** @var string Cache key for distinct-name index. */
-    private const NAME_INDEX_CACHE_KEY = 'distinct_user_names_v1';
     /** @var string Cache key for user-linked name matching index. */
     private const NAME_MATCH_INDEX_CACHE_KEY = 'user_name_match_index_v1';
     /** @var array<int,string> Common words that must never be treated as person names. */
@@ -61,6 +59,21 @@ class privacy_anonymizer {
     private const USER_REFERENCE_FIELDS = ['userquery', 'teacherquery', 'targetuserquery'];
     /** @var array<int,string> Structured person fields that must be anonymized independently. */
     private const PERSON_IDENTITY_FIELDS = ['firstname', 'lastname', 'email'];
+
+    /**
+     * @var string Regex matching an anonymization token wherever it appears in free text
+     * (word-bounded find/replace). Single source so the matcher cannot drift from the parser below.
+     */
+    private const ANON_TOKEN_FIND_PATTERN = '/\bANON_USER_\d+(?:_[a-z]+)?\b/';
+
+    /** @var string Regex parsing a standalone token, capturing the stable id part (group 1). */
+    private const ANON_TOKEN_PARSE_PATTERN = '/^(ANON_USER_\d+)(?:_[a-z]+)?$/';
+
+    /**
+     * @var string Shared email-address subpattern (no delimiters/flags) — the single address grammar
+     * used by every email matcher, so they cannot drift apart.
+     */
+    private const EMAIL_SUBPATTERN = '[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}';
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -142,7 +155,7 @@ class privacy_anonymizer {
      * @return bool
      */
     public static function looks_like_anon_token(string $value): bool {
-        return (bool)preg_match('/\bANON_USER_\d+(?:_[a-z]+)?\b/', $value);
+        return (bool)preg_match(self::ANON_TOKEN_FIND_PATTERN, $value);
     }
 
     /**
@@ -303,7 +316,7 @@ class privacy_anonymizer {
         // thread's map has no entry for it (e.g. a placeholder surfaced from another thread via
         // recall_memory) - be replaced by a neutral label. A raw placeholder must never reach the user.
         $displaymessage = preg_replace_callback(
-            '/\bANON_USER_\d+(?:_[a-z]+)?\b/',
+            self::ANON_TOKEN_FIND_PATTERN,
             function (array $m) use ($entries, &$replacedcount, &$redactedcount): string {
                 $token = (string)$m[0];
                 $entry = $this->resolve_token_entry($entries, $token);
@@ -418,7 +431,7 @@ class privacy_anonymizer {
                 return $value;
             }
             return preg_replace_callback(
-                '/\bANON_USER_\d+(?:_[a-z]+)?\b/',
+                self::ANON_TOKEN_FIND_PATTERN,
                 function (array $m) use ($sourceentries, &$targetmap, &$touched): string {
                     $token = (string)$m[0];
                     $entry = $this->resolve_token_entry($sourceentries, $token);
@@ -461,7 +474,7 @@ class privacy_anonymizer {
      */
     private function deanonymize_recursive($value, array $entries, string $fieldkey) {
         if (is_string($value)) {
-            return preg_replace_callback('/\bANON_USER_\d+(?:_[a-z]+)?\b/', function (array $m) use ($entries, $fieldkey): string {
+            return preg_replace_callback(self::ANON_TOKEN_FIND_PATTERN, function (array $m) use ($entries, $fieldkey): string {
                 $token = $m[0];
                 $entry = $this->resolve_token_entry($entries, $token);
                 if (!is_array($entry)) {
@@ -607,7 +620,7 @@ class privacy_anonymizer {
         );
 
         $sanitized = preg_replace_callback(
-            '/\b(email)\s*=\s*([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/iu',
+            '/\b(email)\s*=\s*(' . self::EMAIL_SUBPATTERN . ')/iu',
             function (array $match) use (&$tokenmap, &$count): string {
                 $field = 'email';
                 $rawvalue = trim((string)($match[2] ?? ''));
@@ -698,7 +711,7 @@ class privacy_anonymizer {
     private function anonymize_emails(string $message, array &$tokenmap): array {
         $count = 0;
         $sanitized = preg_replace_callback(
-            '/\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b/i',
+            '/\b' . self::EMAIL_SUBPATTERN . '\b/i',
             function (array $match) use (&$tokenmap, &$count): string {
                 $email = (string)$match[0];
                 $identity = $this->resolve_identity_from_email($email);
@@ -904,7 +917,7 @@ class privacy_anonymizer {
         $spans = [];
         $matches = [];
         preg_match_all(
-            '/\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b/i',
+            '/\b' . self::EMAIL_SUBPATTERN . '\b/i',
             $message,
             $matches,
             PREG_OFFSET_CAPTURE
@@ -1087,51 +1100,6 @@ class privacy_anonymizer {
     }
 
     /**
-     * Load distinct name index from cache or database.
-     *
-     * @return array
-     */
-    private function get_distinct_name_index(): array {
-        global $DB;
-
-        $cache = \cache::make('bookingextension_agent', 'aiprivacynames');
-        $cached = $cache->get(self::NAME_INDEX_CACHE_KEY);
-        if (is_array($cached)) {
-            return $cached;
-        }
-
-        $index = [];
-
-        $firstnames = $DB->get_fieldset_select('user', 'firstname', "deleted = 0 AND suspended = 0 AND firstname <> ''");
-        $lastnames = $DB->get_fieldset_select('user', 'lastname', "deleted = 0 AND suspended = 0 AND lastname <> ''");
-
-        foreach ($firstnames as $name) {
-            $normalized = $this->normalize_name((string)$name);
-            if ($normalized === '') {
-                continue;
-            }
-            $index[$normalized] = 'firstname';
-        }
-
-        foreach ($lastnames as $name) {
-            $normalized = $this->normalize_name((string)$name);
-            if ($normalized === '') {
-                continue;
-            }
-
-            if (($index[$normalized] ?? '') === 'firstname') {
-                $index[$normalized] = 'both';
-                continue;
-            }
-
-            $index[$normalized] = 'lastname';
-        }
-
-        $cache->set(self::NAME_INDEX_CACHE_KEY, $index);
-        return $index;
-    }
-
-    /**
      * Normalize a candidate name for index/matching.
      *
      * @param string $name
@@ -1290,21 +1258,6 @@ class privacy_anonymizer {
     }
 
     /**
-     * Scope identity keys by field type to avoid cross-field token collisions.
-     *
-     * @param string $identitykey
-     * @param string $type
-     * @return string
-     */
-    private function scope_identity_key_for_type(string $identitykey, string $type): string {
-        if ($identitykey === '') {
-            return '';
-        }
-
-        return $identitykey;
-    }
-
-    /**
      * Build a field-specific token from a base ANON token.
      *
      * @param string $basetoken
@@ -1332,7 +1285,7 @@ class privacy_anonymizer {
      * @return string
      */
     private function extract_base_token_from_anon_token(string $token): string {
-        if (!preg_match('/^(ANON_USER_\d+)(?:_[a-z]+)?$/', $token, $match)) {
+        if (!preg_match(self::ANON_TOKEN_PARSE_PATTERN, $token, $match)) {
             return '';
         }
 

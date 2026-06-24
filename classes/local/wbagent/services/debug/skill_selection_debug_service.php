@@ -22,6 +22,7 @@ use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wbagent\services\embeddings\embeddings_retrieval_service;
+use bookingextension_agent\local\wbagent\services\embeddings\vector_math;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\skill_executability_evaluator;
 use bookingextension_agent\local\wbagent\skill_registry;
@@ -77,7 +78,7 @@ class skill_selection_debug_service {
 
         $byskill = [];
         foreach ($lexical as $row) {
-            $skill = (string)($row['skill'] ?? $row['skill'] ?? '');
+            $skill = (string)($row['skill'] ?? '');
             $byskill[$skill] = [
                 'skill' => $skill,
                 'lexical_score' => (float)($row['lexical_score'] ?? 0.0),
@@ -91,7 +92,7 @@ class skill_selection_debug_service {
         }
 
         foreach ($embedding as $row) {
-            $skill = (string)($row['skill'] ?? $row['skill'] ?? '');
+            $skill = (string)($row['skill'] ?? '');
             if ($skill === '') {
                 continue;
             }
@@ -150,7 +151,7 @@ class skill_selection_debug_service {
      */
     public function analyze_collisions(int $limit = 50): array {
         $limit = max(1, min(500, $limit));
-        $repo = new embeddings_csv_repository();
+        $repo = embeddings_csv_repository::for_active_variant();
         $rows = $repo->read_rows();
         $pairs = [];
 
@@ -168,7 +169,7 @@ class skill_selection_debug_service {
                     continue;
                 }
 
-                $score = $this->cosine_similarity($av, $bv);
+                $score = vector_math::cosine_similarity($av, $bv);
                 $pairs[] = [
                     'skill_a' => (string)($a['skill'] ?? ''),
                     'skill_b' => (string)($b['skill'] ?? ''),
@@ -223,13 +224,13 @@ class skill_selection_debug_service {
                 continue;
             }
 
-            $skill = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            $skill = trim((string)($contract['skill'] ?? ''));
             if ($skill === '') {
                 continue;
             }
 
             $searchcorpus = [];
-            $searchcorpus[] = (string)($contract['skill'] ?? $contract['skill'] ?? '');
+            $searchcorpus[] = (string)($contract['skill'] ?? '');
             $searchcorpus[] = (string)($contract['description'] ?? '');
 
             foreach ((array)($contract['minimal_input'] ?? []) as $entry) {
@@ -406,37 +407,6 @@ class skill_selection_debug_service {
         }
 
         return array_values(array_unique($tokens));
-    }
-
-    /**
-     * Cosine similarity helper.
-     *
-     * @param array<int,float|int> $a
-     * @param array<int,float|int> $b
-     * @return float
-     */
-    private function cosine_similarity(array $a, array $b): float {
-        $len = min(count($a), count($b));
-        if ($len === 0) {
-            return 0.0;
-        }
-
-        $dot = 0.0;
-        $norma = 0.0;
-        $normb = 0.0;
-        for ($i = 0; $i < $len; $i++) {
-            $av = (float)$a[$i];
-            $bv = (float)$b[$i];
-            $dot += $av * $bv;
-            $norma += $av * $av;
-            $normb += $bv * $bv;
-        }
-
-        if ($norma <= 0.0 || $normb <= 0.0) {
-            return 0.0;
-        }
-
-        return $dot / (sqrt($norma) * sqrt($normb));
     }
 
     /**

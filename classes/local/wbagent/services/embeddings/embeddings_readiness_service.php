@@ -55,7 +55,9 @@ class embeddings_readiness_service {
      * @return array<string,mixed>
      */
     public function get_catalog_status(skill_registry $registry, string $model, int $dimensions): array {
-        $repo = new embeddings_csv_repository();
+        // Variant-scoped store: only the active model's file is consulted, so a model switch never
+        // invalidates the others and no cross-model vectors are ever compared.
+        $repo = embeddings_csv_repository::for_variant($model, $dimensions);
         $builder = new embeddings_catalog_builder_service();
 
         if (!$repo->exists()) {

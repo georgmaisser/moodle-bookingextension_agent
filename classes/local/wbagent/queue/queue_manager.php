@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wbagent\queue;
 
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\interfaces\queue_identity_provider_interface;
 use bookingextension_agent\local\wbagent\services\preflight_execution_gate;
@@ -117,7 +118,7 @@ class queue_manager {
                 'contextid' => $contextid,
                 'run_id' => $runid,
                 'step_id' => $stepid,
-                'skill' => trim((string)($command['skill'] ?? $command['skill'] ?? '')),
+                'skill' => trim((string)($command['skill'] ?? '')),
                 'input' => is_array($command['input'] ?? null) ? (array)$command['input'] : [],
                 'prepared_input' => null,
                 'guard_token' => '',
@@ -125,7 +126,7 @@ class queue_manager {
                 'input_signature_mode' => 'none',
                 'input_signature_payload' => [],
                 'mutability' => $mutability,
-                'risk_class' => $this->normalize_risk_class((string)($command['risk_class'] ?? '')),
+                'risk_class' => risk_class_resolver::normalize((string)($command['risk_class'] ?? '')),
                 'depends_on' => $dependson,
                 'status' => queue_status_policy::failed_status(),
                 'retry_count' => 0,
@@ -148,13 +149,13 @@ class queue_manager {
         $seq = $this->next_sequence($threadid);
         $now = time();
 
-        $skill = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        $skill = trim((string)($command['skill'] ?? ''));
         $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
         $signaturedetails = $this->build_input_signature_details($skill, $input);
         $signature = (string)($signaturedetails['signature'] ?? '');
         $signaturemode = (string)($signaturedetails['mode'] ?? 'raw_input');
         $signaturepayload = is_array($signaturedetails['payload'] ?? null) ? (array)$signaturedetails['payload'] : [];
-        $riskclass = $this->normalize_risk_class((string)($command['risk_class'] ?? ''));
+        $riskclass = risk_class_resolver::normalize((string)($command['risk_class'] ?? ''));
 
         // Idempotency: if an equivalent item (same signature) is already in a
         // non-terminal state, return it instead of creating a duplicate.
@@ -445,6 +446,9 @@ class queue_manager {
             return true;
         } catch (\Throwable $e) {
             // Transaction rolled back automatically on exception in Moodle.
+            // Log so a genuine DB failure is not silently indistinguishable from
+            // "slot already taken" (which would quietly block the queue).
+            debugging('try_mark_running failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             return false;
         }
     }
@@ -852,7 +856,7 @@ class queue_manager {
      * @return int
      */
     private function resolve_blocked_ttl_seconds(string $riskclass): int {
-        $riskclass = $this->normalize_risk_class($riskclass);
+        $riskclass = risk_class_resolver::normalize($riskclass);
         if ($riskclass === skill_risk_class::R2) {
             return 300;
         }
@@ -863,21 +867,6 @@ class queue_manager {
 
         $configuredttl = (int)get_config('bookingextension_agent', 'queue_blocked_ttl_seconds');
         return $configuredttl > 0 ? $configuredttl : self::DEFAULT_BLOCKED_TTL_SECONDS;
-    }
-
-    /**
-     * Normalize a command risk class for queue persistence.
-     *
-     * @param string $riskclass
-     * @return string
-     */
-    private function normalize_risk_class(string $riskclass): string {
-        $riskclass = trim($riskclass);
-        if (skill_risk_class::is_valid($riskclass)) {
-            return $riskclass;
-        }
-
-        return skill_risk_class::R3;
     }
 
     /**

@@ -97,7 +97,7 @@ class execution_observation_ledger {
             }
 
             $command = is_array($commands[$idx] ?? null) ? (array)$commands[$idx] : [];
-            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? $command['skill'] ?? $command['skill'] ?? ''));
+            $skill = trim((string)($entry['skill'] ?? $command['skill'] ?? ''));
             $input = [];
             if (is_array($entry['executed_input'] ?? null)) {
                 $input = (array)$entry['executed_input'];
@@ -188,7 +188,7 @@ class execution_observation_ledger {
             }
 
             $row = [
-                'skill' => trim((string)($entry['skill'] ?? $entry['skill'] ?? '')),
+                'skill' => trim((string)($entry['skill'] ?? '')),
                 'status' => trim((string)($entry['status'] ?? '')),
                 'observation' => $observation,
             ];
@@ -281,7 +281,7 @@ class execution_observation_ledger {
      * @return string
      */
     private function build_signature(array $entry): string {
-        $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+        $skill = trim((string)($entry['skill'] ?? ''));
         $observation = trim((string)($entry['observation_canonical'] ?? ''));
         if ($skill === '' || $observation === '') {
             return '';

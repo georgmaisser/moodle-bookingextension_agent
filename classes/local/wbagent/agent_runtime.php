@@ -442,6 +442,8 @@ class agent_runtime {
                 $observations
             );
         } catch (\Throwable $e) {
+            // Synchronizer polish is best-effort; return the unpolished result on failure.
+            debugging('agent_runtime: synchronizer message polish failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             return $result;
         }
 

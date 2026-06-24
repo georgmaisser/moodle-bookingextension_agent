@@ -595,7 +595,7 @@ class interpreter implements agent_interpreter {
                     continue;
                 }
 
-                $skillname = $this->safe_string($command['skill'] ?? $command['skill'] ?? '');
+                $skillname = $this->safe_string($command['skill'] ?? '');
                 if ($skillname === '') {
                     continue;
                 }
@@ -618,7 +618,7 @@ class interpreter implements agent_interpreter {
         }
 
         // Fallback: top-level skill/version/input fields.
-        $skillname = $this->safe_string($parsed['skill'] ?? $parsed['skill'] ?? '');
+        $skillname = $this->safe_string($parsed['skill'] ?? '');
         if ($skillname !== '') {
             // Mirror the commands[] path: a top-level command may carry its payload under
             // "parameters" or "input" (the planner is not consistent). Read parameters first,
@@ -779,7 +779,7 @@ class interpreter implements agent_interpreter {
             ];
         }
 
-        $skill = (string)($parsed['skill'] ?? $parsed['skill'] ?? '');
+        $skill = (string)($parsed['skill'] ?? '');
         $resolvedskill = $this->safe_string($skill);
         if ($resolvedskill !== '') {
             $input = $this->extract_command_input($parsed);
@@ -804,7 +804,7 @@ class interpreter implements agent_interpreter {
                 if (!is_array($command)) {
                     continue;
                 }
-                $commandskill = $this->safe_string($command['skill'] ?? $command['skill'] ?? '');
+                $commandskill = $this->safe_string($command['skill'] ?? '');
                 if ($commandskill === '') {
                     continue;
                 }
@@ -967,33 +967,6 @@ class interpreter implements agent_interpreter {
     }
 
     /**
-     * If a skill expects a 'question' field and it is missing/empty, fill it from lastusermessage.
-     *
-     * @param string $skillname
-     * @param array  $input
-     * @param string $lastusermessage
-     * @return array
-     */
-    private function hydrate_question_field(string $skillname, array $input, string $lastusermessage): array {
-        if ($lastusermessage === '' || trim((string)($input['question'] ?? '')) !== '') {
-            return $input;
-        }
-
-        $skill = $this->registry->get_skill($skillname);
-        if ($skill === null) {
-            return $input;
-        }
-
-        $schema = $skill->get_schema();
-        $props  = $schema['properties'] ?? [];
-        if (isset($props['question'])) {
-            $input['question'] = $lastusermessage;
-        }
-
-        return $input;
-    }
-
-    /**
      * Extract command input while tolerating common wrapper keys from LLM output.
      *
      * @param array $payload
@@ -1131,7 +1104,7 @@ class interpreter implements agent_interpreter {
             $rawinput = $this->extract_command_input((array)$cmd);
 
             // Deduplicate: skip exact duplicate commands (same skill + same input).
-            $cmdsig = md5(json_encode(['skill' => $cmd['skill'] ?? $cmd['skill'] ?? '', 'input' => $rawinput]));
+            $cmdsig = md5(json_encode(['skill' => $cmd['skill'] ?? '', 'input' => $rawinput]));
             if (isset($seencommandsigs[$cmdsig])) {
                 continue;
             }
@@ -1202,46 +1175,6 @@ class interpreter implements agent_interpreter {
             array_values(array_unique($issuecodes)),
             $confirmablecommands,
         ];
-    }
-
-    /**
-     * Normalize skill-provided structured ambiguity options for frontend consumption.
-     *
-     * @param array $options
-     * @param string $label
-     * @param string $skillname
-     * @return array
-     */
-    private function normalize_ambiguity_options(array $options, string $label, string $skillname): array {
-        $normalized = [];
-        foreach ($options as $index => $option) {
-            if (!is_array($option)) {
-                continue;
-            }
-
-            $id = trim((string)($option['id'] ?? ''));
-            $optionlabel = trim((string)($option['label'] ?? ''));
-            $query = trim((string)($option['query'] ?? ''));
-            if ($optionlabel === '' && $query === '') {
-                continue;
-            }
-
-            if ($id === '') {
-                $id = strtolower($skillname) . ':' . ($index + 1);
-            }
-
-            $normalized[] = [
-                'id' => $id,
-                'label' => $optionlabel,
-                'query' => $query,
-                'skill' => $skillname,
-                'command_label' => $label,
-                'path' => trim((string)($option['path'] ?? '')),
-                'title' => trim((string)($option['title'] ?? '')),
-            ];
-        }
-
-        return $normalized;
     }
 
     /**

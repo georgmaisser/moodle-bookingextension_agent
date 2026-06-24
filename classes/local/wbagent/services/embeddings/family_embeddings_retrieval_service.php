@@ -54,7 +54,7 @@ class family_embeddings_retrieval_service {
 
         $scores = [];
         foreach ($catalogrows as $row) {
-            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $skill = trim((string)($row['skill'] ?? ''));
             if ($skill === '') {
                 continue;
             }
@@ -69,7 +69,7 @@ class family_embeddings_retrieval_service {
                 continue;
             }
 
-            $score = $this->cosine_similarity($queryvector, $embedding);
+            $score = vector_math::cosine_similarity($queryvector, $embedding);
             if (!isset($scores[$family]) || $score > $scores[$family]) {
                 $scores[$family] = $score;
             }
@@ -116,7 +116,7 @@ class family_embeddings_retrieval_service {
                 continue;
             }
 
-            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $skill = trim((string)($row['skill'] ?? ''));
             $family = skill_family_contract::from_skill_name($skill);
             $skillscore = (float)($row['score'] ?? 0.0);
             $familyscore = (float)($familyscores[$family] ?? 0.0);
@@ -139,41 +139,9 @@ class family_embeddings_retrieval_service {
                 return $familycmp;
             }
 
-            return strcmp((string)($a['skill'] ?? $a['skill'] ?? ''), (string)($b['skill'] ?? $b['skill'] ?? ''));
+            return strcmp((string)($a['skill'] ?? ''), (string)($b['skill'] ?? ''));
         });
 
         return array_values($boosted);
-    }
-
-    /**
-     * Compute cosine similarity.
-     *
-     * @param array<int,float|int> $a
-     * @param array<int,float|int> $b
-     * @return float
-     */
-    private function cosine_similarity(array $a, array $b): float {
-        $len = min(count($a), count($b));
-        if ($len === 0) {
-            return 0.0;
-        }
-
-        $dot = 0.0;
-        $norma = 0.0;
-        $normb = 0.0;
-
-        for ($i = 0; $i < $len; $i++) {
-            $av = (float)$a[$i];
-            $bv = (float)$b[$i];
-            $dot += $av * $bv;
-            $norma += $av * $av;
-            $normb += $bv * $bv;
-        }
-
-        if ($norma <= 0.0 || $normb <= 0.0) {
-            return 0.0;
-        }
-
-        return $dot / (sqrt($norma) * sqrt($normb));
     }
 }

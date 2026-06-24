@@ -479,13 +479,18 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * @return void
      */
     protected function maybe_load_embeddings_fixture(): void {
-        $fixturepath = __DIR__ . '/fixtures/skill_catalog_embeddings.csv';
+        // Skill-catalog embeddings are stored per variant (model + dimensions). Pick the fixture for
+        // the currently active embeddings variant — which follows the BOOKING_TEST_AI_EMBEDDING_MODEL
+        // env (via the registered provider) — so a model change reads its own fixture file.
+        $variant = (new \bookingextension_agent\local\wbagent\embeddings_action_config_resolver())->variant_key();
+        $filename = 'skill_catalog_embeddings__' . $variant . '.csv';
+        $fixturepath = __DIR__ . '/fixtures/' . $filename;
         if (!file_exists($fixturepath)) {
-            return; // Fixture not available.
+            return; // No fixture for the active embeddings variant.
         }
 
         $runtimedir = make_temp_directory('bookingextension_agent/wbagent');
-        $runtimepath = $runtimedir . '/skill_catalog_embeddings.csv';
+        $runtimepath = $runtimedir . '/' . $filename;
 
         if (!copy($fixturepath, $runtimepath)) {
             throw new \Exception('Failed to copy embeddings fixture to runtime directory');

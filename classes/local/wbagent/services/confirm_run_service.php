@@ -28,6 +28,7 @@ namespace bookingextension_agent\local\wbagent\services;
 
 use bookingextension_agent\local\wbagent\agent_runtime;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
 use bookingextension_agent\local\wbagent\services\attempt_budget_dto;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 use bookingextension_agent\local\wbagent\conversation_store;
@@ -130,7 +131,6 @@ class confirm_run_service {
         }
 
         $queuesvc = new queue_manager($this->store);
-        $auditlogger = new preflight_audit_logger($this->store);
         // Stale blocked_confirmation items are always expired (no admin toggle).
         $queuesvc->fail_expired_blocked_items($threadid);
 
@@ -253,17 +253,6 @@ class confirm_run_service {
             $activequeueitemid,
             'CONFIRMATION_ACCEPTED'
         );
-        $auditlogger->append($threadid, 0, array_merge(
-            $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
-            [
-                'layer' => 'confirmation',
-                'status' => 'ready',
-                'issue_codes' => [],
-                'retry_count' => 0,
-                'duration_ms' => 0,
-                'error_class' => '',
-            ]
-        ));
 
         $outputlang = trim((string)$this->store->get_thread_metadata_value($threadid, 'last_output_lang'));
         if ($outputlang === '') {
@@ -285,19 +274,7 @@ class confirm_run_service {
 
         $this->store->update_run_status($runid, 'running');
         try {
-            if ($queuesvc->try_mark_running($threadid, $activequeueitemid)) {
-                $auditlogger->append($threadid, (int)$runid, array_merge(
-                    $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
-                    [
-                        'layer' => 'execution',
-                        'status' => 'running',
-                        'issue_codes' => [],
-                        'retry_count' => 0,
-                        'duration_ms' => 0,
-                        'error_class' => '',
-                    ]
-                ));
-            } else {
+            if (!$queuesvc->try_mark_running($threadid, $activequeueitemid)) {
                 $this->queuetransitionsvc->to_ready(
                     $queuesvc,
                     $threadid,
@@ -385,23 +362,6 @@ class confirm_run_service {
                     );
                 }
 
-                $auditlogger->append($threadid, (int)$runid, array_merge(
-                    $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid, $retrymeta),
-                    [
-                        'layer' => 'execution',
-                        'status' => $executionstatus,
-                        'issue_codes' => queue_status_policy::is_retry_waiting_status($executionstatus)
-                            ? $issuecodes
-                            : array_values(array_unique(array_merge(
-                                $issuecodes,
-                                (array)($retrydecision['issue_codes'] ?? [])
-                            ))),
-                        'retry_count' => (int)($retrymeta['retry_count'] ?? 0),
-                        'duration_ms' => 0,
-                        'error_class' => $errorclass !== '' ? $errorclass : 'domain_error',
-                    ]
-                ));
-
                 if (!queue_status_policy::is_retry_waiting_status($executionstatus)) {
                     $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
                 }
@@ -413,17 +373,6 @@ class confirm_run_service {
                     'EXECUTION_SUCCEEDED',
                     $issuecodes
                 );
-                $auditlogger->append($threadid, (int)$runid, array_merge(
-                    $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid),
-                    [
-                        'layer' => 'execution',
-                        'status' => 'succeeded',
-                        'issue_codes' => $issuecodes,
-                        'retry_count' => 0,
-                        'duration_ms' => 0,
-                        'error_class' => '',
-                    ]
-                ));
             }
 
             $this->store->update_run_status($runid, 'completed', $results);
@@ -620,17 +569,6 @@ class confirm_run_service {
                 );
             }
 
-            $auditlogger->append($threadid, (int)$runid, array_merge(
-                $this->build_queue_audit_context($queuesvc, $threadid, $activequeueitemid, $retrymeta),
-                [
-                    'layer' => 'execution',
-                    'status' => $executionstatus,
-                    'issue_codes' => $executionissuecodes,
-                    'retry_count' => (int)($retrymeta['retry_count'] ?? 0),
-                    'duration_ms' => 0,
-                    'error_class' => $errorclass !== '' ? $errorclass : 'provider_error',
-                ]
-            ));
             if (!queue_status_policy::is_retry_waiting_status($executionstatus)) {
                 $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
             }
@@ -859,7 +797,7 @@ class confirm_run_service {
     ): array {
         $item = $queuesvc->get_queue_item($threadid, $queueitemid);
         $retrycount = is_array($item) ? max(0, (int)($item['retry_count'] ?? 0)) : 0;
-        $riskclass = is_array($item) ? $this->normalize_risk_class((string)($item['risk_class'] ?? '')) : skill_risk_class::R3;
+        $riskclass = is_array($item) ? risk_class_resolver::normalize((string)($item['risk_class'] ?? '')) : skill_risk_class::R3;
 
         // R3 skills are idempotency-critical; retry after execution is forbidden.
         if ($riskclass === skill_risk_class::R3) {
@@ -917,48 +855,6 @@ class confirm_run_service {
         ];
     }
 
-    /**
-     * Normalize a queued risk class.
-     *
-     * @param string $riskclass
-     * @return string
-     */
-    private function normalize_risk_class(string $riskclass): string {
-        $riskclass = trim($riskclass);
-        if (skill_risk_class::is_valid($riskclass)) {
-            return $riskclass;
-        }
-
-        return skill_risk_class::R3;
-    }
-
-    /**
-     * Build common audit fields for a queue item.
-     *
-     * @param queue_manager $queuesvc
-     * @param int $threadid
-     * @param string $queueitemid
-     * @param array<string,mixed> $retrymeta
-     * @return array{queue_item_id:string,skillname:string,skill_version:int,retry_after_ms:int,contextid:int,reason_code:string}
-     */
-    private function build_queue_audit_context(
-        queue_manager $queuesvc,
-        int $threadid,
-        string $queueitemid,
-        array $retrymeta = []
-    ): array {
-        $item = $queuesvc->get_queue_item($threadid, $queueitemid);
-        $item = is_array($item) ? $item : [];
-
-        return [
-            'queue_item_id' => $queueitemid,
-            'contextid' => max(0, (int)($item['contextid'] ?? 0)),
-            'skillname' => trim((string)($item['skill'] ?? '')),
-            'skill_version' => max(0, (int)($item['version'] ?? 0)),
-            'retry_after_ms' => max(0, (int)($retrymeta['retry_after_ms'] ?? ($item['retry_after_ms'] ?? 0))),
-            'reason_code' => trim((string)($item['reason_code'] ?? '')),
-        ];
-    }
 
     /**
      * Continue runtime loop only when repair/follow-up work remains.

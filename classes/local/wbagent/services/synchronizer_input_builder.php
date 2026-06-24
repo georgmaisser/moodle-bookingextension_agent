@@ -200,7 +200,7 @@ class synchronizer_input_builder {
         return [
             'phase' => trim((string)($snapshot['phase'] ?? '')),
             'response_type' => trim((string)($snapshot['response_type'] ?? '')),
-            'issue_codes' => $this->normalize_issue_codes((array)($snapshot['issue_codes'] ?? [])),
+            'issue_codes' => issue_code_normalizer::normalize((array)($snapshot['issue_codes'] ?? [])),
             'errors' => $this->normalize_nonempty_string_list((array)($snapshot['errors'] ?? [])),
         ];
     }
@@ -230,7 +230,7 @@ class synchronizer_input_builder {
             }
             $statuscounts[$status] = (int)($statuscounts[$status] ?? 0) + 1;
 
-            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $skill = trim((string)($row['skill'] ?? ''));
             if ($skill !== '') {
                 $skills[] = $skill;
             }
@@ -267,7 +267,7 @@ class synchronizer_input_builder {
         }
 
         $responsetype = trim((string)($result['response_type'] ?? ''));
-        $issuecodes = $this->normalize_issue_codes((array)($result['issue_codes'] ?? []));
+        $issuecodes = issue_code_normalizer::normalize((array)($result['issue_codes'] ?? []));
         $attemptedskills = $this->normalize_nonempty_string_list((array)($result['attempted_skills'] ?? []));
 
         $lines = ['FINAL_SOURCE_RESULT'];
@@ -285,24 +285,6 @@ class synchronizer_input_builder {
         $lines[] = 'message=' . substr($normalizedmessage, 0, 600);
 
         return implode("\n", $lines);
-    }
-
-    /**
-     * Normalize issue codes to unique uppercase entries.
-     *
-     * @param array $codes
-     * @return array
-     */
-    private function normalize_issue_codes(array $codes): array {
-        $normalized = [];
-        foreach ($codes as $code) {
-            $value = strtoupper(trim((string)$code));
-            if ($value !== '') {
-                $normalized[] = $value;
-            }
-        }
-
-        return array_values(array_unique($normalized));
     }
 
     /**

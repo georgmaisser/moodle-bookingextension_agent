@@ -52,7 +52,7 @@ class embeddings_retrieval_service {
                 continue;
             }
 
-            $score = $this->cosine_similarity($queryvector, $embedding);
+            $score = vector_math::cosine_similarity($queryvector, $embedding);
             $scored[] = [
                 'score' => $score,
                 'row' => $row,
@@ -89,7 +89,7 @@ class embeddings_retrieval_service {
         }
 
         foreach ($toprows as $row) {
-            $skill = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $skill = trim((string)($row['skill'] ?? ''));
             if ($skill === '') {
                 continue;
             }
@@ -147,7 +147,7 @@ class embeddings_retrieval_service {
         }
 
         $register = function (array $contract) use (&$contractsbyskill, $skillregistry): void {
-            $skillname = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
+            $skillname = trim((string)($contract['skill'] ?? ''));
             if ($skillname === '') {
                 return;
             }
@@ -223,37 +223,6 @@ class embeddings_retrieval_service {
         return $compact;
     }
 
-    /**
-     * Compute cosine similarity.
-     *
-     * @param array<int,float|int> $a
-     * @param array<int,float|int> $b
-     * @return float
-     */
-    private function cosine_similarity(array $a, array $b): float {
-        $len = min(count($a), count($b));
-        if ($len === 0) {
-            return 0.0;
-        }
-
-        $dot = 0.0;
-        $norma = 0.0;
-        $normb = 0.0;
-
-        for ($i = 0; $i < $len; $i++) {
-            $av = (float)$a[$i];
-            $bv = (float)$b[$i];
-            $dot += $av * $bv;
-            $norma += $av * $av;
-            $normb += $bv * $bv;
-        }
-
-        if ($norma <= 0.0 || $normb <= 0.0) {
-            return 0.0;
-        }
-
-        return $dot / (sqrt($norma) * sqrt($normb));
-    }
 
     /**
      * Decode JSON array safely.

@@ -75,9 +75,6 @@ use bookingextension_agent\local\wbagent\services\telemetry\routing_decision_log
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class orchestrator {
-    /** Maximum number of recent messages to include in the prompt. */
-    public const MAX_HISTORY_MESSAGES = 12;
-
     /** Discovery planner phase identifier. */
     public const PHASE_DISCOVERY = 'discovery';
 
@@ -547,7 +544,8 @@ class orchestrator {
                 ];
             }
         } catch (\Throwable $e) {
-            $ignored = $e;
+            // Best-effort: fall through to the next available action below.
+            debugging('orchestrator: provider routing resolution failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
         if ($this->orchestratorroutingsvc->is_action_available_in_context($manager, $context, generate_text::class)) {
@@ -943,10 +941,9 @@ class orchestrator {
             $runtimeblocks['volatile']
         );
 
-        $historycount = count(array_slice(
-            $messages,
-            -$this->promptprofilesvc->get_history_limit_for_phase(self::PHASE_DISCOVERY)
-        ));
+        $historycount = count(
+            $this->promptprofilesvc->select_history_messages($messages, self::PHASE_DISCOVERY)
+        );
         $observationcount = count($observations);
         $primaryprovider = (string)($routing['primaryprovider'] ?? '');
         $debugsource = $this->orchestratorroutingsvc->build_debug_source(
@@ -1099,10 +1096,9 @@ class orchestrator {
             $runtimeblocks['volatile']
         );
 
-        $historycount = count(array_slice(
-            $messages,
-            -$this->promptprofilesvc->get_history_limit_for_phase(self::PHASE_SELECTION)
-        ));
+        $historycount = count(
+            $this->promptprofilesvc->select_history_messages($messages, self::PHASE_SELECTION)
+        );
         $observationcount = count($observations);
         $primaryprovider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
         $debugsource = $this->orchestratorroutingsvc->build_debug_source(
@@ -1169,7 +1165,8 @@ class orchestrator {
                 ]
             );
         } catch (\Throwable $e) {
-            $ignored = $e;
+            // Best-effort discovery enrichment; the base catalog is still usable without it.
+            debugging('orchestrator: discovery enrichment failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
         $lastusermessage = '';
@@ -1226,7 +1223,7 @@ class orchestrator {
         $command = is_array($commands[0]) ? $commands[0] : [];
         $selectedskill = trim((string)($phaseoutput['selected_skill'] ?? ''));
         if ($selectedskill === '') {
-            $selectedskill = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            $selectedskill = trim((string)($command['skill'] ?? ''));
         }
         if ($selectedskill === '') {
             return $this->build_selection_contract_error_result(
@@ -1340,10 +1337,9 @@ class orchestrator {
             $runtimeblocks['volatile']
         );
 
-        $historycount = count(array_slice(
-            $messages,
-            -$this->promptprofilesvc->get_history_limit_for_phase(self::PHASE_PARAMETER_CONSTRUCTION)
-        ));
+        $historycount = count(
+            $this->promptprofilesvc->select_history_messages($messages, self::PHASE_PARAMETER_CONSTRUCTION)
+        );
         $observationcount = count($constructionobservations);
         $primaryprovider = (string)($routing['primaryprovider'] ?? '');
         $debugsource = $this->orchestratorroutingsvc->build_debug_source(
@@ -1410,7 +1406,7 @@ class orchestrator {
             if (!is_array($entry)) {
                 continue;
             }
-            if (trim((string)($entry['skill'] ?? $entry['skill'] ?? '')) !== $selectedskill) {
+            if (trim((string)($entry['skill'] ?? '')) !== $selectedskill) {
                 continue;
             }
             $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
@@ -1424,7 +1420,7 @@ class orchestrator {
             if (!is_array($entry)) {
                 continue;
             }
-            if (trim((string)($entry['skill'] ?? $entry['skill'] ?? '')) !== $selectedskill) {
+            if (trim((string)($entry['skill'] ?? '')) !== $selectedskill) {
                 continue;
             }
             $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
@@ -1494,43 +1490,6 @@ class orchestrator {
         }
 
         return array_values(array_unique($lines));
-    }
-
-    /**
-     * Build construction-phase skill allow-list from discovery-ranked catalogs.
-     *
-     * @param array<int,array<string,mixed>> $runtimecatalog
-     * @param array<int,array<string,mixed>> $adaptivecatalog
-     * @return array<int,string>
-     */
-    private function build_construction_allowed_skills(array $runtimecatalog, array $adaptivecatalog): array {
-        $skills = [];
-
-        foreach ($runtimecatalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
-            if ($skill !== '') {
-                $skills[] = $skill;
-            }
-        }
-
-        if (!empty($skills)) {
-            return array_values(array_unique($skills));
-        }
-
-        foreach ($adaptivecatalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
-            if ($skill !== '') {
-                $skills[] = $skill;
-            }
-        }
-
-        return array_values(array_unique($skills));
     }
 
     /**
@@ -1879,7 +1838,7 @@ PROMPT;
                 continue;
             }
 
-            $skillname = (string)($entry['skill'] ?? $entry['skill'] ?? '');
+            $skillname = (string)($entry['skill'] ?? '');
             if ($skillname === '') {
                 continue;
             }
@@ -2088,7 +2047,7 @@ PROMPT;
                 continue;
             }
 
-            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            $skill = trim((string)($entry['skill'] ?? ''));
             if ($skill === '') {
                 continue;
             }
@@ -2159,7 +2118,7 @@ PROMPT;
                 continue;
             }
 
-            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            $skillname = trim((string)($entry['skill'] ?? ''));
             if ($skillname === '') {
                 continue;
             }
@@ -2334,7 +2293,7 @@ PROMPT;
                 $commands = (array)($meta['commands'] ?? []);
                 foreach ($commands as $cmd) {
                     if (is_array($cmd) && (isset($cmd['skill']) || isset($cmd['skill']))) {
-                        $skillname = (string)($cmd['skill'] ?? $cmd['skill'] ?? '');
+                        $skillname = (string)($cmd['skill'] ?? '');
                         if ($skillname !== '' && !in_array($skillname, $skillnames, true)) {
                             $skillnames[] = $skillname;
                         }
@@ -3000,7 +2959,7 @@ PROMPT;
                 continue;
             }
 
-            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            $skillname = trim((string)($entry['skill'] ?? ''));
             if ($skillname === '') {
                 continue;
             }
@@ -3014,32 +2973,6 @@ PROMPT;
         }
 
         return array_values($filtered);
-    }
-
-    /**
-     * Map a contract deny reason to a runtime availability flag.
-     *
-     * @param string $reason
-     * @return string
-     */
-    private function availability_from_deny_reason(string $reason): string {
-        if ($reason === skill_contract_validator::DENY_MISSING_CAPABILITY) {
-            return 'not_active_for_you';
-        }
-
-        if ($reason === skill_contract_validator::DENY_CONTEXT_INVALID) {
-            return 'invalid_context';
-        }
-
-        if ($reason === skill_contract_validator::DENY_RUNTIME_DISABLED) {
-            return 'runtime_disabled';
-        }
-
-        if ($reason === skill_contract_validator::DENY_REQUIRES_PRO) {
-            return 'requires_pro_license_or_subscription';
-        }
-
-        return 'not_active_now';
     }
 
     /**
@@ -3077,43 +3010,6 @@ PROMPT;
     }
 
     /**
-     * Keep only valid unavailable-skill catalog entries.
-     *
-     * @param array<int,mixed> $catalog
-     * @return array<int,array<string,string>>
-     */
-    private function sanitize_unavailable_skill_catalog(array $catalog): array {
-        return array_values(array_filter($catalog, static function ($entry): bool {
-            return is_array($entry) && trim((string)($entry['skill'] ?? $entry['skill'] ?? '')) !== '';
-        }));
-    }
-
-    /**
-     * Build skill-description lookup map from prompt contracts.
-     *
-     * @param array<int,array<string,mixed>> $promptcontracts
-     * @return array<string,string>
-     */
-    private function build_skill_description_index(array $promptcontracts): array {
-        $index = [];
-
-        foreach ($promptcontracts as $contract) {
-            if (!is_array($contract)) {
-                continue;
-            }
-
-            $skillname = trim((string)($contract['skill'] ?? $contract['skill'] ?? ''));
-            if ($skillname === '') {
-                continue;
-            }
-
-            $index[$skillname] = trim((string)($contract['description'] ?? ''));
-        }
-
-        return $index;
-    }
-
-    /**
      * Resolve a deterministic namespace hint from prompt contracts.
      *
      * @param array<int,array<string,mixed>> $promptcontracts
@@ -3142,74 +3038,4 @@ PROMPT;
         return (string)array_key_first($counts);
     }
 
-    /**
-     * Augment a primary planner catalog with a small number of recent executable skills.
-     *
-     * @param array<int,array<string,mixed>> $primarycatalog
-     * @param array<int,string> $recentskillhistory
-     * @param array<int,array<string,mixed>> $fallbackcatalog
-     * @param array<string,array<string,mixed>> $evaluations
-     * @param int $maxadditions
-     * @return array<int,array<string,mixed>>
-     */
-    private function augment_catalog_with_recent_executable_skills(
-        array $primarycatalog,
-        array $recentskillhistory,
-        array $fallbackcatalog,
-        array $evaluations,
-        int $maxadditions = 1
-    ): array {
-        if ($maxadditions <= 0 || empty($recentskillhistory) || empty($fallbackcatalog)) {
-            return $primarycatalog;
-        }
-
-        $existing = [];
-        foreach ($primarycatalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
-            if ($skillname !== '') {
-                $existing[$skillname] = true;
-            }
-        }
-
-        $fallbackindex = [];
-        foreach ($fallbackcatalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            $skillname = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
-            if ($skillname !== '') {
-                $fallbackindex[$skillname] = $entry;
-            }
-        }
-
-        $result = $primarycatalog;
-        $added = 0;
-        foreach ($recentskillhistory as $skillname) {
-            $skillname = trim((string)$skillname);
-            if ($skillname === '' || isset($existing[$skillname])) {
-                continue;
-            }
-
-            $executablestate = trim((string)($evaluations[$skillname]['executable_state'] ?? ''));
-            if ($executablestate === 'deny') {
-                continue;
-            }
-
-            if (!isset($fallbackindex[$skillname])) {
-                continue;
-            }
-
-            $result[] = $fallbackindex[$skillname];
-            $existing[$skillname] = true;
-            $added++;
-            if ($added >= $maxadditions) {
-                break;
-            }
-        }
-
-        return $result;
-    }
 }

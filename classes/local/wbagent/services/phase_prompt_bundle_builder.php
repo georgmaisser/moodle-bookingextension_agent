@@ -234,7 +234,7 @@ PROMPT;
         array $plannedstepintents = [],
         string $runtimestate = ''
     ): string {
-        $trimmedmessages = array_slice($messages, -$this->promptprofilesvc->get_history_limit_for_phase($phase));
+        $trimmedmessages = $this->promptprofilesvc->select_history_messages($messages, $phase);
 
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 

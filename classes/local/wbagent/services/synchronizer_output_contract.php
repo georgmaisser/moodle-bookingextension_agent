@@ -209,7 +209,7 @@ class synchronizer_output_contract {
             return 'SYNC_RESPONSE_TYPE_ERROR_REJECTED';
         }
 
-        $issuecodes = $this->normalize_issue_codes((array)($sync['issue_codes'] ?? []));
+        $issuecodes = issue_code_normalizer::normalize((array)($sync['issue_codes'] ?? []));
         foreach ($issuecodes as $code) {
             if (str_starts_with($code, 'CONTRACT_')) {
                 return 'SYNC_CONTRACT_ISSUE_REJECTED';
@@ -331,23 +331,5 @@ class synchronizer_output_contract {
         $payload['sync_gate_status'] = trim($status);
         $payload['sync_gate_reason'] = trim($reason);
         return $payload;
-    }
-
-    /**
-     * Normalize issue codes to unique uppercase entries.
-     *
-     * @param array $codes
-     * @return array
-     */
-    private function normalize_issue_codes(array $codes): array {
-        $normalized = [];
-        foreach ($codes as $code) {
-            $value = strtoupper(trim((string)$code));
-            if ($value !== '') {
-                $normalized[] = $value;
-            }
-        }
-
-        return array_values(array_unique($normalized));
     }
 }

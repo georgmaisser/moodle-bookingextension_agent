@@ -101,8 +101,9 @@ class docs_lookup_service {
             return [];
         }
 
-        // Search across ALL corpora at once; each index row carries its own corpus_id.
-        $repo = new docs_embeddings_csv_repository();
+        // Search across ALL corpora at once; each index row carries its own corpus_id. The store is
+        // scoped to the active embeddings variant so only same-model vectors are compared.
+        $repo = docs_embeddings_csv_repository::for_active_variant();
         $rows = $repo->read_rows();
         if (empty($rows)) {
             return [];
@@ -148,7 +149,8 @@ class docs_lookup_service {
 
         $results = [];
         foreach ($toprows as $hit) {
-            $score = (float)($hit['_similarity'] ?? 0.0);
+            // Cosine similarity is stored under 'score' (0–1) by search_top_k().
+            $score = (float)($hit['score'] ?? 0.0);
             if ($score < self::SEMANTIC_MIN_SCORE) {
                 continue;
             }

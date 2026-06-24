@@ -167,26 +167,6 @@ class prompt_policy_builder {
     }
 
     /**
-     * Build NON-OPTIONAL TRIGGER POLICY.
-     *
-     * @param string $triggerjson
-     * @return string
-     */
-    private static function build_trigger_policy(string $triggerjson): string {
-        return "NON-OPTIONAL TRIGGER POLICY:\n"
-            . "- Evaluate the latest user message against the skill catalog and the current conversation state.\n"
-            . "- Return a JSON array field 'used_triggers' with trigger ids that apply to the latest user message.\n"
-            . "- Do NOT invent trigger ids. Use only ids from the catalog.\n"
-            . "- If none apply, return 'used_triggers': [].\n"
-            . "- Skill catalog entries may include example_input and message_triggers for grounding.\n"
-            . "- CRITICAL: NEVER include 'core.is_lookup_request' in used_triggers.\n"
-            . "- 'core.is_lookup_request' is server-managed from skill readonly properties.\n"
-            . "- All other valid core triggers (e.g. core.is_confirmation_message) should be detected normally.\n"
-            . "\nREQUIRED OUTPUT FIELD:\n"
-            . "- Every response MUST include used_triggers as a JSON array (field required, may be empty).";
-    }
-
-    /**
      * Build compact trigger policy for non-routing steps.
      *
      * @return string

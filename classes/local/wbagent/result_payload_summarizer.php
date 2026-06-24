@@ -439,7 +439,7 @@ class result_payload_summarizer {
      * @return string
      */
     private static function summarize_with_skill_provider(array $entry, array $context): string {
-        $skillname = trim((string)($context['skill'] ?? $context['skill'] ?? ''));
+        $skillname = trim((string)($context['skill'] ?? ''));
         if ($skillname === '') {
             return '';
         }

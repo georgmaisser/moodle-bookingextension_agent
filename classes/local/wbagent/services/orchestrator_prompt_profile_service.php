@@ -38,6 +38,15 @@ class orchestrator_prompt_profile_service {
     public const PHASE_PARAMETER_CONSTRUCTION = 'parameter_construction';
 
     /**
+     * Number of most-recent conversation messages kept in the planner/synchronizer prompt.
+     *
+     * The first user message (original request) is preserved on top of this tail when it would
+     * otherwise drop out — see {@see self::select_history_messages()}. ~7 user/assistant turns;
+     * single tunable point.
+     */
+    public const HISTORY_TAIL_LIMIT = 14;
+
+    /**
      * Detect whether observations only contain framework-authored retry hints.
      *
      * @param array $observations
@@ -77,16 +86,55 @@ class orchestrator_prompt_profile_service {
     }
 
     /**
-     * Return history depth per explicit planner phase.
+     * Return the recent-history tail size for a planner phase.
+     *
+     * Phase-independent for now; kept as a seam so a per-phase tail size can be introduced
+     * here without touching call sites. The actual message selection (which also preserves
+     * the original request) lives in {@see self::select_history_messages()}.
      *
      * @param string $phase
      * @return int
      */
     public function get_history_limit_for_phase(string $phase): int {
-        $normalizedphase = $this->normalize_phase($phase);
-        $ignored = $normalizedphase;
+        return self::HISTORY_TAIL_LIMIT;
+    }
 
-        return PHP_INT_MAX;
+    /**
+     * Select the conversation messages to inject into a planner/synchronizer prompt.
+     *
+     * Keeps the most recent {@see self::get_history_limit_for_phase()} messages and additionally
+     * preserves the very first user message (the original request) when it would otherwise fall
+     * outside that tail window — so long clarification threads never lose the originating ask.
+     * Tool results/observations are injected separately and are unaffected by this windowing.
+     *
+     * @param array<int,\stdClass> $messages Conversation messages, oldest-first, without 'step' rows.
+     * @param string $phase
+     * @return array<int,\stdClass>
+     */
+    public function select_history_messages(array $messages, string $phase): array {
+        $messages = array_values($messages);
+        $limit = $this->get_history_limit_for_phase($phase);
+        if ($limit <= 0 || count($messages) <= $limit) {
+            return $messages;
+        }
+
+        $tail = array_slice($messages, -$limit);
+
+        // Find the original request: the first user-authored message.
+        $firstuserindex = null;
+        foreach ($messages as $index => $msg) {
+            if ((string)($msg->role ?? '') === 'user') {
+                $firstuserindex = $index;
+                break;
+            }
+        }
+
+        // No user message, or it already sits inside the tail window: tail is complete as-is.
+        if ($firstuserindex === null || $firstuserindex >= count($messages) - $limit) {
+            return $tail;
+        }
+
+        return array_merge([$messages[$firstuserindex]], $tail);
     }
 
     /**

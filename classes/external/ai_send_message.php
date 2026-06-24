@@ -390,7 +390,7 @@ class ai_send_message extends external_api {
             return is_array($result['commands'] ?? null) ? (array)$result['commands'] : [];
         }
 
-        $skill = trim((string)($item['skill'] ?? $item['skill'] ?? ''));
+        $skill = trim((string)($item['skill'] ?? ''));
         if ($skill === '') {
             return [];
         }

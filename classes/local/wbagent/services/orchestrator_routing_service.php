@@ -100,7 +100,8 @@ class orchestrator_routing_service {
                 ];
             }
         } catch (\Throwable $e) {
-            $ignored = $e;
+            // Best-effort: fall through to the next available action below.
+            debugging('orchestrator_routing_service: selection-phase routing failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
         if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {
@@ -135,7 +136,8 @@ class orchestrator_routing_service {
                 ];
             }
         } catch (\Throwable $e) {
-            $ignored = $e;
+            // Best-effort: fall through to the next available action below.
+            debugging('orchestrator_routing_service: construction-phase routing failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
         if ($this->is_action_available_in_context($manager, $context, summarise_text::class)) {

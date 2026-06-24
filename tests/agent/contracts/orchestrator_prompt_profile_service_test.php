@@ -50,8 +50,95 @@ final class orchestrator_prompt_profile_service_test extends advanced_testcase {
             'aiinitialprompt_parameter_construction',
             $service->get_planner_initial_prompt_config_key_for_phase('parameter_construction')
         );
-        $this->assertSame(PHP_INT_MAX, $service->get_history_limit_for_phase('discovery'));
-        $this->assertSame(PHP_INT_MAX, $service->get_history_limit_for_phase('selection'));
-        $this->assertSame(PHP_INT_MAX, $service->get_history_limit_for_phase('parameter_construction'));
+        $limit = orchestrator_prompt_profile_service::HISTORY_TAIL_LIMIT;
+        $this->assertSame($limit, $service->get_history_limit_for_phase('discovery'));
+        $this->assertSame($limit, $service->get_history_limit_for_phase('selection'));
+        $this->assertSame($limit, $service->get_history_limit_for_phase('parameter_construction'));
+    }
+
+    /**
+     * Short threads pass through unchanged.
+     *
+     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     */
+    public function test_select_history_returns_all_for_short_thread(): void {
+        $service = new orchestrator_prompt_profile_service();
+        $messages = $this->build_messages(['user', 'assistant', 'user']);
+
+        $selected = $service->select_history_messages($messages, 'selection');
+
+        $this->assertSame($messages, $selected);
+    }
+
+    /**
+     * Long threads keep the original request plus the most-recent tail (max N + 1).
+     *
+     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     */
+    public function test_select_history_preserves_first_user_message(): void {
+        $service = new orchestrator_prompt_profile_service();
+        $limit = orchestrator_prompt_profile_service::HISTORY_TAIL_LIMIT;
+
+        // First message is the original user request; followed by many later turns.
+        $roles = array_merge(['user'], array_fill(0, $limit + 6, 'assistant'));
+        $messages = $this->build_messages($roles);
+
+        $selected = $service->select_history_messages($messages, 'selection');
+
+        $this->assertCount($limit + 1, $selected);
+        $this->assertSame($messages[0], $selected[0], 'Original request must be kept on top.');
+        $this->assertSame($messages[count($messages) - 1], $selected[count($selected) - 1], 'Tail must end at the newest message.');
+    }
+
+    /**
+     * When the first user message already sits inside the tail window, no duplicate is prepended.
+     *
+     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     */
+    public function test_select_history_no_duplicate_when_first_user_in_tail(): void {
+        $service = new orchestrator_prompt_profile_service();
+        $limit = orchestrator_prompt_profile_service::HISTORY_TAIL_LIMIT;
+
+        // Leading assistant rows push the first user message close to the end, inside the tail.
+        $roles = array_merge(['assistant', 'assistant'], array_fill(0, $limit, 'user'));
+        $messages = $this->build_messages($roles);
+
+        $selected = $service->select_history_messages($messages, 'selection');
+
+        $this->assertCount($limit, $selected);
+    }
+
+    /**
+     * Threads without any user message fall back to the plain tail.
+     *
+     * @covers \bookingextension_agent\local\wbagent\services\orchestrator_prompt_profile_service::select_history_messages
+     */
+    public function test_select_history_tail_only_without_user_message(): void {
+        $service = new orchestrator_prompt_profile_service();
+        $limit = orchestrator_prompt_profile_service::HISTORY_TAIL_LIMIT;
+
+        $messages = $this->build_messages(array_fill(0, $limit + 5, 'assistant'));
+
+        $selected = $service->select_history_messages($messages, 'selection');
+
+        $this->assertCount($limit, $selected);
+        $this->assertSame($messages[count($messages) - 1], $selected[count($selected) - 1]);
+    }
+
+    /**
+     * Build a list of stdClass messages with sequential content for the given roles.
+     *
+     * @param string[] $roles
+     * @return \stdClass[]
+     */
+    private function build_messages(array $roles): array {
+        $messages = [];
+        foreach (array_values($roles) as $index => $role) {
+            $msg = new \stdClass();
+            $msg->role = $role;
+            $msg->content = 'm' . $index;
+            $messages[] = $msg;
+        }
+        return $messages;
     }
 }

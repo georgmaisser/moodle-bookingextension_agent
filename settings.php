@@ -212,15 +212,40 @@ if ($agentenabled) {
         )
     );
 
-    $aisettingspage->add(
-        new admin_setting_configtext(
-            'bookingextension_agent/aidocsroot',
-            get_string('aidocsroot', 'bookingextension_agent'),
-            get_string('aidocsroot_desc', 'bookingextension_agent'),
-            '',
-            PARAM_TEXT
-        )
+    // Seed the two default corpora (agent + mod_booking) the first time only, so existing sites
+    // that predate the textarea setting also get the out-of-the-box documentation sources. A
+    // deliberately-emptied value (saved as '') is preserved.
+    if (get_config('bookingextension_agent', 'aidocsroot') === false) {
+        set_config('aidocsroot', "bookingextension_agent\nmod_booking", 'bookingextension_agent');
+    }
+
+    // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a
+    // link to the skill governance page where it is toggled.
+    $docsskillgovurl = new moodle_url('/mod/booking/bookingextension/agent/skill_governance.php');
+    if (\bookingextension_agent\local\wbagent\services\lookup\docs_embeddings_gate::is_docs_skill_active()) {
+        $docsskillindicator = get_string('aidocsroot_skill_active', 'bookingextension_agent');
+    } else {
+        $docsskillindicator = get_string(
+            'aidocsroot_skill_inactive',
+            'bookingextension_agent',
+            html_writer::link($docsskillgovurl, get_string('skillgovernance', 'bookingextension_agent'))
+        );
+    }
+    $docscorporadesc = get_string('aidocsroot_desc', 'bookingextension_agent')
+        . html_writer::div($docsskillindicator, 'alert alert-info mt-2');
+
+    $docscorpora = new \bookingextension_agent\admin\setting_docs_corpora(
+        'bookingextension_agent/aidocsroot',
+        get_string('aidocsroot', 'bookingextension_agent'),
+        $docscorporadesc,
+        "bookingextension_agent\nmod_booking",
+        PARAM_RAW
     );
+    // Fast path: a corpus change schedules an (gated) incremental rebuild straight away.
+    $docscorpora->set_updatedcallback(
+        '\\bookingextension_agent\\local\\wbagent\\services\\lookup\\docs_embeddings_readiness_service::on_corpus_setting_updated'
+    );
+    $aisettingspage->add($docscorpora);
 
     $aisettingspage->add(
         new admin_setting_configselect(

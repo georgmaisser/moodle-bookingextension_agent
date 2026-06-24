@@ -110,7 +110,7 @@ class completed_command_history_service {
                 continue;
             }
 
-            $skill = trim((string)($entry['skill'] ?? $entry['skill'] ?? ''));
+            $skill = trim((string)($entry['skill'] ?? ''));
             if ($skill === '') {
                 continue;
             }
@@ -165,7 +165,7 @@ class completed_command_history_service {
                 continue;
             }
 
-            $skill = trim((string)($item['skill'] ?? $item['skill'] ?? ''));
+            $skill = trim((string)($item['skill'] ?? ''));
             // Placeholders are planning artifacts only — they were never executed.
             // Excluding them prevents the synchronizer from reporting unexecuted steps as done.
             if ($skill === '' || $skill === '__placeholder__') {
@@ -212,7 +212,7 @@ class completed_command_history_service {
      * @return string
      */
     private function build_signature(array $command): string {
-        $skill = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+        $skill = trim((string)($command['skill'] ?? ''));
         if ($skill === '') {
             return '';
         }

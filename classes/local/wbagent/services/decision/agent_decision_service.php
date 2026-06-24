@@ -28,6 +28,7 @@ namespace bookingextension_agent\local\wbagent\services\decision;
 
 use core_text;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
+use bookingextension_agent\local\wbagent\services\risk\risk_class_resolver;
 use bookingextension_agent\local\wbagent\booking_issue_code_provider;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\executor;
@@ -1027,7 +1028,7 @@ class agent_decision_service {
                 continue;
             }
 
-            $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
+            $skillname = trim((string)($command['skill'] ?? ''));
             if ($skillname === '') {
                 continue;
             }
@@ -1409,7 +1410,7 @@ class agent_decision_service {
             if (!is_array($command)) {
                 continue;
             }
-            if ($this->resolve_command_risk_class($command) !== skill_risk_class::R0) {
+            if (risk_class_resolver::resolve_for_command($command, $this->registry) !== skill_risk_class::R0) {
                 return true;
             }
         }
@@ -1437,7 +1438,7 @@ class agent_decision_service {
                 $groups['r3'][] = ['skill' => '', 'input' => [], 'risk_class' => skill_risk_class::R3];
                 continue;
             }
-            $riskclass = $this->resolve_command_risk_class($command);
+            $riskclass = risk_class_resolver::resolve_for_command($command, $this->registry);
             $command['risk_class'] = $riskclass;
             if ($riskclass === skill_risk_class::R0) {
                 $groups['r0'][] = $command;
@@ -1479,37 +1480,11 @@ class agent_decision_service {
             if (!is_array($command)) {
                 continue;
             }
-            $command['risk_class'] = $this->resolve_command_risk_class($command);
+            $command['risk_class'] = risk_class_resolver::resolve_for_command($command, $this->registry);
         }
         unset($command);
 
         return $commands;
-    }
-
-    /**
-     * Resolve the effective risk class for a command.
-     *
-     * @param array<string,mixed> $command
-     * @return string
-     */
-    private function resolve_command_risk_class(array $command): string {
-        $riskclass = trim((string)($command['risk_class'] ?? ''));
-        if (skill_risk_class::is_valid($riskclass)) {
-            return $riskclass;
-        }
-
-        $skillname = trim((string)($command['skill'] ?? $command['skill'] ?? ''));
-        if ($skillname !== '') {
-            $skill = $this->registry->get_skill($skillname);
-            if ($skill !== null) {
-                $skillriskclass = trim($skill->get_risk_class());
-                if (skill_risk_class::is_valid($skillriskclass)) {
-                    return $skillriskclass;
-                }
-            }
-        }
-
-        return skill_risk_class::R3;
     }
 
     /**

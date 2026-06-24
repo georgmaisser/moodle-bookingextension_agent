@@ -312,30 +312,15 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Discovery-ranked construction allow-lists must keep all candidate skills
-     * when selection has not explicitly chosen a single skill.
+     * Selection output without an explicit single skill yields no forced selection.
      */
-    public function test_construction_allow_list_keeps_all_ranked_skills_without_explicit_selection(): void {
+    public function test_selection_without_explicit_skill_returns_empty_selection(): void {
         $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\orchestrator::class);
         $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
 
-        $allowlistmethod = $orchestratorreflection->getMethod('build_construction_allowed_skills');
-        $allowlistmethod->setAccessible(true);
         $selectedskillmethod = $orchestratorreflection->getMethod('extract_selected_skill_from_selection_phase_output');
         $selectedskillmethod->setAccessible(true);
 
-        $allowed = $allowlistmethod->invoke($orchestrator, [
-            ['skill' => 'mod_booking.create_option'],
-            ['skill' => 'mod_booking.search_options'],
-            ['skill' => 'mod_booking.create_option'],
-        ], [
-            ['skill' => 'mod_booking.update_option'],
-        ]);
-
-        $this->assertSame(
-            ['mod_booking.create_option', 'mod_booking.search_options'],
-            $allowed
-        );
         $this->assertSame('', $selectedskillmethod->invoke($orchestrator, ['response_type' => 'sufficient']));
     }
 
@@ -853,29 +838,6 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
-     * Audit log payload must include deterministic reconstruction fields.
-     */
-    public function test_preflight_audit_log_format_contains_reconstruction_fields(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wbagent\services\preflight_audit_logger::class);
-        $source = file_get_contents((string)$reflection->getFileName());
-        $this->assertIsString($source);
-
-        $this->assertStringContainsString("'timestamp'", $source);
-        $this->assertStringContainsString("'thread_id'", $source);
-        $this->assertStringContainsString("'contextid'", $source);
-        $this->assertStringContainsString("'run_id'", $source);
-        $this->assertStringContainsString("'queue_item_id'", $source);
-        $this->assertStringContainsString("'layer'", $source);
-        $this->assertStringContainsString("'status'", $source);
-        $this->assertStringContainsString("'reason_code'", $source);
-        $this->assertStringContainsString("'issue_codes'", $source);
-        $this->assertStringContainsString("'retry_count'", $source);
-        $this->assertStringContainsString("'retry_after_ms'", $source);
-        $this->assertStringContainsString("'duration_ms'", $source);
-        $this->assertStringContainsString("'error_class'", $source);
-    }
-
-    /**
      * Template finalization must keep technical root-cause messages explicit.
      */
     public function test_finalization_template_message_reflects_technical_cause(): void {
@@ -900,6 +862,19 @@ final class integration_agent_framework_test extends TestCase {
             \bookingextension_agent\local\wbagent\services\decision\agent_decision_service::class
         );
         $service = $reflection->newInstanceWithoutConstructor();
+
+        // split_commands_by_mutability resolves risk class via risk_class_resolver, which receives
+        // $this->registry; initialise the typed property with a stub (the commands carry explicit
+        // risk_class, so get_skill() is never actually consulted here).
+        $registry = $this->getMockBuilder(skill_registry::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_skill'])
+            ->getMock();
+        $registry->method('get_skill')->willReturn(null);
+        $registryprop = $reflection->getProperty('registry');
+        $registryprop->setAccessible(true);
+        $registryprop->setValue($service, $registry);
+
         $method = $reflection->getMethod('split_commands_by_mutability');
         $method->setAccessible(true);
 

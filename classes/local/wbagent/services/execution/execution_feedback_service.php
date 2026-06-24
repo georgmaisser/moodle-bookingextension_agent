@@ -509,7 +509,7 @@ class execution_feedback_service {
             return $message;
         }
 
-        $prefix = (trim(strtolower($outputlang)) === 'de') ? 'Link: ' : 'Link: ';
+        $prefix = 'Link: ';
         if ($message === '') {
             return $prefix . $link;
         }

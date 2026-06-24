@@ -110,27 +110,6 @@ final class agent_state {
     }
 
     /**
-     * Create an agent state pre-loaded with observations from a previous run.
-     *
-     * Used when resuming a loop that previously hit the step limit and stored
-     * its observations in thread metadata (_loop_resume).
-     *
-     * @param  int      $maxsteps      Maximum loop steps.
-     * @param  string[] $observations  Observation strings from the previous loop.
-     * @return self
-     */
-    public static function make_resumed(int $maxsteps, array $observations): self {
-        $instance = new self(max(1, $maxsteps));
-        foreach ($observations as $obs) {
-            $trimmed = trim((string)$obs);
-            if ($trimmed !== '') {
-                $instance->observations[] = $trimmed;
-            }
-        }
-        return $instance;
-    }
-
-    /**
      * Record a completed tool-execution step together with its observation.
      *
      * Called once per loop iteration where read-only tools were executed and
@@ -307,70 +286,4 @@ final class agent_state {
         $cache[$key] = $payload;
     }
 
-    /**
-     * Extract command signatures from all completed steps.
-     *
-     * Returns an array of signature strings (skill|inputhash) that have been
-     * executed in prior steps. Used for loop-guard detection to prevent
-     * redundant same-signature re-calls when observations already exist.
-     *
-     * @return string[]
-     */
-    public function extract_observed_command_signatures(): array {
-        $signatures = [];
-
-        foreach ($this->steps as $step) {
-            $toolcalls = (array)($step['tool_calls'] ?? []);
-
-            foreach ($toolcalls as $command) {
-                if (!is_array($command)) {
-                    continue;
-                }
-
-                $skillname = trim((string)($command['skill'] ?? ''));
-                if ($skillname === '') {
-                    continue;
-                }
-
-                // Normalize input for comparison (sorted keys, recursively).
-                $input = $command['input'] ?? [];
-                if (!is_array($input)) {
-                    $input = [];
-                }
-
-                $normalized = self::normalize_command_input($input);
-                $encoded = json_encode(
-                    $normalized,
-                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-                );
-                $signature = $skillname . '|' . (is_string($encoded) ? $encoded : '{}');
-                $signatures[] = $signature;
-            }
-        }
-
-        return array_values(array_unique($signatures));
-    }
-
-    /**
-     * Recursively normalize command input for stable signature comparison.
-     *
-     * @param mixed $value
-     * @return mixed
-     */
-    private static function normalize_command_input($value) {
-        if (!is_array($value)) {
-            return $value;
-        }
-
-        if (array_is_list($value)) {
-            return array_map(fn($item) => self::normalize_command_input($item), $value);
-        }
-
-        ksort($value);
-        foreach ($value as $key => $item) {
-            $value[$key] = self::normalize_command_input($item);
-        }
-
-        return $value;
-    }
 }

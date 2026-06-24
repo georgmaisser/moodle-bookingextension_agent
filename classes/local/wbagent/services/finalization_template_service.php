@@ -97,7 +97,7 @@ class finalization_template_service {
     public function resolve_message(array $result): string {
         $msg = '';
 
-        foreach ($this->normalize_issue_codes($result) as $issuecode) {
+        foreach (issue_code_normalizer::from_result($result) as $issuecode) {
             if (isset(self::ISSUE_CODE_LANG_KEYS[$issuecode])) {
                 $localized = get_string(self::ISSUE_CODE_LANG_KEYS[$issuecode], 'bookingextension_agent');
                 if ($localized !== '' && !str_starts_with($localized, '[[')) {
@@ -143,28 +143,5 @@ class finalization_template_service {
         }
 
         return '';
-    }
-
-    /**
-     * Normalize issue codes to unique uppercase values.
-     *
-     * @param array<string,mixed> $result
-     * @return string[]
-     */
-    private function normalize_issue_codes(array $result): array {
-        $raw = $result['issue_codes'] ?? [];
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        $codes = [];
-        foreach ($raw as $code) {
-            $value = strtoupper(trim((string)$code));
-            if ($value !== '') {
-                $codes[] = $value;
-            }
-        }
-
-        return array_values(array_unique($codes));
     }
 }

@@ -28,7 +28,6 @@ namespace bookingextension_agent\local\wbagent\services\embeddings;
 
 use bookingextension_agent\local\wbagent\embeddings_action_config_resolver;
 use bookingextension_agent\local\wbagent\embeddings_csv_repository;
-use bookingextension_agent\local\wbagent\orchestrator;
 use bookingextension_agent\local\wbagent\skill_registry;
 use bookingextension_agent\local\wbagent\conversation_store;
 use bookingextension_agent\local\wbagent\services\llm\llm_call_service;
@@ -64,20 +63,13 @@ class family_embeddings_index_service {
             ];
         }
 
-        $resolvedsettings = (new embeddings_action_config_resolver())->resolve();
-        $resolvedmodel = trim((string)($model ?? ($resolvedsettings['model'] ?? orchestrator::EMBEDDINGS_DEFAULT_MODEL)));
-        if ($resolvedmodel === '') {
-            $resolvedmodel = orchestrator::EMBEDDINGS_DEFAULT_MODEL;
-        }
-
-        $resolveddimensions = (int)($dimensions
-            ?? ($resolvedsettings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS));
-        if ($resolveddimensions < 1) {
-            $resolveddimensions = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
-        }
+        $resolved = (new embeddings_action_config_resolver())->resolve_with_overrides($model, $dimensions);
+        $resolvedmodel = $resolved['model'];
+        $resolveddimensions = $resolved['dimensions'];
 
         $builder = new embeddings_catalog_builder_service();
-        $repo = new embeddings_csv_repository();
+        // Write into the active model's variant file (respects model/dimensions overrides above).
+        $repo = embeddings_csv_repository::for_variant($resolvedmodel, $resolveddimensions);
         $rows = $builder->build_full_catalog_rows($registry, $resolvedmodel, $resolveddimensions);
         if (empty($rows)) {
             return [
@@ -93,7 +85,7 @@ class family_embeddings_index_service {
         $existingbyskill = [];
         if ($repo->is_valid_schema($existingrows)) {
             foreach ($existingrows as $existingrow) {
-                $skillname = trim((string)($existingrow['skill'] ?? $existingrow['skill'] ?? ''));
+                $skillname = trim((string)($existingrow['skill'] ?? ''));
                 if ($skillname !== '') {
                     $existingbyskill[$skillname] = $existingrow;
                 }
@@ -103,7 +95,7 @@ class family_embeddings_index_service {
         $currentskillnames = [];
         $skillstates = [];
         foreach ($rows as $idx => $row) {
-            $skillname = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $skillname = trim((string)($row['skill'] ?? ''));
             if ($skillname === '') {
                 continue;
             }
@@ -139,7 +131,7 @@ class family_embeddings_index_service {
         $llm = new llm_call_service(new conversation_store());
 
         foreach ($rows as $idx => $row) {
-            $skillname = trim((string)($row['skill'] ?? $row['skill'] ?? ''));
+            $skillname = trim((string)($row['skill'] ?? ''));
             $contenthash = trim((string)($row['content_hash'] ?? ''));
             $existingrow = ($skillname !== '' && isset($existingbyskill[$skillname])) ? $existingbyskill[$skillname] : null;
 

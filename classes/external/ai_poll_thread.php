@@ -67,6 +67,10 @@ class ai_poll_thread extends external_api {
     public static function execute(int $contextid, int $threadid, int $lastseenid = 0): array {
         global $USER;
 
+        // No require_sesskey() by design: this is a read-only poll endpoint. Like the other
+        // read endpoints it stays lock-free (only write endpoints enforce sesskey), and it never
+        // trusts a client-supplied threadid (ownership is re-checked via thread_belongs_to_user below).
+
         $params = self::validate_parameters(self::execute_parameters(), [
             'contextid'  => $contextid,
             'threadid'   => $threadid,
