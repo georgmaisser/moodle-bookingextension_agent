@@ -108,9 +108,9 @@ class trial_provisioner {
      * Configure the Wunderbyte provider from an already-configured third-party provider.
      *
      * Reuses the existing (non-Wunderbyte) provider's API key, chat endpoint and chat model for the
-     * agent's custom Wunderbyte aiactions, and adds a default embeddings model
-     * (text-embedding-3-small) since the source endpoint will not serve the wunderbyte-embeddings
-     * alias. No trial key and no call to llm.wunderbyte.at — the user's existing credentials are
+     * agent's custom Wunderbyte aiactions, and adds an embeddings model matched to the cloned endpoint
+     * (wunderbyte-embeddings when it points at the Wunderbyte LLM, otherwise text-embedding-3-small).
+     * No trial key and no call to llm.wunderbyte.at — the user's existing credentials are
      * reused locally. The full skill set still requires a PRO licence or the Wunderbyte LLM endpoint;
      * a third-party endpoint keeps the read-only restriction (by design).
      *
@@ -262,14 +262,21 @@ class trial_provisioner {
         }
         $model = $chatmodel !== '' ? $chatmodel : 'gpt-4o';
 
+        // The embeddings model must match what the cloned endpoint can actually serve. When the source
+        // endpoint points at the Wunderbyte LLM, its key only grants the wunderbyte-* aliases and rejects
+        // text-embedding-3-small outright (which would break skill discovery). Any other (real OpenAI-style)
+        // endpoint cannot serve the wunderbyte-embeddings alias, so it falls back to the widely available
+        // OpenAI-compatible model.
+        $wbhost = parse_url(self::BASE_URL, PHP_URL_HOST);
+        $iswbendpoint = $wbhost !== null && stripos($embeddings, $wbhost) !== false;
+        $embeddingsmodel = $iswbendpoint ? 'wunderbyte-embeddings' : 'text-embedding-3-small';
+
         return [
             'aiprovider_wunderbyte\\aiactions\\generate_embeddings' => [
                 'enabled' => true,
                 'settings' => [
                     'endpoint' => $embeddings,
-                    // The source endpoint cannot serve the wunderbyte-embeddings alias; default to the
-                    // widely available OpenAI-compatible embeddings model.
-                    'model' => 'text-embedding-3-small',
+                    'model' => $embeddingsmodel,
                     'dimensions' => 1536,
                 ],
             ],
