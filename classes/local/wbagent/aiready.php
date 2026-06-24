@@ -194,6 +194,7 @@ class aiready {
             } catch (\Throwable $e) {
                 // Keep provider discovery result if it was already computed and
                 // only mark runtime gates as unavailable for this request.
+                debugging('aiready: runtime gate evaluation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
                 $provideractive = false;
                 $courseenabled = false;
                 $contextenabled = false;
@@ -378,6 +379,14 @@ class aiready {
             // one-click auto-configuration (the Wunderbyte trial provisioning).
             'provider_upgrade_available' => $provideractive && !$wbinstanceactive && !$wunderbyteprovinstalled,
             'provider_configure_available' => $provideractive && !$wbinstanceactive && $wunderbyteprovinstalled,
+            // Manual key entry (purchased key) + admin gear. The key store needs the WB provider plugin
+            // and the trial/onboarding capability; the debug toggle is a site-config (admin) action; the
+            // gear shows if at least one of those is available. provider_configured drives the overwrite
+            // confirm (a Wunderbyte instance is already active).
+            'can_store_key' => $canrequesttrial && $wunderbyteprovinstalled,
+            'can_toggle_debug' => $isplatformadmin,
+            'provider_manage_available' => ($canrequesttrial && $wunderbyteprovinstalled) || $isplatformadmin,
+            'provider_configured' => $wbinstanceactive,
             // Active Wunderbyte provider but no full access (not on the Wunderbyte LLM and no PRO
             // licence) → show the green "active" pill plus a "Get Pro" upgrade link to the store.
             'show_get_pro' => $wbinstanceactive && !agent_access_service::has_full_access(),

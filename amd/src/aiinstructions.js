@@ -2568,6 +2568,90 @@ const reloadAgentPanel = (ctx) => {
 };
 
 /**
+ * Store a purchased Wunderbyte API key (from the connect screen or the admin gear) and reload the panel.
+ *
+ * The key is sent ONLY to the dedicated store webservice (never as a chat message / to the LLM).
+ *
+ * @param {HTMLElement} saveBtn The clicked save button (carries contextid + overwrite metadata).
+ */
+const storeProviderApiKey = (saveBtn) => {
+    const ctx = getTrialUiContext();
+    const input = document.getElementById('booking-ai-key-input');
+    const result = document.getElementById('booking-ai-key-result');
+    const contextid = Number(
+        saveBtn.dataset.contextid || (ctx.wrapper && ctx.wrapper.dataset.contextid) || 0
+    );
+    const apikey = input ? String(input.value || '').trim() : '';
+    if (apikey === '') {
+        return;
+    }
+    if (String(saveBtn.dataset.providerConfigured || '0') === '1') {
+        const confirmtext = String(saveBtn.dataset.overwriteConfirm || '');
+        if (confirmtext !== '' && !window.confirm(confirmtext)) {
+            return;
+        }
+    }
+
+    saveBtn.disabled = true;
+    if (result) {
+        result.classList.add('d-none');
+        result.innerHTML = '';
+    }
+
+    Ajax.call([{
+        methodname: 'bookingextension_agent_store_provider_apikey',
+        args: {contextid: contextid, apikey: apikey},
+    }])[0].then((resp) => {
+        if (resp && resp.success) {
+            if (input) {
+                input.value = '';
+            }
+            reloadAgentPanel(ctx);
+            return resp;
+        }
+        saveBtn.disabled = false;
+        if (result) {
+            result.classList.remove('d-none');
+            result.innerHTML = '<span class="text-danger">'
+                + renderTextWithLinks((resp && resp.message) || '') + '</span>';
+        }
+        return resp;
+    }).catch((err) => {
+        saveBtn.disabled = false;
+        if (result) {
+            result.classList.remove('d-none');
+            result.innerHTML = '<span class="text-danger">'
+                + renderTextWithLinks(err.message || '') + '</span>';
+        }
+        Notification.exception(err);
+    });
+};
+
+/**
+ * Toggle the site-wide agent debug mode from the admin gear.
+ *
+ * @param {HTMLInputElement} toggle The debug checkbox (already reflecting the desired state on click).
+ */
+const setDebugMode = (toggle) => {
+    const enabled = !!toggle.checked;
+    toggle.disabled = true;
+    Ajax.call([{
+        methodname: 'bookingextension_agent_set_debug_mode',
+        args: {enabled: enabled},
+    }])[0].then((resp) => {
+        toggle.disabled = false;
+        if (!resp || !resp.success) {
+            toggle.checked = !enabled;
+        }
+        return resp;
+    }).catch((err) => {
+        toggle.disabled = false;
+        toggle.checked = !enabled;
+        Notification.exception(err);
+    });
+};
+
+/**
  * Activate trial context and refresh the agent UI on success.
  */
 const activateTrialContext = () => {
@@ -2934,6 +3018,54 @@ const handleBodyClick = (event) => {
     const activateBtn = target.closest('#booking-ai-activate-btn');
     if (activateBtn instanceof HTMLElement) {
         activateTrialContext();
+        return;
+    }
+
+    const gearBtn = target.closest('#booking-ai-manage-gear');
+    if (gearBtn instanceof HTMLElement) {
+        const menu = document.getElementById('booking-ai-manage-menu');
+        if (menu) {
+            const nowhidden = menu.classList.toggle('d-none');
+            gearBtn.setAttribute('aria-expanded', nowhidden ? 'false' : 'true');
+        }
+        return;
+    }
+
+    const enterKeyBtn = target.closest('[data-action="enter-key"]');
+    if (enterKeyBtn instanceof HTMLElement) {
+        const decision = document.getElementById('booking-ai-connect-decision');
+        const keystep = document.getElementById('booking-ai-key-step');
+        if (decision) {
+            decision.classList.add('d-none');
+        }
+        if (keystep) {
+            keystep.classList.remove('d-none');
+        }
+        return;
+    }
+
+    const keyBack = target.closest('#booking-ai-key-back');
+    if (keyBack instanceof HTMLElement) {
+        const decision = document.getElementById('booking-ai-connect-decision');
+        const keystep = document.getElementById('booking-ai-key-step');
+        if (keystep) {
+            keystep.classList.add('d-none');
+        }
+        if (decision) {
+            decision.classList.remove('d-none');
+        }
+        return;
+    }
+
+    const keySave = target.closest('#booking-ai-key-save');
+    if (keySave instanceof HTMLElement) {
+        storeProviderApiKey(keySave);
+        return;
+    }
+
+    const debugToggle = target.closest('#booking-ai-debug-toggle');
+    if (debugToggle instanceof HTMLInputElement) {
+        setDebugMode(debugToggle);
         return;
     }
 

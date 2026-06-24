@@ -56,6 +56,43 @@
                 {{/show_get_pro}}
                 {{/provider_upgrade_available}}
                 {{/provider_configure_available}}
+                {{#provider_manage_available}}
+                {{! Admin gear: rotate/switch the API key + toggle debug mode (distinct from the
+                    not-yet-configured "Configure" pill). Capability-gated server-side; items inside
+                    are shown per their own capability. }}
+                <div class="booking-ai-manage d-inline-block ml-1" style="position:relative;">
+                    <button type="button" id="booking-ai-manage-gear" class="btn btn-sm btn-link p-0 text-muted border-0"
+                            aria-haspopup="true" aria-expanded="false"
+                            title="{{#str}}agent_manage, bookingextension_agent{{/str}}">
+                        <i class="fa fa-cog" aria-hidden="true"></i>
+                    </button>
+                    <div id="booking-ai-manage-menu" class="card d-none p-3 text-left"
+                         style="position:absolute; right:0; top:100%; z-index:1050; min-width:280px;">
+                        {{#can_store_key}}
+                        <div class="mb-2">
+                            <label class="small font-weight-bold mb-1" for="booking-ai-key-input">{{#str}}agent_key_label, bookingextension_agent{{/str}}</label>
+                            <div class="input-group input-group-sm">
+                                <input type="password" id="booking-ai-key-input" class="form-control" autocomplete="off" placeholder="sk-...">
+                                <div class="input-group-append">
+                                    <button type="button" id="booking-ai-key-save" class="btn btn-primary"
+                                            data-contextid="{{contextid}}"
+                                            data-provider-configured="{{#provider_configured}}1{{/provider_configured}}{{^provider_configured}}0{{/provider_configured}}"
+                                            data-overwrite-confirm="{{#str}}agent_key_overwrite_confirm, bookingextension_agent{{/str}}">{{#str}}savechanges, moodle{{/str}}</button>
+                                </div>
+                            </div>
+                            <div id="booking-ai-key-result" class="small mt-1 d-none"></div>
+                        </div>
+                        {{/can_store_key}}
+                        {{#can_toggle_debug}}
+                        <div class="custom-control custom-switch mb-2">
+                            <input type="checkbox" class="custom-control-input" id="booking-ai-debug-toggle" {{#debug_mode}}checked{{/debug_mode}}>
+                            <label class="custom-control-label small" for="booking-ai-debug-toggle">{{#str}}aidebugmode, bookingextension_agent{{/str}} <span class="text-muted">({{#str}}agent_debug_sitewide, bookingextension_agent{{/str}})</span></label>
+                        </div>
+                        {{/can_toggle_debug}}
+                        <a class="small" href="{{wwwroot}}/admin/settings.php?section=bookingextension_agent_aisettings">{{#str}}agent_manage_settings_link, bookingextension_agent{{/str}}</a>
+                    </div>
+                </div>
+                {{/provider_manage_available}}
             </div>
         </div>
 
@@ -242,6 +279,15 @@
                         <p class="small text-muted mt-1 mb-0">{{#str}}aitrial_fallback_note, bookingextension_agent{{/str}}</p>
                     </div>
                     {{/standard_provider_installed}}
+
+                    {{! Already bought a key: paste it directly (dedicated field; never sent to the LLM). }}
+                    {{#can_store_key}}
+                    <div class="booking-ai-connect-alt mt-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-action="enter-key">
+                            <i class="fa fa-key mr-1" aria-hidden="true"></i>{{#str}}agent_connect_have_key, bookingextension_agent{{/str}}
+                        </button>
+                    </div>
+                    {{/can_store_key}}
                 </div>
 
                 {{! Sub-screen B: GDPR consent, inline (replaces the former modal-in-modal). }}
@@ -256,6 +302,23 @@
                         </button>
                     </div>
                 </div>
+
+                {{! Sub-screen C: paste a purchased key (dedicated field; never sent to the LLM). }}
+                {{#can_store_key}}
+                <div id="booking-ai-key-step" class="d-none">
+                    <label class="small font-weight-bold mb-1" for="booking-ai-key-input">{{#str}}agent_key_label, bookingextension_agent{{/str}}</label>
+                    <div class="input-group">
+                        <input type="password" id="booking-ai-key-input" class="form-control" autocomplete="off" placeholder="sk-...">
+                        <div class="input-group-append">
+                            <button type="button" id="booking-ai-key-save" class="btn btn-primary"
+                                    data-contextid="{{contextid}}" data-provider-configured="0"
+                                    data-overwrite-confirm="{{#str}}agent_key_overwrite_confirm, bookingextension_agent{{/str}}">{{#str}}savechanges, moodle{{/str}}</button>
+                        </div>
+                    </div>
+                    <button type="button" id="booking-ai-key-back" class="btn btn-link mt-1">{{#str}}aitrial_consent_cancel, bookingextension_agent{{/str}}</button>
+                    <div id="booking-ai-key-result" class="small mt-1 d-none"></div>
+                </div>
+                {{/can_store_key}}
 
                 <span id="booking-ai-trial-spinner" class="ml-2 d-none">
                     <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
