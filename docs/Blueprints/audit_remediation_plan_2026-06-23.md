@@ -50,8 +50,10 @@ Empfohlene Reihenfolge: **S7 → S1 → S9b/S10b → S4 → S5 → S6 → S2 →
       - [x] **S5a** (Commit `25c9ba5`): Das skill-namens-spezifische Routing + die de/en-Keyword-Heuristik sind aus dem Orchestrator raus. Skills deklarieren `governance => ['mandatory_on_trigger' => true, 'intent_triggers' => [...]]` (Validator + Registry-Contract surfacen beides); eine **generische** Engine-Methode `ensure_trigger_mandatory_skills` injiziert jeden so-deklarierten Skill bei Trigger-Match — **keine** Skill-Namen/Sprach-Keywords mehr in der Engine. Marker 1:1 in `explain_docs`/`list_skills` verschoben (verhaltenserhaltend). `doc_intent_routing_test` umgeschrieben + `mandatory_on_trigger_injection_test`.
       - [x] **S5b** (Commit `e3e5351`): `list_skills`/`search_skills` newen keine Engine-Maschinerie mehr. Zwei Contracts (`skill_introspection_provider_interface`, `skill_discovery_provider_interface`), die der **Executor** duck-typed injiziert (wie `set_runtime_threadid`); die Maschinerie liegt jetzt in `skill_introspection_service` / `skill_discovery_service`. Im Skill bleibt nur Präsentation (deny-reason-Labels, Observation-Text, Status→Message-Map). Scharfer `skill_introspection_discovery_contract_test` (Fake-Provider injiziert). Volle Suite **529/529**.
 
-- [ ] **S6 — `course_targeted_skill`-Basis/Trait + Diagnose-Foundation (§6-P1.11) · Risiko: mittel**
-      Trait/Basisklasse für `supports_target_context()`/`get_target_selector()`/`clarify()` (verbatim in add/update_activity, add/update_quiz, generate_questions); `build_source_clarification` nach `quiz_question_service`. Diagnose: `row()`/Glyph-Loop/`error_result()` der 5 `diagnose_*` in die `diagnostics/`-Foundation heben. Pro Skill bestehende Tests grün halten.
+- [~] **S6 — `course_targeted_skill`-Trait + Diagnose-Foundation (§6-P1.11)** (Commit `67e3181`)
+      - [x] **Trait `course_targeted_skill`**: dedupt die byte-identischen `supports_target_context()`+`get_target_selector()` aus 6 Skills (add/update_activity, add/update_quiz, generate_questions, analyze_course_structure). + `course_targeted_skill_trait_test` (alle 6).
+      - [x] **`diagnostic_result_builder`**: `row()`/Glyph/`error_result()` der 5 `diagnose_*` zentralisiert (per-Skill-Observation-Prefix bleibt im dünnen `error_result`-Delegate). + `diagnostic_result_builder_test`; bestehende diagnose-Skill-Tests grün. Volle Suite **537/537**.
+      - [ ] offen (klein): `clarify()` (privat, nicht überall) + `build_source_clarification` nach `quiz_question_service`.
 
 - [ ] **S2 — `confirm_run_service::confirm` zerlegen (§6-P1.7) · Risiko: hoch**
       563-Zeilen-Methode in resolve → execute → classify-result → build-followup → build-response; inline-Runtime-Re-Loop/Routing zurück an `agent_decision_service`/Runtime delegieren; die zwei gespiegelten catch-Blöcke vereinen. Schrittweise hinter den vorhandenen confirm-Contract-Tests; jeder Extraktionsschritt grün.
@@ -59,8 +61,10 @@ Empfohlene Reihenfolge: **S7 → S1 → S9b/S10b → S4 → S5 → S6 → S2 →
 - [ ] **S3 — `orchestrator.php` God-Class splitten (§6-P1.8) · Risiko: hoch**
       4 Nähte: `discovery_phase_service`, `runtime_context_block_builder`, `planner_catalog_service`, `provider_status_service`; `orchestrator` wird dünner `process()`-Koordinator. Erst nach S1/S5 (entfernt schon Routing-/Risk-Last). Inkrementell, Agent-Suite je Schnitt.
 
-- [ ] **S8 — Misplaced Logic in WS/Runtime (§5.D MED) · Risiko: niedrig–mittel**
-      `ai_discard_pending`-Queue-Loop → `confirm_run_service::discard`; `ai_send_message`-Result-Shaping (`resolve_response_commands`, roher `$DB`-Read) über `conversation_store`/Runtime; `agent_runtime`-Clarification-Bookkeeping nach Discovery/Store.
+- [~] **S8 — Misplaced Logic in WS/Runtime (§5.D MED)** (Commit `67bfab2`)
+      - [x] `ai_discard_pending`-Queue-Loop → neuer `discard_pending_service` (spiegelt `ai_confirm_run`→`confirm_run_service`). + `discard_pending_service_test`.
+      - [x] `ai_send_message` roher `$DB->get_record` auf Threads → `conversation_store::get_owned_active_thread` (gleiche id+user+context+active-Scoping). + `conversation_store_owned_thread_test`.
+      - [ ] offen (runtime-verwoben, höheres Risiko): `ai_send_message::resolve_response_commands`-Result-Shaping; `agent_runtime`-Clarification-Bookkeeping → Discovery/Store.
 
 - [~] **S9 — Engine-Agnostik-Restlecks (§5.C MED)**
       - [x] **S9b ERLEDIGT**: ANON_USER-Token-Regex (Find 4× + Parse 1×) & Email-Regex (3× via gemeinsamem `EMAIL_SUBPATTERN`) als Class-Const in `privacy_anonymizer` (byte-genau verifiziert, Drift-Schutz für die ANON-Contract-Komponente). Scharfer `privacy_anonymizer_regex_test` (Grammatik-Pinning + Anker-Semantik + Public-API).
