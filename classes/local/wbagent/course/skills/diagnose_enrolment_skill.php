@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\course\skills;
 
+use bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder;
+
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder;
@@ -277,7 +279,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         // 4) Enrolment methods.
         $instances = enrol_get_instances($courseid, false);
         if (empty($instances)) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'No enrolment methods on the course',
                 'The course has no enrolment method configured at all.',
@@ -326,10 +328,10 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
 
         // Disabled instance or site-disabled plugin are themselves the blocker.
         if ((int)$instance->status !== ENROL_INSTANCE_ENABLED) {
-            return $this->row('fail', 'Method "' . $label . '" is disabled', 'This enrolment method instance is turned off.', $url);
+            return diagnostic_result_builder::row('fail', 'Method "' . $label . '" is disabled', 'This enrolment method instance is turned off.', $url);
         }
         if (!enrol_is_enabled($method)) {
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'fail',
                 'Method "' . $label . '" plugin disabled site-wide',
                 'The ' . $label . ' enrolment plugin is disabled for the whole site.',
@@ -344,7 +346,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             return $this->analyse_cohort($instance, $label, $targetuserid, $url, $links);
         }
         if ($method === 'manual') {
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'ok',
                 'Method "' . $label . '" is active',
                 'Manual enrolment is available; teachers/managers add users by hand.',
@@ -352,7 +354,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             );
         }
         // Other methods: name + active only (v1).
-        return $this->row('ok', 'Method "' . $label . '" is active', 'Not inspected in detail in this version.', $url);
+        return diagnostic_result_builder::row('ok', 'Method "' . $label . '" is active', 'Not inspected in detail in this version.', $url);
     }
 
     /**
@@ -406,7 +408,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         }
 
         $finding = empty($notes) ? 'Self enrolment is open.' : ucfirst(implode('; ', $notes)) . '.';
-        return $this->row($status, 'Self enrolment "' . $label . '"', $finding, $url);
+        return diagnostic_result_builder::row($status, 'Self enrolment "' . $label . '"', $finding, $url);
     }
 
     /**
@@ -437,21 +439,21 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
 
         if ($targetuserid > 0) {
             if ($cohortid > 0 && cohort_is_member($cohortid, $targetuserid)) {
-                return $this->row(
+                return diagnostic_result_builder::row(
                     'ok',
                     'Cohort sync via "' . $cohortname . '"',
                     'The person IS a member of this cohort, so cohort sync should enrol them.',
                     $url
                 );
             }
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'fail',
                 'Cohort sync via "' . $cohortname . '"',
                 'The person is NOT a member of this cohort — cohort sync will not enrol them.',
                 $url
             );
         }
-        return $this->row(
+        return diagnostic_result_builder::row(
             'ok',
             'Cohort sync via "' . $cohortname . '"',
             'Members of this cohort are auto-enrolled.',
@@ -483,7 +485,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         $records = $DB->get_records_sql($sql, ['courseid' => $courseid, 'userid' => $targetuserid]);
 
         if (empty($records)) {
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'fail',
                 'No enrolment record for this person',
                 'The person has no enrolment in this course (active, suspended or expired).',
@@ -509,7 +511,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
 
         $status = $hasactive ? 'ok' : 'fail';
         $check = $hasactive ? 'Person is currently enrolled (active)' : 'Person has only inactive enrolments';
-        return $this->row($status, $check, implode('; ', $details), $links->user_profile($targetuserid, $courseid));
+        return diagnostic_result_builder::row($status, $check, implode('; ', $details), $links->user_profile($targetuserid, $courseid));
     }
 
     /**
@@ -536,14 +538,14 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         }
         $tasklink = $links->if_admin($links->scheduled_tasks(), $userid);
         if (empty($unhealthy)) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'ok',
                 'Enrolment scheduled tasks healthy',
                 'No disabled or failing enrolment tasks (e.g. cohort sync).',
                 $tasklink
             );
         } else {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'Enrolment scheduled task problem',
                 implode('; ', $unhealthy),
@@ -568,7 +570,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
 
         $lines = ['Enrolment diagnosis for ' . $subject . ' in course "' . $coursename . '" (id=' . $courseid . '):'];
         foreach ($rows as $r) {
-            $glyph = ['ok' => '[OK]', 'fail' => '[X]', 'warn' => '[!]'][$r['status']] ?? '[!]';
+            $glyph = diagnostic_result_builder::glyph((string)$r['status']);
             $line = $glyph . ' ' . $r['check'];
             if (trim((string)$r['finding']) !== '') {
                 $line .= ' — ' . $r['finding'];
@@ -660,23 +662,6 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
         );
     }
 
-    /**
-     * Build a single checklist row.
-     *
-     * @param string $status
-     * @param string $check
-     * @param string $finding
-     * @param \moodle_url|null $url
-     * @return array<string,mixed>
-     */
-    private function row(string $status, string $check, string $finding, ?\moodle_url $url = null): array {
-        return [
-            'status' => $status,
-            'check' => $check,
-            'finding' => $finding,
-            'url' => $url instanceof \moodle_url ? $url->out(false) : null,
-        ];
-    }
 
     /**
      * Build an error result.
@@ -686,13 +671,6 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
      * @return array<string,mixed>
      */
     private function error_result(string $message, string $errorclass): array {
-        return [
-            'status' => 'error',
-            'detail' => $message,
-            'usermessage' => $message,
-            'resultid' => null,
-            'error_class' => $errorclass,
-            'observation_full' => 'Enrolment diagnosis could not run: ' . $message,
-        ];
+        return diagnostic_result_builder::error_result($message, $errorclass, 'Enrolment diagnosis could not run: ');
     }
 }

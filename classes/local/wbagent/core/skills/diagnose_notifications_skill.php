@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\core\skills;
 
+use bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder;
+
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
@@ -220,21 +222,21 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         // User-level blockers (the common causes).
         $email = trim((string)($targetuser->email ?? ''));
         if ($email === '') {
-            $rows[] = $this->row('fail', 'No e-mail address on the account', 'Moodle cannot send e-mail without an address.');
+            $rows[] = diagnostic_result_builder::row('fail', 'No e-mail address on the account', 'Moodle cannot send e-mail without an address.');
         } else if (email_is_not_allowed($email) !== false) {
-            $rows[] = $this->row('fail', 'E-mail address is not allowed', 'The address fails the site allow/deny rules.');
+            $rows[] = diagnostic_result_builder::row('fail', 'E-mail address is not allowed', 'The address fails the site allow/deny rules.');
         } else {
-            $rows[] = $this->row('ok', 'E-mail address present', $email);
+            $rows[] = diagnostic_result_builder::row('ok', 'E-mail address present', $email);
         }
 
         if ((int)($targetuser->confirmed ?? 1) === 0) {
-            $rows[] = $this->row('fail', 'Account not confirmed', 'Unconfirmed accounts do not receive e-mail.');
+            $rows[] = diagnostic_result_builder::row('fail', 'Account not confirmed', 'Unconfirmed accounts do not receive e-mail.');
         }
         if ((int)($targetuser->suspended ?? 0) === 1) {
-            $rows[] = $this->row('fail', 'Account suspended', 'Suspended accounts do not receive notifications.');
+            $rows[] = diagnostic_result_builder::row('fail', 'Account suspended', 'Suspended accounts do not receive notifications.');
         }
         if ((int)($targetuser->emailstop ?? 0) === 1) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'User disabled all e-mail',
                 'The account has "do not receive e-mail" set (emailstop).',
@@ -242,7 +244,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
             );
         }
         if (over_bounce_threshold($targetuser)) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'E-mail bounce threshold exceeded',
                 'Too many bounces — Moodle has stopped sending e-mail to this address.'
@@ -250,7 +252,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         }
 
         if ($this->all_ok($rows)) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'ok',
                 'No user-level e-mail blocker found',
                 'Address valid, account active/confirmed, e-mail enabled, no bounce problem.',
@@ -261,7 +263,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         // Site mail infrastructure (admins only — never expose server details).
         if (is_siteadmin($userid)) {
             if (!empty($CFG->noemailever)) {
-                $rows[] = $this->row(
+                $rows[] = diagnostic_result_builder::row(
                     'fail',
                     'Site-wide e-mail is disabled',
                     'noemailever is set: Moodle sends no e-mail at all.',
@@ -269,7 +271,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
                 );
             }
             if (!empty($CFG->divertallemailsto)) {
-                $rows[] = $this->row(
+                $rows[] = diagnostic_result_builder::row(
                     'warn',
                     'All e-mail is being diverted',
                     'divertallemailsto is set: mail goes to a test address, not the real recipients.',
@@ -282,7 +284,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         }
 
         // Honest limit (anti-hallucination).
-        $rows[] = $this->row(
+        $rows[] = diagnostic_result_builder::row(
             'warn',
             'Actual delivery cannot be verified',
             'This check cannot confirm whether the mail server delivered the message to the inbox '
@@ -318,9 +320,9 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         }
         $link = $links->if_admin($links->scheduled_tasks(), $userid);
         if (empty($unhealthy)) {
-            return [$this->row('ok', 'Mail/message scheduled tasks healthy', 'No disabled or failing mail tasks.', $link)];
+            return [diagnostic_result_builder::row('ok', 'Mail/message scheduled tasks healthy', 'No disabled or failing mail tasks.', $link)];
         }
-        return [$this->row('fail', 'Mail/message scheduled task problem', implode('; ', $unhealthy), $link)];
+        return [diagnostic_result_builder::row('fail', 'Mail/message scheduled task problem', implode('; ', $unhealthy), $link)];
     }
 
     /**
@@ -351,7 +353,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
 
         $lines = ['Notification/e-mail diagnosis for ' . $subject . ':'];
         foreach ($rows as $r) {
-            $glyph = ['ok' => '[OK]', 'fail' => '[X]', 'warn' => '[!]'][$r['status']] ?? '[!]';
+            $glyph = diagnostic_result_builder::glyph((string)$r['status']);
             $line = $glyph . ' ' . $r['check'];
             if (trim((string)$r['finding']) !== '') {
                 $line .= ' — ' . $r['finding'];
@@ -401,23 +403,6 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         );
     }
 
-    /**
-     * Build a single checklist row.
-     *
-     * @param string $status
-     * @param string $check
-     * @param string $finding
-     * @param \moodle_url|null $url
-     * @return array<string,mixed>
-     */
-    private function row(string $status, string $check, string $finding, ?\moodle_url $url = null): array {
-        return [
-            'status' => $status,
-            'check' => $check,
-            'finding' => $finding,
-            'url' => $url instanceof \moodle_url ? $url->out(false) : null,
-        ];
-    }
 
     /**
      * Build an error result.
@@ -427,13 +412,6 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
      * @return array<string,mixed>
      */
     private function error_result(string $message, string $errorclass): array {
-        return [
-            'status' => 'error',
-            'detail' => $message,
-            'usermessage' => $message,
-            'resultid' => null,
-            'error_class' => $errorclass,
-            'observation_full' => 'Notification diagnosis could not run: ' . $message,
-        ];
+        return diagnostic_result_builder::error_result($message, $errorclass, 'Notification diagnosis could not run: ');
     }
 }

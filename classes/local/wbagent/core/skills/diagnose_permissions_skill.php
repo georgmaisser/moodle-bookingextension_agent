@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\core\skills;
 
+use bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder;
+
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
@@ -280,7 +282,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
         $allcaps = get_all_capabilities();
         if (!isset($allcaps[$capability])) {
             $suggestions = $this->suggest_capabilities($capability, array_keys($allcaps));
-            $rows = [$this->row(
+            $rows = [diagnostic_result_builder::row(
                 'warn',
                 'Unknown capability "' . $capability . '"',
                 empty($suggestions) ? 'No similar capability found.' : 'Did you mean: ' . implode(', ', $suggestions)
@@ -297,7 +299,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
 
         $rows = [];
         $can = has_capability($capability, $targetcontext, $targetuser->id);
-        $rows[] = $this->row(
+        $rows[] = diagnostic_result_builder::row(
             $can ? 'ok' : 'fail',
             ($isself ? 'You' : fullname($targetuser)) . ($can ? ' HAS ' : ' does NOT have ') . $capability,
             'Checked at ' . $targetcontext->get_context_name(),
@@ -328,7 +330,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                 $octx = context::instance_by_id((int)$ov->contextid, IGNORE_MISSING);
                 $role = $DB->get_record('role', ['id' => (int)$ov->roleid], 'id, shortname', IGNORE_MISSING);
                 $perm = $this->permission_label((int)$ov->permission);
-                $rows[] = $this->row(
+                $rows[] = diagnostic_result_builder::row(
                     $ov->permission > 0 ? 'ok' : 'warn',
                     'Override: role "' . ($role ? $role->shortname : $ov->roleid) . '" → ' . $perm,
                     'at ' . ($octx ? $octx->get_context_name() : ('context ' . $ov->contextid))
@@ -370,7 +372,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             }
             $anyrole = true;
             $names = array_values(array_unique(array_map(static fn($r): string => (string)$r->shortname, $roles)));
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'ok',
                 $ctx->get_context_name(),
                 'Roles: ' . implode(', ', $names),
@@ -378,7 +380,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             );
         }
         if (!$anyrole) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'warn',
                 'No role assignments found',
                 ($isself ? 'You have' : fullname($targetuser) . ' has') . ' no roles along this context chain.',
@@ -463,7 +465,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
 
         $lines = [$titleprefix . ' for ' . $subject . ' at ' . $ctxname . ':'];
         foreach ($rows as $r) {
-            $glyph = ['ok' => '[OK]', 'fail' => '[X]', 'warn' => '[!]'][$r['status']] ?? '[!]';
+            $glyph = diagnostic_result_builder::glyph((string)$r['status']);
             $line = $glyph . ' ' . $r['check'];
             if (trim((string)$r['finding']) !== '') {
                 $line .= ' — ' . $r['finding'];
@@ -514,23 +516,6 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
         );
     }
 
-    /**
-     * Build a single checklist row.
-     *
-     * @param string $status
-     * @param string $check
-     * @param string $finding
-     * @param \moodle_url|null $url
-     * @return array<string,mixed>
-     */
-    private function row(string $status, string $check, string $finding, ?\moodle_url $url = null): array {
-        return [
-            'status' => $status,
-            'check' => $check,
-            'finding' => $finding,
-            'url' => $url instanceof \moodle_url ? $url->out(false) : null,
-        ];
-    }
 
     /**
      * Build an error result.
@@ -540,13 +525,6 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      * @return array<string,mixed>
      */
     private function error_result(string $message, string $errorclass): array {
-        return [
-            'status' => 'error',
-            'detail' => $message,
-            'usermessage' => $message,
-            'resultid' => null,
-            'error_class' => $errorclass,
-            'observation_full' => 'Permissions diagnosis could not run: ' . $message,
-        ];
+        return diagnostic_result_builder::error_result($message, $errorclass, 'Permissions diagnosis could not run: ');
     }
 }

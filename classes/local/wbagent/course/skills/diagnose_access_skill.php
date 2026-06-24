@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\course\skills;
 
+use bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder;
+
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder;
@@ -264,9 +266,9 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
 
         // Check 1: course visibility.
         if ((int)$course->visible === 1) {
-            $rows[] = $this->row('ok', 'Course is visible', format_string($course->fullname), $links->course($courseid));
+            $rows[] = diagnostic_result_builder::row('ok', 'Course is visible', format_string($course->fullname), $links->course($courseid));
         } else {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'Course is hidden',
                 'The course is set to hidden; only users with "view hidden courses" can enter.',
@@ -278,14 +280,14 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         $activeenrolled = is_enrolled($coursecontext, $targetuserid, '', true);
         $anyenrolled = is_enrolled($coursecontext, $targetuserid, '', false);
         if ($activeenrolled) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'ok',
                 'Enrolled and active in the course',
                 '',
                 $links->if_capable($links->enrolled_users($courseid), 'moodle/course:enrolreview', $coursecontext, $userid)
             );
         } else if ($anyenrolled) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'Enrolled but not active',
                 'The enrolment is suspended or expired — a common "was enrolled once" cause. '
@@ -293,7 +295,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
                 $links->if_capable($links->enrol_instances($courseid), 'moodle/course:enrolreview', $coursecontext, $userid)
             );
         } else {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'fail',
                 'Not enrolled in the course',
                 'No active or inactive enrolment found for this person.',
@@ -305,9 +307,9 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         $roles = get_user_roles($coursecontext, $targetuserid, true);
         if (!empty($roles)) {
             $rolenames = array_values(array_unique(array_map(static fn($r): string => (string)$r->shortname, $roles)));
-            $rows[] = $this->row('ok', 'Has a role in the course', implode(', ', $rolenames));
+            $rows[] = diagnostic_result_builder::row('ok', 'Has a role in the course', implode(', ', $rolenames));
         } else {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'warn',
                 'No role in the course',
                 'The person has no role here; depending on setup this can limit what they can do.'
@@ -350,7 +352,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             }
         }
         if (empty($matches)) {
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'warn',
                 'Activity "' . $activityquery . '" not found',
                 'No activity with that name in this course (for this user).'
@@ -358,7 +360,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         }
         if (count($matches) > 1) {
             $names = array_map(static fn($cm): string => $cm->name, array_slice($matches, 0, 5));
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'warn',
                 'Several activities match "' . $activityquery . '"',
                 'Please be more specific: ' . implode('; ', $names)
@@ -366,7 +368,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         }
         $cm = $matches[0];
         if ($cm->uservisible) {
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'ok',
                 'Activity "' . $cm->name . '" is visible to the user',
                 '',
@@ -374,7 +376,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             );
         }
         $reason = trim(strip_tags((string)$cm->availableinfo));
-        return $this->row(
+        return diagnostic_result_builder::row(
             'fail',
             'Activity "' . $cm->name . '" is NOT visible to the user',
             $reason !== '' ? $reason : 'Hidden or restricted (no visible reason is shown for this user).',
@@ -398,12 +400,12 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             }
         }
         if ($total === 0) {
-            return $this->row('warn', 'No activities in the course', '');
+            return diagnostic_result_builder::row('warn', 'No activities in the course', '');
         }
         if ($hidden === 0) {
-            return $this->row('ok', 'All activities are visible to the user', $total . ' activit(y/ies) checked');
+            return diagnostic_result_builder::row('ok', 'All activities are visible to the user', $total . ' activit(y/ies) checked');
         }
-        return $this->row(
+        return diagnostic_result_builder::row(
             'warn',
             $hidden . ' of ' . $total . ' activities not visible to the user',
             'Name the specific activity (activityquery) to see the exact reason.'
@@ -422,16 +424,16 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
     private function group_row(\stdClass $course, int $courseid, int $targetuserid, diagnostic_link_builder $links): array {
         $groupmode = (int)groups_get_course_groupmode($course);
         if ($groupmode === NOGROUPS) {
-            return $this->row('ok', 'No group mode enforced', 'Group membership does not restrict access here.');
+            return diagnostic_result_builder::row('ok', 'No group mode enforced', 'Group membership does not restrict access here.');
         }
         $usergroups = groups_get_user_groups($courseid, $targetuserid);
         $ingroup = !empty($usergroups[0]);
         $modelabel = $groupmode === SEPARATEGROUPS ? 'separate groups' : 'visible groups';
         if ($ingroup) {
-            return $this->row('ok', 'Group mode: ' . $modelabel, 'The user is a member of at least one group.');
+            return diagnostic_result_builder::row('ok', 'Group mode: ' . $modelabel, 'The user is a member of at least one group.');
         }
         $status = $groupmode === SEPARATEGROUPS ? 'warn' : 'ok';
-        return $this->row(
+        return diagnostic_result_builder::row(
             $status,
             'Group mode: ' . $modelabel,
             'The user is in no group' . ($groupmode === SEPARATEGROUPS
@@ -469,7 +471,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
 
         $lines = ['Access diagnosis for ' . $subject . ' in course "' . $coursename . '" (id=' . $courseid . '):'];
         foreach ($rows as $r) {
-            $glyph = ['ok' => '[OK]', 'fail' => '[X]', 'warn' => '[!]'][$r['status']] ?? '[!]';
+            $glyph = diagnostic_result_builder::glyph((string)$r['status']);
             $line = $glyph . ' ' . $r['check'];
             if (trim((string)$r['finding']) !== '') {
                 $line .= ' — ' . $r['finding'];
@@ -520,23 +522,6 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
         ]);
     }
 
-    /**
-     * Build a single checklist row.
-     *
-     * @param string $status ok|fail|warn
-     * @param string $check
-     * @param string $finding
-     * @param \moodle_url|null $url
-     * @return array<string,mixed>
-     */
-    private function row(string $status, string $check, string $finding, ?\moodle_url $url = null): array {
-        return [
-            'status' => $status,
-            'check' => $check,
-            'finding' => $finding,
-            'url' => $url instanceof \moodle_url ? $url->out(false) : null,
-        ];
-    }
 
     /**
      * Build an error result (error-messaging contract: carries an error_class for the synchronizer).
@@ -546,13 +531,6 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
      * @return array<string,mixed>
      */
     private function error_result(string $message, string $errorclass): array {
-        return [
-            'status' => 'error',
-            'detail' => $message,
-            'usermessage' => $message,
-            'resultid' => null,
-            'error_class' => $errorclass,
-            'observation_full' => 'Access diagnosis could not run: ' . $message,
-        ];
+        return diagnostic_result_builder::error_result($message, $errorclass, 'Access diagnosis could not run: ');
     }
 }

@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\course\skills;
 
+use bookingextension_agent\local\wbagent\course_targeted_skill;
+
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
 use bookingextension_agent\local\wbagent\dto\target_selector;
@@ -47,6 +49,7 @@ use context_course;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class add_quiz_skill extends core_skill_base implements skill_trigger_provider_interface {
+    use course_targeted_skill;
     /** Skill name. */
     public const SKILL_NAME = 'course.add_quiz';
 
@@ -75,14 +78,6 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return CONTEXT_COURSE;
     }
 
-    /**
-     * Can create the quiz in a course other than the current one (cross-context).
-     *
-     * @return bool
-     */
-    public function supports_target_context(): bool {
-        return true;
-    }
 
     /**
      * The cross-context target is a course.
@@ -93,20 +88,6 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return CONTEXT_COURSE;
     }
 
-    /**
-     * Build the target-course selector from courseid / coursequery (null → current course).
-     *
-     * @param array $input
-     * @return target_selector|null
-     */
-    public function get_target_selector(array $input): ?target_selector {
-        $courseid = (int)($input['courseid'] ?? 0);
-        $coursequery = trim((string)($input['coursequery'] ?? ''));
-        if ($courseid <= 0 && $coursequery === '') {
-            return null;
-        }
-        return target_selector::for_course($courseid > 0 ? $courseid : null, $coursequery !== '' ? $coursequery : null);
-    }
 
     /**
      * Native capability required to add a quiz (Gate 2). Question generation additionally needs

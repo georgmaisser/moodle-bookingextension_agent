@@ -16,6 +16,8 @@
 
 namespace bookingextension_agent\local\wbagent\course\skills;
 
+use bookingextension_agent\local\wbagent\diagnostics\diagnostic_result_builder;
+
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_checklist_preview;
 use bookingextension_agent\local\wbagent\diagnostics\diagnostic_link_builder;
@@ -264,28 +266,28 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
 
         // 4) Course-level gradebook facts.
         if ((int)($course->showgrades ?? 1) === 0) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'warn',
                 'Gradebook hidden from students',
                 'The course setting "show gradebook to students" is off.',
                 $links->grade_setup($courseid)
             );
         } else {
-            $rows[] = $this->row('ok', 'Gradebook shown to students', '', $links->grade_setup($courseid));
+            $rows[] = diagnostic_result_builder::row('ok', 'Gradebook shown to students', '', $links->grade_setup($courseid));
         }
 
         // 5) Grade items + the user's grade per item.
         $items = grade_item::fetch_all(['courseid' => $courseid]) ?: [];
         $items = $this->filter_items($items, trim((string)($input['itemquery'] ?? '')));
         if (empty($items)) {
-            $rows[] = $this->row('warn', 'No matching grade item', 'No grade item matched the request in this course.');
+            $rows[] = diagnostic_result_builder::row('warn', 'No matching grade item', 'No grade item matched the request in this course.');
         }
 
         $shown = 0;
         $needsupdate = false;
         foreach ($items as $item) {
             if ($shown >= self::MAX_ITEMS) {
-                $rows[] = $this->row('warn', 'More grade items exist', 'Only the first ' . self::MAX_ITEMS
+                $rows[] = diagnostic_result_builder::row('warn', 'More grade items exist', 'Only the first ' . self::MAX_ITEMS
                     . ' are shown; name a specific item (itemquery) to narrow down.');
                 break;
             }
@@ -297,7 +299,7 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
         }
 
         if ($needsupdate) {
-            $rows[] = $this->row(
+            $rows[] = diagnostic_result_builder::row(
                 'warn',
                 'Gradebook recalculation pending',
                 'At least one item is flagged needsupdate — totals may be stale until recalculated.',
@@ -354,12 +356,12 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
 
         $grade = grade_grade::fetch(['itemid' => $item->id, 'userid' => $targetuserid]);
         if (!$grade || ($grade->finalgrade === null && $grade->rawgrade === null)) {
-            return $this->row('warn', 'Item "' . $name . '": no grade recorded', 'No grade stored for this person yet.', $url);
+            return diagnostic_result_builder::row('warn', 'Item "' . $name . '": no grade recorded', 'No grade stored for this person yet.', $url);
         }
 
         // Respect hidden grades for a self-request without viewall.
         if ($grade->is_hidden() && !$canviewall) {
-            return $this->row(
+            return diagnostic_result_builder::row(
                 'warn',
                 'Item "' . $name . '": grade hidden from the user',
                 'A grade exists but is hidden (not yet released or hidden by the teacher).',
@@ -394,7 +396,7 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
         }
 
         $status = $grade->is_excluded() ? 'warn' : 'ok';
-        return $this->row($status, 'Item "' . $name . '"', $finding, $url);
+        return diagnostic_result_builder::row($status, 'Item "' . $name . '"', $finding, $url);
     }
 
     /**
@@ -441,7 +443,7 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
 
         $lines = ['Grade diagnosis for ' . $subject . ' in course "' . $coursename . '" (id=' . $courseid . '):'];
         foreach ($rows as $r) {
-            $glyph = ['ok' => '[OK]', 'fail' => '[X]', 'warn' => '[!]'][$r['status']] ?? '[!]';
+            $glyph = diagnostic_result_builder::glyph((string)$r['status']);
             $line = $glyph . ' ' . $r['check'];
             if (trim((string)$r['finding']) !== '') {
                 $line .= ' — ' . $r['finding'];
@@ -492,23 +494,6 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
         );
     }
 
-    /**
-     * Build a single checklist row.
-     *
-     * @param string $status
-     * @param string $check
-     * @param string $finding
-     * @param \moodle_url|null $url
-     * @return array<string,mixed>
-     */
-    private function row(string $status, string $check, string $finding, ?\moodle_url $url = null): array {
-        return [
-            'status' => $status,
-            'check' => $check,
-            'finding' => $finding,
-            'url' => $url instanceof \moodle_url ? $url->out(false) : null,
-        ];
-    }
 
     /**
      * Build an error result.
@@ -518,13 +503,6 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
      * @return array<string,mixed>
      */
     private function error_result(string $message, string $errorclass): array {
-        return [
-            'status' => 'error',
-            'detail' => $message,
-            'usermessage' => $message,
-            'resultid' => null,
-            'error_class' => $errorclass,
-            'observation_full' => 'Grade diagnosis could not run: ' . $message,
-        ];
+        return diagnostic_result_builder::error_result($message, $errorclass, 'Grade diagnosis could not run: ');
     }
 }
