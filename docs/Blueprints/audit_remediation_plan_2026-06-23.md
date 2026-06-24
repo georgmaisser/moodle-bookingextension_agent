@@ -78,7 +78,7 @@ Empfohlene Reihenfolge: **S7 → S1 → S9b/S10b → S4 → S5 → S6 → S2 →
 
 ## 3. Bug 2 + Flowchart §7 — Klärung mit Georg (nicht eigenmächtig)
 
-- [ ] **Bug 2** — `user_input_lang`/`last_output_lang`-Writer (CS14/LANG): verdrahten ODER Flowchart-Reconcile.
+- [x] **Bug 2** — ~~`user_input_lang`/`last_output_lang`-Writer (CS14/LANG): verdrahten ODER Flowchart-Reconcile.~~ **Kein Bug** (Georg 2026-06-24): die Turn-Sprache wird bewusst beim ersten LLM-Call (Selector) als `user_lang` ermittelt und im Planner-Result mitgeführt; in den Zwischenschritten spielt sie keine Rolle, erst der Synchronizer muss sich wieder daran halten. → **Flowchart-Reconcile** (CS14/LANG klargestellt: Turn-Sprache wird NICHT als Thread-Metadatum persistiert) **+ toter Code entfernt**: vestigiale Metadaten-Kandidaten `user_input_lang`/`last_output_lang` aus `language_policy_service::resolve_output_language` (Signatur auf `(array $result)` verschlankt) und der nie-geschriebene `last_output_lang`-Read in `confirm_run_service` (→ `current_language()`); Contract-Tests auf neue Policy-Ordnung (`user_lang → lang → current_language → en`) umgeschrieben.
 - [ ] **§7 D1** Finalization-Classifier-Sets = Supersets der LG_MATRIX.
 - [ ] **§7 D2** R1-Domain-Timeout-Retry außerhalb des L3-Gates.
 - [ ] **§7 D3** R2/R3-Synchronizer-Notices nur prompt-seitig (kein Post-Check).

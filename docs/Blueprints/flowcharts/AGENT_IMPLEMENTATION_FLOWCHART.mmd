@@ -41,7 +41,7 @@ flowchart TD
         CS11["allow_confirmation_for_session(userid, contextid)\nscope: user + Moodle context"]
         CS12["is_confirmation_allowed_for_session(userid, contextid)\n(entry caller uses the is_confirmation_allowed_for_thread\nwrapper, which ignores threadid and delegates here)"]
         CS13["consume_pending_intent(threadid, userid, contextid)"]
-        CS14["set/get user_input_lang metadata\n(authoritative turn language)"]
+        CS14["(turn language is NOT persisted as store metadata)\nthe selector emits user_lang each turn (OR_LANG);\nlanguage_policy_service resolves it for framework replies (LANG);\nthe synchronizer reply follows the latest user message (SYNC_LANG)"]
         CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start\n+ phase_trace_loop_history (per-loop-step trace,\ncapped at MAX_LOOP_STEPS) written by agent_runtime\nalongside canonical phase_trace / planner_trace_history"]
         CS16["add_step_message(threadid, stepnum, label, skill)"]
     end
@@ -254,7 +254,7 @@ flowchart TD
     subgraph SUPPORT["Support Services"]
         ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_message_for_display() (fail-closed: redact unresolved ANON_USER_* tokens)\nreanchor_value_for_thread() (cross-thread recall re-anchoring, token→token, no cleartext)\nhas_unresolved_anon_tokens() → command-input fail-closed gate (RECOVERABLE_INPUT_ERROR)"]
         EMBS["family_embeddings_retrieval_service\nused in discovery phase for family ranking\nnot for direct skill-level top-k selection"]
-        LANG["language_policy_service\nsource priority: latest user message\n→ model-declared user_lang\n→ technical fallback\nformats all framework-generated replies"]
+        LANG["language_policy_service\nsource priority: selector-emitted user_lang (from latest user message)\n→ model lang → current UI language → en (technical fallback)\nformats framework-generated replies (errors / confirmations / preflight);\nthe synchronizer composes its own reply directly in the user's language"]
         MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→skill routing)"]
         DNORM["domain_normalizer_hook\nprovider-supplied normalization\n(no framework skill heuristics)"]
         AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
