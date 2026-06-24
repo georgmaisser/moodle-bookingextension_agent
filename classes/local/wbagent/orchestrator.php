@@ -39,6 +39,7 @@ use bookingextension_agent\local\wbagent\interfaces\agent_interpreter;
 use bookingextension_agent\local\wbagent\queue\queue_manager;
 use bookingextension_agent\local\wbagent\result_payload_summarizer;
 use bookingextension_agent\local\wbagent\services\agent_access_service;
+use bookingextension_agent\local\wbagent\services\provider_compat;
 use bookingextension_agent\local\wbagent\services\catalog\adaptive_skill_catalog_service;
 use bookingextension_agent\local\wbagent\services\discovery\family_ranker;
 use bookingextension_agent\local\wbagent\services\discovery\family_registry_service;
@@ -203,7 +204,8 @@ class orchestrator {
             $context = context::instance_by_id($contextid, MUST_EXIST);
             $manager = di::get(ai_manager::class);
 
-            $providerinstances = (array)$manager->get_provider_instances();
+            // Version-agnostic provider list: real instances on 5.x, synthesised views on 4.5.
+            $providerinstances = provider_compat::get_provider_views();
             $providerconfigured = !empty($providerinstances);
 
             $hasenabledproviderinstance = false;

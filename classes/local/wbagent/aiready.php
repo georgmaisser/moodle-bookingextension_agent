@@ -30,6 +30,7 @@ use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wbagent\dto\agent_context;
 use bookingextension_agent\local\wbagent\services\agent_access_service;
+use bookingextension_agent\local\wbagent\services\provider_compat;
 use bookingextension_agent\local\wbagent\services\security\authorization_service;
 
 /**
@@ -120,7 +121,9 @@ class aiready {
         if (class_exists('\\core_ai\\manager')) {
             try {
                 $manager = di::get(ai_manager::class);
-                $providersconfigured = !empty($manager->get_provider_instances());
+                // Version-agnostic provider list: real instances on 5.x, synthesised views on 4.5.
+                $providerviews = provider_compat::get_provider_views();
+                $providersconfigured = !empty($providerviews);
 
                 // Endpoint-based detection (no provider name/class heuristic): an instance counts
                 // as the Wunderbyte trial/subscription only when its action endpoint actually
@@ -132,7 +135,7 @@ class aiready {
                 // An ENABLED aiprovider_wunderbyte instance, regardless of endpoint — the provider
                 // may be backed by a third-party LLM (e.g. OpenAI). This is "configured", so the
                 // onboarding shows the active state (not the "configure" nudge) for it.
-                foreach ((array)$manager->get_provider_instances() as $inst) {
+                foreach ($providerviews as $inst) {
                     if (
                         !empty($inst->enabled)
                             && strpos((string)($inst->provider ?? ''), 'aiprovider_wunderbyte') !== false
@@ -145,7 +148,7 @@ class aiready {
                 // Name of the active non-Wunderbyte provider instance — used as the label for the
                 // "use credentials from <name>" auto-configuration button (the source can be any
                 // OpenAI-compatible provider, not necessarily literally OpenAI).
-                foreach ((array)$manager->get_provider_instances() as $inst) {
+                foreach ($providerviews as $inst) {
                     if (
                         !empty($inst->enabled)
                             && !agent_access_service::instance_targets_wunderbyte_llm($inst)
