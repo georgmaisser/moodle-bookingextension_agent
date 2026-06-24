@@ -888,22 +888,13 @@ class orchestrator {
             }
         }
 
-        // Documentation questions must always be able to reach wbagent.explain_docs, even when the
-        // embedding top-k discovery ranked domain skills above it (e.g. "explain the booking rules"
-        // pulls the rule skills). Force the doc skill into the candidate catalog for doc-intent
-        // queries so the selector can choose it instead of, say, analyze_rules.
+        // Some skills must always be reachable when the user's message matches their declared intent
+        // (e.g. a documentation question -> wbagent.explain_docs; a "what can you do" question ->
+        // wbagent.list_skills), even when embedding top-k discovery ranked domain skills above them.
+        // This is fully skill-declared (governance mandatory_on_trigger + intent_triggers) — the
+        // engine carries no skill names or language keywords. The selector still decides.
         if ($shouldincludeskillcatalog && isset($allpromptcontracts) && is_array($allpromptcontracts)) {
-            $runtimecatalog = $this->ensure_doc_skill_for_doc_intent($runtimecatalog, $allpromptcontracts, $messages);
-            // Capability/"what can you do" questions must always be able to reach wbagent.list_skills,
-            // which returns the authoritative, complete capability list. Without this the embedding
-            // top-k discovery surfaces recently-used domain skills and the planner answers the question
-            // freely from partial context (producing an incomplete list). Force it in for capability
-            // intent; the selector still decides.
-            $runtimecatalog = $this->ensure_list_skills_for_capability_intent(
-                $runtimecatalog,
-                $allpromptcontracts,
-                $messages
-            );
+            $runtimecatalog = $this->ensure_trigger_mandatory_skills($runtimecatalog, $allpromptcontracts, $messages);
         }
 
         $systemprompt = $this->build_system_prompt(
@@ -1866,30 +1857,31 @@ PROMPT;
     }
 
     /**
-     * Force wbagent.explain_docs into the candidate catalog when the latest user message looks like a
-     * documentation/explanation question.
+     * Inject skills that declare governance mandatory_on_trigger when the latest user message matches
+     * one of their declared intent_triggers.
      *
-     * Embedding top-k discovery ranks domain skills (e.g. analyze_rules, create_rule_from_template)
-     * above the generic doc skill for phrasings like "explain the booking rules", so the doc skill
-     * never reaches the selector. This guarantees it is offered for doc-intent queries; the selector
-     * still decides. No-op when it is already present, when intent does not look documentation-like,
-     * or when the doc skill is not registered.
+     * This replaces the previous skill-name-specific routing (hardcoded explain_docs / list_skills +
+     * de/en keyword heuristics in the engine). Both the "must be offered" decision and the trigger
+     * phrases now live entirely in the skill's governance contract, so the engine stays agnostic:
+     * it carries no skill names and no language keywords. Embedding top-k discovery can rank domain
+     * skills above such a meta-skill; this guarantees it still reaches the selector, which decides.
+     * No-op for skills already present, for skills not declaring the flag, or on no trigger match.
      *
      * @param array<int,array<string,mixed>> $runtimecatalog Final (post-filter) candidate catalog.
      * @param array<int,array<string,mixed>> $allcontracts   Full skill contracts (source of the row).
      * @param array<int,object> $messages                    Conversation messages (latest user text).
      * @return array<int,array<string,mixed>>
      */
-    private function ensure_doc_skill_for_doc_intent(
+    private function ensure_trigger_mandatory_skills(
         array $runtimecatalog,
         array $allcontracts,
         array $messages
     ): array {
-        $docskill = \bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill::SKILL_NAME;
-
+        $present = [];
         foreach ($runtimecatalog as $row) {
-            if (trim((string)($row['skill'] ?? '')) === $docskill) {
-                return $runtimecatalog;
+            $skill = trim((string)($row['skill'] ?? ''));
+            if ($skill !== '') {
+                $present[$skill] = true;
             }
         }
 
@@ -1900,134 +1892,44 @@ PROMPT;
                 break;
             }
         }
-        if ($usertext === '' || !$this->looks_like_documentation_intent($usertext)) {
+        if ($usertext === '') {
             return $runtimecatalog;
         }
+        $haystack = \core_text::strtolower($usertext);
 
         foreach ($allcontracts as $entry) {
-            if (!is_array($entry) || trim((string)($entry['skill'] ?? '')) !== $docskill) {
+            if (!is_array($entry) || empty($entry['mandatory_on_trigger'])) {
                 continue;
             }
+            $skill = trim((string)($entry['skill'] ?? ''));
+            if ($skill === '' || isset($present[$skill])) {
+                continue;
+            }
+            if (!$this->message_matches_intent_triggers($haystack, (array)($entry['intent_triggers'] ?? []))) {
+                continue;
+            }
+
             $sanitized = $this->sanitize_runtime_catalog_for_prompt([$entry]);
             if (!empty($sanitized)) {
                 $runtimecatalog[] = $sanitized[0];
+                $present[$skill] = true;
             }
-            break;
         }
 
         return $runtimecatalog;
     }
 
     /**
-     * Heuristic: does the text read like a "explain / what is / how does / documentation" question?
+     * Whether any declared intent trigger occurs (case-insensitive substring) in the user message.
      *
-     * Language-agnostic-ish marker set (de + en) covering the common doc-intent phrasings. Kept
-     * deliberately small and high-precision; misses still fall back to wbagent.search_skills.
-     *
-     * @param string $text
+     * @param string $haystack Already-lowercased user message.
+     * @param array<int,mixed> $triggers Skill-declared trigger phrases.
      * @return bool
      */
-    private function looks_like_documentation_intent(string $text): bool {
-        $haystack = \core_text::strtolower($text);
-
-        $markers = [
-            // German.
-            'erklär', 'erklar', 'was ist', 'was sind', 'wie funktion', 'wofür', 'wofur',
-            'informationen zu', 'informationen über', 'informationen ueber', 'doku', 'dokumentation',
-            'anleitung', 'beschreib',
-            // English.
-            'explain', 'what is', 'what are', 'how does', 'how do i', 'documentation', 'docs',
-            'guide', 'tell me about', 'what does',
-        ];
-
-        foreach ($markers as $marker) {
-            if (mb_strpos($haystack, $marker) !== false) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Force wbagent.list_skills into the candidate catalog when the latest user message looks like a
-     * capability/"what can you do" question.
-     *
-     * wbagent.list_skills returns the authoritative, complete list of available skills. Embedding
-     * top-k discovery otherwise ranks recently-used domain skills above it, so the selector never sees
-     * it and the planner answers the capability question freely from partial context (an incomplete
-     * list - see thread 518). This guarantees it is offered; the selector still decides. No-op when it
-     * is already present, when intent does not look capability-like, or when the skill is not registered.
-     *
-     * @param array<int,array<string,mixed>> $runtimecatalog Final (post-filter) candidate catalog.
-     * @param array<int,array<string,mixed>> $allcontracts   Full skill contracts (source of the row).
-     * @param array<int,object> $messages                    Conversation messages (latest user text).
-     * @return array<int,array<string,mixed>>
-     */
-    private function ensure_list_skills_for_capability_intent(
-        array $runtimecatalog,
-        array $allcontracts,
-        array $messages
-    ): array {
-        $listskill = \bookingextension_agent\local\wbagent\wbagent\skills\list_skills_skill::SKILL_NAME;
-
-        foreach ($runtimecatalog as $row) {
-            if (trim((string)($row['skill'] ?? '')) === $listskill) {
-                return $runtimecatalog;
-            }
-        }
-
-        $usertext = '';
-        foreach (array_reverse($messages) as $msg) {
-            if (($msg->role ?? '') === 'user') {
-                $usertext = trim((string)($msg->content ?? ''));
-                break;
-            }
-        }
-        if ($usertext === '' || !$this->looks_like_capability_intent($usertext)) {
-            return $runtimecatalog;
-        }
-
-        foreach ($allcontracts as $entry) {
-            if (!is_array($entry) || trim((string)($entry['skill'] ?? '')) !== $listskill) {
-                continue;
-            }
-            $sanitized = $this->sanitize_runtime_catalog_for_prompt([$entry]);
-            if (!empty($sanitized)) {
-                $runtimecatalog[] = $sanitized[0];
-            }
-            break;
-        }
-
-        return $runtimecatalog;
-    }
-
-    /**
-     * Heuristic: does the text read like a "what can you do / which features / can you ..." question
-     * about the agent's own capabilities (as opposed to a concrete entity lookup)?
-     *
-     * Language-agnostic-ish marker set (de + en), deliberately small and high-precision; misses still
-     * fall back to wbagent.search_skills.
-     *
-     * @param string $text
-     * @return bool
-     */
-    private function looks_like_capability_intent(string $text): bool {
-        $haystack = \core_text::strtolower($text);
-
-        $markers = [
-            // German.
-            'was kannst du', 'was kannst du alles', 'was kann der agent', 'was kann ich hier',
-            'welche funktionen', 'welche fähigkeiten', 'welche faehigkeiten', 'welche aktionen',
-            'welche skills', 'welche befehle', 'wobei kannst du', 'wozu bist du', 'hilfst du',
-            // English.
-            'what can you do', 'what can you', 'which features', 'what are you capable',
-            'what skills', 'which skills', 'which actions', 'what actions', 'list your skills',
-            'how can you help', 'what can the agent',
-        ];
-
-        foreach ($markers as $marker) {
-            if (mb_strpos($haystack, $marker) !== false) {
+    private function message_matches_intent_triggers(string $haystack, array $triggers): bool {
+        foreach ($triggers as $trigger) {
+            $needle = \core_text::strtolower(trim((string)$trigger));
+            if ($needle !== '' && mb_strpos($haystack, $needle) !== false) {
                 return true;
             }
         }

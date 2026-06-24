@@ -93,6 +93,13 @@ class skill_contract_validator {
             'active' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
             'alias_of' => trim((string)($governance['alias_of'] ?? '')),
             'always_available' => (bool)($governance['always_available'] ?? false),
+            // A skill that must be offered when the user's message matches one of its declared
+            // intent_triggers (engine injects it generically — no skill-name routing in the engine).
+            'mandatory_on_trigger' => (bool)($governance['mandatory_on_trigger'] ?? false),
+            'intent_triggers' => array_values(array_filter(array_map(
+                static fn ($t): string => trim((string)$t),
+                (array)($governance['intent_triggers'] ?? [])
+            ))),
             'deprecated_since' => trim((string)($governance['deprecated_since'] ?? '')),
             'readonly' => (bool)$skill->is_read_only(),
             'risk_class' => trim((string)$skill->get_risk_class()),

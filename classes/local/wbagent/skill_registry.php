@@ -351,8 +351,19 @@ class skill_registry {
             return (bool)$configured;
         }
 
-        // Default-off for newly discovered skills until explicitly enabled.
-        return false;
+        // Default: read-only skills are enabled out of the box so the agent is useful on a fresh
+        // install; mutating skills stay off until an admin explicitly enables them in skill
+        // governance. Read-only skills that depend on admin-provisioned infrastructure (e.g.
+        // explain_docs needs a docs corpus / embeddings index) opt out via
+        // requires_explicit_activation() so they are not auto-enabled into a degraded state.
+        // This is only a discovery/visibility default — every execution is still gated by the
+        // skill's specific capability (fail-closed in skill_executability_evaluator), so an enabled
+        // read-only skill is usable only by users who actually hold that capability.
+        $skill = $this->get_skill($skillname);
+        if ($skill === null || !$skill->is_read_only()) {
+            return false;
+        }
+        return !$skill->requires_explicit_activation();
     }
 
     /**
@@ -574,6 +585,8 @@ class skill_registry {
                 : 'skill',
             'anchors' => $anchorfields,
             'always_available' => (bool)($skillmeta['always_available'] ?? false),
+            'mandatory_on_trigger' => (bool)($skillmeta['mandatory_on_trigger'] ?? false),
+            'intent_triggers' => array_values((array)($skillmeta['intent_triggers'] ?? [])),
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
             'namespace' => $namespace,

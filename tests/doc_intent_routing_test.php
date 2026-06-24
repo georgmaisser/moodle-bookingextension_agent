@@ -27,6 +27,11 @@ use bookingextension_agent\local\wbagent\wbagent\skills\explain_docs_skill;
  * doc-intent questions so the selector can pick it over domain skills (thread-209: "explain the
  * booking rules" was routed to analyze_rules because explain_docs never reached the candidate set).
  *
+ * After the LG_AGN cleanup this is driven entirely by the skill's declared governance
+ * (mandatory_on_trigger + intent_triggers) and a generic engine injector — no skill names or
+ * language keywords live in the orchestrator. These tests therefore drive the REAL skill's declared
+ * triggers through the generic injector, so they still pin the exact doc-intent behaviour.
+ *
  * @package    bookingextension_agent
  * @category   test
  * @covers \bookingextension_agent\local\wbagent\orchestrator
@@ -62,11 +67,57 @@ final class doc_intent_routing_test extends advanced_testcase {
     }
 
     /**
-     * Documentation phrasings (the two thread-209 questions + variants) are recognised; a plain
-     * mutation request is not.
+     * The explain_docs contract as it reaches the orchestrator — with the skill's REAL declared
+     * governance (mandatory_on_trigger + intent_triggers), so the test exercises the actual markers.
+     *
+     * @return array<string,mixed>
      */
-    public function test_documentation_intent_detection(): void {
+    private function doc_contract(): array {
+        $governance = (array)((new explain_docs_skill())->get_schema()['governance'] ?? []);
+        return [
+            'skill' => explain_docs_skill::SKILL_NAME,
+            'description' => 'Search the plugin documentation.',
+            'mandatory_on_trigger' => (bool)($governance['mandatory_on_trigger'] ?? false),
+            'intent_triggers' => (array)($governance['intent_triggers'] ?? []),
+        ];
+    }
+
+    /**
+     * Run the generic injector with a domain candidate + the doc contract for the given user text.
+     *
+     * @param string $usertext
+     * @param array<int,array<string,mixed>> $runtimecatalog
+     * @return string[] resulting candidate skill names
+     */
+    private function inject_for(string $usertext, array $runtimecatalog): array {
+        $allcontracts = array_merge($runtimecatalog, [$this->doc_contract()]);
+        $result = $this->call_private(
+            'ensure_trigger_mandatory_skills',
+            [$runtimecatalog, $allcontracts, [$this->usermsg($usertext)]]
+        );
+        return array_map(static fn(array $r): string => (string)$r['skill'], $result);
+    }
+
+    /**
+     * The skill declares the mandatory_on_trigger flag and the doc-intent markers — the wiring the
+     * generic injector depends on.
+     */
+    public function test_skill_declares_governance_markers(): void {
+        $governance = (array)((new explain_docs_skill())->get_schema()['governance'] ?? []);
+        $this->assertTrue((bool)($governance['mandatory_on_trigger'] ?? false));
+        $triggers = (array)($governance['intent_triggers'] ?? []);
+        foreach (['explain', 'was ist', 'erklär', 'documentation', 'wie funktion'] as $marker) {
+            $this->assertContains($marker, $triggers, "Doc skill must declare the '{$marker}' intent trigger.");
+        }
+    }
+
+    /**
+     * Documentation phrasings (the thread-209 questions + variants) inject the doc skill; plain
+     * mutation requests do not — pinned through the real markers + generic injector.
+     */
+    public function test_doc_intent_phrasings_inject_doc_skill(): void {
         $this->resetAfterTest(true);
+        $domain = [['skill' => 'mod_booking.analyze_rules', 'description' => 'Analyze configured rules.']];
 
         $docqueries = [
             'was kannst du mir zu den buchungsregeln erklären?',
@@ -76,10 +127,9 @@ final class doc_intent_routing_test extends advanced_testcase {
             'what is a booking option?',
         ];
         foreach ($docqueries as $q) {
-            $this->assertTrue(
-                (bool)$this->call_private('looks_like_documentation_intent', [$q]),
-                'Expected documentation intent for: ' . $q
-            );
+            $skills = $this->inject_for($q, $domain);
+            $this->assertContains(explain_docs_skill::SKILL_NAME, $skills, "Doc skill must be offered for: {$q}");
+            $this->assertContains('mod_booking.analyze_rules', $skills, 'Existing candidates must be preserved.');
         }
 
         $nondoc = [
@@ -88,68 +138,41 @@ final class doc_intent_routing_test extends advanced_testcase {
             'erstelle eine neue Buchungsoption',
         ];
         foreach ($nondoc as $q) {
-            $this->assertFalse(
-                (bool)$this->call_private('looks_like_documentation_intent', [$q]),
-                'Did not expect documentation intent for: ' . $q
-            );
+            $skills = $this->inject_for($q, $domain);
+            $this->assertNotContains(explain_docs_skill::SKILL_NAME, $skills, "Doc skill must NOT be offered for: {$q}");
         }
-    }
-
-    /**
-     * For a doc-intent question, the doc skill is appended to a candidate catalog that lacks it.
-     */
-    public function test_doc_skill_forced_in_for_doc_intent(): void {
-        $this->resetAfterTest(true);
-
-        $runtimecatalog = [
-            ['skill' => 'mod_booking.analyze_rules', 'description' => 'Analyze configured rules.'],
-        ];
-        $allcontracts = array_merge($runtimecatalog, [
-            ['skill' => explain_docs_skill::SKILL_NAME, 'description' => 'Search the plugin documentation.'],
-        ]);
-        $messages = [$this->usermsg('was kannst du mir zu den buchungsregeln erklären?')];
-
-        $result = $this->call_private('ensure_doc_skill_for_doc_intent', [$runtimecatalog, $allcontracts, $messages]);
-
-        $skills = array_map(static fn(array $r): string => (string)$r['skill'], $result);
-        $this->assertContains(explain_docs_skill::SKILL_NAME, $skills, 'Doc skill must be forced in for a doc question.');
-        $this->assertContains('mod_booking.analyze_rules', $skills, 'Existing candidates must be preserved.');
     }
 
     /**
      * A non-documentation request leaves the candidate catalog untouched (no noise).
      */
-    public function test_doc_skill_not_added_for_non_doc_intent(): void {
+    public function test_no_injection_for_non_doc_intent(): void {
         $this->resetAfterTest(true);
+        $runtimecatalog = [['skill' => 'mod_booking.update_option', 'description' => 'Update an option.']];
 
-        $runtimecatalog = [
-            ['skill' => 'mod_booking.update_option', 'description' => 'Update an option.'],
-        ];
-        $allcontracts = array_merge($runtimecatalog, [
-            ['skill' => explain_docs_skill::SKILL_NAME, 'description' => 'Search the plugin documentation.'],
-        ]);
-        $messages = [$this->usermsg('setze maxanswers auf 20')];
+        $result = $this->call_private(
+            'ensure_trigger_mandatory_skills',
+            [$runtimecatalog, array_merge($runtimecatalog, [$this->doc_contract()]), [$this->usermsg('setze maxanswers auf 20')]]
+        );
 
-        $result = $this->call_private('ensure_doc_skill_for_doc_intent', [$runtimecatalog, $allcontracts, $messages]);
-
-        $skills = array_map(static fn(array $r): string => (string)$r['skill'], $result);
-        $this->assertNotContains(explain_docs_skill::SKILL_NAME, $skills);
         $this->assertCount(1, $result);
+        $this->assertSame('mod_booking.update_option', (string)$result[0]['skill']);
     }
 
     /**
-     * When the doc skill is already a candidate, the catalog is returned unchanged (no duplicate).
+     * When the doc skill is already a candidate, it is not duplicated.
      */
-    public function test_doc_skill_not_duplicated_when_present(): void {
+    public function test_not_duplicated_when_present(): void {
         $this->resetAfterTest(true);
-
         $runtimecatalog = [
-            ['skill' => explain_docs_skill::SKILL_NAME, 'description' => 'Search the plugin documentation.'],
+            $this->doc_contract(),
             ['skill' => 'mod_booking.analyze_rules', 'description' => 'Analyze configured rules.'],
         ];
-        $messages = [$this->usermsg('erkläre mir die buchungsregeln')];
 
-        $result = $this->call_private('ensure_doc_skill_for_doc_intent', [$runtimecatalog, $runtimecatalog, $messages]);
+        $result = $this->call_private(
+            'ensure_trigger_mandatory_skills',
+            [$runtimecatalog, $runtimecatalog, [$this->usermsg('erkläre mir die buchungsregeln')]]
+        );
 
         $occurrences = array_filter(
             $result,
