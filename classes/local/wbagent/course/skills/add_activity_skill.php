@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\course\skills;
 
 use bookingextension_agent\local\wbagent\course_targeted_skill;
+use bookingextension_agent\local\wbagent\preflight_clarification;
 
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
@@ -45,6 +46,7 @@ use context;
  */
 class add_activity_skill extends core_skill_base implements skill_trigger_provider_interface {
     use course_targeted_skill;
+    use preflight_clarification;
     /** Skill name constant. */
     public const SKILL_NAME = 'course.add_activity';
 
@@ -595,25 +597,6 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
         return implode("\n", $lines);
     }
 
-    /**
-     * Build a needs_clarification preflight result.
-     *
-     * @param string $message
-     * @param string $code
-     * @param array<int,array<string,mixed>> $options
-     * @return preflight_result_v2
-     */
-    private function clarify(string $message, string $code, array $options = []): preflight_result_v2 {
-        $issue = [
-            'severity' => 'needs_clarification',
-            'message' => $message,
-            'code' => $code,
-        ];
-        if (!empty($options)) {
-            $issue['options'] = $options;
-        }
-        return preflight_result_v2::invalid([$issue]);
-    }
 
     /**
      * Build the success result payload.

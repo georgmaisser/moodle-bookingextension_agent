@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\wbagent\course\skills;
 
 use bookingextension_agent\local\wbagent\course_targeted_skill;
+use bookingextension_agent\local\wbagent\preflight_clarification;
 
 use bookingextension_agent\local\wbagent\core\skills\core_skill_base;
 use bookingextension_agent\local\wbagent\dto\skill_risk_class;
@@ -46,6 +47,7 @@ use context_course;
  */
 class update_quiz_skill extends core_skill_base implements skill_trigger_provider_interface {
     use course_targeted_skill;
+    use preflight_clarification;
     /** Skill name. */
     public const SKILL_NAME = 'course.update_quiz';
 
@@ -525,49 +527,11 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * @return preflight_result_v2
      */
     private function build_source_clarification(array $categories, string $lead = ''): preflight_result_v2 {
-        $lines = [$lead !== '' ? $lead : 'Which questions should I add?', ''];
-        $lines[] = '- Generate new questions from a document/PDF or material you give me';
-        $lines[] = '- Let me make up questions on a topic you name';
-        $lines[] = '- Use existing questions from a question category';
-        $options = [];
-        if (!empty($categories)) {
-            $lines[] = '';
-            $lines[] = 'Available categories:';
-            foreach ($categories as $cat) {
-                $lines[] = sprintf(
-                    '  - %s › %s (%d question(s))',
-                    (string)$cat['bankname'],
-                    (string)$cat['categoryname'],
-                    (int)$cat['questioncount']
-                );
-                $options[] = [
-                    'categoryid' => (int)$cat['categoryid'],
-                    'category' => (string)$cat['categoryname'],
-                    'bank' => (string)$cat['bankname'],
-                    'questioncount' => (int)$cat['questioncount'],
-                ];
-            }
-        }
-        $lines[] = '';
-        $lines[] = 'Tell me which option (and the topic/PDF or the category).';
-        return $this->clarify(implode("\n", $lines), 'UPDATE_QUIZ_QUESTION_SOURCE', $options);
+        $lead = $lead !== '' ? $lead : 'Which questions should I add?';
+        $content = quiz_question_service::build_source_clarification($categories, $lead);
+        return $this->clarify($content['message'], 'UPDATE_QUIZ_QUESTION_SOURCE', $content['options']);
     }
 
-    /**
-     * Build a needs_clarification preflight result.
-     *
-     * @param string $message
-     * @param string $code
-     * @param array<int,array<string,mixed>> $options
-     * @return preflight_result_v2
-     */
-    private function clarify(string $message, string $code, array $options = []): preflight_result_v2 {
-        $issue = ['severity' => 'needs_clarification', 'message' => $message, 'code' => $code];
-        if (!empty($options)) {
-            $issue['options'] = $options;
-        }
-        return preflight_result_v2::invalid([$issue]);
-    }
 
     /**
      * Build the success result with staged feedback.

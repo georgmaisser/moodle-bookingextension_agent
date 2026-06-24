@@ -143,6 +143,46 @@ class quiz_question_service {
     }
 
     /**
+     * Build the "which question source?" clarification content (message lines + selectable options).
+     *
+     * Shared by the add/update quiz skills, which supply their own lead sentence and issue code.
+     *
+     * @param array<int,array<string,mixed>> $categories
+     * @param string $lead Already-resolved lead sentence.
+     * @return array{message:string, options:array<int,array<string,mixed>>}
+     */
+    public static function build_source_clarification(array $categories, string $lead): array {
+        $lines = [$lead, ''];
+        $lines[] = '- Generate new questions from a document/PDF or material you give me';
+        $lines[] = '- Let me make up questions on a topic you name';
+        $lines[] = '- Use existing questions from a question category';
+
+        $options = [];
+        if (!empty($categories)) {
+            $lines[] = '';
+            $lines[] = 'Available categories:';
+            foreach ($categories as $cat) {
+                $lines[] = sprintf(
+                    '  - %s › %s (%d question(s))',
+                    (string)$cat['bankname'],
+                    (string)$cat['categoryname'],
+                    (int)$cat['questioncount']
+                );
+                $options[] = [
+                    'categoryid' => (int)$cat['categoryid'],
+                    'category' => (string)$cat['categoryname'],
+                    'bank' => (string)$cat['bankname'],
+                    'questioncount' => (int)$cat['questioncount'],
+                ];
+            }
+        }
+        $lines[] = '';
+        $lines[] = 'Tell me which option (and the topic/PDF or the category).';
+
+        return ['message' => implode("\n", $lines), 'options' => $options];
+    }
+
+    /**
      * Add questions to a quiz according to a resolved (non-clarify) plan.
      *
      * @param stdClass $course
