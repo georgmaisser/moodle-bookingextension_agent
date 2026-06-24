@@ -428,6 +428,10 @@ $string['agent_booking_verify_field_maxoverbooking_failed'] = 'Feld "maxoverbook
 $string['agent_booking_verify_field_text_failed'] = 'Feld "text" konnte nach dem Speichern nicht bestätigt werden. Angefordert: "{$a->requested}", gespeichert: "{$a->actual}".';
 $string['agent_configure_intro'] = 'Wunderbyte-Provider für den vollen Funktionsumfang einrichten:';
 $string['agent_configure_provider'] = 'Wunderbyte-Provider konfigurieren';
+$string['agent_key_invalid'] = 'Dieser Key wurde vom Wunderbyte-KI-Dienst abgelehnt (ungültig oder abgelaufen). Bitte prüfe den Key und versuche es erneut.';
+$string['agent_key_invalid_format'] = 'Das sieht nicht nach einem gültigen Wunderbyte-API-Key aus (erwartetes Format: sk-…).';
+$string['agent_key_stored'] = 'Dein API-Key wurde gespeichert, der Wunderbyte-KI-Provider ist jetzt aktiv.';
+$string['agent_key_unverified_note'] = 'Hinweis: Der Key konnte gerade nicht verifiziert werden; falls der Agent nicht antwortet, bitte den Key nochmals prüfen.';
 $string['agent_configure_use_provider'] = 'Zugangsdaten von {$a} übernehmen';
 $string['agent_configure_use_trial'] = 'Wunderbyte-Testversion nutzen';
 $string['agent_confirm_operating_context_note'] = 'Hinweis: Dies wird ausgeführt in: {$a}.';
@@ -703,8 +707,25 @@ $string['ai_welcome_generic'] = 'Willkommen! Wie kann ich Ihnen hier helfen?';
 $string['ai_welcome_with_options'] = 'Willkommen! Sie haben hier {$a->numoptions} Buchungsoptionen, und {$a->numbooked} Personen sind bereits gebucht. Wie kann ich Ihnen helfen?';
 $string['aidebugmode'] = 'KI-Debug-Modus';
 $string['aidebugmode_desc'] = 'Aktiviert die detaillierte Protokollierung der KI-Bereitschaft und des Austauschs für diese Erweiterung.';
-$string['aidocsroot'] = 'Dokumentations-Root';
-$string['aidocsroot_desc'] = 'Absolutes oder relatives Stammverzeichnis für die Dokumentationssuche.';
+$string['aidocsroot'] = 'Dokumentations-Korpora';
+$string['aidocsroot_desc'] = 'Ein Dokumentations-Korpus pro Zeile, genutzt vom Dokumentations-Skill. Eine Quelle ist eine Moodle-Komponente oder ein Pfad innerhalb dieser Moodle-Installation – keine Remote-URLs.
+
+Beispiele:
+<pre>
+bookingextension_agent        # Komponente → deren docs-Ordner (Korpus-ID = Komponente)
+mod_booking                   # Komponente → mod/booking/docs
+quizdocs = mod/quiz/docs      # explizite Korpus-ID + Pfad relativ zum Moodle-Root
+</pre>
+
+Zeilen mit <code>#</code> sind Kommentare. Fehlt die Korpus-ID, wird sie aus dem Komponentennamen abgeleitet. Pfade müssen innerhalb dieser Moodle-Installation liegen; Zeilen, die nach außen zeigen, werden abgewiesen.';
+$string['aidocsroot_warn_emptysource'] = 'Dokumentations-Korpora: Zeile „{$a}" hat keine Quelle und wurde ignoriert.';
+$string['aidocsroot_warn_unresolvable'] = 'Dokumentations-Korpora: Zeile „{$a}" konnte nicht zu einem Verzeichnis aufgelöst werden und wurde ignoriert.';
+$string['aidocsroot_warn_outside'] = 'Dokumentations-Korpora: Zeile „{$a}" zeigt außerhalb dieser Moodle-Installation und wurde abgewiesen.';
+$string['aidocsroot_warn_emptycorpusid'] = 'Dokumentations-Korpora: Zeile „{$a}" ergab eine leere Korpus-ID und wurde ignoriert.';
+$string['aidocsroot_warn_collision'] = 'Dokumentations-Korpora: Korpus-ID „{$a->corpusid}" ist bereits definiert; die doppelte Zeile „{$a->line}" wurde ignoriert.';
+$string['aidocsroot_notice_missing'] = 'Dokumentations-Korpora: Korpus „{$a->corpusid}" ist deklariert, aber sein Verzeichnis ({$a->path}) existiert noch nicht; die indizierten Daten bleiben erhalten.';
+$string['aidocsroot_skill_active'] = '✓ Der Dokumentations-Skill ist aktiv – die Dokumentation wird durchsucht und indiziert.';
+$string['aidocsroot_skill_inactive'] = '✗ Der Dokumentations-Skill ist inaktiv – Dokumentationssuche und Indizierung sind deaktiviert. Aktiviere ihn unter {$a}.';
 $string['aiinitialprompt'] = 'Initialer AI-System-Prompt';
 $string['aiinitialprompt_desc'] = 'Bearbeitbarer Basis-Prompt für den Booking-AI-Assistenten. Unterstützte Platzhalter: {{bookingname}}, {{timezonename}}, {{nowiso}}, {{skilllist}}, {{schemajson}}.';
 $string['aiinitialprompt_parameter_construction'] = 'Initialer AI-Prompt (Parameter Construction, kompakt)';

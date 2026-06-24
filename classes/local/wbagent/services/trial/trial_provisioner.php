@@ -159,6 +159,95 @@ class trial_provisioner {
     }
 
     /**
+     * Configure the Wunderbyte provider directly from a user-supplied (purchased) API key.
+     *
+     * Stores the key on the aiprovider_wunderbyte instance against the hard-coded LiteLLM endpoint
+     * (self::BASE_URL), reusing the same full trial action config. A lightweight quick check validates
+     * the key before storing: a clear 401 from the proxy aborts (bad/expired key); any other,
+     * inconclusive result still stores the key but flags that it could not be verified.
+     *
+     * @param int $contextid Page/module context (audit/messaging only).
+     * @param string $apikey The purchased LiteLLM key (sk-...).
+     * @return array{success: bool, message: string}
+     */
+    public function configure_from_apikey(int $contextid, string $apikey): array {
+        unset($contextid);
+
+        if (!class_exists('\\core_ai\\manager')) {
+            return $this->fail(get_string('aitrial_coreai_unavailable', 'bookingextension_agent'));
+        }
+        if (!\core_component::get_plugin_directory('aiprovider', 'wunderbyte')) {
+            $url = get_string('aitrial_provider_install_url', 'bookingextension_agent');
+            return $this->fail(get_string('aitrial_provider_required', 'bookingextension_agent', $url));
+        }
+
+        $apikey = trim($apikey);
+        if (!preg_match('/^sk-[A-Za-z0-9_\\-]{20,}$/', $apikey)) {
+            return $this->fail(get_string('agent_key_invalid_format', 'bookingextension_agent'));
+        }
+
+        // Quick check before storing (only a definitive auth failure blocks; see verify_apikey()).
+        $verify = $this->verify_apikey($apikey);
+        if ($verify === 'invalid') {
+            return $this->fail(get_string('agent_key_invalid', 'bookingextension_agent'));
+        }
+
+        try {
+            $this->upsert_provider_instance('wunderbyte', $apikey, self::BASE_URL);
+        } catch (\Throwable $e) {
+            debugging('configure_from_apikey: provider instance creation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return $this->fail(
+                get_string('aitrial_provision_failed', 'bookingextension_agent'),
+                'provider instance creation failed: ' . $e->getMessage()
+            );
+        }
+
+        $message = get_string('agent_key_stored', 'bookingextension_agent');
+        if ($verify === 'unknown') {
+            $message .= ' ' . get_string('agent_key_unverified_note', 'bookingextension_agent');
+        }
+        return ['success' => true, 'message' => $message];
+    }
+
+    /**
+     * Lightweight validity check of a purchased key — no token cost, privacy-preserving.
+     *
+     * GET {BASE_URL}/v1/models with the key as bearer: 200 = valid, 401 = invalid (token not found /
+     * unauthorized), anything else (403/404/5xx/network) = inconclusive. Only 401 is a hard "invalid",
+     * so a temporary proxy hiccup or a route restriction never false-rejects a real key.
+     *
+     * @param string $apikey
+     * @return string 'valid' | 'invalid' | 'unknown'
+     */
+    private function verify_apikey(string $apikey): string {
+        $url = rtrim(self::BASE_URL, '/') . '/v1/models';
+        $request = new Request('GET', $url, [
+            'Authorization' => 'Bearer ' . $apikey,
+            'Accept' => 'application/json',
+        ]);
+
+        $client = \core\di::get(http_client::class);
+        try {
+            $response = $client->send($request, [
+                RequestOptions::HTTP_ERRORS => false,
+                RequestOptions::TIMEOUT => self::HTTP_TIMEOUT,
+            ]);
+        } catch (GuzzleException $e) {
+            debugging('configure_from_apikey: key verification unreachable: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return 'unknown';
+        }
+
+        $status = $response->getStatusCode();
+        if ($status === 200) {
+            return 'valid';
+        }
+        if ($status === 401) {
+            return 'invalid';
+        }
+        return 'unknown';
+    }
+
+    /**
      * Build a Wunderbyte actionconfig from a third-party chat endpoint/model + default embeddings.
      *
      * @param string $chatendpoint

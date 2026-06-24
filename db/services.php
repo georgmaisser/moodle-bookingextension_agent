@@ -114,6 +114,22 @@ $functions = [
         'capabilities' => 'bookingextension/agent:useaiinstructions',
         'ajax'        => 1,
     ],
+    'bookingextension_agent_store_provider_apikey' => [
+        'classname'   => '\\bookingextension_agent\\external\\store_provider_apikey',
+        'methodname'  => 'execute',
+        'description' => 'Store a purchased Wunderbyte API key on the provider instance.',
+        'type'        => 'write',
+        'capabilities' => 'bookingextension/agent:requesttrial',
+        'ajax'        => 1,
+    ],
+    'bookingextension_agent_set_debug_mode' => [
+        'classname'   => '\\bookingextension_agent\\external\\set_debug_mode',
+        'methodname'  => 'execute',
+        'description' => 'Toggle the site-wide agent debug mode.',
+        'type'        => 'write',
+        'capabilities' => 'moodle/site:config',
+        'ajax'        => 1,
+    ],
 ];
 
 $services = [
@@ -130,6 +146,8 @@ $services = [
             'bookingextension_agent_request_trial_key',
             'bookingextension_agent_activate_trial_context',
             'bookingextension_agent_configure_provider_from_existing',
+            'bookingextension_agent_store_provider_apikey',
+            'bookingextension_agent_set_debug_mode',
         ],
         'restrictedusers' => 0,
         'enabled' => 1,

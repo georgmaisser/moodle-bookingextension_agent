@@ -428,6 +428,10 @@ $string['agent_booking_verify_field_maxoverbooking_failed'] = 'Field "maxoverboo
 $string['agent_booking_verify_field_text_failed'] = 'Field "text" could not be confirmed after save. Requested "{$a->requested}", stored "{$a->actual}".';
 $string['agent_configure_intro'] = 'Configure the Wunderbyte provider for the full feature set:';
 $string['agent_configure_provider'] = 'Configure Wunderbyte provider';
+$string['agent_key_invalid'] = 'This key was rejected by the Wunderbyte AI service (invalid or expired). Please check the key and try again.';
+$string['agent_key_invalid_format'] = 'That does not look like a valid Wunderbyte API key (expected format: sk-...).';
+$string['agent_key_stored'] = 'Your API key has been stored and the Wunderbyte AI provider is now active.';
+$string['agent_key_unverified_note'] = 'Note: the key could not be verified right now; if the agent does not respond, please re-check the key.';
 $string['agent_configure_use_provider'] = 'Use credentials from {$a}';
 $string['agent_configure_use_trial'] = 'Use a Wunderbyte trial';
 $string['agent_confirm_operating_context_note'] = 'Note: this will be carried out in: {$a}.';
@@ -703,8 +707,25 @@ $string['ai_welcome_generic'] = 'Welcome! How can I help you here?';
 $string['ai_welcome_with_options'] = 'Welcome! You have {$a->numoptions} booking options here, and {$a->numbooked} people are already booked. How can I help you?';
 $string['aidebugmode'] = 'AI debug mode';
 $string['aidebugmode_desc'] = 'Enable detailed AI readiness and exchange logging for this extension.';
-$string['aidocsroot'] = 'Documentation root';
-$string['aidocsroot_desc'] = 'Absolute or relative root directory used by documentation lookup skills.';
+$string['aidocsroot'] = 'Documentation corpora';
+$string['aidocsroot_desc'] = 'One documentation corpus per line, used by the documentation lookup skill. A source is a Moodle component or a path inside this Moodle installation — no remote URLs.
+
+Examples:
+<pre>
+bookingextension_agent        # component → its docs folder (corpus id = component)
+mod_booking                   # component → mod/booking/docs
+quizdocs = mod/quiz/docs      # explicit corpus id + path relative to the Moodle root
+</pre>
+
+Lines starting with <code>#</code> are comments. A corpus id is derived from the component name when omitted. Paths must stay inside this Moodle installation; lines pointing outside are rejected.';
+$string['aidocsroot_warn_emptysource'] = 'Documentation corpora: line "{$a}" has no source and was ignored.';
+$string['aidocsroot_warn_unresolvable'] = 'Documentation corpora: line "{$a}" could not be resolved to a directory and was ignored.';
+$string['aidocsroot_warn_outside'] = 'Documentation corpora: line "{$a}" points outside this Moodle installation and was rejected.';
+$string['aidocsroot_warn_emptycorpusid'] = 'Documentation corpora: line "{$a}" produced an empty corpus id and was ignored.';
+$string['aidocsroot_warn_collision'] = 'Documentation corpora: corpus id "{$a->corpusid}" is already defined; the duplicate line "{$a->line}" was ignored.';
+$string['aidocsroot_notice_missing'] = 'Documentation corpora: corpus "{$a->corpusid}" is declared but its directory ({$a->path}) does not exist yet; its indexed data is kept.';
+$string['aidocsroot_skill_active'] = '✓ The documentation skill is active — documentation is searched and indexed.';
+$string['aidocsroot_skill_inactive'] = '✗ The documentation skill is inactive — documentation search and indexing are disabled. Enable it under {$a}.';
 $string['aiinitialprompt'] = 'AI initial system prompt';
 $string['aiinitialprompt_desc'] = 'Editable base prompt for the booking AI assistant. Supported placeholders: {{bookingname}}, {{timezonename}}, {{nowiso}}, {{skilllist}}, {{schemajson}}.';
 $string['aiinitialprompt_parameter_construction'] = 'AI initial prompt (parameter construction, compact)';
