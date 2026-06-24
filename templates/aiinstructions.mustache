@@ -289,7 +289,8 @@
                     {{! Explicit alternative: a deliberate "no, without Wunderbyte" downgrade. }}
                     {{#standard_provider_installed}}
                     <div class="booking-ai-connect-alt {{#wunderbyte_provider_installed}}mt-3{{/wunderbyte_provider_installed}}">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-trial-strategy="openai">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-trial-strategy="openai"
+                                data-strategy-confirm="{{#reduced_mode_permanent}}{{#str}}agent_reduced_mode_confirm, bookingextension_agent{{/str}}{{/reduced_mode_permanent}}">
                             {{#str}}agent_connect_standard, bookingextension_agent{{/str}}
                         </button>
                         <p class="small text-muted mt-1 mb-0">{{#str}}aitrial_fallback_note, bookingextension_agent{{/str}}</p>

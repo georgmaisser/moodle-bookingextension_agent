@@ -2981,6 +2981,13 @@ const handleBodyClick = (event) => {
 
     const pathBtn = target.closest('[data-trial-strategy]');
     if (pathBtn instanceof HTMLElement) {
+        // On Moodle 4.5 the trial configures (and may overwrite) the site's single standard
+        // provider config -- confirm first. The confirm text is rendered only there, so this
+        // is a no-op on Moodle 5.x (multi-instance, no overwrite).
+        const strategyConfirm = pathBtn.dataset.strategyConfirm || '';
+        if (strategyConfirm !== '' && !window.confirm(strategyConfirm)) {
+            return;
+        }
         // Path chosen -> reveal the inline consent step (no nested modal). The strategy is
         // parked on the accept button; the key request runs only after consent + confirm.
         showConsentStep(pathBtn.dataset.trialStrategy || '');

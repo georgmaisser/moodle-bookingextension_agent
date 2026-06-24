@@ -430,6 +430,7 @@ $string['agent_configure_intro'] = 'Wunderbyte-Provider für den vollen Funktion
 $string['agent_configure_provider'] = 'Wunderbyte-Provider konfigurieren';
 $string['agent_connect_have_key'] = 'Ich habe bereits einen Key';
 $string['agent_debug_logs'] = 'Debug-Logs';
+$string['agent_reduced_mode_confirm'] = 'In dieser Moodle-Version richtet der Testlauf deinen Standard-KI-Anbieter (OpenAI) ein. Falls dieser Anbieter auf dieser Website bereits konfiguriert ist, werden seine Einstellungen überschrieben. Fortfahren?';
 $string['agent_reduced_mode_note'] = 'In dieser Moodle-Version läuft der Agent im reduzierten Modus: Er nutzt deinen Standard-KI-Anbieter für den Chat, ohne semantische Skill-Suche (Embeddings). Alle Skills bleiben verfügbar.';
 $string['agent_debug_sitewide'] = 'site-weit';
 $string['agent_key_invalid'] = 'Dieser Key wurde vom Wunderbyte-KI-Dienst abgelehnt (ungültig oder abgelaufen). Bitte prüfe den Key und versuche es erneut.';
