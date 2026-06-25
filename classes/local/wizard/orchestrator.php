@@ -62,6 +62,7 @@ use bookingextension_agent\local\wizard\services\provider_routing_util;
 use bookingextension_agent\local\wizard\services\provider_status_service;
 use bookingextension_agent\local\wizard\services\planner_catalog_service;
 use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
+use bookingextension_agent\local\wizard\services\discovery_phase_service;
 use bookingextension_agent\local\wizard\services\synchronizer_prompt_builder;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service;
@@ -148,6 +149,9 @@ class orchestrator {
     /** @var synchronizer_prompt_builder */
     private synchronizer_prompt_builder $synchronizerpromptbuilder;
 
+    /** @var discovery_phase_service */
+    private discovery_phase_service $discoveryphasesvc;
+
     /**
      * Constructor.
      *
@@ -177,6 +181,15 @@ class orchestrator {
         $this->promptprofilesvc = new orchestrator_prompt_profile_service();
         $this->promptbundlebuilder = new phase_prompt_bundle_builder($this->registry, $this->promptprofilesvc);
         $this->synchronizerpromptbuilder = new synchronizer_prompt_builder();
+        $this->discoveryphasesvc = new discovery_phase_service(
+            $this->store,
+            $this->registry,
+            $this->orchestratorroutingsvc,
+            $this->promptprofilesvc,
+            $this->plannercatalogsvc,
+            $this->runtimecontextsvc,
+            $this->promptbundlebuilder
+        );
     }
 
     /**
@@ -437,421 +450,18 @@ class orchestrator {
         ai_manager $manager,
         skill_executability_evaluator $evaluator
     ): array {
-        $contextid = (int)$context->id;
-
-        $routing = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
-            $manager,
-            $context,
-            orchestrator_routing_service::PHASE_SELECTION
-        );
-        $actionclass = (string)($routing['actionclass'] ?? '');
-
-        $messages = array_values(array_filter(
-            $this->store->get_messages($threadid),
-            static fn($msg): bool => (string)($msg->role ?? '') !== 'step'
-        ));
-
-        $recentskillhistory = $this->extract_recent_skill_names_from_messages($messages);
-        $isfirstassistantturn = $this->is_first_assistant_turn($messages);
-        $promptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
-        $adaptivecatalogresult = adaptive_skill_catalog_service::get_adaptive_catalog(
-            $promptcontracts,
-            $recentskillhistory,
-            orchestrator_routing_service::PHASE_DISCOVERY
-        );
-        $adaptivecatalog = $adaptivecatalogresult['active_skills'];
-
-        $hasanyobservations = !empty($observations);
-        $haseffectiveobservations = $hasanyobservations
-            && !$this->promptprofilesvc->observations_are_framework_retry_hints($observations);
-        $plannertracehistory = $this->normalize_planner_trace_history(
-            $this->store->get_thread_metadata_value($threadid, 'planner_trace_history')
-        );
-        // Keep skill catalog available in every loop iteration so follow-up
-        // selection rounds (B, C, ...) never run with an empty catalog.
-        $shouldincludeskillcatalog = true;
-
-        $runtimecatalog = [];
-        $unavailableskillcatalog = [];
-        $catalogselectionmode = 'none';
-        $embeddingstatus = 'off';
-        $embeddingrebuildqueued = false;
-        $usedembeddingcache = false;
-        $discoverystage = 'none';
-        $discoveryconfidencescore = null;
-        $discoveryescalationreason = 'none';
-        $selectedfamilies = [];
-        $embeddingcall = [];
-        $status = [];
-        $llm = new llm_call_service($this->store);
-
-        if ($shouldincludeskillcatalog) {
-            $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
-            // Full-access gate: without a PRO license or the Wunderbyte LLM
-            // subscription, mutating skills move from the selectable catalog to
-            // UNAVAILABLE SKILLS — the planner still sees them and the reply can
-            // point at the upgrade path instead of failing late in governance.
-            if (!agent_access_service::has_full_access()) {
-                [$allpromptcontracts, $unavailableskillcatalog] =
-                    $this->split_prompt_contracts_by_full_access($allpromptcontracts);
-            }
-            $runtimecatalog = $this->slim_prompt_catalog_for_planner($allpromptcontracts);
-            $catalogselectionmode = 'slim_all';
-
-            $iswunderbyteplanner =
-                $this->orchestratorroutingsvc->is_wunderbyte_routepolicy((string)($routing['routepolicy'] ?? ''))
-                && $actionclass === self::WB_ACTION_PLANNER_DECIDE;
-
-            if ($iswunderbyteplanner) {
-                $embeddingstatus = 'check';
-                $embeddingsettings = (new embeddings_action_config_resolver())->resolve();
-                $embeddingmodel = (string)($embeddingsettings['model'] ?? self::EMBEDDINGS_DEFAULT_MODEL);
-                $embeddingdimensions = (int)($embeddingsettings['dimensions'] ?? self::EMBEDDINGS_DEFAULT_DIMENSIONS);
-                $querytext = '';
-                foreach (array_reverse($messages) as $msg) {
-                    if (($msg->role ?? '') === 'user') {
-                        $querytext = trim((string)($msg->content ?? ''));
-                        break;
-                    }
-                }
-                // When the latest user message is a short, low-semantic follow-up (an answer to a prior
-                // clarification/confirmation: "medium", "yes", "the second one", "Biology"), embedding it
-                // alone carries no task semantics and drops the originally requested skill out of top-K
-                // (see Blueprint thread223). Prepend the originating task so it stays discoverable.
-                // B (deterministic): a clarification chain recorded the task that opened it — prefer that.
-                // C (stateless fallback): otherwise, reach back to the most recent SUBSTANTIAL user message.
-                // Either way a genuine topic switch (a rich new request) is unaffected: it dominates the
-                // embedding on its own, and the recorded task is cleared as soon as a turn resolves.
-                $origintask = trim((string)$this->store->get_thread_metadata_value($threadid, 'clarification_origin_task'));
-                if ($origintask !== '' && strpos($querytext, $origintask) === false) {
-                    $querytext = $origintask . ' ' . $querytext;
-                } else if (self::is_low_semantic_followup($querytext)) {
-                    $heuristictask = $this->find_recent_substantial_user_text($messages);
-                    if ($heuristictask !== '' && strpos($querytext, $heuristictask) === false) {
-                        $querytext = $heuristictask . ' ' . $querytext;
-                    }
-                }
-                $pendingstepintent = trim((string)$this->store->get_thread_metadata_value($threadid, 'next_step_intent'));
-                if ($pendingstepintent !== '' && $pendingstepintent !== $querytext) {
-                    $querytext = $querytext . ' ' . $pendingstepintent;
-                }
-                // Also augment with all remaining planned placeholder intents so the embedding
-                // retrieval surfaces the right skills for each pending step, not just the next one.
-                $plannedintents = (new queue_manager($this->store, $this->registry))
-                    ->get_planned_placeholder_intents($threadid);
-                foreach ($plannedintents as $plannedintent) {
-                    $plannedintent = trim($plannedintent);
-                    if ($plannedintent !== '' && strpos($querytext, $plannedintent) === false) {
-                        $querytext = $querytext . ' ' . $plannedintent;
-                    }
-                }
-
-                $cachekey = '';
-                if ($querytext !== '') {
-                    $cachekey = sha1(
-                        $querytext
-                        . '|m=' . $embeddingmodel
-                        . '|d=' . $embeddingdimensions
-                        . '|u=' . $userid
-                        . '|c=' . $contextid
-                    );
-                }
-
-                if ($cachekey !== '' && $agentstate !== null) {
-                    $cachedcatalog = $agentstate->get_discovery_family_cache($cachekey);
-                    if ($cachedcatalog !== null) {
-                        $runtimecatalog = $this->sanitize_runtime_catalog_for_prompt(
-                            (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog)
-                        );
-                        $unavailableskillcatalog = (array)($cachedcatalog['unavailableskillcatalog'] ?? $unavailableskillcatalog);
-                        $catalogselectionmode = (string)($cachedcatalog['catalogselectionmode'] ?? 'embed_topk_cache');
-                        $embeddingstatus = 'cached_' . trim((string)($cachedcatalog['embeddingstatus'] ?? 'applied'));
-                        $embeddingrebuildqueued = !empty($cachedcatalog['embeddingrebuildqueued']);
-                        $usedembeddingcache = true;
-                    }
-                }
-
-                if (!$usedembeddingcache) {
-                    $readiness = new embeddings_readiness_service();
-                    if ($readiness->is_wunderbyte_embeddings_available()) {
-                        $status = $readiness->get_catalog_status($this->registry, $embeddingmodel, $embeddingdimensions);
-                        $embeddingstatus = (string)($status['status'] ?? 'unknown');
-                        $embeddingrebuildqueued = $readiness->ensure_rebuild_scheduled_if_needed(
-                            $status,
-                            $embeddingmodel,
-                            $embeddingdimensions,
-                            self::EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS
-                        );
-
-                        if (!empty($status['ready']) && !empty($status['rows']) && is_array($status['rows']) && $querytext !== '') {
-                            $embeddingcall = $llm->invoke_embeddings_for_context(
-                                $threadid,
-                                $contextid,
-                                $userid,
-                                'orc|p=disc|st=tcp|ac=emb|rt=wb',
-                                $querytext,
-                                $embeddingdimensions
-                            );
-
-                            if (!empty($embeddingcall['success']) && !empty($embeddingcall['embedding'])) {
-                                $retrieval = new embeddings_retrieval_service();
-                                $toprows = $retrieval->search_top_k(
-                                    (array)$embeddingcall['embedding'],
-                                    $status['rows'],
-                                    self::EMBEDDINGS_DEFAULT_TOP_K
-                                );
-
-                                if (runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED)) {
-                                    $familycontextprior = (new context_prior_builder())->build($contextid, [
-                                        'userid' => $userid,
-                                        'namespace_hint' =>
-                                            $this->resolve_namespace_hint_from_prompt_contracts($allpromptcontracts),
-                                    ]);
-                                    $familydiscovery = (new family_registry_service())->discover(
-                                        $allpromptcontracts,
-                                        $familycontextprior
-                                    )->to_array();
-                                    $families = (array)($familydiscovery['families'] ?? []);
-                                    if (!empty($families)) {
-                                        $signalscores = (new family_signal_ranker())->score_families(
-                                            $families,
-                                            $familycontextprior,
-                                            $recentskillhistory
-                                        );
-                                        $semanticscores = (new family_embeddings_retrieval_service())->score_families(
-                                            $families,
-                                            (array)$embeddingcall['embedding'],
-                                            (array)$status['rows']
-                                        );
-                                        $rankedfamilies = (new family_ranker())->rank(
-                                            $families,
-                                            $signalscores,
-                                            $semanticscores
-                                        );
-                                        $familyscores = [];
-                                        foreach ($rankedfamilies as $row) {
-                                            $family = trim((string)($row['family'] ?? ''));
-                                            if ($family === '') {
-                                                continue;
-                                            }
-                                            $familyscores[$family] = (float)($row['score'] ?? 0.0);
-                                        }
-
-                                        if (!empty($familyscores)) {
-                                            $toprows = (new family_embeddings_retrieval_service())
-                                                ->boost_skill_rows($toprows, $familyscores);
-                                            $embeddingstatus = 'family_boosted';
-                                        }
-                                    }
-                                }
-
-                                if (!empty($toprows)) {
-                                    $runtimecatalog = $this->sanitize_runtime_catalog_for_prompt(array_values($toprows));
-                                    $catalogselectionmode = $embeddingstatus === 'family_boosted'
-                                        ? 'embed_topk_family_boost'
-                                        : 'embed_topk';
-                                    $embeddingstatus = 'applied';
-                                } else {
-                                    $embeddingstatus = 'nomatch';
-                                }
-                            } else {
-                                $embeddingstatus = 'callfail';
-                            }
-                        }
-                    } else {
-                        $embeddingstatus = 'unavailable';
-                    }
-
-                    if ($cachekey !== '' && $agentstate !== null) {
-                        $agentstate->set_discovery_family_cache($cachekey, [
-                            'runtimecatalog' => $runtimecatalog,
-                            'unavailableskillcatalog' => $unavailableskillcatalog,
-                            'catalogselectionmode' => $catalogselectionmode,
-                            'embeddingstatus' => $embeddingstatus,
-                            'embeddingrebuildqueued' => $embeddingrebuildqueued,
-                        ]);
-                    }
-                }
-            }
-
-            if (runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_DISCOVERY_ENABLED)) {
-                $namespacehint = $this->resolve_namespace_hint_from_prompt_contracts($allpromptcontracts);
-                $familycontextprior = (new context_prior_builder())->build($contextid, [
-                    'userid' => $userid,
-                    'namespace_hint' => $namespacehint,
-                ]);
-                $familydiscovery = (new family_registry_service())->discover(
-                    $allpromptcontracts,
-                    $familycontextprior
-                )->to_array();
-                $families = (array)($familydiscovery['families'] ?? []);
-                if (!empty($families)) {
-                    $signalscores = (new family_signal_ranker())->score_families(
-                        $families,
-                        $familycontextprior,
-                        $recentskillhistory
-                    );
-
-                    $semanticscores = [];
-                    if (
-                        !empty($embeddingcall['success'])
-                        && !empty($embeddingcall['embedding'])
-                        && !empty($status['rows'])
-                        && is_array($status['rows'])
-                    ) {
-                        $semanticscores = (new family_embeddings_retrieval_service())->score_families(
-                            $families,
-                            (array)$embeddingcall['embedding'],
-                            (array)$status['rows']
-                        );
-                    }
-
-                    $rankedfamilies = (new family_ranker())->rank(
-                        $families,
-                        $signalscores,
-                        $semanticscores
-                    );
-                    $stageresult = (new discovery_stage_controller())->resolve(
-                        $rankedfamilies,
-                        (array)($familydiscovery['context_families'] ?? []),
-                        (array)($familydiscovery['core_families'] ?? [])
-                    );
-
-                    $discoverystage = (string)($stageresult['discovery_stage'] ?? 'none');
-                    $discoveryconfidencescore = $stageresult['confidence_score'] ?? null;
-                    $discoveryescalationreason = (string)($stageresult['escalation_reason'] ?? 'none');
-                    $selectedfamilies = array_values(array_filter(array_map(
-                        static fn($family): string => skill_family_contract::normalize_family((string)$family),
-                        (array)($stageresult['selected_families'] ?? [])
-                    )));
-
-                    if (!empty($selectedfamilies)) {
-                        $runtimecatalog = $this->filter_catalog_by_selected_families($runtimecatalog, $selectedfamilies);
-                        if ($catalogselectionmode === 'slim_all') {
-                            $catalogselectionmode = 'slim_family_stage_' . strtolower($discoverystage);
-                        } else if (str_starts_with($catalogselectionmode, 'embed_topk')) {
-                            $catalogselectionmode .= '_stage_' . strtolower($discoverystage);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Some skills must always be reachable when the user's message matches their declared intent
-        // (e.g. a documentation question -> wizard.explain_docs; a "what can you do" question ->
-        // wizard.list_skills), even when embedding top-k discovery ranked domain skills above them.
-        // This is fully skill-declared (governance mandatory_on_trigger + intent_triggers) — the
-        // engine carries no skill names or language keywords. The selector still decides.
-        if ($shouldincludeskillcatalog && isset($allpromptcontracts) && is_array($allpromptcontracts)) {
-            $runtimecatalog = $this->ensure_trigger_mandatory_skills($runtimecatalog, $allpromptcontracts, $messages);
-        }
-
-        $systemprompt = $this->build_system_prompt(
-            $contextid,
-            $userid,
-            self::PHASE_DISCOVERY,
-            $actionclass,
-            $haseffectiveobservations,
-            $adaptivecatalog,
-            $runtimecatalog,
-            $isfirstassistantturn,
-            $shouldincludeskillcatalog
-        );
-        $runtimeblocks = $this->build_runtime_context_block(
+        // Logic lives in discovery_phase_service (orchestrator split, discovery seam);
+        // this thin delegator preserves the internal call site in process().
+        return $this->discoveryphasesvc->run(
             $threadid,
             $contextid,
-            self::PHASE_DISCOVERY,
-            $isfirstassistantturn,
-            $hasanyobservations,
-            $runtimecatalog,
-            $unavailableskillcatalog,
-            $messages,
-            '',
+            $userid,
             $observations,
-            $this->catalog_mode_is_static($catalogselectionmode)
+            $agentstate,
+            $context,
+            $manager,
+            $evaluator
         );
-        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
-        $prompt = $this->build_prompt(
-            $systemprompt,
-            $messages,
-            $observations,
-            self::PHASE_DISCOVERY,
-            $runtimeblocks['stable'],
-            $plannertracehistory,
-            $autoconfirmmode,
-            [],
-            $runtimeblocks['volatile']
-        );
-
-        $historycount = count(
-            $this->promptprofilesvc->select_history_messages($messages, self::PHASE_DISCOVERY)
-        );
-        $observationcount = count($observations);
-        $primaryprovider = (string)($routing['primaryprovider'] ?? '');
-        $debugsource = $this->orchestratorroutingsvc->build_debug_source(
-            $actionclass,
-            (string)($routing['routepolicy'] ?? 'default'),
-            !empty($routing['routingfallback']),
-            orchestrator_routing_service::PHASE_DISCOVERY,
-            $primaryprovider,
-            $historycount,
-            $observationcount,
-            $catalogselectionmode,
-            $embeddingstatus,
-            count($runtimecatalog),
-            $embeddingrebuildqueued,
-            false
-        );
-
-        $phaseoutput = [
-            'response_type' => 'sufficient',
-            'message' => '',
-            'commands' => [],
-            'ambiguities' => [],
-            'errors' => [],
-            'issue_codes' => [],
-            'used_triggers' => [],
-            'next_step_intent' => '',
-            'phase' => self::PHASE_DISCOVERY,
-            'catalogselectionmode' => $catalogselectionmode,
-            'embeddingstatus' => $embeddingstatus,
-            'discovery_stage' => $discoverystage,
-            'discovery_confidence_score' => $discoveryconfidencescore,
-            'discovery_escalation_reason' => $discoveryescalationreason,
-            'selected_families' => $selectedfamilies,
-        ];
-
-        return [
-            'contextid' => $contextid,
-            'routing' => $routing,
-            'actionclass' => $actionclass,
-            'messages' => $messages,
-            'recentskillhistory' => $recentskillhistory,
-            'isfirstassistantturn' => $isfirstassistantturn,
-            'promptcontracts' => $promptcontracts,
-            'adaptivecatalog' => $adaptivecatalog,
-            'hasanyobservations' => $hasanyobservations,
-            'haseffectiveobservations' => $haseffectiveobservations,
-            'plannertracehistory' => $plannertracehistory,
-            'shouldincludeskillcatalog' => $shouldincludeskillcatalog,
-            'runtimecatalog' => $runtimecatalog,
-            'unavailableskillcatalog' => $unavailableskillcatalog,
-            'catalogselectionmode' => $catalogselectionmode,
-            'embeddingstatus' => $embeddingstatus,
-            'embeddingrebuildqueued' => $embeddingrebuildqueued,
-            'discovery_stage' => $discoverystage,
-            'discovery_confidence_score' => $discoveryconfidencescore,
-            'discovery_escalation_reason' => $discoveryescalationreason,
-            'selected_families' => $selectedfamilies,
-            'prompt' => $prompt,
-            'debugsource' => $debugsource,
-            'phase' => self::PHASE_DISCOVERY,
-            'phase_output' => $phaseoutput,
-            'response_type' => (string)($phaseoutput['response_type'] ?? ''),
-            'message' => (string)($phaseoutput['message'] ?? ''),
-            'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
-            'errors' => (array)($phaseoutput['errors'] ?? []),
-        ];
     }
 
     /**
@@ -1775,44 +1385,6 @@ PROMPT;
     }
 
     /**
-     * Extract skill names from recent messages for recency boosting.
-     *
-     * Scans assistant responses for attempted/executed skill calls (from message metadata).
-     *
-     * @param \stdClass[] $messages
-     * @return array<string> Skill names in reverse chronological order (most recent first).
-     */
-    private function extract_recent_skill_names_from_messages(array $messages): array {
-        $skillnames = [];
-        for ($i = count($messages) - 1; $i >= 0; --$i) {
-            $msg = $messages[$i];
-            if ((string)($msg->role ?? '') === 'assistant' && isset($msg->structuredjson)) {
-                $meta = (array)json_decode((string)($msg->structuredjson ?? ''), true);
-                // Extract skill names from attempted_skills or commands.
-                $attemptedskills = (array)($meta['attempted_skills'] ?? []);
-                if (!empty($attemptedskills)) {
-                    foreach ($attemptedskills as $skillname) {
-                        if (!in_array($skillname, $skillnames, true)) {
-                            $skillnames[] = (string)$skillname;
-                        }
-                    }
-                }
-                // Also check commands if no attempted_skills (fallback).
-                $commands = (array)($meta['commands'] ?? []);
-                foreach ($commands as $cmd) {
-                    if (is_array($cmd) && (isset($cmd['skill']) || isset($cmd['skill']))) {
-                        $skillname = (string)($cmd['skill'] ?? '');
-                        if ($skillname !== '' && !in_array($skillname, $skillnames, true)) {
-                            $skillnames[] = $skillname;
-                        }
-                    }
-                }
-            }
-        }
-        return $skillnames;
-    }
-
-    /**
      * Determine whether this thread has already emitted an assistant message.
      *
      * @param array $messages
@@ -1826,52 +1398,6 @@ PROMPT;
         }
 
         return true;
-    }
-
-    /**
-     * Heuristic: is this user text a short, low-semantic follow-up (an answer to a prior question)?
-     *
-     * Short answers like "medium", "yes", "the second one", "Biology", "category 6" carry no task
-     * semantics and would, on their own, embed to unrelated skills. Pure word-count heuristic — no state.
-     *
-     * @param string $text
-     * @return bool
-     */
-    private static function is_low_semantic_followup(string $text): bool {
-        $text = trim($text);
-        if ($text === '') {
-            return false;
-        }
-        $words = preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
-        // Three words or fewer is treated as a follow-up answer, not a standalone request.
-        return count($words) <= 3;
-    }
-
-    /**
-     * Return the most recent SUBSTANTIAL earlier user message (the original task), skipping the latest
-     * user message (the short follow-up itself). Capped in length so a pasted document cannot blow up
-     * the embedding query. Empty string when none qualifies.
-     *
-     * @param \stdClass[] $messages
-     * @return string
-     */
-    private function find_recent_substantial_user_text(array $messages): string {
-        $skippedlatest = false;
-        foreach (array_reverse($messages) as $message) {
-            if ((string)($message->role ?? '') !== 'user') {
-                continue;
-            }
-            $text = trim((string)($message->content ?? ''));
-            if (!$skippedlatest) {
-                // The most recent user message is the short follow-up already in the query; skip it.
-                $skippedlatest = true;
-                continue;
-            }
-            if ($text !== '' && !self::is_low_semantic_followup($text)) {
-                return \core_text::substr($text, 0, 600);
-            }
-        }
-        return '';
     }
 
     /**
@@ -1914,37 +1440,6 @@ PROMPT;
             $plannedstepintents,
             $runtimestate
         );
-    }
-
-    /**
-     * Normalize planner trace history values from thread metadata.
-     *
-     * @param mixed $value
-     * @return array<int,string>
-     */
-    private function normalize_planner_trace_history($value): array {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        $history = [];
-        foreach ($value as $entry) {
-            if (is_string($entry)) {
-                if ($entry !== '') {
-                    $history[] = $entry;
-                }
-                continue;
-            }
-
-            if (is_array($entry)) {
-                $json = $this->json_encode_or_empty($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                if ($json !== '') {
-                    $history[] = $json;
-                }
-            }
-        }
-
-        return $history;
     }
 
     /**

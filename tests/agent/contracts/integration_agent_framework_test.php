@@ -1489,7 +1489,8 @@ final class integration_agent_framework_test extends TestCase {
      * Test that discovery stage controller is wired into the live orchestrator flow.
      */
     public function test_orchestrator_discovery_uses_live_stage_controller(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
+        // The discovery phase logic now lives in discovery_phase_service (orchestrator split).
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\discovery_phase_service::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 
