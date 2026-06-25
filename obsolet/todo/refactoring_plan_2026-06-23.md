@@ -106,11 +106,11 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
   - **(d) `provider_status_service`** ← `get_runtime_provider_status` (`:185–355`, 171 Z.).
 - **Vorgehen:** eine Naht pro PR, je mit Tests. `orchestrator` behält `process`/`process_synchronizer`/`run_selection_phase`/`run_construction_phase` als dünnen Koordinator und hält die neuen Services per DI. **Reihenfolge:** zuerst (d) provider_status (am isoliertesten), dann (c) catalog, dann (b) context-block, zuletzt (a) discovery (am meisten verflochten).
 - **Verhalten:** identisch (reine Methoden-Verschiebung).
-- [ ] (d) `provider_status_service` + Test, Callsite `get_runtime_provider_status` umbiegen (auch `ai_send_message:182`, `aiready:165`, `activate_trial_context:110`)
-- [ ] (c) `planner_catalog_service` + Test
-- [ ] (b) `runtime_context_block_builder` + Test (Cache-Split-Snapshot-Test!)
-- [ ] (a) `discovery_phase_service` + Test
-- [ ] `orchestrator` auf Koordinator-Rolle reduziert, <800 LOC
+- [x] (d) `provider_status_service` — Delegator behält Public-API (Caller unverändert); strict_types-Regress `(int)$context->instanceid` gefunden+gefixt via Real-LLM (Commits `9f7fab1`+`d7c498b`)
+- [x] (c) `planner_catalog_service` — 12 Methoden als Delegatoren; White-Box-Tests auf den Service umgezogen (`a1c7e85`)
+- [x] (b) `runtime_context_block_builder` — Cache-Split erhalten; Modul-Kontext-Pfad real-LLM-grün (`177038d`)
+- [ ] (a) `discovery_phase_service` — **bewusst offen:** kein sauberer Delegator-Move. `run_discovery_phase` ist der Integrations-Punkt und ruft 5 phasen-geteilte Helfer (`build_system_prompt`/`build_prompt`/`resolve_namespace_hint_from_prompt_contracts`/`catalog_mode_is_static`/`is_first_assistant_turn`). Saubere Extraktion braucht ZUERST diese Helfer in einen `planner_prompt_service`, DANN discovery — eigener, größerer Schritt (sonst müsste der Orchestrator selbst injiziert werden = Coupling verschlimmert).
+- [ ] `orchestrator` auf Koordinator-Rolle reduziert, <800 LOC — Stand: **2944 → 2137 LOC** (−807) nach (b)/(c)/(d); <800 erfordert zusätzlich (a) + Auslagern der Phasen-/Prompt-Methoden
 
 ### 1.5 — Engine-Agnostik: skill-spezifisches Routing aus dem Orchestrator `[L]` 🟡 verhaltenssensibel
 - **Problem (Audit §5.C-HIGH):** `orchestrator.php:1922–2075` — `ensure_doc_skill_for_doc_intent` hartkodiert `explain_docs_skill::SKILL_NAME`, `ensure_list_skills_for_capability_intent` hartkodiert `list_skills_skill::SKILL_NAME`, gegated durch de/en-Keyword-Heuristiken. Verstößt gegen LG_AGN/LG_DET + Memory `feedback_agnostic_prompts_no_skill_specifics`.
