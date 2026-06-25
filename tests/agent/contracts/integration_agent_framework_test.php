@@ -121,19 +121,25 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_construction_catalog_includes_skill_guidance_unconditionally(): void {
         $registry = skill_registry_factory::get_default();
-        $store = new \bookingextension_agent\local\wizard\conversation_store();
-        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
-        $orchestrator = new \bookingextension_agent\local\wizard\orchestrator($registry, $interpreter, $store);
 
         $skill = $registry->get_skill('mod_booking.update_option');
         if ($skill === null) {
             $this->markTestSkipped('mod_booking.update_option not registered in default registry.');
         }
 
-        $method = new \ReflectionMethod($orchestrator, 'enrich_construction_catalog_entry');
+        // The construction catalog enrichment now lives in planner_phase_service (orchestrator split).
+        // enrich_construction_catalog_entry only needs the registry, so build the service without its
+        // constructor and inject the registry reflectively.
+        $svcreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\planner_phase_service::class);
+        $svc = $svcreflection->newInstanceWithoutConstructor();
+        $regprop = $svcreflection->getProperty('registry');
+        $regprop->setAccessible(true);
+        $regprop->setValue($svc, $registry);
+
+        $method = $svcreflection->getMethod('enrich_construction_catalog_entry');
         $method->setAccessible(true);
         $entry = $method->invoke(
-            $orchestrator,
+            $svc,
             'mod_booking.update_option',
             ['skill' => 'mod_booking.update_option']
         );
@@ -309,13 +315,14 @@ final class integration_agent_framework_test extends TestCase {
      * Selection output without an explicit single skill yields no forced selection.
      */
     public function test_selection_without_explicit_skill_returns_empty_selection(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
-        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
+        // Selection helpers now live in planner_phase_service (orchestrator split).
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\planner_phase_service::class);
+        $svc = $reflection->newInstanceWithoutConstructor();
 
-        $selectedskillmethod = $orchestratorreflection->getMethod('extract_selected_skill_from_selection_phase_output');
+        $selectedskillmethod = $reflection->getMethod('extract_selected_skill_from_selection_phase_output');
         $selectedskillmethod->setAccessible(true);
 
-        $this->assertSame('', $selectedskillmethod->invoke($orchestrator, ['response_type' => 'sufficient']));
+        $this->assertSame('', $selectedskillmethod->invoke($svc, ['response_type' => 'sufficient']));
     }
 
     /**
@@ -998,13 +1005,14 @@ final class integration_agent_framework_test extends TestCase {
      * Test that selection handoff strips parameter payload and keeps only one selected skill command.
      */
     public function test_orchestrator_selection_handoff_normalization_strips_payload(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
-        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
+        // Selection handoff normalization now lives in planner_phase_service (orchestrator split).
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\planner_phase_service::class);
+        $svc = $reflection->newInstanceWithoutConstructor();
 
-        $method = $orchestratorreflection->getMethod('normalize_selection_phase_output_for_handoff');
+        $method = $reflection->getMethod('normalize_selection_phase_output_for_handoff');
         $method->setAccessible(true);
 
-        $result = $method->invoke($orchestrator, [
+        $result = $method->invoke($svc, [
             'response_type' => 'skill_call',
             'message' => 'Selecting skill',
             'commands' => [[
@@ -1030,13 +1038,14 @@ final class integration_agent_framework_test extends TestCase {
      * Test that selection handoff normalization rejects multi-command skill_call payloads.
      */
     public function test_orchestrator_selection_handoff_normalization_rejects_multi_command_payload(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
-        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
+        // Selection handoff normalization now lives in planner_phase_service (orchestrator split).
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\planner_phase_service::class);
+        $svc = $reflection->newInstanceWithoutConstructor();
 
-        $method = $orchestratorreflection->getMethod('normalize_selection_phase_output_for_handoff');
+        $method = $reflection->getMethod('normalize_selection_phase_output_for_handoff');
         $method->setAccessible(true);
 
-        $result = $method->invoke($orchestrator, [
+        $result = $method->invoke($svc, [
             'response_type' => 'skill_call',
             'message' => 'Selecting skill',
             'commands' => [
@@ -1087,7 +1096,8 @@ final class integration_agent_framework_test extends TestCase {
      * Test that orchestrator executes two planner invoke calls (selection + construction).
      */
     public function test_orchestrator_process_uses_two_phase_invokes(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
+        // The two planner invokes (selection + construction) now live in planner_phase_service.
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\planner_phase_service::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 

@@ -1,0 +1,839 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Planner selection + parameter-construction phase service.
+ *
+ * @package    bookingextension_agent
+ * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+declare(strict_types=1);
+
+namespace bookingextension_agent\local\wizard\services;
+
+use core\context;
+use core\di;
+use core_ai\manager as ai_manager;
+use core_ai\aiactions\generate_text;
+use core_text;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\ai_error_classifier;
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\interfaces\agent_interpreter;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\services\discovery\context_prior_builder;
+use bookingextension_agent\local\wizard\services\llm\llm_call_service;
+use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service;
+
+/**
+ * Runs the planner selection and parameter-construction phases.
+ *
+ * Extracted verbatim from orchestrator::run_selection_phase /
+ * run_construction_phase (orchestrator split, planner-phase seam). The two
+ * phases are coupled through the selection -> construction handoff, so they
+ * share one service and one injected collaborator set. Phase-local helpers
+ * (selection normalization, construction catalog enrichment, contract/provider
+ * error payloads, handoff observations) move in with the phases. The
+ * build_system_prompt / build_prompt wrappers are replicated to preserve the
+ * userid/contextid argument swap into the bundle builder; json_encode_or_empty
+ * is duplicated.
+ */
+class planner_phase_service {
+
+    /** @var conversation_store */
+    private conversation_store $store;
+
+    /** @var skill_registry */
+    private skill_registry $registry;
+
+    /** @var agent_interpreter */
+    private agent_interpreter $interpreter;
+
+    /** @var orchestrator_routing_service */
+    private orchestrator_routing_service $routingsvc;
+
+    /** @var orchestrator_prompt_profile_service */
+    private orchestrator_prompt_profile_service $promptprofilesvc;
+
+    /** @var planner_catalog_service */
+    private planner_catalog_service $catalogsvc;
+
+    /** @var runtime_context_block_builder */
+    private runtime_context_block_builder $runtimecontextsvc;
+
+    /** @var phase_prompt_bundle_builder */
+    private phase_prompt_bundle_builder $promptbundlebuilder;
+
+    /**
+     * Constructor.
+     *
+     * @param conversation_store $store
+     * @param skill_registry $registry
+     * @param agent_interpreter $interpreter
+     * @param orchestrator_routing_service $routingsvc
+     * @param orchestrator_prompt_profile_service $promptprofilesvc
+     * @param planner_catalog_service $catalogsvc
+     * @param runtime_context_block_builder $runtimecontextsvc
+     * @param phase_prompt_bundle_builder $promptbundlebuilder
+     */
+    public function __construct(
+        conversation_store $store,
+        skill_registry $registry,
+        agent_interpreter $interpreter,
+        orchestrator_routing_service $routingsvc,
+        orchestrator_prompt_profile_service $promptprofilesvc,
+        planner_catalog_service $catalogsvc,
+        runtime_context_block_builder $runtimecontextsvc,
+        phase_prompt_bundle_builder $promptbundlebuilder
+    ) {
+        $this->store = $store;
+        $this->registry = $registry;
+        $this->interpreter = $interpreter;
+        $this->routingsvc = $routingsvc;
+        $this->promptprofilesvc = $promptprofilesvc;
+        $this->catalogsvc = $catalogsvc;
+        $this->runtimecontextsvc = $runtimecontextsvc;
+        $this->promptbundlebuilder = $promptbundlebuilder;
+    }
+
+    /**
+     * Selection phase: build prompt, telemetry, and debug-source payload.
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param array $observations
+     * @param array<string,mixed> $discoverystate
+     * @param context $context
+     * @param ai_manager $manager
+     * @return array<string,mixed>
+     */
+    public function run_selection(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        array $observations,
+        array $discoverystate,
+        context $context,
+        ai_manager $manager
+    ): array {
+        $contextid = (int)($discoverystate['contextid'] ?? 0);
+        $routing = $this->routingsvc->resolve_action_class_for_phase(
+            $manager,
+            $context,
+            orchestrator_routing_service::PHASE_SELECTION
+        );
+        $actionclass = (string)($routing['actionclass'] ?? generate_text::class);
+        $messages = (array)($discoverystate['messages'] ?? []);
+        $promptcontracts = (array)($discoverystate['promptcontracts'] ?? []);
+        $runtimecatalog = (array)($discoverystate['runtimecatalog'] ?? []);
+        $unavailableskillcatalog = (array)($discoverystate['unavailableskillcatalog'] ?? []);
+        $plannertracehistory = (array)($discoverystate['plannertracehistory'] ?? []);
+        $catalogselectionmode = (string)($discoverystate['catalogselectionmode'] ?? 'none');
+        $embeddingstatus = (string)($discoverystate['embeddingstatus'] ?? 'off');
+        $embeddingrebuildqueued = !empty($discoverystate['embeddingrebuildqueued']);
+        $hasanyobservations = !empty($discoverystate['hasanyobservations']);
+        $haseffectiveobservations = !empty($discoverystate['haseffectiveobservations']);
+        $isfirstassistantturn = !empty($discoverystate['isfirstassistantturn']);
+        $shouldincludeskillcatalog = !empty($discoverystate['shouldincludeskillcatalog']);
+        $adaptivecatalog = (array)($discoverystate['adaptivecatalog'] ?? []);
+        $discoverystage = (string)($discoverystate['discovery_stage'] ?? 'none');
+        $discoveryconfidencescore = $discoverystate['discovery_confidence_score'] ?? null;
+        $discoveryescalationreason = (string)($discoverystate['discovery_escalation_reason'] ?? 'none');
+
+        $systemprompt = $this->build_system_prompt(
+            $contextid,
+            $userid,
+            orchestrator::PHASE_SELECTION,
+            $actionclass,
+            $haseffectiveobservations,
+            $adaptivecatalog,
+            $runtimecatalog,
+            $isfirstassistantturn,
+            $shouldincludeskillcatalog
+        );
+        $runtimeblocks = $this->runtimecontextsvc->build(
+            $threadid,
+            $contextid,
+            orchestrator::PHASE_SELECTION,
+            $isfirstassistantturn,
+            $hasanyobservations,
+            $runtimecatalog,
+            $unavailableskillcatalog,
+            $messages,
+            '',
+            $observations,
+            $this->catalogsvc->catalog_mode_is_static($catalogselectionmode)
+        );
+        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
+        $plannedstepintents = (new queue_manager($this->store, $this->registry))
+            ->get_planned_placeholder_intents($threadid);
+        $prompt = $this->build_prompt(
+            $systemprompt,
+            $messages,
+            $observations,
+            orchestrator::PHASE_SELECTION,
+            $runtimeblocks['stable'],
+            $plannertracehistory,
+            $autoconfirmmode,
+            $plannedstepintents,
+            $runtimeblocks['volatile']
+        );
+
+        $historycount = count(
+            $this->promptprofilesvc->select_history_messages($messages, orchestrator::PHASE_SELECTION)
+        );
+        $observationcount = count($observations);
+        $primaryprovider = provider_routing_util::resolve_primary_provider_for_action($manager, $actionclass);
+        $debugsource = $this->routingsvc->build_debug_source(
+            $actionclass,
+            (string)($routing['routepolicy'] ?? 'default'),
+            !empty($routing['routingfallback']),
+            orchestrator_routing_service::PHASE_SELECTION,
+            $primaryprovider,
+            $historycount,
+            $observationcount,
+            $catalogselectionmode,
+            $embeddingstatus,
+            count($runtimecatalog),
+            $embeddingrebuildqueued,
+            false
+        );
+
+        $llm = new llm_call_service($this->store);
+        $phaseoutput = [];
+        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
+        $rawtext = (string)($call['rawcontent'] ?? '');
+        if (empty($call['success'])) {
+            $phaseoutput = $this->build_provider_error_result($call);
+        } else if ($rawtext === '') {
+            $phaseoutput = $this->build_empty_provider_result();
+        } else {
+            $phaseoutput = $this->interpreter->interpret_phase_output(
+                $rawtext,
+                orchestrator::PHASE_SELECTION,
+                [
+                    'contextid' => $contextid,
+                    'userid' => $userid,
+                ]
+            );
+            if (is_array($phaseoutput)) {
+                $phaseoutput = $this->normalize_selection_phase_output_for_handoff($phaseoutput);
+                $phaseoutput['_planner_raw_response'] = $rawtext;
+            }
+        }
+
+        // Persist normalized routing telemetry and a shadow-only discovery trace.
+        // This must never alter the active routing decision path.
+        try {
+            $flagssnapshot = runtime_feature_flags::snapshot();
+            $contextprior = (new context_prior_builder())->build($contextid, [
+                'userid' => $userid,
+                'namespace_hint' => $this->catalogsvc->resolve_namespace_hint_from_prompt_contracts($promptcontracts),
+            ]);
+            $routingtelemetry = [
+                'catalogselectionmode' => $catalogselectionmode,
+                'discovery_stage' => $discoverystage,
+                'confidence_score' => $discoveryconfidencescore,
+                'escalation_reason' => $discoveryescalationreason,
+            ];
+            (new routing_decision_log_service())->persist_thread_routing_decision(
+                $this->store,
+                $threadid,
+                $routingtelemetry,
+                $flagssnapshot,
+                [
+                    'promptcontracts' => $promptcontracts,
+                    'contextprior' => $contextprior,
+                    'recent_skill_names' => (array)($discoverystate['recentskillhistory'] ?? []),
+                ]
+            );
+        } catch (\Throwable $e) {
+            // Best-effort discovery enrichment; the base catalog is still usable without it.
+            debugging('orchestrator: discovery enrichment failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+
+        $lastusermessage = '';
+        foreach (array_reverse($messages) as $msg) {
+            if (($msg->role ?? '') === 'user') {
+                $lastusermessage = trim((string)($msg->content ?? ''));
+                break;
+            }
+        }
+
+        $selectedskill = $this->extract_selected_skill_from_selection_phase_output($phaseoutput);
+
+        return [
+            'prompt' => $prompt,
+            'debugsource' => $debugsource,
+            'lastusermessage' => $lastusermessage,
+            'selected_skill' => $selectedskill,
+            'phase' => orchestrator::PHASE_SELECTION,
+            'phase_output' => $phaseoutput,
+            'response_type' => (string)($phaseoutput['response_type'] ?? ''),
+            'message' => (string)($phaseoutput['message'] ?? ''),
+            'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
+            'errors' => (array)($phaseoutput['errors'] ?? []),
+            'planned_steps' => (array)($phaseoutput['planned_steps'] ?? []),
+        ];
+    }
+
+    /**
+     * Construction phase: execute planner call and interpret response.
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param array<string,mixed> $observations
+     * @param array<string,mixed> $discoverystate
+     * @param array<string,mixed> $selectionstate
+     * @return array<string,mixed>
+     */
+    public function run_construction(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        array $observations,
+        array $discoverystate,
+        array $selectionstate
+    ): array {
+        $llm = new llm_call_service($this->store);
+        $context = context::instance_by_id($contextid, MUST_EXIST);
+        $manager = di::get(ai_manager::class);
+        $routing = $this->routingsvc->resolve_action_class_for_phase(
+            $manager,
+            $context,
+            orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION
+        );
+        $actionclass = (string)($routing['actionclass'] ?? generate_text::class);
+        $contextid = (int)($discoverystate['contextid'] ?? 0);
+        $messages = (array)($discoverystate['messages'] ?? []);
+        $adaptivecatalog = (array)($discoverystate['adaptivecatalog'] ?? []);
+        $runtimecatalog = (array)($discoverystate['runtimecatalog'] ?? []);
+        $plannertracehistory = (array)($discoverystate['plannertracehistory'] ?? []);
+        $isfirstassistantturn = !empty($discoverystate['isfirstassistantturn']);
+        $haseffectiveobservations = !empty($discoverystate['haseffectiveobservations']);
+        $shouldincludeskillcatalog = !empty($discoverystate['shouldincludeskillcatalog']);
+        $catalogselectionmode = (string)($discoverystate['catalogselectionmode'] ?? 'none');
+        $embeddingstatus = (string)($discoverystate['embeddingstatus'] ?? 'off');
+        $embeddingrebuildqueued = !empty($discoverystate['embeddingrebuildqueued']);
+        $unavailableskillcatalog = (array)($discoverystate['unavailableskillcatalog'] ?? []);
+        $selectedskill = trim((string)($selectionstate['selected_skill'] ?? ''));
+
+        if ($selectedskill === '') {
+            return $this->build_selector_handoff_error_result();
+        }
+
+        $constructionruntimecatalog = $this->build_construction_runtime_catalog_for_selected_skill(
+            $selectedskill,
+            $runtimecatalog,
+            $adaptivecatalog
+        );
+
+        $constructionobservations = array_values($observations);
+        $constructionobservations = array_merge(
+            $constructionobservations,
+            $this->build_phase_handoff_observations($discoverystate, $selectionstate)
+        );
+
+        $systemprompt = $this->build_system_prompt(
+            $contextid,
+            $userid,
+            orchestrator::PHASE_PARAMETER_CONSTRUCTION,
+            $actionclass,
+            $haseffectiveobservations || !empty($constructionobservations),
+            $adaptivecatalog,
+            $constructionruntimecatalog,
+            $isfirstassistantturn,
+            $shouldincludeskillcatalog
+        );
+        $runtimeblocks = $this->runtimecontextsvc->build(
+            $threadid,
+            $contextid,
+            orchestrator::PHASE_PARAMETER_CONSTRUCTION,
+            $isfirstassistantturn,
+            !empty($constructionobservations),
+            $constructionruntimecatalog,
+            $unavailableskillcatalog,
+            $messages,
+            '',
+            $constructionobservations,
+            $this->catalogsvc->catalog_mode_is_static($catalogselectionmode)
+        );
+        $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
+        $prompt = $this->build_prompt(
+            $systemprompt,
+            $messages,
+            $constructionobservations,
+            orchestrator::PHASE_PARAMETER_CONSTRUCTION,
+            $runtimeblocks['stable'],
+            $plannertracehistory,
+            $autoconfirmmode,
+            [],
+            $runtimeblocks['volatile']
+        );
+
+        $historycount = count(
+            $this->promptprofilesvc->select_history_messages($messages, orchestrator::PHASE_PARAMETER_CONSTRUCTION)
+        );
+        $observationcount = count($constructionobservations);
+        $primaryprovider = (string)($routing['primaryprovider'] ?? '');
+        $debugsource = $this->routingsvc->build_debug_source(
+            $actionclass,
+            (string)($routing['routepolicy'] ?? 'default'),
+            !empty($routing['routingfallback']),
+            orchestrator_routing_service::PHASE_PARAMETER_CONSTRUCTION,
+            $primaryprovider,
+            $historycount,
+            $observationcount,
+            $catalogselectionmode,
+            $embeddingstatus,
+            count($constructionruntimecatalog),
+            $embeddingrebuildqueued,
+            false
+        );
+
+        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
+        $rawtext = (string)($call['rawcontent'] ?? '');
+
+        if (empty($call['success'])) {
+            return $this->build_provider_error_result($call);
+        }
+
+        if ($rawtext === '') {
+            return $this->build_empty_provider_result();
+        }
+
+        $lastusermessage = (string)($selectionstate['lastusermessage'] ?? '');
+        $constructionallowedskills = [$selectedskill];
+        $interpreted = $this->interpreter->interpret_phase_output(
+            $rawtext,
+            orchestrator::PHASE_PARAMETER_CONSTRUCTION,
+            [
+                'contextid' => $contextid,
+                'userid' => $userid,
+                'lastusermessage' => $lastusermessage,
+                'allowed_skills' => $constructionallowedskills,
+            ]
+        );
+        if (is_array($interpreted)) {
+            $interpreted['_planner_raw_response'] = $rawtext;
+        }
+
+        return $interpreted;
+    }
+
+    /**
+     * Normalize selection output to an explicit single-skill selector handoff.
+     *
+     * This strips accidental parameter payloads from selection commands and keeps
+     * only the selected skill identity for constructor handoff.
+     *
+     * @param array<string,mixed> $phaseoutput
+     * @return array<string,mixed>
+     */
+    private function normalize_selection_phase_output_for_handoff(array $phaseoutput): array {
+        $responsetype = trim((string)($phaseoutput['response_type'] ?? ''));
+        if ($responsetype !== 'skill_call') {
+            if (!isset($phaseoutput['selected_skill'])) {
+                $phaseoutput['selected_skill'] = '';
+            }
+            return $phaseoutput;
+        }
+
+        $commands = (array)($phaseoutput['commands'] ?? []);
+        if (count($commands) !== 1) {
+            return $this->build_selection_contract_error_result(
+                'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED',
+                'CONTRACT_VIOLATION: selection phase must emit exactly one selector command.'
+            );
+        }
+
+        $command = is_array($commands[0]) ? $commands[0] : [];
+        $selectedskill = trim((string)($phaseoutput['selected_skill'] ?? ''));
+        if ($selectedskill === '') {
+            $selectedskill = trim((string)($command['skill'] ?? ''));
+        }
+        if ($selectedskill === '') {
+            return $this->build_selection_contract_error_result(
+                'CONTRACT_SELECTION_SKILL_MISSING',
+                'CONTRACT_VIOLATION: selection phase skill_call did not provide a selected skill.'
+            );
+        }
+
+        $version = max(1, (int)($command['version'] ?? 1));
+        $phaseoutput['selected_skill'] = $selectedskill;
+        $phaseoutput['commands'] = [[
+            'skill' => $selectedskill,
+            'version' => $version,
+            'input' => [],
+        ]];
+
+        return $phaseoutput;
+    }
+
+    /**
+     * Restrict construction runtime catalog to the selector-chosen skill only.
+     *
+     * @param string $selectedskill
+     * @param array<int,array<string,mixed>> $runtimecatalog
+     * @param array<int,array<string,mixed>> $adaptivecatalog
+     * @return array<int,array<string,mixed>>
+     */
+    private function build_construction_runtime_catalog_for_selected_skill(
+        string $selectedskill,
+        array $runtimecatalog,
+        array $adaptivecatalog
+    ): array {
+        $filtered = [];
+
+        foreach ($runtimecatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (trim((string)($entry['skill'] ?? '')) !== $selectedskill) {
+                continue;
+            }
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
+        }
+
+        if (!empty($filtered)) {
+            return array_values($filtered);
+        }
+
+        foreach ($adaptivecatalog as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (trim((string)($entry['skill'] ?? '')) !== $selectedskill) {
+                continue;
+            }
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
+        }
+
+        return array_values($filtered);
+    }
+
+    /**
+     * Attach concrete parameter examples for the selected construction skill.
+     *
+     * @param string $selectedskill
+     * @param array<string,mixed> $entry
+     * @return array<string,mixed>
+     */
+    private function enrich_construction_catalog_entry(string $selectedskill, array $entry): array {
+        $skill = $this->registry->get_skill($selectedskill);
+        if ($skill === null) {
+            return $entry;
+        }
+
+        $exampleparameters = (array)$skill->get_example_input();
+        if (!empty($exampleparameters)) {
+            $entry['example_parameters'] = $exampleparameters;
+        }
+
+        // In the construction phase exactly one skill is in scope, so we surface ALL of its prompt-pack
+        // guidance unconditionally (no lexical trigger gate). This is the only place situational rules
+        // — e.g. "for several options with the same name, search first to obtain their IDs and use
+        // optionid" — actually reach the constructor. Without this, get_contextual_prompt_packs() only
+        // feeds the embeddings catalog and never the live planner prompt, and trigger-based gating made
+        // such guidance language-dependent (it silently vanished for non-English requests).
+        $guidance = $this->collect_skill_guidance_lines($skill);
+        if (!empty($guidance)) {
+            $entry['guidance'] = $guidance;
+        }
+
+        return $entry;
+    }
+
+    /**
+     * Collect all contextual prompt-pack guidance lines declared by a skill, unconditionally.
+     *
+     * Trigger arrays on the packs are ignored on purpose: in the construction phase the skill is
+     * already chosen, so relevance filtering is unnecessary and the (lexical, language-specific)
+     * trigger gate would only drop useful guidance.
+     *
+     * @param object $skill
+     * @return array<int,string>
+     */
+    private function collect_skill_guidance_lines(object $skill): array {
+        if (!method_exists($skill, 'get_contextual_prompt_packs')) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ((array)$skill->get_contextual_prompt_packs() as $pack) {
+            if (!is_array($pack)) {
+                continue;
+            }
+            foreach ((array)($pack['guidance'] ?? []) as $line) {
+                $line = trim((string)$line);
+                if ($line !== '') {
+                    $lines[] = $line;
+                }
+            }
+        }
+
+        return array_values(array_unique($lines));
+    }
+
+    /**
+     * Extract an explicitly selected skill from selection-phase output.
+     *
+     * @param array<string,mixed> $phaseoutput
+     * @return string
+     */
+    private function extract_selected_skill_from_selection_phase_output(array $phaseoutput): string {
+        return trim((string)($phaseoutput['selected_skill'] ?? ''));
+    }
+
+    /**
+     * Build a standardized selection-phase contract error payload.
+     *
+     * @param string $issuecode
+     * @param string $error
+     * @return array<string,mixed>
+     */
+    private function build_selection_contract_error_result(string $issuecode, string $error): array {
+        return [
+            'response_type' => 'error',
+            // Deliberately empty: an internal contract violation is NOT a provider
+            // error. The message is composed downstream — synchronizer presentation
+            // fed by the error observation, or the class template as fallback.
+            'message' => '',
+            'error_class' => 'internal_contract',
+            'commands' => [],
+            'selected_skill' => '',
+            'ambiguities' => [],
+            'errors' => [$error],
+            'issue_codes' => [$issuecode],
+        ];
+    }
+
+    /**
+     * Build a standardized selector-handoff error when construction lacks selected_skill.
+     *
+     * @return array<string,mixed>
+     */
+    private function build_selector_handoff_error_result(): array {
+        return [
+            'response_type' => 'error',
+            // Deliberately empty — internal handoff error, resolved downstream
+            // (CONTRACT_SELECTION_SKILL_MISSING has a dedicated template text).
+            'message' => '',
+            'error_class' => 'internal_contract',
+            'commands' => [],
+            'ambiguities' => [],
+            'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_skill for construction.'],
+            'issue_codes' => ['CONTRACT_SELECTION_SKILL_MISSING'],
+        ];
+    }
+
+    /**
+     * Build a standardized provider error payload.
+     *
+     * @param array<string,mixed> $call
+     * @return array<string,mixed>
+     */
+    private function build_provider_error_result(array $call): array {
+        $errormessage = (string)($call['errormessage'] ?? 'Provider returned an error.');
+        $errorcode = (int)($call['errorcode'] ?? 0);
+        $errorname = (string)($call['errorname'] ?? '');
+        $issuecodes = ai_error_classifier::classify_from_response($errormessage, $errorcode, $errorname);
+
+        $errorclass = 'provider_error';
+        if (in_array('TRIAL_TOKEN_INVALID', $issuecodes, true)) {
+            $errorclass = 'auth_failed';
+        } else if (in_array('AI_PROVIDER_QUOTA_EXCEEDED', $issuecodes, true)) {
+            $errorclass = 'quota_exceeded';
+        } else {
+            $lower = core_text::strtolower($errormessage);
+            if (strpos($lower, 'timeout') !== false || strpos($lower, 'timed out') !== false) {
+                $errorclass = 'provider_timeout';
+            } else if (strpos($lower, 'curl error 28') !== false || strpos($lower, 'connection reset') !== false) {
+                $errorclass = 'transient_io';
+            }
+        }
+
+        return [
+            'response_type' => 'error',
+            // Deliberately empty: the template fallback resolves the localized
+            // class-specific text from error_class (provider classes never go to
+            // the synchronizer — the provider itself is the failing component).
+            'message' => '',
+            'commands' => [],
+            'ambiguities' => [],
+            'errors' => [$errormessage],
+            'issue_codes' => $issuecodes,
+            'error_class' => $errorclass,
+        ];
+    }
+
+    /**
+     * Build a standardized empty-provider payload.
+     *
+     * @return array<string,mixed>
+     */
+    private function build_empty_provider_result(): array {
+        return [
+            'response_type' => 'error',
+            // Deliberately empty — the transient_io class template resolves it.
+            'message' => '',
+            'commands' => [],
+            'ambiguities' => [],
+            'errors' => ['Provider returned empty content.'],
+            'issue_codes' => [],
+            'error_class' => 'transient_io',
+        ];
+    }
+
+    /**
+     * Build compact observations to hand off discovery/selection outcomes.
+     *
+     * @param array<string,mixed> $discoverystate
+     * @param array<string,mixed> $selectionstate
+     * @return array<int,string>
+     */
+    private function build_phase_handoff_observations(array $discoverystate, array $selectionstate): array {
+        $observations = [];
+        $discoverypayload = [
+            'phase' => orchestrator::PHASE_DISCOVERY,
+            'response_type' => (string)($discoverystate['response_type'] ?? ''),
+            'message' => (string)($discoverystate['message'] ?? ''),
+            'issue_codes' => (array)($discoverystate['issue_codes'] ?? []),
+            'errors' => (array)($discoverystate['errors'] ?? []),
+        ];
+        $selectionpayload = [
+            'phase' => orchestrator::PHASE_SELECTION,
+            'response_type' => (string)($selectionstate['response_type'] ?? ''),
+            'message' => (string)($selectionstate['message'] ?? ''),
+            'selected_skill' => (string)($selectionstate['selected_skill'] ?? ''),
+            'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
+            'errors' => (array)($selectionstate['errors'] ?? []),
+        ];
+
+        $discoveryjson = $this->json_encode_or_empty($discoverypayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($discoveryjson !== '') {
+            $observations[] = 'phase_handoff.discovery=' . $discoveryjson;
+        }
+
+        $selectionjson = $this->json_encode_or_empty($selectionpayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($selectionjson !== '') {
+            $observations[] = 'phase_handoff.selection=' . $selectionjson;
+        }
+
+        return $observations;
+    }
+
+    /**
+     * Build the planner system prompt via the shared bundle builder.
+     *
+     * Mirrors orchestrator::build_system_prompt (note the userid/contextid argument
+     * swap when delegating to phase_prompt_bundle_builder).
+     *
+     * @param int $contextid
+     * @param int $userid
+     * @param string $phase
+     * @param string $actionclass
+     * @param bool $hasobservations
+     * @param array|null $adaptivecatalog
+     * @param array $systemskillcatalog
+     * @param bool $isfirstassistantturn
+     * @param bool $includeskillcatalog
+     * @return string
+     */
+    private function build_system_prompt(
+        int $contextid,
+        int $userid,
+        string $phase = orchestrator::PHASE_DISCOVERY,
+        string $actionclass = generate_text::class,
+        bool $hasobservations = false,
+        ?array $adaptivecatalog = null,
+        array $systemskillcatalog = [],
+        bool $isfirstassistantturn = false,
+        bool $includeskillcatalog = false
+    ): string {
+        return $this->promptbundlebuilder->build_system_prompt(
+            $userid,
+            $contextid,
+            $phase,
+            $actionclass,
+            $hasobservations,
+            $adaptivecatalog,
+            $systemskillcatalog,
+            $isfirstassistantturn,
+            $includeskillcatalog
+        );
+    }
+
+    /**
+     * Build the full prompt string via the shared bundle builder.
+     *
+     * Mirrors orchestrator::build_prompt.
+     *
+     * @param string $systemprompt
+     * @param \stdClass[] $messages
+     * @param string[] $observations
+     * @param string $phase
+     * @param string $runtimecontext
+     * @param string[] $plannertracehistory
+     * @param bool $autoconfirmmode
+     * @param array $plannedstepintents
+     * @param string $runtimestate
+     * @return string
+     */
+    private function build_prompt(
+        string $systemprompt,
+        array $messages,
+        array $observations = [],
+        string $phase = orchestrator::PHASE_DISCOVERY,
+        string $runtimecontext = '',
+        array $plannertracehistory = [],
+        bool $autoconfirmmode = false,
+        array $plannedstepintents = [],
+        string $runtimestate = ''
+    ): string {
+        return $this->promptbundlebuilder->build_prompt(
+            $systemprompt,
+            $messages,
+            $observations,
+            $phase,
+            $runtimecontext,
+            $plannertracehistory,
+            $autoconfirmmode,
+            $plannedstepintents,
+            $runtimestate
+        );
+    }
+
+    /**
+     * Encode a value as JSON, returning an empty string on failure.
+     *
+     * Duplicated from orchestrator (small shared helper).
+     *
+     * @param mixed $value
+     * @param int $flags
+     * @return string
+     */
+    private function json_encode_or_empty($value, int $flags = 0): string {
+        $json = json_encode($value, $flags);
+        return $json === false ? '' : $json;
+    }
+}
