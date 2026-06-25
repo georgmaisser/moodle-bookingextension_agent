@@ -177,7 +177,7 @@ flowchart TD
         L1_FAIL["hard_block\nblockinglayer: schema\nISSUE: SCHEMA_ERROR\n/ SCHEMA_UNAVAILABLE"]
 
         subgraph L2["Layer 2 — Domain Prepare"]
-            PF_L2P["skill_operating_context_resolver: resolve operating context\n(ambient by default; cross-context target if the skill opts in via\nsupports_target_context/get_target_selector → context_resolver)\nthen skill::preflight(input, OPERATING contextid, userid)\n— Gate 2 (native capability) runs at the OPERATING context\n— DB-dependent prepare + validation → preflight_result_v2\n— unresolvable target → CONTEXT_TARGET_UNRESOLVED (clarification)"]
+            PF_L2P["skill_operating_context_resolver: resolve operating context\n(ambient by default; cross-context target if the skill opts in via\nsupports_target_context/get_target_selector → context_resolver)\n— Gate 2 (native capability) enforced CENTRALLY by native_capability_guard\n  at the OPERATING context (engine, not per-skill): user must hold the skill's\n  get_required_native_capabilities() there → else NO_NATIVE_CAPABILITY (no token)\nthen skill::preflight(input, OPERATING contextid, userid)\n— DB-dependent prepare + validation → preflight_result_v2\n— unresolvable target → CONTEXT_TARGET_UNRESOLVED (clarification)"]
             PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, SCHEMA_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT (engine-generic)\n  + provider confirmable codes via issue_code_provider\n  (e.g. DUPLICATE_TITLE_* from booking_issue_code_provider)"]
         end
         L2_STATUS{"preflight\nstatus?"}
@@ -223,10 +223,10 @@ flowchart TD
     subgraph EXEC["Execution Layer (executor.php)"]
         EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
         EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
-        EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled · skill_version_unsupported"]
+        EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled · skill_version_unsupported\nGate 1 capability = name-derived <component>:skill_<normalized_name>\n(skill_contract_validator::build_skill_capability_name) — EVERY skill MUST\nhave this capability defined (get_capability_info) in a db/access.php, else it\nis always-denied; checked at the AMBIENT context\n(get_required_native_capabilities is an ADDITIONAL Gate-2 layer, not a replacement)"]
         EXC_GUARD["preflight_execution_gate::verify_guard_token(\n  guard_token, skillname, OPERATING contextid, prepared_input)\nhash_equals vs sha256(skill:operating_context:prepared_input)\noperating_contextid carried on the command (== ambient unless cross-context)\nno second full preflight"]
         EXC_GUARD_OK{"guard\npass?"}
-        EXC_RUN["skill::execute(prepared_input, OPERATING contextid, userid)\n→ result payload\n(Gate 1 governance evaluate_skill stays at the ambient context)"]
+        EXC_RUN["Gate 2 BACKSTOP: native_capability_guard re-checks the skill's\nget_required_native_capabilities() at the OPERATING context immediately before\nexecute() (authoritative; engine never trusts the skill to guard itself)\n→ skill::execute(prepared_input, OPERATING contextid, userid)\n→ result payload\n(Gate 1 governance evaluate_skill stays at the ambient context)"]
         EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions"]
         EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
         EXC_SPAWN["spawn_handler (contract path)\nspawn_commands schema/normalization present\nruntime enqueue path currently optional"]
