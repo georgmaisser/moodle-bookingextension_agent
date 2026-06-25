@@ -63,6 +63,18 @@ abstract class embeddings_csv_repository_base {
     /** @var string Normalized variant key; empty means the legacy un-suffixed file. */
     private string $variantkey;
 
+    /** @var resource|null Cached read handle for random-access row reads (see read_row_at()). */
+    private $randomhandle = null;
+
+    /** @var resource|null Open temp-file handle for a streaming write in progress. */
+    private $writerhandle = null;
+
+    /** @var string Temp path of the streaming write currently in progress. */
+    private string $writertmp = '';
+
+    /** @var int Data rows written so far in the streaming write currently in progress. */
+    private int $writercount = 0;
+
     /**
      * Constructor.
      *
@@ -324,6 +336,279 @@ abstract class embeddings_csv_repository_base {
         }
 
         rename($tmppath, $path);
+    }
+
+    // -------------------------------------------------------------------------
+    // Streaming API (bounded memory).
+    //
+    // These let a caller process an arbitrarily large store without ever holding the whole
+    // catalog in memory: stream_rows() yields one row at a time; build_key_offset_index() +
+    // read_row_at() give O(1)-memory reuse lookups; and begin/stream_write_row/commit perform an
+    // incremental, atomic, round-trip-verified write. The corruption guard and atomic publish of
+    // write_rows() are preserved (the verify just streams instead of collecting an array).
+
+    /**
+     * Yield each valid data row, one at a time, without building the full array.
+     *
+     * Same header check and malformed-row skipping as parse_file(), but memory stays at one row.
+     *
+     * @return \Generator<int,array<string,string>>
+     */
+    public function stream_rows(): \Generator {
+        $path = $this->get_csv_path();
+        if (!is_readable($path)) {
+            return;
+        }
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            return;
+        }
+        try {
+            $headers = fgetcsv($handle, 0, ',', '"', static::CSV_ESCAPE);
+            if (!is_array($headers) || !$this->headers_match($headers)) {
+                return;
+            }
+            $cols = $this->headers();
+            $expected = count($cols);
+            while (($fields = fgetcsv($handle, 0, ',', '"', static::CSV_ESCAPE)) !== false) {
+                if ($fields === null || $fields === [null]) {
+                    continue;
+                }
+                if (!is_array($fields) || count($fields) !== $expected) {
+                    continue;
+                }
+                yield array_combine($cols, $fields);
+            }
+        } finally {
+            fclose($handle);
+        }
+    }
+
+    /**
+     * Build a lightweight index of the on-disk rows: caller-defined key => content_hash + byte
+     * offset. Holds only a hash and an int per row (no embeddings), so it scales to any catalog.
+     *
+     * The offset is the byte position of the row's first physical line (captured via ftell() before
+     * fgetcsv()), so it is correct even when a quoted field contains embedded newlines, and can be
+     * passed straight to read_row_at().
+     *
+     * @param callable $keyfn fn(array $row): string — return '' to skip a row.
+     * @return array{index: array<string,array{content_hash:string,offset:int}>, total: int}
+     */
+    public function build_key_offset_index(callable $keyfn): array {
+        $index = [];
+        $total = 0;
+        $path = $this->get_csv_path();
+        if (!is_readable($path)) {
+            return ['index' => $index, 'total' => 0];
+        }
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            return ['index' => $index, 'total' => 0];
+        }
+        try {
+            $headers = fgetcsv($handle, 0, ',', '"', static::CSV_ESCAPE);
+            if (!is_array($headers) || !$this->headers_match($headers)) {
+                return ['index' => $index, 'total' => 0];
+            }
+            $cols = $this->headers();
+            $expected = count($cols);
+            while (true) {
+                $offset = ftell($handle);
+                $fields = fgetcsv($handle, 0, ',', '"', static::CSV_ESCAPE);
+                if ($fields === false) {
+                    break;
+                }
+                if ($fields === null || $fields === [null]) {
+                    continue;
+                }
+                if (!is_array($fields) || count($fields) !== $expected) {
+                    continue;
+                }
+                $row = array_combine($cols, $fields);
+                $total++;
+                $key = (string)$keyfn($row);
+                if ($key !== '') {
+                    $index[$key] = [
+                        'content_hash' => trim((string)($row['content_hash'] ?? '')),
+                        'offset' => (int)$offset,
+                    ];
+                }
+            }
+        } finally {
+            fclose($handle);
+        }
+        return ['index' => $index, 'total' => $total];
+    }
+
+    /**
+     * Read a single row by its byte offset (as returned by build_key_offset_index()).
+     *
+     * Uses a cached read handle so repeated reuse reads share one open file; call
+     * close_random_reader() when done.
+     *
+     * @param int $offset
+     * @return array<string,string>|null
+     */
+    public function read_row_at(int $offset): ?array {
+        if ($this->randomhandle === null) {
+            $path = $this->get_csv_path();
+            if (!is_readable($path)) {
+                return null;
+            }
+            $handle = fopen($path, 'rb');
+            if ($handle === false) {
+                return null;
+            }
+            $this->randomhandle = $handle;
+        }
+        if (fseek($this->randomhandle, $offset) !== 0) {
+            return null;
+        }
+        $fields = fgetcsv($this->randomhandle, 0, ',', '"', static::CSV_ESCAPE);
+        if (!is_array($fields)) {
+            return null;
+        }
+        $cols = $this->headers();
+        if (count($fields) !== count($cols)) {
+            return null;
+        }
+        return array_combine($cols, $fields);
+    }
+
+    /**
+     * Close the cached random-access read handle, if open.
+     *
+     * @return void
+     */
+    public function close_random_reader(): void {
+        if ($this->randomhandle !== null) {
+            fclose($this->randomhandle);
+            $this->randomhandle = null;
+        }
+    }
+
+    /**
+     * Begin a streaming write: open the temp file and write the header.
+     *
+     * @return void
+     */
+    public function begin_stream_write(): void {
+        if ($this->writerhandle !== null) {
+            throw new \coding_exception('embeddings_csv_repository: a streaming write is already open.');
+        }
+        $this->writertmp = $this->get_csv_path() . '.tmp';
+        $handle = fopen($this->writertmp, 'wb');
+        if ($handle === false) {
+            throw new \moodle_exception('cannotwritetempfile', 'error');
+        }
+        fputcsv($handle, $this->headers(), ',', '"', static::CSV_ESCAPE);
+        $this->writerhandle = $handle;
+        $this->writercount = 0;
+    }
+
+    /**
+     * Write one data row to the streaming write in progress (fields ordered by headers()).
+     *
+     * @param array<string,mixed> $row
+     * @return void
+     */
+    public function stream_write_row(array $row): void {
+        if ($this->writerhandle === null) {
+            throw new \coding_exception('embeddings_csv_repository: no streaming write is open.');
+        }
+        $line = [];
+        foreach ($this->headers() as $header) {
+            $line[] = (string)($row[$header] ?? '');
+        }
+        fputcsv($this->writerhandle, $line, ',', '"', static::CSV_ESCAPE);
+        $this->writercount++;
+    }
+
+    /**
+     * Commit a streaming write: close the temp file, verify a lossless round-trip by streaming it
+     * back (counting rows, never collecting), then atomically rename it into place.
+     *
+     * @return int Number of data rows published.
+     */
+    public function commit_stream_write(): int {
+        if ($this->writerhandle === null) {
+            throw new \coding_exception('embeddings_csv_repository: no streaming write is open.');
+        }
+        fclose($this->writerhandle);
+        $this->writerhandle = null;
+        @chmod($this->writertmp, $this->get_default_file_permissions());
+
+        [$parsed, $skipped] = $this->count_parsed_rows($this->writertmp);
+        if ($skipped > 0 || $parsed !== $this->writercount) {
+            @unlink($this->writertmp);
+            $tmp = $this->writertmp;
+            $this->writertmp = '';
+            $expected = $this->writercount;
+            $this->writercount = 0;
+            throw new \moodle_exception(
+                'embeddingscatalogwritecorrupt',
+                'bookingextension_agent',
+                '',
+                (object)['expected' => $expected, 'parsed' => $parsed, 'skipped' => $skipped]
+            );
+        }
+
+        rename($this->writertmp, $this->get_csv_path());
+        $written = $this->writercount;
+        $this->writertmp = '';
+        $this->writercount = 0;
+        return $written;
+    }
+
+    /**
+     * Abort a streaming write in progress: close and delete the temp file without publishing.
+     *
+     * @return void
+     */
+    public function discard_stream_write(): void {
+        if ($this->writerhandle !== null) {
+            fclose($this->writerhandle);
+            $this->writerhandle = null;
+        }
+        if ($this->writertmp !== '' && is_file($this->writertmp)) {
+            @unlink($this->writertmp);
+        }
+        $this->writertmp = '';
+        $this->writercount = 0;
+    }
+
+    /**
+     * Count parseable / skipped data rows in a CSV file without collecting them (memory O(1)).
+     *
+     * @param string $path
+     * @return array{0:int,1:int} [parsed row count, skipped row count]
+     */
+    private function count_parsed_rows(string $path): array {
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            return [0, 0];
+        }
+        $headers = fgetcsv($handle, 0, ',', '"', static::CSV_ESCAPE);
+        if (!is_array($headers) || !$this->headers_match($headers)) {
+            fclose($handle);
+            return [0, 0];
+        }
+        $expected = count($this->headers());
+        $parsed = 0;
+        $skipped = 0;
+        while (($fields = fgetcsv($handle, 0, ',', '"', static::CSV_ESCAPE)) !== false) {
+            if ($fields === null || $fields === [null]) {
+                continue;
+            }
+            if (!is_array($fields) || count($fields) !== $expected) {
+                $skipped++;
+                continue;
+            }
+            $parsed++;
+        }
+        fclose($handle);
+        return [$parsed, $skipped];
     }
 
     // -------------------------------------------------------------------------

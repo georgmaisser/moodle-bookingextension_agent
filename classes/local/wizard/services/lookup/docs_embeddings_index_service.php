@@ -105,23 +105,30 @@ class docs_embeddings_index_service {
         // switch never invalidates the others (F2). Respects the model/dimensions overrides above.
         $variant = embeddings_csv_repository_base::normalize_variant_key($resolvedmodel . '__' . $resolveddimensions);
         $repo = new docs_embeddings_csv_repository(null, $variant);
-        $existingrows = $repo->read_rows();
+
+        // STREAMING rebuild (bounded memory): never hold the whole catalog in RAM. Build only a
+        // lightweight index of the existing rows (key => content_hash + byte offset), then write the
+        // new catalog row-by-row to a temp file — reused rows are copied straight from the old file by
+        // offset, only changed/new chunks are embedded — and finally publish it atomically. Peak
+        // memory stays at ~one row plus the offset index, independent of catalog size.
+        // Key by (corpus, path, start line) so each chunk of a multi-chunk file reuses independently.
+        $keyfn = static function (array $row): string {
+            $key = (string)($row['corpus_id'] ?? '') . '||'
+                . (string)($row['chunk_path'] ?? '') . '||'
+                . (string)($row['line_start'] ?? '');
+            return $key === '||||' ? '' : $key;
+        };
+        $existing = $repo->build_key_offset_index($keyfn);
+        $existingindex = $existing['index'];
+        $existingtotal = (int)$existing['total'];
 
         // Nothing to scan and nothing on disk yet → genuinely empty.
-        if (empty($scan) && empty($existingrows)) {
+        if (empty($scan) && $existingtotal === 0) {
             return [
                 'status' => 'empty',
                 'reason' => 'no_corpora_registered',
                 'written' => 0, 'embedded' => 0, 'reused' => 0, 'deleted' => 0,
             ];
-        }
-        // Key by (corpus, path, start line) so each chunk of a multi-chunk file reuses independently.
-        $existingbykey = [];
-        foreach ($existingrows as $row) {
-            $key = ($row['corpus_id'] ?? '') . '||' . ($row['chunk_path'] ?? '') . '||' . ($row['line_start'] ?? '');
-            if ($key !== '||||') {
-                $existingbykey[$key] = $row;
-            }
         }
 
         $context = context_system::instance();
@@ -129,103 +136,107 @@ class docs_embeddings_index_service {
         $userid = !empty($admin->id) ? (int)$admin->id : 2;
         $llm = new llm_call_service(new conversation_store());
 
-        $scannedrows = [];
         $embedded = 0;
         $reused = 0;
+        $kept = 0;
 
-        foreach ($scan as $corpusid => $docsroot) {
-            $files = $this->scan_md_files($docsroot);
-            foreach ($files as $abspath) {
-                $relpath = ltrim(substr($abspath, strlen($docsroot)), '/\\');
-                $content = @file_get_contents($abspath);
-                if ($content === false) {
+        $repo->begin_stream_write();
+        try {
+            // Pass 1 — scanned corpora: rewrite every current chunk (reuse by offset, else embed).
+            // A file that vanished from a scanned corpus simply is not re-emitted (naturally pruned).
+            foreach ($scan as $scancorpusid => $docsroot) {
+                $files = $this->scan_md_files($docsroot);
+                foreach ($files as $abspath) {
+                    $relpath = ltrim(substr($abspath, strlen($docsroot)), '/\\');
+                    $content = @file_get_contents($abspath);
+                    if ($content === false) {
+                        continue;
+                    }
+
+                    // Split into heading/size-bounded chunks so large docs are fully embedded (no
+                    // 6000-char truncation) and retrieval is per-section precise.
+                    foreach (markdown_chunker::chunk($content, self::MAX_CHUNK_CHARS) as $chunk) {
+                        $chunktext = (string)$chunk['text'];
+                        $contenthash = sha1($chunktext . '|m=' . $resolvedmodel . '|d=' . $resolveddimensions);
+                        $key = $scancorpusid . '||' . $relpath . '||' . (string)$chunk['line_start'];
+                        $existingmeta = $existingindex[$key] ?? null;
+
+                        if (
+                            !$force
+                            && is_array($existingmeta)
+                            && (string)$existingmeta['content_hash'] === $contenthash
+                        ) {
+                            $oldrow = $repo->read_row_at((int)$existingmeta['offset']);
+                            if (is_array($oldrow) && trim((string)($oldrow['embedding_json'] ?? '')) !== '') {
+                                $repo->stream_write_row($oldrow);
+                                $reused++;
+                                continue;
+                            }
+                        }
+
+                        $inputtext = $this->build_embedding_input(
+                            $scancorpusid,
+                            $relpath,
+                            (string)$chunk['title'],
+                            $chunktext
+                        );
+                        $embeddingcall = $llm->invoke_embeddings_for_context(
+                            0,
+                            (int)$context->id,
+                            $userid,
+                            'docs_idx|corpus=' . $scancorpusid,
+                            $inputtext,
+                            $resolveddimensions
+                        );
+
+                        if (empty($embeddingcall['success']) || empty($embeddingcall['embedding'])) {
+                            continue;
+                        }
+
+                        $repo->stream_write_row([
+                            'corpus_id' => $scancorpusid,
+                            'chunk_path' => $relpath,
+                            'chunk_title' => (string)$chunk['title'],
+                            'line_start' => (string)$chunk['line_start'],
+                            'line_end' => (string)$chunk['line_end'],
+                            'embedding_model' => $resolvedmodel,
+                            'embedding_dimensions' => (string)$resolveddimensions,
+                            'content_hash' => $contenthash,
+                            'embedding_json' => (string)json_encode($embeddingcall['embedding'], JSON_UNESCAPED_UNICODE),
+                        ]);
+                        $embedded++;
+                    }
+                }
+            }
+
+            // Pass 2 — non-destructive merge: copy existing rows of declared corpora that were NOT
+            // scanned this run (out-of-scope or momentarily unreadable). Scanned-corpus rows are
+            // already rewritten above; rows of no-longer-declared corpora are dropped (pruned).
+            foreach ($repo->stream_rows() as $row) {
+                $cid = trim((string)($row['corpus_id'] ?? ''));
+                if (isset($scan[$cid]) || !isset($declared[$cid])) {
                     continue;
                 }
-
-                // Split into heading/size-bounded chunks so large docs are fully embedded (no 6000-
-                // char truncation) and retrieval is per-section precise.
-                foreach (markdown_chunker::chunk($content, self::MAX_CHUNK_CHARS) as $chunk) {
-                    $chunktext = (string)$chunk['text'];
-                    $contenthash = sha1($chunktext . '|m=' . $resolvedmodel . '|d=' . $resolveddimensions);
-                    $key = $corpusid . '||' . $relpath . '||' . (string)$chunk['line_start'];
-                    $existing = $existingbykey[$key] ?? null;
-
-                    if (
-                        !$force
-                        && is_array($existing)
-                        && trim((string)($existing['content_hash'] ?? '')) === $contenthash
-                        && trim((string)($existing['embedding_json'] ?? '')) !== ''
-                    ) {
-                        $scannedrows[] = $existing;
-                        $reused++;
-                        continue;
-                    }
-
-                    $inputtext = $this->build_embedding_input(
-                        $corpusid,
-                        $relpath,
-                        (string)$chunk['title'],
-                        $chunktext
-                    );
-                    $embeddingcall = $llm->invoke_embeddings_for_context(
-                        0,
-                        (int)$context->id,
-                        $userid,
-                        'docs_idx|corpus=' . $corpusid,
-                        $inputtext,
-                        $resolveddimensions
-                    );
-
-                    if (empty($embeddingcall['success']) || empty($embeddingcall['embedding'])) {
-                        continue;
-                    }
-
-                    $scannedrows[] = [
-                        'corpus_id' => $corpusid,
-                        'chunk_path' => $relpath,
-                        'chunk_title' => (string)$chunk['title'],
-                        'line_start' => (string)$chunk['line_start'],
-                        'line_end' => (string)$chunk['line_end'],
-                        'embedding_model' => $resolvedmodel,
-                        'embedding_dimensions' => (string)$resolveddimensions,
-                        'content_hash' => $contenthash,
-                        'embedding_json' => (string)json_encode($embeddingcall['embedding'], JSON_UNESCAPED_UNICODE),
-                    ];
-                    $embedded++;
-                }
+                $repo->stream_write_row($row);
+                $kept++;
             }
+
+            $repo->close_random_reader();
+            $written = $repo->commit_stream_write();
+        } catch (\Throwable $e) {
+            $repo->discard_stream_write();
+            $repo->close_random_reader();
+            throw $e;
         }
 
-        // Non-destructive merge: keep existing rows of declared corpora that were NOT scanned this
-        // run (out-of-scope or momentarily unreadable); drop rows of corpora that are no longer
-        // declared. Rows of scanned corpora are wholly replaced by the freshly built set, so a file
-        // that vanished from a scanned corpus naturally falls out.
-        $mergedrows = [];
-        $keptexisting = 0;
-        foreach ($existingrows as $row) {
-            $cid = trim((string)($row['corpus_id'] ?? ''));
-            if (isset($scan[$cid])) {
-                continue;
-            }
-            if (!isset($declared[$cid])) {
-                continue;
-            }
-            $mergedrows[] = $row;
-            $keptexisting++;
-        }
-
-        $finalrows = array_merge($mergedrows, $scannedrows);
-
-        $deleted = count($existingrows) - $reused - $keptexisting;
+        $deleted = $existingtotal - $reused - $kept;
         if ($deleted < 0) {
             $deleted = 0;
         }
 
-        $repo->write_rows($finalrows);
-
         return [
             'status' => 'ok',
-            'written' => count($finalrows),
+            'written' => $written,
             'embedded' => $embedded,
             'reused' => $reused,
             'deleted' => $deleted,
