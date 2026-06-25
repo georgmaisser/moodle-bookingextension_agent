@@ -103,27 +103,10 @@ class docs_lookup_service {
 
         // Search across ALL corpora at once; each index row carries its own corpus_id. The store is
         // scoped to the active embeddings variant so only same-model vectors are compared.
+        // is_index_ready() above already confirmed the index is present and non-empty.
         $repo = docs_embeddings_csv_repository::for_active_variant();
-        $rows = $repo->read_rows();
-        if (empty($rows)) {
-            return [];
-        }
 
-        // Decode stored embedding vectors.
-        $catalogrows = [];
-        foreach ($rows as $row) {
-            $vec = json_decode((string)($row['embedding_json'] ?? ''), true);
-            if (!is_array($vec) || empty($vec)) {
-                continue;
-            }
-            $catalogrows[] = array_merge($row, ['_vec' => $vec]);
-        }
-
-        if (empty($catalogrows)) {
-            return [];
-        }
-
-        // Generate query embedding.
+        // Generate the query embedding first (single call); skip the catalog scan entirely on failure.
         $settings = (new embeddings_action_config_resolver())->resolve();
         $dimensions = (int)($settings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS);
 
@@ -143,9 +126,10 @@ class docs_lookup_service {
 
         $queryvec = (array)$embeddingcall['embedding'];
 
-        // Rank by cosine similarity.
+        // Rank by cosine similarity, streaming the index one row at a time (bounded O(k) memory
+        // instead of loading the whole catalog + decoded vectors into RAM per query).
         $retrieval = new embeddings_retrieval_service();
-        $toprows = $retrieval->search_top_k($queryvec, $catalogrows, max(1, $limit));
+        $toprows = $retrieval->search_top_k_streaming($queryvec, $repo->stream_rows(), max(1, $limit));
 
         $results = [];
         foreach ($toprows as $hit) {

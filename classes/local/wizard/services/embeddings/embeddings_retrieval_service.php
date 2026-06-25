@@ -72,6 +72,62 @@ class embeddings_retrieval_service {
     }
 
     /**
+     * Stream top-k by cosine similarity over an iterable of rows, holding only k candidates in memory.
+     *
+     * Identical ranking/output to search_top_k() (rows tagged with a 'score' string, descending), but
+     * the catalog is consumed one row at a time and the heavy embedding vector is dropped once scored,
+     * so peak memory is O(k) instead of O(catalog). Use for large stores (e.g. the docs index).
+     *
+     * @param array<int,float|int> $queryvector
+     * @param iterable<array<string,string>> $rows
+     * @param int $k
+     * @return array<int,array<string,string>>
+     */
+    public function search_top_k_streaming(array $queryvector, iterable $rows, int $k = 5): array {
+        if ($k < 1 || empty($queryvector)) {
+            return [];
+        }
+
+        // Min-heap on score: the lowest-scoring kept candidate sits on top, ready to be evicted.
+        $heap = new class extends \SplHeap {
+            protected function compare($value1, $value2): int {
+                return $value2['score'] <=> $value1['score'];
+            }
+        };
+
+        foreach ($rows as $row) {
+            $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
+            if (!is_array($embedding) || empty($embedding)) {
+                continue;
+            }
+            $score = vector_math::cosine_similarity($queryvector, $embedding);
+
+            // Drop the vector immediately; only metadata + score are needed downstream.
+            unset($row['embedding_json'], $row['_vec']);
+
+            if ($heap->count() < $k) {
+                $heap->insert(['score' => $score, 'row' => $row]);
+            } else if ($score > $heap->top()['score']) {
+                $heap->extract();
+                $heap->insert(['score' => $score, 'row' => $row]);
+            }
+        }
+
+        // The heap yields lowest-first; collect then reverse to descending score.
+        $ascending = [];
+        foreach ($heap as $entry) {
+            $ascending[] = $entry;
+        }
+        $out = [];
+        foreach (array_reverse($ascending) as $entry) {
+            $row = (array)$entry['row'];
+            $row['score'] = (string)($entry['score'] ?? 0.0);
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /**
      * Build planner-skill contracts from retrieved CSV rows.
      *
      * @param array<int,array<string,string>> $toprows

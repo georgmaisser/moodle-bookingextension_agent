@@ -385,6 +385,42 @@ abstract class embeddings_csv_repository_base {
     }
 
     /**
+     * Streaming schema validity check: at least one row, and every (correctly-shaped) row has all
+     * headers plus non-empty required columns — without ever building the full array.
+     *
+     * @return bool
+     */
+    public function stream_is_valid_schema(): bool {
+        $required = $this->required_nonempty_columns();
+        $cols = $this->headers();
+        $seen = 0;
+        foreach ($this->stream_rows() as $row) {
+            foreach ($cols as $key) {
+                if (!array_key_exists($key, $row)) {
+                    return false;
+                }
+            }
+            foreach ($required as $key) {
+                if (trim((string)($row[$key] ?? '')) === '') {
+                    return false;
+                }
+            }
+            $seen++;
+        }
+        return $seen > 0;
+    }
+
+    /**
+     * Public accessor for the required non-empty columns, so streaming callers can validate rows
+     * inline in a single pass (e.g. readiness/coverage checks) without re-reading the file.
+     *
+     * @return string[]
+     */
+    public function get_required_nonempty_columns(): array {
+        return $this->required_nonempty_columns();
+    }
+
+    /**
      * Build a lightweight index of the on-disk rows: caller-defined key => content_hash + byte
      * offset. Holds only a hash and an int per row (no embeddings), so it scales to any catalog.
      *

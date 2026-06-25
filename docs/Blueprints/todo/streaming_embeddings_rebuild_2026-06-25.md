@@ -1,6 +1,7 @@
 # Streaming embeddings rebuild (bounded memory) — plan
 
-Status: planned (2026-06-25)
+Status: phases 1-3 done (2026-06-25); phase 4 dropped as overkill. Possible future
+Phase 5 (cache/ANN for the per-query docs similarity scan) noted at the end.
 Trigger: the docs embeddings rebuild OOMs the cron PHP process (CLI memory_limit
 512M) on a full re-embed of the large corpus (≈2957 chunks / 87 MB CSV). The
 embed+write actually completes (index is valid) but the process dies right after,
@@ -96,7 +97,7 @@ counts and the final row set match the pre-refactor behaviour; assert
 `memory_get_peak_usage` stays well under a low cap for a deliberately large fixture
 (mock the embeddings call so no real LLM is used).
 
-### Phase 3 (recommended, same primitives) — runtime read paths
+### Phase 3 — runtime read paths — DONE
 
 These also load the whole catalog per request:
 - `docs_lookup_service` similarity search → iterate `stream_rows()`, keep only a
@@ -105,11 +106,21 @@ These also load the whole catalog per request:
   stream-count for schema validity + per-corpus coverage/tallies instead of
   `read_rows()`.
 
-### Phase 4 (consistency, lower priority) — skill catalog
+### Phase 4 — skill catalog — DROPPED (overkill)
 
-`family_embeddings_index_service::rebuild_catalog()` shares the same accumulation
-pattern (smaller data: ~41 rows). Migrate it onto the Phase 1 primitives for
-consistency once docs is proven.
+`family_embeddings_index_service::rebuild_catalog()` shares the accumulation pattern but
+the skill catalog is tiny (~41 rows / ~1.2 MB live), so even 4-5 copies are ~5-6 MB —
+never a memory problem. Migrating it would be pure code consistency with no real benefit,
+so it is intentionally NOT done. The Phase 1 primitives remain available if the skill
+catalog ever grows large.
+
+### Phase 5 (future, only if needed) — docs query latency
+
+Streaming fixed the memory, not the per-query *cost*: the docs similarity search is
+uncached and O(whole catalog) — it reads the index and scores every chunk on every
+semantic query. That is fine today but scales linearly with corpus size. If query
+latency becomes a concern, cache the parsed vectors (MUC, keyed by file mtime/variant)
+or move to a real vector index/ANN. Independent of streaming; not done.
 
 ## Verification & rollout
 

@@ -59,8 +59,7 @@ class docs_embeddings_readiness_service {
             return false;
         }
 
-        $rows = $repo->read_rows();
-        return $repo->is_valid_schema($rows);
+        return $repo->stream_is_valid_schema();
     }
 
     /**
@@ -91,13 +90,37 @@ class docs_embeddings_readiness_service {
             return ['ready' => false, 'status' => 'missing', 'reason' => 'index_csv_not_found'];
         }
 
-        $rows = $repo->read_rows();
-        if (!$repo->is_valid_schema($rows)) {
+        // Single streaming pass: validate the schema (early-exit on the first invalid row) and tally
+        // which resolvable corpora are present — never holding the catalog in memory. Coverage is
+        // measured against the *resolvable* set (existing roots), not the full *declared* set: a
+        // declared-but-unreadable corpus can never be indexed, so requiring a row for it would
+        // reschedule the rebuild forever (pruning, by contrast, uses the declared set — see
+        // docs_embeddings_index_service::rebuild()).
+        $required = $repo->get_required_nonempty_columns();
+        $resolvable = array_keys((new docs_corpus_registry())->list());
+        $present = [];
+        $seen = 0;
+        foreach ($repo->stream_rows() as $row) {
+            foreach ($required as $key) {
+                if (trim((string)($row[$key] ?? '')) === '') {
+                    return ['ready' => false, 'status' => 'invalid', 'reason' => 'index_csv_invalid_schema'];
+                }
+            }
+            $seen++;
+            $cid = trim((string)($row['corpus_id'] ?? ''));
+            if ($cid !== '') {
+                $present[$cid] = true;
+            }
+        }
+
+        if ($seen === 0) {
             return ['ready' => false, 'status' => 'invalid', 'reason' => 'index_csv_invalid_schema'];
         }
 
-        if (!$this->declared_corpora_covered($rows)) {
-            return ['ready' => false, 'status' => 'incomplete', 'reason' => 'corpora_not_covered'];
+        foreach ($resolvable as $cid) {
+            if (empty($present[$cid])) {
+                return ['ready' => false, 'status' => 'incomplete', 'reason' => 'corpora_not_covered'];
+            }
         }
 
         return ['ready' => true, 'status' => 'ready', 'reason' => ''];
@@ -129,14 +152,24 @@ class docs_embeddings_readiness_service {
         $provideravailable = $this->is_embeddings_provider_available();
         $repo = docs_embeddings_csv_repository::for_active_variant();
 
-        // Read the index once and tally chunks + distinct documents per corpus. A missing or
-        // schema-invalid index simply yields zero counts (everything shows as not-yet-indexed).
-        $rows = ($provideravailable && $repo->exists()) ? $repo->read_rows() : [];
-        $indexready = !empty($rows) && $repo->is_valid_schema($rows);
+        // Stream the index once, validating the schema inline and tallying chunks + distinct documents
+        // per corpus — never holding the catalog in memory. A missing or schema-invalid index yields
+        // zero counts (everything then shows as not-yet-indexed).
+        $indexready = false;
         $chunksbycorpus = [];
         $docsbycorpus = [];
-        if ($indexready) {
-            foreach ($rows as $row) {
+        if ($provideravailable && $repo->exists()) {
+            $required = $repo->get_required_nonempty_columns();
+            $seen = 0;
+            $schemaok = true;
+            foreach ($repo->stream_rows() as $row) {
+                $seen++;
+                foreach ($required as $key) {
+                    if (trim((string)($row[$key] ?? '')) === '') {
+                        $schemaok = false;
+                        break;
+                    }
+                }
                 $cid = trim((string)($row['corpus_id'] ?? ''));
                 if ($cid === '') {
                     continue;
@@ -146,6 +179,12 @@ class docs_embeddings_readiness_service {
                 if ($path !== '') {
                     $docsbycorpus[$cid][$path] = true;
                 }
+            }
+            $indexready = $seen > 0 && $schemaok;
+            if (!$indexready) {
+                // An empty or invalid index counts as not-indexed (mirrors the previous behaviour).
+                $chunksbycorpus = [];
+                $docsbycorpus = [];
             }
         }
 
@@ -196,40 +235,6 @@ class docs_embeddings_readiness_service {
             'chunks' => array_sum($chunksbycorpus),
             'corpora' => $corpora,
         ];
-    }
-
-    /**
-     * Whether every currently resolvable corpus has at least one row in the index.
-     *
-     * Coverage is measured against the *resolvable* set (existing roots), not the full *declared*
-     * set: a declared-but-unreadable corpus can never be indexed, so demanding a row for it would
-     * reschedule the rebuild forever. Pruning, by contrast, is measured against the declared set
-     * (see docs_embeddings_index_service::rebuild()), so such a corpus is kept, just not required.
-     *
-     * @param array<int,array<string,string>> $rows Already-read index rows.
-     * @return bool
-     */
-    private function declared_corpora_covered(array $rows): bool {
-        $resolvable = array_keys((new docs_corpus_registry())->list());
-        if (empty($resolvable)) {
-            return true;
-        }
-
-        $present = [];
-        foreach ($rows as $row) {
-            $cid = trim((string)($row['corpus_id'] ?? ''));
-            if ($cid !== '') {
-                $present[$cid] = true;
-            }
-        }
-
-        foreach ($resolvable as $cid) {
-            if (empty($present[$cid])) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**
