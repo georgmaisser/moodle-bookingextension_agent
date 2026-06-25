@@ -187,6 +187,22 @@ class skill_registry {
                 continue;
             }
 
+            // Dev feedback: the governance gate ALWAYS enforces the name-derived capability
+            // (<component>:skill_<normalized_name>). If the plugin forgot to define it in its
+            // db/access.php, the skill registers but is always-denied — flag it loudly here rather
+            // than letting it fail silently at runtime.
+            $namecapability = skill_contract_validator::build_skill_capability_name(
+                $provider->get_component(),
+                $skillname
+            );
+            if ($namecapability === '' || get_capability_info($namecapability) === null) {
+                $this->add_contract_diagnostic(
+                    'Skill ' . $skillname . ' (component ' . $provider->get_component()
+                    . ') has no defined access capability "' . $namecapability . '". Define it in the '
+                    . "plugin's db/access.php, otherwise the skill is always denied."
+                );
+            }
+
             $this->skills[$skillname] = $skill;
             $this->skillcontracts[$skillname] = $metadata;
             $this->skillproviders[$skillname] = $provider;

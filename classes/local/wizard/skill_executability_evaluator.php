@@ -180,9 +180,23 @@ class skill_executability_evaluator {
      * @return bool
      */
     private function has_required_capabilities(int $userid, int $contextid, string $skillname): bool {
-        $capabilities = $this->registry->get_skill_capabilities($skillname);
-        if (empty($capabilities)) {
+        // The name-derived capability (<component>:skill_<normalized_name>) is ALWAYS required and is
+        // derived HERE by the engine from the skill name — not taken on trust from declared metadata.
+        // This makes the per-skill capability check impossible to bypass: a (3rd-party) skill can
+        // never ship without its name capability being enforced, even if its metadata declares none.
+        $meta = (array)($this->registry->get_skill_contract($skillname) ?? []);
+        $namecapability = skill_contract_validator::build_skill_capability_name(
+            (string)($meta['component'] ?? ''),
+            $skillname
+        );
+        if ($namecapability === '') {
+            // No derivable name capability (missing component) → fail closed.
             return false;
+        }
+
+        $capabilities = $this->registry->get_skill_capabilities($skillname);
+        if (!in_array($namecapability, $capabilities, true)) {
+            $capabilities[] = $namecapability;
         }
 
         try {
@@ -192,7 +206,8 @@ class skill_executability_evaluator {
         }
 
         foreach ($capabilities as $capability) {
-            if (!get_capability_info($capability)) {
+            $capability = trim((string)$capability);
+            if ($capability === '' || !get_capability_info($capability)) {
                 return false;
             }
             if (!has_capability($capability, $context, $userid)) {

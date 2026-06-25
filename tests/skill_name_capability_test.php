@@ -17,8 +17,12 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
+use context_system;
 use bookingextension_agent\local\wizard\skill_contract_validator;
+use bookingextension_agent\local\wizard\skill_executability_evaluator;
+use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\skill_registry_factory;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
 
 /**
  * Every agent skill MUST be gated by a capability derived from its name.
@@ -98,5 +102,44 @@ final class skill_name_capability_test extends advanced_testcase {
         );
         $this->assertSame('', skill_contract_validator::build_skill_capability_name('', 'x.y'));
         $this->assertSame('', skill_contract_validator::build_skill_capability_name('comp', ''));
+    }
+
+    /**
+     * The engine derives and enforces the name capability ITSELF — even if a skill's declared
+     * metadata capabilities are empty (a 3rd-party dev who forgot, or broken/tampered metadata).
+     * This guarantees the per-skill capability check can never be silently skipped.
+     */
+    public function test_name_capability_enforced_even_with_empty_declared_caps(): void {
+        $this->resetAfterTest();
+
+        // A registry whose metadata declares NO capabilities, but whose component + skill name still
+        // map to a real, defined capability (bookingextension/agent:skill_course_add_activity).
+        $registry = new class extends skill_registry {
+            public function get_skill_contract(string $skillname): ?array {
+                return ['component' => 'bookingextension/agent', 'readonly' => true, 'capabilities' => []];
+            }
+            public function get_skill_capabilities(string $skillname): array {
+                return [];
+            }
+        };
+        $evaluator = new skill_executability_evaluator($registry, new authorization_service());
+        $method = new \ReflectionMethod($evaluator, 'has_required_capabilities');
+        $method->setAccessible(true);
+
+        $ctxid = (int)context_system::instance()->id;
+        $skillname = 'course.add_activity';
+
+        $fresh = $this->getDataGenerator()->create_user();
+        $this->assertFalse(
+            $method->invoke($evaluator, (int)$fresh->id, $ctxid, $skillname),
+            'The engine must derive + enforce the name capability even when declared caps are empty.'
+        );
+
+        $this->setAdminUser();
+        global $USER;
+        $this->assertTrue(
+            $method->invoke($evaluator, (int)$USER->id, $ctxid, $skillname),
+            'An admin holds the name-derived capability.'
+        );
     }
 }
