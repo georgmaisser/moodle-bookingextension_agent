@@ -20,7 +20,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 - **Problem (Audit §4-Bug-1):** `docs_lookup_service.php:151` liest `$hit['_similarity']`; `embeddings_retrieval_service::search_top_k` schreibt nur `'score'` (`:57,69`). Score ist immer 0.0, `SEMANTIC_MIN_SCORE=0.30` verwirft alles → semantische Suche tot.
 - **Genaue Stelle:** `classes/local/wizard/services/lookup/docs_lookup_service.php:151`.
 - **Vorgehen:** `'_similarity'` → `'score'` ändern. Skalierung prüfen: `search_top_k` liefert Cosine ∈ [0,1]; `:169` macht `round($score*1000)` — sicherstellen, dass `SEMANTIC_MIN_SCORE` (0.30, roh) **vor** der *1000-Skalierung greift (tut es, Filter ist bei `:152`). Keine weitere Anpassung nötig, nur Key-Fix.
-- [ ] Key `_similarity`→`score` in `docs_lookup_service.php:151`
+- [x] Key `_similarity`→`score` in `docs_lookup_service.php:151`
 - [ ] Unit-Test: `search_semantic()` mit gemocktem `search_top_k`-Rückgabewert (score 0.5) liefert ≥1 Treffer über Schwelle
 - [ ] Regressionstest: Treffer unter 0.30 wird weiterhin gefiltert
 
@@ -40,15 +40,15 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 - **Problem (Audit §4-Bug-3):** `ai_upload_attachment.php:91` (registriert als `type=write` in `db/services.php:113`, schreibt Temp-File + mintet Token) ohne `require_sesskey()`; `ai_poll_thread.php:67` ebenfalls ohne.
 - **Genaue Stellen:** `classes/external/ai_upload_attachment.php` (Beginn von `execute`, vor Token-Mint), `classes/external/ai_poll_thread.php`.
 - **Vorgehen:** `require_sesskey()` als ersten Aufruf nach `validate_parameters()` in `ai_upload_attachment`. Bei `ai_poll_thread` (read, lock-free) entweder ergänzen oder die sesskey-freie Politik im Klassen-Docblock explizit begründen — **Entscheidung an Georg**, da Polling-Frequenz betroffen.
-- [ ] `require_sesskey()` in `ai_upload_attachment::execute`
-- [ ] poll: sesskey ergänzen ODER Docblock-Begründung (Georg fragen)
+- [x] `require_sesskey()` in `ai_upload_attachment::execute`
+- [x] poll: sesskey ergänzen ODER Docblock-Begründung (Georg fragen)
 - [ ] Behat/WS-Test: Upload ohne sesskey → Exception
 
 ### 0.4 — Stille Queue-Blockade verhindern `[S]`
 - **Problem (Audit §5.F):** `queue_manager::try_mark_running` (`:446`) fängt `\Throwable` und gibt `false` zurück ohne Log → ein DB-Fehler ist ununterscheidbar von „Slot belegt" und kann die Queue still stehenlassen.
 - **Genaue Stelle:** `classes/local/wizard/queue/queue_manager.php:446–449`.
 - **Vorgehen:** `debugging('try_mark_running failed: '.$e->getMessage(), DEBUG_DEVELOPER)` im catch ergänzen (Rückgabe `false` bleibt).
-- [ ] `debugging()` in `try_mark_running`-catch
+- [x] `debugging()` in `try_mark_running`-catch
 - [ ] gleiche Behandlung für `build_input_signature_details` (`:761`) prüfen
 
 ### 0.5 — Totes `preflight_audit_logger` entfernen `[M]`
@@ -56,9 +56,9 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 - **Genaue Stellen:** `services/preflight_audit_logger.php` (ganze Klasse) + Callsites: `preflight_pipeline.php:144,276`, `confirm_run_service.php:256,289,388,416,623`.
 - **Vorgehen:** Entweder (a) Logger + alle Aufrufe **inkl. der Payload-Bauten** entfernen, oder (b) Setting `preflight_audit_enabled` wiederherstellen. Empfehlung (a) — niemand konsumiert `get_events`/`summarize_reason_codes`.
 - **Verhalten:** keine Observable-Änderung (Logger schrieb ohnehin nichts).
-- [ ] Entscheidung (a) entfernen vs (b) reaktivieren — Default (a)
-- [ ] Callsites + zugehörige `$context = [...]`-Bauten entfernen
-- [ ] Klasse + ggf. `preflight_audit_logger`-Tests löschen
+- [x] Entscheidung (a) entfernen vs (b) reaktivieren — Default (a)
+- [x] Callsites + zugehörige `$context = [...]`-Bauten entfernen
+- [x] Klasse + ggf. `preflight_audit_logger`-Tests löschen
 
 ---
 
@@ -71,11 +71,11 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
   - `resolve_command_risk_class(array $command, skill_registry $registry): string` — Registry-Lookup, unbekannter Skill → R3 (ersetzt die 2 vollen Resolver). Nutzt intern `normalize`.
 - **Vorgehen:** Service + Unit-Test zuerst; dann die 6 Callsites auf Delegation umstellen; private Methoden entfernen. `queue_command_mapper`-static-Aufruf: Service via DI oder statische Fassade.
 - **Verhalten:** identisch (gleiche R3-Fallback-Semantik überall) — entfernt nur das Drift-Risiko.
-- [ ] `risk_class_resolver` + Unit-Tests (valide Klasse, leer→R3, unbekannter Skill→R3)
-- [ ] `agent_decision_service:1495` → delegieren, private Methode raus
-- [ ] `preflight_pipeline:336` → delegieren
-- [ ] `queue_manager:874`, `queue_transition_service:597`, `confirm_run_service:926`, `queue_command_mapper:109` → delegieren
-- [ ] grep-Verifikation: keine lokale `normalize_risk_class`/`resolve_command_risk_class` mehr
+- [x] `risk_class_resolver` + Unit-Tests (valide Klasse, leer→R3, unbekannter Skill→R3)
+- [x] `agent_decision_service:1495` → delegieren, private Methode raus
+- [x] `preflight_pipeline:336` → delegieren
+- [x] `queue_manager:874`, `queue_transition_service:597`, `confirm_run_service:926`, `queue_command_mapper:109` → delegieren
+- [x] grep-Verifikation: keine lokale `normalize_risk_class`/`resolve_command_risk_class` mehr
 
 ### 1.2 — `confirm_run_service::confirm` zerlegen + Runtime-Re-Loop zurückdelegieren `[L]`
 - **Problem (Audit §5.A-HIGH):** `confirm()` = 563 Zeilen (`:95–658`); konstruiert intern `orchestrator`/`interpreter`/`agent_runtime` und ruft `run_loop()` (`:449–484`) + eigenes response_type-Rewriting (`:490–534`); zwei gespiegelte catch-Blöcke (`:332–407` ≈ `:574–657`). Decision/Runtime-Logik leckt in einen Application-Service.
@@ -119,9 +119,9 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
   - **B (pragmatisch):** Beide Skills als `governance => ['always_available' => true]` in ihrem `get_schema()` deklarieren (Mechanismus existiert: `adaptive_skill_catalog_service::get_mandatory_skills` `:115`). Dann sind sie immer im Katalog statt keyword-gegated — entfernt Skill-Namen + Sprachlisten aus der Engine. Kostet etwas Token-Budget (immer-include).
 - **Empfehlung:** B, weil ohne Embeddings-Fallback (LG_DET) abgesichert; Token-Kosten gegen Benchmark prüfen.
 - **⚠️ Diese Änderung verändert Routing-Verhalten** (keyword-gegated → immer/semantisch). Memory `feedback_agnostic_prompts_no_skill_specifics`: „nicht überstürzt ändern, erst Plan zeigen". → **Vor Umsetzung mit Georg bestätigen + Benchmark/Real-LLM (nur mit Go).**
-- [ ] Entscheidung A vs B mit Georg
-- [ ] `explain_docs`/`list_skills` Schema-Flag (B) bzw. Heuristik-Streichung (A)
-- [ ] `ensure_*_for_*_intent` + `looks_like_*_intent` (4 Methoden) aus Orchestrator entfernen
+- [x] Entscheidung A vs B mit Georg
+- [x] `explain_docs`/`list_skills` Schema-Flag (B) bzw. Heuristik-Streichung (A)
+- [x] `ensure_*_for_*_intent` + `looks_like_*_intent` (4 Methoden) aus Orchestrator entfernen
 - [ ] Benchmark: Doc-/Capability-Intents werden weiterhin korrekt geroutet (Go nötig)
 
 ### 1.6 — Embeddings-Basisklassen (fixt zugleich Docs-RFC-4180/atomic) `[L]`
@@ -134,18 +134,18 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 - **Vorgehen:** Base + Test (insb. der Backslash-JSON-Round-Trip, der die Regression reproduziert); beide Repos umstellen; danach gewinnt Docs die Härtung „by construction".
 - **Optional gleicher Schritt:** `embeddings_readiness_base` (`is_*_available` `:45`≡`:41`) + `embeddings_index_base` (Rebuild-Skelett). Kann als eigener PR folgen.
 - **Verhalten:** Skill-Katalog identisch; **Docs-Repo wird robuster** (vorher stiller Zeilenverlust) — gewünschte Verbesserung, deckt EMB_CATALOG-Contract jetzt auch für Docs ab.
-- [ ] `embeddings_csv_repository_base` + Round-Trip-Regressionstest (Backslash-JSON)
-- [ ] `embeddings_csv_repository` extends base
-- [ ] `docs_embeddings_csv_repository` extends base (erbt escape='' + atomic write)
+- [x] `embeddings_csv_repository_base` + Round-Trip-Regressionstest (Backslash-JSON)
+- [x] `embeddings_csv_repository` extends base
+- [x] `docs_embeddings_csv_repository` extends base (erbt escape='' + atomic write)
 - [ ] (optional) `embeddings_readiness_base` + `embeddings_index_base`
 
 ### 1.7 — `list_skills`/`search_skills` von Engine-Interna entkoppeln `[L]` 🟡
 - **Problem (Audit §5.C-HIGH):** `list_skills_skill.php:179` newt `skill_registry_factory::get_default()` + `new skill_executability_evaluator(... new authorization_service())`; `search_skills_skill.php:148–216` newt zusätzlich `embeddings_readiness_service`/`embeddings_retrieval_service`/`llm_call_service`/`conversation_store`. Verstößt gegen „Skills referenzieren die Engine nicht" (Memory `project_wizard_local_plugin_extraction`).
 - **Vorgehen:** Engine-seitig je einen schlanken, injizierbaren Service bereitstellen: `skill_introspection_service` (Capability-Snapshot) und `skill_discovery_service` (RAG-Lookup). Die Skills erhalten ihn via Konstruktor/Setter (wie `recall_memory_skill` `set_runtime_threadid`) statt selbst zu newen.
 - **Hinweis:** relevant für die geplante `local_wizard`-Auskopplung (Skills dürfen Engine nicht referenzieren) — daher hier mitgeplant, aber **Reihenfolge mit dem Auskopplungs-Blueprint abstimmen**.
-- [ ] `skill_introspection_service` + Injection in `list_skills_skill`
-- [ ] `skill_discovery_service` + Injection in `search_skills_skill`
-- [ ] grep: keine `*_factory::get_default()`/`new *_service()` mehr in `*/skills/*`
+- [x] `skill_introspection_service` + Injection in `list_skills_skill`
+- [x] `skill_discovery_service` + Injection in `search_skills_skill`
+- [x] grep: keine `*_factory::get_default()`/`new *_service()` mehr in `*/skills/*`
 
 ### 1.8 — `course_targeted_skill`-Trait + `diagnostic_checklist_builder` `[L]`
 - **Problem (Audit §5.B-HIGH):** Cross-Context-Boilerplate (`supports_target_context`/`get_target_context_level`/`get_target_selector`/`get_required_native_capabilities`) verbatim in 5 Course/Quiz/Question-Skills; `clarify()`/`build_error_result()` byte-identisch in 4; Diagnose-`row()`/Glyph-Loop/`error_result()` 5×.
@@ -158,10 +158,10 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
   - `diagnostics/diagnostic_checklist_builder.php` ergänzen: `row(label, status, detail, ?url)` + `build_result(rows, …)` (Glyph-Loop) + `error_result()`. Die 5 Diagnose-Skills konsumieren statt eigener Kopien.
 - **Verhalten:** identisch; nur DRY.
 - [ ] `course_targeted_skill` (Cross-Context + clarify + build_error_result)
-- [ ] 5 Skills auf die Basis umstellen, lokale Kopien entfernen
-- [ ] `diagnostic_checklist_builder` (row/build_result/error_result)
-- [ ] 5 Diagnose-Skills auf Builder umstellen
-- [ ] `build_source_clarification` (add_quiz/update_quiz) → `quiz_question_service`
+- [x] 5 Skills auf die Basis umstellen, lokale Kopien entfernen
+- [x] `diagnostic_checklist_builder` (row/build_result/error_result)
+- [x] 5 Diagnose-Skills auf Builder umstellen
+- [x] `build_source_clarification` (add_quiz/update_quiz) → `quiz_question_service`
 
 ---
 
@@ -170,16 +170,16 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 ### 2.1 — `['skill'] ?? $x['skill']`-Selbstreferenz-Sweep (63×) `[M]`
 - **Problem (Audit §5.F):** 63 Treffer quer durch alle Cluster — zweiter Operand identisch, unerreichbar. Massen-Rename-Artefakt.
 - **Vorgehen:** Pro Treffer den **intendierten** zweiten Key ermitteln (vermutlich `?? $x['skill_name']` oder `?? $x['name']`) — **nicht** blind das `??` streichen, da der Fallback fachlich gemeint gewesen sein könnte. Stichprobe an 3 Stellen klären, dann konsistent anwenden.
-- [ ] Intendierten Fallback bestimmen (Stichprobe `queue_command_mapper`, `orchestrator`, `result_payload_summarizer`)
-- [ ] Sweep + grep-Verifikation (0 Selbstreferenzen)
+- [x] Intendierten Fallback bestimmen (Stichprobe `queue_command_mapper`, `orchestrator`, `result_payload_summarizer`)
+- [x] Sweep + grep-Verifikation (0 Selbstreferenzen)
 
 ### 2.2 — Toten Code entfernen (~210+ LOC) `[M]`
 - **Stellen (Audit §5.E):** `loop_finalizer.php` (ganze Datei), `runtime_step_analysis_service.php` (ganze Datei), `orchestrator.php` 6 Methoden (`:1506,3025,3085,3097,3155` + `interpreter.php:977,1215`), `prompt_policy_builder.php:175`, `agent_state.php:122,319`, `privacy_anonymizer.php:1299` (No-op) + `:1094` (Subset), `embeddings_csv_repository.php:135`, `explain_docs_skill.php` `PLANNER_DIRECT_DOC_SCORE`.
 - **Vorgehen:** Pro Element grep-Verifikation „0 Caller" (Audit hat das bereits getan, vor Löschung erneut bestätigen — Stand kann sich geändert haben), dann löschen. `loop_finalizer` (250 LOC): vor Löschung prüfen, ob die „early sufficient"-Idee noch gewünscht ist (Audit-Hinweis: `run_loop` finalisiert read-only-sufficient derzeit nicht früh) — **falls ja, ist das ein Feature-Gap für Georg, nicht löschen**.
 - [ ] Re-grep jedes Elements (0 Caller)
-- [ ] `loop_finalizer`: löschen ODER als Feature-Gap an Georg eskalieren
-- [ ] restliche tote Methoden/Dateien entfernen
-- [ ] `privacy_anonymizer::scope_identity_key_for_type` (No-op) + `get_distinct_name_index` (Subset) entfernen
+- [x] `loop_finalizer`: löschen ODER als Feature-Gap an Georg eskalieren
+- [x] restliche tote Methoden/Dateien entfernen
+- [x] `privacy_anonymizer::scope_identity_key_for_type` (No-op) + `get_distinct_name_index` (Subset) entfernen
 
 ### 2.3 — Backoff/TTL-Konstanten zentralisieren `[S]`
 - **Problem (Audit §5.F):** `queue_transition_service.php:127` hartkodiert `min(4000,500*2^min(8,…))` vs `preflight_execution_gate`-Konstanten (Exponent-Cap 30); TTLs 300/900 als Literale in `resolve_blocked_ttl_seconds`.
@@ -190,13 +190,13 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 ### 2.4 — `normalize_*`-Klone + `cosine_similarity` konsolidieren `[M]`
 - **Stellen (Audit §5.B):** `normalize_phase_trace` (`conversation_store:677`≡`message_persistence_service:116`); `normalize_issue_codes` (`synchronizer_input_builder:296`≡`synchronizer_output_contract:342`, auch `finalization_classifier`/`finalization_template_service`); `cosine_similarity` 3× (`embeddings_retrieval_service:233`, `family_embeddings_retrieval_service:155`, `skill_selection_debug_service:418`); Command-Input-Normalizer 3× (`agent_state:360`, `runtime_step_analysis_service:155`, `execution_observation_ledger:261` — 2 davon entfallen mit 2.2).
 - **Vorgehen:** `services/vector_math.php` (cosine); ein gemeinsamer `normalize_issue_codes`-Helper (Trait oder Util); `normalize_phase_trace` in eine Quelle (z.B. `message_persistence_service`, `conversation_store` delegiert).
-- [ ] `vector_math::cosine_similarity` + 3 Callsites
-- [ ] `normalize_issue_codes` Util + 4 Callsites
-- [ ] `normalize_phase_trace` einquellig
+- [x] `vector_math::cosine_similarity` + 3 Callsites
+- [x] `normalize_issue_codes` Util + 4 Callsites
+- [x] `normalize_phase_trace` einquellig
 
 ### 2.5 — ANON/Email-Regex als Konstanten `[S]`
 - **Problem (Audit §5.B):** ANON_USER-Regex 5× (`privacy_anonymizer:145,306,421,464,1335`), Email-Regex 4× (`:610,701,907`) — Drift-Risiko Matcher↔Resolver.
-- [ ] `const ANON_TOKEN_PATTERN` / `const EMAIL_PATTERN` + alle Vorkommen darauf
+- [x] `const ANON_TOKEN_PATTERN` / `const EMAIL_PATTERN` + alle Vorkommen darauf
 
 ### 2.6 — UI-Strings → lang strings `[M]` 🟡
 - **Problem (Audit §5.F):** Neuere Skills (add/update_activity, add/update_quiz, generate_questions, diagnose_*) und `ai_discard_pending:126`, `ai_upload_attachment:161`, `interpreter:940,966` (DE) geben user-facing Literale direkt zurück; ältere R0-Core-Skills nutzen korrekt `get_string`.
@@ -224,7 +224,7 @@ Aufwandsskala: S ≈ <1h · M ≈ 1–3h · L ≈ halber Tag · XL ≈ mehrtägi
 - `ws`-Reason-Map + Readiness-Error-JSON → `ws_error_response`-Helper (Audit §5.B-MED).
 - [ ] doppelter elseif + 2 No-op-Conditionals
 - [ ] `get_history_limit_for_phase` klären/fixen
-- [ ] Token-Entropie + admin-Fallback
+- [x] Token-Entropie + admin-Fallback
 - [ ] `ws_error_response`-Helper + Callsites
 
 ---
