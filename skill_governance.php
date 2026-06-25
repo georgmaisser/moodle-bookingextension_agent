@@ -153,7 +153,10 @@ $missingembeddingcount = 0;
 try {
     $embsettings = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->resolve();
     $catalogbyskill = [];
-    foreach ((new \bookingextension_agent\local\wizard\embeddings_csv_repository())->read_rows() as $catalogrow) {
+    // Read the ACTIVE variant file (…__<model>__<dims>.csv) -- the same one the rebuild task and the
+    // runtime semantic discovery use. A bare `new embeddings_csv_repository()` would read the legacy
+    // un-suffixed file that is never written, making every skill look "missing" from the catalog.
+    foreach (\bookingextension_agent\local\wizard\embeddings_csv_repository::for_active_variant()->read_rows() as $catalogrow) {
         $catalogbyskill[(string)($catalogrow['skill'] ?? '')] = $catalogrow;
     }
     $expectedhashbyskill = [];
