@@ -97,6 +97,40 @@ final class docs_embeddings_readiness_coverage_test extends advanced_testcase {
     }
 
     /**
+     * The per-corpus summary classifies each corpus: indexed (with document/chunk counts),
+     * configured-but-pending, and indexed-but-no-longer-configured (orphaned).
+     */
+    public function test_corpus_index_summary_reports_per_corpus_state(): void {
+        $corpaguide = $this->row('corpa');
+        $corpaguide['chunk_path'] = 'GUIDE.md';
+        $corpaguide['content_hash'] = sha1('corpa-guide');
+        // corpa: two documents indexed; corpb: nothing indexed; corpold: indexed but not configured.
+        (docs_embeddings_csv_repository::for_active_variant())
+            ->write_rows([$this->row('corpa'), $corpaguide, $this->row('corpold')]);
+
+        $summary = (new docs_embeddings_readiness_service())->get_corpus_index_summary();
+
+        $bycorpus = [];
+        foreach ($summary['corpora'] as $corpus) {
+            $bycorpus[$corpus['corpusid']] = $corpus;
+        }
+
+        $this->assertSame('indexed', $bycorpus['corpa']['state']);
+        $this->assertSame(2, $bycorpus['corpa']['documents']);
+        $this->assertSame(2, $bycorpus['corpa']['chunks']);
+
+        $this->assertSame('pending', $bycorpus['corpb']['state']);
+        $this->assertFalse($bycorpus['corpb']['indexed']);
+
+        $this->assertSame('orphaned', $bycorpus['corpold']['state']);
+        $this->assertFalse($bycorpus['corpold']['declared']);
+
+        $this->assertTrue($summary['provideravailable']);
+        $this->assertTrue($summary['indexready']);
+        $this->assertSame(3, $summary['chunks']);
+    }
+
+    /**
      * A coverage gap schedules a rebuild task (once, thanks to the debounce).
      */
     public function test_coverage_gap_schedules_rebuild(): void {

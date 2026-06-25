@@ -104,6 +104,101 @@ class docs_embeddings_readiness_service {
     }
 
     /**
+     * Per-corpus index summary for the admin UI (read-only — never triggers a rebuild).
+     *
+     * Combines the configured corpora (registry) with what is actually stored in the index CSV,
+     * so the settings page can show exactly which documentation is indexed, which configured
+     * corpus is still waiting to be embedded, and which indexed corpus is no longer configured.
+     *
+     * @return array{
+     *     provideravailable: bool,
+     *     indexready: bool,
+     *     documents: int,
+     *     chunks: int,
+     *     corpora: array<int, array{
+     *         corpusid: string, state: string, indexed: bool, resolvable: bool,
+     *         declared: bool, documents: int, chunks: int
+     *     }>
+     * }
+     */
+    public function get_corpus_index_summary(): array {
+        $registry = new docs_corpus_registry();
+        $resolvable = $registry->list();              // corpus_id => absolute root (root exists now).
+        $declared = $registry->declared_corpus_ids(); // every syntactically valid corpus_id.
+
+        $provideravailable = $this->is_embeddings_provider_available();
+        $repo = docs_embeddings_csv_repository::for_active_variant();
+
+        // Read the index once and tally chunks + distinct documents per corpus. A missing or
+        // schema-invalid index simply yields zero counts (everything shows as not-yet-indexed).
+        $rows = ($provideravailable && $repo->exists()) ? $repo->read_rows() : [];
+        $indexready = !empty($rows) && $repo->is_valid_schema($rows);
+        $chunksbycorpus = [];
+        $docsbycorpus = [];
+        if ($indexready) {
+            foreach ($rows as $row) {
+                $cid = trim((string)($row['corpus_id'] ?? ''));
+                if ($cid === '') {
+                    continue;
+                }
+                $chunksbycorpus[$cid] = ($chunksbycorpus[$cid] ?? 0) + 1;
+                $path = trim((string)($row['chunk_path'] ?? ''));
+                if ($path !== '') {
+                    $docsbycorpus[$cid][$path] = true;
+                }
+            }
+        }
+
+        // One entry per declared corpus, plus any indexed corpus that is no longer declared so an
+        // orphaned-but-still-stored corpus stays visible until the next rebuild prunes it.
+        $ids = $declared;
+        foreach (array_keys($chunksbycorpus) as $cid) {
+            if (!in_array($cid, $ids, true)) {
+                $ids[] = $cid;
+            }
+        }
+
+        $corpora = [];
+        foreach ($ids as $cid) {
+            $isdeclared = in_array($cid, $declared, true);
+            $isresolvable = isset($resolvable[$cid]);
+            $chunks = $chunksbycorpus[$cid] ?? 0;
+            $documents = isset($docsbycorpus[$cid]) ? count($docsbycorpus[$cid]) : 0;
+            $indexed = $chunks > 0;
+
+            if (!$isdeclared) {
+                $state = 'orphaned';        // Indexed but no longer configured: pruned next rebuild.
+            } else if (!$isresolvable) {
+                $state = 'unresolvable';    // Configured but directory missing: cannot be indexed.
+            } else if ($indexed) {
+                $state = 'indexed';
+            } else {
+                $state = 'pending';         // Configured and resolvable but not in the index yet.
+            }
+
+            $corpora[] = [
+                'corpusid' => $cid,
+                'state' => $state,
+                'indexed' => $indexed,
+                'resolvable' => $isresolvable,
+                'declared' => $isdeclared,
+                'documents' => $documents,
+                'chunks' => $chunks,
+            ];
+        }
+
+        usort($corpora, static fn(array $a, array $b): int => strcmp($a['corpusid'], $b['corpusid']));
+
+        return [
+            'provideravailable' => $provideravailable,
+            'indexready' => $indexready,
+            'documents' => array_sum(array_map(static fn(array $c): int => $c['documents'], $corpora)),
+            'chunks' => array_sum($chunksbycorpus),
+            'corpora' => $corpora,
+        ];
+    }
+
+    /**
      * Whether every currently resolvable corpus has at least one row in the index.
      *
      * Coverage is measured against the *resolvable* set (existing roots), not the full *declared*

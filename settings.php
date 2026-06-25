@@ -224,6 +224,39 @@ if ($agentenabled) {
     $docsskillgovurl = new moodle_url('/mod/booking/bookingextension/agent/skill_governance.php');
     if (\bookingextension_agent\local\wizard\services\lookup\docs_embeddings_gate::is_docs_skill_active()) {
         $docsskillindicator = get_string('aidocsroot_skill_active', 'bookingextension_agent');
+
+        // Per-corpus breakdown so admins see exactly which documentation is indexed and which
+        // configured corpus is still waiting to be embedded (read-only; never triggers a rebuild).
+        $docssummary = (new \bookingextension_agent\local\wizard\services\lookup\docs_embeddings_readiness_service())
+            ->get_corpus_index_summary();
+        if (!$docssummary['provideravailable']) {
+            $docsskillindicator .= html_writer::div(
+                get_string('aidocsroot_index_provider_missing', 'bookingextension_agent'),
+                'mt-2'
+            );
+        } else if (empty($docssummary['corpora'])) {
+            $docsskillindicator .= html_writer::div(
+                get_string('aidocsroot_index_empty', 'bookingextension_agent'),
+                'mt-2'
+            );
+        } else {
+            $docscorpusitems = [];
+            foreach ($docssummary['corpora'] as $docscorpus) {
+                $docscorpusitems[] = get_string(
+                    'aidocsroot_corpus_' . $docscorpus['state'],
+                    'bookingextension_agent',
+                    (object)[
+                        'corpus' => s($docscorpus['corpusid']),
+                        'documents' => $docscorpus['documents'],
+                        'chunks' => $docscorpus['chunks'],
+                    ]
+                );
+            }
+            $docsskillindicator .= html_writer::div(
+                get_string('aidocsroot_index_heading', 'bookingextension_agent'),
+                'fw-bold mt-2'
+            ) . html_writer::alist($docscorpusitems, ['class' => 'mb-0']);
+        }
     } else {
         $docsskillindicator = get_string(
             'aidocsroot_skill_inactive',
