@@ -132,118 +132,20 @@ class confirm_run_service {
         // Stale blocked_confirmation items are always expired (no admin toggle).
         $queuesvc->fail_expired_blocked_items($threadid);
 
-        $activequeueitemid = $this->resolve_pending_queue_item_id(
+        $target = $this->resolve_run_target(
             $queuesvc,
             $threadid,
+            $contextid,
+            $cmid,
+            $userid,
             $pendingintent,
             $requestedqueueitemid
         );
-        if ($activequeueitemid === '') {
-            return $this->build_error_payload(
-                $threadid,
-                $contextid,
-                $cmid,
-                $userid,
-                'Invalid or stale queue item id. Please confirm the latest assistant proposal.',
-                ['INVALID_QUEUE_ITEM_ID'],
-                ['Invalid or stale queue item id.'],
-                ''
-            );
+        if (isset($target['result'])) {
+            return $target['result'];
         }
-
-        $activeitem = $this->get_active_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
-        if (!is_array($activeitem)) {
-            return $this->build_error_payload(
-                $threadid,
-                $contextid,
-                $cmid,
-                $userid,
-                'No pending confirmation is available for this action. Please ask the assistant again.',
-                [],
-                [],
-                $activequeueitemid
-            );
-        }
-
-        if (!$queuesvc->dependencies_succeeded($threadid, $activeitem)) {
-            return $this->build_error_payload(
-                $threadid,
-                $contextid,
-                $cmid,
-                $userid,
-                'Queue item is waiting for dependencies and cannot be picked up yet.',
-                ['DEPENDENCY_WAITING'],
-                ['Queue item is waiting for dependencies and cannot be picked up yet.'],
-                $activequeueitemid
-            );
-        }
-
-        $activestatus = trim((string)($activeitem['status'] ?? ''));
-        if (queue_status_policy::is_retry_waiting_status($activestatus) && !$queuesvc->can_pickup_now($activeitem)) {
-            $errors = ['Queue item is waiting for retry and cannot be picked up yet.'];
-            $waitseconds = max(0, ((int)($activeitem['next_retry_at'] ?? 0)) - time());
-            if ($waitseconds > 0) {
-                $errors[] = 'Retry available in about ' . $waitseconds . 's.';
-            }
-
-            return $this->build_error_payload(
-                $threadid,
-                $contextid,
-                $cmid,
-                $userid,
-                implode(' ', $errors),
-                ['RETRY_WAITING'],
-                $errors,
-                $activequeueitemid,
-                attempt_budget_dto::from_queue_item($activeitem)->to_array()
-            );
-        }
-
-        $commandsforrun = $this->resolve_commands_for_run($queuesvc, $threadid, $activequeueitemid);
-        if (empty($commandsforrun)) {
-            return $this->build_error_payload(
-                $threadid,
-                $contextid,
-                $cmid,
-                $userid,
-                'No pending confirmation is available for this action. Please ask the assistant again.',
-                [],
-                [],
-                $activequeueitemid
-            );
-        }
-
-        // Repeat guard: do not re-execute a command that already failed non-retryably in this thread
-        // (e.g. an optionquery that matches nothing). Surface a clarification and let the planner/user
-        // correct instead of silently failing the identical action again.
-        $faileddetail = $this->get_failed_command_detail($threadid, $commandsforrun[0] ?? []);
-        if ($faileddetail !== null) {
-            $this->queuetransitionsvc->to_skipped(
-                $queuesvc,
-                $threadid,
-                $activequeueitemid,
-                'REPEATED_FAILED_COMMAND',
-                ['REPEATED_FAILED_COMMAND'],
-                'domain_error',
-                'Identical command already failed earlier in this thread.'
-            );
-            return [
-                'success' => true,
-                'runid' => 0,
-                'threadid' => $threadid,
-                'response_type' => 'clarification',
-                'message' => $faileddetail,
-                'autoconfirm' => 0,
-                'commands' => [],
-                'results' => [],
-                'attempted_skills' => [],
-                'issue_codes' => ['REPEATED_FAILED_COMMAND'],
-                'errors' => [],
-                'pending_confirmation_code' => '',
-                'queueitemid' => '',
-                ...$this->build_preview_response_fields($threadid, [], $contextid, $userid),
-            ];
-        }
+        $activequeueitemid = (string)$target['activequeueitemid'];
+        $commandsforrun = (array)$target['commandsforrun'];
 
         $this->queuetransitionsvc->to_ready(
             $queuesvc,
@@ -590,6 +492,151 @@ class confirm_run_service {
                 ...$this->build_preview_response_fields($threadid, $feedbackresults, $contextid, $userid),
             ];
         }
+    }
+
+    /**
+     * Resolve the queue item + commands to run, or a terminal payload to return as-is.
+     *
+     * Encapsulates the confirm() validation/resolution prelude: pending-item resolution,
+     * active-item lookup, dependency/retry-waiting gates, command resolution and the
+     * repeat guard. Returns ['result' => <payload>] when confirm() must return early, or
+     * ['activequeueitemid' => string, 'commandsforrun' => array] for the resolved target.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $cmid
+     * @param int $userid
+     * @param mixed $pendingintent
+     * @param string $requestedqueueitemid
+     * @return array<string,mixed>
+     */
+    private function resolve_run_target(
+        queue_manager $queuesvc,
+        int $threadid,
+        int $contextid,
+        int $cmid,
+        int $userid,
+        $pendingintent,
+        string $requestedqueueitemid
+    ): array {
+        $activequeueitemid = $this->resolve_pending_queue_item_id(
+            $queuesvc,
+            $threadid,
+            $pendingintent,
+            $requestedqueueitemid
+        );
+        if ($activequeueitemid === '') {
+            return ['result' => $this->build_error_payload(
+                $threadid,
+                $contextid,
+                $cmid,
+                $userid,
+                'Invalid or stale queue item id. Please confirm the latest assistant proposal.',
+                ['INVALID_QUEUE_ITEM_ID'],
+                ['Invalid or stale queue item id.'],
+                ''
+            )];
+        }
+
+        $activeitem = $this->get_active_mutating_queue_item($queuesvc, $threadid, $activequeueitemid);
+        if (!is_array($activeitem)) {
+            return ['result' => $this->build_error_payload(
+                $threadid,
+                $contextid,
+                $cmid,
+                $userid,
+                'No pending confirmation is available for this action. Please ask the assistant again.',
+                [],
+                [],
+                $activequeueitemid
+            )];
+        }
+
+        if (!$queuesvc->dependencies_succeeded($threadid, $activeitem)) {
+            return ['result' => $this->build_error_payload(
+                $threadid,
+                $contextid,
+                $cmid,
+                $userid,
+                'Queue item is waiting for dependencies and cannot be picked up yet.',
+                ['DEPENDENCY_WAITING'],
+                ['Queue item is waiting for dependencies and cannot be picked up yet.'],
+                $activequeueitemid
+            )];
+        }
+
+        $activestatus = trim((string)($activeitem['status'] ?? ''));
+        if (queue_status_policy::is_retry_waiting_status($activestatus) && !$queuesvc->can_pickup_now($activeitem)) {
+            $errors = ['Queue item is waiting for retry and cannot be picked up yet.'];
+            $waitseconds = max(0, ((int)($activeitem['next_retry_at'] ?? 0)) - time());
+            if ($waitseconds > 0) {
+                $errors[] = 'Retry available in about ' . $waitseconds . 's.';
+            }
+
+            return ['result' => $this->build_error_payload(
+                $threadid,
+                $contextid,
+                $cmid,
+                $userid,
+                implode(' ', $errors),
+                ['RETRY_WAITING'],
+                $errors,
+                $activequeueitemid,
+                attempt_budget_dto::from_queue_item($activeitem)->to_array()
+            )];
+        }
+
+        $commandsforrun = $this->resolve_commands_for_run($queuesvc, $threadid, $activequeueitemid);
+        if (empty($commandsforrun)) {
+            return ['result' => $this->build_error_payload(
+                $threadid,
+                $contextid,
+                $cmid,
+                $userid,
+                'No pending confirmation is available for this action. Please ask the assistant again.',
+                [],
+                [],
+                $activequeueitemid
+            )];
+        }
+
+        // Repeat guard: do not re-execute a command that already failed non-retryably in this thread
+        // (e.g. an optionquery that matches nothing). Surface a clarification and let the planner/user
+        // correct instead of silently failing the identical action again.
+        $faileddetail = $this->get_failed_command_detail($threadid, $commandsforrun[0] ?? []);
+        if ($faileddetail !== null) {
+            $this->queuetransitionsvc->to_skipped(
+                $queuesvc,
+                $threadid,
+                $activequeueitemid,
+                'REPEATED_FAILED_COMMAND',
+                ['REPEATED_FAILED_COMMAND'],
+                'domain_error',
+                'Identical command already failed earlier in this thread.'
+            );
+            return ['result' => [
+                'success' => true,
+                'runid' => 0,
+                'threadid' => $threadid,
+                'response_type' => 'clarification',
+                'message' => $faileddetail,
+                'autoconfirm' => 0,
+                'commands' => [],
+                'results' => [],
+                'attempted_skills' => [],
+                'issue_codes' => ['REPEATED_FAILED_COMMAND'],
+                'errors' => [],
+                'pending_confirmation_code' => '',
+                'queueitemid' => '',
+                ...$this->build_preview_response_fields($threadid, [], $contextid, $userid),
+            ]];
+        }
+
+        return [
+            'activequeueitemid' => $activequeueitemid,
+            'commandsforrun' => $commandsforrun,
+        ];
     }
 
     /**
