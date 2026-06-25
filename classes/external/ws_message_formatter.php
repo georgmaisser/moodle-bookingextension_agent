@@ -31,8 +31,16 @@ class ws_message_formatter {
     /**
      * Format a markdown-like assistant message as HTML for WS output.
      *
+     * Deliberately uses clean_text() and NOT format_text(): the assistant reply is shown verbatim,
+     * so Moodle text filters must NOT run on it. format_text() would execute filters such as the
+     * booking shortcodes filter, which turns a literal "[bookingoptionview ...]" inside an
+     * explanation (even within a code block) into a rendered booking button instead of showing the
+     * shortcode the user asked about. clean_text() still purifies the HTML (XSS protection for the
+     * LLM-generated output) but runs no filters, so shortcodes and other tag-like text are shown
+     * literally.
+     *
      * @param string $message
-     * @param context $context any context level the agent runs at
+     * @param context $context retained for API stability; not needed without filtering
      * @return string
      */
     public static function format_ws_message(string $message, context $context): string {
@@ -41,9 +49,6 @@ class ws_message_formatter {
             return '';
         }
 
-        return format_text(\markdown_to_html($message), 1, [
-            'context' => $context,
-            'para' => false,
-        ]);
+        return clean_text(\markdown_to_html($message), FORMAT_HTML);
     }
 }

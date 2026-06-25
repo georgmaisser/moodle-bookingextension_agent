@@ -233,10 +233,9 @@ class explain_docs_skill extends core_skill_base implements
                     . 'Markdown links in your message.',
                     '- If you already know the exact doc path from context, set input.doc_path to skip search.',
                     '- When your reply reproduces a shortcode (anything in square brackets like '
-                    . '[bookingoptions ...] or a closing [/bookingoptions]), escape the OPENING bracket as the '
-                    . 'HTML entity &#91; so it reads &#91;bookingoptions ...]. The chat message is run through '
-                    . 'format_text, and an unescaped [ would make the shortcodes filter execute the tag instead of '
-                    . 'showing it literally. This does NOT apply to Markdown links [label](url) — leave those as-is.',
+                    . '[bookingoptions ...] or a closing [/bookingoptions]), write it verbatim — do NOT '
+                    . 'HTML-escape the brackets. The reply is displayed without text filters, so shortcodes are '
+                    . 'shown literally as written (prefer a code span/block for clarity).',
                 ],
             ],
         ];
