@@ -59,6 +59,7 @@ use bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_ser
 use bookingextension_agent\local\wizard\services\orchestrator_routing_service;
 use bookingextension_agent\local\wizard\services\planner_result_composer;
 use bookingextension_agent\local\wizard\services\provider_routing_util;
+use bookingextension_agent\local\wizard\services\provider_status_service;
 use bookingextension_agent\local\wizard\services\synchronizer_prompt_builder;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service;
@@ -181,176 +182,10 @@ class orchestrator {
      * @return array<string,mixed>
      */
     public function get_runtime_provider_status(int $contextid): array {
-        $default = [
-            'providerconfigured' => false,
-            'provideractive' => false,
-            'courseenabled' => false,
-            'contextenabled' => false,
-            'availabilitybypassed' => false,
-            'runtimeavailable' => false,
-            'toolactionclass' => '',
-            'finalactionclass' => '',
-            'toolroutepolicy' => 'default',
-            'finalroutepolicy' => 'default',
-            'failurereason' => '',
-        ];
-
-        if (!class_exists('\core_ai\manager')) {
-            $default['failurereason'] = 'subsystem_missing';
-            return $default;
-        }
-
-        try {
-            $context = context::instance_by_id($contextid, MUST_EXIST);
-            $manager = di::get(ai_manager::class);
-
-            // Version-agnostic provider list: real instances on 5.x, synthesised views on 4.5.
-            $providerinstances = provider_compat::get_provider_views();
-            $providerconfigured = !empty($providerinstances);
-
-            $hasenabledproviderinstance = false;
-            foreach ($providerinstances as $instance) {
-                if (!empty($instance->enabled)) {
-                    $hasenabledproviderinstance = true;
-                    break;
-                }
-            }
-
-            $provideractive = $hasenabledproviderinstance;
-            $candidateactions = [
-                generate_text::class,
-                summarise_text::class,
-                explain_text::class,
-                self::WB_ACTION_PLANNER_DECIDE,
-                self::WB_ACTION_GENERATE_AGENT_REPLY,
-            ];
-            foreach ($candidateactions as $candidate) {
-                if (!class_exists($candidate)) {
-                    continue;
-                }
-                try {
-                    $actionavailable = $manager->is_action_available($candidate);
-                } catch (\Throwable $e) {
-                    $actionavailable = false;
-                }
-                if ($actionavailable) {
-                    $provideractive = true;
-                    break;
-                }
-            }
-
-            // AVAILABILITY layer (not a permission): the course/module "enableaitools"
-            // toggles restrict non-privileged users only. Holders of the
-            // ignoreaiavailability capability — site admins implicitly, managers by
-            // default — bypass both toggles. Checked for the CURRENT user ($USER):
-            // this status is always computed inside a user-facing request (aiready,
-            // ai_send_message, activate_trial_context).
-            // See docs/Blueprints/agent_permissions_concept_2026-06-10.md §2/§7.
-            $availabilitybypassed = has_capability('bookingextension/agent:ignoreaiavailability', $context);
-
-            // The core course-level AI toggle only exists within a course. Resolve the
-            // enclosing course context first: core's is_ai_tools_enabled_in_course()
-            // treats any non-course context's instanceid as a cmid, which silently
-            // breaks for user/system contexts (e.g. the dashboard). No enclosing
-            // course → no course toggle applies.
-            $coursecontext = $context->get_course_context(false);
-            $courseenabled = ($coursecontext && !$availabilitybypassed && method_exists($manager, 'is_ai_tools_enabled_in_course'))
-                ? ai_manager::is_ai_tools_enabled_in_course($coursecontext)
-                : true;
-
-            $moduleaienabled = true;
-            if ($context->contextlevel === CONTEXT_MODULE && !$availabilitybypassed) {
-                $moduleaifields = ai_manager::get_ai_fields_from_course_module($context->instanceid);
-                $moduleaienabled = is_null($moduleaifields->enableaitools)
-                    || (bool)$moduleaifields->enableaitools;
-            }
-
-            $toolrouting = $this->orchestratorroutingsvc->resolve_action_class_for_phase(
-                $manager,
-                $context,
-                orchestrator_routing_service::PHASE_DISCOVERY
-            );
-            $toolactionclass = (string)($toolrouting['actionclass'] ?? '');
-            $finalactionclass = self::WB_ACTION_GENERATE_AGENT_REPLY;
-
-            $toolroutepolicy = (string)($toolrouting['routepolicy'] ?? 'default');
-            $finalroutepolicy = 'cons_wunderbyte';
-
-            $wunderbyteroutingselected =
-                $this->orchestratorroutingsvc->is_wunderbyte_routepolicy($toolroutepolicy)
-                && $this->orchestratorroutingsvc->is_wunderbyte_routepolicy($finalroutepolicy);
-
-            $toolenabledincontext = false;
-            if ($toolactionclass !== '') {
-                if ($wunderbyteroutingselected) {
-                    // Explicit override for wunderbyte custom actions: they are not
-                    // placement-backed in core, so do not block on module action flags.
-                    $toolenabledincontext = true;
-                } else if ($this->orchestratorroutingsvc->is_wunderbyte_routepolicy($toolroutepolicy)) {
-                    // Defensive fallback when only one side is tagged as wunderbyte.
-                    $toolenabledincontext = $moduleaienabled;
-                } else {
-                    $toolenabledincontext = $this->orchestratorroutingsvc->is_action_available_in_context(
-                        $manager,
-                        $context,
-                        $toolactionclass
-                    );
-                }
-            }
-
-            $finalenabledincontext = false;
-            if ($finalactionclass !== '') {
-                if ($wunderbyteroutingselected) {
-                    // Explicit override for wunderbyte custom actions: they are not
-                    // placement-backed in core, so do not block on module action flags.
-                    $finalenabledincontext = true;
-                } else if ($this->orchestratorroutingsvc->is_wunderbyte_routepolicy($finalroutepolicy)) {
-                    // Defensive fallback when only one side is tagged as wunderbyte.
-                    $finalenabledincontext = $moduleaienabled;
-                } else {
-                    $finalenabledincontext = $this->orchestratorroutingsvc->is_action_available_in_context(
-                        $manager,
-                        $context,
-                        $finalactionclass
-                    );
-                }
-            }
-
-            $contextenabled = $toolenabledincontext && $finalenabledincontext;
-            $runtimeavailable = $provideractive && $courseenabled && $contextenabled;
-
-            $failurereason = '';
-            if (!$runtimeavailable) {
-                if (!$providerconfigured) {
-                    $failurereason = 'no_provider';
-                } else if (!$provideractive) {
-                    $failurereason = 'provider_inactive';
-                } else if ($toolactionclass === '' || $finalactionclass === '') {
-                    $failurereason = 'actions_missing';
-                } else if (!$courseenabled) {
-                    $failurereason = 'course_disabled';
-                } else if (!$contextenabled) {
-                    $failurereason = 'context_disabled';
-                }
-            }
-
-            return [
-                'providerconfigured' => $providerconfigured,
-                'provideractive' => $provideractive,
-                'courseenabled' => $courseenabled,
-                'contextenabled' => $contextenabled,
-                'availabilitybypassed' => $availabilitybypassed,
-                'runtimeavailable' => $runtimeavailable,
-                'toolactionclass' => $toolactionclass,
-                'finalactionclass' => $finalactionclass,
-                'toolroutepolicy' => $toolroutepolicy,
-                'finalroutepolicy' => $finalroutepolicy,
-                'failurereason' => $failurereason,
-            ];
-        } catch (\Throwable $e) {
-            $default['failurereason'] = 'exception_thrown';
-            return $default;
-        }
+        // Logic lives in provider_status_service (orchestrator split, provider-status seam);
+        // this thin delegator preserves the public API for aiready / ai_send_message /
+        // activate_trial_context. The same routing service instance is reused.
+        return (new provider_status_service($this->orchestratorroutingsvc))->get_status($contextid);
     }
 
     /**
