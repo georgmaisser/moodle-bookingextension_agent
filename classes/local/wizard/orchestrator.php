@@ -2008,7 +2008,7 @@ PROMPT;
      * @return bool
      */
     private function catalog_mode_is_static(string $catalogselectionmode): bool {
-        return str_starts_with($catalogselectionmode, 'slim');
+        return $this->plannercatalogsvc->catalog_mode_is_static($catalogselectionmode);
     }
 
     /**
@@ -2080,30 +2080,7 @@ PROMPT;
      * @return array{0: array<int,array<string,mixed>>, 1: array<int,array<string,mixed>>}
      */
     private function split_prompt_contracts_by_full_access(array $contracts): array {
-        $available = [];
-        $locked = [];
-        $upgradeurl = trim((string)get_string('aitrial_pro_license_url', 'bookingextension_agent'));
-        // Prepended (not appended): the catalog renderer truncates descriptions,
-        // and the lock notice must survive that.
-        $lockednote = '[Locked: requires the Wunderbyte PRO license or subscription'
-            . ($upgradeurl !== '' ? ' — ' . $upgradeurl : '')
-            . '] ';
-
-        foreach ($contracts as $contract) {
-            if (!is_array($contract)) {
-                continue;
-            }
-
-            if (!empty($contract['readonly'])) {
-                $available[] = $contract;
-                continue;
-            }
-
-            $contract['description'] = trim($lockednote . trim((string)($contract['description'] ?? '')));
-            $locked[] = $contract;
-        }
-
-        return [$available, $locked];
+        return $this->plannercatalogsvc->split_prompt_contracts_by_full_access($contracts);
     }
 
     /**
@@ -2113,25 +2090,6 @@ PROMPT;
      * @return string
      */
     private function resolve_namespace_hint_from_prompt_contracts(array $promptcontracts): string {
-        $counts = [];
-        foreach ($promptcontracts as $contract) {
-            if (!is_array($contract)) {
-                continue;
-            }
-
-            $namespace = trim((string)($contract['namespace'] ?? ''));
-            if ($namespace === '') {
-                continue;
-            }
-
-            $counts[$namespace] = (int)($counts[$namespace] ?? 0) + 1;
-        }
-
-        if (empty($counts)) {
-            return '';
-        }
-
-        arsort($counts, SORT_NUMERIC);
-        return (string)array_key_first($counts);
+        return $this->plannercatalogsvc->resolve_namespace_hint_from_prompt_contracts($promptcontracts);
     }
 }

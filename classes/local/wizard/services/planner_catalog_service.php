@@ -438,4 +438,77 @@ class planner_catalog_service {
 
         return array_values($filtered);
     }
+
+    /**
+     * Whether the active skill catalog is static across turns (no embeddings / slim_all family).
+     *
+     * @param string $catalogselectionmode the resolved catalog selection mode
+     * @return bool
+     */
+    public function catalog_mode_is_static(string $catalogselectionmode): bool {
+        return str_starts_with($catalogselectionmode, 'slim');
+    }
+
+    /**
+     * Split prompt contracts into readonly (selectable without full access) and
+     * mutating ones, which move to the unavailable catalog with an upgrade hint.
+     *
+     * @param array<int,array<string,mixed>> $contracts
+     * @return array{0: array<int,array<string,mixed>>, 1: array<int,array<string,mixed>>}
+     */
+    public function split_prompt_contracts_by_full_access(array $contracts): array {
+        $available = [];
+        $locked = [];
+        $upgradeurl = trim((string)get_string('aitrial_pro_license_url', 'bookingextension_agent'));
+        // Prepended (not appended): the catalog renderer truncates descriptions,
+        // and the lock notice must survive that.
+        $lockednote = '[Locked: requires the Wunderbyte PRO license or subscription'
+            . ($upgradeurl !== '' ? ' — ' . $upgradeurl : '')
+            . '] ';
+
+        foreach ($contracts as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+
+            if (!empty($contract['readonly'])) {
+                $available[] = $contract;
+                continue;
+            }
+
+            $contract['description'] = trim($lockednote . trim((string)($contract['description'] ?? '')));
+            $locked[] = $contract;
+        }
+
+        return [$available, $locked];
+    }
+
+    /**
+     * Resolve a deterministic namespace hint from prompt contracts.
+     *
+     * @param array<int,array<string,mixed>> $promptcontracts
+     * @return string
+     */
+    public function resolve_namespace_hint_from_prompt_contracts(array $promptcontracts): string {
+        $counts = [];
+        foreach ($promptcontracts as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+
+            $namespace = trim((string)($contract['namespace'] ?? ''));
+            if ($namespace === '') {
+                continue;
+            }
+
+            $counts[$namespace] = (int)($counts[$namespace] ?? 0) + 1;
+        }
+
+        if (empty($counts)) {
+            return '';
+        }
+
+        arsort($counts, SORT_NUMERIC);
+        return (string)array_key_first($counts);
+    }
 }
