@@ -143,7 +143,10 @@ class provider_status_service {
 
             $moduleaienabled = true;
             if ($context->contextlevel === CONTEXT_MODULE && !$availabilitybypassed) {
-                $moduleaifields = ai_manager::get_ai_fields_from_course_module($context->instanceid);
+                // Cast: $context->instanceid is a string; get_ai_fields_from_course_module() wants int,
+                // and this service runs under declare(strict_types=1) (the orchestrator did not, so the
+                // string was silently coerced there).
+                $moduleaifields = ai_manager::get_ai_fields_from_course_module((int)$context->instanceid);
                 $moduleaienabled = is_null($moduleaifields->enableaitools)
                     || (bool)$moduleaifields->enableaitools;
             }
