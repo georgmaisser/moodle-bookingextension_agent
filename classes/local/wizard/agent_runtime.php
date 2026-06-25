@@ -143,6 +143,31 @@ class agent_runtime {
     }
 
     /**
+     * Build a runtime wired with the default planner stack (orchestrator + interpreter).
+     *
+     * Application services (e.g. confirm_run_service) that need to re-enter the runtime
+     * loop after a confirmed execution use this factory instead of constructing the
+     * orchestrator/interpreter themselves, so planner wiring stays owned by the runtime.
+     *
+     * @param skill_registry $registry
+     * @param conversation_store $store
+     * @param authorization_service $authz
+     * @return self
+     */
+    public static function create_default(
+        skill_registry $registry,
+        conversation_store $store,
+        authorization_service $authz
+    ): self {
+        return new self(
+            $registry,
+            new orchestrator($registry, new interpreter($registry), $store),
+            $store,
+            $authz
+        );
+    }
+
+    /**
      * Single-step runtime entrypoint.
      *
      * @param int $threadid

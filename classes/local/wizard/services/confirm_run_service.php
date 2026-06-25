@@ -34,8 +34,6 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\services\execution\execution_feedback_service;
 use bookingextension_agent\local\wizard\executor;
-use bookingextension_agent\local\wizard\interpreter;
-use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\result_payload_summarizer;
 use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\queue\queue_manager;
@@ -395,8 +393,7 @@ class confirm_run_service {
                 || $queuesvc->has_planned_placeholders($threadid);
             $usedterminalfinalizer = false;
 
-            $orchestrator = new orchestrator($this->registry, new interpreter($this->registry), $this->store);
-            $runtime = new agent_runtime($this->registry, $orchestrator, $this->store, $this->authz);
+            $runtime = agent_runtime::create_default($this->registry, $this->store, $this->authz);
 
             if ($shouldcontinue) {
                 $seedobservations = [];
