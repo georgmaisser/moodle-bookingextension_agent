@@ -60,10 +60,13 @@ final class doc_intent_routing_test extends advanced_testcase {
      * @return mixed
      */
     private function call_private(string $method, array $args) {
-        $orchestrator = (new \ReflectionClass(orchestrator::class))->newInstanceWithoutConstructor();
-        $ref = new ReflectionMethod(orchestrator::class, $method);
-        $ref->setAccessible(true);
-        return $ref->invokeArgs($orchestrator, $args);
+        // The catalog/trigger methods now live in planner_catalog_service (orchestrator split).
+        $svc = new \bookingextension_agent\local\wizard\services\planner_catalog_service(
+            new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service(
+                new \bookingextension_agent\local\wizard\skill_registry()
+            )
+        );
+        return $svc->$method(...$args);
     }
 
     /**

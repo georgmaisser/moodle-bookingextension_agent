@@ -220,16 +220,11 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_slim_catalog_keeps_examples_separate_from_minimals(): void {
         $registry = skill_registry_factory::get_default();
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
-        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
-        $assistantsummaryprop = $orchestratorreflection->getProperty('assistantsummariesvc');
-        $assistantsummaryprop->setAccessible(true);
-        $assistantsummarysvc = new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service($registry);
-        $assistantsummaryprop->setValue($orchestrator, $assistantsummarysvc);
-        $method = $orchestratorreflection->getMethod('slim_prompt_catalog_for_planner');
-        $method->setAccessible(true);
+        $catalogsvc = new \bookingextension_agent\local\wizard\services\planner_catalog_service(
+            new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service($registry)
+        );
 
-        $slimcatalog = $method->invoke($orchestrator, $registry->get_all_prompt_contracts());
+        $slimcatalog = $catalogsvc->slim_prompt_catalog_for_planner($registry->get_all_prompt_contracts());
         $byskill = [];
         foreach ($slimcatalog as $skillinfo) {
             $byskill[(string)($skillinfo['skill'] ?? $skillinfo['skill'] ?? '')] = $skillinfo;
@@ -251,10 +246,9 @@ final class integration_agent_framework_test extends TestCase {
      * Runtime catalog payload injected into prompts must never contain embedding vectors.
      */
     public function test_runtime_catalog_prompt_sanitizer_removes_embedding_json(): void {
-        $orchestratorreflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
-        $orchestrator = $orchestratorreflection->newInstanceWithoutConstructor();
-        $method = $orchestratorreflection->getMethod('sanitize_runtime_catalog_for_prompt');
-        $method->setAccessible(true);
+        $catalogsvc = new \bookingextension_agent\local\wizard\services\planner_catalog_service(
+            new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service(skill_registry_factory::get_default())
+        );
 
         $catalog = [
             [
@@ -282,7 +276,7 @@ final class integration_agent_framework_test extends TestCase {
             ],
         ];
 
-        $sanitized = $method->invoke($orchestrator, $catalog);
+        $sanitized = $catalogsvc->sanitize_runtime_catalog_for_prompt($catalog);
         $this->assertCount(2, $sanitized);
         $this->assertSame(
             ['skill', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers', 'example_input'],
@@ -1508,7 +1502,8 @@ final class integration_agent_framework_test extends TestCase {
      * Test that family filter helper no longer falls back to full catalog.
      */
     public function test_orchestrator_family_filter_is_strict_without_full_catalog_fallback(): void {
-        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\orchestrator::class);
+        // The family-filter logic now lives in planner_catalog_service (orchestrator split).
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\services\planner_catalog_service::class);
         $source = file_get_contents((string)$reflection->getFileName());
         $this->assertIsString($source);
 

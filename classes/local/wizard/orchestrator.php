@@ -60,6 +60,7 @@ use bookingextension_agent\local\wizard\services\orchestrator_routing_service;
 use bookingextension_agent\local\wizard\services\planner_result_composer;
 use bookingextension_agent\local\wizard\services\provider_routing_util;
 use bookingextension_agent\local\wizard\services\provider_status_service;
+use bookingextension_agent\local\wizard\services\planner_catalog_service;
 use bookingextension_agent\local\wizard\services\synchronizer_prompt_builder;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_service;
@@ -131,6 +132,9 @@ class orchestrator {
     /** @var orchestrator_routing_service */
     private orchestrator_routing_service $orchestratorroutingsvc;
 
+    /** @var planner_catalog_service */
+    private planner_catalog_service $plannercatalogsvc;
+
     /** @var orchestrator_prompt_profile_service */
     private orchestrator_prompt_profile_service $promptprofilesvc;
 
@@ -160,6 +164,7 @@ class orchestrator {
         $this->orchestratorroutingsvc = new orchestrator_routing_service(
             self::WB_ACTION_PLANNER_DECIDE
         );
+        $this->plannercatalogsvc = new planner_catalog_service($this->assistantsummariesvc);
         $this->promptprofilesvc = new orchestrator_prompt_profile_service();
         $this->promptbundlebuilder = new phase_prompt_bundle_builder($this->registry, $this->promptprofilesvc);
         $this->synchronizerpromptbuilder = new synchronizer_prompt_builder();
@@ -1659,36 +1664,7 @@ PROMPT;
      * @return array
      */
     private function slim_prompt_catalog_for_planner(array $skillcatalog): array {
-        $slimcatalog = [];
-
-        foreach ($skillcatalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $skillname = (string)($entry['skill'] ?? '');
-            if ($skillname === '') {
-                continue;
-            }
-
-            $newentry = [
-                'skill' => $skillname,
-                'readonly' => (bool)($entry['readonly'] ?? false),
-                'intent' => (string)($entry['intent'] ?? ''),
-                'minimal_input' => (array)($entry['minimal_input'] ?? []),
-                'example_input' => $this->compact_catalog_example_input((array)($entry['example_input'] ?? [])),
-                'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
-                'message_triggers' => $this->compact_catalog_message_triggers((array)($entry['message_triggers'] ?? [])),
-            ];
-
-            if (empty($newentry['example_input']) || $newentry['minimal_input'] == $newentry['example_input']) {
-                unset($newentry['example_input']);
-            }
-
-            $slimcatalog[] = $newentry;
-        }
-
-        return $slimcatalog;
+        return $this->plannercatalogsvc->slim_prompt_catalog_for_planner($skillcatalog);
     }
 
     /**
@@ -1712,46 +1688,7 @@ PROMPT;
         array $allcontracts,
         array $messages
     ): array {
-        $present = [];
-        foreach ($runtimecatalog as $row) {
-            $skill = trim((string)($row['skill'] ?? ''));
-            if ($skill !== '') {
-                $present[$skill] = true;
-            }
-        }
-
-        $usertext = '';
-        foreach (array_reverse($messages) as $msg) {
-            if (($msg->role ?? '') === 'user') {
-                $usertext = trim((string)($msg->content ?? ''));
-                break;
-            }
-        }
-        if ($usertext === '') {
-            return $runtimecatalog;
-        }
-        $haystack = \core_text::strtolower($usertext);
-
-        foreach ($allcontracts as $entry) {
-            if (!is_array($entry) || empty($entry['mandatory_on_trigger'])) {
-                continue;
-            }
-            $skill = trim((string)($entry['skill'] ?? ''));
-            if ($skill === '' || isset($present[$skill])) {
-                continue;
-            }
-            if (!$this->message_matches_intent_triggers($haystack, (array)($entry['intent_triggers'] ?? []))) {
-                continue;
-            }
-
-            $sanitized = $this->sanitize_runtime_catalog_for_prompt([$entry]);
-            if (!empty($sanitized)) {
-                $runtimecatalog[] = $sanitized[0];
-                $present[$skill] = true;
-            }
-        }
-
-        return $runtimecatalog;
+        return $this->plannercatalogsvc->ensure_trigger_mandatory_skills($runtimecatalog, $allcontracts, $messages);
     }
 
     /**
@@ -1762,14 +1699,7 @@ PROMPT;
      * @return bool
      */
     private function message_matches_intent_triggers(string $haystack, array $triggers): bool {
-        foreach ($triggers as $trigger) {
-            $needle = \core_text::strtolower(trim((string)$trigger));
-            if ($needle !== '' && mb_strpos($haystack, $needle) !== false) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->plannercatalogsvc->message_matches_intent_triggers($haystack, $triggers);
     }
 
     /**
@@ -1779,48 +1709,7 @@ PROMPT;
      * @return array<int,array<string,mixed>>
      */
     private function sanitize_runtime_catalog_for_prompt(array $catalog): array {
-        $sanitized = [];
-
-        foreach ($catalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $skill = trim((string)($entry['skill'] ?? ''));
-            if ($skill === '') {
-                continue;
-            }
-
-            $minimalinput = is_array($entry['minimal_input'] ?? null)
-                ? (array)$entry['minimal_input']
-                : $this->decode_catalog_json_array((string)($entry['minimal_input_json'] ?? '[]'));
-
-            $exampleinputraw = is_array($entry['example_input'] ?? null)
-                ? (array)$entry['example_input']
-                : $this->decode_catalog_json_array((string)($entry['example_input_json'] ?? '[]'));
-
-            $triggerraw = is_array($entry['message_triggers'] ?? null)
-                ? (array)$entry['message_triggers']
-                : $this->decode_catalog_json_array((string)($entry['message_triggers_json'] ?? '[]'));
-
-            $row = [
-                'skill' => $skill,
-                'readonly' => !empty($entry['readonly']) && (string)$entry['readonly'] !== '0',
-                'intent' => trim((string)($entry['intent'] ?? '')),
-                'minimal_input' => $minimalinput,
-                'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
-                'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
-            ];
-
-            $exampleinput = $this->compact_catalog_example_input($exampleinputraw);
-            if (!empty($exampleinput) && $exampleinput !== $minimalinput) {
-                $row['example_input'] = $exampleinput;
-            }
-
-            $sanitized[] = $row;
-        }
-
-        return $sanitized;
+        return $this->plannercatalogsvc->sanitize_runtime_catalog_for_prompt($catalog);
     }
 
     /**
@@ -1830,90 +1719,17 @@ PROMPT;
      * @return array<int|string,mixed>
      */
     private function decode_catalog_json_array(string $json): array {
-        $decoded = json_decode($json, true);
-        return is_array($decoded) ? $decoded : [];
+        return $this->plannercatalogsvc->decode_catalog_json_array($json);
     }
 
     /**
-     * Keep skill descriptions compact for planner routing.
-     *
-     * @param string $description
-     * @return string
-     */
-    /**
      * Render the skill catalog as compact plain text instead of JSON.
-     *
-     * Each skill gets a heading line plus WHEN / REQUIRED / OPTIONAL / TRIGGERS lines.
-     * This is ~75% more token-efficient than JSON and easier for the LLM to scan.
      *
      * @param array $catalog
      * @return string
      */
     private function render_catalog_as_text(array $catalog): string {
-        $blocks = [];
-
-        foreach ($catalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $skillname = trim((string)($entry['skill'] ?? ''));
-            if ($skillname === '') {
-                continue;
-            }
-
-            $readonly = !empty($entry['readonly']) && (string)($entry['readonly']) !== '0';
-            $mutability = $readonly ? 'readonly' : 'mutating';
-            $lines = [];
-            $lines[] = "## {$skillname} [{$mutability}]";
-
-            $description = trim(preg_replace('/\s+/', ' ', (string)($entry['description'] ?? '')) ?? '');
-            if ($description !== '') {
-                $lines[] = core_text::substr($description, 0, 160);
-            }
-
-            // WHEN: from first message trigger description.
-            $triggers = (array)($entry['message_triggers'] ?? []);
-            $firsttrigger = !empty($triggers) && is_array($triggers[0]) ? (array)$triggers[0] : [];
-            $when = trim(preg_replace('/\s+/', ' ', (string)($firsttrigger['description'] ?? '')) ?? '');
-            if ($when !== '') {
-                $lines[] = 'WHEN: ' . core_text::substr($when, 0, 180);
-            }
-
-            // REQUIRED: minimal_input fields.
-            $minimal = array_filter(array_map('strval', (array)($entry['minimal_input'] ?? [])));
-            if (!empty($minimal)) {
-                $lines[] = 'REQUIRED: ' . implode(', ', array_values($minimal));
-            }
-
-            // OPTIONAL parameters are deliberately NOT listed in the selection catalog: selection must
-            // not construct parameters (the selector picks exactly one skill and omits input), so optional
-            // field names carry no routing value and are pure token noise across all skills every turn.
-            // The full parameter schema (incl. optional fields, types, descriptions) is provided separately
-            // to the constructor as JSON for the single selected skill (see PHASE_PARAMETER_CONSTRUCTION).
-
-            // TRIGGERS: trigger IDs as readable keywords (strip namespace prefix for brevity).
-            $triggerids = [];
-            foreach ($triggers as $trigger) {
-                if (!is_array($trigger)) {
-                    continue;
-                }
-                $id = trim((string)($trigger['id'] ?? ''));
-                if ($id !== '') {
-                    // Strip module prefix for brevity.
-                    // (e.g. "mod_booking.create_option_canonical_fallback" → "create_option_canonical_fallback").
-                    $shortid = (string)preg_replace('/^[a-z_]+\./', '', $id);
-                    $triggerids[] = $shortid;
-                }
-            }
-            if (!empty($triggerids)) {
-                $lines[] = 'TRIGGERS: ' . implode(' | ', array_slice($triggerids, 0, 5));
-            }
-
-            $blocks[] = implode("\n", $lines);
-        }
-
-        return implode("\n\n", $blocks);
+        return $this->plannercatalogsvc->render_catalog_as_text($catalog);
     }
 
     /**
@@ -1923,16 +1739,7 @@ PROMPT;
      * @return string The compacted description.
      */
     private function compact_catalog_description(string $description): string {
-        $normalized = trim(preg_replace('/\s+/', ' ', $description) ?? $description);
-        if ($normalized === '') {
-            return '';
-        }
-
-        if (core_text::strlen($normalized) <= 240) {
-            return $normalized;
-        }
-
-        return rtrim(core_text::substr($normalized, 0, 237)) . '...';
+        return $this->plannercatalogsvc->compact_catalog_description($description);
     }
 
     /**
@@ -1945,23 +1752,7 @@ PROMPT;
      * @return array<int,string>
      */
     private function compact_catalog_example_input(array $exampleinput): array {
-        $keys = [];
-
-        foreach (array_keys($exampleinput) as $key) {
-            $name = trim((string)$key);
-            if ($name !== '') {
-                $keys[] = $name;
-            }
-        }
-
-        $keys = array_values(array_unique($keys));
-        if (empty($keys)) {
-            return [];
-        }
-
-        // Keep enough fields so slotbooking/selflearning skill variants do not
-        // lose critical execution hints (e.g. slot_day_* or duration fields).
-        return array_slice($keys, 0, 12);
+        return $this->plannercatalogsvc->compact_catalog_example_input($exampleinput);
     }
 
     /**
@@ -1971,38 +1762,7 @@ PROMPT;
      * @return array<int,array<string,string>>
      */
     private function compact_catalog_message_triggers(array $triggers): array {
-        $compact = [];
-
-        foreach ($triggers as $trigger) {
-            if (!is_array($trigger)) {
-                continue;
-            }
-
-            $id = trim((string)($trigger['id'] ?? ''));
-            if ($id === '') {
-                continue;
-            }
-
-            $description = trim((string)($trigger['description'] ?? ''));
-            $description = trim(preg_replace('/\s+/', ' ', $description) ?? $description);
-
-            $row = ['id' => $id];
-            if ($description !== '') {
-                $row['description'] = core_text::substr($description, 0, 320);
-            }
-
-            $examples = (array)($trigger['examples'] ?? []);
-            if (!empty($examples)) {
-                $row['examples'] = $this->assistantsummariesvc->normalize_nonempty_string_list($examples, 2, 160);
-                if (empty($row['examples'])) {
-                    unset($row['examples']);
-                }
-            }
-
-            $compact[] = $row;
-        }
-
-        return $compact;
+        return $this->plannercatalogsvc->compact_catalog_message_triggers($triggers);
     }
 
     /**
@@ -2676,42 +2436,7 @@ PROMPT;
      * @return array<int,array<string,mixed>>
      */
     private function filter_catalog_by_selected_families(array $catalog, array $selectedfamilies): array {
-        if (empty($catalog) || empty($selectedfamilies)) {
-            return $catalog;
-        }
-
-        $allow = [];
-        foreach ($selectedfamilies as $family) {
-            $normalized = skill_family_contract::normalize_family((string)$family);
-            if ($normalized !== skill_family_contract::DEFAULT_FAMILY) {
-                $allow[$normalized] = true;
-            }
-        }
-
-        if (empty($allow)) {
-            return [];
-        }
-
-        $filtered = [];
-        foreach ($catalog as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $skillname = trim((string)($entry['skill'] ?? ''));
-            if ($skillname === '') {
-                continue;
-            }
-
-            $family = skill_family_contract::from_skill_name($skillname);
-            if (!isset($allow[$family])) {
-                continue;
-            }
-
-            $filtered[] = $entry;
-        }
-
-        return array_values($filtered);
+        return $this->plannercatalogsvc->filter_catalog_by_selected_families($catalog, $selectedfamilies);
     }
 
     /**

@@ -58,10 +58,13 @@ final class mandatory_on_trigger_injection_test extends advanced_testcase {
      * @return string[] resulting candidate skill names
      */
     private function inject(array $runtimecatalog, array $allcontracts, string $usertext): array {
-        $orchestrator = (new \ReflectionClass(orchestrator::class))->newInstanceWithoutConstructor();
-        $ref = new ReflectionMethod(orchestrator::class, 'ensure_trigger_mandatory_skills');
-        $ref->setAccessible(true);
-        $result = $ref->invokeArgs($orchestrator, [$runtimecatalog, $allcontracts, [$this->usermsg($usertext)]]);
+        // ensure_trigger_mandatory_skills now lives in planner_catalog_service (orchestrator split).
+        $svc = new \bookingextension_agent\local\wizard\services\planner_catalog_service(
+            new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service(
+                new \bookingextension_agent\local\wizard\skill_registry()
+            )
+        );
+        $result = $svc->ensure_trigger_mandatory_skills($runtimecatalog, $allcontracts, [$this->usermsg($usertext)]);
         return array_map(static fn(array $r): string => (string)$r['skill'], $result);
     }
 
