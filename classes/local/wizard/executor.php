@@ -32,6 +32,7 @@ use bookingextension_agent\local\wizard\services\discovery\skill_discovery_servi
 use bookingextension_agent\local\wizard\services\introspection\skill_introspection_service;
 use bookingextension_agent\local\wizard\services\preflight_execution_gate;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\services\security\native_capability_guard;
 
 /**
  * Dispatches interpreter-validated commands to the appropriate skill.
@@ -234,6 +235,22 @@ class executor implements agent_executor {
             }
             if (method_exists($skill, 'set_discovery_provider')) {
                 $skill->set_discovery_provider(new skill_discovery_service());
+            }
+
+            // Gate 2 backstop (central, authoritative): enforce the skill's declared native Moodle
+            // capabilities at the operating context immediately before execution. The engine never
+            // relies on a skill to guard itself — a missing/wrong-context per-skill check, or a
+            // crafted/replayed command, is denied here before any mutation.
+            $missingcaps = native_capability_guard::missing_capabilities($skill, $operatingcontextid, $userid);
+            if (!empty($missingcaps)) {
+                $results[] = [
+                    'status' => 'error',
+                    'detail' => get_string('nopermissions', 'error', reset($missingcaps)),
+                    'issue_codes' => ['NO_NATIVE_CAPABILITY'],
+                    'resultid' => null,
+                    'skill' => $skillname,
+                ];
+                continue;
             }
 
             $result = $skill->execute($input, $operatingcontextid, $userid);

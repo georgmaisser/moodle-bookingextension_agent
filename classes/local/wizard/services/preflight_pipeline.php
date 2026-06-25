@@ -29,6 +29,7 @@ use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\services\security\skill_operating_context_resolver;
 use bookingextension_agent\local\wizard\services\security\context_target_unresolved_exception;
+use bookingextension_agent\local\wizard\services\security\native_capability_guard;
 
 /**
  * Unified preflight pipeline for mutating command batches.
@@ -169,6 +170,18 @@ class preflight_pipeline {
                 // uniquely (ambiguous / not found / unsupported) → surface as a clarification.
                 $issuecodes[] = 'CONTEXT_TARGET_UNRESOLVED';
                 $errors[] = $label . ': ' . $e->getMessage();
+                continue;
+            }
+
+            // Gate 2 (central): the user must natively hold the skill's declared capabilities at the
+            // operating context. Enforced here so a skill that forgets or mis-scopes its own check is
+            // still denied cleanly (no guard token is issued); the executor re-checks as the backstop.
+            $missingcaps = native_capability_guard::missing_capabilities($skill, $operatingcontextid, $userid);
+            if (!empty($missingcaps)) {
+                foreach ($missingcaps as $missingcap) {
+                    $issuecodes[] = 'NO_NATIVE_CAPABILITY';
+                    $errors[] = $label . ': ' . get_string('nopermissions', 'error', $missingcap);
+                }
                 continue;
             }
 
