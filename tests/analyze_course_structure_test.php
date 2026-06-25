@@ -61,8 +61,11 @@ final class analyze_course_structure_test extends advanced_testcase {
         $this->assertContains('Visible page', $names);
         $this->assertNotContains('Secret page', $names, 'a hidden activity must not leak to a student');
         $this->assertNotContains('In hidden section', $names, 'an activity in a hidden section must not leak');
-        $this->assertNotContains(2, array_column($structure['sections'], 'number'),
-            'a hidden section must not be listed for a student');
+        $this->assertNotContains(
+            2,
+            array_column($structure['sections'], 'number'),
+            'a hidden section must not be listed for a student'
+        );
     }
 
     /**

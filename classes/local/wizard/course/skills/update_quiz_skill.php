@@ -18,7 +18,6 @@ namespace bookingextension_agent\local\wizard\course\skills;
 
 use bookingextension_agent\local\wizard\course_targeted_skill;
 use bookingextension_agent\local\wizard\preflight_clarification;
-
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
@@ -48,6 +47,7 @@ use context_course;
 class update_quiz_skill extends core_skill_base implements skill_trigger_provider_interface {
     use course_targeted_skill;
     use preflight_clarification;
+
     /** Skill name. */
     public const SKILL_NAME = 'course.update_quiz';
 

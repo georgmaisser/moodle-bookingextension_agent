@@ -226,5 +226,4 @@ class finalization_classifier {
 
         return false;
     }
-
 }

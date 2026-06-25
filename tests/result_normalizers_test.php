@@ -55,8 +55,11 @@ final class result_normalizers_test extends advanced_testcase {
     public function test_issue_codes_from_result_is_array_guarded(): void {
         $this->assertSame(['A', 'B'], issue_code_normalizer::from_result(['issue_codes' => ['a', 'b', 'a']]));
         $this->assertSame([], issue_code_normalizer::from_result([]), 'Missing key → empty.');
-        $this->assertSame([], issue_code_normalizer::from_result(['issue_codes' => 'CONTRACT_X']),
-            'A scalar issue_codes must yield [] (not be coerced into a one-element list).');
+        $this->assertSame(
+            [],
+            issue_code_normalizer::from_result(['issue_codes' => 'CONTRACT_X']),
+            'A scalar issue_codes must yield [] (not be coerced into a one-element list).'
+        );
         $this->assertSame([], issue_code_normalizer::from_result(['issue_codes' => null]));
     }
 

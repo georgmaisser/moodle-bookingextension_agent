@@ -285,5 +285,4 @@ final class agent_state {
 
         $cache[$key] = $payload;
     }
-
 }

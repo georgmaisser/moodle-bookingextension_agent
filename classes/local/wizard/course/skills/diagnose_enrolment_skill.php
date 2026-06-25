@@ -17,7 +17,6 @@
 namespace bookingextension_agent\local\wizard\course\skills;
 
 use bookingextension_agent\local\wizard\diagnostics\diagnostic_result_builder;
-
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\diagnostics\diagnostic_checklist_preview;
 use bookingextension_agent\local\wizard\diagnostics\diagnostic_link_builder;

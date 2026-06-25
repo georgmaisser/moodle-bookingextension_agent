@@ -34,8 +34,10 @@ final class configure_from_apikey_test extends \advanced_testcase {
     public function test_malformed_key_is_rejected(): void {
         $this->resetAfterTest(true);
 
-        if (!class_exists('\\core_ai\\manager')
-            || !\core_component::get_plugin_directory('aiprovider', 'wunderbyte')) {
+        if (
+            !class_exists('\\core_ai\\manager')
+            || !\core_component::get_plugin_directory('aiprovider', 'wunderbyte')
+        ) {
             $this->markTestSkipped('core_ai or aiprovider_wunderbyte not available in this environment');
         }
 
@@ -55,8 +57,10 @@ final class configure_from_apikey_test extends \advanced_testcase {
     public function test_empty_key_is_rejected(): void {
         $this->resetAfterTest(true);
 
-        if (!class_exists('\\core_ai\\manager')
-            || !\core_component::get_plugin_directory('aiprovider', 'wunderbyte')) {
+        if (
+            !class_exists('\\core_ai\\manager')
+            || !\core_component::get_plugin_directory('aiprovider', 'wunderbyte')
+        ) {
             $this->markTestSkipped('core_ai or aiprovider_wunderbyte not available in this environment');
         }
 

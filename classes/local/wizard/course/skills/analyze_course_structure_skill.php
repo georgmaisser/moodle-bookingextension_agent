@@ -17,7 +17,6 @@
 namespace bookingextension_agent\local\wizard\course\skills;
 
 use bookingextension_agent\local\wizard\course_targeted_skill;
-
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
@@ -48,6 +47,7 @@ use context;
  */
 class analyze_course_structure_skill extends core_skill_base implements skill_trigger_provider_interface {
     use course_targeted_skill;
+
     /** Skill name. */
     public const SKILL_NAME = 'course.analyze_course_structure';
 

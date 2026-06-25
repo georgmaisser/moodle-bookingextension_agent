@@ -2941,5 +2941,4 @@ PROMPT;
         arsort($counts, SORT_NUMERIC);
         return (string)array_key_first($counts);
     }
-
 }

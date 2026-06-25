@@ -17,7 +17,6 @@
 namespace bookingextension_agent\local\wizard\question\skills;
 
 use bookingextension_agent\local\wizard\course_targeted_skill;
-
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
@@ -46,6 +45,7 @@ use moodle_url;
  */
 class generate_questions_skill extends core_skill_base implements skill_trigger_provider_interface {
     use course_targeted_skill;
+
     /** Skill name constant. */
     public const SKILL_NAME = 'question.generate_questions';
 

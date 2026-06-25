@@ -333,5 +333,4 @@ class preflight_pipeline {
             'issues' => array_values(array_filter($issues, static fn($issue): bool => is_array($issue))),
         ]);
     }
-
 }
