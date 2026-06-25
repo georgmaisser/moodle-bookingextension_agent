@@ -172,32 +172,29 @@ final class native_capability_guard_test extends advanced_testcase {
     }
 
     /**
-     * Systemic invariant: EVERY mutating skill shipped by this agent plugin must declare at least one
-     * native capability, otherwise the central Gate-2 guard cannot protect it (it would execute with
-     * no native-rights check). This forces new mutating skills to be covered by the central guard.
+     * Systemic invariant across ALL skill families (agent + provider plugins like mod_booking):
+     * EVERY mutating skill must declare at least one native capability, otherwise the central Gate-2
+     * guard cannot enforce native rights for it. This forces every new mutating skill — including
+     * 3rd-party ones — to be covered by the central guard.
      */
-    public function test_every_mutating_agent_skill_declares_native_capabilities(): void {
+    public function test_every_mutating_skill_declares_native_capabilities(): void {
         $this->resetAfterTest();
         $registry = skill_registry_factory::get_default();
 
         $offenders = [];
         foreach ($registry->get_skill_contracts() as $skillname => $meta) {
-            // Scope to skills shipped by THIS plugin; provider plugins (e.g. mod_booking) enforce
-            // Gate 2 in their own skill family and are covered by their own tests.
-            if ((string)($meta['component'] ?? '') !== 'bookingextension_agent') {
-                continue;
-            }
             $skill = $registry->get_skill((string)$skillname);
             if ($skill === null || $skill->is_read_only()) {
                 continue;
             }
-            // User-memory skills operate on the acting user's own preference store (no cross-user /
-            // cross-context surface), so they have no native Moodle capability to declare.
+            // User-memory skills (wizard.remember/forget/...) act only on the acting user's own
+            // preference store and the catalog-rebuild meta-skill is admin-gated by its name
+            // capability — neither has a native Moodle action capability to declare.
             if (strpos((string)$skillname, 'wizard.') === 0) {
                 continue;
             }
             if (empty($skill->get_required_native_capabilities())) {
-                $offenders[] = (string)$skillname;
+                $offenders[] = (string)$skillname . ' [' . (string)($meta['component'] ?? '?') . ']';
             }
         }
 
