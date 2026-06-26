@@ -2492,6 +2492,26 @@ const getTrialUiContext = () => {
 };
 
 /**
+ * Reveal the existing "I already have a key" field (rendered server-side under can_store_key) so the
+ * user can recover from a failed trial request by pasting a purchased key.
+ *
+ * Reuses the same key form the connect screen already renders rather than building a parallel one;
+ * a no-op when that field is absent (can_store_key false / no supported provider installed).
+ */
+const revealKeyEntryFallback = () => {
+    const keystep = document.getElementById('booking-ai-key-step');
+    if (!keystep) {
+        return;
+    }
+    const consent = document.getElementById('booking-ai-consent-step');
+    if (consent) {
+        consent.classList.add('d-none');
+    }
+    keystep.dataset.returnTo = 'consent';
+    keystep.classList.remove('d-none');
+};
+
+/**
  * Request a trial key and advance the setup wizard.
  *
  * @param {String} strategy Chosen provider path: 'wunderbyte', 'openai', or '' to auto-detect.
@@ -2534,6 +2554,7 @@ const requestTrialKey = (strategy) => {
                 + renderTextWithLinks((resp && resp.message) || ctx.trialFailedDefault)
                 + '</div>';
         }
+        revealKeyEntryFallback();
         buttons.forEach((btn) => {
             btn.disabled = false;
         });
@@ -2549,6 +2570,7 @@ const requestTrialKey = (strategy) => {
                     + renderTextWithLinks(err.message || ctx.trialUnexpectedError)
                 + '</div>';
         }
+        revealKeyEntryFallback();
         buttons.forEach((btn) => {
             btn.disabled = false;
         });
@@ -3060,27 +3082,18 @@ const handleBodyClick = (event) => {
         return;
     }
 
-    const enterKeyBtn = target.closest('[data-action="enter-key"]');
-    if (enterKeyBtn instanceof HTMLElement) {
-        const decision = document.getElementById('booking-ai-connect-decision');
-        const keystep = document.getElementById('booking-ai-key-step');
-        if (decision) {
-            decision.classList.add('d-none');
-        }
-        if (keystep) {
-            keystep.classList.remove('d-none');
-        }
-        return;
-    }
-
     const keyBack = target.closest('#booking-ai-key-back');
     if (keyBack instanceof HTMLElement) {
         const decision = document.getElementById('booking-ai-connect-decision');
+        const consent = document.getElementById('booking-ai-consent-step');
         const keystep = document.getElementById('booking-ai-key-step');
+        const returnTo = keystep ? keystep.dataset.returnTo : 'decision';
         if (keystep) {
             keystep.classList.add('d-none');
         }
-        if (decision) {
+        if (returnTo === 'consent' && consent) {
+            consent.classList.remove('d-none');
+        } else if (decision) {
             decision.classList.remove('d-none');
         }
         return;

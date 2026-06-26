@@ -388,11 +388,12 @@ class aiready {
             // True on Moodle versions without multi-instance core_ai (4.5): the agent runs in
             // permanent reduced mode; the UI explains this instead of nudging a WB-provider install.
             'reduced_mode_permanent' => $reducedmodepermanent,
-            // Manual key entry (purchased key) + admin gear. The key store needs the WB provider plugin
-            // and the trial/onboarding capability; the debug toggle is a site-config (admin) action; the
-            // gear shows if at least one of those is available. provider_configured drives the overwrite
-            // confirm (a Wunderbyte instance is already active).
-            'can_store_key' => $canrequesttrial && $wunderbyteprovinstalled,
+            // Manual key entry (purchased key) + admin gear. The key store needs a supported provider
+            // plugin (Wunderbyte for the full skill set, or the standard OpenAI-compatible provider as a
+            // reduced fallback — mirroring the trial flow) and the trial/onboarding capability; the debug
+            // toggle is a site-config (admin) action; the gear shows if at least one of those is
+            // available. provider_configured drives the overwrite confirm (a Wunderbyte instance active).
+            'can_store_key' => $canrequesttrial && ($wunderbyteprovinstalled || $standardprovinstalled),
             'can_toggle_debug' => $isplatformadmin,
             'provider_manage_available' => ($canrequesttrial && $wunderbyteprovinstalled) || $isplatformadmin,
             'provider_configured' => $wbinstanceactive,

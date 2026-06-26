@@ -175,7 +175,11 @@ class trial_provisioner {
         if (!class_exists('\\core_ai\\manager')) {
             return $this->fail(get_string('aitrial_coreai_unavailable', 'bookingextension_agent'));
         }
-        if (!\core_component::get_plugin_directory('aiprovider', 'wunderbyte')) {
+        // Mirror the trial flow: prefer the Wunderbyte provider (full skill set) but fall back to the
+        // OpenAI-compatible provider (reduced skill set) so a pasted key still works when only the
+        // standard provider is installed.
+        $strategy = $this->detect_strategy();
+        if ($strategy === null) {
             $url = get_string('aitrial_provider_install_url', 'bookingextension_agent');
             return $this->fail(get_string('aitrial_provider_required', 'bookingextension_agent', $url));
         }
@@ -192,7 +196,7 @@ class trial_provisioner {
         }
 
         try {
-            $this->upsert_provider_instance('wunderbyte', $apikey, self::BASE_URL);
+            $this->upsert_provider_instance($strategy, $apikey, self::BASE_URL);
         } catch (\Throwable $e) {
             debugging('configure_from_apikey: provider instance creation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             return $this->fail(

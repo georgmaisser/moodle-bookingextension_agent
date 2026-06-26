@@ -297,14 +297,10 @@
                     </div>
                     {{/standard_provider_installed}}
 
-                    {{! Already bought a key: paste it directly (dedicated field; never sent to the LLM). }}
-                    {{#can_store_key}}
-                    <div class="booking-ai-connect-alt mt-3">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" data-action="enter-key">
-                            <i class="fa fa-key mr-1" aria-hidden="true"></i>{{#str}}agent_connect_have_key, bookingextension_agent{{/str}}
-                        </button>
-                    </div>
-                    {{/can_store_key}}
+                    {{! "I already have a key" is intentionally NOT offered upfront here: the key-entry
+                        field is surfaced only after a trial request is attempted and fails (see
+                        revealKeyEntryFallback() in aiinstructions.js), so it stays out of the initial
+                        connect decision. }}
                 </div>
 
                 {{! Sub-screen B: GDPR consent, inline (replaces the former modal-in-modal). }}
