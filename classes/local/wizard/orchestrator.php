@@ -79,7 +79,7 @@ class orchestrator {
     public const EMBEDDINGS_DEFAULT_DIMENSIONS = 1536;
 
     /** Default number of best matching skills to inject for first planner step. */
-    public const EMBEDDINGS_DEFAULT_TOP_K = 8;
+    public const EMBEDDINGS_DEFAULT_TOP_K = 12;
 
     /** Debounce window (seconds) for scheduling embeddings rebuild skill. */
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 100;
