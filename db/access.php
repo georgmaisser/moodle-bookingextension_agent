@@ -115,6 +115,7 @@ $teacherskills = [
     'core_diagnose_permissions',
     'core_diagnose_notifications',
     'course_diagnose_grades',
+    'course_diagnose_progress',
     'course_analyze_course_structure',
     'wizard_explain_docs',
     'booking_explain_skill_schema',

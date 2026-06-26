@@ -143,6 +143,36 @@ class diagnostic_link_builder {
     }
 
     /**
+     * Course completion settings (which criteria mark the course complete).
+     *
+     * @param int $courseid
+     * @return moodle_url
+     */
+    public function completion_settings(int $courseid): moodle_url {
+        return new moodle_url('/course/completion.php', ['id' => $courseid]);
+    }
+
+    /**
+     * Activity completion report (per-activity completion for all users).
+     *
+     * @param int $courseid
+     * @return moodle_url
+     */
+    public function activity_completion_report(int $courseid): moodle_url {
+        return new moodle_url('/report/progress/index.php', ['course' => $courseid]);
+    }
+
+    /**
+     * Course completion report (criteria status per user).
+     *
+     * @param int $courseid
+     * @return moodle_url
+     */
+    public function course_completion_report(int $courseid): moodle_url {
+        return new moodle_url('/report/completion/index.php', ['course' => $courseid]);
+    }
+
+    /**
      * Scheduled tasks admin page (admin-only).
      *
      * @return moodle_url
