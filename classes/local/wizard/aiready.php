@@ -26,7 +26,6 @@ namespace bookingextension_agent\local\wizard;
 
 use context_system;
 use core\di;
-use core_ai\aiactions\generate_text;
 use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\services\agent_access_service;
@@ -37,12 +36,6 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
  * Central readiness state for the booking AI panel.
  */
 class aiready {
-    /** Wunderbyte planner action class name. */
-    private const WB_ACTION_PLANNER_DECIDE = '\\aiprovider_wunderbyte\\aiactions\\planner_decide';
-
-    /** Wunderbyte final reply action class name. */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = '\\aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
-
     /** @var agent_context */
     private agent_context $ctx;
 

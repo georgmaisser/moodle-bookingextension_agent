@@ -73,13 +73,4 @@ class benchmark_scenario_registry {
         $classes = self::SETS[$setname] ?? self::SETS['core_booking_v1'];
         return array_map(fn($class) => new $class(), $classes);
     }
-
-    /**
-     * Return all registered set names.
-     *
-     * @return string[]
-     */
-    public function get_set_names(): array {
-        return array_keys(self::SETS);
-    }
 }

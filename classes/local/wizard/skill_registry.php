@@ -414,78 +414,6 @@ class skill_registry {
     }
 
     /**
-     * Return schemas for all registered skills (for inclusion in the system prompt).
-     *
-     * @return array  skill name => schema array
-     */
-    public function get_all_schemas(): array {
-        $schemas = [];
-        foreach ($this->skills as $name => $skill) {
-            $schemas[$name] = $skill->get_schema();
-        }
-        return $schemas;
-    }
-
-    /**
-     * Return schemas filtered for the given user/context executability.
-     *
-     * @param skill_executability_evaluator $evaluator
-     * @param int $userid
-     * @param int $contextid
-     * @param bool $includeunavailable
-     * @return array<string,mixed>
-     */
-    public function get_all_schemas_for_context(
-        skill_executability_evaluator $evaluator,
-        int $userid,
-        int $contextid,
-        bool $includeunavailable = false
-    ): array {
-        $schemas = [];
-        $skillnames = $this->get_skill_names_for_context($evaluator, $userid, $contextid, $includeunavailable);
-
-        foreach ($skillnames as $name) {
-            $skill = $this->get_skill((string)$name);
-            if ($skill === null) {
-                continue;
-            }
-
-            $schemas[(string)$name] = $skill->get_schema();
-        }
-
-        return $schemas;
-    }
-
-    /**
-     * Return one skill schema enriched with executability diagnostics.
-     *
-     * @param string $skillname
-     * @param skill_executability_evaluator $evaluator
-     * @param int $userid
-     * @param int $contextid
-     * @return array<string,mixed>|null
-     */
-    public function explain_skill_schema_for_context(
-        string $skillname,
-        skill_executability_evaluator $evaluator,
-        int $userid,
-        int $contextid
-    ): ?array {
-        $skill = $this->get_skill($skillname);
-        if ($skill === null) {
-            return null;
-        }
-
-        $schema = (array)$skill->get_schema();
-        $evaluation = $evaluator->evaluate_skill($skillname, $userid, $contextid);
-        $schema['executable_state'] = (string)($evaluation['executable_state'] ?? 'deny');
-        $schema['deny_reason'] = (string)($evaluation['deny_reason'] ?? skill_contract_validator::DENY_NOT_REGISTERED);
-        $schema['governance_diagnostics'] = (array)($evaluation['diagnostics'] ?? []);
-
-        return $schema;
-    }
-
-    /**
      * Return compact skill metadata for system-prompt routing.
      *
      * This intentionally excludes full field descriptions so the initial prompt
@@ -639,28 +567,6 @@ class skill_registry {
         }
 
         return $packs;
-    }
-
-    /**
-     * Return all message trigger definitions contributed by skills.
-     *
-     * @return array<int,array<string,mixed>>
-     */
-    public function get_message_triggers(): array {
-        // Breaking cleanup: skill semantics are routed by skill catalog only.
-        // Skill-contributed message triggers are intentionally disabled.
-        return [];
-    }
-
-    /**
-     * Return a map of trigger-id to skill-name for all registered trigger-providing skills.
-     *
-     * @return array<string,string>
-     */
-    public function get_trigger_id_to_skill_name_map(): array {
-        // Breaking cleanup: trigger-to-skill routing is disabled.
-        // Routing decisions must use the skill catalog and command payload only.
-        return [];
     }
 
     /**

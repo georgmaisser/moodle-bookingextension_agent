@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\external;
 
-use context_module;
 use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -81,8 +80,6 @@ class ai_get_doc_content extends external_api {
             return ['success' => false, 'html' => '', 'title' => '', 'error' => $problem['message']];
         }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
-        // Only module contexts carry a cmid; other context levels pass 0.
-        $cmid = ($context instanceof context_module) ? (int)$context->instanceid : 0;
         self::validate_context($context);
 
         // Resolve the corpus root strictly via the registry (the only trusted corpus_id → root map).

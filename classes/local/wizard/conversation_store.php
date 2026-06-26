@@ -813,18 +813,6 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
-     * Allow confirmations for a Moodle context for the current session window.
-     *
-     * @param int $userid
-     * @param int $contextid
-     * @param int|null $expiresat
-     * @return void
-     */
-    public function allow_confirmation_for_session(int $userid, int $contextid, ?int $expiresat = null): void {
-        $this->allow_confirmation_for_thread($userid, $contextid, 0, $expiresat);
-    }
-
-    /**
      * Allow confirmations for a booking context for the current session window.
      *
      * Thread id is accepted for backward compatibility but not part of the key,
@@ -872,23 +860,6 @@ class conversation_store implements agent_conversation_store {
      */
     public function is_confirmation_allowed_for_thread(int $userid, int $contextid, int $threadid): bool {
         return $this->is_confirmation_allowed_for_session($userid, $contextid);
-    }
-
-    /**
-     * Remove allowance for this booking context from the confirmation allowlist.
-     *
-     * Thread id is accepted for backward compatibility but ignored for matching.
-     *
-     * @param int $userid
-     * @param int $contextid
-     * @param int $threadid
-     * @return void
-     */
-    public function clear_confirmation_allowance(int $userid, int $contextid, int $threadid): void {
-        $allowlist = $this->get_confirmation_session_allowlist($userid);
-        $key = $this->make_confirmation_session_allowlist_key($contextid);
-        unset($allowlist[$key]);
-        $this->save_confirmation_session_allowlist($userid, $allowlist);
     }
 
     /**

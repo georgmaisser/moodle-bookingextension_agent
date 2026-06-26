@@ -60,9 +60,6 @@ class interpreter implements agent_interpreter {
         'sufficient',
     ];
 
-    /** Canonical token representing the current executor user. */
-    private const CURRENT_USER_TOKEN = '__current_user__';
-
     /** Planner phases that must not emit command-bearing outputs. */
     private const NON_COMMAND_PHASES = ['discovery'];
 
@@ -1081,7 +1078,6 @@ class interpreter implements agent_interpreter {
      */
     private function validate_commands(array $commands, int $contextid, int $userid, string $lastusermessage = ''): array {
         $validated = [];
-        $seencommandsigs = [];
         $errors = [];
         $ambiguities = [];
         $ambiguityoptions = [];

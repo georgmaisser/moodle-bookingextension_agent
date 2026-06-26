@@ -118,28 +118,4 @@ class docs_embeddings_csv_repository extends embeddings_csv_repository_base {
         }));
     }
 
-    /**
-     * Delete all rows for a specific corpus_id and rewrite the CSV.
-     *
-     * @param string $corpusid
-     * @return int Number of rows removed.
-     */
-    public function delete_corpus(string $corpusid): int {
-        $rows = $this->read_rows();
-        $kept = [];
-        $removed = 0;
-        foreach ($rows as $row) {
-            if (trim((string)($row['corpus_id'] ?? '')) === $corpusid) {
-                $removed++;
-            } else {
-                $kept[] = $row;
-            }
-        }
-
-        if ($removed > 0) {
-            $this->write_rows($kept);
-        }
-
-        return $removed;
-    }
 }

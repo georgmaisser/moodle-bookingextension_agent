@@ -18,9 +18,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services;
 
-use core_ai\aiactions\explain_text;
-use core_ai\aiactions\generate_text;
-use core_ai\aiactions\summarise_text;
 use core_text;
 
 /**

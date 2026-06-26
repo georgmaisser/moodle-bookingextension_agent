@@ -82,9 +82,6 @@ class agent_decision_service {
     /** Response type constant used in routing decisions. */
     private const RESPONSE_TYPE_CLARIFICATION = 'clarification';
 
-    /** Response type constant used in routing decisions. */
-    private const RESPONSE_TYPE_ERROR = 'error';
-
     /** Trigger id: user explicitly discards current pending confirmation intent. */
     private const TRIGGER_DISCARD_PENDING_CONFIRMATION = 'core.discard_pending_confirmation';
 

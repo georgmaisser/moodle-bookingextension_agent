@@ -77,15 +77,6 @@ class agent_access_service {
     }
 
     /**
-     * Reset the request-scoped cache (config changes, unit tests).
-     *
-     * @return void
-     */
-    public static function reset_cache(): void {
-        self::$fullaccess = null;
-    }
-
-    /**
      * Whether the agent's LLM calls actually go to the Wunderbyte LLM gateway.
      *
      * The provider plugin is freely configurable, so the gate must check the

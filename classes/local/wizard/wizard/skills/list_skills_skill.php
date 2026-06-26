@@ -17,7 +17,6 @@
 namespace bookingextension_agent\local\wizard\wizard\skills;
 
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
-use context_module;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\interfaces\skill_introspection_provider_interface;

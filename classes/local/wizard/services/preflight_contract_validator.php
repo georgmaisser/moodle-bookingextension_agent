@@ -31,12 +31,6 @@ class preflight_contract_validator {
     /** Skill registration issue code. */
     public const ISSUE_SKILL_NOT_REGISTERED = preflight_version_validator::ISSUE_SKILL_NOT_REGISTERED;
 
-    /** Unsupported version issue code. */
-    public const ISSUE_SKILL_VERSION_UNSUPPORTED = skill_version_policy::ISSUE_UNSUPPORTED;
-
-    /** Deprecated version issue code. */
-    public const ISSUE_SKILL_VERSION_DEPRECATED = skill_version_policy::ISSUE_DEPRECATED;
-
     /** @var preflight_schema_validator */
     private preflight_schema_validator $schemavalidator;
 

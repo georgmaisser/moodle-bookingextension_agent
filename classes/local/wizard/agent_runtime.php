@@ -26,7 +26,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard;
 
-use core\context;
 use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
@@ -165,19 +164,6 @@ class agent_runtime {
             $store,
             $authz
         );
-    }
-
-    /**
-     * Single-step runtime entrypoint.
-     *
-     * @param int $threadid
-     * @param int $contextid
-     * @param int $userid
-     * @return array
-     */
-    public function run(int $threadid, int $contextid, int $userid): array {
-        $result = $this->run_internal($threadid, $contextid, $userid, [], null);
-        return $this->finalize_and_persist_result($threadid, $result);
     }
 
     /**

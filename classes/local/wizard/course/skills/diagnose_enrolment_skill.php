@@ -44,9 +44,6 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
     /** Skill name. */
     public const SKILL_NAME = 'course.diagnose_enrolment';
 
-    /** Enrolment methods this v1 inspects in detail; others are listed by name only. */
-    private const DETAILED_METHODS = ['self', 'cohort', 'manual'];
-
     /**
      * Constructor. Read-only diagnosis (R0).
      */

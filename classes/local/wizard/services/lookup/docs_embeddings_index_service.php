@@ -256,19 +256,6 @@ class docs_embeddings_index_service {
     }
 
     /**
-     * Return registered corpus roots keyed by corpus_id.
-     *
-     * Delegates to the docs_corpus_registry (the single corpus_id → root authority): every corpus
-     * declared in the admin textarea whose root is currently resolvable. Each is scanned and
-     * indexed (rows are tagged with their corpus_id).
-     *
-     * @return array<string,string>  corpus_id => absolute docs root path
-     */
-    public function get_registered_corpora(): array {
-        return (new docs_corpus_registry())->list();
-    }
-
-    /**
      * Compute a cheap, deterministic fingerprint of the COMPLETE current docs source set.
      *
      * Stat-only (no chunking/embedding): for every resolvable corpus it hashes the sorted list of
@@ -340,20 +327,6 @@ class docs_embeddings_index_service {
 
         sort($files);
         return $files;
-    }
-
-    /**
-     * Extract the first H1 heading from markdown content as the chunk title.
-     *
-     * @param string $content
-     * @return string
-     */
-    private function extract_title(string $content): string {
-        if (preg_match('/^#\s+(.+)$/m', $content, $matches)) {
-            return trim($matches[1]);
-        }
-
-        return '';
     }
 
     /**

@@ -58,15 +58,6 @@ class skill_registry_factory {
     }
 
     /**
-     * Return the last non-fatal build warning from get_default().
-     *
-     * @return string
-     */
-    public static function get_last_build_warning(): string {
-        return self::$lastbuildwarning;
-    }
-
-    /**
      * Reset cached registry instance.
      *
      * Intended for tests where component/skill set may change between cases.

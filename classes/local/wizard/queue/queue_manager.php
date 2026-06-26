@@ -343,26 +343,6 @@ class queue_manager {
     }
 
     /**
-     * Check whether another queue item is already running in thread.
-     *
-     * @param int $threadid
-     * @param string $excludequeueitemid
-     * @return bool
-     */
-    public function has_running_item(int $threadid, string $excludequeueitemid = ''): bool {
-        foreach ($this->get_queue_items($threadid) as $item) {
-            if ((string)($item['status'] ?? '') !== 'running') {
-                continue;
-            }
-            if ($excludequeueitemid !== '' && (string)($item['queue_item_id'] ?? '') === $excludequeueitemid) {
-                continue;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    /**
      * Atomically acquire the running slot for a queue item.
      *
      * Uses a DB-level row lock (FOR UPDATE on MySQL/PostgreSQL) so concurrent
@@ -725,18 +705,6 @@ class queue_manager {
             }
         }
         return $intents;
-    }
-
-    /**
-     * Build deterministic input signature.
-     *
-     * @param string $skill
-     * @param array $input
-     * @return string
-     */
-    public function build_input_signature(string $skill, array $input): string {
-        $details = $this->build_input_signature_details($skill, $input);
-        return (string)($details['signature'] ?? '');
     }
 
     /**

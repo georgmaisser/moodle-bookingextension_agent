@@ -662,7 +662,7 @@ class discovery_phase_service {
                 // Also check commands if no attempted_skills (fallback).
                 $commands = (array)($meta['commands'] ?? []);
                 foreach ($commands as $cmd) {
-                    if (is_array($cmd) && (isset($cmd['skill']) || isset($cmd['skill']))) {
+                    if (is_array($cmd) && isset($cmd['skill'])) {
                         $skillname = (string)($cmd['skill'] ?? '');
                         if ($skillname !== '' && !in_array($skillname, $skillnames, true)) {
                             $skillnames[] = $skillname;

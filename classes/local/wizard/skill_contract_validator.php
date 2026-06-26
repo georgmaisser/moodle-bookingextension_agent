@@ -59,12 +59,6 @@ class skill_contract_validator {
     /** Deny reason: requested skill version is unsupported. */
     public const DENY_SKILL_VERSION_UNSUPPORTED = 'skill_version_unsupported';
 
-    /** Issue code for unsupported skill versions. */
-    public const ISSUE_SKILL_VERSION_UNSUPPORTED = 'SKILL_VERSION_UNSUPPORTED';
-
-    /** Issue code for deprecated skill versions. */
-    public const ISSUE_SKILL_VERSION_DEPRECATED = 'SKILL_VERSION_DEPRECATED';
-
     /**
      * Build normalized governance metadata for one skill.
      *
@@ -291,22 +285,6 @@ class skill_contract_validator {
             default:
                 return null;
         }
-    }
-
-    /**
-     * Return standardized deny reasons in priority order.
-     *
-     * @return array<int,string>
-     */
-    public static function get_deny_reason_priority(): array {
-        return [
-            self::DENY_RUNTIME_DISABLED,
-            self::DENY_INACTIVE,
-            self::DENY_REQUIRES_PRO,
-            self::DENY_MISSING_CAPABILITY,
-            self::DENY_CONTEXT_INVALID,
-            self::DENY_SKILL_VERSION_UNSUPPORTED,
-        ];
     }
 
     /**

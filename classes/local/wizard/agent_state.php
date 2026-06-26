@@ -77,20 +77,6 @@ final class agent_state {
     private array $familycache = [];
 
     /**
-     * Per-run selection cache keyed by fingerprint.
-     *
-     * @var array<string,array<string,mixed>>
-     */
-    private array $selectedskillcache = [];
-
-    /**
-     * Per-run parameter-construction cache keyed by fingerprint.
-     *
-     * @var array<string,array<string,mixed>>
-     */
-    private array $paramscache = [];
-
-    /**
      * Private constructor — use agent_state::make().
      *
      * @param int $maxsteps
@@ -208,48 +194,6 @@ final class agent_state {
      */
     public function set_discovery_family_cache(string $cachekey, array $payload): void {
         $this->set_cache_entry($this->familycache, $cachekey, $payload);
-    }
-
-    /**
-     * Return cached selection payload for the given key.
-     *
-     * @param string $cachekey
-     * @return array<string,mixed>|null
-     */
-    public function get_selection_skill_cache(string $cachekey): ?array {
-        return $this->get_cache_entry($this->selectedskillcache, $cachekey);
-    }
-
-    /**
-     * Store selection payload for later loop steps.
-     *
-     * @param string $cachekey
-     * @param array<string,mixed> $payload
-     * @return void
-     */
-    public function set_selection_skill_cache(string $cachekey, array $payload): void {
-        $this->set_cache_entry($this->selectedskillcache, $cachekey, $payload);
-    }
-
-    /**
-     * Return cached construction parameter payload for the given key.
-     *
-     * @param string $cachekey
-     * @return array<string,mixed>|null
-     */
-    public function get_construction_params_cache(string $cachekey): ?array {
-        return $this->get_cache_entry($this->paramscache, $cachekey);
-    }
-
-    /**
-     * Store construction parameter payload for later loop steps.
-     *
-     * @param string $cachekey
-     * @param array<string,mixed> $payload
-     * @return void
-     */
-    public function set_construction_params_cache(string $cachekey, array $payload): void {
-        $this->set_cache_entry($this->paramscache, $cachekey, $payload);
     }
 
     /**

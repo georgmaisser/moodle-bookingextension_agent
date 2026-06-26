@@ -92,25 +92,6 @@ class diagnostic_link_builder {
     }
 
     /**
-     * Global cohorts management.
-     *
-     * @return moodle_url
-     */
-    public function cohorts(): moodle_url {
-        return new moodle_url('/cohort/index.php');
-    }
-
-    /**
-     * Groups within a course.
-     *
-     * @param int $courseid
-     * @return moodle_url
-     */
-    public function course_groups(int $courseid): moodle_url {
-        return new moodle_url('/group/index.php', ['id' => $courseid]);
-    }
-
-    /**
      * Core "check permissions" tool for a context.
      *
      * @param int $contextid

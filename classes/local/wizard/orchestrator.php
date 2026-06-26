@@ -154,7 +154,7 @@ class orchestrator {
         $this->interpreter = $interpreter;
         $this->store = $store;
         $this->completedhistorysvc = new completed_command_history_service($store);
-        $this->assistantsummariesvc = new assistant_state_guidance_service($registry);
+        $this->assistantsummariesvc = new assistant_state_guidance_service();
         $this->orchestratorroutingsvc = new orchestrator_routing_service(
             self::WB_ACTION_PLANNER_DECIDE
         );

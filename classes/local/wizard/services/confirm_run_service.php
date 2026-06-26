@@ -42,9 +42,6 @@ use bookingextension_agent\local\wizard\queue\queue_manager;
  * Handles confirmation flow independent from external API formatting.
  */
 class confirm_run_service {
-    /** Thread metadata key for aggregated option previews across one confirm chain. */
-    private const CONFIRM_PREVIEW_OPTION_IDS_METADATA_KEY = '_confirm_preview_option_ids';
-
     /** Thread metadata key: signatures of mutating commands that failed non-retryably (repeat guard). */
     private const FAILED_COMMAND_SIGNATURES_KEY = '_failed_command_signatures';
 
