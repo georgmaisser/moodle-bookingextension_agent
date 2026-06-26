@@ -28,7 +28,6 @@ namespace bookingextension_agent\local\wizard\services\embeddings;
 
 use bookingextension_agent\local\wizard\embeddings_csv_repository;
 use bookingextension_agent\local\wizard\skill_registry;
-use core\task\manager as task_manager;
 
 /**
  * Determines embeddings readiness and queues rebuild tasks when needed.
@@ -106,6 +105,23 @@ class embeddings_readiness_service {
             }
         }
 
+        // Orphan detection (removal-aware): the expected-only loop above never visits a stored row
+        // whose skill no longer exists, so a removed skill would otherwise stay "ready" with a lingering
+        // row. Flip to stale on any stored skill not in the expected set — the rebuild then prunes it.
+        // Set-membership over the live expected set; no stored fingerprint needed (cheap for ~41 skills).
+        $expectednames = [];
+        foreach ($expected as $row) {
+            $skill = (string)($row['skill'] ?? '');
+            if ($skill !== '') {
+                $expectednames[$skill] = true;
+            }
+        }
+        foreach (array_keys($byskill) as $storedskill) {
+            if (empty($expectednames[$storedskill])) {
+                return ['status' => 'stale', 'ready' => false];
+            }
+        }
+
         return [
             'status' => 'ready',
             'ready' => true,
@@ -128,9 +144,6 @@ class embeddings_readiness_service {
         int $dimensions,
         int $debounceseconds
     ): bool {
-        // Kept for backward-compatible signature; scheduling no longer uses config debounce markers.
-        $debounceseconds = (int)$debounceseconds;
-
         if (!empty($status['ready'])) {
             return false;
         }
@@ -145,7 +158,14 @@ class embeddings_readiness_service {
             'model' => $model,
             'dimensions' => $dimensions,
         ]);
-        task_manager::reschedule_or_queue_adhoc_task($task);
-        return true;
+
+        // Single scheduling path (shared with the docs index): config-marker debounce + deduped
+        // queue_adhoc_task. Dedup matches on classname + custom_data, so the model/dims variant is
+        // preserved (a different model still queues its own rebuild).
+        return embeddings_rebuild_scheduler::queue_if_due(
+            $task,
+            'skill_embeddings_rebuild_queued_at',
+            (int)$debounceseconds
+        );
     }
 }

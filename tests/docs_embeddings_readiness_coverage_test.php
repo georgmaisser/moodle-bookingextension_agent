@@ -19,6 +19,7 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
 use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_csv_repository;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_index_service;
 use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_readiness_service;
 
 /**
@@ -86,14 +87,40 @@ final class docs_embeddings_readiness_coverage_test extends advanced_testcase {
     }
 
     /**
-     * Full coverage of every resolvable corpus is ready.
+     * Full coverage of every resolvable corpus, with a matching source fingerprint, is ready.
      */
     public function test_full_coverage_is_ready(): void {
-        (docs_embeddings_csv_repository::for_active_variant())->write_rows([$this->row('corpa'), $this->row('corpb')]);
+        $repo = docs_embeddings_csv_repository::for_active_variant();
+        $repo->write_rows([$this->row('corpa'), $this->row('corpb')]);
+        // Stamp the source fingerprint as a full rebuild would; readiness now also verifies no drift.
+        $repo->write_fingerprint((new docs_embeddings_index_service())->compute_source_fingerprint());
 
         $readiness = new docs_embeddings_readiness_service();
         $this->assertTrue($readiness->is_index_covered());
         $this->assertTrue($readiness->get_status()['ready']);
+    }
+
+    /**
+     * Full coverage but a stale fingerprint (a source doc was added/changed/removed) is not ready.
+     */
+    public function test_source_drift_is_stale(): void {
+        $registry = new docs_corpus_registry();
+        $roots = $registry->list();
+
+        $repo = docs_embeddings_csv_repository::for_active_variant();
+        $repo->write_rows([$this->row('corpa'), $this->row('corpb')]);
+        $repo->write_fingerprint((new docs_embeddings_index_service())->compute_source_fingerprint());
+
+        $readiness = new docs_embeddings_readiness_service();
+        $this->assertTrue($readiness->get_status()['ready'], 'Baseline: index matches source.');
+
+        // Add a new markdown file to a covered corpus → the live fingerprint diverges from the stored one.
+        file_put_contents($roots['corpa'] . '/NEW.md', "# New doc\n\nbody");
+
+        $status = $readiness->get_status();
+        $this->assertFalse($status['ready']);
+        $this->assertSame('stale', $status['status']);
+        $this->assertSame('source_changed', $status['reason']);
     }
 
     /**

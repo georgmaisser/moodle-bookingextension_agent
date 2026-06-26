@@ -26,6 +26,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\lookup;
 
+use bookingextension_agent\local\wizard\services\embeddings\embeddings_rebuild_scheduler;
+
 /**
  * Determines whether the docs embeddings index is ready and triggers async rebuilds.
  */
@@ -121,6 +123,15 @@ class docs_embeddings_readiness_service {
             if (empty($present[$cid])) {
                 return ['ready' => false, 'status' => 'incomplete', 'reason' => 'corpora_not_covered'];
             }
+        }
+
+        // Drift + removal detector: compare the live source fingerprint (cheap stat scan) against the
+        // one the last full rebuild stamped. Any added/edited/removed doc — or a removed corpus — flips
+        // it, which coverage alone (rows-per-corpus) cannot see. An index built before fingerprints
+        // existed reads '' here and is treated as stale once → it self-heals on the next rebuild.
+        $live = (new docs_embeddings_index_service())->compute_source_fingerprint();
+        if ($live !== $repo->read_fingerprint()) {
+            return ['ready' => false, 'status' => 'stale', 'reason' => 'source_changed'];
         }
 
         return ['ready' => true, 'status' => 'ready', 'reason' => ''];
@@ -277,15 +288,12 @@ class docs_embeddings_readiness_service {
             return false;
         }
 
-        $lastqueued = (int)get_config('bookingextension_agent', 'docs_embeddings_rebuild_queued_at');
-        if ($lastqueued > 0 && (time() - $lastqueued) < $debounceseconds) {
-            return false;
-        }
-
-        $task = new \bookingextension_agent\task\rebuild_docs_embeddings_adhoc();
-        \core\task\manager::queue_adhoc_task($task, true);
-        set_config('docs_embeddings_rebuild_queued_at', (string)time(), 'bookingextension_agent');
-
-        return true;
+        // Single scheduling path (shared with the skill catalog): config-marker debounce + deduped
+        // queue_adhoc_task.
+        return embeddings_rebuild_scheduler::queue_if_due(
+            new \bookingextension_agent\task\rebuild_docs_embeddings_adhoc(),
+            'docs_embeddings_rebuild_queued_at',
+            $debounceseconds
+        );
     }
 }

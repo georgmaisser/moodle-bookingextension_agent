@@ -28,6 +28,7 @@ namespace bookingextension_agent\task;
 
 use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_gate;
 use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_index_service;
+use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_readiness_service;
 
 /**
  * Rebuilds embeddings for the registered documentation corpora.
@@ -66,5 +67,25 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
             . ', reused=' . (int)($summary['reused'] ?? 0)
             . ', deleted=' . (int)($summary['deleted'] ?? 0)
             . ', written=' . (int)($summary['written'] ?? 0));
+
+        // Sanity check (parity with the skill-catalog task): after a successful FULL rebuild the docs
+        // index must evaluate ready — schema valid, every resolvable corpus covered, and the freshly
+        // stamped source fingerprint matching the live one. A not-ready result signals a persistent
+        // defect; failing the task lets Moodle's scheduler apply faildelay backoff instead of looping
+        // expensive rebuilds. Scoped (single-corpus) and skipped/empty runs do not stamp the full
+        // fingerprint, so they are exempt.
+        $isfullrebuild = !isset($customdata['corpus_id']) || trim((string)$customdata['corpus_id']) === '';
+        if ($isfullrebuild && (string)($summary['status'] ?? '') === 'ok') {
+            $status = (new docs_embeddings_readiness_service())->get_status();
+            if (empty($status['ready'])) {
+                throw new \moodle_exception(
+                    'embeddingsdocsrebuildfailed',
+                    'bookingextension_agent',
+                    '',
+                    (string)($status['status'] ?? 'unknown')
+                );
+            }
+            mtrace('bookingextension_agent docs embeddings rebuild: index verified ready.');
+        }
     }
 }

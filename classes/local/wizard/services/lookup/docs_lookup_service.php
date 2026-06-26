@@ -132,6 +132,7 @@ class docs_lookup_service {
         $toprows = $retrieval->search_top_k_streaming($queryvec, $repo->stream_rows(), max(1, $limit));
 
         $results = [];
+        $dangling = false;
         foreach ($toprows as $hit) {
             // Cosine similarity is stored under 'score' (0–1) by search_top_k().
             $score = (float)($hit['score'] ?? 0.0);
@@ -143,10 +144,15 @@ class docs_lookup_service {
             $relpath = (string)($hit['chunk_path'] ?? '');
             $root = $this->registry->resolve_root($corpusid);
             if ($root === null) {
+                // The index references a corpus that no longer resolves — a stale row. Drop it AND
+                // flag for a rebuild so the index self-heals; never surface a broken reference.
+                $dangling = true;
                 continue;
             }
             $doc = $this->load_doc_meta($root, $relpath);
             if ($doc === null) {
+                // The source file behind this hit is gone/unreadable (a removed doc whose row lingers).
+                $dangling = true;
                 continue;
             }
 
@@ -155,6 +161,13 @@ class docs_lookup_service {
                 'score' => (int)round($score * 1000),
                 'search_method' => 'semantic',
             ]);
+        }
+
+        // Query-time defensive self-heal: a dangling hit means the index is out of sync with the
+        // on-disk docs. Schedule a rebuild (debounced, gated, deduped via the shared scheduler) so the
+        // next cron prunes the orphan row — without ever returning the broken reference to the caller.
+        if ($dangling) {
+            $readiness->ensure_rebuild_scheduled_if_needed();
         }
 
         return $results;

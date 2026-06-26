@@ -237,5 +237,31 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026061704, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026062406) {
+        // Deploy-time reconcile of both embeddings indexes. Docs and skills ship in the plugin code
+        // and change at release time, but nothing re-triggered their rebuild on upgrade. Scheduling now
+        // compares the live source fingerprint (docs) / expected catalog incl. orphans (skills) against
+        // what the index was last built from, so this is a no-op when a release changed neither and a
+        // real rebuild when it added/removed docs or skills — every deploy self-reconciles. The work is
+        // gated/deduped/debounced inside the schedulers and runs later on cron, never inline here. A
+        // debounce of 0 ensures the deploy reconcile is not suppressed by a recent enqueue marker.
+        if (class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
+            // Docs corpus index (self-gated on the docs skill being active).
+            (new \bookingextension_agent\local\wizard\services\lookup\docs_embeddings_readiness_service())
+                ->ensure_rebuild_scheduled_if_needed(0);
+
+            // Skill-catalog index (active model/dimensions).
+            $registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_default();
+            $settings = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->resolve();
+            $model = (string)($settings['model'] ?? '');
+            $dimensions = (int)($settings['dimensions'] ?? 0);
+            $skillreadiness = new \bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service();
+            $status = $skillreadiness->get_catalog_status($registry, $model, $dimensions);
+            $skillreadiness->ensure_rebuild_scheduled_if_needed($status, $model, $dimensions, 0);
+        }
+
+        upgrade_plugin_savepoint(true, 2026062406, 'bookingextension', 'agent');
+    }
+
     return true;
 }

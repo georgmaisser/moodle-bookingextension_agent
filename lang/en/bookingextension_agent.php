@@ -924,6 +924,7 @@ $string['cs_badge_locked'] = 'locked';
 $string['cs_badge_restricted'] = 'restricted';
 $string['diagnostic_open_link'] = 'Open page';
 $string['embeddingscatalogrebuildfailed'] = 'The skill-catalog embeddings rebuild did not produce a ready catalog (status: {$a}). The task will be retried with backoff.';
+$string['embeddingsdocsrebuildfailed'] = 'The documentation embeddings rebuild did not produce a ready index (status: {$a}). The task will be retried with backoff.';
 $string['embeddingscatalogwritecorrupt'] = 'The skill-catalog embeddings file failed its round-trip integrity check after writing ({$a->parsed} of {$a->expected} rows parsed back, {$a->skipped} corrupt). The file was not published.';
 $string['error_ai_actions_missing'] = 'The AI provider does not support the required actions for the Booking Wizard.';
 $string['error_ai_context_disabled'] = 'AI features are disabled in this context.';

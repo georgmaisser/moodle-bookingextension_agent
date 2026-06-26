@@ -92,6 +92,11 @@ class docs_embeddings_index_service {
         $resolvable = $registry->list();
         $declared = array_flip($registry->declared_corpus_ids());
 
+        // A full (unscoped) rebuild rewrites the entire index, so it is the only run allowed to
+        // re-stamp the source fingerprint that drives readiness. A scoped fast-path run touches just
+        // one corpus and must NOT claim the whole index is back in sync.
+        $isfullrebuild = ($corpusid === null || trim((string)$corpusid) === '');
+
         // Pick the corpora to (re)scan this run. A scoped fast-path run only touches its own corpus;
         // an unscoped run scans every currently resolvable corpus.
         if ($corpusid !== null && trim($corpusid) !== '') {
@@ -223,6 +228,13 @@ class docs_embeddings_index_service {
 
             $repo->close_random_reader();
             $written = $repo->commit_stream_write();
+
+            // Only a full rebuild has just rewritten every corpus, so only it may stamp the source
+            // fingerprint as "what the index now reflects". Readiness compares this against a freshly
+            // computed live fingerprint, so any later add/edit/remove of a doc flips it back to stale.
+            if ($isfullrebuild) {
+                $repo->write_fingerprint($this->compute_source_fingerprint());
+            }
         } catch (\Throwable $e) {
             $repo->discard_stream_write();
             $repo->close_random_reader();
@@ -254,6 +266,40 @@ class docs_embeddings_index_service {
      */
     public function get_registered_corpora(): array {
         return (new docs_corpus_registry())->list();
+    }
+
+    /**
+     * Compute a cheap, deterministic fingerprint of the COMPLETE current docs source set.
+     *
+     * Stat-only (no chunking/embedding): for every resolvable corpus it hashes the sorted list of
+     * `corpus_id|relpath|filesize|filemtime` plus the declared-corpus id list. Any added, edited
+     * (size/mtime) or removed file — and any added/removed corpus — flips the hash. Readiness stores
+     * this after a full rebuild and re-compares it on every check to detect drift, including removals
+     * that the row-coverage check alone never caught.
+     *
+     * @return string  40-char sha1 hex.
+     */
+    public function compute_source_fingerprint(): string {
+        $registry = new docs_corpus_registry();
+        $resolvable = $registry->list();
+
+        $declared = $registry->declared_corpus_ids();
+        sort($declared);
+
+        $entries = [];
+        foreach ($resolvable as $cid => $root) {
+            foreach ($this->scan_md_files($root) as $abspath) {
+                $relpath = ltrim(substr($abspath, strlen($root)), '/\\');
+                $size = @filesize($abspath);
+                $mtime = @filemtime($abspath);
+                $entries[] = $cid . '|' . $relpath . '|'
+                    . ($size === false ? '0' : (string)$size) . '|'
+                    . ($mtime === false ? '0' : (string)$mtime);
+            }
+        }
+        sort($entries);
+
+        return sha1('declared=' . implode(',', $declared) . "\n" . implode("\n", $entries));
     }
 
     /**

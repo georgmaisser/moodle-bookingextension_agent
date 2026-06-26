@@ -924,6 +924,7 @@ $string['cs_badge_locked'] = 'gesperrt';
 $string['cs_badge_restricted'] = 'eingeschränkt';
 $string['diagnostic_open_link'] = 'Seite öffnen';
 $string['embeddingscatalogrebuildfailed'] = 'Der Neuaufbau der Skill-Katalog-Embeddings hat keinen einsatzbereiten Katalog erzeugt (Status: {$a}). Die Aufgabe wird mit Backoff wiederholt.';
+$string['embeddingsdocsrebuildfailed'] = 'Der Neuaufbau der Dokumentations-Embeddings hat keinen einsatzbereiten Index erzeugt (Status: {$a}). Die Aufgabe wird mit Backoff wiederholt.';
 $string['embeddingscatalogwritecorrupt'] = 'Die Skill-Katalog-Embeddings-Datei hat nach dem Schreiben die Round-Trip-Integritätsprüfung nicht bestanden ({$a->parsed} von {$a->expected} Zeilen zurückgelesen, {$a->skipped} fehlerhaft). Die Datei wurde nicht veröffentlicht.';
 $string['error_ai_actions_missing'] = 'Der KI-Provider unterstützt die für Booking Wizard erforderlichen Aktionen nicht.';
 $string['error_ai_context_disabled'] = 'KI-Funktionen sind in diesem Kontext deaktiviert.';

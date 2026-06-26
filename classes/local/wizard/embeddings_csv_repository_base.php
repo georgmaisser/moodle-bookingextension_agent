@@ -149,6 +149,56 @@ abstract class embeddings_csv_repository_base {
     }
 
     /**
+     * Absolute path of the variant-scoped source-fingerprint sidecar (next to the CSV).
+     *
+     * @return string
+     */
+    public function get_fingerprint_path(): string {
+        return $this->get_csv_path() . '.fingerprint';
+    }
+
+    /**
+     * Read the stored source fingerprint (the source state the index was last built from), or ''.
+     *
+     * @return string
+     */
+    public function read_fingerprint(): string {
+        $path = $this->get_fingerprint_path();
+        if (!is_readable($path)) {
+            return '';
+        }
+        return trim((string)@file_get_contents($path));
+    }
+
+    /**
+     * Atomically store the source fingerprint the index was just built from.
+     *
+     * @param string $fingerprint
+     * @return void
+     */
+    public function write_fingerprint(string $fingerprint): void {
+        $path = $this->get_fingerprint_path();
+        $tmp = $path . '.tmp';
+        if (@file_put_contents($tmp, trim($fingerprint)) === false) {
+            return;
+        }
+        @chmod($tmp, $this->get_default_file_permissions());
+        @rename($tmp, $path);
+    }
+
+    /**
+     * Delete the stored fingerprint (e.g. when the index is discarded).
+     *
+     * @return void
+     */
+    public function delete_fingerprint(): void {
+        $path = $this->get_fingerprint_path();
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+
+    /**
      * Normalize a variant key to a filename-safe token.
      *
      * @param string $key
