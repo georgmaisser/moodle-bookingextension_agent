@@ -59,6 +59,15 @@ class search_users_skill extends core_skill_base implements
                 . 'enrolled courses, roles, and profile URL. Use this first when a '
                 . 'follow-up skill needs a concrete user identity.',
             'readonly' => $this->is_read_only(),
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'finde nutzer', 'user suchen', 'person suchen',
+                    // English.
+                    'find user', 'look up person', 'search users',
+                ],
+            ],
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_users',
             'properties' => [
                 'query' => [

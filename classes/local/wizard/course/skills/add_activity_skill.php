@@ -113,6 +113,19 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 . '"füge einen Link/URL hinzu", "leg ein Forum an", "create a label"). It does NOT create quiz '
                 . 'questions (use question.generate_questions for that).',
             'readonly' => false,
+            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_activity).
+            // Distinct from add_quiz (page/url/label/book/folder/forum → here; quiz/test → add_quiz).
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'aktivität hinzufügen', 'seite anlegen', 'url hinzufügen', 'link hinzufügen',
+                    'textfeld', 'label', 'buch', 'ordner', 'forum',
+                    // English.
+                    'add activity', 'create page', 'create url', 'create label',
+                    'create book', 'create folder', 'create forum',
+                ],
+            ],
             'properties' => [
                 'modname' => [
                     'type' => 'string',

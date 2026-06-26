@@ -110,6 +110,17 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 . '"rename the page to X", "hide the forum", "ändere die URL der Aktivität", "blende das Quiz aus". '
                 . 'Only the fields you give are changed. To CREATE a new activity use course.add_activity instead.',
             'readonly' => false,
+            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_activity).
+            // Distinct from update_quiz (page/url/label/book/folder/forum → here; quiz → update_quiz).
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'aktivität bearbeiten', 'umbenennen', 'verstecken', 'anzeigen',
+                    // English.
+                    'edit activity', 'rename', 'hide activity', 'show activity',
+                ],
+            ],
             'properties' => [
                 'activityquery' => [
                     'type' => 'string',

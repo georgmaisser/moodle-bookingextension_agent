@@ -93,6 +93,15 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
                 . 'expired). Use for "why was Maria not auto-enrolled", "warum ist Tom nicht im Kurs eingeschrieben", '
                 . '"cohort sync not working". NOT for booking, access/visibility, or grades.',
             'readonly' => true,
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'einschreibung fehlgeschlagen', 'nicht eingeschrieben', 'self-enrolment', 'kohorten-sync',
+                    // English.
+                    'enrolment failed', 'not enrolled',
+                ],
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

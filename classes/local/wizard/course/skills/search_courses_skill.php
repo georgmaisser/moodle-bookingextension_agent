@@ -61,6 +61,16 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
                 . 'available on the platform. Use this first when a follow-up skill needs '
                 . 'a concrete course identity or link, or when the user asks which courses exist.',
             'readonly' => $this->is_read_only(),
+            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_read).
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'welche kurse', 'kurs suchen', 'kurse anzeigen',
+                    // English.
+                    'which courses', 'find course', 'search course', 'list courses',
+                ],
+            ],
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_courses',
             'properties' => [
                 'query' => [

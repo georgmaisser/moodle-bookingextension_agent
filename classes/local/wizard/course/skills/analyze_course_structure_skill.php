@@ -111,6 +111,16 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
                 . 'Abschnitte hat der Kurs", "was ist im Kurs Mathematik". It is the prerequisite for later '
                 . 'placing something into a section. It only READS; it never creates or changes anything.',
             'readonly' => true,
+            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_read).
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'kursstruktur', 'was ist im kurs', 'abschnitte', 'themen',
+                    // English.
+                    'course structure', 'what\'s in the course', 'list sections',
+                ],
+            ],
             'properties' => [
                 'coursequery' => [
                     'type' => 'string',

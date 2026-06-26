@@ -66,6 +66,15 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 . 'deleting. This manages stored facts the user told the agent — it is NOT for previous '
                 . 'conversation. User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'vergiss', 'lösche erinnerung',
+                    // English.
+                    'forget that',
+                ],
+            ],
             'fallback_confirm_string_key' => 'agent_memory_forget_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_forget_skillcall',
             'properties' => [

@@ -109,6 +109,17 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 . 'category). Use for "add 5 questions to Quiz 3", "rename the quiz", "füge Fragen zum Quiz hinzu", '
                 . '"blende das Quiz aus". To CREATE a new quiz use course.add_quiz.',
             'readonly' => false,
+            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_activity).
+            // Distinct from update_activity (quiz → here; other activity types → update_activity).
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'quiz bearbeiten', 'fragen zum quiz hinzufügen',
+                    // English.
+                    'edit quiz', 'add questions to quiz',
+                ],
+            ],
             'properties' => [
                 'activityquery' => [
                     'type' => 'string',

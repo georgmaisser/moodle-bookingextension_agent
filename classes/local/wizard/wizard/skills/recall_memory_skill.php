@@ -79,6 +79,15 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 . 'When mode="date_window", date_hint is mandatory. '
                 . 'User isolation is strict and userid is never accepted from input.',
             'readonly' => $this->is_read_only(),
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'letztes mal', 'gestern', 'vorhin', 'neulich',
+                    // English.
+                    'last time', 'yesterday', 'earlier',
+                ],
+            ],
             'fallback_confirm_string_key' => 'ai_status_confirm_booking_recall_memory',
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_recall_memory',
             'properties' => [

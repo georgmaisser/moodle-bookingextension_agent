@@ -92,6 +92,15 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
                 . '(with the real "not available until …" reason), and group-mode membership. Use for "why can\'t '
                 . 'Maria see the quiz", "warum kommt Tom nicht in den Kurs", "why is this activity greyed out".',
             'readonly' => true,
+            'governance' => [
+                'mandatory_on_trigger' => false,
+                'intent_triggers' => [
+                    // German.
+                    'kann kurs nicht sehen', 'kein zugriff auf kurs', 'kann aktivität nicht öffnen',
+                    // English.
+                    'cannot access course', 'can\'t see activity', 'no access',
+                ],
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
