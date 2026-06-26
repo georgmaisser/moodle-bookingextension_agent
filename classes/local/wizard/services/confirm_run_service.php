@@ -431,46 +431,22 @@ class confirm_run_service {
                 $outputlang
             );
 
-            $errorclass = preflight_error_classifier::infer_from_issue_codes([]);
-            $retrymeta = [];
-            $executionstatus = 'failed';
-            $executionissuecodes = [];
-            if (preflight_error_classifier::is_retryable_error_class($errorclass)) {
-                $retrydecision = $this->build_retry_decision(
-                    $queuesvc,
-                    $threadid,
-                    $activequeueitemid,
-                    $errorclass,
-                    []
-                );
-                $retrymeta = (array)($retrydecision['meta'] ?? []);
-                $executionstatus = (string)($retrydecision['queue_status'] ?? 'failed');
-                $executionissuecodes = (array)($retrydecision['issue_codes'] ?? []);
-                $this->queuetransitionsvc->to_retry_waiting(
-                    $queuesvc,
-                    $threadid,
-                    $activequeueitemid,
-                    'EXECUTION_EXCEPTION_RETRY_HINT',
-                    $executionissuecodes,
-                    $errorclass,
-                    $e->getMessage(),
-                    $retrymeta
-                );
-            } else {
-                $this->queuetransitionsvc->to_failed(
-                    $queuesvc,
-                    $threadid,
-                    $activequeueitemid,
-                    'EXECUTION_EXCEPTION_FATAL',
-                    [],
-                    'provider_error',
-                    $e->getMessage()
-                );
-            }
-
-            if (!queue_status_policy::is_retry_waiting_status($executionstatus)) {
-                $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
-            }
+            // A Throwable escaping the execution block is out-of-contract and therefore TERMINAL.
+            // The executor returns classified statuses (flowchart EXC_SUCC / EXC_TRANSIENT /
+            // EXC_DOMAIN) — only known transient classes (provider_timeout / transient_io) are
+            // retryable, via the in-try failure path above. An unexpected exception here is NOT a
+            // classifiable transient error and must never enter the retry machinery; the flowchart
+            // models no retry edge off the exception path. So fail directly and skip dependents.
+            $this->queuetransitionsvc->to_failed(
+                $queuesvc,
+                $threadid,
+                $activequeueitemid,
+                'EXECUTION_EXCEPTION_FATAL',
+                [],
+                'provider_error',
+                $e->getMessage()
+            );
+            $this->mark_dependents_skipped($queuesvc, $threadid, $activequeueitemid);
 
             $feedbackresults = (array)($feedback['results'] ?? []);
             $this->store->update_run_status($runid, 'failed', $feedbackresults);
