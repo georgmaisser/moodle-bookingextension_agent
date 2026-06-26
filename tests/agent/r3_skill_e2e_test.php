@@ -83,6 +83,12 @@ final class r3_skill_e2e_test extends abstract_agent_testcase {
         $queueitemid = (string)($queueditem['queue_item_id'] ?? '');
         $this->assertNotSame('', $queueitemid);
 
+        // Mint the execution guard token exactly as preflight does in production (set_prepared_input):
+        // a mutating command is refused by the executor (EXECUTION_GUARD_MISSING) without it. This test
+        // enqueues directly (no planner/preflight pass), so it must stage the guard itself for the
+        // confirmed run to actually execute.
+        $queuesvc->set_prepared_input($threadid, $queueitemid, $contextid, (array)$command['input']);
+
         $pendingintent = new pending_intent_service($store);
         $pendingintent->set(
             $threadid,
@@ -110,14 +116,20 @@ final class r3_skill_e2e_test extends abstract_agent_testcase {
             $status,
             'R3 executions must not enter retry_waiting after confirmation.'
         );
+        // The confirm reported success (asserted above) and the guard was staged, so the queue item must
+        // be deterministically 'succeeded' — accepting 'failed' here previously masked that the command
+        // never executed (it failed on a missing execution guard).
+        $this->assertSame('succeeded', $status, (string)($afterconfirm['last_error_message'] ?? ''));
+
+        // And the actual effect must have happened: the student is now booked on the option. This is the
+        // whole point of the R3 book_users flow and was previously never verified.
         global $DB;
-        $booked = $DB->record_exists('booking_answers', [
-            'optionid' => (int)$option->id,
-            'userid' => (int)$student->id,
-        ]);
-        $this->fail('DIAG status=' . $status
-            . ' confirmmsg=' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-            . ' afterconfirm=' . json_encode($afterconfirm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-            . ' booked=' . ($booked ? '1' : '0'));
+        $this->assertTrue(
+            $DB->record_exists('booking_answers', [
+                'optionid' => (int)$option->id,
+                'userid' => (int)$student->id,
+            ]),
+            'The confirmed R3 book_users execution must have created a booking for the student.'
+        );
     }
 }
