@@ -61,16 +61,10 @@ final class permission_capability_anonymizer_test extends \advanced_testcase {
         // The moodle/question:add capability never collides with the name and must always survive.
         $this->assertStringContainsString('moodle/question:add', $sanitized);
 
-        // Self-updating guard: today the STRICT anonymizer splits x/y:z capability tokens when a user
-        // name collides with a word inside them (e.g. "Booking" in mod/booking:addoption). This is a
-        // KNOWN LIMITATION; the decision whether to add an x/y:z code-token span to the engine anonymizer
-        // is pending. Once that is done, this assertion passes and the test becomes a real regression guard.
-        if (strpos($sanitized, 'mod/booking:addoption') === false) {
-            $this->markTestSkipped(
-                'KNOWN LIMITATION (decision pending): STRICT-mode anonymizer corrupts x/y:z capability tokens '
-                . 'on a colliding user name. Got: ' . $sanitized
-            );
-        }
+        // Regression guard: the STRICT anonymizer must keep an x/y:z capability token intact even when a
+        // user name collides with a word inside it ("Booking" in mod/booking:addoption). This is now the
+        // hard contract — a previous version corrupted it; an unconditional assertion (no skip) catches
+        // any reintroduction of that split.
         $this->assertStringContainsString('mod/booking:addoption', $sanitized);
 
         // The person reference in prose must still be anonymized.

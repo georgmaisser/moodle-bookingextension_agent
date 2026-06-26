@@ -110,6 +110,14 @@ final class r3_skill_e2e_test extends abstract_agent_testcase {
             $status,
             'R3 executions must not enter retry_waiting after confirmation.'
         );
-        $this->assertContains($status, ['succeeded', 'failed']);
+        global $DB;
+        $booked = $DB->record_exists('booking_answers', [
+            'optionid' => (int)$option->id,
+            'userid' => (int)$student->id,
+        ]);
+        $this->fail('DIAG status=' . $status
+            . ' confirmmsg=' . json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            . ' afterconfirm=' . json_encode($afterconfirm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            . ' booked=' . ($booked ? '1' : '0'));
     }
 }

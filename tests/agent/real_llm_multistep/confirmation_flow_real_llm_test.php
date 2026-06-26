@@ -143,10 +143,12 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
             );
             $teachercommand = $this->extract_command($result2, 'booking.update_option');
         }
-        if ($teachercommand !== null) {
-            $teacherconfirm = $this->confirm_pending_result($result2, (int)$threadid, $store, false);
-            $this->assertTrue((bool)($teacherconfirm['success'] ?? false), (string)($teacherconfirm['message'] ?? ''));
-        }
+        // The whole point of step 2 is that the agent CAN assign a teacher: after the retries it must
+        // have produced the command. Failing (instead of silently skipping) surfaces a real regression
+        // where the agent stops handling teacher assignment.
+        $this->assertNotNull($teachercommand, 'The agent must produce an update_option command to assign the teacher.');
+        $teacherconfirm = $this->confirm_pending_result($result2, (int)$threadid, $store, false);
+        $this->assertTrue((bool)($teacherconfirm['success'] ?? false), (string)($teacherconfirm['message'] ?? ''));
 
         $details = $this->exec_command('booking.get_option_details', [
             'optionquery' => $title,
@@ -160,14 +162,12 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 'includesessions' => false,
             ]);
         }
-        if ((string)($details['status'] ?? '') === 'executed') {
-            $teachers = json_encode($details['optiondetails'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            if ($teachercommand !== null) {
-                $this->assertStringContainsString('Billy', (string)$teachers);
-            } else {
-                $this->assertNotEmpty(trim((string)$teachers), 'Option details should still be populated.');
-            }
-        }
+        // Deterministic post-condition: Billy is now a teacher of the option (LLM prose may vary, this
+        // does not). Asserted unconditionally — previously it degraded to a non-empty check that passed
+        // even when the assignment never happened.
+        $this->assertSame('executed', (string)($details['status'] ?? ''), 'get_option_details must succeed.');
+        $teachers = json_encode($details['optiondetails'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $this->assertStringContainsString('Billy', (string)$teachers, 'The assigned teacher must appear on the option.');
 
         $result3 = $this->chat(
             'Now make "' . $title . '" visible.',
@@ -183,7 +183,6 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $visibilityupdated = false;
         $visiblecommand = $this->extract_command($result3, 'booking.update_option');
         if (
             $visiblecommand === null
@@ -199,22 +198,16 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
             );
             $visiblecommand = $this->extract_command($result3, 'booking.update_option');
         }
-        if ($visiblecommand !== null) {
-            $visibleconfirm = $this->confirm_pending_result($result3, (int)$threadid, $store, false);
-            $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
-            $visibilityupdated = true;
-        } else {
-            $directvisibility = $this->exec_command('booking.update_option', [
-                'optionid' => (int)$option->id,
-                'visible' => true,
-            ]);
-            $visibilityupdated = (string)($directvisibility['status'] ?? '') === 'executed';
-        }
+
+        // Step 3 must go through the AGENT confirmation flow (no direct-exec fallback, which would mask
+        // an agent that stopped handling visibility). Require the command, confirm it, then assert the
+        // deterministic effect unconditionally.
+        $this->assertNotNull($visiblecommand, 'The agent must produce an update_option command to set visibility.');
+        $visibleconfirm = $this->confirm_pending_result($result3, (int)$threadid, $store, false);
+        $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
 
         $updated = $this->get_option_from_db((int)$option->id);
-        if ($visibilityupdated) {
-            $this->assertSame(MOD_BOOKING_OPTION_VISIBLE, (int)$updated->invisible);
-        }
+        $this->assertSame(MOD_BOOKING_OPTION_VISIBLE, (int)$updated->invisible);
     }
 
     /**
