@@ -287,6 +287,8 @@ class trial_provisioner {
                     'endpoint' => $chat,
                     'model' => $model,
                     'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                    // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
+                    'temperature' => 0.0,
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
@@ -296,6 +298,8 @@ class trial_provisioner {
                     'endpoint' => $chat,
                     'model' => $model,
                     'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                    // Mildly warm for natural prose, but low enough to stay faithful to the planner result.
+                    'temperature' => 0.3,
                 ],
             ],
             'core_ai\\aiactions\\generate_text' => [
@@ -305,6 +309,7 @@ class trial_provisioner {
                     'endpoint' => $chat,
                     'model' => $model,
                     'systeminstruction' => '[[action_generate_text_instruction]]',
+                    'temperature' => 0.3,
                 ],
             ],
         ];
@@ -493,6 +498,11 @@ class trial_provisioner {
 
         // The generate_text action is a core_ai action both providers process; it is the minimum
         // for a usable agent and therefore the whole config for the OpenAI fallback.
+        // temperature is read from these settings at request-build time (get_model_settings spreads
+        // them into the body; the OpenAI provider reads a 'temperature' setting too) — the only
+        // core_ai-conform way to control sampling (no per-call temperature exists). General-purpose
+        // text gets a mild 0.5 on the OpenAI fallback; on the Wunderbyte side it is kept low (0.3).
+        $gttemperature = ($strategy === 'openai') ? 0.5 : 0.3;
         $generatetext = [
             'core_ai\\aiactions\\generate_text' => [
                 'enabled' => true,
@@ -501,6 +511,7 @@ class trial_provisioner {
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat',
                     'systeminstruction' => '[[action_generate_text_instruction]]',
+                    'temperature' => $gttemperature,
                 ],
             ],
         ];
@@ -527,6 +538,8 @@ class trial_provisioner {
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat-mini',
                     'systeminstruction' => 'Act as a compact planner and return a structured routing decision as plain JSON.',
+                    // Greedy: the planner is a routing + JSON task — determinism kills run-to-run flips.
+                    'temperature' => 0.0,
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\generate_agent_reply' => [
@@ -536,6 +549,8 @@ class trial_provisioner {
                     'endpoint' => $chat,
                     'model' => 'wunderbyte-privat',
                     'systeminstruction' => 'Compose the final user-facing response in the requested language.',
+                    // Mildly warm for natural prose, but low enough to stay faithful to the planner result.
+                    'temperature' => 0.3,
                 ],
             ],
         ] + $generatetext;
