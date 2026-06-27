@@ -241,6 +241,14 @@ PROMPT;
 
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
+        // Authoritative output contract in the cached prefix (right after the static [SYSTEM] block, so
+        // it co-locates with the routing rules and is processed once / shared across calls instead of
+        // re-sent every turn). A short recency reminder is appended near [ASSISTANT] below.
+        $outputcontract = $this->build_output_contract_block($phase);
+        if ($outputcontract !== '') {
+            $parts[] = "[OUTPUT_CONTRACT]\n{$outputcontract}";
+        }
+
         if ($runtimecontext !== '') {
             $parts[] = "[SYSTEM_RUNTIME]\n{$runtimecontext}";
         }
@@ -274,9 +282,9 @@ PROMPT;
             $parts[] = "[PENDING PLANNED STEPS]\n" . implode("\n", $lines);
         }
 
-        $localoutputcontract = $this->build_local_output_contract_block($phase, $autoconfirmmode);
-        if ($localoutputcontract !== '') {
-            $parts[] = "[OUTPUT_CONTRACT]\n{$localoutputcontract}";
+        $reminder = $this->build_output_contract_reminder($phase, $autoconfirmmode);
+        if ($reminder !== '') {
+            $parts[] = "[OUTPUT_REMINDER]\n{$reminder}";
         }
 
         $parts[] = '[ASSISTANT]';
@@ -290,7 +298,7 @@ PROMPT;
      * @param bool $autoconfirmmode
      * @return string
      */
-    private function build_local_output_contract_block(string $phase, bool $autoconfirmmode = false): string {
+    private function build_output_contract_block(string $phase): string {
         $normalizedphase = trim(strtolower($phase));
         $lines = [
             'Return exactly one valid JSON object and nothing else.',
@@ -338,6 +346,22 @@ PROMPT;
                 . 'Do this at most once per request; if the follow-up still finds nothing, return clarification or error.';
         }
 
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Build the short, volatile output reminder placed near the [ASSISTANT] slot: a recency pointer to
+     * the cached [OUTPUT_CONTRACT] above, plus the auto-confirm guidance (which is per-turn volatile and
+     * therefore must NOT live in the cached prefix).
+     *
+     * @param string $phase
+     * @param bool $autoconfirmmode
+     * @return string
+     */
+    private function build_output_contract_reminder(string $phase, bool $autoconfirmmode = false): string {
+        $normalizedphase = trim(strtolower($phase));
+        $lines = [];
+
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
             $lines[] = 'Auto-confirm mode is active.';
             $lines[] = 'Do NOT ask permission or phrase messages as questions. '
@@ -347,6 +371,9 @@ PROMPT;
             $lines[] = 'If action already executed: report completion or skip to next unexecuted action.';
             $lines[] = 'Next unexecuted mutation → response_type="confirmation_request".';
         }
+
+        $lines[] = 'Respond now as exactly one valid JSON object per the [OUTPUT_CONTRACT] above '
+            . '— no prose, no markdown, no code fences.';
 
         return implode("\n", $lines);
     }

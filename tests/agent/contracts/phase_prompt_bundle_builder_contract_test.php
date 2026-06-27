@@ -39,9 +39,8 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
     public function test_selection_output_contract_requires_single_selector_command(): void {
         $builder = $this->build_builder();
 
-        $contract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
+        $contract = $this->invoke_private_method($builder, 'build_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_SELECTION,
-            false,
         ]);
         $this->assertStringContainsString(
             'Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.',
@@ -67,9 +66,8 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
     public function test_construction_output_contract_requires_one_or_more_commands(): void {
         $builder = $this->build_builder();
 
-        $contract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
+        $contract = $this->invoke_private_method($builder, 'build_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION,
-            false,
         ]);
 
         $expected = 'For skill_call/confirmation_request: '
@@ -88,13 +86,11 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
     public function test_full_schema_payload_is_construction_only(): void {
         $builder = $this->build_builder();
 
-        $selectioncontract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
+        $selectioncontract = $this->invoke_private_method($builder, 'build_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_SELECTION,
-            false,
         ]);
-        $constructioncontract = $this->invoke_private_method($builder, 'build_local_output_contract_block', [
+        $constructioncontract = $this->invoke_private_method($builder, 'build_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION,
-            false,
         ]);
 
         // Selection phase: field-level construction is explicitly prohibited.
@@ -115,6 +111,27 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
             $selectioncontract,
             'Selection phase must not apply constructor semantics.'
         );
+    }
+
+    /**
+     * The cached output contract carries no volatile auto-confirm guidance; that lives in the bottom
+     * reminder near [ASSISTANT], which also points back to the cached contract.
+     */
+    public function test_autoconfirm_guidance_is_in_the_volatile_reminder_not_the_cached_contract(): void {
+        $builder = $this->build_builder();
+        $phase = orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION;
+
+        $contract = $this->invoke_private_method($builder, 'build_output_contract_block', [$phase]);
+        $reminderon = $this->invoke_private_method($builder, 'build_output_contract_reminder', [$phase, true]);
+        $reminderoff = $this->invoke_private_method($builder, 'build_output_contract_reminder', [$phase, false]);
+
+        // Cached contract stays autoconfirm-invariant (so it caches regardless of autoconfirm state).
+        $this->assertStringNotContainsString('Auto-confirm mode is active.', $contract);
+
+        // Volatile reminder carries the autoconfirm guidance only when active, plus the 1-line pointer.
+        $this->assertStringContainsString('Auto-confirm mode is active.', $reminderon);
+        $this->assertStringNotContainsString('Auto-confirm mode is active.', $reminderoff);
+        $this->assertStringContainsString('[OUTPUT_CONTRACT] above', $reminderoff);
     }
 
 
