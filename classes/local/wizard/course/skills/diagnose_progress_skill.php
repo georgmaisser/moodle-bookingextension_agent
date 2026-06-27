@@ -96,9 +96,16 @@ class diagnose_progress_skill extends core_skill_base implements skill_trigger_p
                 . '(must view / receive a grade / pass / activity-specific / manual), plus the course-completion '
                 . 'criteria and whether the course is marked complete. It does NOT re-evaluate completion — it '
                 . 'reports stored facts for the model to explain. Use for "why has Maria not completed the course", '
-                . '"welche Aktivitäten fehlen dem Studenten noch", "why is this activity not marked complete". NOT '
+                . '"why is this activity not marked complete". NOT '
                 . 'for grades, access/visibility, enrolment or permissions.',
             'readonly' => true,
+            'example_utterances' => [
+                'why hasn\'t Maria completed the course',
+                'which activities does this student still need to finish',
+                'why is this activity not marked as complete',
+                'what completion criteria are still unmet for this learner',
+                'the course shows as not completed for this user',
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
