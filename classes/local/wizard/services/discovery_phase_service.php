@@ -173,6 +173,7 @@ class discovery_phase_service {
         $shouldincludeskillcatalog = true;
 
         $runtimecatalog = [];
+        $allpromptcontracts = [];
         $unavailableskillcatalog = [];
         $catalogselectionmode = 'none';
         $embeddingstatus = 'off';
@@ -444,6 +445,12 @@ class discovery_phase_service {
         // intent-trigger injection. A skill that is hard to reach is an embedding problem and is
         // fixed via its anchors (description + example_utterances) or the embedding model, never by
         // substring/keyword routing. See docs/Blueprints/SKILL_REWORK.md §5.
+        //
+        // SOLE sanctioned exception: wizard.search_skills, the engine RAG fallback. It is a meta-skill
+        // ("search the registry") whose anchors never semantically match task queries, so top-k can
+        // never surface it — yet the planner must always be able to fall back to it. Force-add it to the
+        // selector catalog (deduplicated), IN ADDITION to the semantic top-k.
+        $runtimecatalog = $this->ensure_search_skills_fallback($runtimecatalog, $allpromptcontracts);
 
         $systemprompt = $this->build_system_prompt(
             $contextid,
@@ -551,6 +558,33 @@ class discovery_phase_service {
             'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
             'errors' => (array)($phaseoutput['errors'] ?? []),
         ];
+    }
+
+    /**
+     * Force-add the wizard.search_skills RAG fallback to the planner catalog (deduplicated).
+     *
+     * The ONLY sanctioned exception to semantic-only discovery: search_skills is a meta-skill whose
+     * anchors never match task queries semantically, so it can never be retrieved by top-k — but the
+     * planner must always be able to fall back to it (the last-resort full-registry search).
+     *
+     * @param array $runtimecatalog Slimmed selector catalog (semantic top-k).
+     * @param array $allpromptcontracts All prompt contracts for the context (source of the slim entry).
+     * @return array
+     */
+    private function ensure_search_skills_fallback(array $runtimecatalog, array $allpromptcontracts): array {
+        $name = 'wizard.search_skills';
+        foreach ($runtimecatalog as $entry) {
+            if (trim((string)($entry['skill'] ?? '')) === $name) {
+                return $runtimecatalog; // Already present (e.g. slim_all full catalog) — never duplicate.
+            }
+        }
+        foreach ($allpromptcontracts as $contract) {
+            if (trim((string)($contract['skill'] ?? '')) === $name) {
+                $slim = $this->catalogsvc->slim_prompt_catalog_for_planner([$contract]);
+                return array_merge($runtimecatalog, array_values($slim));
+            }
+        }
+        return $runtimecatalog;
     }
 
     /**
