@@ -114,11 +114,12 @@ class runtime_context_block_builder {
         $cm = ($blockcontext instanceof context_module)
             ? get_coursemodule_from_id('booking', (int)$blockcontext->instanceid, 0, false, IGNORE_MISSING)
             : false;
-        // Booking module contexts keep the booking instance name (behaviour-preserving);
-        // any other context level falls back to its generic Moodle context name.
-        $bookingname = $cm
+        // The agent is site-wide, so the context line is generic (never a booking-specific
+        // "booking_name"): a booking module yields the booking instance name, any other context level
+        // its Moodle context name (course, user, system, ...).
+        $contextname = $cm
             ? format_string($cm->name)
-            : ($blockcontext ? $blockcontext->get_context_name() : 'this booking instance');
+            : ($blockcontext ? $blockcontext->get_context_name() : 'this context');
         // Minute granularity on purpose: a second-precise timestamp makes every request's
         // prompt unique and is the main breaker for upstream prompt-prefix caching.
         $nowiso = (new \DateTime('now', $tz))->format('Y-m-d\TH:iP');
@@ -129,7 +130,7 @@ class runtime_context_block_builder {
         // A STATIC catalog (see $catalogisstatic) instead joins $lines so it lands in the cached prefix,
         // and now_iso is appended LAST so it never fronts the cacheable catalog/ledger lines above it.
         $lines = [
-            'booking_name: ' . $bookingname,
+            'context_name: ' . $contextname,
             'timezone: ' . $timezonename,
         ];
         $statelines = [];

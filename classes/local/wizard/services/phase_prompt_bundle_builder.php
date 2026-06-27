@@ -145,7 +145,10 @@ class phase_prompt_bundle_builder {
 
         $prompt = strtr($template, [
             // Keep placeholders stable across requests for better prompt-prefix caching.
-            '{{bookingname}}' => '[SYSTEM_RUNTIME.booking_name]',
+            '{{contextname}}' => '[SYSTEM_RUNTIME.context_name]',
+            // Deprecated alias: the agent is site-wide, so it resolves to the generic context name.
+            // Kept so admin-customized templates that still use {{bookingname}} do not dangle.
+            '{{bookingname}}' => '[SYSTEM_RUNTIME.context_name]',
             '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
             '{{nowiso}}' => '[SYSTEM_RUNTIME_STATE.now_iso]',
             '{{skilllist}}' => $skilllist,

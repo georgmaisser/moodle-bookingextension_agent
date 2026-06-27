@@ -118,8 +118,8 @@ final class agent_context {
     /**
      * Human-readable name of this context for prompt/UI display.
      *
-     * Generic replacement for the old booking-specific "booking_name". For a booking
-     * module this yields the booking instance name; for a course the course name, etc.
+     * Generic, site-wide context name. For a booking module this yields the booking instance name,
+     * for a course the course name, for a user the user context name, etc.
      *
      * @return string
      */

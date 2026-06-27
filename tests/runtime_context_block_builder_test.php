@@ -1,0 +1,93 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+namespace bookingextension_agent;
+
+use advanced_testcase;
+use context_course;
+use context_user;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\services\assistant_state_guidance_service;
+use bookingextension_agent\local\wizard\services\completed_command_history_service;
+use bookingextension_agent\local\wizard\services\planner_catalog_service;
+use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
+
+/**
+ * The runtime context block must be generic and site-wide: it emits a "context_name" line for every
+ * context level and never the legacy booking-specific "booking_name" (the agent is no longer
+ * booking-only).
+ *
+ * @package    bookingextension_agent
+ * @category   test
+ * @covers     \bookingextension_agent\local\wizard\services\runtime_context_block_builder
+ * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+final class runtime_context_block_builder_test extends advanced_testcase {
+    /**
+     * Build the service with its (simple) dependency chain.
+     *
+     * @param conversation_store $store
+     * @return runtime_context_block_builder
+     */
+    private function builder(conversation_store $store): runtime_context_block_builder {
+        return new runtime_context_block_builder(
+            $store,
+            new completed_command_history_service($store),
+            new planner_catalog_service(new assistant_state_guidance_service())
+        );
+    }
+
+    /**
+     * A course context yields the course name under the generic context_name label, never booking_name.
+     */
+    public function test_course_context_emits_generic_context_name(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Algebra 101']);
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+
+        $block = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION);
+
+        // The generic context name carries the Moodle context name ("Course: Algebra 101"), under the
+        // context_name label — never the legacy booking_name.
+        $this->assertMatchesRegularExpression('/^context_name: .*Algebra 101/m', $block['stable']);
+        $this->assertStringNotContainsString('booking_name', $block['stable']);
+        $this->assertStringNotContainsString('booking_name', $block['volatile']);
+    }
+
+    /**
+     * A user context (where the agent now also runs) must NOT be mislabelled as a booking instance.
+     */
+    public function test_user_context_is_not_labelled_as_booking(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $ctxid = (int)context_user::instance($user->id)->id;
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+
+        $block = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION);
+
+        $this->assertStringContainsString('context_name:', $block['stable']);
+        $this->assertStringNotContainsString('booking_name', $block['stable']);
+    }
+}
