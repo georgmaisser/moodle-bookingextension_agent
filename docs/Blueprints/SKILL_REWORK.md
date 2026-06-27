@@ -260,10 +260,13 @@ public function get_schema(): array {
 ```
 
 ## 5.7 Cross-Language (English-only Metadaten)
-Alle Anker English-only. Die Sprachbrücke (deutsche/… Query ↔ englische Anker) läuft über **eine** von zwei Optionen — **offene Entscheidung, hängt am Modell-Test:**
+Alle Anker English-only. Die Sprachbrücke (deutsche/… Query ↔ englische Anker) läuft über **eine** von zwei Optionen:
 - **Weg A:** stark multilinguales Embedding-Modell (kein Extra-Schritt).
-- **Weg B:** Query→English-Normalisierung (HyDE-artige englische Intent-Phrase) **vor** dem Embedding-Call — modell-unabhängig, +1 (mini-Modell-)Call.
-→ Entscheidung per Cross-Lingual-Test des gewählten Modells. **Benchmark-Set mehrsprachig erweitern**, sonst wird Multi-Language gar nicht gemessen.
+- **Weg B:** Query→English-Normalisierung **vor** dem Embedding-Call — modell-unabhängig, +1 (Chat-Modell-)Call.
+
+**ENTSCHEIDEN (2026-06-27): Weg B.** Grund: In der verfügbaren Modell-Liste gibt es **kein** klar multilinguales Embedding-Modell (das einzige Embedding-Modell ist englisch-zentriert), daher ist Weg A unsicher; Weg B ist modell-agnostisch, **braucht keinen Rebuild** (nur die Query wird zur Laufzeit normalisiert, die Anker bleiben), und löst die Lücke unabhängig vom Embedding-Modell. **Belegt durch Benchmark:** das komplette Set ist deutsch; `book_users_single` („Buche … fuer den **Kurs** …") und `skill_not_in_catalog` gingen stabil 6/6 an `course.search_courses`, weil das deutsche „Kurs" am nächsten den (englischen) Kurs-Anker traf — reines Cross-Language-Artefakt, **nicht** durch Anker-Wording fixbar.
+**Eigenschaften:** neuer `query_english_normalizer` (kleiner Chat-Call mit dem **konfigurierten Planner-Chat-Modell** — KEIN Modellname festschreiben, kommt aus der Provider-Config); nur die **Embedding-Query** wird normalisiert, Konversation/Planner-Prompts bleiben in der User-Sprache (Synchronizer antwortet weiter in ihr); **fail-open** (bei Normalizer-Fehler → Roh-Query); KEIN lexikalisches Routing (DISCO_RULE-konform, Pre-Embedding-Schritt). Verdrahtet an den 3 Embedding-Call-Stellen: discovery_phase_service, skill_discovery_service, skill_selection_debug_service.
+→ **Benchmark-Set bleibt mehrsprachig** (misst genau diese Brücke).
 
 ## 5.8 Migrationsschritte
 1. **English-only** ziehen (Descriptions + alle Trigger-Texte → Englisch; deutsche raus). *(sofort)*
@@ -271,7 +274,7 @@ Alle Anker English-only. Die Sprachbrücke (deutsche/… Query ↔ englische Ank
 3. Index-Schema + `embeddings_catalog_builder` auf Multi-Anker, `search_top_k` auf Max→Top-12-distinkte-Skills.
 4. Pro Skill `example_utterances` authoren (3–6, distinkt).
 5. Debugging (5.5) nachziehen; `scaffold_skill`-Vorlage + Beispiel (5.6) aktualisieren.
-6. Rebuild + Harness; Cross-Lingual-Modelltest → Weg A/B fixieren.
+6. Cross-Language = **Weg B** (5.7): `query_english_normalizer` vor den 3 Embedding-Calls (Planner-Chat-Modell, fail-open, nur Embedding-Query). Rebuild + Harness; mehrsprachiges Benchmark-Set misst die Brücke.
 7. Merges (§1) — weniger Quasi-Duplikate = weniger Anker-Kollisionen.
 
 ## 5.9 Modell-A/B
