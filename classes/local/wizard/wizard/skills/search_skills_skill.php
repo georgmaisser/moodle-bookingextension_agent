@@ -88,8 +88,13 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'If none of the provided skills match the user\'s request, ' .
-                'use this tool with a descriptive query to search the tool registry for additional capabilities.',
+            'description' => 'Last-resort capability discovery. Use this ONLY when none of the other listed '
+                . 'skills can fulfil the request — i.e. the user wants an action or capability that no available '
+                . 'skill represents (for example: downloading or issuing a certificate, exporting or importing data, '
+                . 'a feature with no matching skill in the list). Pass a descriptive query of the wanted capability; '
+                . 'it searches the full tool registry for skills not currently shown. Always prefer a concrete '
+                . 'matching skill when one exists — pick this only as the fallback, never for a request another '
+                . 'listed skill already covers.',
             'readonly' => true,
             'properties' => [
                 'query' => [
