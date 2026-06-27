@@ -50,12 +50,12 @@ use bookingextension_agent\local\wizard\services\telemetry\routing_decision_log_
  * phases are coupled through the selection -> construction handoff, so they
  * share one service and one injected collaborator set. Phase-local helpers
  * (selection normalization, construction catalog enrichment, contract/provider
- * error payloads, handoff observations) move in with the phases. The
- * build_system_prompt / build_prompt wrappers are replicated to preserve the
- * userid/contextid argument swap into the bundle builder; json_encode_or_empty
- * is duplicated.
+ * error payloads, handoff observations) move in with the phases. The shared prompt wrappers
+ * (build_system_prompt / build_prompt, incl. the userid/contextid swap, + json_encode_or_empty)
+ * live in planner_phase_prompt_trait.
  */
 class planner_phase_service {
+    use planner_phase_prompt_trait;
 
     /** @var conversation_store */
     private conversation_store $store;
@@ -742,98 +742,4 @@ class planner_phase_service {
         return $observations;
     }
 
-    /**
-     * Build the planner system prompt via the shared bundle builder.
-     *
-     * Mirrors orchestrator::build_system_prompt (note the userid/contextid argument
-     * swap when delegating to phase_prompt_bundle_builder).
-     *
-     * @param int $contextid
-     * @param int $userid
-     * @param string $phase
-     * @param string $actionclass
-     * @param bool $hasobservations
-     * @param array|null $adaptivecatalog
-     * @param array $systemskillcatalog
-     * @param bool $isfirstassistantturn
-     * @param bool $includeskillcatalog
-     * @return string
-     */
-    private function build_system_prompt(
-        int $contextid,
-        int $userid,
-        string $phase = orchestrator::PHASE_DISCOVERY,
-        string $actionclass = generate_text::class,
-        bool $hasobservations = false,
-        ?array $adaptivecatalog = null,
-        array $systemskillcatalog = [],
-        bool $isfirstassistantturn = false,
-        bool $includeskillcatalog = false
-    ): string {
-        return $this->promptbundlebuilder->build_system_prompt(
-            $userid,
-            $contextid,
-            $phase,
-            $actionclass,
-            $hasobservations,
-            $adaptivecatalog,
-            $systemskillcatalog,
-            $isfirstassistantturn,
-            $includeskillcatalog
-        );
-    }
-
-    /**
-     * Build the full prompt string via the shared bundle builder.
-     *
-     * Mirrors orchestrator::build_prompt.
-     *
-     * @param string $systemprompt
-     * @param \stdClass[] $messages
-     * @param string[] $observations
-     * @param string $phase
-     * @param string $runtimecontext
-     * @param string[] $plannertracehistory
-     * @param bool $autoconfirmmode
-     * @param array $plannedstepintents
-     * @param string $runtimestate
-     * @return string
-     */
-    private function build_prompt(
-        string $systemprompt,
-        array $messages,
-        array $observations = [],
-        string $phase = orchestrator::PHASE_DISCOVERY,
-        string $runtimecontext = '',
-        array $plannertracehistory = [],
-        bool $autoconfirmmode = false,
-        array $plannedstepintents = [],
-        string $runtimestate = ''
-    ): string {
-        return $this->promptbundlebuilder->build_prompt(
-            $systemprompt,
-            $messages,
-            $observations,
-            $phase,
-            $runtimecontext,
-            $plannertracehistory,
-            $autoconfirmmode,
-            $plannedstepintents,
-            $runtimestate
-        );
-    }
-
-    /**
-     * Encode a value as JSON, returning an empty string on failure.
-     *
-     * Duplicated from orchestrator (small shared helper).
-     *
-     * @param mixed $value
-     * @param int $flags
-     * @return string
-     */
-    private function json_encode_or_empty($value, int $flags = 0): string {
-        $json = json_encode($value, $flags);
-        return $json === false ? '' : $json;
-    }
 }

@@ -57,10 +57,11 @@ use bookingextension_agent\local\wizard\services\llm\llm_call_service;
  * Extracted verbatim from orchestrator::run_discovery_phase (orchestrator split,
  * discovery seam). Collaborators that were orchestrator fields are injected; the
  * many embedding/family sub-services are still instantiated locally per run, just
- * as before. Discovery-only helpers moved in with the phase; shared helpers
- * (is_first_assistant_turn, json_encode_or_empty) are duplicated.
+ * as before. Discovery-only helpers moved in with the phase; the shared prompt wrappers
+ * (build_system_prompt / build_prompt / json_encode_or_empty) live in planner_phase_prompt_trait.
  */
 class discovery_phase_service {
+    use planner_phase_prompt_trait;
 
     /** Wunderbyte planner decide action class name (mirrors orchestrator private const). */
     private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
@@ -592,87 +593,6 @@ class discovery_phase_service {
     }
 
     /**
-     * Build the discovery/selection system prompt via the shared bundle builder.
-     *
-     * Mirrors orchestrator::build_system_prompt (note the userid/contextid argument
-     * swap when delegating to phase_prompt_bundle_builder).
-     *
-     * @param int $contextid
-     * @param int $userid
-     * @param string $phase
-     * @param string $actionclass
-     * @param bool $hasobservations
-     * @param array|null $adaptivecatalog
-     * @param array $systemskillcatalog
-     * @param bool $isfirstassistantturn
-     * @param bool $includeskillcatalog
-     * @return string
-     */
-    private function build_system_prompt(
-        int $contextid,
-        int $userid,
-        string $phase = orchestrator::PHASE_DISCOVERY,
-        string $actionclass = generate_text::class,
-        bool $hasobservations = false,
-        ?array $adaptivecatalog = null,
-        array $systemskillcatalog = [],
-        bool $isfirstassistantturn = false,
-        bool $includeskillcatalog = false
-    ): string {
-        return $this->promptbundlebuilder->build_system_prompt(
-            $userid,
-            $contextid,
-            $phase,
-            $actionclass,
-            $hasobservations,
-            $adaptivecatalog,
-            $systemskillcatalog,
-            $isfirstassistantturn,
-            $includeskillcatalog
-        );
-    }
-
-    /**
-     * Build the full prompt string via the shared bundle builder.
-     *
-     * Mirrors orchestrator::build_prompt.
-     *
-     * @param string $systemprompt
-     * @param \stdClass[] $messages
-     * @param string[] $observations
-     * @param string $phase
-     * @param string $runtimecontext
-     * @param string[] $plannertracehistory
-     * @param bool $autoconfirmmode
-     * @param array $plannedstepintents
-     * @param string $runtimestate
-     * @return string
-     */
-    private function build_prompt(
-        string $systemprompt,
-        array $messages,
-        array $observations = [],
-        string $phase = orchestrator::PHASE_DISCOVERY,
-        string $runtimecontext = '',
-        array $plannertracehistory = [],
-        bool $autoconfirmmode = false,
-        array $plannedstepintents = [],
-        string $runtimestate = ''
-    ): string {
-        return $this->promptbundlebuilder->build_prompt(
-            $systemprompt,
-            $messages,
-            $observations,
-            $phase,
-            $runtimecontext,
-            $plannertracehistory,
-            $autoconfirmmode,
-            $plannedstepintents,
-            $runtimestate
-        );
-    }
-
-    /**
      * Extract skill names from recent messages for recency boosting.
      *
      * Scans assistant responses for attempted/executed skill calls (from message metadata).
@@ -805,17 +725,4 @@ class discovery_phase_service {
         return $history;
     }
 
-    /**
-     * Encode a value as JSON, returning an empty string on failure.
-     *
-     * Duplicated from orchestrator (small shared helper).
-     *
-     * @param mixed $value
-     * @param int $flags
-     * @return string
-     */
-    private function json_encode_or_empty($value, int $flags = 0): string {
-        $json = json_encode($value, $flags);
-        return $json === false ? '' : $json;
-    }
 }
