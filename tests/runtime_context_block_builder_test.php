@@ -94,4 +94,26 @@ final class runtime_context_block_builder_test extends advanced_testcase {
         $this->assertStringNotContainsString('booking_name', $block['stable']);
         $this->assertStringNotContainsString('booking_name', $block['volatile']);
     }
+
+    /**
+     * Selection must receive the structured moodle_context (so the CONTEXT-AWARE PLANNING rule is
+     * data-backed), but in the VOLATILE half so it never busts the cached skill-catalog prefix.
+     */
+    public function test_selection_gets_moodle_context_in_the_volatile_half(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Algebra 101']);
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+
+        $block = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION);
+
+        $this->assertStringContainsString('moodle_context:', $block['volatile']);
+        $this->assertStringContainsString('Algebra 101', $block['volatile']);
+        // Must stay OUT of the cached prefix (would otherwise break cross-context catalog caching).
+        $this->assertStringNotContainsString('moodle_context:', $block['stable']);
+    }
 }

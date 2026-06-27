@@ -140,17 +140,23 @@ class runtime_context_block_builder {
             'context_name: ' . $contextname,
         ];
 
-        // Rich context awareness: a structured moodle_context block, injected ONLY where
-        // it earns its tokens — parameter construction (the constructor needs real ids to
-        // fill parameters without clarification round-trips) and the synchronizer (the
-        // final reply references the user's current environment). Selection stays slim:
-        // the skill choice follows intent, not course structure.
+        // Rich context awareness: a structured moodle_context block (course/activity ids + names).
+        // Construction (the constructor needs real ids to fill parameters without clarification
+        // round-trips) and the synchronizer (the final reply references the user's environment) get it
+        // in the per-thread-stable half. Selection ALSO gets it — but in the VOLATILE half — so the
+        // [SYSTEM] CONTEXT-AWARE PLANNING rule ("skip a search/resolution step when the target IS the
+        // current context") is actually backed by data at the phase that routes, instead of referencing
+        // an absent field. Volatile placement keeps it out of the cached skill-catalog prefix.
         // Data sources are cache-backed only: agent_context (static context cache) and
         // get_fast_modinfo (MUC) — no extra DB load per request. Never breaks the prompt.
         $fullcontextblock = ($phase === orchestrator::PHASE_PARAMETER_CONSTRUCTION)
             || ($memorychannel === user_memory_service::SCOPE_SYNCHRONIZATION);
-        if ($fullcontextblock && $blockcontext) {
-            $this->append_moodle_context_section($lines, $blockcontext);
+        if ($blockcontext) {
+            if ($fullcontextblock) {
+                $this->append_moodle_context_section($lines, $blockcontext);
+            } else if ($phase === orchestrator::PHASE_SELECTION) {
+                $this->append_moodle_context_section($statelines, $blockcontext);
+            }
         }
 
         // Current-page hint (VOLATILE): where the user actually is right now — pagetype, course,
