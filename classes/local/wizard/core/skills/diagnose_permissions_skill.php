@@ -95,6 +95,14 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                 . 'capability question, pass the technical capability name in `capability` (e.g. mod/booking:addoption). '
                 . 'NOT for "who all has right Z" and not for access/enrolment/grades.',
             'readonly' => true,
+            'example_utterances' => [
+                'why can\'t this teacher edit the activity',
+                'what roles does this user have in the course',
+                'is she allowed to add booking options here',
+                'why is this user missing the permission to grade',
+                'which role is preventing him from doing this',
+                'does this person have the capability to manage the course',
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

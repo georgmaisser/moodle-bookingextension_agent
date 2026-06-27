@@ -115,6 +115,13 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 . 'questions (from a document/PDF or a topic), specific existing questions, or random questions from '
                 . 'a question category. To only add questions to the bank (no quiz) use question.generate_questions.',
             'readonly' => false,
+            'example_utterances' => [
+                'create a quiz for this course',
+                'add a new test with 10 questions',
+                'make a quiz from this PDF',
+                'set up an empty quiz I can fill later',
+                'build a quiz from the photosynthesis topic',
+            ],
             'properties' => [
                 'name' => [
                     'type' => 'string',

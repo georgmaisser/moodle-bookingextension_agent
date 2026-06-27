@@ -65,6 +65,13 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
                 . 'User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'agent_memory_list_skillcall',
+            'example_utterances' => [
+                'what do you know about me',
+                'what have you remembered about me',
+                'list everything you have stored about me',
+                'show me my saved preferences',
+                'what facts have I asked you to keep',
+            ],
             'properties' => [],
             'prompt_meta' => [
                 'intent' => 'List the facts/preferences the user previously asked the agent to remember.',

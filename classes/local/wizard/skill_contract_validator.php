@@ -87,6 +87,14 @@ class skill_contract_validator {
             'active' => array_key_exists('active', $governance) ? (bool)$governance['active'] : true,
             'alias_of' => trim((string)($governance['alias_of'] ?? '')),
             'always_available' => (bool)($governance['always_available'] ?? false),
+            // Multi-vector discovery anchors: short English utterances a user might say to invoke this
+            // skill. Each becomes a SEPARATE embedding anchor alongside the description (anchor #0).
+            // Discovery is purely semantic — these are NOT lexical/substring triggers.
+            // See docs/Blueprints/SKILL_REWORK.md §5.
+            'example_utterances' => array_values(array_filter(array_map(
+                static fn ($u): string => trim((string)$u),
+                (array)($schema['example_utterances'] ?? [])
+            ))),
             'deprecated_since' => trim((string)($governance['deprecated_since'] ?? '')),
             'readonly' => (bool)$skill->is_read_only(),
             'risk_class' => trim((string)$skill->get_risk_class()),

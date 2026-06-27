@@ -109,6 +109,13 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 . 'category). Use for "add 5 questions to Quiz 3", "rename the quiz", "add questions to the quiz", '
                 . '"hide the quiz". To CREATE a new quiz use course.add_quiz.',
             'readonly' => false,
+            'example_utterances' => [
+                'add 5 questions to the existing quiz',
+                'put more questions into Chapter 1 quiz',
+                'rename Quiz 3 to Final exam',
+                'hide the quiz from students',
+                'add questions from the algebra category to the quiz',
+            ],
             'properties' => [
                 'activityquery' => [
                     'type' => 'string',

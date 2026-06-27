@@ -115,6 +115,25 @@ flowchart TD
     end
 
     %% =========================================================
+    %% MULTI-VECTOR SEMANTIC DISCOVERY (SKILL_REWORK.md §5) — the ONE correct discovery mechanism
+    %% This is the detailed, canonical skill-discovery path. It SUPERSEDES the old single-vector
+    %% skill top-k (one embedding per skill). It is governed by DISCO_RULE: 100% semantic, never lexical.
+    %% =========================================================
+    subgraph MV["Multi-Vector Semantic Discovery — canonical skill-discovery path (SKILL_REWORK.md §5)"]
+        MV_ANCHORS["1) PER-SKILL ANCHORS — source of the vectors\nskill_contract_validator + skill_registry::build_prompt_contract carry:\n  • anchor #0 = description (English, also the compact catalog line)\n  • anchors #1..N = example_utterances[] (3-6 English, DISCRIMINATIVE phrases a user would say)\nEnglish-only; these are SEMANTIC anchors, NOT lexical triggers.\nSTATUS: IMPLEMENTED (increment 2a) — utterances authored on all skills + plumbed into the contract."]
+        MV_BUILD["2) INDEX BUILD — embeddings_catalog_builder_service::build_full_catalog_rows\nemit ONE ROW PER ANCHOR (not one per skill):\n  (skill, anchor_kind=description|utterance, anchor_index, anchor_text, model, dims, content_hash)\nto_embedding_input = the anchor text ALONE → a clean vector that matches a real intent\n(no 'skill:/intent:/json' blob, no message_triggers, no contextual_prompt_packs).\nembed EACH anchor separately. content_hash is per-anchor (reuse unchanged on rebuild).\nSTATUS: TARGET (increment 2b — requires an embeddings rebuild; gated on Georg's go)."]
+        MV_STORE["3) STORE — embeddings_csv_repository (skill-catalog index, per model+dims)\nrows keyed by (skill, anchor_index); MANY anchor rows share one skill.\nCSV gains columns: anchor_kind, anchor_index, anchor_text.\nThe docs index (docs_embeddings_*) is SEPARATE and stays single-vector.\nSTATUS: TARGET (increment 2b)."]
+        MV_RETRIEVE["4) RETRIEVAL — embeddings_retrieval_service (multi-vector aggregation)\na. embed the query (from embedding_query_builder)\nb. cosine(query, EVERY anchor row)\nc. group by skill → take the MAX anchor score per skill (best-matching anchor wins)\nd. sort skills by that max → keep top-12 DISTINCT skills (EMBEDDINGS_DEFAULT_TOP_K = 12)\ne. SEMANTIC_MIN_SCORE gate on each skill's best anchor\nNB: distinct-skill aggregation is REQUIRED — without it several anchors of one skill would crowd the top-k.\nSTATUS: TARGET (increment 2b)."]
+        MV_SUBSET["5) PLANNER CANDIDATES — build_planner_catalog_subset(top-12 skills)\n→ the candidate skill catalog handed to the selector (selection phase)\ncarries, per skill, which anchor matched + its score (for debugging)."]
+        MV_DEBUG["6) DEBUG — skill_selection_debug_service\nlog per candidate: matched anchor_kind + anchor_text + score (debug token 'mv').\nA discovery MISS is therefore diagnosed as an ANCHOR/MODEL gap → fix utterances or the model,\nNEVER add a lexical trigger (DISCO_RULE).\nSTATUS: TARGET (increment 2b)."]
+        MV_ANCHORS --> MV_BUILD
+        MV_BUILD --> MV_STORE
+        MV_STORE -.->|"query time"| MV_RETRIEVE
+        MV_RETRIEVE --> MV_SUBSET
+        MV_RETRIEVE -.->|"trace"| MV_DEBUG
+    end
+
+    %% =========================================================
     %% USER MEMORY (user-stated facts/preferences)
     %% =========================================================
     subgraph USERMEM["User Memory — user-stated facts/preferences (global per user)"]
@@ -324,6 +343,9 @@ flowchart TD
     ORC --> EMB_AVAIL
     EMB_AVAIL -->|yes: semantic family retrieval| EMB_QUERY
     DISCO_RULE -.->|"BINDING: semantic only — never lexical"| EMB_QUERY
+    DISCO_RULE -.->|"governs"| MV_ANCHORS
+    EMB_QUERY -->|"embedded query (semantic skill discovery)"| MV_RETRIEVE
+    MV_SUBSET -->|"top-12 candidate skills"| SKILLLOAD
     EMB_QUERY --> FEMB
     EMB_AVAIL -->|no: deterministic context/signal path| FSIG
     DISC_CTX --> FSIG

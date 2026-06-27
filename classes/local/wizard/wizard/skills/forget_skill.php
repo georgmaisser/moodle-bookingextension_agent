@@ -68,6 +68,13 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'agent_memory_forget_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_forget_skillcall',
+            'example_utterances' => [
+                'forget that I prefer morning bookings',
+                'delete the preference about room B',
+                'stop remembering my employee id',
+                'forget everything you know about me',
+                'remove that saved fact',
+            ],
             'properties' => [
                 'query' => [
                     'type' => 'string',

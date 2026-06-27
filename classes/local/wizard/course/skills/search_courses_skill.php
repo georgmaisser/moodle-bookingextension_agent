@@ -62,6 +62,13 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
                 . 'a concrete course identity or link, or when the user asks which courses exist.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_courses',
+            'example_utterances' => [
+                'find the course called Biology 101',
+                'which courses exist on this platform',
+                'list all courses',
+                'search for courses about mathematics',
+                'what is the course id for Intro to Programming',
+            ],
             'properties' => [
                 'query' => [
                     'type' => 'string',

@@ -113,6 +113,14 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 . '"create a forum", "create a label"). It does NOT create quiz '
                 . 'questions (use question.generate_questions for that).',
             'readonly' => false,
+            'example_utterances' => [
+                'add a page to week 2',
+                'put a forum in this course',
+                'create a label with some intro text',
+                'add a link to our syllabus PDF',
+                'insert a folder into the introduction section',
+                'add a book resource to the course',
+            ],
             'properties' => [
                 'modname' => [
                     'type' => 'string',

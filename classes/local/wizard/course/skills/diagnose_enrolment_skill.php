@@ -93,6 +93,14 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
                 . 'expired). Use for "why was Maria not auto-enrolled", "warum ist Tom nicht im Kurs eingeschrieben", '
                 . '"cohort sync not working". NOT for booking, access/visibility, or grades.',
             'readonly' => true,
+            'example_utterances' => [
+                'this user isn\'t enrolled even though they should be',
+                'why wasn\'t she auto-enrolled in the course',
+                'the cohort sync didn\'t enrol these students',
+                'his enrolment expired and he\'s no longer in the course',
+                'self enrolment isn\'t working for this course',
+                'why is the enrolment key not letting them in',
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

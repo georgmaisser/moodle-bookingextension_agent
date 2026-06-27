@@ -111,6 +111,13 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
                 . 'Abschnitte hat der Kurs", "was ist im Kurs Mathematik". It is the prerequisite for later '
                 . 'placing something into a section. It only READS; it never creates or changes anything.',
             'readonly' => true,
+            'example_utterances' => [
+                'what is in this course',
+                'show me the sections and activities of this course',
+                'give me an overview of the course structure',
+                'list the topics in the Biology course',
+                'which activities does this course contain',
+            ],
             'properties' => [
                 'coursequery' => [
                     'type' => 'string',

@@ -118,6 +118,13 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 . 'created or inserted into Moodle (e.g. "make me a question", "create a question", '
                 . '"create a quiz", "create questions from the document", "insert a question in Moodle").',
             'readonly' => false,
+            'example_utterances' => [
+                'create quiz questions from this PDF',
+                'make me a multiple choice question about photosynthesis',
+                'generate 10 test questions from the document',
+                'add some questions to the question bank',
+                'turn this material into a quiz',
+            ],
             'properties' => [
                 'content' => [
                     'type' => 'string',

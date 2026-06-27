@@ -92,6 +92,14 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
                 . '(with the real "not available until …" reason), and group-mode membership. Use for "why can\'t '
                 . 'Maria see the quiz", "warum kommt Tom nicht in den Kurs", "why is this activity greyed out".',
             'readonly' => true,
+            'example_utterances' => [
+                'why can\'t this student open the course',
+                'this user can\'t see the quiz',
+                'why is the assignment greyed out for her',
+                'the activity is hidden for this learner',
+                'he can\'t access the course at all',
+                'why is this section locked for the student',
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

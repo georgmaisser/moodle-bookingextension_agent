@@ -92,6 +92,14 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
                 . '"why does Maria get no e-mails", "warum bekommt Tom keine Benachrichtigungen". For booking '
                 . 'confirmation/reminder mails about a specific option, mod_booking.diagnose_user_booking is better.',
             'readonly' => true,
+            'example_utterances' => [
+                'the confirmation email never arrived',
+                'why does this user get no emails from the system',
+                'she isn\'t receiving any notifications',
+                'no reminder emails are reaching him',
+                'why aren\'t my Moodle emails coming through',
+                'this account stopped getting email alerts',
+            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

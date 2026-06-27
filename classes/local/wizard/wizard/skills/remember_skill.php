@@ -72,6 +72,13 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'agent_memory_remember_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_remember_skillcall',
+            'example_utterances' => [
+                'remember that I prefer morning bookings',
+                'keep in mind that my employee id is 12345',
+                'always address me as Dr. Smith',
+                'note that I always need room B',
+                'save this preference for next time',
+            ],
             'properties' => [
                 'memory' => [
                     'type' => 'string',

@@ -97,6 +97,13 @@ class explain_docs_skill extends core_skill_base implements
                 . 'questions from general knowledge.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_action_core_explain_docs',
+            'example_utterances' => [
+                'how do I set up a booking rule',
+                'how does the waiting list work',
+                'what does the placeholder feature mean',
+                'where do I configure booking conditions',
+                'explain how option dates work',
+            ],
             'properties' => [
                 'question' => [
                     'type' => 'string',

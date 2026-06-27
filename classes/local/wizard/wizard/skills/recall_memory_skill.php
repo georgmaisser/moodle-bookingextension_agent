@@ -81,6 +81,13 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'ai_status_confirm_booking_recall_memory',
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_recall_memory',
+            'example_utterances' => [
+                'what did we talk about last time',
+                'what did we discuss yesterday',
+                'remind me what we covered last Friday',
+                'show me that document we looked at earlier',
+                'did we discuss user X before',
+            ],
             'properties' => [
                 'mode' => [
                     'type' => 'string',

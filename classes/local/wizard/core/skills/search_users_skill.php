@@ -60,6 +60,13 @@ class search_users_skill extends core_skill_base implements
                 . 'follow-up skill needs a concrete user identity.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_users',
+            'example_utterances' => [
+                'find the user named John Smith',
+                'look up a user by their email address',
+                'search for a person in the system',
+                'which user has the id 42',
+                'find another teacher account',
+            ],
             'properties' => [
                 'query' => [
                     'type' => 'string',

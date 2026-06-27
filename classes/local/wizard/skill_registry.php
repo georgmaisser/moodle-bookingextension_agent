@@ -529,6 +529,12 @@ class skill_registry {
                 : 'skill',
             'anchors' => $anchorfields,
             'always_available' => (bool)($skillmeta['always_available'] ?? false),
+            // Multi-vector semantic discovery anchors (English); each is embedded separately next to
+            // the description. See docs/Blueprints/SKILL_REWORK.md §5.
+            'example_utterances' => array_values(array_filter(array_map(
+                'strval',
+                (array)($schema['example_utterances'] ?? ($skillmeta['example_utterances'] ?? []))
+            ))),
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
             'namespace' => $namespace,

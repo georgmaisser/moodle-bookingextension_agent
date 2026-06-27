@@ -110,6 +110,13 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 . '"rename the page to X", "hide the forum", "change the activity\'s URL", "hide the quiz". '
                 . 'Only the fields you give are changed. To CREATE a new activity use course.add_activity instead.',
             'readonly' => false,
+            'example_utterances' => [
+                'rename the Welcome page to Course intro',
+                'hide the forum from students',
+                'change the description of the folder',
+                'make the link point to a new URL',
+                'show the page that is currently hidden',
+            ],
             'properties' => [
                 'activityquery' => [
                     'type' => 'string',

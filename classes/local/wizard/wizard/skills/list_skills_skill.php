@@ -76,6 +76,13 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                 . ' Use this ONLY when the user asks what the agent CAN DO or which agent skills/commands exist.'
                 . ' Do NOT use for regular entity listing requests; use the appropriate search/list skill instead. ',
             'readonly' => true,
+            'example_utterances' => [
+                'what can you do',
+                'what are you capable of',
+                'list the actions this agent supports',
+                'which commands do you understand',
+                'show me everything you can help with',
+            ],
             'properties' => [
                 'question' => [
                     'type' => 'string',
