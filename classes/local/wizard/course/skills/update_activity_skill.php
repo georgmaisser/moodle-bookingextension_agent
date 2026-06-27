@@ -207,7 +207,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             [
                 'id' => 'course.update_activity',
                 'triggers' => [
-                    'rename', 'umbenennen', 'benenne um', 'hide', 'verstecken', 'ausblenden', 'show', 'einblenden',
+                    'rename', 'hide', 'show', 'unhide',
                     'make visible', 'change the', 'edit the', 'update the activity',
                     'change the url', 'rename page', 'hide forum',
                 ],

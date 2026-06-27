@@ -238,7 +238,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
             [
                 'id' => 'course.add_quiz',
                 'triggers' => [
-                    'create a quiz', 'create a test', 'make a quiz', 'quiz erstellen', 'test erstellen',
+                    'create a quiz', 'create a test', 'make a quiz', 'make a test', 'add a quiz',
                     'create quiz', 'quiz from pdf', 'quiz with questions', 'new quiz', 'new test',
                 ],
                 'guidance' => [

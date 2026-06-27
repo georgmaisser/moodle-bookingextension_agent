@@ -40,7 +40,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      *
      * Decision (Georg, 2026-06-11): storing a note the user EXPLICITLY asked the
      * agent to remember is a write to the user's own preference store only —
-     * a confirmation round-trip ("merke dir X" → "soll ich?" → "ja") is pure
+     * a confirmation round-trip ("remember X" → "shall I?" → "yes") is pure
      * friction. The destructive counterpart wizard.forget stays R2 with explicit
      * confirmation, so nothing is lost without a guarded path.
      */
@@ -128,7 +128,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      */
     public function get_example_input(): array {
         return [
-            'memory' => "Sprich den User immer mit 'Dr. Smith' an.",
+            'memory' => "Always address the user as 'Dr. Smith'.",
             'relevant_for' => [user_memory_service::SCOPE_SYNCHRONIZATION],
         ];
     }
@@ -145,7 +145,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                 'description' => 'User asks the agent to remember a fact, preference or standing instruction '
                     . 'about themselves (stored facts, not previous conversation).',
                 'examples' => [
-                    'merk dir das: Ich bevorzuge Buchungen am Vormittag',
+                    'remember this: I prefer morning bookings',
                     'remember that my employee id is 12345',
                     'please remember that I always need room B',
                 ],

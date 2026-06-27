@@ -98,7 +98,7 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
                 'description' => 'User asks what stored facts/preferences the agent has about them.',
                 'examples' => [
                     'what do you know about me?',
-                    'zeige meine gespeicherten Einstellungen',
+                    'show my saved preferences',
                     'what have you remembered about me?',
                 ],
             ],

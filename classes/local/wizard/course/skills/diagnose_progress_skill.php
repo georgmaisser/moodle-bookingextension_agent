@@ -109,7 +109,7 @@ class diagnose_progress_skill extends core_skill_base implements skill_trigger_p
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Name, e-mail or id of the person. "me"/"ich" or empty = the current user. '
+                    'description' => 'Name, e-mail or id of the person. "me" or empty = the current user. '
                         . 'Resolve ambiguous names via core.search_users.',
                     'required' => false,
                 ],
@@ -148,7 +148,7 @@ class diagnose_progress_skill extends core_skill_base implements skill_trigger_p
      * @return array<string,mixed>
      */
     public function get_example_input(): array {
-        return ['userquery' => 'Maria Muster'];
+        return ['userquery' => 'Maria Jones'];
     }
 
     /**

@@ -179,8 +179,8 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 'description' => 'User asks what was discussed previously.',
                 'examples' => [
                     'what did we talk about last time',
-                    'kannst du dich erinnern, was wir gestern gesprochen haben?',
-                    'didn’t we talk about user x',
+                    'can you remember what we discussed yesterday?',
+                    'didn\'t we talk about user x',
                 ],
             ],
             [

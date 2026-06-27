@@ -103,7 +103,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Name, e-mail or id of the person. "me"/"ich" or empty = the current user. '
+                    'description' => 'Name, e-mail or id of the person. "me" or empty = the current user. '
                         . 'Resolve ambiguous names via core.search_users.',
                     'required' => false,
                 ],
@@ -126,7 +126,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
      * @return array<string,mixed>
      */
     public function get_example_input(): array {
-        return ['userquery' => 'Maria Muster'];
+        return ['userquery' => 'Maria Jones'];
     }
 
     /**
@@ -144,7 +144,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
                     'Why is Maria not getting any e-mails from Moodle?',
                     'Why is Tom not getting any notifications?',
                     'Why are notifications not reaching this user?',
-                    'Ich bekomme keine Mails vom System.',
+                    'I am not getting any emails from the system.',
                 ],
             ],
         ];
@@ -160,8 +160,8 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
             [
                 'id' => 'core.diagnose_notifications',
                 'triggers' => [
-                    'keine mail', 'keine mails', 'keine e-mail', 'keine benachrichtigung', 'keine benachrichtigungen',
-                    'no email', 'no emails', 'no notification', 'not receiving',
+                    'no email', 'no emails', 'no notification', 'no notifications',
+                    'not receiving emails', 'not receiving',
                     'notifications not', 'mail not arriving',
                 ],
                 'guidance' => [

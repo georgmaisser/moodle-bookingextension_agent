@@ -114,7 +114,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
      */
     public function get_example_input(): array {
         return [
-            'query' => 'Buchungen am Vormittag',
+            'query' => 'morning bookings',
         ];
     }
 

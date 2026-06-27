@@ -103,7 +103,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             'properties' => [
                 'userquery' => [
                     'type' => 'string',
-                    'description' => 'Name, e-mail or id of the person to check. "me"/"ich" = current user. Leave empty '
+                    'description' => 'Name, e-mail or id of the person to check. "me" = current user. Leave empty '
                         . 'to diagnose yourself. If a name is ambiguous, call core.search_users first and pass userid.',
                     'required' => false,
                 ],
@@ -143,7 +143,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
      * @return array<string,mixed>
      */
     public function get_example_input(): array {
-        return ['userquery' => 'Maria Muster', 'activityquery' => 'Quiz 3'];
+        return ['userquery' => 'Maria Jones', 'activityquery' => 'Quiz 3'];
     }
 
     /**

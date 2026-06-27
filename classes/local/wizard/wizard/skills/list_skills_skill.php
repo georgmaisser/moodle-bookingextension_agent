@@ -111,7 +111,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     public function get_example_input(): array {
         return [
             'scope' => 'all',
-            'question' => 'Was kannst du?',
+            'question' => 'What can you do?',
         ];
     }
 

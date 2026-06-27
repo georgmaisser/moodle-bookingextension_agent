@@ -174,7 +174,9 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
 
         // Discovery (embeddings + LLM retrieval) is engine machinery — it is injected by the executor
         // as a contract; this skill only maps its status to a user-facing message and formats output.
-        $discovery = ($this->discovery ?? new skill_discovery_service())->discover($query, $contextid, $userid, 5);
+        // Cast a WIDER net than the planner's own discovery top-k (which already missed the skill):
+        // this is the fallback, so it searches deep into the registry on the re-formulated query.
+        $discovery = ($this->discovery ?? new skill_discovery_service())->discover($query, $contextid, $userid, 25);
         if ($discovery['status'] !== skill_discovery_provider_interface::STATUS_OK) {
             return [
                 'status' => 'failed',

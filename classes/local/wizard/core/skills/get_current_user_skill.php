@@ -81,7 +81,7 @@ class get_current_user_skill extends core_skill_base implements
      */
     public function get_example_input(): array {
         return [
-            'outputlang' => 'de',
+            'outputlang' => 'en',
         ];
     }
 
@@ -112,7 +112,7 @@ class get_current_user_skill extends core_skill_base implements
                 'examples' => [
                     'Who am I?',
                     'Show my profile',
-                    'Zeige meinen Benutzernamen',
+                    'Show my username',
                 ],
             ],
         ];
@@ -128,11 +128,11 @@ class get_current_user_skill extends core_skill_base implements
             [
                 'id' => 'core.get_current_user',
                 'triggers' => [
-                    'who am i', 'show my profile', 'wer bin ich', 'zeige mein profil', 'my account',
+                    'who am i', 'show my profile', 'my account',
                 ],
                 'guidance' => [
                     '- Use core.get_current_user as a FIRST STEP when the request refers to "me",',
-                    '  "myself", "mich", or "meine Buchung" and you do not yet know the current userid.',
+                    '  "myself", "me", or "my booking" and you do not yet know the current userid.',
                     '- Execute this skill and wait for the observation; then pass the resolved userid',
                     '  to any follow-up skill that needs it (e.g. booking.book_users for self-booking).',
                     '- Only call this once per conversation turn unless the user explicitly asks again.',

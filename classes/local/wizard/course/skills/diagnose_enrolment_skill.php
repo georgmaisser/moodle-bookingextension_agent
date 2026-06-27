@@ -138,7 +138,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
      * @return array<string,mixed>
      */
     public function get_example_input(): array {
-        return ['userquery' => 'Maria Muster'];
+        return ['userquery' => 'Maria Jones'];
     }
 
     /**

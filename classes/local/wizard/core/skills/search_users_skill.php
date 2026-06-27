@@ -94,7 +94,7 @@ class search_users_skill extends core_skill_base implements
      */
     public function get_example_input(): array {
         return [
-            'query' => 'max.mustermann',
+            'query' => 'john.smith',
             'limit' => 5,
         ];
     }
@@ -111,7 +111,7 @@ class search_users_skill extends core_skill_base implements
                 'description' => 'User asks to find users by name, email or id.',
                 'examples' => [
                     'Find users called John',
-                    'Suche Benutzer nach E‑Mail',
+                    'Search users by email',
                     'Find user with id 42',
                 ],
             ],
@@ -128,8 +128,8 @@ class search_users_skill extends core_skill_base implements
             [
                 'id' => 'core.search_users',
                 'triggers' => [
-                    'find user', 'search user', 'suche benutzer', 'suche nutzer', 'finde benutzer',
-                    'find users', 'search users', 'finde nutzer', 'user lookup',
+                    'find user', 'search user',
+                    'find users', 'search users', 'user lookup',
                 ],
                 'guidance' => [
                     '- Use core.search_users as a FIRST STEP whenever you need to resolve a person by name,',
