@@ -25,6 +25,7 @@ use bookingextension_agent\local\wizard\services\assistant_state_guidance_servic
 use bookingextension_agent\local\wizard\services\completed_command_history_service;
 use bookingextension_agent\local\wizard\services\planner_catalog_service;
 use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
+use bookingextension_agent\local\wizard\services\user_memory_service;
 
 /**
  * The runtime context block must be generic and site-wide: it emits a "context_name" line for every
@@ -115,5 +116,32 @@ final class runtime_context_block_builder_test extends advanced_testcase {
         $this->assertStringContainsString('Algebra 101', $block['volatile']);
         // Must stay OUT of the cached prefix (would otherwise break cross-context catalog caching).
         $this->assertStringNotContainsString('moodle_context:', $block['stable']);
+    }
+
+    /**
+     * User memory is per-user, so it must live in the VOLATILE half — keeping it out of the cached
+     * prefix lets the static catalog cache across different users, not just one user's contexts.
+     */
+    public function test_user_memory_is_emitted_in_the_volatile_half(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        (new user_memory_service())->add(
+            (int)$user->id,
+            'Always reply in German',
+            [user_memory_service::SCOPE_SELECTION]
+        );
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+
+        $block = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION);
+
+        $this->assertStringContainsString('USER MEMORY', $block['volatile']);
+        $this->assertStringContainsString('Always reply in German', $block['volatile']);
+        $this->assertStringNotContainsString('USER MEMORY', $block['stable']);
     }
 }

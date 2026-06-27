@@ -182,9 +182,12 @@ class runtime_context_block_builder {
         // - synchronization: synchronizer final reply (process_synchronizer passes it explicitly,
         // because it also builds this block with PHASE_SELECTION and must not pull selection items).
         // Discovery makes no LLM call, so it carries no channel. Budget capped by the service.
+        // Emitted in the VOLATILE half: memories are PER-USER, so keeping them out of the cached
+        // [SYSTEM_RUNTIME] prefix lets the static skill catalog (slim_all path) cache across users, not
+        // just across one user's contexts. They sit closer to the decision (after history) too.
         $channel = $memorychannel !== '' ? $memorychannel : $this->memory_channel_for_phase($phase);
         if ($channel !== '') {
-            $this->append_user_memory_section($lines, $threadid, $channel);
+            $this->append_user_memory_section($statelines, $threadid, $channel);
         }
 
         if (!empty($skillcatalog)) {
