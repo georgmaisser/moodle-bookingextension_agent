@@ -154,7 +154,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
      * @return array<string,mixed>
      */
     public function get_example_input(): array {
-        return ['coursequery' => 'Mathematik 101'];
+        return ['coursequery' => 'Mathematics 101'];
     }
 
     /**
@@ -170,7 +170,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
                     . 'resources within (names, descriptions, visibility/restrictions) — e.g. to understand it or '
                     . 'before placing something into a section. Read-only.',
                 'examples' => [
-                    'Was ist alles im Kurs "Mathematik 101"?',
+                    'What is in the course "Mathematics 101"?',
                     'Show me the sections and activities of this course.',
                     'Which sections does the current course have?',
                     'What activities are in the course Biology?',
