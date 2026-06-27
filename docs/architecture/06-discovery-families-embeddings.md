@@ -64,9 +64,9 @@ is hardcoded, plus any `core.*` families from the contracts, hard-capped at
 `MAX_CORE_FAMILIES = 4`. This guarantees the engine's own safety/utility families are always
 in the candidate set regardless of context.
 
-> Note: `core.search_skills` reaches the planner not through the core *family* set but
-> through the adaptive catalog's **mandatory-skill** tier — it matches the engine-level
-> `MANDATORY_SKILL_KEYWORDS` (see [§4](#4-the-embedding-query)).
+> Note: `wizard.search_skills` reaches the planner not through the core *family* set but as the
+> single sanctioned force-include — a meta-skill whose anchors never match task queries, so it is
+> always added to the selector catalog as the RAG fallback (see [§4](#4-the-embedding-query)).
 
 ---
 
@@ -107,25 +107,22 @@ from being treated as a brand-new, contextless request — the pending intent ke
 anchored to what the agent was about to do. See [ch. 03 §5](03-conversation-store.md) for
 where `next_step_intent` is stored.
 
-`adaptive_skill_catalog_service::get_mandatory_skills()` force-includes a few skills in the
-post-discovery catalog regardless of ranking. A skill is mandatory when **either**:
+### Discovery is semantic-only — one sanctioned force-include
 
-- it declares `'governance' => ['always_available' => true]` in its `get_schema()` — this is
-  how **domain** skills opt in (e.g. `mod_booking.update_option_trainer`,
-  `mod_booking.book_users`), with **no** concrete skill names hardcoded in the engine; or
-- its name matches an engine-level keyword in
-  `MANDATORY_SKILL_KEYWORDS = ['help', 'search', 'list', 'get_skills']` — this is what keeps
-  the RAG fallback `core.search_skills` (and similar utility skills) always reachable.
+Discovery is **purely semantic** (the `DISCO_RULE` binding rule in the flowchart). There is **no**
+lexical "always-include" tier any more: the former `adaptive_skill_catalog_service::get_mandatory_skills()`,
+the `MANDATORY_SKILL_KEYWORDS` list, the per-skill `always_available` governance flag (it was on
+`mod_booking.book_users` and `mod_booking.update_option_trainer`), and `mandatory_on_trigger` /
+`intent_triggers` are all **removed**. A skill the top-k misses is an **embedding** problem — fixed via
+its anchors (`example_utterances`) or the embedding model, never lexically.
+(`adaptive_skill_catalog_service::get_adaptive_catalog()` now just returns the full catalog; the tier is gone.)
 
-> **Engine-boundary note.** This replaced the former hardcoded
-> `ALWAYS_INCLUDE_SKILL_NAMES = ['mod_booking.update_option_trainer', 'mod_booking.book_users',
-> 'core.search_skills']` constant. The engine no longer names any `mod_booking.*` skill; the
-> `always_available` flag is threaded generically from each skill's schema through
-> `skill_contract_validator::build_skill_metadata()` → `skill_registry::build_prompt_contract()`
-> → the catalog. See the engine boundary cleanup blueprint.
-
-These are the skills that must always be reachable: the highest-traffic domain actions (via
-their own `always_available` flag) and the RAG fallback that can find anything discovery missed.
+The **single sanctioned exception** is `wizard.search_skills`, force-added to the selector catalog
+(deduplicated) in addition to the semantic top-k by
+`discovery_phase_service::ensure_search_skills_fallback()`. It is a meta-skill ("search the registry")
+whose anchors can never match task queries, so top-k could never surface it — yet the planner must always
+be able to fall back to it. On execution it runs its own `discover()` with a wider k to search deep into
+the registry for whatever the planner's top-k missed.
 
 ---
 
@@ -227,9 +224,9 @@ by blending skill and family scores (default 0.7/0.3). See
 > bounded blend caps semantic influence at 30%. The `FRANK` node now states the real formula.
 
 > **✓ Confirmed:** dual path with deterministic fallback; query = latest message +
-> next_step_intent; mandatory tier = `always_available` governance flag (domain skills:
-> update_option_trainer + book_users) + `MANDATORY_SKILL_KEYWORDS` (engine-level: keeps
-> **search_skills** reachable); Stage budgets 12/24/36; confidence 0.60/0.45;
-> context prior is soft (`is_hard_filter = false`); low-score tail (max 2, min 0.15).
+> next_step_intent; discovery is semantic-only — the lexical mandatory tier (`always_available`,
+> `MANDATORY_SKILL_KEYWORDS`) is removed; the only force-include is **wizard.search_skills** via
+> `discovery_phase_service::ensure_search_skills_fallback()`; Stage budgets 12/24/36; confidence
+> 0.60/0.45; context prior is soft (`is_hard_filter = false`); low-score tail (max 2, min 0.15).
 
 See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for the consolidated log.

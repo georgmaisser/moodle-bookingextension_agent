@@ -95,12 +95,17 @@ over the built-in templates.
 
 ### The `[SYSTEM_RUNTIME]` block and rich context awareness
 
-`build_runtime_context_block()` keeps all per-request values out of the static `[SYSTEM]`
-prefix so upstream prompt caching stays effective. Base lines in every phase:
-`booking_name:` (booking instance name in booking module contexts, generic context name
-elsewhere), `timezone:`, and `now_iso:` — deliberately **minute-granular**, since a
-second-precise timestamp would make every request's prompt unique and defeat
-prompt-prefix caching.
+`build_runtime_context_block()` keeps per-request values out of the static `[SYSTEM]` (and
+`[OUTPUT_CONTRACT]`) prefix so upstream prompt caching stays effective. It emits TWO halves:
+
+- `[SYSTEM_RUNTIME]` — per-thread-stable, joins the cached prefix: `timezone:` (and, on the
+  slim_all / no-embeddings path only, the static skill catalog).
+- `[SYSTEM_RUNTIME_STATE]` — volatile, emitted **below** the user message so it never busts the
+  cached prefix: `context_name:` (the generic site-wide context name — the booking instance name in a
+  booking module, otherwise the Moodle context name; no longer a booking-specific `booking_name`),
+  `moodle_context:` (selection + construction + synchronizer), per-user memory, and `now_iso:` —
+  deliberately **minute-granular**, since a second-precise timestamp would otherwise make every
+  request unique and defeat prompt-prefix caching.
 
 On top of that, a structured **`moodle_context:`** YAML section (context id/level/name,
 enclosing course id/fullname/shortname, module cmid/modname/instance id/name) is appended

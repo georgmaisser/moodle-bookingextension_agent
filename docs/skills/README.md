@@ -118,12 +118,13 @@ always requires manual confirmation and never auto-retries (see
 
 ## Notes for skill authors
 
-- **Always-included skills.** A skill is force-included in the post-discovery catalog when it
-  declares `'governance' => ['always_available' => true]` in `get_schema()` (how domain skills
-  like `mod_booking.update_option_trainer` and `mod_booking.book_users` opt in), or when its
-  name matches an engine-level keyword in `MANDATORY_SKILL_KEYWORDS` (which keeps
-  `wizard.search_skills` reachable). The engine hardcodes **no** concrete skill names — see
-  [discovery](../architecture/06-discovery-families-embeddings.md#4-the-embedding-query).
+- **Discovery is semantic-only.** Skills are retrieved purely by embedding similarity (the
+  description + `example_utterances` anchors). There is **no** lexical "always-include" tier — the
+  `always_available` governance flag, `MANDATORY_SKILL_KEYWORDS` and `mandatory_on_trigger` /
+  `intent_triggers` are all removed. If a skill is not retrieved, fix its anchors (utterances),
+  never add a keyword. The single exception is `wizard.search_skills` (the RAG fallback), force-added
+  to the catalog by `discovery_phase_service::ensure_search_skills_fallback()` — see
+  [discovery](../architecture/06-discovery-families-embeddings.md).
 - **`override`** appears on most mutating booking skills: it is how the agent confirms past a
   soft block (e.g. a duplicate-title `DOMAIN_CONFLICT`).
 - **Option mutations** go through `mod_booking`'s `booking_option::update()` with form-style
