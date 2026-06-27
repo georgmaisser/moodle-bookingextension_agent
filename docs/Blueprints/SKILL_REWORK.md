@@ -276,3 +276,23 @@ Alle Anker English-only. Die Sprachbrücke (deutsche/… Query ↔ englische Ank
 
 ## 5.9 Modell-A/B
 Anker-Texte sind modell-agnostische Quelle. Pro Modell ein Index (`__<model>__<dim>.csv`), dieselben Szenarien über `benchmark_aggregate.php` (Multi-Run-Mittel) → Pro-Szenario-Pass-Rate vergleichen. So wird der Modellwechsel **gemessen**, nicht geraten.
+
+## 6. ZWEI-PFAD-CONSTRAINT — mit UND ohne Embeddings (Georg, 2026-06-27)
+
+**Beide Discovery-Pfade müssen weiter funktionieren.** Die Prompts/Kataloge werden für *beide* gebaut:
+
+- **MIT Embeddings:** Multi-Vector-Retrieval (§5) → **top-12 distinkte Skills** → kleiner Katalog → pro Skill darf reichlich Info rein.
+- **OHNE Embeddings (Fallback):** **VOLLER Katalog (alle ~33 Skills)** wird dem LLM präsentiert. Hier ist die Herausforderung: **genug Info, dass das LLM aus allen Skills korrekt wählt — ohne es zu überfordern** (Token-Budget + Entscheidungsqualität sinkt bei zu viel Rauschen).
+
+**Konsequenzen fürs Design:**
+- `example_utterances` sind **Embedding-Anker (Discovery)**, **nicht** zwingend Prompt-Text. Im **Voll-Katalog** (ohne Embeddings) werden sie **nicht** alle ausgeschüttet — sonst explodiert der Prompt. Dort: **kompakte 1-Zeilen-Repräsentation pro Skill** (Name + knappe Intent/`description`).
+- Der `description`-Text muss also **als Voll-Katalog-Zeile taugen** (kurz, distinkt) — doppelte Pflicht: Embedding-Anker #0 **und** kompakte Katalog-Zeile.
+- Renderer müssen pfad-bewusst sein: Top-12 (reich) vs. Voll (kompakt).
+
+### OFFEN — eigener Gesprächs-Punkt: der „alle Skills"-Katalog
+**MUSS später separat besprochen werden.** Bei wachsendem Katalog (heute ~33, Tendenz steigend) wird der Voll-Katalog-Prompt im No-Embeddings-Pfad zum Engpass (Überforderung/Token). Zu klärende Optionen (noch nicht entschieden):
+- Familien-Gruppierung im Voll-Katalog (erst Familie, dann Skills),
+- zweistufig (nur Namen + Kurz-Intent; Details on demand),
+- harte Kompaktierung der Voll-Katalog-Zeilen,
+- ggf. ein deterministischer Vor-Filter ohne Embeddings.
+→ **Nicht jetzt umsetzen — bewusst offen halten, bis Georg & ich das durchsprechen.**

@@ -109,29 +109,16 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
             'version' => 1,
             'description' => 'Add (create) an activity or resource in a Moodle course — a Page, URL/link, '
                 . 'Text/label, Book, Folder or Forum. Use this whenever the user wants to add, create or insert '
-                . 'an activity or resource into a course (e.g. "add a page", "erstelle eine Seite im Kurs", '
-                . '"füge einen Link/URL hinzu", "leg ein Forum an", "create a label"). It does NOT create quiz '
+                . 'an activity or resource into a course (e.g. "add a page", "add a URL/link", '
+                . '"create a forum", "create a label"). It does NOT create quiz '
                 . 'questions (use question.generate_questions for that).',
             'readonly' => false,
-            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_activity).
-            // Distinct from add_quiz (page/url/label/book/folder/forum → here; quiz/test → add_quiz).
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'aktivität hinzufügen', 'seite anlegen', 'url hinzufügen', 'link hinzufügen',
-                    'textfeld', 'label', 'buch', 'ordner', 'forum',
-                    // English.
-                    'add activity', 'create page', 'create url', 'create label',
-                    'create book', 'create folder', 'create forum',
-                ],
-            ],
             'properties' => [
                 'modname' => [
                     'type' => 'string',
                     'description' => 'The activity/resource type to add. Supported: '
                         . implode(', ', module_catalog_service::WHITELIST) . '. Pass the user\'s wording verbatim '
-                        . '(e.g. "page", "Seite", "url", "link", "forum"); the system resolves it to a real module '
+                        . '(e.g. "page", "url", "link", "forum"); the system resolves it to a real module '
                         . 'and, if unclear, lists the addable types. Leave empty if the user did not say which type.',
                     'required' => false,
                 ],
@@ -149,8 +136,8 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 ],
                 'section' => [
                     'type' => 'string',
-                    'description' => 'Where to place the activity: pass the user\'s wording verbatim — "top"/"ganz '
-                        . 'oben", "bottom"/"ganz unten", a section name (e.g. "Week 2", "Einführung"), or a section '
+                    'description' => 'Where to place the activity: pass the user\'s wording verbatim — "top", '
+                        . '"bottom", a section name (e.g. "Week 2"), or a section '
                         . 'number. Leave empty if the user did not say where; the system then lists the course '
                         . 'sections and asks.',
                     'required' => false,

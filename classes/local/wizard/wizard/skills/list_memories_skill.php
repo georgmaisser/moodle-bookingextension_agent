@@ -64,15 +64,6 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
                 . 'conversation (use wizard.recall_memory for past conversation). '
                 . 'User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'was weißt du über mich', 'was hast du gespeichert',
-                    // English.
-                    'what do you know about me', 'stored preferences',
-                ],
-            ],
             'fallback_skillcall_string_key' => 'agent_memory_list_skillcall',
             'properties' => [],
             'prompt_meta' => [

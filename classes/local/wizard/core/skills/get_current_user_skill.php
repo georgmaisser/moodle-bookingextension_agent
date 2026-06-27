@@ -57,15 +57,6 @@ class get_current_user_skill extends core_skill_base implements
             'version' => 1,
             'description' => 'Get information about the current executor user.',
             'readonly' => $this->is_read_only(),
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'wer bin ich', 'mein profil',
-                    // English.
-                    'who am i', 'my profile',
-                ],
-            ],
             'properties' => [
                 'outputlang' => [
                     'type' => 'string',

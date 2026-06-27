@@ -96,21 +96,6 @@ class explain_docs_skill extends core_skill_base implements
                 . 'strictly grounded: only the returned excerpt counts — never answer such '
                 . 'questions from general knowledge.',
             'readonly' => $this->is_read_only(),
-            // Must be offered whenever the user asks a documentation/explanation question, even when
-            // embedding top-k ranks domain skills above it. The engine injects on trigger match
-            // generically (no skill names in the engine); these markers live with the skill.
-            'governance' => [
-                'mandatory_on_trigger' => true,
-                'intent_triggers' => [
-                    // German.
-                    'erklär', 'erklar', 'was ist', 'was sind', 'wie funktion', 'wofür', 'wofur',
-                    'informationen zu', 'informationen über', 'informationen ueber', 'doku', 'dokumentation',
-                    'anleitung', 'beschreib',
-                    // English.
-                    'explain', 'what is', 'what are', 'how does', 'how do i', 'documentation', 'docs',
-                    'guide', 'tell me about', 'what does',
-                ],
-            ],
             'fallback_skillcall_string_key' => 'ai_action_core_explain_docs',
             'properties' => [
                 'question' => [

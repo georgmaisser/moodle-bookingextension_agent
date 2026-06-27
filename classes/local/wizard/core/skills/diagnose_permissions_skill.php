@@ -95,15 +95,6 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                 . 'capability question, pass the technical capability name in `capability` (e.g. mod/booking:addoption). '
                 . 'NOT for "who all has right Z" and not for access/enrolment/grades.',
             'readonly' => true,
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'welche rechte', 'welche rolle', 'berechtigung fehlt',
-                    // English.
-                    'capability', 'what roles', 'which permissions', 'access rights',
-                ],
-            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

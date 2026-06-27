@@ -97,15 +97,6 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
                 . 'reports stored facts for the model to explain. Use for "why is Maria\'s grade missing/wrong", '
                 . '"warum sieht der Student seine Note nicht". NOT for access, enrolment, permissions or notifications.',
             'readonly' => true,
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'falsche note', 'note fehlt', 'bewertung falsch',
-                    // English.
-                    'wrong grade', 'missing grade', 'gradebook issue',
-                ],
-            ],
             'properties' => [
                 'userquery' => [
                     'type' => 'string',

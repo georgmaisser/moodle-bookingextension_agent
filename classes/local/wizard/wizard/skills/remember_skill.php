@@ -70,15 +70,6 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                 . 'This stores user-stated facts — it is NOT for recalling previous conversation '
                 . '(use wizard.recall_memory for that). User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'merke dir', 'speichere dass',
-                    // English.
-                    'remember that', 'note that',
-                ],
-            ],
             'fallback_confirm_string_key' => 'agent_memory_remember_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_remember_skillcall',
             'properties' => [

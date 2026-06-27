@@ -115,17 +115,6 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 . 'questions (from a document/PDF or a topic), specific existing questions, or random questions from '
                 . 'a question category. To only add questions to the bank (no quiz) use question.generate_questions.',
             'readonly' => false,
-            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family course_activity).
-            // Distinct from add_activity (quiz/test → here; page/url/label/book/folder/forum → add_activity).
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'quiz', 'test erstellen', 'quiz anlegen', 'quiz aus pdf',
-                    // English.
-                    'create quiz', 'make a test',
-                ],
-            ],
             'properties' => [
                 'name' => [
                     'type' => 'string',

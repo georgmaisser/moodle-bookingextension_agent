@@ -438,14 +438,10 @@ class discovery_phase_service {
             }
         }
 
-        // Some skills must always be reachable when the user's message matches their declared intent
-        // (e.g. a documentation question -> wizard.explain_docs; a "what can you do" question ->
-        // wizard.list_skills), even when embedding top-k discovery ranked domain skills above them.
-        // This is fully skill-declared (governance mandatory_on_trigger + intent_triggers) — the
-        // engine carries no skill names or language keywords. The selector still decides.
-        if ($shouldincludeskillcatalog && isset($allpromptcontracts) && is_array($allpromptcontracts)) {
-            $runtimecatalog = $this->catalogsvc->ensure_trigger_mandatory_skills($runtimecatalog, $allpromptcontracts, $messages);
-        }
+        // Skill discovery is purely semantic (embedding multi-vector top-k); there is no lexical
+        // intent-trigger injection. A skill that is hard to reach is an embedding problem and is
+        // fixed via its anchors (description + example_utterances) or the embedding model, never by
+        // substring/keyword routing. See docs/Blueprints/SKILL_REWORK.md §5.
 
         $systemprompt = $this->build_system_prompt(
             $contextid,

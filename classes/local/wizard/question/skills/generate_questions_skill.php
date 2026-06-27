@@ -115,19 +115,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 . 'save them into the course question bank. The questions can be based EITHER on a document/PDF the '
                 . 'user uploaded OR on a topic, facts, or an explicit question and answer the user provides directly '
                 . 'in the chat — an upload is NOT required. Use this whenever the user wants a question, quiz or test '
-                . 'created or inserted into Moodle (e.g. "make me a question", "mach mir / erstelle eine Frage", '
-                . '"create a quiz", "erstelle Fragen aus dem Dokument", "Frage in Moodle einfügen").',
+                . 'created or inserted into Moodle (e.g. "make me a question", "create a question", '
+                . '"create a quiz", "create questions from the document", "insert a question in Moodle").',
             'readonly' => false,
-            // Discovery-layer trigger governance (SKILL_REWORK.md §2, family question — question bank only).
-            'governance' => [
-                'mandatory_on_trigger' => false,
-                'intent_triggers' => [
-                    // German.
-                    'fragen generieren', 'fragen aus pdf', 'fragenbank füllen',
-                    // English.
-                    'generate questions', 'questions from pdf', 'into question bank',
-                ],
-            ],
             'properties' => [
                 'content' => [
                     'type' => 'string',

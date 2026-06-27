@@ -529,8 +529,6 @@ class skill_registry {
                 : 'skill',
             'anchors' => $anchorfields,
             'always_available' => (bool)($skillmeta['always_available'] ?? false),
-            'mandatory_on_trigger' => (bool)($skillmeta['mandatory_on_trigger'] ?? false),
-            'intent_triggers' => array_values((array)($skillmeta['intent_triggers'] ?? [])),
             'minimal_input' => $minimalinput,
             'example_input' => $exampleinput,
             'namespace' => $namespace,

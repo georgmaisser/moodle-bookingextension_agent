@@ -76,22 +76,6 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                 . ' Use this ONLY when the user asks what the agent CAN DO or which agent skills/commands exist.'
                 . ' Do NOT use for regular entity listing requests; use the appropriate search/list skill instead. ',
             'readonly' => true,
-            // Must be offered whenever the user asks a capability/"what can you do" question, even
-            // when embedding top-k surfaces recently-used domain skills above it. The engine injects
-            // on trigger match generically (no skill names in the engine); markers live with the skill.
-            'governance' => [
-                'mandatory_on_trigger' => true,
-                'intent_triggers' => [
-                    // German.
-                    'was kannst du', 'was kannst du alles', 'was kann der agent', 'was kann ich hier',
-                    'welche funktionen', 'welche fähigkeiten', 'welche faehigkeiten', 'welche aktionen',
-                    'welche skills', 'welche befehle', 'wobei kannst du', 'wozu bist du', 'hilfst du',
-                    // English.
-                    'what can you do', 'what can you', 'which features', 'what are you capable',
-                    'what skills', 'which skills', 'which actions', 'what actions', 'list your skills',
-                    'how can you help', 'what can the agent',
-                ],
-            ],
             'properties' => [
                 'question' => [
                     'type' => 'string',
