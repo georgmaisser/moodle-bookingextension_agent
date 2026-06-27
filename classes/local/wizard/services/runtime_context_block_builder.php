@@ -130,10 +130,15 @@ class runtime_context_block_builder {
         // A STATIC catalog (see $catalogisstatic) instead joins $lines so it lands in the cached prefix,
         // and now_iso is appended LAST so it never fronts the cacheable catalog/ledger lines above it.
         $lines = [
-            'context_name: ' . $contextname,
             'timezone: ' . $timezonename,
         ];
-        $statelines = [];
+        // context_name is per-context (volatile): keep it OUT of the cached [SYSTEM_RUNTIME] prefix so
+        // the large skill catalog that follows caches across contexts in the slim_all path. It is
+        // emitted in the volatile [SYSTEM_RUNTIME_STATE] block instead (which sits past the cache
+        // boundary anyway, below the user message).
+        $statelines = [
+            'context_name: ' . $contextname,
+        ];
 
         // Rich context awareness: a structured moodle_context block, injected ONLY where
         // it earns its tokens — parameter construction (the constructor needs real ids to

@@ -67,10 +67,10 @@ class synchronizer_prompt_builder {
         // Keep placeholders stable across requests for better prompt-prefix caching:
         // the [SYSTEM] block stays byte-identical, real values live in the runtime blocks.
         return strtr($template, [
-            '{{contextname}}' => '[SYSTEM_RUNTIME.context_name]',
+            '{{contextname}}' => '[SYSTEM_RUNTIME_STATE.context_name]',
             // Deprecated alias (agent is site-wide): resolves to the generic context name. Kept so
             // admin-customized templates that still use {{bookingname}} do not dangle.
-            '{{bookingname}}' => '[SYSTEM_RUNTIME.context_name]',
+            '{{bookingname}}' => '[SYSTEM_RUNTIME_STATE.context_name]',
             '{{timezonename}}' => '[SYSTEM_RUNTIME.timezone]',
             '{{nowiso}}' => '[SYSTEM_RUNTIME_STATE.now_iso]',
         ]);

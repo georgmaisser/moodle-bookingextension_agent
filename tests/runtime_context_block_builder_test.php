@@ -69,7 +69,10 @@ final class runtime_context_block_builder_test extends advanced_testcase {
 
         // The generic context name carries the Moodle context name ("Course: Algebra 101"), under the
         // context_name label — never the legacy booking_name.
-        $this->assertMatchesRegularExpression('/^context_name: .*Algebra 101/m', $block['stable']);
+        $this->assertMatchesRegularExpression('/^context_name: .*Algebra 101/m', $block['volatile']);
+        // It must NOT sit in the cached [SYSTEM_RUNTIME] half (it would bust the catalog cache), and
+        // the legacy label must be gone everywhere.
+        $this->assertStringNotContainsString('context_name', $block['stable']);
         $this->assertStringNotContainsString('booking_name', $block['stable']);
         $this->assertStringNotContainsString('booking_name', $block['volatile']);
     }
@@ -87,7 +90,8 @@ final class runtime_context_block_builder_test extends advanced_testcase {
 
         $block = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION);
 
-        $this->assertStringContainsString('context_name:', $block['stable']);
+        $this->assertStringContainsString('context_name:', $block['volatile']);
         $this->assertStringNotContainsString('booking_name', $block['stable']);
+        $this->assertStringNotContainsString('booking_name', $block['volatile']);
     }
 }
