@@ -98,6 +98,9 @@ class skill_selection_debug_service {
             }
 
             $score = (float)($row['score'] ?? 0.0);
+            // Multi-vector: which anchor (description/utterance + the exact phrase) won this skill.
+            $matchedkind = (string)($row['matched_anchor_kind'] ?? ($row['anchor_kind'] ?? ''));
+            $matchedtext = (string)($row['matched_anchor_text'] ?? ($row['anchor_text'] ?? ''));
             if (!isset($byskill[$skill])) {
                 $byskill[$skill] = [
                     'skill' => $skill,
@@ -108,9 +111,13 @@ class skill_selection_debug_service {
                     'readonly' => ((string)($row['readonly'] ?? '0') === '1'),
                     'intent' => (string)($row['intent'] ?? ''),
                     'source' => 'embedding',
+                    'matched_anchor_kind' => $matchedkind,
+                    'matched_anchor_text' => $matchedtext,
                 ];
             } else {
                 $byskill[$skill]['embedding_score'] = $score;
+                $byskill[$skill]['matched_anchor_kind'] = $matchedkind;
+                $byskill[$skill]['matched_anchor_text'] = $matchedtext;
             }
         }
 
@@ -332,7 +339,8 @@ class skill_selection_debug_service {
         }
 
         $retrieval = new embeddings_retrieval_service();
-        return $retrieval->search_top_k($queryembedding, (array)$status['rows'], $topk);
+        // Multi-vector: top-k distinct skills (rows carry matched_anchor_kind/text + score for debug).
+        return $retrieval->search_top_k_skills($queryembedding, (array)$status['rows'], $topk);
     }
 
     /**

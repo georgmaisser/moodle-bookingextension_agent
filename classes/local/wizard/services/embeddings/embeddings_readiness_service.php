@@ -76,18 +76,19 @@ class embeddings_readiness_service {
             ];
         }
 
+        // Multi-vector store (SKILL_REWORK.md §5): a skill spans several rows (one per anchor), so
+        // readiness is compared per ANCHOR — keyed by (skill, anchor_index) — not per skill.
         $expected = $builder->build_full_catalog_rows($registry, $model, $dimensions);
         $byskill = [];
         foreach ($rows as $row) {
-            $skill = (string)($row['skill'] ?? '');
-            if ($skill !== '') {
-                $byskill[$skill] = $row;
+            $key = $this->anchor_key($row);
+            if ($key !== '') {
+                $byskill[$key] = $row;
             }
         }
 
         foreach ($expected as $row) {
-            $skill = (string)($row['skill'] ?? '');
-            $current = $byskill[$skill] ?? null;
+            $current = $byskill[$this->anchor_key($row)] ?? null;
             if ($current === null) {
                 return ['status' => 'stale', 'ready' => false];
             }
@@ -105,19 +106,19 @@ class embeddings_readiness_service {
             }
         }
 
-        // Orphan detection (removal-aware): the expected-only loop above never visits a stored row
-        // whose skill no longer exists, so a removed skill would otherwise stay "ready" with a lingering
-        // row. Flip to stale on any stored skill not in the expected set — the rebuild then prunes it.
-        // Set-membership over the live expected set; no stored fingerprint needed (cheap for ~41 skills).
-        $expectednames = [];
+        // Orphan detection (removal-aware): the expected-only loop never visits a stored anchor that
+        // no longer exists, so a removed skill OR a deleted utterance would otherwise stay "ready"
+        // with a lingering row. Flip to stale on any stored anchor not in the expected set — the
+        // rebuild then prunes it. Set-membership over the live expected set; no stored fingerprint.
+        $expectedkeys = [];
         foreach ($expected as $row) {
-            $skill = (string)($row['skill'] ?? '');
-            if ($skill !== '') {
-                $expectednames[$skill] = true;
+            $key = $this->anchor_key($row);
+            if ($key !== '') {
+                $expectedkeys[$key] = true;
             }
         }
-        foreach (array_keys($byskill) as $storedskill) {
-            if (empty($expectednames[$storedskill])) {
+        foreach (array_keys($byskill) as $storedkey) {
+            if (empty($expectedkeys[$storedkey])) {
                 return ['status' => 'stale', 'ready' => false];
             }
         }
@@ -127,6 +128,20 @@ class embeddings_readiness_service {
             'ready' => true,
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * Stable per-anchor identity key (skill + anchor_index) for multi-vector readiness comparison.
+     *
+     * @param array<string,mixed> $row
+     * @return string
+     */
+    private function anchor_key(array $row): string {
+        $skill = trim((string)($row['skill'] ?? ''));
+        if ($skill === '') {
+            return '';
+        }
+        return $skill . '#' . (string)($row['anchor_index'] ?? '0');
     }
 
     /**

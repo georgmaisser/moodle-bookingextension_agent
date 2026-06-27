@@ -92,7 +92,8 @@ class skill_discovery_service implements skill_discovery_provider_interface {
             return ['status' => self::STATUS_EMBEDDING_FAILED, 'discovered_skills' => []];
         }
 
-        $toprows = (new embeddings_retrieval_service())->search_top_k(
+        // Multi-vector: aggregate anchor scores to the MAX per skill, return top-k distinct skills.
+        $toprows = (new embeddings_retrieval_service())->search_top_k_skills(
             (array)$embeddingcall['embedding'],
             $status['rows'],
             max(1, $topk)

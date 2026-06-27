@@ -60,23 +60,16 @@ class embeddings_catalog_builder_service {
             $minimalinput = (array)($contract['minimal_input'] ?? []);
             $exampleinput = (array)($contract['example_input'] ?? []);
             $messagetriggers = (array)($contract['message_triggers'] ?? []);
-            $contextualpromptpacks = $this->get_contextual_prompt_packs_for_skill($registry, $skill);
 
-            $canonical = [
-                'skill' => $skill,
-                'intent' => $intent,
-                'readonly' => $readonly,
-                'description' => $description,
-                'minimal_input' => $minimalinput,
-                'example_input' => $exampleinput,
-                'message_triggers' => $messagetriggers,
-                'contextual_prompt_packs' => $contextualpromptpacks,
-            ];
+            // Multi-vector discovery: the skill is represented by several anchors — the description
+            // (anchor #0) plus each example_utterance — and EACH anchor is embedded separately so a
+            // query can match the single closest phrasing. See SKILL_REWORK.md §5.
+            $anchors = $this->build_anchor_list($description, (array)($contract['example_utterances'] ?? []));
 
-            $contenthash = $this->compute_content_hash($canonical, $model, $dimensions);
-            $embeddinginput = $this->to_embedding_input($canonical);
-
-            $rows[] = [
+            // Skill-level metadata is duplicated onto every anchor row, so whichever anchor a query
+            // matches still carries everything build_planner_catalog_subset() needs to build the
+            // candidate contract from a CSV row.
+            $skillmeta = [
                 'skill' => $skill,
                 'intent' => $intent,
                 'readonly' => $readonly,
@@ -84,15 +77,63 @@ class embeddings_catalog_builder_service {
                 'minimal_input_json' => json_encode($minimalinput, JSON_UNESCAPED_UNICODE),
                 'example_input_json' => json_encode($exampleinput, JSON_UNESCAPED_UNICODE),
                 'message_triggers_json' => json_encode($messagetriggers, JSON_UNESCAPED_UNICODE),
-                'embedding_model' => $model,
-                'embedding_dimensions' => (string)$dimensions,
-                'content_hash' => $contenthash,
-                'embedding_json' => '',
-                '_embedding_input' => $embeddinginput,
             ];
+
+            foreach ($anchors as $anchor) {
+                $canonical = [
+                    'skill' => $skill,
+                    'anchor_index' => (string)$anchor['index'],
+                    'anchor_kind' => $anchor['kind'],
+                    'anchor_text' => $anchor['text'],
+                ];
+
+                $rows[] = array_merge($skillmeta, [
+                    'anchor_index' => (string)$anchor['index'],
+                    'anchor_kind' => $anchor['kind'],
+                    'anchor_text' => $anchor['text'],
+                    'embedding_model' => $model,
+                    'embedding_dimensions' => (string)$dimensions,
+                    'content_hash' => $this->compute_content_hash($canonical, $model, $dimensions),
+                    'embedding_json' => '',
+                    '_embedding_input' => $this->to_embedding_input($canonical),
+                ]);
+            }
         }
 
         return $rows;
+    }
+
+    /**
+     * Build the ordered anchor list for one skill: description (#0) then deduplicated utterances.
+     *
+     * @param string $description
+     * @param array<int,mixed> $utterances
+     * @return array<int,array{index:int,kind:string,text:string}>
+     */
+    private function build_anchor_list(string $description, array $utterances): array {
+        $anchors = [];
+        $index = 0;
+
+        $description = trim($description);
+        if ($description !== '') {
+            $anchors[] = ['index' => $index++, 'kind' => 'description', 'text' => $description];
+        }
+
+        $seen = [];
+        foreach ($utterances as $utterance) {
+            $text = trim((string)$utterance);
+            if ($text === '') {
+                continue;
+            }
+            $key = \core_text::strtolower($text);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $anchors[] = ['index' => $index++, 'kind' => 'utterance', 'text' => $text];
+        }
+
+        return $anchors;
     }
 
     /**
@@ -114,48 +155,17 @@ class embeddings_catalog_builder_service {
     }
 
     /**
-     * Build compact embedding input text.
+     * Embedding input text for ONE anchor: the anchor text alone.
+     *
+     * Deliberately just the phrase — a description sentence or a single example utterance — so the
+     * vector matches a real user intent. The old single-vector blob (skill/intent/readonly/json +
+     * message_triggers + contextual_prompt_packs) diluted the signal and dragged non-English trigger
+     * text into the vector. See SKILL_REWORK.md §5.
      *
      * @param array<string,mixed> $canonicalrow
      * @return string
      */
     public function to_embedding_input(array $canonicalrow): string {
-        $minimalinput = json_encode($canonicalrow['minimal_input'] ?? [], JSON_UNESCAPED_UNICODE);
-        $exampleinput = json_encode($canonicalrow['example_input'] ?? [], JSON_UNESCAPED_UNICODE);
-        $messagetriggers = json_encode($canonicalrow['message_triggers'] ?? [], JSON_UNESCAPED_UNICODE);
-        $contextualpromptpacks = json_encode($canonicalrow['contextual_prompt_packs'] ?? [], JSON_UNESCAPED_UNICODE);
-
-        return implode("\n", [
-            'skill: ' . (string)($canonicalrow['skill'] ?? ''),
-            'intent: ' . (string)($canonicalrow['intent'] ?? ''),
-            'readonly: ' . (string)($canonicalrow['readonly'] ?? '0'),
-            'description: ' . (string)($canonicalrow['description'] ?? ''),
-            'minimal_input: ' . (string)$minimalinput,
-            'example_input: ' . (string)$exampleinput,
-            'message_triggers: ' . (string)$messagetriggers,
-            'contextual_prompt_packs: ' . (string)$contextualpromptpacks,
-        ]);
-    }
-
-    /**
-     * Extract skill-specific contextual prompt packs for embedding enrichment.
-     *
-     * @param skill_registry $registry
-     * @param string $skillname
-     * @return array<int,array<string,mixed>>
-     */
-    private function get_contextual_prompt_packs_for_skill(skill_registry $registry, string $skillname): array {
-        $skill = $registry->get_skill($skillname);
-        if ($skill === null || !method_exists($skill, 'get_contextual_prompt_packs')) {
-            return [];
-        }
-
-        try {
-            $packs = (array)$skill->get_contextual_prompt_packs();
-        } catch (\Throwable $e) {
-            return [];
-        }
-
-        return array_values(array_filter($packs, static fn($pack): bool => is_array($pack)));
+        return trim((string)($canonicalrow['anchor_text'] ?? ''));
     }
 }

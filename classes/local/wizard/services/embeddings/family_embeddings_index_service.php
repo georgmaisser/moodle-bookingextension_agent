@@ -81,43 +81,66 @@ class family_embeddings_index_service {
             ];
         }
 
+        // Multi-vector store (SKILL_REWORK.md §5): a skill spans several anchor rows. Reuse and state
+        // tracking are keyed per ANCHOR (skill#anchor_index); the per-skill state is then aggregated.
         $existingrows = $repo->read_rows();
-        $existingbyskill = [];
+        $existingbyanchor = [];
+        $existingskillset = [];
+        $existinganchorcount = [];
         if ($repo->is_valid_schema($existingrows)) {
             foreach ($existingrows as $existingrow) {
                 $skillname = trim((string)($existingrow['skill'] ?? ''));
-                if ($skillname !== '') {
-                    $existingbyskill[$skillname] = $existingrow;
+                if ($skillname === '') {
+                    continue;
                 }
+                $existingbyanchor[$this->anchor_key($existingrow)] = $existingrow;
+                $existingskillset[$skillname] = true;
+                $existinganchorcount[$skillname] = ($existinganchorcount[$skillname] ?? 0) + 1;
             }
         }
 
+        // A skill is 'untouched' only when EVERY current anchor matches a stored anchor by
+        // content_hash AND the anchor count is unchanged (an added/removed utterance => 'updated').
+        $currentanchorcount = [];
+        $skillunchanged = [];
         $currentskillnames = [];
-        $skillstates = [];
-        foreach ($rows as $idx => $row) {
+        foreach ($rows as $row) {
             $skillname = trim((string)($row['skill'] ?? ''));
             if ($skillname === '') {
                 continue;
             }
-
-            $currentskillnames[] = $skillname;
-            if (!isset($existingbyskill[$skillname])) {
-                $skillstates[$skillname] = 'created';
-            } else if ($forcefullregen) {
-                $skillstates[$skillname] = 'updated';
-            } else if (
-                trim((string)($existingbyskill[$skillname]['content_hash'] ?? ''))
-                === trim((string)($row['content_hash'] ?? ''))
+            $currentskillnames[$skillname] = true;
+            $currentanchorcount[$skillname] = ($currentanchorcount[$skillname] ?? 0) + 1;
+            if (!array_key_exists($skillname, $skillunchanged)) {
+                $skillunchanged[$skillname] = true;
+            }
+            $existinganchor = $existingbyanchor[$this->anchor_key($row)] ?? null;
+            if (
+                $existinganchor === null
+                || trim((string)($existinganchor['content_hash'] ?? '')) !== trim((string)($row['content_hash'] ?? ''))
             ) {
-                $skillstates[$skillname] = 'untouched';
-            } else {
-                $skillstates[$skillname] = 'updated';
+                $skillunchanged[$skillname] = false;
             }
         }
 
-        $currentskillnames = array_values(array_unique($currentskillnames));
-        sort($currentskillnames);
-        $removedskills = array_values(array_diff(array_keys($existingbyskill), $currentskillnames));
+        $skillstates = [];
+        foreach (array_keys($currentskillnames) as $skillname) {
+            if (empty($existingskillset[$skillname])) {
+                $skillstates[$skillname] = 'created';
+            } else if (
+                $forcefullregen
+                || empty($skillunchanged[$skillname])
+                || (int)($existinganchorcount[$skillname] ?? 0) !== (int)($currentanchorcount[$skillname] ?? 0)
+            ) {
+                $skillstates[$skillname] = 'updated';
+            } else {
+                $skillstates[$skillname] = 'untouched';
+            }
+        }
+
+        $currentskillnameslist = array_keys($currentskillnames);
+        sort($currentskillnameslist);
+        $removedskills = array_values(array_diff(array_keys($existingskillset), $currentskillnameslist));
         sort($removedskills);
         foreach ($removedskills as $skillname) {
             $skillstates[$skillname] = 'deleted';
@@ -126,14 +149,14 @@ class family_embeddings_index_service {
         $context = context_system::instance();
         $admin = get_admin();
         $userid = !empty($admin->id) ? (int)$admin->id : 2;
-        $embeddedskills = [];
-        $reusedskills = [];
+        // Counted per ANCHOR row (one skill can have some anchors reused and others re-embedded).
+        $embeddedcount = 0;
+        $reusedcount = 0;
         $llm = new llm_call_service(new conversation_store());
 
         foreach ($rows as $idx => $row) {
-            $skillname = trim((string)($row['skill'] ?? ''));
             $contenthash = trim((string)($row['content_hash'] ?? ''));
-            $existingrow = ($skillname !== '' && isset($existingbyskill[$skillname])) ? $existingbyskill[$skillname] : null;
+            $existingrow = $existingbyanchor[$this->anchor_key($row)] ?? null;
 
             if (
                 !$forcefullregen
@@ -142,9 +165,7 @@ class family_embeddings_index_service {
                 && trim((string)($existingrow['embedding_json'] ?? '')) !== ''
             ) {
                 $rows[$idx]['embedding_json'] = (string)$existingrow['embedding_json'];
-                if ($skillname !== '') {
-                    $reusedskills[] = $skillname;
-                }
+                $reusedcount++;
                 unset($rows[$idx]['_embedding_input']);
                 continue;
             }
@@ -173,9 +194,7 @@ class family_embeddings_index_service {
             }
 
             $rows[$idx]['embedding_json'] = json_encode($embedding, JSON_UNESCAPED_UNICODE);
-            if ($skillname !== '') {
-                $embeddedskills[] = $skillname;
-            }
+            $embeddedcount++;
             unset($rows[$idx]['_embedding_input']);
         }
 
@@ -185,20 +204,29 @@ class family_embeddings_index_service {
 
         $repo->write_rows($rows);
 
-        $embeddedskills = array_values(array_unique($embeddedskills));
-        sort($embeddedskills);
-        $reusedskills = array_values(array_unique($reusedskills));
-        sort($reusedskills);
-
         return [
             'status' => 'written',
             'model' => $resolvedmodel,
             'dimensions' => $resolveddimensions,
             'written' => count($rows),
-            'embedded' => count($embeddedskills),
-            'reused' => count($reusedskills),
+            'embedded' => $embeddedcount,
+            'reused' => $reusedcount,
             'deleted' => count($removedskills),
             'skillstates' => $skillstates,
         ];
+    }
+
+    /**
+     * Stable per-anchor identity key (skill + anchor_index) for multi-vector reuse.
+     *
+     * @param array<string,mixed> $row
+     * @return string
+     */
+    private function anchor_key(array $row): string {
+        $skillname = trim((string)($row['skill'] ?? ''));
+        if ($skillname === '') {
+            return '';
+        }
+        return $skillname . '#' . (string)($row['anchor_index'] ?? '0');
     }
 }

@@ -45,6 +45,10 @@ final class embeddings_csv_repository_test extends advanced_testcase {
 
         return [
             'skill' => $skill,
+            'anchor_index' => '0',
+            'anchor_kind' => 'description',
+            // Another CSV-hostile field (commas, quotes, newline) so the anchor column round-trips too.
+            'anchor_text' => 'Set the "header" image, now, line1' . "\n" . 'line2',
             'intent' => 'mutate',
             'readonly' => '0',
             // Backslashes, commas, double-quotes and a newline in a single field: exactly the
@@ -118,7 +122,7 @@ final class embeddings_csv_repository_test extends advanced_testcase {
         $path = make_request_directory() . '/skill_catalog_embeddings.csv';
 
         $header = implode(',', embeddings_csv_repository::HEADERS);
-        $good = 'mod_booking.update_option,mutate,0,desc,{},{},[],text-embedding-3-small,8,'
+        $good = 'mod_booking.update_option,0,description,desc anchor,mutate,0,desc,{},{},[],text-embedding-3-small,8,'
             . hash('sha256', 'x') . ',"[0.1,0.2]"';
         $bad = 'broken.skill,too,few,columns';
         file_put_contents($path, $header . "\n" . $good . "\n" . $bad . "\n");

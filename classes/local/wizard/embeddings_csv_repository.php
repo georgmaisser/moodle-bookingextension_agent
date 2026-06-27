@@ -33,9 +33,19 @@ namespace bookingextension_agent\local\wizard;
  * {@see embeddings_csv_repository_base}; this class only declares the schema and storage location.
  */
 class embeddings_csv_repository extends embeddings_csv_repository_base {
-    /** Ordered CSV header columns. */
+    /**
+     * Ordered CSV header columns.
+     *
+     * Multi-vector store (SKILL_REWORK.md §5): one row PER ANCHOR, so a skill spans several rows
+     * keyed by (skill, anchor_index). anchor_kind is 'description' (#0) or 'utterance'; anchor_text
+     * is the exact embedded phrase. The remaining columns repeat the skill-level metadata on every
+     * anchor row so a matched row can rebuild the planner candidate on its own.
+     */
     public const HEADERS = [
         'skill',
+        'anchor_index',
+        'anchor_kind',
+        'anchor_text',
         'intent',
         'readonly',
         'description',

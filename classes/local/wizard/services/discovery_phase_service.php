@@ -296,7 +296,9 @@ class discovery_phase_service {
 
                             if (!empty($embeddingcall['success']) && !empty($embeddingcall['embedding'])) {
                                 $retrieval = new embeddings_retrieval_service();
-                                $toprows = $retrieval->search_top_k(
+                                // Multi-vector: cosine over all anchor rows, MAX per skill, top-12
+                                // DISTINCT skills (SKILL_REWORK.md §5).
+                                $toprows = $retrieval->search_top_k_skills(
                                     (array)$embeddingcall['embedding'],
                                     $status['rows'],
                                     orchestrator::EMBEDDINGS_DEFAULT_TOP_K

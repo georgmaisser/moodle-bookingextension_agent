@@ -33,6 +33,13 @@ use bookingextension_agent\local\wizard\skill_registry_factory;
  */
 class embeddings_retrieval_service {
     /**
+     * Minimum cosine score a skill's BEST anchor must reach to be eligible (multi-vector retrieval).
+     * 0.0 disables the gate — the top-k cut is the primary mechanism; this threshold is tuned later
+     * against the benchmark / chosen embedding model (SKILL_REWORK.md §5).
+     */
+    public const SEMANTIC_MIN_SCORE = 0.0;
+
+    /**
      * Search top-k skill rows by cosine similarity.
      *
      * @param array<int,float|int> $queryvector
@@ -69,6 +76,75 @@ class embeddings_retrieval_service {
             $row['score'] = (string)($entry['score'] ?? 0.0);
             return $row;
         }, $top));
+    }
+
+    /**
+     * Multi-vector skill retrieval: score every anchor row, aggregate to the MAX score per skill,
+     * and return the top-k DISTINCT skills (SKILL_REWORK.md §5).
+     *
+     * Each returned row is the winning anchor's row for that skill, tagged with:
+     *   - score                : the skill's best (max) cosine score,
+     *   - matched_anchor_kind  : 'description' | 'utterance',
+     *   - matched_anchor_text  : the exact phrase that matched,
+     *   - matched_anchor_index : its anchor index.
+     * Distinct-skill aggregation is REQUIRED: without it, several anchors of one strong skill would
+     * crowd the top-k and starve other skills. The returned shape matches search_top_k() (one row per
+     * result, tagged with a 'score' string), so build_planner_catalog_subset() consumes it unchanged.
+     *
+     * @param array<int,float|int> $queryvector
+     * @param array<int,array<string,string>> $anchorrows
+     * @param int $k Number of distinct skills to return.
+     * @return array<int,array<string,string>>
+     */
+    public function search_top_k_skills(array $queryvector, array $anchorrows, int $k = 12): array {
+        if ($k < 1 || empty($queryvector) || empty($anchorrows)) {
+            return [];
+        }
+
+        $best = [];
+        foreach ($anchorrows as $row) {
+            $skill = trim((string)($row['skill'] ?? ''));
+            if ($skill === '') {
+                continue;
+            }
+            $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
+            if (!is_array($embedding) || empty($embedding)) {
+                continue;
+            }
+
+            $score = vector_math::cosine_similarity($queryvector, $embedding);
+            if (!isset($best[$skill]) || $score > $best[$skill]['score']) {
+                $best[$skill] = ['score' => $score, 'row' => $row];
+            }
+        }
+
+        if (empty($best)) {
+            return [];
+        }
+
+        // Highest max-score first.
+        uasort($best, static function (array $a, array $b): int {
+            return $b['score'] <=> $a['score'];
+        });
+
+        $out = [];
+        foreach ($best as $entry) {
+            $score = (float)$entry['score'];
+            if (self::SEMANTIC_MIN_SCORE > 0.0 && $score < self::SEMANTIC_MIN_SCORE) {
+                continue;
+            }
+            $row = (array)$entry['row'];
+            $row['score'] = (string)$score;
+            $row['matched_anchor_kind'] = (string)($row['anchor_kind'] ?? '');
+            $row['matched_anchor_text'] = (string)($row['anchor_text'] ?? '');
+            $row['matched_anchor_index'] = (string)($row['anchor_index'] ?? '');
+            $out[] = $row;
+            if (count($out) >= $k) {
+                break;
+            }
+        }
+
+        return $out;
     }
 
     /**
