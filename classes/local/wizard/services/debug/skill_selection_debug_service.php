@@ -241,10 +241,12 @@ class skill_selection_debug_service {
             $searchcorpus[] = (string)($contract['description'] ?? '');
 
             foreach ((array)($contract['minimal_input'] ?? []) as $entry) {
-                $searchcorpus[] = (string)$entry;
+                $searchcorpus[] = is_scalar($entry) ? (string)$entry : (string)json_encode($entry);
             }
             foreach ((array)($contract['example_input'] ?? []) as $entry) {
-                $searchcorpus[] = (string)$entry;
+                // example_input values can be nested arrays (e.g. optiondates) — flatten to JSON
+                // instead of casting an array to string (PHP "Array to string conversion" warning).
+                $searchcorpus[] = is_scalar($entry) ? (string)$entry : (string)json_encode($entry);
             }
             foreach ((array)($contract['message_triggers'] ?? []) as $trigger) {
                 if (!is_array($trigger)) {
