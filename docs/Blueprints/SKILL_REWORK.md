@@ -168,3 +168,111 @@ Legende: **M** = `mandatory_on_trigger` (garantiert im Katalog bei Trigger-Treff
 5. Nach **jedem** Schritt: Benchmark (gleiches Modell, `core_booking_v1`) als Regressions-/Fortschrittsmaß; danach pro-Szenario-Diff (passed/skill_selected) wie im Audit.
 
 **Mess-Baseline (wunderbyte-privat):** K=8 = 53,3 %, K=12 = 66,7 %. Ziel nach Discovery-Rework: die 3 hartnäckigen Routing-Fehler (book_users→search_skills, skill_not_in_catalog→course.*, retry_preflight) grün.
+
+---
+
+# 5. BESCHLOSSEN: Multi-Vector Semantic Discovery (Ziel-Architektur)
+
+> Entscheidung Georg, 2026-06-26/27. Ersetzt die lexikalische Trigger-Schicht vollständig.
+
+## 5.0 BINDENDE REGEL — Skill-Discovery ist AUSSCHLIESSLICH SEMANTISCH
+
+**Skill-Findung läuft zu 100 % über Embeddings (Vektor-Ähnlichkeit). LEXIKALISCHES Matching für Discovery/Routing ist VERBOTEN.**
+
+Konkret **NO-GO** (über die Projektlaufzeit wiederholt fälschlich als „Fix" gemacht):
+- Substring-/Keyword-Matching auf der User-Nachricht (`mb_strpos`, `str_contains`, Regex auf Intent).
+- `intent_triggers` / `mandatory_on_trigger` als Discovery-Mechanismus.
+- `always_available`-„always-include"-Tier, `MANDATORY_SKILL_KEYWORDS`.
+- **Sprachspezifische Phrasen** irgendwo in Skill-Metadaten (das Produkt ist multi-language).
+
+**Wenn ein Skill für eine Anfrage nicht (richtig) gefunden wird, ist das IMMER ein Embedding-Problem.** Der einzig erlaubte Fix: **die Anker des Skills verbessern** (eine `example_utterance` schärfen/ergänzen) oder das **Embedding-Modell** wechseln — NIE ein lexikalischer Hack. Ein lexikalischer „Fix" wird im Review abgelehnt.
+
+## 5.1 Index-Schema (uniform, ein Code-Pfad)
+Pro Skill **mehrere** Anker-Zeilen statt einer:
+```
+skill          : string   (skill name, e.g. mod_booking.book_users)
+anchor_text    : string   (the embedded text)
+anchor_kind    : string   ('description' | 'utterance')   ← debug/tuning only
+vector         : float[]   (embedding of anchor_text under <model>__<dim>)
+```
+- Datei weiterhin **pro Modell+Dim** getrennt (`skill_catalog_embeddings__<model>__<dim>.csv`) → sauberes Modell-A/B.
+- `anchor_kind` ist optional fürs Matching, aber **Pflicht fürs Debugging** (s. 5.5).
+
+## 5.2 Anker pro Skill
+- **Anker #0 = `description`** (knapp, konzept-fokussiert — der „weiche Fallback"-Anker; lang/diffus vermeiden, sonst Cross-Matching).
+- **Anker #1…N = 3–6 `example_utterances`** — natürliche **englische** Beispiel-Anfragen, **abgrenzungs-orientiert** (was diesen Skill von Geschwistern unterscheidet, nicht nur „was er tut"). English-only; Cross-Language trägt das Modell bzw. die Query-Normalisierung (5.7).
+
+## 5.3 Retrieval (`embeddings_retrieval_service`)
+- Query-Embedding gegen **alle** Anker aller Skills (Cosine).
+- **Max-Aggregation pro Skill** (bester Anker gewinnt; kein Bonus für mehrere Treffer).
+- **Top-K = 12 distinkte SKILLS** (nach Dedupe der Anker → Skill), **nicht** Top-12 Zeilen.
+- `SEMANTIC_MIN_SCORE` (0.30 roh) auf den **besten** Anker des Skills.
+- `search_top_k` muss von „Top-K Zeilen" auf „Top-K distinkte Skills, gescort per Max-Anker" umgebaut werden.
+
+## 5.4 Skill-Schema & `skill_governance` — was sich ändert (NACHZIEHEN!)
+**Entfernen** (überall, restlos):
+- `get_schema()['governance']['intent_triggers']` und `['mandatory_on_trigger']`.
+- `planner_catalog_service::ensure_trigger_mandatory_skills()` + `message_matches_intent_triggers()` (die lexikalische Injektion) — **löschen**.
+- `skill_registry::build_prompt_contract()` Felder `mandatory_on_trigger` / `intent_triggers` (heute :532-533) — **raus**; die normalisierte Governance (`get_skill_governance`/skillmeta) darf diese Keys nicht mehr führen.
+- `adaptive_skill_catalog_service::get_mandatory_skills()` + `always_available`-Tier + `MANDATORY_SKILL_KEYWORDS` — **raus** (lexikalisch).
+
+**Hinzufügen:**
+- `get_schema()['example_utterances'] = [...]` (3–6 englische Sätze) — von `skill_registry` in den prompt_contract übernommen, vom `embeddings_catalog_builder` zu Ankern (zusammen mit `description`) verarbeitet.
+- `skill_governance` führt künftig **keine** Discovery-Lexik mehr — nur noch Capabilities/Risk/Activation. Discovery-Signal = ausschließlich `description` + `example_utterances` (→ Anker).
+
+## 5.5 Debugging / Observability (NACHZIEHEN!)
+- Discovery-Debug-Log: pro surfaced Skill **welcher Anker** getroffen hat (`anchor_kind` + gekürzter `anchor_text`) **und der Score** — damit Tuning sichtbar ist („book_users kam über Utterance #2, Score 0.41").
+- `cli/skill_selection_debug.php`: Anker + Scores ausgeben.
+- `cli/benchmark_aggregate.php`: optional `anchor_kind` des gewählten Skills mitführen.
+- Debug-Source-Token (`orc|p=disc|...`): Modus-Marker `mv` (multi-vector) statt der alten Trigger-Marker.
+
+## 5.6 Kanonisches Beispiel — der Example-String ERKLÄRT die Funktionsweise
+Jeder Skill (und die `scaffold_skill`-Vorlage) trägt diesen erklärenden Block, damit Fremd-Devs den Mechanismus verstehen und NIE lexikalisch „fixen":
+```php
+public function get_schema(): array {
+    return [
+        'version' => 1,
+        // DISCOVERY IS SEMANTIC. The engine embeds the user's request and matches it (cosine)
+        // against the anchors below — the 'description' AND each 'example_utterances' entry are
+        // embedded as SEPARATE vectors; this skill surfaces when one of its anchors is semantically
+        // closest to the request. Matching is by MEANING and works across languages — it never
+        // looks at literal words. So:
+        //   • description: ONE short, concept-focused sentence (the soft fallback anchor).
+        //   • example_utterances: 3–6 DISTINCT, natural ENGLISH requests a user would actually make,
+        //     written to DISTINGUISH this skill from its siblings. English only.
+        //   • NEVER add keyword/substring/intent triggers or language-specific phrases — that
+        //     mechanism is removed and forbidden (see SKILL_REWORK.md §5.0).
+        'description' => 'Enrol one or more users into an existing booking option.',
+        'example_utterances' => [
+            'enrol a specific user into a booking option',
+            'add a participant to an existing option',
+            'register someone for a course or event',
+            'sign a person up for a booking',
+        ],
+        'readonly' => false,
+        'governance' => [
+            // capabilities / risk only — NO intent_triggers, NO mandatory_on_trigger.
+            'required_native_capabilities' => ['mod/booking:bookforothers'],
+        ],
+        'properties' => [ /* ... */ ],
+    ];
+}
+```
+
+## 5.7 Cross-Language (English-only Metadaten)
+Alle Anker English-only. Die Sprachbrücke (deutsche/… Query ↔ englische Anker) läuft über **eine** von zwei Optionen — **offene Entscheidung, hängt am Modell-Test:**
+- **Weg A:** stark multilinguales Embedding-Modell (kein Extra-Schritt).
+- **Weg B:** Query→English-Normalisierung (HyDE-artige englische Intent-Phrase) **vor** dem Embedding-Call — modell-unabhängig, +1 (mini-Modell-)Call.
+→ Entscheidung per Cross-Lingual-Test des gewählten Modells. **Benchmark-Set mehrsprachig erweitern**, sonst wird Multi-Language gar nicht gemessen.
+
+## 5.8 Migrationsschritte
+1. **English-only** ziehen (Descriptions + alle Trigger-Texte → Englisch; deutsche raus). *(sofort)*
+2. `intent_triggers`/`mandatory_on_trigger` aus allen Skills + Engine entfernen (5.4).
+3. Index-Schema + `embeddings_catalog_builder` auf Multi-Anker, `search_top_k` auf Max→Top-12-distinkte-Skills.
+4. Pro Skill `example_utterances` authoren (3–6, distinkt).
+5. Debugging (5.5) nachziehen; `scaffold_skill`-Vorlage + Beispiel (5.6) aktualisieren.
+6. Rebuild + Harness; Cross-Lingual-Modelltest → Weg A/B fixieren.
+7. Merges (§1) — weniger Quasi-Duplikate = weniger Anker-Kollisionen.
+
+## 5.9 Modell-A/B
+Anker-Texte sind modell-agnostische Quelle. Pro Modell ein Index (`__<model>__<dim>.csv`), dieselben Szenarien über `benchmark_aggregate.php` (Multi-Run-Mittel) → Pro-Szenario-Pass-Rate vergleichen. So wird der Modellwechsel **gemessen**, nicht geraten.
