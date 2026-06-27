@@ -519,7 +519,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         if (array_key_exists('visible', $input) && $input['visible'] !== '' && $input['visible'] !== null) {
             $changes['visible'] = (is_bool($input['visible']) ? $input['visible'] : !in_array(
                 \core_text::strtolower(trim((string)$input['visible'])),
-                ['0', 'false', 'no', 'hide', 'hidden', 'nein', 'ausblenden'],
+                ['0', 'false', 'no', 'hide', 'hidden'],
                 true
             )) ? 1 : 0;
         }

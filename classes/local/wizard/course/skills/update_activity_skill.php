@@ -491,7 +491,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             return $value ? 1 : 0;
         }
         $v = \core_text::strtolower(trim((string)$value));
-        if (in_array($v, ['0', 'false', 'no', 'hide', 'hidden', 'verstecken', 'ausblenden', 'nein'], true)) {
+        if (in_array($v, ['0', 'false', 'no', 'hide', 'hidden'], true)) {
             return 0;
         }
         return 1;
