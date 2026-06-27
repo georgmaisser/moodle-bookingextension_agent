@@ -217,8 +217,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 'id' => 'question.generate_questions_request',
                 'description' => 'User wants a Moodle quiz/test question (a question, quiz or test) generated or '
                     . 'inserted into Moodle — based on an uploaded document/PDF OR on content the user provides '
-                    . 'directly (e.g. "make me a question", "mach mir / erstelle eine Frage", "erstelle ein Quiz", '
-                    . '"create 10 questions from this PDF", "Frage in Moodle einfügen").',
+                    . 'directly (e.g. "make me a question", "create a question", '
+                    . '"create 10 questions from this PDF", "insert a question into Moodle").',
             ],
         ];
     }
@@ -238,8 +238,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 'triggers' => [
                     'make a question', 'create a question', 'generate questions', 'create a quiz', 'create a test',
                     'questions from pdf', 'questions from document', 'insert question in moodle',
-                    'mach mir eine frage', 'erstelle eine frage', 'frage generieren', 'frage erstellen',
-                    'quiz erstellen', 'test erstellen', 'fragen aus dem dokument', 'frage in moodle einfügen',
+                    'make me a question', 'create a question', 'generate question',
+                    'create quiz', 'create test', 'questions from the document', 'insert question into moodle',
                 ],
                 'guidance' => [
                     '- question.generate_questions creates Moodle quiz questions and saves them into the course question'

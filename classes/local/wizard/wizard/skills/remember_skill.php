@@ -147,7 +147,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                 'examples' => [
                     'merk dir das: Ich bevorzuge Buchungen am Vormittag',
                     'remember that my employee id is 12345',
-                    'bitte merke dir, dass ich immer Raum B brauche',
+                    'please remember that I always need room B',
                 ],
             ],
         ];

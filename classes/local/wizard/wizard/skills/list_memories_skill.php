@@ -97,7 +97,7 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
                 'id' => 'wizard.list_memories_request',
                 'description' => 'User asks what stored facts/preferences the agent has about them.',
                 'examples' => [
-                    'was weißt du über mich?',
+                    'what do you know about me?',
                     'zeige meine gespeicherten Einstellungen',
                     'what have you remembered about me?',
                 ],

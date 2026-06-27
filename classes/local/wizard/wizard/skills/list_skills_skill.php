@@ -168,8 +168,8 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                 'id' => 'booking.introspection',
                 'triggers' => [
                     'list properties', 'editable fields', 'which fields', 'which settings', 'list actions',
-                    'what can you do', 'liste aller einstellungen', 'welche einstellungen',
-                    'welche felder', 'welche aktionen', 'was kannst du',
+                    'what can you do', 'list of all settings', 'which settings',
+                    'which fields', 'which actions', 'what can you do',
                 ],
                 'guidance' => [
                     '- If user asks which actions/skills are supported, use this introspection skill.',
@@ -211,7 +211,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
 
         $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities, $unavailableactions);
 
-        // ...Observation_full: vollständige, ungekürzte Liste aller Skills mit Beschreibungen.
+        // ...observation_full: complete, unabridged list of all skills with descriptions.
         $observation = $this->build_observation_full($actions, $outputlang);
         return [
             'status' => 'executed',
@@ -227,7 +227,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     }
 
     /**
-     * Baue eine vollständige, formatierte Liste aller Skills und Beschreibungen.
+     * Build a complete, formatted list of all skills and descriptions.
      *
      * @param array $actions
      * @param string $lang
@@ -254,7 +254,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     }
 
     /**
-     * Sprachsicheres get_string für observation_full.
+     * Language-safe get_string for observation_full.
      *
      * @param string $identifier
      * @param string $lang
@@ -262,7 +262,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      */
 
     /**
-     * Sprachsicheres get_string für observation_full.
+     * Language-safe get_string for observation_full.
      *
      * @param string $identifier
      * @param string $lang

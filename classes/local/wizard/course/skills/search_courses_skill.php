@@ -152,9 +152,9 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
                 'id' => 'course.search_courses',
                 'triggers' => [
                     'search courses', 'find course', 'find courses', 'course id',
-                    'suche kurs', 'suche kurse', 'finde kurs', 'kurs finden',
+                    'search course', 'search courses', 'find course',
                     'list courses', 'list all courses', 'which courses', 'all courses',
-                    'alle kurse', 'welche kurse', 'kurse anzeigen', 'kurse auflisten',
+                    'all courses', 'which courses', 'show courses', 'list courses',
                 ],
                 'guidance' => [
                     '- Use course.search_courses as a FIRST STEP when you need a courseid to pass to',

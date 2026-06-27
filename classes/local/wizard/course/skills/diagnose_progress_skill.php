@@ -164,10 +164,10 @@ class diagnose_progress_skill extends core_skill_base implements skill_trigger_p
                     . 'done or still open, and why an activity or the course is not yet completed. Not grades, '
                     . 'access/visibility, enrolment or permissions.',
                 'examples' => [
-                    'Warum hat Maria den Kurs noch nicht abgeschlossen?',
-                    'Welche Aktivitäten fehlen Tom noch?',
+                    'Why has Maria not completed the course yet?',
+                    'Which activities does Tom still have to finish?',
                     'Why is this activity not marked as complete?',
-                    'Wie weit ist der Student im Kurs — was ist noch offen?',
+                    'How far is the student in the course — what is still open?',
                 ],
             ],
         ];
@@ -183,9 +183,9 @@ class diagnose_progress_skill extends core_skill_base implements skill_trigger_p
             [
                 'id' => 'course.diagnose_progress',
                 'triggers' => [
-                    'fortschritt', 'abgeschlossen', 'nicht abgeschlossen', 'completion', 'completed', 'incomplete',
-                    'progress', 'offene aktivitäten', 'noch offen', 'kursabschluss', 'course completion',
-                    'warum nicht abgeschlossen', 'why not complete', 'activity not complete',
+                    'progress', 'completion', 'completed', 'incomplete', 'not completed',
+                    'open activities', 'still open', 'course completion',
+                    'why not complete', 'activity not complete',
                 ],
                 'guidance' => [
                     '- course.diagnose_progress collects completion FACTS (read-only): per activity the stored',

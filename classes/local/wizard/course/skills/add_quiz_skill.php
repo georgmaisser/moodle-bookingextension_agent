@@ -110,7 +110,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return [
             'version' => 1,
             'description' => 'Create a quiz/test in a course and optionally fill it with questions. Use for '
-                . '"create a quiz", "erstelle ein Quiz/Test", "mach ein Quiz aus diesem PDF". The quiz can be '
+                . '"create a quiz", "make a quiz from this PDF". The quiz can be '
                 . 'created empty (add questions later) or populated from one of three sources: newly generated '
                 . 'questions (from a document/PDF or a topic), specific existing questions, or random questions from '
                 . 'a question category. To only add questions to the bank (no quiz) use question.generate_questions.',
@@ -221,8 +221,8 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
             [
                 'id' => 'course.add_quiz_request',
                 'description' => 'User wants to CREATE a quiz/test activity in a course (optionally with questions: '
-                    . 'generated, from a category, or specific ones). E.g. "create a quiz", "erstelle ein Quiz", '
-                    . '"mach ein Quiz aus diesem PDF", "leg einen Test mit 10 Fragen an". To only put questions in '
+                    . 'generated, from a category, or specific ones). E.g. "create a quiz", '
+                    . '"make a quiz from this PDF", "create a test with 10 questions". To only put questions in '
                     . 'the bank, that is question.generate_questions.',
             ],
         ];
@@ -239,7 +239,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 'id' => 'course.add_quiz',
                 'triggers' => [
                     'create a quiz', 'create a test', 'make a quiz', 'quiz erstellen', 'test erstellen',
-                    'quiz anlegen', 'quiz aus pdf', 'quiz mit fragen', 'erstelle einen test', 'neues quiz',
+                    'create quiz', 'quiz from pdf', 'quiz with questions', 'new quiz', 'new test',
                 ],
                 'guidance' => [
                     '- course.add_quiz CREATES the quiz activity; question.generate_questions only adds questions to',

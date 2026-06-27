@@ -40,7 +40,7 @@ use core_text;
 class skill_template_generator {
     /** @var string Placeholder message rendered by an unfinished skill. */
     public const NOT_IMPLEMENTED_MESSAGE =
-        'Dieser Skill hat seine eigentliche Aufgabe noch nicht implementiert.';
+        'This skill has not implemented its actual task yet.';
 
     /**
      * Generate the template bundle for a structured skill spec.

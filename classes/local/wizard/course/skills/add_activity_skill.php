@@ -209,8 +209,8 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
             [
                 'id' => 'course.add_activity_request',
                 'description' => 'User wants to add/create/insert an activity or resource (page, url/link, '
-                    . 'label/text, book, folder, forum) in a Moodle course — e.g. "add a page", "erstelle eine '
-                    . 'Seite", "füge einen Link hinzu", "leg ein Forum an", "create a label/text area".',
+                    . 'label/text, book, folder, forum) in a Moodle course — e.g. "add a page", "'
+                    . 'add a link", "create a forum", "create a label/text area".',
             ],
         ];
     }
@@ -227,9 +227,9 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 'triggers' => [
                     'add a page', 'create a page', 'add a url', 'add a link', 'add a label', 'add a text area',
                     'add a forum', 'add a folder', 'add a book', 'add an activity', 'add a resource',
-                    'seite erstellen', 'seite hinzufügen', 'link hinzufügen', 'url hinzufügen', 'forum anlegen',
-                    'forum erstellen', 'textfeld hinzufügen', 'aktivität hinzufügen', 'aktivität erstellen',
-                    'material hinzufügen', 'ordner anlegen', 'buch anlegen',
+                    'create page', 'add page', 'add link', 'add url', 'create forum',
+                    'add text area', 'add activity', 'create activity',
+                    'add resource', 'create folder', 'create book',
                 ],
                 'guidance' => [
                     '- course.add_activity creates the activity itself; do NOT look for a separate "insert" skill.',

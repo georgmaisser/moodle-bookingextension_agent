@@ -212,7 +212,7 @@ class explain_docs_skill extends core_skill_base implements
                 'id' => 'wizard.explain_docs',
                 'triggers' => [
                     'how does', 'how do i', 'explain', 'documentation', 'what is',
-                    'wie funktioniert', 'erkläre', 'dokumentation', 'was ist',
+                    'how does it work', 'explain', 'documentation', 'what is',
                 ],
                 'guidance' => [
                     '- Use wizard.explain_docs whenever the user asks how a feature works or wants documentation.',

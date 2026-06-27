@@ -90,7 +90,7 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
                 . 'activities (not: cannot BOOK — that is mod_booking.diagnose_booking_issue). Checks course '
                 . 'visibility, enrolment (incl. suspended/expired), role, the activity\'s visibility for that user '
                 . '(with the real "not available until …" reason), and group-mode membership. Use for "why can\'t '
-                . 'Maria see the quiz", "warum kommt Tom nicht in den Kurs", "why is this activity greyed out".',
+                . 'Maria see the quiz", "why can Tom not get into the course", "why is this activity greyed out".',
             'readonly' => true,
             'example_utterances' => [
                 'why can\'t this student open the course',
@@ -159,10 +159,10 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
                     . 'activities (visibility, enrolment, role, availability restriction, group access) — NOT why they '
                     . 'cannot book a booking option.',
                 'examples' => [
-                    'Warum sieht Maria das Quiz 3 nicht?',
-                    'Tom kommt nicht in den Kurs "Mathematik" — warum?',
+                    'Why can Maria not see Quiz 3?',
+                    'Tom cannot get into the course "Mathematics" — why?',
                     'Why is the assignment greyed out for this student?',
-                    'Warum kann ich diese Aktivität nicht öffnen?',
+                    'Why can I not open this activity?',
                 ],
             ],
         ];
@@ -178,10 +178,10 @@ class diagnose_access_skill extends core_skill_base implements skill_trigger_pro
             [
                 'id' => 'course.diagnose_access',
                 'triggers' => [
-                    'sieht nicht', 'kann nicht sehen', 'kann nicht öffnen', 'kommt nicht in den kurs',
-                    'kein zugriff', 'zugriffsproblem', 'nicht verfügbar', 'ausgegraut', 'gesperrt',
+                    'cannot see', 'cannot open', 'cannot get into the course',
+                    'no access', 'access problem', 'not available', 'greyed out', 'locked',
                     'cannot see', 'can\'t see', 'cannot open', 'cannot access', 'no access', 'greyed out',
-                    'not available', 'why can\'t', 'warum sieht', 'warum kann',
+                    'not available', 'why can\'t',
                 ],
                 'guidance' => [
                     '- course.diagnose_access explains ACCESS/visibility problems for a course or activity (read-only).',

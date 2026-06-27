@@ -107,8 +107,8 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
             'description' => 'Analyse / list the STRUCTURE of a course: its sections (topics/weeks) and the '
                 . 'activities & resources in them — names, types, descriptions, links — plus whether each is '
                 . 'hidden, availability-restricted, group-restricted or locked for the viewer. Use for "what '
-                . 'is in this course", "show me the structure/sections of course X", "welche Aktivitäten/'
-                . 'Abschnitte hat der Kurs", "was ist im Kurs Mathematik". It is the prerequisite for later '
+                . 'is in this course", "show me the structure/sections of course X", "which activities/'
+                . 'sections does the course have", "what is in the Mathematics course". It is the prerequisite for later '
                 . 'placing something into a section. It only READS; it never creates or changes anything.',
             'readonly' => true,
             'example_utterances' => [
@@ -171,8 +171,8 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
                     . 'before placing something into a section. Read-only.',
                 'examples' => [
                     'Was ist alles im Kurs "Mathematik 101"?',
-                    'Zeig mir die Abschnitte und Aktivitäten dieses Kurses.',
-                    'Welche Sektionen hat der aktuelle Kurs?',
+                    'Show me the sections and activities of this course.',
+                    'Which sections does the current course have?',
                     'What activities are in the course Biology?',
                     'Give me the structure of this course.',
                 ],
@@ -190,8 +190,8 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
             [
                 'id' => 'course.analyze_course_structure',
                 'triggers' => [
-                    'struktur', 'aufbau', 'abschnitte', 'sektionen', 'sektion', 'überschrift', 'was ist im kurs',
-                    'welche aktivitäten', 'welche activities', 'inhalt des kurses', 'kursinhalt',
+                    'structure', 'layout', 'sections', 'section', 'heading', 'what is in the course',
+                    'which activities', 'course content',
                     'structure', 'sections', 'what is in the course', 'what activities', 'course content', 'overview of the course',
                 ],
                 'guidance' => [

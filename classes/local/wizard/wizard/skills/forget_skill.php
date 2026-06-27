@@ -90,7 +90,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 'all' => [
                     'type' => 'boolean',
                     'description' => 'Set true when the user wants to forget EVERYTHING stored about them '
-                        . '(e.g. "vergiss alles", "forget all my preferences", "vergiss deine gesamte Erinnerung"). '
+                        . '(e.g. "forget everything", "forget all my preferences"). '
                         . 'Do NOT invent a query for such requests — use this flag instead.',
                     'required' => false,
                 ],
@@ -129,10 +129,10 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 'id' => 'wizard.forget_request',
                 'description' => 'User asks the agent to forget/delete a previously stored fact or preference.',
                 'examples' => [
-                    'vergiss: Ich bevorzuge Buchungen am Vormittag',
+                    'forget: I prefer bookings in the morning',
                     'forget that my employee id is 12345',
-                    'lösche die gespeicherte Einstellung zu Raum B',
-                    'vergiss alles, was du dir über mich gemerkt hast',
+                    'delete the stored preference about room B',
+                    'forget everything you have remembered about me',
                 ],
             ],
         ];

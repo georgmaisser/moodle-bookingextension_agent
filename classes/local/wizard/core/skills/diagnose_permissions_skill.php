@@ -163,10 +163,10 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                     . 'specific thing (capability) at a course/context — including why (role overrides). Not "who all '
                     . 'has right Z".',
                 'examples' => [
-                    'Welche Rollen hat Maria im Kurs "Mathematik"?',
-                    'Darf Tom in diesem Kurs Buchungsoptionen anlegen?',
+                    'Which roles does Maria have in the course "Mathematics"?',
+                    'Is Tom allowed to create booking options in this course?',
                     'Why can this teacher not grade — what permission is missing?',
-                    'Welche Berechtigungen hat Billy auf Kursebene?',
+                    'Which permissions does Billy have at course level?',
                 ],
             ],
         ];
@@ -182,8 +182,8 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
             [
                 'id' => 'core.diagnose_permissions',
                 'triggers' => [
-                    'welche rolle', 'welche rollen', 'rolle im kurs', 'berechtigung', 'berechtigungen', 'darf',
-                    'permission', 'capability', 'what role', 'which roles', 'is allowed to', 'darf nicht',
+                    'role in course', 'permission', 'permissions', 'allowed',
+                    'capability', 'what role', 'which roles', 'is allowed to', 'not allowed to',
                     'recht', 'rechte', 'override', 'prohibit',
                 ],
                 'guidance' => [

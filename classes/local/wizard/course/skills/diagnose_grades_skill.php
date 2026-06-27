@@ -95,7 +95,7 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
                 . 'items and a person\'s stored grades with their flags (hidden/locked/overridden/excluded, '
                 . 'recalculation pending, gradebook shown to students). It does NOT recompute the gradebook — it '
                 . 'reports stored facts for the model to explain. Use for "why is Maria\'s grade missing/wrong", '
-                . '"warum sieht der Student seine Note nicht". NOT for access, enrolment, permissions or notifications.',
+                . '"why can the student not see their grade". NOT for access, enrolment, permissions or notifications.',
             'readonly' => true,
             'example_utterances' => [
                 'the grade for the test isn\'t showing up',
@@ -162,10 +162,10 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
                 'description' => 'User asks why a grade is missing, not visible, or looks wrong for a person in a '
                     . 'course (gradebook facts). Not access/enrolment/permissions/notifications.',
                 'examples' => [
-                    'Warum sieht Maria ihre Note für Quiz 3 nicht?',
-                    'Die Endnote von Tom stimmt nicht — woran kann das liegen?',
+                    'Why can Maria not see her grade for Quiz 3?',
+                    'Tom\'s final grade is wrong — what could be the reason?',
                     'Why is the grade for this assignment missing?',
-                    'Warum fehlt die Note im Notenbuch?',
+                    'Why is the grade missing in the gradebook?',
                 ],
             ],
         ];
@@ -181,9 +181,9 @@ class diagnose_grades_skill extends core_skill_base implements skill_trigger_pro
             [
                 'id' => 'course.diagnose_grades',
                 'triggers' => [
-                    'note', 'noten', 'notenbuch', 'grade', 'grades', 'gradebook', 'endnote', 'bewertung',
-                    'note fehlt', 'note falsch', 'note nicht sichtbar', 'grade missing', 'grade wrong',
-                    'why grade', 'warum note',
+                    'grade', 'grades', 'gradebook', 'final grade', 'mark',
+                    'grade missing', 'grade wrong', 'grade not visible',
+                    'why grade',
                 ],
                 'guidance' => [
                     '- course.diagnose_grades collects gradebook FACTS (read-only): item structure + the person\'s',

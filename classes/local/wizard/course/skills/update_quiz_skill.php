@@ -226,7 +226,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 'id' => 'course.update_quiz_request',
                 'description' => 'User wants to edit an EXISTING quiz (rename, description, show/hide) and/or ADD '
                     . 'questions to it (generated, specific, or from a category). E.g. "add 5 questions to Quiz 3", '
-                    . '"füge Fragen zum Quiz hinzu", "rename the quiz", "blende das Quiz aus". Not creating a new quiz.',
+                    . '"add questions to the quiz", "rename the quiz", "hide the quiz". Not creating a new quiz.',
             ],
         ];
     }
@@ -241,8 +241,8 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
             [
                 'id' => 'course.update_quiz',
                 'triggers' => [
-                    'add questions to', 'fragen hinzufügen', 'fragen zum quiz', 'add to quiz', 'quiz umbenennen',
-                    'rename quiz', 'quiz bearbeiten', 'edit quiz', 'quiz ausblenden', 'hide quiz', 'mehr fragen',
+                    'add questions to', 'add to quiz', 'rename quiz',
+                    'rename quiz', 'edit quiz', 'hide quiz', 'more questions',
                 ],
                 'guidance' => [
                     '- course.update_quiz edits an EXISTING quiz and/or adds questions; to create a new quiz use',

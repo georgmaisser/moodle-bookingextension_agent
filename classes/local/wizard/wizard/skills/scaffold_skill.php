@@ -307,7 +307,7 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
                 'description' => 'Developer wants a starter template for a new agent skill.',
                 'examples' => [
                     'I want to build my own skill for the agent',
-                    'gib mir eine Vorlage für einen eigenen Skill',
+                    'give me a template for a custom skill',
                     'scaffold a skill template for my plugin',
                     'wie schreibe ich einen eigenen Skill, gib mir ein Template',
                 ],

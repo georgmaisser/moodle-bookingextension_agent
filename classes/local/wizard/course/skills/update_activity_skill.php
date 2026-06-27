@@ -191,7 +191,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'id' => 'course.update_activity_request',
                 'description' => 'User wants to change/edit an EXISTING activity or resource in a course: rename it, '
                     . 'change its description, show/hide it, or change a module setting (e.g. "rename the page", '
-                    . '"hide the forum", "ändere die URL", "benenne das Quiz um", "blende die Seite aus"). Not creating '
+                    . '"hide the forum", "change the URL", "rename the quiz", "hide the page"). Not creating '
                     . 'a new one.',
             ],
         ];
@@ -208,8 +208,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'id' => 'course.update_activity',
                 'triggers' => [
                     'rename', 'umbenennen', 'benenne um', 'hide', 'verstecken', 'ausblenden', 'show', 'einblenden',
-                    'sichtbar machen', 'ändere die', 'change the', 'edit the', 'bearbeite', 'aktualisiere die aktivität',
-                    'update the activity', 'ändere die url', 'seite umbenennen', 'forum ausblenden',
+                    'make visible', 'change the', 'edit the', 'update the activity',
+                    'change the url', 'rename page', 'hide forum',
                 ],
                 'guidance' => [
                     '- course.update_activity edits an EXISTING activity; to create a new one use course.add_activity.',

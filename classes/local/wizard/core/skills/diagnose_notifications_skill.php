@@ -89,7 +89,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
             'description' => 'Explain why a person may NOT be receiving e-mails or notifications from Moodle. Checks '
                 . 'user-level blockers (missing/blocked e-mail, unconfirmed or suspended account, "disable all e-mail" '
                 . 'setting, bounce threshold) and, for admins, the site mail switches and mail task health. Use for '
-                . '"why does Maria get no e-mails", "warum bekommt Tom keine Benachrichtigungen". For booking '
+                . '"why does Maria get no e-mails", "why does Tom get no notifications". For booking '
                 . 'confirmation/reminder mails about a specific option, mod_booking.diagnose_user_booking is better.',
             'readonly' => true,
             'example_utterances' => [
@@ -141,8 +141,8 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
                 'description' => 'User asks why a person is not receiving e-mails or notifications from Moodle in '
                     . 'general (not a specific booking option\'s mails — that is mod_booking.diagnose_user_booking).',
                 'examples' => [
-                    'Warum bekommt Maria keine E-Mails aus Moodle?',
-                    'Tom erhält keine Benachrichtigungen — woran liegt das?',
+                    'Why is Maria not getting any e-mails from Moodle?',
+                    'Why is Tom not getting any notifications?',
                     'Why are notifications not reaching this user?',
                     'Ich bekomme keine Mails vom System.',
                 ],
@@ -161,8 +161,8 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
                 'id' => 'core.diagnose_notifications',
                 'triggers' => [
                     'keine mail', 'keine mails', 'keine e-mail', 'keine benachrichtigung', 'keine benachrichtigungen',
-                    'bekommt keine', 'erhält keine', 'no email', 'no emails', 'no notification', 'not receiving',
-                    'notifications not', 'mail kommt nicht an',
+                    'no email', 'no emails', 'no notification', 'not receiving',
+                    'notifications not', 'mail not arriving',
                 ],
                 'guidance' => [
                     '- core.diagnose_notifications explains general e-mail/notification delivery blockers (read-only):',

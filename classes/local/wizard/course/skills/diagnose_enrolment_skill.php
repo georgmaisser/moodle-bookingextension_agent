@@ -90,7 +90,7 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
                 . 'automatic enrolment (self-enrolment, cohort sync). Inspects the course enrolment methods and '
                 . 'their constraints (enabled? time window, enrolment key, max participants, cohort '
                 . 'restriction/membership) and, for a named person, their current enrolment (active/suspended/'
-                . 'expired). Use for "why was Maria not auto-enrolled", "warum ist Tom nicht im Kurs eingeschrieben", '
+                . 'expired). Use for "why was Maria not auto-enrolled", "why is Tom not enrolled in the course", '
                 . '"cohort sync not working". NOT for booking, access/visibility, or grades.',
             'readonly' => true,
             'example_utterances' => [
@@ -153,10 +153,10 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
                 'description' => 'User asks why someone was (not) enrolled into a course, why automatic enrolment '
                     . '(self-enrolment / cohort sync) did not work, or about a course\'s enrolment methods.',
                 'examples' => [
-                    'Warum wurde Maria nicht automatisch in den Kurs eingeschrieben?',
-                    'Tom ist nicht im Kurs "Mathematik" — woran liegt das?',
+                    'Why was Maria not automatically enrolled in the course?',
+                    'Tom is not in the course "Mathematics" — what is the reason?',
                     'Why did the cohort sync not enrol these users?',
-                    'Welche Einschreibemethoden hat dieser Kurs und sind sie aktiv?',
+                    'Which enrolment methods does this course have and are they active?',
                 ],
             ],
         ];
@@ -172,10 +172,10 @@ class diagnose_enrolment_skill extends core_skill_base implements skill_trigger_
             [
                 'id' => 'course.diagnose_enrolment',
                 'triggers' => [
-                    'nicht eingeschrieben', 'nicht im kurs', 'automatisch eingeschrieben', 'einschreibung',
-                    'einschreibemethode', 'selbsteinschreibung', 'kohorte', 'cohort sync', 'self enrolment',
-                    'not enrolled', 'auto-enrol', 'enrolment method', 'enrolment key', 'einschreibeschlüssel',
-                    'warum nicht eingeschrieben',
+                    'not enrolled', 'not in the course', 'automatically enrolled', 'enrolment',
+                    'enrolment method', 'self enrolment', 'cohort', 'cohort sync',
+                    'auto-enrol', 'enrolment key',
+                    'why not enrolled',
                 ],
                 'guidance' => [
                     '- course.diagnose_enrolment explains enrolment problems (read-only): which methods exist, whether',
