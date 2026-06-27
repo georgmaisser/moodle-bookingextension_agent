@@ -333,7 +333,11 @@ class skill_selection_debug_service {
             return [];
         }
 
-        $queryembedding = $this->generate_query_embedding($contextid, $userid, $input, $dimensions);
+        // Cross-language bridge (SKILL_REWORK.md §5.7, Weg B): match the live discovery path by
+        // embedding an English-normalised query. Fail-open.
+        $embedinput = (new \bookingextension_agent\local\wizard\services\llm\query_english_normalizer())
+            ->to_english($input, (int)$contextid, (int)$userid);
+        $queryembedding = $this->generate_query_embedding($contextid, $userid, $embedinput, $dimensions);
         if (empty($queryembedding)) {
             return [];
         }

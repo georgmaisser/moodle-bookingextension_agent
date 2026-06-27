@@ -79,6 +79,10 @@ class skill_discovery_service implements skill_discovery_provider_interface {
         }
 
         $llm = new llm_call_service(new conversation_store());
+        // Cross-language bridge (SKILL_REWORK.md §5.7, Weg B): normalise the query to English before
+        // embedding so non-English requests match the English-only anchors. Fail-open.
+        $query = (new \bookingextension_agent\local\wizard\services\llm\query_english_normalizer())
+            ->to_english($query, (int)$contextid, (int)$userid);
         $embeddingcall = $llm->invoke_embeddings_for_context(
             0, // Thread ID 0 indicates internal retrieval lookup without thread context.
             $contextid,

@@ -286,12 +286,16 @@ class discovery_phase_service {
                         );
 
                         if (!empty($status['ready']) && !empty($status['rows']) && is_array($status['rows']) && $querytext !== '') {
+                            // Cross-language bridge (SKILL_REWORK.md §5.7, Weg B): embed an English-normalised
+                            // query so non-English requests match the English-only anchors. Fail-open.
+                            $embedquery = (new \bookingextension_agent\local\wizard\services\llm\query_english_normalizer())
+                                ->to_english($querytext, (int)$contextid, (int)$userid, (int)$threadid);
                             $embeddingcall = $llm->invoke_embeddings_for_context(
                                 $threadid,
                                 $contextid,
                                 $userid,
                                 'orc|p=disc|st=tcp|ac=emb|rt=wb',
-                                $querytext,
+                                $embedquery,
                                 $embeddingdimensions
                             );
 
