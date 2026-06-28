@@ -34,6 +34,7 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 
 /**
  * Return all messages in a conversation thread for the current user.
@@ -102,11 +103,22 @@ class ai_poll_thread extends external_api {
         $messages = $store->get_step_messages_since($tid, $params['lastseenid']);
         $result   = [];
 
+        // Step bubbles (the planner's next_step_intent) are produced by the LLM and therefore carry
+        // anonymized identity tokens (ANON_USER_*). Resolve them to the real identity for display, the
+        // same display-side de-anonymisation the final message gets in ai_send_message / ai_confirm_run.
+        // deanonymize_message_for_display fails closed: an unresolvable token becomes a neutral label
+        // rather than leaking the raw token.
+        $anonymizer = new privacy_anonymizer($store);
+
         foreach ($messages as $msg) {
+            $content = (string)($msg->content ?? '');
+            $displayresult = $anonymizer->deanonymize_message_for_display((int)$tid, $content);
+            $content = (string)($displayresult['message'] ?? $content);
+
             $result[] = [
                 'id'             => (int)$msg->id,
                 'role'           => $msg->role,
-                'content'        => (string)($msg->content ?? ''),
+                'content'        => $content,
                 'structuredjson' => '', // Omitted to save bandwidth.
                 'timecreated'    => (int)$msg->timecreated,
             ];
