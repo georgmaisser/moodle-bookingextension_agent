@@ -126,6 +126,42 @@ final class mod_booking_option_skills_contract_test extends booking_advanced_tes
     }
 
     /**
+     * Bulk update must carry a real moodle_url link per option in the observation the synchronizer reads
+     * (observation_full), not just a bare id — so course/option entities are always rendered linked.
+     */
+    public function test_bulk_update_emits_option_links_in_observation(): void {
+        [$teacher, $contextid] = $this->create_booking_test_context();
+
+        skill_registry_factory::reset();
+        $registry = skill_registry_factory::get_default();
+
+        // Create two options to update in bulk.
+        $create = $registry->get_skill('mod_booking.create_option');
+        $optionids = [];
+        foreach (['Bulk option A', 'Bulk option B'] as $title) {
+            $preflight = $create->preflight(['text' => $title, 'maxanswers' => 5], $contextid, (int)$teacher->id);
+            $created = $create->execute($preflight->preparedinput, $contextid, (int)$teacher->id);
+            $optionids[] = (int)($created['resultid'] ?? 0);
+        }
+        $this->assertCount(2, array_filter($optionids), 'Two options must be created for the bulk test.');
+
+        $bulk = $registry->get_skill('mod_booking.bulk_update_options');
+        $this->assertNotNull($bulk);
+        $input = ['optionids' => $optionids, 'maxanswers' => 9];
+        $preflight = $bulk->preflight($input, $contextid, (int)$teacher->id);
+        $prepared = $preflight->status === 'pass' ? $preflight->preparedinput : $input;
+        $result = $bulk->execute($prepared, $contextid, (int)$teacher->id);
+
+        $observation = trim((string)($result['observation_full'] ?? ''));
+        $this->assertNotSame('', $observation, 'Bulk must emit an observation.');
+        foreach ($optionids as $id) {
+            // The fix: "Option <id> (<moodle_url>): confirmed" — id paired with its real link.
+            $this->assertStringContainsString('Option ' . $id . ' (http', $observation,
+                'Bulk observation must carry a real link for option ' . $id);
+        }
+    }
+
+    /**
      * Ensure selflearning update skill persists option type 1.
      */
     public function test_update_option_sets_type_one_for_selflearning_input(): void {
