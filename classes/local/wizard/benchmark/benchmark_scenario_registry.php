@@ -71,6 +71,20 @@ class benchmark_scenario_registry {
      */
     public function get_scenarios(string $setname): array {
         $classes = self::SETS[$setname] ?? self::SETS['core_booking_v1'];
-        return array_map(fn($class) => new $class(), $classes);
+        $scenarios = array_map(fn($class) => new $class(), $classes);
+
+        // Auto-include the confusable-cluster routing scenarios (scenarios/route_*.php). They all share
+        // abstract_routing_scenario and form the Tier-2 disambiguation core (one scenario per sibling
+        // skill, with a forbidden-sibling guard). Discovering them here means a new cluster file is
+        // picked up without touching the registry. Sorted for harness determinism.
+        $routefiles = glob(__DIR__ . '/scenarios/route_*.php') ?: [];
+        sort($routefiles);
+        foreach ($routefiles as $file) {
+            $class = __NAMESPACE__ . '\\scenarios\\' . basename($file, '.php');
+            if (class_exists($class)) {
+                $scenarios[] = new $class();
+            }
+        }
+        return $scenarios;
     }
 }

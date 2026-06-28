@@ -1,5 +1,5 @@
 <?php
-// This file is part of Moodle - https://moodle.org/
+// This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 declare(strict_types=1);
 
@@ -21,25 +21,20 @@ namespace bookingextension_agent\local\wizard\benchmark\scenarios;
 use bookingextension_agent\local\wizard\benchmark\abstract_routing_scenario;
 
 /**
- * Routing scenario: book a NAMED person directly -> book_users (resolve-then-act regression guard).
- *
- * This pins book_users and forbids the search_* fallback ON PURPOSE: it is the regression guard for
- * the CONTEXT-AWARE PLANNING fix (action skills resolve their own target via their query field; the
- * planner must NOT prepend a search/resolution step). The previous version accepted the
- * find-then-book fallback and therefore could not catch that regression.
+ * Routing scenario: No e-mails/notifications in general -> diagnose_notifications (not booking-specific mails)
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class book_users_single extends abstract_routing_scenario {
+class route_diagnose_notifications_de extends abstract_routing_scenario {
     /**
      * Get the scenario key.
      *
      * @return string
      */
     public function get_key(): string {
-        return 'book_users_single';
+        return 'route_diagnose_notifications_de';
     }
 
     /**
@@ -48,7 +43,7 @@ class book_users_single extends abstract_routing_scenario {
      * @return string
      */
     public function get_description(): string {
-        return 'Book a named person directly -> book_users (resolve-then-act guard, not search_*)';
+        return 'No e-mails/notifications in general -> diagnose_notifications (not booking-specific mails)';
     }
 
     /**
@@ -66,7 +61,7 @@ class book_users_single extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Buche Anna Berger fuer den Kurs "Erste Hilfe Grundkurs".';
+        return 'Warum bekommt Maria ueberhaupt keine E-Mails aus Moodle?';
     }
 
     /**
@@ -75,7 +70,7 @@ class book_users_single extends abstract_routing_scenario {
      * @return string
      */
     public function get_expected_skill(): string {
-        return 'mod_booking.book_users';
+        return 'core.diagnose_notifications';
     }
 
     /**
@@ -84,6 +79,6 @@ class book_users_single extends abstract_routing_scenario {
      * @return string[]
      */
     public function get_forbidden_siblings(): array {
-        return ['mod_booking.search_options', 'course.search_courses'];
+        return ['mod_booking.diagnose_user_booking', 'core.diagnose_permissions'];
     }
 }
