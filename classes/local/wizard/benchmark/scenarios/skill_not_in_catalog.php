@@ -56,10 +56,10 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_description(): string {
-        return 'Request for unavailable action -> wizard.search_skills catalog lookup (RAG fallback), '
-            . 'no hallucinated skill. Updated for the deliberate search_skills fallback (thread 203): '
-            . 'the agent must FIRST search the full catalog instead of immediately giving up with a '
-            . 'clarification.';
+        return 'Genuinely uncovered capability (no export/report skill exists) -> wizard.search_skills '
+            . 'catalog lookup (RAG fallback, §6.3), no hallucinated skill. Replaces the former '
+            . '"create a Zoom link" utterance, which course.add_activity now legitimately serves '
+            . '(URL/link resource) — that made it a false no-skill case (run 44).';
     }
     /**
      * Get the user message.
@@ -67,7 +67,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Erstelle einen Zoom-Link fuer den Kurs "Online Workshop".';
+        return 'Exportiere alle Teilnehmer von "Erste Hilfe Grundkurs" als Excel-Datei.';
     }
     /**
      * Get the expected response type.
@@ -93,7 +93,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","message":"Ich suche im Skill-Katalog nach einer passenden Aktion.",'
-            . '"commands":[{"skill":"wizard.search_skills","version":1,"input":{"query":"Zoom-Link erstellen"}}],'
+            . '"commands":[{"skill":"wizard.search_skills","version":1,"input":{"query":"Teilnehmer als Excel exportieren"}}],'
             . '"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 
@@ -110,18 +110,12 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
             $commands
         );
         $nonsearch = array_filter($skills, static fn(string $s): bool => $s !== '' && $s !== 'wizard.search_skills');
-        $hallucinated = array_filter($skills, static fn(string $s): bool => stripos($s, 'zoom') !== false);
 
         return [
             [
                 'label'  => 'Only the catalog lookup is emitted for the unavailable action',
                 'passed' => empty($nonsearch),
                 'detail' => 'commands: ' . json_encode($commands),
-            ],
-            [
-                'label'  => 'No hallucinated skill name',
-                'passed' => empty($hallucinated),
-                'detail' => 'skills: ' . implode(', ', $skills),
             ],
         ];
     }
