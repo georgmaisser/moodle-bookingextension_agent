@@ -288,6 +288,10 @@ class planner_phase_service {
             'phase' => orchestrator::PHASE_SELECTION,
             'phase_output' => $phaseoutput,
             'response_type' => (string)($phaseoutput['response_type'] ?? ''),
+            // Forward the planner's human-readable step intent to the top level so the orchestrator
+            // can surface it as the progress step bubble (otherwise it falls back to "Executing
+            // <skill>"). The interpreter already produced it on the phase output.
+            'next_step_intent' => (string)($phaseoutput['next_step_intent'] ?? ''),
             'message' => (string)($phaseoutput['message'] ?? ''),
             'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
             'errors' => (array)($phaseoutput['errors'] ?? []),
