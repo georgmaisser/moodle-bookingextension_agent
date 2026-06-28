@@ -79,6 +79,6 @@ class route_diagnose_permissions_de extends abstract_routing_scenario {
      * @return string[]
      */
     public function get_forbidden_siblings(): array {
-        return ['core.diagnose_notifications', 'course.diagnose_access'];
+        return ['core.diagnose_notifications', 'course.diagnose_user_in_course'];
     }
 }

@@ -70,7 +70,7 @@ class route_diagnose_progress_de extends abstract_routing_scenario {
      * @return string
      */
     public function get_expected_skill(): string {
-        return 'course.diagnose_progress';
+        return 'course.diagnose_user_in_course';
     }
 
     /**
@@ -79,6 +79,6 @@ class route_diagnose_progress_de extends abstract_routing_scenario {
      * @return string[]
      */
     public function get_forbidden_siblings(): array {
-        return ['course.diagnose_access', 'course.diagnose_enrolment', 'course.diagnose_grades'];
+        return ['mod_booking.diagnose_booking_issue'];
     }
 }

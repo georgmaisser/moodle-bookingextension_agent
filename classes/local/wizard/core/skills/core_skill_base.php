@@ -256,6 +256,40 @@ abstract class core_skill_base extends base_skill {
     }
 
     /**
+     * Resolve the course id a readonly skill should operate on — eager and safe.
+     *
+     * Shared "readonly eager resolution" entry point: explicit `courseid` → unique `coursequery`
+     * match → ambient/operating course (when no course was named, or the named course IS the current
+     * one per {@see course_input_targets_operating_context()}). Returns 0 ONLY when the user named a
+     * course that resolves to neither a single match nor the current course — the caller then emits a
+     * clean "course not found" instead of silently analysing the wrong course. Never blocks readonly on
+     * resolution for the common "the course I'm in" case (thread 515).
+     *
+     * @param array $input skill input (courseid / coursequery)
+     * @param int $ambientcontextid the context the skill runs in
+     * @return int resolved course id, or 0 if a named-but-different course could not be resolved
+     */
+    protected function resolve_readonly_course_context_id(array $input, int $ambientcontextid): int {
+        $courseid = (int)($input['courseid'] ?? 0);
+        if ($courseid > 0) {
+            return $courseid;
+        }
+        $courseid = $this->resolve_courseid($input);
+        if ($courseid > 0) {
+            return $courseid;
+        }
+        $namedacourse = trim((string)($input['coursequery'] ?? '')) !== '';
+        if (!$namedacourse || $this->course_input_targets_operating_context($input, $ambientcontextid)) {
+            $context = \context::instance_by_id($ambientcontextid, IGNORE_MISSING);
+            $coursecontext = $context ? $context->get_course_context(false) : false;
+            if ($coursecontext) {
+                return (int)$coursecontext->instanceid;
+            }
+        }
+        return 0;
+    }
+
+    /**
      * Explicit preflight for core readonly skills — validates structure and passes input unchanged.
      *
      * Core skills are read-only. No domain writes are performed. This override makes the

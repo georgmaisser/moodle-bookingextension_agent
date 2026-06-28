@@ -909,42 +909,8 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'course.diagnose_enrolment' => [
-                'prompt' => 'Diagnose enrolment issues for {{teacher_fullname}} in this course.',
-                'allow_direct_answer' => true,
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'course.diagnose_access' => [
+            'course.diagnose_user_in_course' => [
                 'prompt' => 'Diagnose the course access of {{teacher_fullname}} in this course.',
-                'allow_direct_answer' => true,
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
-            'course.diagnose_grades' => [
-                'prompt' => 'Diagnose the grades of {{teacher_fullname}} in this course.',
                 'allow_direct_answer' => true,
                 'assertions' => [
                     [

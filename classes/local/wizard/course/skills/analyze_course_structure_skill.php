@@ -23,8 +23,7 @@ use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wizard\services\activities\course_structure_preview;
 use bookingextension_agent\local\wizard\services\activities\course_structure_service;
-use bookingextension_agent\local\wizard\services\security\operating_context_target_registry;
-use context;
+use context_course;
 
 /**
  * Readonly analysis skill: list a course's structure (sections + activities) exactly as the acting user
@@ -225,43 +224,22 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
      * @return array
      */
     public function execute(array $input, int $contextid, int $userid): array {
-        // R0/readonly skills skip preflight, so the engine has NOT applied cross-context
-        // resolution. When the user named a course (courseid/coursequery), resolve it here
-        // the same way the engine does for non-readonly skills; otherwise fall back to the
-        // operating context.
-        $selector = $this->get_target_selector($input);
-        if ($selector !== null) {
-            $resolution = (new operating_context_target_registry())->resolve($selector, $userid);
-            if ($resolution->is_resolved() && $resolution->context() !== null) {
-                $contextid = (int)$resolution->context()->id;
-            } else if (!$this->course_input_targets_operating_context($input, $contextid)) {
-                // The named course could not be uniquely resolved site-wide AND it is not the course
-                // we are already in. Only then is it a genuine "course not found". When the user named
-                // the current course (a common name like "booking" the site-wide search cannot pin to a
-                // single match), fall back to the operating context below instead of giving up.
-                return $this->error_result(
-                    'I could not find a single course matching that name. Please check the course name.',
-                    'course_not_found'
-                );
-            }
-            // else: the named course IS the current operating course -> keep the operating $contextid.
-        }
-
-        // 1) Resolve the course from the (possibly cross-resolved) operating context.
-        $context = context::instance_by_id($contextid, IGNORE_MISSING);
-        $coursecontext = $context ? $context->get_course_context(false) : false;
-        if (!$coursecontext) {
+        // R0/readonly skips preflight, so the skill self-resolves its course — eager and safe via the
+        // shared readonly resolver: explicit id > unique name > ambient (when no course named or the
+        // named course IS the current one). 0 = a named-but-different course that could not be resolved.
+        $courseid = $this->resolve_readonly_course_context_id($input, $contextid);
+        if ($courseid <= 0) {
             return $this->error_result(
-                'Please tell me which course to analyse (by name), or open a course first.',
-                'missing_course'
+                'I could not find a single course matching that name. Please check the course name.',
+                'course_not_found'
             );
         }
-        $courseid = (int)$coursecontext->instanceid;
         try {
             $course = get_course($courseid);
         } catch (\Throwable $e) {
             return $this->error_result('That course could not be found.', 'course_not_found');
         }
+        $coursecontext = context_course::instance($courseid);
 
         // 2) Access gate: the acting user must be able to access this course at all. This is the real guard
         // for an explicit courseid (the resolver does not check access); visibility of the contents below is
