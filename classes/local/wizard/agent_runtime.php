@@ -281,6 +281,7 @@ class agent_runtime {
     private function finalize_and_persist_result(int $threadid, array $result, ?agent_state $state = null): array {
         if ($state !== null) {
             $result = $this->attach_loop_results($result, $state);
+            $result = $this->reclassify_abandoned_run_as_error($result);
         }
         $result = $this->apply_finalization_strategy($threadid, $result, $state);
         $result = $this->enforce_final_response_contract($result, $threadid);
@@ -913,7 +914,77 @@ class agent_runtime {
     }
 
     /**
-     * Attach loop bookkeeping to the result payload.
+     * Honest-failure guard: a run that gives up as 'sufficient' even though EVERY executed step failed
+     * (and none succeeded) is a failure masquerading as success. Left as 'sufficient', the synchronizer
+     * is free to compose any message and may confabulate a cause (observed: a fabricated "Gateway
+     * Time-out" while the real error was an unresolved course). Reclassify it to 'error' so the existing
+     * faithful-error contract (error_presentation_requested / synchronizer [ERROR] input) presents the
+     * real last error instead.
+     *
+     * Scope is deliberately tight: only when the run executed at least one command, at least one result
+     * row is a hard error, and NO result row succeeded. A run that answered from context (no executed
+     * step) or had any success stays 'sufficient'.
+     *
+     * @param array $result result already carrying loop_results (attach_loop_results ran first)
+     * @return array
+     */
+    private function reclassify_abandoned_run_as_error(array $result): array {
+        if (trim((string)($result['response_type'] ?? '')) !== 'sufficient') {
+            return $result;
+        }
+
+        $rows = [];
+        foreach ((array)($result['loop_results'] ?? []) as $step) {
+            foreach ((array)($step['results'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row;
+                }
+            }
+        }
+        if (empty($rows)) {
+            // Nothing was executed — a genuine "answered from context" sufficient.
+            return $result;
+        }
+
+        $haserror = false;
+        $hassuccess = false;
+        $lasterror = '';
+        foreach ($rows as $row) {
+            $status = strtolower(trim((string)($row['status'] ?? '')));
+            if ($status === 'error') {
+                $haserror = true;
+                $msg = trim((string)($row['usermessage'] ?? ($row['detail'] ?? '')));
+                if ($msg !== '') {
+                    $lasterror = $msg;
+                }
+            } else if ($status !== '') {
+                $hassuccess = true;
+            }
+        }
+
+        // Only a run where every executed step failed is a disguised failure.
+        if (!$haserror || $hassuccess) {
+            return $result;
+        }
+
+        $result['response_type'] = 'error';
+        if ($lasterror !== '') {
+            $result['message'] = $lasterror;
+            $result['errors'] = array_values(array_unique(array_merge(
+                (array)($result['errors'] ?? []),
+                [$lasterror]
+            )));
+        }
+        $result['issue_codes'] = array_values(array_unique(array_merge(
+            (array)($result['issue_codes'] ?? []),
+            ['RUN_ABANDONED_ALL_STEPS_FAILED']
+        )));
+
+        return $result;
+    }
+
+    /**
+     * Attach loop step results + counters to a terminal result.
      *
      * @param array $result
      * @param agent_state $state
