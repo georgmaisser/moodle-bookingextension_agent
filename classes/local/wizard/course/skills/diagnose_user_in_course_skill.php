@@ -99,7 +99,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
             'version' => 1,
             'description' => 'Diagnose a person\'s situation in a course (read-only): why they can or cannot '
                 . 'ACCESS/see/open the course or an activity (aspect=access); why ENROLMENT did or did not happen '
-                . '— self-enrolment, cohort sync, suspended/expired (aspect=enrolment); their PROGRESS / activity '
+                . '— self-enrolment, cohort sync, suspended/expired, OR which/how many courses a person is '
+                . 'enrolled in (aspect=enrolment; omit the course to list all of the person\'s courses); their PROGRESS / activity '
                 . 'completion (aspect=progress); or a missing/wrong GRADE (aspect=grades). Set "aspect" to the facet '
                 . 'asked about. NOT for booking options (that is mod_booking.diagnose_booking_issue).',
             'readonly' => true,
@@ -108,6 +109,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 'why is the activity greyed out for her',
                 'why wasn\'t he auto-enrolled in the course',
                 'his enrolment expired and he\'s no longer in the course',
+                'which courses is this user enrolled in',
+                'list the courses he is enrolled in',
                 'how far has this learner progressed in the course',
                 'why is the activity not marked complete for her',
                 'why can\'t the student see their grade',

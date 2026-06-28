@@ -119,6 +119,20 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
     }
 
     /**
+     * Opt into deterministic construction passthrough (skill-agnostic engine contract).
+     *
+     * search_skills is the engine fallback: it needs only a free-text query (the wanted capability),
+     * never DB-grounded parameters. Declaring the passthrough field tells the engine to build that one
+     * field from the user intent and SKIP the construction LLM — which otherwise occasionally rejects
+     * this meta-skill and dead-ends in a clarification, defeating the fallback (thread 531).
+     *
+     * @return string the input field that receives the query
+     */
+    public function get_passthrough_construction_field(): string {
+        return 'query';
+    }
+
+    /**
      * Return skill-specific message triggers.
      *
      * @return array<int,array<string,mixed>>

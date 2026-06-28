@@ -66,6 +66,8 @@ class search_users_skill extends core_skill_base implements
                 'search for a person in the system',
                 'which user has the id 42',
                 'find another teacher account',
+                'which courses is this user enrolled in',
+                'list the courses that person is enrolled in',
             ],
             'properties' => [
                 'query' => [

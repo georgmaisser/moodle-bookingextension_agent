@@ -345,6 +345,21 @@ class planner_phase_service {
             return $this->build_selector_handoff_error_result();
         }
 
+        // Skill-agnostic construction passthrough: a skill MAY declare (duck-typed) that it needs no
+        // DB-grounded parameter construction — only a free-text query built from the user intent. The
+        // engine then skips the construction LLM and builds that one field deterministically. This keeps
+        // the engine skill-agnostic while guaranteeing such a skill is never clarified away by the
+        // constructor (e.g. the wizard.search_skills fallback dead-ending in thread 531).
+        $passthroughfield = $this->resolve_passthrough_construction_field($selectedskill);
+        if ($passthroughfield !== '') {
+            return $this->build_passthrough_construction_result(
+                $selectedskill,
+                $passthroughfield,
+                $selectionstate,
+                $messages
+            );
+        }
+
         $constructionruntimecatalog = $this->build_construction_runtime_catalog_for_selected_skill(
             $selectedskill,
             $runtimecatalog,
@@ -647,6 +662,78 @@ class planner_phase_service {
             'ambiguities' => [],
             'errors' => ['CONTRACT_VIOLATION: selection phase did not provide a selected_skill for construction.'],
             'issue_codes' => ['CONTRACT_SELECTION_SKILL_MISSING'],
+        ];
+    }
+
+    /**
+     * The construction-passthrough field a skill declares, or '' when it constructs normally.
+     *
+     * Duck-typed, skill-agnostic: a skill opts in by exposing get_passthrough_construction_field(): string.
+     * The engine never names a concrete skill — it only asks whether THIS selected skill wants passthrough.
+     *
+     * @param string $skillname
+     * @return string the single input field to receive the query, or '' for normal LLM construction
+     */
+    private function resolve_passthrough_construction_field(string $skillname): string {
+        $skill = $this->registry->get_skill($skillname);
+        if ($skill !== null && method_exists($skill, 'get_passthrough_construction_field')) {
+            return trim((string)$skill->get_passthrough_construction_field());
+        }
+        return '';
+    }
+
+    /**
+     * Deterministic construction result for a passthrough skill (no construction LLM).
+     *
+     * Builds the query from the selector's next_step_intent (which describes the wanted action),
+     * falling back to the latest user message. Guarantees an executable skill_call instead of the
+     * construction LLM occasionally clarifying the skill away.
+     *
+     * @param string $skillname
+     * @param string $field the input field to receive the query
+     * @param array<string,mixed> $selectionstate
+     * @param \stdClass[] $messages
+     * @return array<string,mixed>
+     */
+    private function build_passthrough_construction_result(
+        string $skillname,
+        string $field,
+        array $selectionstate,
+        array $messages
+    ): array {
+        $query = trim((string)($selectionstate['next_step_intent'] ?? ''));
+        if ($query === '') {
+            for ($i = count($messages) - 1; $i >= 0; $i--) {
+                $message = $messages[$i];
+                $role = is_array($message) ? (string)($message['role'] ?? '') : (string)($message->role ?? '');
+                if ($role !== 'user') {
+                    continue;
+                }
+                $content = is_array($message) ? (string)($message['content'] ?? '') : (string)($message->content ?? '');
+                $query = trim($content);
+                break;
+            }
+        }
+        if ($query === '') {
+            $query = 'find a matching capability';
+        }
+
+        return [
+            'response_type' => 'skill_call',
+            'message' => '',
+            'commands' => [[
+                'skill' => $skillname,
+                'version' => 1,
+                'parameters' => [$field => $query],
+            ]],
+            'ambiguities' => [],
+            'errors' => [],
+            'issue_codes' => [],
+            'used_triggers' => [],
+            'next_step_intent' => $query,
+            'selected_skill' => $skillname,
+            'lang' => (string)($selectionstate['lang'] ?? ''),
+            'user_lang' => (string)($selectionstate['user_lang'] ?? ''),
         ];
     }
 
