@@ -64,19 +64,70 @@ class benchmark_scenario_registry {
     ];
 
     /**
+     * The curated DECISION set (default): the smallest list that still prepares the decisions we care
+     * about, runnable live in ~1 minute. Exhaustive per-skill coverage is NOT the goal here — that
+     * lives in the PHPUnit skill matrix. This set is deliberately a SUBSET, picked for decision value:
+     *  - the resolve-then-act regression guard (book_users, not search_*),
+     *  - the hardest disambiguation pair (course access vs enrolment),
+     *  - the 3-way create family (the two non-trivial arms),
+     *  - search target disambiguation (option vs course),
+     *  - catalog-gap no-hallucination,
+     *  - two de/en pairs to read the cross-language bridge directly.
+     * Referenced by KEY (not ::class) so it can mix curated scenarios and route_* cluster scenarios.
+     *
+     * @var string[]
+     */
+    private const DECISION_CORE = [
+        'book_users_single',
+        'route_diagnose_access_de',
+        'route_diagnose_enrolment_de',
+        'route_create_selflearning_de',
+        'route_create_slotbooking_de',
+        'route_search_options_de',
+        'route_search_courses_de',
+        'catalog_gap_bulk_cancel',
+        'route_search_options_en',
+        'route_create_selflearning_en',
+    ];
+
+    /**
      * Get all scenario instances for a named set.
+     *
+     * Sets:
+     *  - 'decision_core' (default): the curated ~1-minute decision subset (see DECISION_CORE).
+     *  - 'core_booking_v1' / anything else: the broad set — curated classes PLUS every confusable
+     *    cluster (scenarios/route_*.php), for an occasional deep run.
      *
      * @param string $setname
      * @return benchmark_scenario_interface[]
      */
     public function get_scenarios(string $setname): array {
-        $classes = self::SETS[$setname] ?? self::SETS['core_booking_v1'];
-        $scenarios = array_map(fn($class) => new $class(), $classes);
+        $all = $this->build_full_universe();
+        if ($setname === 'decision_core') {
+            $bykey = [];
+            foreach ($all as $scenario) {
+                $bykey[$scenario->get_key()] = $scenario;
+            }
+            $out = [];
+            foreach (self::DECISION_CORE as $key) {
+                if (isset($bykey[$key])) {
+                    $out[] = $bykey[$key];
+                }
+            }
+            return $out;
+        }
+        return $all;
+    }
 
-        // Auto-include the confusable-cluster routing scenarios (scenarios/route_*.php). They all share
-        // abstract_routing_scenario and form the Tier-2 disambiguation core (one scenario per sibling
-        // skill, with a forbidden-sibling guard). Discovering them here means a new cluster file is
-        // picked up without touching the registry. Sorted for harness determinism.
+    /**
+     * Build the full universe of scenarios: the curated classes plus every auto-discovered confusable
+     * cluster (scenarios/route_*.php, sorted for harness determinism). A new cluster file is picked up
+     * here without touching the registry.
+     *
+     * @return benchmark_scenario_interface[]
+     */
+    private function build_full_universe(): array {
+        $scenarios = array_map(fn($class) => new $class(), self::SETS['core_booking_v1']);
         $routefiles = glob(__DIR__ . '/scenarios/route_*.php') ?: [];
         sort($routefiles);
         foreach ($routefiles as $file) {

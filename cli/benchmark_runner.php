@@ -54,7 +54,7 @@ use core_ai\manager as ai_manager;
 
 [$options, $unrecognized] = cli_get_params(
     [
-        'scenario-set'   => 'core_booking_v1',
+        'scenario-set'   => 'decision_core',
         'model'          => '',
         'label'          => '',
         'env'            => 'local',
@@ -73,8 +73,12 @@ use core_ai\manager as ai_manager;
 if ($options['help']) {
     cli_writeln(
         "Benchmark runner for bookingextension_agent.\n\n"
+        . "A lean, decision-oriented routing benchmark (target ~1 min live). Exhaustive per-skill\n"
+        . "coverage lives in the PHPUnit suite; this set is the curated 'is the routing healthy /\n"
+        . "did my change help' instrument.\n\n"
         . "Options:\n"
-        . "  --scenario-set=core_booking_v1\n"
+        . "  --scenario-set=decision_core  (default; the curated ~1-min set)\n"
+        . "                Use --scenario-set=core_booking_v1 for the broad confusable-cluster set.\n"
         . "  --model=claude-sonnet-4-6\n"
         . "  --label=release-x.y.z\n"
         . "  --env=local|ci|staging\n"
