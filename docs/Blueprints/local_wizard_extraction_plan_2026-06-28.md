@@ -93,6 +93,61 @@
 
 ---
 
+## 5b. Engine-agnostischer Skill-Contract — DTO-frei + bedingtes `extends` (BEWIESEN 2026-06-28)
+
+**Anlass (Georg):** Es darf **kein Extra-Plugin** installiert werden müssen, und ein Skill (auch für eine Fremd-Activity) muss laufen, egal ob nur `local_wizard`, nur der Agent, oder beide installiert sind. Die Bridge (WS-D) löst das nicht für `local_wizard`-only (kein Agent → keine Agent-`base_skill`). Ein geteiltes Contract-Plugin wäre das „Extra-Plugin", das vermieden werden soll.
+
+**Blocker (verifiziert):** ~20 konkrete Skills überschreiben `preflight(): preflight_result_v2` (einige `get_prompt_contract(): skill_prompt_contract`) und **konstruieren** den Engine-DTO im Körper. Dieser Rückgabetyp ist statisch an *einen* Engine-Namespace gebunden → ein bedingtes `extends` allein reicht nicht, die Skill-eigene Signatur kettet ihn weiter an eine Engine.
+
+**Lösung (zwei Teile):**
+1. **DTO-freier Override-Surface:** `preflight()` / `get_prompt_contract()` werden **`final` in `base_skill`**; der konkrete Skill implementiert nur primitiv-typisierte Template-Methoden (`validate_input(array): array`, `build_prompt_contract(): array`, …). Die engine-eigene `base_skill` wickelt das Array in ihren DTO. (Konsequente Fortsetzung des bereits eingeführten Preview-Daten-Contracts.)
+2. **Bedingtes `extends` über einen Body-Trait:**
+```php
+trait my_skill_body { /* gesamte Logik, nur array/string/bool-Signaturen */ }
+
+if (class_exists('\local_wizard\local\wizard\base_skill')) {
+    class my_skill extends \local_wizard\local\wizard\base_skill { use my_skill_body; }
+} else {
+    class my_skill extends \bookingextension_agent\local\wizard\base_skill { use my_skill_body; }
+}
+```
+
+**Machbarkeit BEWIESEN** (Mini-Harness, beide Modi):
+
+| Aktive Engine | Skill-Elternklasse | `preflight()`-DTO |
+|---|---|---|
+| local_wizard | `…local_wizard…\base_skill` | `local_wizard\…\preflight_result_v2` |
+| nur Agent | `…bookingextension_agent…\base_skill` | `bookingextension_agent\…\preflight_result_v2` |
+
+Derselbe Trait-Body lief unter beiden Eltern; der Skill nennt **keinen** Engine-Typ. Der Moodle-Autoloader `require`t die Datei, der `if/else` definiert die Klasse gegen die vorhandene Engine.
+
+**Folgen:**
+- **Ersetzt die Bridge (WS-D) als Standard-Weg** für engine-agnostische Skills. Die Bridge bleibt höchstens Fallback für nicht-konvertierte Altskills.
+- **Autoren sehen die Boilerplate nie:** das vorhandene `agent.scaffold_skill` (Skill-Template-Generator) emittiert das `trait` + den `if/else`-Block; der Autor füllt nur Body-Methoden mit primitiven Signaturen.
+- **Voraussetzung = die Leak-Inversionen (WS-D/§5) + der DTO-freie Refactor** der ~20 `preflight()`-Overrides. Beides zusammen ist Phase 0 und unabhängig vom Cut committbar.
+
+**Scaffold-Vorlage (was der Generator ausgibt):**
+```php
+namespace <component>\local\wizard\skills;
+
+trait <skill>_body {
+    public function get_name(): string { return '<skill>'; }
+    public function get_schema(): array { return [ /* … */ ]; }
+    public function check_structure(array $input): array { return []; }
+    protected function validate_input(array $input): array { /* Skill-Logik, reine Daten */ return []; }
+    public function execute(array $prepared, int $contextid, int $userid): array { /* … */ return []; }
+    public function is_read_only(): bool { return true; }
+}
+
+if (class_exists('\\local_wizard\\local\\wizard\\base_skill')) {
+    class <skill>_skill extends \local_wizard\local\wizard\base_skill { use <skill>_body; }
+} else {
+    class <skill>_skill extends \bookingextension_agent\local\wizard\base_skill { use <skill>_body; }
+}
+```
+
+---
+
 ## 6. Workstream E — Der eigentliche Engine-Cut (späteres Folgeprojekt)
 
 Unverändert gültig aus dem alten Blueprint (§2–§4, §6, §8), hier nur referenziert:
