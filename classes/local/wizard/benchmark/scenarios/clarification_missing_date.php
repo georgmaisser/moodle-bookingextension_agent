@@ -59,6 +59,15 @@ class clarification_missing_date extends abstract_benchmark_scenario {
         return 'Missing required date/time -> clarification';
     }
     /**
+     * Contract rule (missing-required -> clarification): deterministic, belongs in PHPUnit/stub.
+     * Excluded from the noisy live LLM benchmark (Tier 2). See docs/Blueprints/BENCHMARK_REDESIGN.md.
+     *
+     * @return string
+     */
+    public function get_tier(): string {
+        return 'deterministic';
+    }
+    /**
      * Get the user message.
      *
      * @return string

@@ -78,11 +78,11 @@ class short_confirm_weiter extends abstract_benchmark_scenario {
      */
     public function get_prior_messages(): array {
         return [
-            ['role' => 'user', 'content' => 'Erstelle EventA und EventB, dann buche User1 fuer EventA.'],
+            ['role' => 'user', 'content' => 'Erstelle EventA und EventB, dann buche Anna Berger fuer EventA.'],
             [
                 'role' => 'assistant',
                 'content' => "Beide Veranstaltungen wurden erstellt.\n\n" .
-                    "Noch ausstehend: User1 fuer EventA buchen.",
+                    "Noch ausstehend: Anna Berger fuer EventA buchen.",
             ],
         ];
     }
@@ -119,6 +119,7 @@ class short_confirm_weiter extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.book_users","input":{}}],'
-            . '"planned_steps":[],"next_step_intent":"Book User1 for EventA","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"planned_steps":[],"next_step_intent":"Book Anna Berger for EventA",'
+            . '"used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 }

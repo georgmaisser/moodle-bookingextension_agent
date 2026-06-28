@@ -59,6 +59,16 @@ class duplicate_prevention extends abstract_benchmark_scenario {
         return 'Re-requesting already-executed create -> sufficient, no duplicate';
     }
     /**
+     * Contract rule (completed-action -> sufficient, no duplicate): deterministic, belongs in
+     * PHPUnit/stub. Excluded from the noisy live LLM benchmark (Tier 2). Note: the "again => no-op"
+     * product decision is encoded here. See docs/Blueprints/BENCHMARK_REDESIGN.md.
+     *
+     * @return string
+     */
+    public function get_tier(): string {
+        return 'deterministic';
+    }
+    /**
      * Get the user message.
      *
      * @return string

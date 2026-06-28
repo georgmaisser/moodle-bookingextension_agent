@@ -72,11 +72,30 @@ class query_english_normalizer {
             return $query;
         }
 
+        // Protect quoted titles / proper-name spans deterministically: the model otherwise sometimes
+        // TRANSLATES them (e.g. "Erste Hilfe Grundkurs" -> "First Aid Basic Course"), which then no
+        // longer resolves the real entity and makes discovery vary run-to-run. Replace each quoted span
+        // with a stable sentinel, translate around it, then restore the original verbatim.
+        $protected = [];
+        $placeheld = preg_replace_callback(
+            '/"[^"]*"|\x{201E}[^\x{201C}]*\x{201C}|\x{00AB}[^\x{00BB}]*\x{00BB}/u',
+            static function (array $m) use (&$protected): string {
+                $token = '<<KEEP' . count($protected) . '>>';
+                $protected[] = $m[0];
+                return $token;
+            },
+            $query
+        );
+        if (!is_string($placeheld)) {
+            $placeheld = $query;
+            $protected = [];
+        }
+
         // Uses the configured planner/chat model (core_ai generate_text) — no model name hardcoded.
         $prompt = "You are a translation function inside a search system. Translate the text after 'TEXT:' "
             . "into English. Output ONLY the English translation as plain text — no quotes, no labels, no "
-            . "commentary. If it is already English, output it unchanged. Keep proper names, quoted titles "
-            . "and numbers verbatim.\n\nTEXT:\n" . $query;
+            . "commentary. If it is already English, output it unchanged. Keep proper names and numbers "
+            . "verbatim, and keep any <<KEEP...>> token EXACTLY as-is.\n\nTEXT:\n" . $placeheld;
 
         try {
             $result = $this->llm->invoke_for_context(
@@ -100,6 +119,16 @@ class query_english_normalizer {
         $out = trim($out);
         if ($out === '') {
             return $query;
+        }
+
+        // Restore the protected quoted spans verbatim. If the model dropped/altered a sentinel, the
+        // translation is unreliable -> fall back to the raw query (fail-open).
+        foreach ($protected as $i => $original) {
+            $token = '<<KEEP' . $i . '>>';
+            if (strpos($out, $token) === false) {
+                return $query;
+            }
+            $out = str_replace($token, $original, $out);
         }
 
         // Guard against a degenerate response (the model rambled instead of translating): fall back.

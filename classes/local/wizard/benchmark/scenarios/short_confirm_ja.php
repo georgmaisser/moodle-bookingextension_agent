@@ -61,6 +61,18 @@ class short_confirm_ja extends abstract_benchmark_scenario {
         return '"ja" after agent listed pending trainer+booking steps — selector signals confirm_pending';
     }
     /**
+     * State-driven contract (confirm_pending = execute the already-queued, confirmed command):
+     * deterministic, belongs in PHPUnit with REAL pending-confirmation state seeded via setup_state().
+     * Excluded from the noisy live LLM benchmark (Tier 2) — confirm_pending is unreachable from prior
+     * message TEXT alone, so running it through the LLM path fails for the wrong reason.
+     * See docs/Blueprints/BENCHMARK_REDESIGN.md §2 and §5.1 (prior_state seeding is a harness follow-up).
+     *
+     * @return string
+     */
+    public function get_tier(): string {
+        return 'deterministic';
+    }
+    /**
      * Get the user message.
      *
      * @return string
@@ -80,9 +92,11 @@ class short_confirm_ja extends abstract_benchmark_scenario {
      */
     public function get_prior_messages(): array {
         return [
-            ['role' => 'user', 'content' => 'Erstelle TestA am Dienstag, dann Trainer setzen und User buchen.'],
+            ['role' => 'user', 'content' => 'Erstelle TestA am Dienstag, dann Max Mustermann als Trainer setzen '
+                . 'und Anna Berger buchen.'],
             ['role' => 'assistant', 'content' => "TestA wurde erstellt.\n\n## Noch ausstehend\n"
-                . "1. Trainer fuer TestA setzen\n2. User fuer TestA buchen\n\nMoechtest du dass ich weitermache?"],
+                . "1. Max Mustermann als Trainer fuer TestA setzen\n2. Anna Berger fuer TestA buchen\n\n"
+                . "Moechtest du dass ich weitermache?"],
         ];
     }
 
@@ -118,7 +132,7 @@ class short_confirm_ja extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"confirm_pending","commands":[],'
-            . '"planned_steps":[],"next_step_intent":"Set trainer for TestA",'
+            . '"planned_steps":[],"next_step_intent":"Set trainer Max Mustermann for TestA",'
             . '"message":"Alles klar, ich fahre fort mit dem Trainer-Schritt.",'
             . '"used_triggers":["core.is_confirmation_message"],"lang":"de","user_lang":"de"}';
     }

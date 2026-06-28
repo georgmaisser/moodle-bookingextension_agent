@@ -64,6 +64,7 @@ use core_ai\manager as ai_manager;
         'baseline-label' => '',
         'cmid'           => 25,
         'userid'         => 2,
+        'tier'           => 'probabilistic',
         'help'           => false,
     ],
     ['h' => 'help']
@@ -81,6 +82,10 @@ if ($options['help']) {
         . "  --stub  (use stub responses, no live LLM calls)\n"
         . "  --cmid=25     booking context module id for live runs (default: 25)\n"
         . "  --userid=2    Moodle user id to run as (default: 2 = admin)\n"
+        . "  --tier=probabilistic|deterministic|all  (default: probabilistic)\n"
+        . "                probabilistic = LLM routing/selection quality (the live benchmark).\n"
+        . "                deterministic = contract behaviour — excluded here, covered by PHPUnit\n"
+        . "                (see docs/Blueprints/BENCHMARK_REDESIGN.md).\n"
         . "  --pin-baseline  (pin run as baseline after completion)\n"
         . "  --baseline-label=stable-x.y.z\n"
     );
@@ -124,8 +129,26 @@ if (!$usestub) {
     $orc          = new orchestrator($skillregistry, new interpreter($skillregistry), $store);
 }
 
-$scenarios = $registry->get_scenarios($setname);
+$tier      = (string)$options['tier'];
+$allscenarios = $registry->get_scenarios($setname);
+
+// Tier filter (BENCHMARK_REDESIGN.md): the live benchmark measures only model-dependent routing
+// (probabilistic). Deterministic contract behaviour belongs in PHPUnit, not this noisy run, so it is
+// excluded here unless explicitly requested.
+$scenarios = [];
+$excluded  = [];
+foreach ($allscenarios as $sc) {
+    $sctier = method_exists($sc, 'get_tier') ? (string)$sc->get_tier() : 'probabilistic';
+    if ($tier === 'all' || $sctier === $tier) {
+        $scenarios[] = $sc;
+    } else {
+        $excluded[] = $sc->get_key() . ' (' . $sctier . ')';
+    }
+}
+$scenarios = array_values($scenarios);
 $total     = count($scenarios);
+cli_writeln('Tier: ' . $tier . ' | scenarios: ' . $total
+    . (empty($excluded) ? '' : ' | excluded ' . count($excluded) . ': ' . implode(', ', $excluded)));
 
 $hasenvvars = $envkey !== ''
     && trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: '')) !== ''
@@ -183,6 +206,11 @@ foreach ($scenarios as $i => $scenario) {
             // Inject prior conversation messages (for follow-up scenarios).
             foreach ($scenario->get_prior_messages() as $msg) {
                 $store->add_message($threadid, (string)($msg['role'] ?? 'user'), (string)($msg['content'] ?? ''));
+            }
+            // Seed REAL thread state via production setters when the scenario needs it (state-driven
+            // behaviour that prior message text alone cannot reproduce). Default is a no-op.
+            if (method_exists($scenario, 'setup_state')) {
+                $scenario->setup_state($store, $threadid, $contextid, $benchuserid);
             }
             // Add the scenario's user message.
             $store->add_message($threadid, 'user', $scenario->get_user_message());
@@ -251,7 +279,34 @@ $regression = $metrics->has_critical_regression($metricsmap);
 
 cli_writeln(str_repeat('-', 60));
 cli_writeln("RESULTS: {$passed}/{$total} passed ({$rate}%) in {$rundurationms}ms");
-if ($regression) {
+
+// Separated sub-metrics (BENCHMARK_REDESIGN.md §4): keep skill-routing, JSON validity and contract
+// distinct so a dip is attributable. Single-run % stays noisy — use cli/benchmark_matrix.php over N runs.
+$skillscoped = 0;
+$skillhit = 0;
+$jsonok = 0;
+$contractok = 0;
+foreach ($scenarioresults as $r) {
+    if (!empty($r['json_valid'])) {
+        $jsonok++;
+    }
+    if (!empty($r['contract_compliant'])) {
+        $contractok++;
+    }
+    if ((string)($r['skill_expected'] ?? '') !== '') {
+        $skillscoped++;
+        if ((string)($r['skill_selected'] ?? '') === (string)$r['skill_expected']) {
+            $skillhit++;
+        }
+    }
+}
+cli_writeln("  skill-hit (scoped): {$skillhit}/{$skillscoped} | json-valid: {$jsonok}/{$total}"
+    . " | contract: {$contractok}/{$total}");
+cli_writeln('  NOTE: judge a change by the stable-fail set over N runs (cli/benchmark_matrix.php),'
+    . ' not a single percentage.');
+// Rate-based thresholds (skill-hit, planned-steps coverage, …) are a Tier-2 quality concept. The
+// deterministic tier is binary pass/fail (it must be 4/4), so a rate "regression" there is meaningless.
+if ($regression && $tier !== 'deterministic') {
     cli_writeln("WARNING: Critical metric regression detected!");
 }
 

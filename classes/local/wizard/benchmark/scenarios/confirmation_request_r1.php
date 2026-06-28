@@ -75,6 +75,19 @@ class confirmation_request_r1 extends abstract_benchmark_scenario {
     public function get_expected_response_type(): string {
         return 'error';
     }
+
+    /**
+     * Catalog gap is model-dependent routing (Tier 2): two outcomes are equally correct — a clean
+     * `error` ("I can't do that") OR routing to `wizard.search_skills` to look for the capability.
+     * Both prove the agent did NOT hallucinate a non-existent bulk-cancel skill (enforced in
+     * assert_additional). See docs/Blueprints/BENCHMARK_REDESIGN.md §8.3.
+     *
+     * @return string[]
+     */
+    public function get_acceptable_response_types(): array {
+        return ['error', 'skill_call'];
+    }
+
     /**
      * Get the expected skill.
      *
@@ -82,6 +95,27 @@ class confirmation_request_r1 extends abstract_benchmark_scenario {
      */
     public function get_expected_skill(): string {
         return '';
+    }
+
+    /**
+     * If the agent emitted a skill_call on this catalog gap, the ONLY non-hallucinated choice is
+     * wizard.search_skills. Any concrete booking skill = a hallucinated capability = fail.
+     *
+     * @param array $result
+     * @return array
+     */
+    public function assert_additional(array $result): array {
+        if (($result['response_type'] ?? '') !== 'skill_call') {
+            return [];
+        }
+        $skill = (string)($result['commands'][0]['skill'] ?? '');
+        return [
+            [
+                'label'  => 'catalog-gap skill_call must be wizard.search_skills (no hallucinated skill)',
+                'passed' => $skill === 'wizard.search_skills',
+                'detail' => 'skill: ' . $skill,
+            ],
+        ];
     }
 
     /**

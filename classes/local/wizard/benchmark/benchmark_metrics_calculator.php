@@ -132,12 +132,15 @@ class benchmark_metrics_calculator {
             ],
             [
                 'metric_key' => 'skill_hit_rate',
-                'metric_value' => $this->pct($skillhit, max(1, $skillbase)),
+                // N/A when no scenario in the set is skill-scoped (e.g. a contract-only run): a missing
+                // denominator is "not applicable", not a 0% regression.
+                'metric_value' => $skillbase > 0 ? $this->pct($skillhit, $skillbase) : 100.0,
                 'metric_unit' => 'percent',
             ],
             [
                 'metric_key' => 'planned_steps_coverage',
-                'metric_value' => $this->pct($plannedhit, max(1, $multistep)),
+                // N/A when the set contains no multistep scenarios.
+                'metric_value' => $multistep > 0 ? $this->pct($plannedhit, $multistep) : 100.0,
                 'metric_unit' => 'percent',
             ],
             [

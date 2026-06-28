@@ -71,4 +71,58 @@ abstract class abstract_benchmark_scenario implements benchmark_scenario_interfa
     public function assert_additional(array $result): array {
         return [];
     }
+
+    /**
+     * Benchmark tier (BENCHMARK_REDESIGN.md):
+     *  - 'deterministic' : contract/decision behaviour verified WITHOUT the live LLM (stub selector +
+     *                      seeded state). Must pass 100%; runs in CI.
+     *  - 'probabilistic' : model-dependent routing/selection quality. Scored over N live runs by the
+     *                      stable-fail set.
+     *
+     * @return string
+     */
+    public function get_tier(): string {
+        return 'probabilistic';
+    }
+
+    /**
+     * Query language of this scenario (for cross-language coverage/reporting).
+     *
+     * @return string ISO 639-1 (e.g. 'de', 'en').
+     */
+    public function get_language(): string {
+        return 'de';
+    }
+
+    /**
+     * The set of response_types that count as a PASS (unambiguous-but-multiple acceptance).
+     * Empty array = fall back to the single get_expected_response_type().
+     *
+     * @return string[]
+     */
+    public function get_acceptable_response_types(): array {
+        $expected = $this->get_expected_response_type();
+        return $expected === '' ? [] : [$expected];
+    }
+
+    /**
+     * Seed REAL thread state via production setters BEFORE the turn under test runs (e.g. a queued
+     * pending-confirmation, a completed action). Required when the expected behaviour is state-driven
+     * and would otherwise be unreachable from prior message text alone. Default: no-op.
+     *
+     * @param \bookingextension_agent\local\wizard\conversation_store $store
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @return void
+     */
+    public function setup_state(
+        \bookingextension_agent\local\wizard\conversation_store $store,
+        int $threadid,
+        int $contextid,
+        int $userid
+    ): void {
+        // No state to seed by default.
+        unset($store, $threadid, $contextid, $userid);
+    }
 }

@@ -59,6 +59,16 @@ class budget_exceeded extends abstract_benchmark_scenario {
         return 'Highly ambiguous request: selector must clarify, not hallucinate a skill or loop';
     }
     /**
+     * Contract rule (ambiguous -> clarification, no hallucination): deterministic, belongs in
+     * PHPUnit/stub. Excluded from the noisy live LLM benchmark (Tier 2).
+     * See docs/Blueprints/BENCHMARK_REDESIGN.md.
+     *
+     * @return string
+     */
+    public function get_tier(): string {
+        return 'deterministic';
+    }
+    /**
      * Get the user message.
      *
      * @return string

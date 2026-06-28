@@ -66,7 +66,16 @@ class benchmark_result_collector {
         $expectedrt  = $scenario->get_expected_response_type();
         $expectedskill = $scenario->get_expected_skill();
 
-        $rtmatch   = $expectedrt === '' || $responsetype === $expectedrt;
+        // Unambiguous-but-multiple acceptance: a scenario may declare a SET of valid response_types
+        // (e.g. catalog-gap -> error OR a search_skills skill_call). Empty set falls back to the single
+        // expected response_type.
+        $acceptablerts = method_exists($scenario, 'get_acceptable_response_types')
+            ? array_values(array_filter(array_map('strval', (array)$scenario->get_acceptable_response_types())))
+            : [];
+        if (empty($acceptablerts) && $expectedrt !== '') {
+            $acceptablerts = [$expectedrt];
+        }
+        $rtmatch   = empty($acceptablerts) || in_array($responsetype, $acceptablerts, true);
         $skillmatch = $expectedskill === '' || $skillselected === $expectedskill;
         $planmatch = !$scenario->expects_planned_steps()
             || ($plannedstetspresent && !empty($parsed['planned_steps']));
@@ -86,7 +95,7 @@ class benchmark_result_collector {
                 $parts[] = 'contract: ' . implode('; ', $errors);
             }
             if (!$rtmatch) {
-                $parts[] = "rt: expected={$expectedrt} actual={$responsetype}";
+                $parts[] = 'rt: expected={' . implode('|', $acceptablerts) . "} actual={$responsetype}";
             }
             if (!$skillmatch) {
                 $parts[] = "skill: expected={$expectedskill} actual={$skillselected}";
