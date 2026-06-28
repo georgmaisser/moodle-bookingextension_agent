@@ -71,8 +71,10 @@ class benchmark_scenario_registry {
      *  - the hardest disambiguation pair (course access vs enrolment),
      *  - the 3-way create family (the two non-trivial arms),
      *  - search target disambiguation (option vs course),
-     *  - catalog-gap no-hallucination,
-     *  - two de/en pairs to read the cross-language bridge directly.
+     *  - the two no-skill cases (the known model weak spot: route to wizard.search_skills, §6.3),
+     *  - one de/en pair to read the cross-language bridge directly.
+     * A set that scores a stable 100% measures nothing, so it deliberately INCLUDES the known hard
+     * case (skill_not_in_catalog, which failed ~34/35 live) — otherwise the lean set has no signal.
      * Referenced by KEY (not ::class) so it can mix curated scenarios and route_* cluster scenarios.
      *
      * @var string[]
@@ -85,9 +87,9 @@ class benchmark_scenario_registry {
         'route_create_slotbooking_de',
         'route_search_options_de',
         'route_search_courses_de',
-        'catalog_gap_bulk_cancel',
         'route_search_options_en',
-        'route_create_selflearning_en',
+        'catalog_gap_bulk_cancel',
+        'skill_not_in_catalog_no_hallucination',
     ];
 
     /**

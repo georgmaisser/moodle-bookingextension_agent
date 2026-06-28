@@ -27,10 +27,12 @@ namespace bookingextension_agent\local\wizard\benchmark\scenarios;
 use bookingextension_agent\local\wizard\benchmark\abstract_benchmark_scenario;
 
 /**
- * Scenario: "delete all bookings for a course" — no such skill exists, agent must return error.
+ * Scenario: "delete all bookings for a course" — no bulk-cancel skill exists in the catalog.
  *
- * There is no bulk-cancel-all-bookings skill in the catalog. The correct selector
- * response is error, not skill_call. This verifies the agent does not hallucinate a skill.
+ * Product decision §6.3 (no matching skill -> route to wizard.search_skills, the deliberate RAG
+ * fallback from thread 203): the correct response is skill_call -> wizard.search_skills, NOT a
+ * hallucinated bulk-cancel skill, and NOT a bare error. Kept consistent with
+ * skill_not_in_catalog_no_hallucination so both no-skill cases share one contract.
  *
  * @package bookingextension_agent
  */
@@ -57,7 +59,8 @@ class catalog_gap_bulk_cancel extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_description(): string {
-        return 'No bulk-cancel skill in catalog — agent must return error, not hallucinate a skill_call';
+        return 'No bulk-cancel skill in catalog — agent must route to wizard.search_skills (RAG fallback), '
+            . 'not hallucinate a skill and not bare-error (product decision §6.3)';
     }
     /**
      * Get the user message.
@@ -73,64 +76,51 @@ class catalog_gap_bulk_cancel extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_expected_response_type(): string {
-        return 'error';
+        return 'skill_call';
     }
-
-    /**
-     * Catalog gap is model-dependent routing (Tier 2): two outcomes are equally correct — a clean
-     * `error` ("I can't do that") OR routing to `wizard.search_skills` to look for the capability.
-     * Both prove the agent did NOT hallucinate a non-existent bulk-cancel skill (enforced in
-     * assert_additional). See docs/Blueprints/BENCHMARK_REDESIGN.md §8.3.
-     *
-     * @return string[]
-     */
-    public function get_acceptable_response_types(): array {
-        return ['error', 'skill_call'];
-    }
-
     /**
      * Get the expected skill.
      *
      * @return string
      */
     public function get_expected_skill(): string {
-        return '';
+        return 'wizard.search_skills';
     }
 
     /**
-     * If the agent emitted a skill_call on this catalog gap, the ONLY non-hallucinated choice is
-     * wizard.search_skills. Any concrete booking skill = a hallucinated capability = fail.
+     * No-skill must resolve via the catalog lookup: any concrete (non-search_skills) skill is a
+     * hallucinated capability and fails.
      *
      * @param array $result
      * @return array
      */
     public function assert_additional(array $result): array {
-        if (($result['response_type'] ?? '') !== 'skill_call') {
-            return [];
-        }
-        $skill = (string)($result['commands'][0]['skill'] ?? '');
+        $skills = array_map(
+            static fn($c): string => (string)($c['skill'] ?? ''),
+            (array)($result['commands'] ?? [])
+        );
+        $hallucinated = array_filter(
+            $skills,
+            static fn(string $s): bool => $s !== '' && $s !== 'wizard.search_skills'
+        );
         return [
             [
-                'label'  => 'catalog-gap skill_call must be wizard.search_skills (no hallucinated skill)',
-                'passed' => $skill === 'wizard.search_skills',
-                'detail' => 'skill: ' . $skill,
+                'label'  => 'no hallucinated skill — only wizard.search_skills is valid here',
+                'passed' => empty($hallucinated),
+                'detail' => 'skills: ' . implode(',', $skills),
             ],
         ];
     }
 
     /**
-
      * Get the stub selector response.
-
      *
-
      * @return string
-
      */
     public function get_stub_selector_response(): string {
-        return '{"response_type":"error","commands":[],'
-            . '"planned_steps":[],"next_step_intent":"",'
-            . '"message":"Das Loeschen aller Buchungen fuer einen Kurs ist mit den aktuellen Aufgaben nicht moeglich.",'
+        return '{"response_type":"skill_call",'
+            . '"commands":[{"skill":"wizard.search_skills","version":1,"input":{"query":"alle Buchungen stornieren"}}],'
+            . '"planned_steps":[],"next_step_intent":"","message":"Ich suche im Skill-Katalog nach einer passenden Aktion.",'
             . '"used_triggers":[],"lang":"de","user_lang":"de"}';
     }
 }
