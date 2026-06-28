@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Scenario budget_exceeded.
+ * Scenario ambiguous_request_no_hallucination.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,13 +27,13 @@ namespace bookingextension_agent\local\wizard\benchmark\scenarios;
 use bookingextension_agent\local\wizard\benchmark\abstract_benchmark_scenario;
 
 /**
- * Scenario budget_exceeded.
+ * Scenario ambiguous_request_no_hallucination.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class budget_exceeded extends abstract_benchmark_scenario {
+class ambiguous_request_no_hallucination extends abstract_benchmark_scenario {
     /**
      * Get the scenario key.
      *

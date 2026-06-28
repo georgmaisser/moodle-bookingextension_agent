@@ -25,13 +25,13 @@ use bookingextension_agent\local\wizard\benchmark\scenarios\book_users_single;
 use bookingextension_agent\local\wizard\benchmark\scenarios\short_confirm_ja;
 use bookingextension_agent\local\wizard\benchmark\scenarios\short_confirm_weiter;
 use bookingextension_agent\local\wizard\benchmark\scenarios\clarification_missing_date;
-use bookingextension_agent\local\wizard\benchmark\scenarios\confirmation_request_r1;
+use bookingextension_agent\local\wizard\benchmark\scenarios\catalog_gap_bulk_cancel;
 use bookingextension_agent\local\wizard\benchmark\scenarios\duplicate_prevention;
 use bookingextension_agent\local\wizard\benchmark\scenarios\readonly_diagnose;
 use bookingextension_agent\local\wizard\benchmark\scenarios\skill_not_in_catalog;
 use bookingextension_agent\local\wizard\benchmark\scenarios\auto_confirm_session;
 use bookingextension_agent\local\wizard\benchmark\scenarios\retry_preflight_recovery;
-use bookingextension_agent\local\wizard\benchmark\scenarios\budget_exceeded;
+use bookingextension_agent\local\wizard\benchmark\scenarios\ambiguous_request_no_hallucination;
 use bookingextension_agent\local\wizard\benchmark\scenarios\get_current_user_readonly;
 
 /**
@@ -52,13 +52,13 @@ class benchmark_scenario_registry {
             short_confirm_ja::class,
             short_confirm_weiter::class,
             clarification_missing_date::class,
-            confirmation_request_r1::class,
+            catalog_gap_bulk_cancel::class,
             duplicate_prevention::class,
             readonly_diagnose::class,
             skill_not_in_catalog::class,
             auto_confirm_session::class,
             retry_preflight_recovery::class,
-            budget_exceeded::class,
+            ambiguous_request_no_hallucination::class,
             get_current_user_readonly::class,
         ],
     ];

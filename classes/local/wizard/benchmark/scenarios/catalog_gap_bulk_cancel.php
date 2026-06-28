@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
 
 /**
- * Scenario confirmation_request_r1.
+ * Scenario catalog_gap_bulk_cancel.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -34,14 +34,14 @@ use bookingextension_agent\local\wizard\benchmark\abstract_benchmark_scenario;
  *
  * @package bookingextension_agent
  */
-class confirmation_request_r1 extends abstract_benchmark_scenario {
+class catalog_gap_bulk_cancel extends abstract_benchmark_scenario {
     /**
      * Get the scenario key.
      *
      * @return string
      */
     public function get_key(): string {
-        return 'confirmation_request_r1';
+        return 'catalog_gap_bulk_cancel';
     }
     /**
      * Get the scenario class.
