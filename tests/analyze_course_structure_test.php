@@ -192,6 +192,34 @@ final class analyze_course_structure_test extends advanced_testcase {
     }
 
     /**
+     * Regression (thread 515): a common course name the site-wide resolver cannot pin to a single match
+     * — but which IS the current course — must fall back to the operating course, not give up with
+     * "course not found". Mirrors the user naming the course they are already in (e.g. "booking").
+     */
+    public function test_execute_falls_back_to_operating_course_when_named_course_is_current(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+
+        // Two courses share the fullname "Booking" so a site-wide name search cannot resolve a single one.
+        $current = $gen->create_course(['fullname' => 'Booking']);
+        $gen->create_course(['fullname' => 'Booking']);
+        $gen->create_module('page', ['course' => $current->id, 'section' => 0, 'name' => 'Current-course page']);
+
+        $teacher = $gen->create_user();
+        $gen->enrol_user($teacher->id, $current->id, 'editingteacher');
+        rebuild_course_cache($current->id, true);
+
+        $skill = new analyze_course_structure_skill();
+        // We are in $current and the user names it by its (ambiguous) fullname.
+        $contextid = (int)context_course::instance($current->id)->id;
+        $result = $skill->execute(['coursequery' => 'Booking'], $contextid, (int)$teacher->id);
+
+        $this->assertSame('executed', $result['status'], 'must analyse the current course instead of giving up');
+        $this->assertSame((int)$current->id, $result['resultid']);
+        $this->assertStringContainsString('Current-course page', $result['observation_full']);
+    }
+
+    /**
      * Build a course with: a visible activity + a hidden activity in section 1, and a hidden section 2.
      *
      * @return array{0:\stdClass,1:\stdClass,2:\stdClass}
