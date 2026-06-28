@@ -12,7 +12,7 @@ flowchart TD
         ASM_UPLOAD["ai_upload_attachment::execute()\nfinfo MIME whitelist · size cap\nattachment_token_service::create()"]
         ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session"]
         ACD["ai_discard_pending::execute()\ncontextid · threadid"]
-        APO["ai_poll_thread::execute()"]
+        APO["ai_poll_thread::execute()\nde-anonymizes step-bubble content for display\n(deanonymize_message_for_display — fail-closed, same as the final message)"]
         APREVIEW["command preview (preview_passthrough)\nNO standalone web service\nreturned as previewjson on\nai_send_message / ai_confirm_run"]
     end
 
@@ -64,6 +64,7 @@ flowchart TD
         LOOP_RETRYABLE{"retryable planner\ncontract issue?"}
         LOOP_COLLIDE{"active non-planner retry\nsignal present?"}
         FW_RETRY_OBS["build_framework_retry_observation()\nappend RETRY_HINT observation for:\n- CONTRACT_PARSE_ERROR (parameter_construction JSON)\n- CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED (selector command shape)"]
+        ABANDON_GUARD["reclassify_abandoned_run_as_error\n(finalize_and_persist_result, after attach_loop_results)\nterminal 'sufficient' BUT >=1 result row status=='error' AND no successful row\n→ rewrite response_type='error' + carry the real last error message\n+ issue_code RUN_ABANDONED_ALL_STEPS_FAILED\n(answered-from-context / any-success runs stay 'sufficient')\n→ makes the ERROR-FAITHFULNESS GUARD apply instead of free composition"]
         FCLASS["finalization_classifier\ninputs: response_type + has_commands\n+ issue_codes + error_class\n+ structural_failure flag"]
         CONF_TERM["confirm terminalization gate\n(successful confirmed execution\n+ no next mutating queue item\n+ no planned placeholder items)"]
         CONF_FOLLOW["confirm follow-up gate\n(error/retry/next mutating item\nOR planned placeholder items present\n-> continue runtime loop)"]
@@ -160,7 +161,7 @@ flowchart TD
         SYNC_ROUTE["synchronizer_routing_service\nprefer generate_agent_reply (wpr, large model)\nfallback: generate_text"]
         SLLM["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: generate_agent_reply (wpr)\n  | generate_text fallback"]
         SINTERP["shared interpreter / final-response parser\nvalidate final JSON only\n→ message-bearing user-facing contract\n→ preserve response_type + command semantics\n→ reject structural drift"]
-        SCONTRACT["synchronizer_output_contract\nmay refine message / lang / presentation\nmust NOT invent commands\nmust NOT mutate execution semantics\nR3: must include irreversibility_notice\nR2: must include affected_scope_summary\ncommand-semantics drift → Synchronizer-Output verworfen\nPlanner-Output direkt verwenden (rollback)"]
+        SCONTRACT["synchronizer_output_contract\nmay refine message / lang / presentation\nmust NOT invent commands\nmust NOT mutate execution semantics\nR3: must include irreversibility_notice\nR2: must include affected_scope_summary\ncommand-semantics drift → Synchronizer-Output verworfen\nPlanner-Output direkt verwenden (rollback)\nERROR-FAITHFULNESS GUARD (source_conflict_reason):\n  free message replacement REJECTED when source response_type=='error'\n  OR latest source result row status=='error' — UNLESS error_presentation_requested.\n  error_presentation_requested set by apply_synchronizer_message_polish for response_type=='error';\n  the real cause is FED via synchronizer_input_builder ([ERROR] honest-reply line).\n  → the synchronizer presents the real error, never confabulates a cause."]
     end
 
     %% =========================================================
@@ -333,6 +334,7 @@ flowchart TD
     LOOP_STEP --> RUNINT
     RUNINT -->|contains next_step_intent| DB_WRITE_STEP["store->add_step_message(next_step_intent)"]
     DB_WRITE_STEP -.->|read lock-free via poll| APO
+    APO -.->|"de-anon step content for display (deanonymize_message_for_display, fail-closed)"| ANON
 
     %% run_internal → orchestrator staged pipeline
     RUNINT --> ORC
@@ -508,7 +510,8 @@ flowchart TD
     LOOP_COLLIDE -->|no collision| FW_RETRY_OBS
     LOOP_COLLIDE -->|collision: active queue/execution retry| FCLASS
     FW_RETRY_OBS --> REPLAN
-    LOOP_RETRYABLE -->|no: terminal planner result| FCLASS
+    LOOP_RETRYABLE -->|no: terminal planner result| ABANDON_GUARD
+    ABANDON_GUARD --> FCLASS
     FCLASS -->|LLM polish: sufficient / clarification / safe domain error| SYNC_RUN
     FCLASS -->|template only: budget_exceeded / safe hard-blocks / provider-facing technical errors| SYNC_TEMPLATE
     FCLASS -->|direct final: has_commands / confirmation_request / confirm_pending / structural failures| DIRECT_FINAL
