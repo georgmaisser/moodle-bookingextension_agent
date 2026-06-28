@@ -207,6 +207,55 @@ abstract class core_skill_base extends base_skill {
     }
 
     /**
+     * Whether the course named in a readonly skill's input refers to the current operating course.
+     *
+     * Shared framework primitive for "readonly eager resolution" (see flowchart PP_RUN/LG_CTX). Readonly
+     * (R0) skills self-resolve their target because the engine skips preflight for them. A site-wide
+     * course search can fail to pin a common course name (e.g. "booking") to a single match even when that
+     * name IS the course we are already in. This predicate lets a readonly skill fall back to its ambient
+     * operating course in that case — so readonly NEVER blocks on resolution — WITHOUT ever silently
+     * substituting a genuinely different named course: it matches only by explicit courseid, or by an
+     * exact (case-insensitive) shortname / fullname / idnumber match against the operating course.
+     *
+     * Readonly-only by design. Mutating (R1+) skills MUST NOT use this: they keep the conservative engine
+     * path (skill_operating_context_resolver → CONTEXT_TARGET_UNRESOLVED → clarification + confirmation),
+     * so a write never lands on a silently-substituted course.
+     *
+     * @param array $input skill input (courseid / coursequery)
+     * @param int $operatingcontextid the ambient/operating context the skill runs in
+     * @return bool
+     */
+    protected function course_input_targets_operating_context(array $input, int $operatingcontextid): bool {
+        $courseid = (int)($input['courseid'] ?? 0);
+        $coursequery = trim((string)($input['coursequery'] ?? ''));
+        $context = \context::instance_by_id($operatingcontextid, IGNORE_MISSING);
+        $coursecontext = $context ? $context->get_course_context(false) : false;
+        if (!$coursecontext) {
+            return false;
+        }
+        $operatingcourseid = (int)$coursecontext->instanceid;
+        if ($courseid > 0) {
+            return $courseid === $operatingcourseid;
+        }
+        if ($coursequery === '') {
+            return false;
+        }
+        try {
+            $course = get_course($operatingcourseid);
+        } catch (\Throwable $e) {
+            return false;
+        }
+        $needle = \core_text::strtolower($coursequery);
+        foreach ([$course->shortname, $course->fullname, $course->idnumber] as $candidate) {
+            $candidate = \core_text::strtolower(trim((string)$candidate));
+            if ($candidate !== '' && $candidate === $needle) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Explicit preflight for core readonly skills — validates structure and passes input unchanged.
      *
      * Core skills are read-only. No domain writes are performed. This override makes the

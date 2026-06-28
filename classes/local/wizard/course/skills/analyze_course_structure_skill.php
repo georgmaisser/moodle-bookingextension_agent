@@ -234,7 +234,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
             $resolution = (new operating_context_target_registry())->resolve($selector, $userid);
             if ($resolution->is_resolved() && $resolution->context() !== null) {
                 $contextid = (int)$resolution->context()->id;
-            } else if (!$this->coursequery_matches_operating_course($input, $contextid)) {
+            } else if (!$this->course_input_targets_operating_context($input, $contextid)) {
                 // The named course could not be uniquely resolved site-wide AND it is not the course
                 // we are already in. Only then is it a genuine "course not found". When the user named
                 // the current course (a common name like "booking" the site-wide search cannot pin to a
@@ -291,51 +291,6 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
             'structure' => $structure,
             'observation_full' => $this->build_observation($structure),
         ];
-    }
-
-    /**
-     * Whether the course named in the input is the current operating course.
-     *
-     * The site-wide cross-context resolver can fail to pin a common course name (e.g. "booking") to a
-     * single match even when that name IS the course we are already in. In that case analysing the
-     * operating course is the correct, non-surprising behaviour — the result message names the analysed
-     * course, so there is no silent confusion — and it lets the agent keep working instead of giving up
-     * with a "course not found" the user can plainly see is wrong. Matches by explicit courseid, or by
-     * an exact (case-insensitive) shortname/fullname/idnumber match so a genuinely different named
-     * course is never silently substituted.
-     *
-     * @param array $input
-     * @param int $operatingcontextid
-     * @return bool
-     */
-    private function coursequery_matches_operating_course(array $input, int $operatingcontextid): bool {
-        $courseid = (int)($input['courseid'] ?? 0);
-        $coursequery = trim((string)($input['coursequery'] ?? ''));
-        $context = context::instance_by_id($operatingcontextid, IGNORE_MISSING);
-        $coursecontext = $context ? $context->get_course_context(false) : false;
-        if (!$coursecontext) {
-            return false;
-        }
-        $operatingcourseid = (int)$coursecontext->instanceid;
-        if ($courseid > 0) {
-            return $courseid === $operatingcourseid;
-        }
-        if ($coursequery === '') {
-            return false;
-        }
-        try {
-            $course = get_course($operatingcourseid);
-        } catch (\Throwable $e) {
-            return false;
-        }
-        $needle = \core_text::strtolower($coursequery);
-        foreach ([$course->shortname, $course->fullname, $course->idnumber] as $candidate) {
-            $candidate = \core_text::strtolower(trim((string)$candidate));
-            if ($candidate !== '' && $candidate === $needle) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
