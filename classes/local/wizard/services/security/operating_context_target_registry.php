@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\security;
 
+use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\dto\context_target_resolution;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\operating_context_target_provider_interface;
@@ -45,25 +46,41 @@ class operating_context_target_registry {
     /** @var array<int,operating_context_target_provider_interface> Providers for non-core levels. */
     private array $providers;
 
+    /** @var module_target_resolver Generic CONTEXT_MODULE resolver (keyed by modname). */
+    private module_target_resolver $moduleresolver;
+
     /**
      * Constructor.
      *
      * @param array<int,operating_context_target_provider_interface> $providers Optional explicit
-     *        providers (mainly for tests). When omitted, no non-core providers are active yet —
-     *        provider discovery is wired in a later phase.
+     *        providers for non-core levels other than module (mainly for tests / third-party
+     *        overrides). When omitted, none are active.
+     * @param module_target_resolver|null $moduleresolver Injectable for tests.
      */
-    public function __construct(array $providers = []) {
+    public function __construct(array $providers = [], ?module_target_resolver $moduleresolver = null) {
         $this->providers = $providers;
+        $this->moduleresolver = $moduleresolver ?? new module_target_resolver();
     }
 
     /**
      * Resolve a target selector to a concrete operating context.
      *
-     * @param target_selector $target
-     * @param int             $userid Acting user id (for visibility-aware resolution).
+     * @param target_selector    $target
+     * @param int                $userid  Acting user id (for visibility-aware resolution).
+     * @param agent_context|null $ambient The chat/thread ambient context (drives module scope cascade).
      * @return context_target_resolution
      */
-    public function resolve(target_selector $target, int $userid = 0): context_target_resolution {
+    public function resolve(
+        target_selector $target,
+        int $userid = 0,
+        ?agent_context $ambient = null
+    ): context_target_resolution {
+        if ($target->level() === CONTEXT_MODULE) {
+            // Module targets resolve generically by modname — even when "empty", the modname alone
+            // lets the resolver auto-pick the unique instance in scope (course-first → site-wide).
+            return $this->moduleresolver->resolve($target, $ambient, $userid);
+        }
+
         if ($target->is_empty()) {
             return context_target_resolution::not_found();
         }

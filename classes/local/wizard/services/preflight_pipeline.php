@@ -29,6 +29,7 @@ use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\services\security\skill_operating_context_resolver;
 use bookingextension_agent\local\wizard\services\security\context_target_unresolved_exception;
+use bookingextension_agent\local\wizard\dto\context_target_resolution;
 use bookingextension_agent\local\wizard\services\security\native_capability_guard;
 
 /**
@@ -166,10 +167,36 @@ class preflight_pipeline {
             try {
                 $operatingcontextid = $operatingresolver->resolve($skill, $input, $ambient, $userid)->id();
             } catch (context_target_unresolved_exception $e) {
-                // An opted-in skill named a cross-context target that could not be resolved
-                // uniquely (ambiguous / not found / unsupported) → surface as a clarification.
+                // An opted-in skill named (or implied) a target that could not be resolved uniquely
+                // (ambiguous / not found / unsupported) → surface as a clarification. For an
+                // ambiguous outcome we list the candidates so the user can pick instead of being told
+                // a bare "could not resolve" — the resolution carries them.
                 $issuecodes[] = 'CONTEXT_TARGET_UNRESOLVED';
-                $errors[] = $label . ': ' . $e->getMessage();
+                $resolution = $e->get_resolution();
+                $candidates = $resolution->candidates();
+                if ($resolution->status() === context_target_resolution::STATUS_AMBIGUOUS && !empty($candidates)) {
+                    $lines = [];
+                    foreach (array_slice($candidates, 0, 10) as $candidate) {
+                        $name = trim((string)($candidate['name'] ?? ''));
+                        if ($name === '') {
+                            $name = '#' . (int)($candidate['id'] ?? 0);
+                        }
+                        $coursename = trim((string)($candidate['coursename'] ?? ''));
+                        $lines[] = '- ' . $name . ($coursename !== '' ? ' (' . $coursename . ')' : '');
+                    }
+                    $message = get_string('agent_target_ambiguous_choose', 'bookingextension_agent')
+                        . "\n" . implode("\n", $lines);
+                } else if ($resolution->status() === context_target_resolution::STATUS_NOT_FOUND) {
+                    $message = get_string('agent_target_not_found', 'bookingextension_agent');
+                } else {
+                    $message = $e->getMessage();
+                }
+                $errors[] = $label . ': ' . $message;
+                $issues[] = [
+                    'code'     => 'CONTEXT_TARGET_UNRESOLVED',
+                    'severity' => 'needs_clarification',
+                    'message'  => $message,
+                ];
                 continue;
             }
 

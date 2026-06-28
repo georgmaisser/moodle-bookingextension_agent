@@ -99,12 +99,15 @@ class context_resolver {
         int $userid = 0,
         ?operating_context_target_registry $registry = null
     ): agent_context {
-        if ($target === null || $target->is_empty()) {
+        // An empty COURSE selector means "no explicit target → ambient/ancestor". An empty MODULE
+        // selector is still meaningful: the modname lets the registry auto-pick the unique instance
+        // in scope, so it must NOT short-circuit to the (broader) ambient context.
+        if ($target === null || ($target->is_empty() && !$target->is_module_target())) {
             return $this->resolve($ambient, $requiredlevel);
         }
 
         $registry = $registry ?? new operating_context_target_registry();
-        $resolution = $registry->resolve($target, $userid);
+        $resolution = $registry->resolve($target, $userid, $ambient);
         if (!$resolution->is_resolved()) {
             throw new context_target_unresolved_exception($resolution);
         }

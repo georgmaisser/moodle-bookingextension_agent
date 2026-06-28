@@ -73,7 +73,12 @@ class skill_operating_context_resolver {
         }
 
         $selector = $skill->get_target_selector($input);
-        if (!($selector instanceof target_selector) || $selector->is_empty()) {
+        if (!($selector instanceof target_selector)) {
+            return $ambient;
+        }
+        // A module target stays meaningful even when empty (auto-pick the unique instance in scope);
+        // only a truly empty NON-module selector falls back to the ambient context.
+        if ($selector->is_empty() && !$selector->is_module_target()) {
             return $ambient;
         }
 

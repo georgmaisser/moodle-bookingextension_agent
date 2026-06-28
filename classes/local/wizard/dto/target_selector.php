@@ -41,18 +41,24 @@ final class target_selector {
     /** @var string|null Free-text query naming the target (e.g. a course name), when no id. */
     private ?string $query;
 
+    /** @var string|null Module name a CONTEXT_MODULE target names (e.g. 'booking'), else null. */
+    private ?string $modname;
+
     /**
      * Constructor.
      *
-     * @param int         $level Moodle CONTEXT_* level.
-     * @param int|null    $id    Explicit instance id, or null.
-     * @param string|null $query Free-text query, or null.
+     * @param int         $level   Moodle CONTEXT_* level.
+     * @param int|null    $id       Explicit instance id, or null.
+     * @param string|null $query    Free-text query, or null.
+     * @param string|null $modname  Module name for a CONTEXT_MODULE target, or null.
      */
-    private function __construct(int $level, ?int $id, ?string $query) {
+    private function __construct(int $level, ?int $id, ?string $query, ?string $modname = null) {
         $this->level = $level;
         $this->id = ($id !== null && $id > 0) ? $id : null;
         $query = $query !== null ? trim($query) : null;
         $this->query = ($query !== null && $query !== '') ? $query : null;
+        $modname = $modname !== null ? trim($modname) : null;
+        $this->modname = ($modname !== null && $modname !== '') ? $modname : null;
     }
 
     /**
@@ -61,10 +67,11 @@ final class target_selector {
      * @param int         $level
      * @param int|null    $id
      * @param string|null $query
+     * @param string|null $modname
      * @return self
      */
-    public static function create(int $level, ?int $id = null, ?string $query = null): self {
-        return new self($level, $id, $query);
+    public static function create(int $level, ?int $id = null, ?string $query = null, ?string $modname = null): self {
+        return new self($level, $id, $query, $modname);
     }
 
     /**
@@ -76,6 +83,22 @@ final class target_selector {
      */
     public static function for_course(?int $id = null, ?string $query = null): self {
         return new self(CONTEXT_COURSE, $id, $query);
+    }
+
+    /**
+     * Convenience factory for a course-module (activity instance) target of a given module type.
+     *
+     * The modname is what makes a module target resolvable generically — id (cmid) and query
+     * (activity name) are BOTH optional: an empty module selector means "auto-resolve the unique
+     * instance of this module in scope", which is the cross-context module-target contract.
+     *
+     * @param int|null    $cmid    Explicit course-module id, or null.
+     * @param string|null $query   Free-text activity name, or null.
+     * @param string      $modname Module name, e.g. 'booking'.
+     * @return self
+     */
+    public static function for_module(?int $cmid, ?string $query, string $modname): self {
+        return new self(CONTEXT_MODULE, $cmid, $query, $modname);
     }
 
     /**
@@ -106,11 +129,33 @@ final class target_selector {
     }
 
     /**
+     * Module name for a CONTEXT_MODULE target (e.g. 'booking'), or null.
+     *
+     * @return string|null
+     */
+    public function modname(): ?string {
+        return $this->modname;
+    }
+
+    /**
      * Whether this selector names no concrete target (neither id nor query).
+     *
+     * Note: a module target may be "empty" in this sense yet still resolvable — the modname alone
+     * lets the resolver auto-pick the unique instance in scope. Use {@see self::is_module_target()}
+     * to distinguish that case from a course selector that truly has nothing to resolve.
      *
      * @return bool
      */
     public function is_empty(): bool {
         return $this->id === null && $this->query === null;
+    }
+
+    /**
+     * Whether this selector names a resolvable module target (a modname is set).
+     *
+     * @return bool
+     */
+    public function is_module_target(): bool {
+        return $this->level === CONTEXT_MODULE && $this->modname !== null;
     }
 }

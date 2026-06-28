@@ -218,3 +218,28 @@ for the maintainer at the end.)_
   is now R0/readonly-treated and executes directly without a confirmation step (write only
   to the user's own preference store; core.forget keeps R2 explicit confirmation and gained
   an all=true forget-everything mode).
+
+### Flowchart updates 2026-06-28 (generic module-target resolution, thread 534)
+
+- ✅ **Duplicate `LG_CTX` node id resolved.** The legend defined `LG_CTX` twice — "Context
+  authority" (kept as `LG_CTX`) and "Operating context", which silently shadowed the former in
+  Mermaid. The operating-context node was renamed to **`LG_OPCTX`** (own `style` line; the
+  `See LG_CTX …` text reference in `PP_RUN` updated to `LG_OPCTX`). Pre-existing diagram defect,
+  unrelated to this feature, fixed in the same pass (maintainer-instructed).
+- ✅ **`LG_OPCTX` extended — generic module-target resolution.** Removed the stale
+  "today operating == ambient (no skill opts in yet)" line. Documents the engine-core
+  `module_target_resolver` (keyed by `modname`, modules are core → no domain dependency): the
+  scope cascade (explicit cmid → named `activityquery` → empty ⇒ ambient course first, then
+  site-wide; 1 → use, >1 → ambiguous candidate list, 0 → not_found) and the
+  `module_targeted_skill` trait opt-in (`get_target_modname()`), so families add no resolution
+  code. First adopters: booking `create_option` / `create_slotbooking_option` (modname=booking).
+  STATUS-marked as design agreed 2026-06-28; code landed the same pass (40 tests green).
+- ✅ **`PF_L2P` updated** — operating-context resolution now routes through
+  `operating_context_target_registry` (COURSE core-resolved, MODULE via `module_target_resolver`);
+  an unresolvable **or ambiguous** target raises `CONTEXT_TARGET_UNRESOLVED` and the clarification
+  now carries the **candidate list** (was a generic message only).
+- ✅ **`PP_RUN` updated** — readonly eager resolution generalised from course to course/module
+  targets (same scope cascade).
+- ✅ **`D_TARGET_NOTE` updated** — the mutating-confirmation target note now names the target
+  course **+ activity (module instance) + id**, so a mis-resolved booking instance is visible
+  before the write, not just a mis-resolved course.
