@@ -387,6 +387,18 @@ class interpreter implements agent_interpreter {
             $lang = strtolower(substr($lang, 0, 2));
         }
 
+        // The planner's human-readable step intent (shown as the progress step bubble). The selection
+        // interpreter previously dropped this field entirely; mirror interpret()'s handling, including
+        // the completed-action guard so a "already did X" intent does not surface as a next step.
+        $nextstepintent = $this->safe_string($parsed['next_step_intent'] ?? '');
+        if (
+            $nextstepintent !== ''
+            && $responsetype === 'skill_call'
+            && $this->looks_like_completed_action_intent($nextstepintent)
+        ) {
+            $nextstepintent = '';
+        }
+
         if (in_array($responsetype, ['clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
             $message = $this->safe_string($parsed['message'] ?? '');
             if ($responsetype !== 'sufficient' && $message === '') {
@@ -448,6 +460,7 @@ class interpreter implements agent_interpreter {
             'commands' => $commands,
             'selected_skill' => $selectedskill,
             'planned_steps' => $plannedsteps,
+            'next_step_intent' => $nextstepintent,
             'ambiguities' => [],
             'ambiguity_options' => [],
             'errors' => [],
