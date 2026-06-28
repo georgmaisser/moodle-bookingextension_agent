@@ -229,14 +229,51 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
-     * Default deep preflight keeps input unchanged after structure checks pass.
+     * Primitive preflight result: input is valid and ready for execution.
+     *
+     * Engine-type-free helper for run_preflight(); base_skill::preflight() wraps it
+     * into a preflight_result_v2. Concrete skills should return these instead of
+     * constructing the DTO directly (keeps skills free of any engine type).
+     *
+     * @param  array $preparedinput
+     * @return array{status:string,prepared_input:array,issues:array}
+     */
+    final protected function pass(array $preparedinput): array {
+        return ['status' => 'pass', 'prepared_input' => $preparedinput, 'issues' => []];
+    }
+
+    /**
+     * Primitive preflight result: fatal issues block execution.
+     *
+     * @param  array $issues structured issue objects (arrays)
+     * @return array{status:string,prepared_input:array,issues:array}
+     */
+    final protected function invalid(array $issues): array {
+        return ['status' => 'invalid', 'prepared_input' => [], 'issues' => $issues];
+    }
+
+    /**
+     * Primitive preflight result: recoverable issues need user confirmation.
+     *
+     * @param  array $preparedinput
+     * @param  array $issues structured issue objects (arrays)
+     * @return array{status:string,prepared_input:array,issues:array}
+     */
+    final protected function confirmable(array $preparedinput, array $issues): array {
+        return ['status' => 'confirmable', 'prepared_input' => $preparedinput, 'issues' => $issues];
+    }
+
+    /**
+     * DTO-free deep preflight. Concrete skills override THIS (returning a primitive
+     * array via pass()/invalid()/confirmable()) instead of preflight(), so they never
+     * name an engine DTO type. The default reproduces the structure-check behaviour.
      *
      * @param  array $input
      * @param  int   $contextid
      * @param  int   $userid
-     * @return preflight_result_v2
+     * @return array{status:string,prepared_input:array,issues:array}
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $structure = $this->check_structure($input);
         if (!($structure['valid'] ?? true)) {
             $issues = [];
@@ -247,7 +284,7 @@ abstract class base_skill implements skill_interface {
                     'message' => (string)$error,
                 ];
             }
-            return preflight_result_v2::invalid($issues);
+            return $this->invalid($issues);
         }
 
         $confirmableissues = array_values(array_filter(
@@ -255,9 +292,34 @@ abstract class base_skill implements skill_interface {
             static fn($issue): bool => is_array($issue) && (string)($issue['severity'] ?? '') === 'needs_confirmation'
         ));
         if (!empty($confirmableissues)) {
-            return preflight_result_v2::confirmable($input, $confirmableissues);
+            return $this->confirmable($input, $confirmableissues);
         }
 
-        return preflight_result_v2::ok($input);
+        return $this->pass($input);
+    }
+
+    /**
+     * DTO wrapper around run_preflight(): the single place a skill's primitive
+     * preflight result is mapped onto the engine's preflight_result_v2.
+     *
+     * Stays non-final during the Phase 0 migration (some skills still override
+     * preflight() directly); becomes final once every skill returns via
+     * run_preflight() (Phase 0 A.3).
+     *
+     * @param  array $input
+     * @param  int   $contextid
+     * @param  int   $userid
+     * @return preflight_result_v2
+     */
+    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+        $result = $this->run_preflight($input, $contextid, $userid);
+        switch ($result['status'] ?? 'pass') {
+            case 'invalid':
+                return preflight_result_v2::invalid($result['issues'] ?? []);
+            case 'confirmable':
+                return preflight_result_v2::confirmable($result['prepared_input'] ?? $input, $result['issues'] ?? []);
+            default:
+                return preflight_result_v2::ok($result['prepared_input'] ?? $input);
+        }
     }
 }
