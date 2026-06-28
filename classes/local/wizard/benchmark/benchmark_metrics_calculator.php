@@ -76,7 +76,13 @@ class benchmark_metrics_calculator {
             }
             $exprt = trim((string)($s['response_type_expected'] ?? ''));
             $actrt = trim((string)($s['response_type_actual'] ?? ''));
-            if ($exprt !== '' && $exprt === $actrt) {
+            // Acceptance-aware: a scenario may declare a SET of valid response_types (catalog-gap =
+            // error OR search_skills; accept-both mutations = skill_call OR confirmation_request). The
+            // per-scenario PASS logic already honors that set, so a scenario that passed had, by
+            // definition, an acceptable response_type. Counting strict expected==actual here would mark
+            // such a passed scenario as a miss and raise a false "regression" at 100% pass (run 40).
+            // Stay in sync with the verdict: accurate if it passed, or the strict expected matches.
+            if ($exprt !== '' && ($exprt === $actrt || !empty($s['passed']))) {
                 $rtaccurate++;
             }
             $expskill = trim((string)($s['skill_expected'] ?? ''));
