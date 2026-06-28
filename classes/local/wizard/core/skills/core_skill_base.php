@@ -198,11 +198,30 @@ abstract class core_skill_base extends base_skill {
             return (int)$query;
         }
 
-        $matches = $this->search_course_candidates_for_preview($query, 2);
+        // Wider than 1 so a unique exact name match is not lost behind fuzzy substring matches.
+        $matches = $this->search_course_candidates_for_preview($query, 10);
         if (count($matches) === 1) {
             return (int)($matches[0]['courseid'] ?? 0);
         }
 
+        // A substring search makes "booking" also match "slotbooking", which previously made the
+        // resolver give up as ambiguous even though one course is named exactly "booking". Prefer a
+        // UNIQUE exact (case-insensitive) match on shortname or fullname before treating it as ambiguous.
+        $needle = \core_text::strtolower($query);
+        $exact = [];
+        foreach ($matches as $match) {
+            $shortname = \core_text::strtolower((string)($match['shortname'] ?? ''));
+            $fullname = \core_text::strtolower((string)($match['fullname'] ?? ''));
+            if ($shortname === $needle || $fullname === $needle) {
+                $exact[] = (int)($match['courseid'] ?? 0);
+            }
+        }
+        $exact = array_values(array_unique(array_filter($exact)));
+        if (count($exact) === 1) {
+            return $exact[0];
+        }
+
+        // Genuinely ambiguous or unresolved -> 0 (callers turn this into a clarification).
         return 0;
     }
 
