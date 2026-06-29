@@ -104,6 +104,17 @@ class embeddings_readiness_service {
             if ((string)($current['content_hash'] ?? '') !== (string)($row['content_hash'] ?? '')) {
                 return ['status' => 'stale', 'ready' => false];
             }
+
+            // An anchor present with the right hash but carrying NO vector is useless for semantic
+            // retrieval: the rebuild silently skips a row whose embedding call failed or returned
+            // empty (family_embeddings_index_service continues past such rows, leaving embedding_json
+            // ''). Without this guard readiness reports "ready", the rebuild's post-sanity-check
+            // passes, and the planner can NEVER retrieve that skill. Treat an empty vector as not
+            // ready so the rebuild fails its sanity check and re-embeds (faildelay backoff).
+            $vector = trim((string)($current['embedding_json'] ?? ''));
+            if ($vector === '' || $vector === '[]') {
+                return ['status' => 'stale', 'ready' => false];
+            }
         }
 
         // Orphan detection (removal-aware): the expected-only loop never visits a stored anchor that
