@@ -184,8 +184,11 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
     }
 
     /**
-     * Regression (thread 559): a non-matching/spurious activityquery on a progress diagnosis must NOT
-     * be reported as "no completion-tracked activities" when the course actually tracks completion.
+     * Regression (thread 559): a spurious/non-matching activityquery on a progress diagnosis must NOT
+     * collapse into a false "no completion-tracked activities" verdict when the course actually tracks
+     * completion. The consolidated skill resolves the activity reference first (enumerate-then-reason):
+     * a non-matching name returns the course inventory with an unambiguous activityid re-call instruction
+     * — naming the real tracked activity — instead of ever reaching the diagnoser's no-activity branch.
      */
     public function test_progress_nonmatching_activityquery_does_not_claim_no_tracking(): void {
         global $CFG;
@@ -207,7 +210,8 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         rebuild_course_cache((int)$course->id, true);
         $ctxid = (int)context_course::instance($course->id)->id;
 
-        // A spurious / non-matching activity filter must not hide the real progress.
+        // A spurious / non-matching activity filter must not hide the real progress: the skill hands back
+        // the inventory (naming the tracked activity), never the false "no completion-tracked activities".
         $res = (new diagnose_user_in_course_skill())->execute(
             ['aspect' => 'progress', 'userid' => (int)$student->id, 'activityquery' => 'selflearning'],
             $ctxid,
@@ -216,15 +220,17 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         $this->assertSame('executed', $res['status']);
         $obs = (string)$res['observation_full'];
         $this->assertStringNotContainsString('No completion-tracked activities', $obs);
-        $this->assertStringContainsString('No completion-tracked activity matches', $obs);
         $this->assertStringContainsString('Final Quiz', $obs);
+        $this->assertStringContainsString('do NOT conclude the activity does not exist', $obs);
+        $this->assertTrue(!empty($res['observation_engine_static']));
 
-        // Without a filter, the tracked quiz is reported course-wide.
+        // Without a filter, the tracked quiz is reported course-wide by the progress diagnoser.
         $res2 = (new diagnose_user_in_course_skill())->execute(
             ['aspect' => 'progress', 'userid' => (int)$student->id],
             $ctxid,
             (int)$teacher->id
         );
+        $this->assertStringContainsString('Progress diagnosis', (string)$res2['observation_full']);
         $this->assertStringContainsString('Final Quiz', (string)$res2['observation_full']);
     }
 }
