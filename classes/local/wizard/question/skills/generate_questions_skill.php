@@ -26,6 +26,7 @@ use bookingextension_agent\local\wizard\services\questions\question_bank_target_
 use bookingextension_agent\local\wizard\services\questions\question_generation_service;
 use bookingextension_agent\local\wizard\services\questions\question_import_service;
 use bookingextension_agent\local\wizard\services\questions\question_preview_renderer;
+use bookingextension_agent\local\wizard\services\preview_support;
 use context;
 use moodle_url;
 
@@ -71,6 +72,41 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      */
     public function get_name(): string {
         return self::SKILL_NAME;
+    }
+
+    /**
+     * Human-readable preview of the question generation (tier-3): target + plan.
+     *
+     * The source content (PDF text) is intentionally not shown — only the plan.
+     *
+     * @param array $input Prepared input.
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        $lang = preview_support::lang($input);
+        $rows = [];
+        preview_support::push($rows, preview_support::str('previewlabel_course', $lang), preview_support::course_name($input));
+        preview_support::push(
+            $rows,
+            preview_support::str('previewlabel_category', $lang),
+            preview_support::text($input['target_category'] ?? null)
+        );
+        preview_support::push($rows, preview_support::str('previewlabel_number', $lang), preview_support::posint($input['count'] ?? null));
+        preview_support::push(
+            $rows,
+            preview_support::str('previewlabel_types', $lang),
+            preview_support::list_value($input['qtypes'] ?? null)
+        );
+        preview_support::push(
+            $rows,
+            preview_support::str('previewlabel_difficulty', $lang),
+            preview_support::text($input['difficulty'] ?? null)
+        );
+        return [
+            'title' => preview_support::str('previewtitle_generatequestions', $lang),
+            'summary' => '',
+            'rows' => $rows,
+        ];
     }
 
     /**
@@ -194,7 +230,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -208,7 +244,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     /**
      * Return message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -228,7 +264,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * Surfaced unconditionally once this skill is selected, so the constructor knows a document upload
      * is optional and the user's inline content can be used directly.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -262,7 +298,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * Structural validation (pure, no DB).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -425,9 +461,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * Tries an exact (case-insensitive) match on the category name or the "Bank › Category" label
      * first, then falls back to a substring match on the category name.
      *
-     * @param array<int,array<string,mixed>> $targets
+     * @param array[] $targets
      * @param string $name
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function match_targets_by_name(array $targets, string $name): array {
         $needle = \core_text::strtolower(trim($name));
@@ -462,7 +498,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * The human-readable message carries the category ids, and a structured 'options' list is attached
      * so the answer can be mapped back deterministically to the target_categoryid input.
      *
-     * @param array<int,array<string,mixed>> $targets
+     * @param array[] $targets
      * @param string $lead Lead-in sentence for the message.
      * @return array
      */
@@ -642,7 +678,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @param string $bankname
      * @param int    $bankcontextid Context id of the question bank module (used by the inline preview).
      * @param int    $attempts
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_success_result(
         int $imported,
@@ -717,7 +753,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * Build an error result payload.
      *
      * @param string $message
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_error_result(string $message): array {
         return [

@@ -20,6 +20,7 @@ use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\local\wizard\services\user_memory_service;
+use bookingextension_agent\local\wizard\services\preview_support;
 
 /**
  * Skill definition for wizard.forget — delete a stored user-stated memory.
@@ -50,6 +51,29 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
      */
     public function get_name(): string {
         return self::SKILL_NAME;
+    }
+
+    /**
+     * Human-readable preview of the memory deletion (tier-3).
+     *
+     * @param array $input Prepared input.
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        $lang = preview_support::lang($input);
+        $label = preview_support::str('previewlabel_target', $lang);
+        $rows = [];
+        if (preview_support::truthy($input['all'] ?? null)) {
+            preview_support::push($rows, $label, preview_support::str('previewvalue_allmemories', $lang));
+        } else {
+            preview_support::push($rows, $label, preview_support::text($input['query'] ?? null));
+            preview_support::push($rows, $label, preview_support::posint($input['id'] ?? null));
+        }
+        return [
+            'title' => preview_support::str('previewtitle_forget', $lang),
+            'summary' => '',
+            'rows' => $rows,
+        ];
     }
 
     /**
@@ -109,7 +133,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -120,7 +144,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -141,7 +165,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -303,8 +327,8 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
      * Wrap messages as needs_clarification issues so the decision service routes
      * them to a clarification (not a terminal hard failure).
      *
-     * @param array<int,string> $messages
-     * @return array<int,array<string,mixed>>
+     * @param string[] $messages
+     * @return array[]
      */
     private function clarification_issues(array $messages): array {
         $issues = [];
@@ -325,7 +349,7 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
     /**
      * Render candidate memories (id + text) for a disambiguation clarification.
      *
-     * @param array<int,\stdClass> $matches
+     * @param \stdClass[] $matches
      * @return string
      */
     private function format_candidates(array $matches): string {

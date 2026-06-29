@@ -21,6 +21,7 @@ use core\task\manager;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
 use bookingextension_agent\task\rebuild_skill_catalog_embeddings_adhoc;
+use bookingextension_agent\local\wizard\services\preview_support;
 
 /**
  * Skill definition for wizard.recreate_skill_catalog.
@@ -47,6 +48,28 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
      */
     public function get_name(): string {
         return self::SKILL_NAME;
+    }
+
+    /**
+     * Human-readable preview of the catalog rebuild (tier-3).
+     *
+     * @param array $input Prepared input.
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        $lang = preview_support::lang($input);
+        $rows = [];
+        if (preview_support::truthy($input['force'] ?? null)) {
+            $yes = preview_support::str('yes', $lang, null, 'core');
+            preview_support::push($rows, preview_support::str('previewlabel_force', $lang), $yes);
+        }
+        $model = preview_support::text($input['model'] ?? null);
+        preview_support::push($rows, preview_support::str('previewlabel_model', $lang), $model);
+        return [
+            'title' => preview_support::str('previewtitle_recreatecatalog', $lang),
+            'summary' => preview_support::str('previewsummary_recreatecatalog', $lang),
+            'rows' => $rows,
+        ];
     }
 
     /**
@@ -90,7 +113,7 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -101,7 +124,7 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -120,7 +143,7 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
