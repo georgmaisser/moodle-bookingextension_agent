@@ -80,17 +80,17 @@ if (\bookingextension_agent\local\wizard\services\security\authorization_service
 // One-time announcement of the Wunderbyte Agent. The whole notice lives on a single checkbox so it
 // also shows on the post-upgrade "new settings" review page: that page only lists storable settings,
 // so a separate admin_setting_heading (pure info) would be skipped there. The checkbox name carries
-// the headline and its description carries the announcement body; ticking it (hgideupdatehint = 1)
+// the headline and its description carries the announcement body; ticking it (hideupdatehint = 1)
 // dismisses the notice. An unset value counts as "not yet dismissed", so it appears once after the
 // feature ships. Kept entirely in settings.php (no upgrade/version hook).
-if ((int)get_config('bookingextension_agent', 'hgideupdatehint') !== 1) {
+if ((int)get_config('bookingextension_agent', 'hideupdatehint') !== 1) {
     $aisettingspage->add(
         new admin_setting_configcheckbox(
-            'bookingextension_agent/hgideupdatehint',
+            'bookingextension_agent/hideupdatehint',
             get_string('updatehint_heading', 'bookingextension_agent'),
             html_writer::tag(
                 'p',
-                html_writer::tag('strong', get_string('hgideupdatehint_desc', 'bookingextension_agent'))
+                html_writer::tag('strong', get_string('hideupdatehint_desc', 'bookingextension_agent'))
             )
                 . get_string('updatehint_body', 'bookingextension_agent'),
             0
