@@ -79,7 +79,16 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         // Method docblocks must carry correct @param/@return tags, not just prose.
         $this->assertStringContainsString('@param array $input', $skillsource);
         $this->assertStringContainsString('@return array{status:string,prepared_input:array,issues:array}', $skillsource);
-        $this->assertStringContainsString('@return array<int,string>', $skillsource);
+
+        // A mutating (broad_write) skill carries the full mutating surface: a confirm-queue identity
+        // and the tier-3 pre-confirmation preview hook.
+        $this->assertStringContainsString(
+            'implements skill_trigger_provider_interface, queue_identity_provider_interface',
+            $skillsource
+        );
+        $this->assertStringContainsString('function run_preflight(', $skillsource);
+        $this->assertStringContainsString('public function describe_proposed_action(', $skillsource);
+        $this->assertStringContainsString('public function build_queue_business_identity(', $skillsource);
 
         $skillfile = make_request_directory() . '/archive_item_skill.php';
         file_put_contents($skillfile, $skillsource);
@@ -113,6 +122,16 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         ]);
 
         $relative = 'classes/local/wizard/scaffolddemo/skills/peek_item_skill.php';
+
+        // A read-only (R0) skill stays lean: no confirm-queue identity, no preflight and no
+        // pre-confirmation preview hook (it auto-executes without confirmation).
+        $readonlysource = $bundle['files'][$relative];
+        $this->assertStringContainsString('implements skill_trigger_provider_interface {', $readonlysource);
+        $this->assertStringNotContainsString('queue_identity_provider_interface', $readonlysource);
+        $this->assertStringNotContainsString('function describe_proposed_action(', $readonlysource);
+        $this->assertStringNotContainsString('function build_queue_business_identity(', $readonlysource);
+        $this->assertStringNotContainsString('function run_preflight(', $readonlysource);
+
         $skillfile = make_request_directory() . '/peek_item_skill.php';
         file_put_contents($skillfile, $bundle['files'][$relative]);
         require($skillfile);

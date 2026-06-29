@@ -45,7 +45,7 @@ class skill_template_generator {
     /**
      * Generate the template bundle for a structured skill spec.
      *
-     * @param array<string,mixed> $spec see {@see self::normalize_spec()} for accepted keys
+     * @param array $spec see {@see self::normalize_spec()} for accepted keys
      * @return array{
      *     files: array<string,string>,
      *     zip_filename: string,
@@ -90,8 +90,8 @@ class skill_template_generator {
      * Accepted raw keys: component (required), skillname, description (required), intent,
      * risk_class, properties[], anchor_fields[], context_scopes[], capabilities[], triggers[].
      *
-     * @param array<string,mixed> $spec
-     * @return array<string,mixed>
+     * @param array $spec
+     * @return array
      */
     private static function normalize_spec(array $spec): array {
         $warnings = [];
@@ -154,7 +154,7 @@ class skill_template_generator {
     /**
      * Validate the normalized spec against the runtime contract rules so the output is usable.
      *
-     * @param array<string,mixed> $spec
+     * @param array $spec
      * @return void
      * @throws \invalid_parameter_exception
      */
@@ -187,14 +187,70 @@ class skill_template_generator {
     /**
      * Build the fully-commented skill class file.
      *
-     * @param array<string,mixed> $spec
+     * @param array $spec
      * @return string
      */
     private static function build_skill_php(array $spec): string {
         $namespace = $spec['namespaceroot'] . '\\local\\wizard\\' . $spec['domain'] . '\\skills';
         $useprefix = 'bookingextension_agent\\local\\wizard';
+        $mutating = empty($spec['readonly']);
 
-        $template = <<<'PHP'
+        // Risk-dependent use list + implemented interfaces. Mutating skills additionally provide a
+        // confirm-queue identity (queue_identity_provider_interface).
+        $uses = [
+            "use {$useprefix}\\base_skill;",
+            "use {$useprefix}\\dto\\skill_risk_class;",
+            "use {$useprefix}\\interfaces\\skill_trigger_provider_interface;",
+        ];
+        $interfaces = ['skill_trigger_provider_interface'];
+        if ($mutating) {
+            $uses[] = "use {$useprefix}\\interfaces\\queue_identity_provider_interface;";
+            $interfaces[] = 'queue_identity_provider_interface';
+        }
+
+        $template = self::skill_template_header()
+            . self::skill_template_constructor()
+            . self::skill_template_targeting_block()
+            . self::skill_template_get_schema()
+            . self::skill_template_native_caps()
+            . self::skill_template_check_structure()
+            . ($mutating ? self::skill_template_mutating_methods() : self::skill_template_readonly_note())
+            . self::skill_template_execute()
+            . self::skill_template_result_preview()
+            . self::skill_template_message_triggers()
+            . self::skill_template_footer();
+
+        return strtr($template, [
+            '{{NAMESPACE}}' => $namespace,
+            '{{USES}}' => implode("\n", $uses),
+            '{{INTERFACES}}' => implode(', ', $interfaces),
+            '{{USEPREFIX}}' => $useprefix,
+            '{{NAMESPACEROOT}}' => $spec['namespaceroot'],
+            '{{CLASSNAME}}' => $spec['classname'],
+            '{{SKILLNAME}}' => $spec['skillname'],
+            '{{RELATIVEPATH}}' => 'classes/local/wizard/' . $spec['domain'] . '/skills/' . $spec['classfile'],
+            '{{READONLY}}' => $spec['readonly'] ? 'true' : 'false',
+            '{{RISKCONST}}' => $spec['risk_const'],
+            '{{DESCRIPTION}}' => self::php_single_quote($spec['description']),
+            '{{INTENT}}' => self::php_single_quote($spec['intent']),
+            '{{PROPERTIES}}' => self::render_properties($spec['properties']),
+            '{{ANCHORS}}' => self::render_quoted_list($spec['anchor_fields']),
+            '{{SCOPES}}' => self::render_quoted_list($spec['context_scopes']),
+            '{{CAPABILITIES}}' => self::render_quoted_list($spec['capabilities']),
+            '{{NOTIMPLEMENTED}}' => self::php_single_quote(self::NOT_IMPLEMENTED_MESSAGE),
+            '{{TRIGGERID}}' => self::php_single_quote($spec['skillname'] . '_request'),
+            '{{TRIGGERDESC}}' => self::php_single_quote($spec['triggers'][0]['description']),
+            '{{TRIGGEREXAMPLES}}' => self::render_quoted_list($spec['triggers'][0]['examples']),
+        ]);
+    }
+
+    /**
+     * File header + class declaration (discovery contract documented).
+     *
+     * @return string
+     */
+    private static function skill_template_header(): string {
+        return <<<'PHP'
 <?php
 // This file is part of Moodle - http://moodle.org/
 //
@@ -204,35 +260,53 @@ class skill_template_generator {
 
 namespace {{NAMESPACE}};
 
-use {{USEPREFIX}}\base_skill;
-use {{USEPREFIX}}\dto\skill_risk_class;
-use {{USEPREFIX}}\interfaces\skill_trigger_provider_interface;
+{{USES}}
 
 /**
  * AI agent skill: {{SKILLNAME}}.
  *
  * GENERATED SCAFFOLD - the contract is filled in; the behaviour is NOT.
- * Implement run_preflight() and execute() where marked "TODO (you)". Until then this skill is inert
- * and only reports that it is unfinished.
+ * Implement the methods marked "TODO (you)". Until then this skill is inert and only reports that it
+ * is unfinished.
  *
- * Drop this file at: {{RELATIVEPATH}}
- * No skill_provider class is required - the agent auto-discovers skills in this directory.
+ * DISCOVERY (no skill_provider class needed): the agent scans every plugin's
+ * classes/local/wizard/&#42;&#42;/skills/ tree and registers each class that (a) extends base_skill /
+ * implements skill_interface, (b) has a no-argument constructor, and (c) returns a unique get_name().
+ * Drop this file at: {{RELATIVEPATH}} and it is picked up automatically. (A skill_provider class is
+ * only needed for advanced cases: contextual prompt packs, issue-code providers, input normalizers.)
+ *
+ * NOTE: the engine classes live in the bookingextension_agent component; the `use` lines above point
+ * there. If the agent engine is ever extracted into a standalone plugin, update that prefix.
  *
  * @package {{NAMESPACEROOT}}
  */
-class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interface {
+class {{CLASSNAME}} extends base_skill implements {{INTERFACES}} {
+
+PHP;
+    }
+
     /**
-     * Declare the skill's read-only flag and risk class.
+     * Constructor block (documents the four risk classes).
      *
-     * Risk classes: R0 read_only | R1 scoped_write | R2 broad_write | R3 irreversible_or_external.
-     * The boolean MUST be true only for R0 (read-only) skills, false otherwise.
+     * @return string
+     */
+    private static function skill_template_constructor(): string {
+        return <<<'PHP'
+    /**
+     * Declare the skill's read-only flag and risk class. These drive the whole confirmation policy:
+     *   R0 read_only             - auto-executes, NO confirmation, NO pre-confirmation preview.
+     *   R1 scoped_write          - mutating, narrow scope; may be session-auto-confirmed.
+     *   R2 broad_write           - mutating, broad scope; always explicit confirmation.
+     *   R3 irreversible_or_external - irreversible/external; always manual confirmation.
+     * The boolean MUST be true only for R0 (read-only), false for R1/R2/R3.
      */
     public function __construct() {
         parent::__construct({{READONLY}}, skill_risk_class::{{RISKCONST}});
     }
 
     /**
-     * Unique, namespaced skill name: "<namespace>.<action>", lowercase, matching ^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$.
+     * Unique, namespaced skill name: "<namespace>.<action>", lowercase, matching
+     * ^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$ (e.g. "course.add_widget").
      *
      * @return string
      */
@@ -240,6 +314,59 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
         return '{{SKILLNAME}}';
     }
 
+    /**
+     * Representative input for the construction-phase skill catalog (helps the planner fill params).
+     *
+     * @return array<string,mixed>
+     */
+    public function get_example_input(): array {
+        // TODO (you): a realistic example, e.g. ['yourfield' => 'example value'].
+        return [];
+    }
+
+PHP;
+    }
+
+    /**
+     * Optional cross-context / context-level block (commented; applies to any risk class).
+     *
+     * @return string
+     */
+    private static function skill_template_targeting_block(): string {
+        return <<<'PHP'
+    // ---------------------------------------------------------------------------------------------
+    // OPTIONAL: context level + cross-context targeting. Uncomment/adjust only if your skill must
+    // act on something other than the current module (the default operating context).
+    //
+    // // Operate at course / system scope instead of the current activity module:
+    // public function get_required_context_level(): int {
+    //     return CONTEXT_COURSE; // or CONTEXT_SYSTEM
+    // }
+    //
+    // // Let the user name a DIFFERENT target than the ambient one (resolved by the engine, then
+    // // your native capability is re-checked there). Return true AND implement get_target_selector().
+    // public function supports_target_context(): bool {
+    //     return true;
+    // }
+    // public function get_target_context_level(): int {
+    //     return CONTEXT_COURSE;
+    // }
+    // public function get_target_selector(array $input): ?\bookingextension_agent\local\wizard\dto\target_selector {
+    //     // Build a target_selector from $input (e.g. a course/module query). Null = ambient context.
+    //     return null;
+    // }
+    // ---------------------------------------------------------------------------------------------
+
+PHP;
+    }
+
+    /**
+     * get_schema() block.
+     *
+     * @return string
+     */
+    private static function skill_template_get_schema(): string {
+        return <<<'PHP'
     /**
      * The schema the planner reads to route to and call this skill.
      *
@@ -267,21 +394,42 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
         ];
     }
 
+PHP;
+    }
+
     /**
-     * Native Moodle capabilities the underlying action requires (enforced in run_preflight via
-     * require_native_capabilities()). Return [] for a purely read-only skill with no extra gate.
+     * get_required_native_capabilities() block.
      *
-     * @return array<int,string>
+     * @return string
+     */
+    private static function skill_template_native_caps(): string {
+        return <<<'PHP'
+    /**
+     * Native Moodle capabilities the underlying action requires (Gate 2). The engine enforces these
+     * at the OPERATING context, so the agent never grants a right the user does not natively have.
+     * Return [] only for a read-only skill with no extra gate.
+     *
+     * @return string[]
      */
     public function get_required_native_capabilities(): array {
         return [{{CAPABILITIES}}];
     }
 
+PHP;
+    }
+
+    /**
+     * check_structure() block.
+     *
+     * @return string
+     */
+    private static function skill_template_check_structure(): string {
+        return <<<'PHP'
     /**
      * Cheap, pure structural validation (NO database access).
      *
      * @param array $input raw input from the planner
-     * @return array{valid: bool, errors: array<int,string>}
+     * @return array{valid: bool, errors: string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -290,6 +438,16 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
         return ['valid' => empty($errors), 'errors' => $errors];
     }
 
+PHP;
+    }
+
+    /**
+     * Mutating-only methods: preflight, the pre-confirmation preview and the confirm-queue identity.
+     *
+     * @return string
+     */
+    private static function skill_template_mutating_methods(): string {
+        return <<<'PHP'
     /**
      * Deep validation + preparation. Resolve entities (DB lookups), authorise the user, and return
      * the data execute() will act on. DO NOT mutate anything here.
@@ -306,14 +464,71 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
      */
     protected function run_preflight(array $input, int $contextid, int $userid): array {
         // TODO (you): resolve the target entity from $input, authorise via
-        // $this->require_native_capabilities($context, $userid), and collect everything execute() needs.
+        // $this->require_native_capabilities(\context::instance_by_id($contextid), $userid),
+        // and collect everything execute() needs into prepared_input.
         return $this->pass($input);
     }
 
     /**
-     * Perform the action. Use ONLY $preparedinput from run_preflight() - do not re-resolve.
+     * Human-readable preview of the PROPOSED action, shown before the user confirms (tier-3).
      *
-     * @param array $preparedinput prepared input returned by run_preflight()
+     * Return ['title' => ..., 'summary' => ..., 'rows' => [['label' => ..., 'value' => ...], ...]]
+     * with ALL text via get_string() in the conversation language (read $input['outputlang']):
+     *   get_string_manager()->get_string($id, $component, $a, (string)($input['outputlang'] ?? '')).
+     * Collapse/relabel raw params into meaning (the user should not read a JSON dump). Returning the
+     * parent call keeps the generic, schema-derived field preview as a floor until you tailor it.
+     *
+     * @param array $input prepared (or proposed) input
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        // TODO (you): build a tailored {title, summary, rows} descriptor (localized via get_string).
+        return parent::describe_proposed_action($input);
+    }
+
+    /**
+     * Identity used to de-duplicate confirm-queue items: two requests that should count as "the same"
+     * action must hash to the same identity. Keep it to the user-facing essentials (target + key
+     * params), normalized; omit volatile/formatting-only fields.
+     *
+     * @param array $input
+     * @return array<string,mixed>
+     */
+    public function build_queue_business_identity(array $input): array {
+        // TODO (you): return the essentials, e.g. ['task' => $this->get_name(), 'target' => ...].
+        return ['task' => $this->get_name()];
+    }
+
+PHP;
+    }
+
+    /**
+     * Read-only note (no preflight/confirmation/proposal-preview needed).
+     *
+     * @return string
+     */
+    private static function skill_template_readonly_note(): string {
+        return <<<'PHP'
+    // Read-only (R0): no run_preflight()/confirmation is required - the skill resolves its target and
+    // reads directly in execute(). There is no pre-confirmation preview (nothing is changed); use
+    // get_result_preview() below to render the result. If this skill needs admin-provisioned
+    // infrastructure before it is useful, override requires_explicit_activation() to return true.
+
+PHP;
+    }
+
+    /**
+     * execute() block.
+     *
+     * @return string
+     */
+    private static function skill_template_execute(): string {
+        return <<<'PHP'
+    /**
+     * Perform the action. For a mutating skill use ONLY $preparedinput from run_preflight() - do not
+     * re-resolve. For a read-only skill resolve + read here directly.
+     *
+     * @param array $preparedinput prepared input (mutating) or raw input (read-only)
      * @param int $contextid operating context id
      * @param int $userid acting user id
      * @return array result, e.g. ['status' => 'executed', 'detail' => '...', 'observation_full' => '...']
@@ -331,14 +546,26 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
     /** Placeholder message shown until the real behaviour is implemented. */
     private const NOT_IMPLEMENTED_MESSAGE = {{NOTIMPLEMENTED}};
 
+PHP;
+    }
+
     /**
-     * Optional rich preview of the result (rendered in the agent's side panel). While unimplemented
-     * this shows an "under construction" card; replace it with a real preview of your output.
+     * get_result_preview() block.
+     *
+     * @return string
+     */
+    private static function skill_template_result_preview(): string {
+        return <<<'PHP'
+    /**
+     * Optional rich preview of the RESULT (rendered in the agent's side panel after execution). While
+     * unimplemented this shows an "under construction" card; replace it with a real preview, or return
+     * null for no preview. The block is self-contained data {type, html?, js_module?, payload?}; the
+     * engine forwards it verbatim, so it never needs to know your domain.
      *
      * @param array $resultentry the stored result entry from execute()
      * @param int $contextid operating context id
      * @param int $userid acting user id
-     * @return array|null preview descriptor (e.g. ['type' => ..., 'html' => ...]) or null for no preview
+     * @return array|null
      */
     public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
         return [
@@ -350,10 +577,20 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
         ];
     }
 
+PHP;
+    }
+
+    /**
+     * get_message_triggers() block.
+     *
+     * @return string
+     */
+    private static function skill_template_message_triggers(): string {
+        return <<<'PHP'
     /**
      * Example phrases that should route the planner to this skill. Keep them natural and varied.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -364,36 +601,23 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
             ],
         ];
     }
-}
 
 PHP;
+    }
 
-        return strtr($template, [
-            '{{NAMESPACE}}' => $namespace,
-            '{{USEPREFIX}}' => $useprefix,
-            '{{NAMESPACEROOT}}' => $spec['namespaceroot'],
-            '{{CLASSNAME}}' => $spec['classname'],
-            '{{SKILLNAME}}' => $spec['skillname'],
-            '{{RELATIVEPATH}}' => 'classes/local/wizard/' . $spec['domain'] . '/skills/' . $spec['classfile'],
-            '{{READONLY}}' => $spec['readonly'] ? 'true' : 'false',
-            '{{RISKCONST}}' => $spec['risk_const'],
-            '{{DESCRIPTION}}' => self::php_single_quote($spec['description']),
-            '{{INTENT}}' => self::php_single_quote($spec['intent']),
-            '{{PROPERTIES}}' => self::render_properties($spec['properties']),
-            '{{ANCHORS}}' => self::render_quoted_list($spec['anchor_fields']),
-            '{{SCOPES}}' => self::render_quoted_list($spec['context_scopes']),
-            '{{CAPABILITIES}}' => self::render_quoted_list($spec['capabilities']),
-            '{{NOTIMPLEMENTED}}' => self::php_single_quote(self::NOT_IMPLEMENTED_MESSAGE),
-            '{{TRIGGERID}}' => self::php_single_quote($spec['skillname'] . '_request'),
-            '{{TRIGGERDESC}}' => self::php_single_quote($spec['triggers'][0]['description']),
-            '{{TRIGGEREXAMPLES}}' => self::render_quoted_list($spec['triggers'][0]['examples']),
-        ]);
+    /**
+     * Class closing brace.
+     *
+     * @return string
+     */
+    private static function skill_template_footer(): string {
+        return "}\n";
     }
 
     /**
      * Render the properties block of get_schema().
      *
-     * @param array<int,array<string,mixed>> $properties
+     * @param array[] $properties
      * @return string
      */
     private static function render_properties(array $properties): string {
@@ -425,7 +649,7 @@ PHP;
     /**
      * Render a PHP array body of single-quoted strings (without the surrounding brackets).
      *
-     * @param array<int,string> $items
+     * @param string[] $items
      * @return string
      */
     private static function render_quoted_list(array $items): string {
@@ -438,7 +662,7 @@ PHP;
     /**
      * Build the db/access.php capability snippet.
      *
-     * @param array<string,mixed> $spec
+     * @param array $spec
      * @return string
      */
     private static function build_access_snippet(array $spec): string {
@@ -461,7 +685,7 @@ PHP;
     /**
      * Build the lang strings snippet (capability label).
      *
-     * @param array<string,mixed> $spec
+     * @param array $spec
      * @return string
      */
     private static function build_lang_snippet(array $spec): string {
@@ -475,7 +699,7 @@ PHP;
     /**
      * Build the README with the exact wiring steps.
      *
-     * @param array<string,mixed> $spec
+     * @param array $spec
      * @param string $relativepath
      * @return string
      */
@@ -493,9 +717,10 @@ PHP;
             . "skill is inert until you implement them.\n\n"
             . "## 1. Drop the skill file\n"
             . "Copy the generated file to:\n\n    {$relativepath}\n\n"
-            . "The agent auto-discovers any skill under `classes/local/wizard/<domain>/skills/` - **no**\n"
-            . "`skill_provider` class is required. (A provider is only needed for advanced cases such as\n"
-            . "custom issue codes or prompt guidance.)\n\n"
+            . "The agent auto-discovers any class under `classes/local/wizard/<domain>/skills/` that\n"
+            . "extends `base_skill`, has a no-argument constructor and returns a unique `get_name()` -\n"
+            . "**no** `skill_provider` class is required. (A provider is only needed for advanced cases\n"
+            . "such as custom issue codes, input normalizers or contextual prompt packs.)\n\n"
             . "## 2. Declare the capability\n"
             . "Add the entry from `snippets/db_access.php.txt` to your plugin's `db/access.php`, and the\n"
             . "label from `snippets/lang_strings.php.txt` to your language file. The skill capability is:\n\n"
@@ -510,16 +735,19 @@ PHP;
             . "So the planner can route to your skill, rebuild the skill-catalog embeddings from the\n"
             . "governance page (or via the agent's embeddings CLI).\n\n"
             . "## 6. Implement the behaviour\n"
-            . "Fill in `run_preflight()` (resolve + authorise, no mutation) and `execute()` (act using only the\n"
-            . "prepared input). Replace the placeholder return and the \"under construction\" preview.\n";
+            . "Read-only (R0) skills: implement `execute()` (resolve + read) and an optional\n"
+            . "`get_result_preview()`. Mutating (R1/R2/R3) skills: fill `run_preflight()` (resolve +\n"
+            . "authorise, no mutation), `execute()` (act using only the prepared input), and tailor\n"
+            . "`describe_proposed_action()` so the confirmation shows a readable summary (all text via\n"
+            . "`get_string()` in the conversation language) instead of a raw parameter dump.\n";
         // phpcs:enable moodle.Strings.ForbiddenStrings.Found
     }
 
     /**
      * Package the files into a base64-encoded ZIP.
      *
-     * @param array<string,mixed> $spec
-     * @param array<string,string> $files
+     * @param array $spec
+     * @param array $files
      * @return array{0:string,1:string} [base64, filename]
      */
     private static function build_zip(array $spec, array $files): array {
@@ -548,8 +776,8 @@ PHP;
     /**
      * Normalize the properties list.
      *
-     * @param array<int,mixed> $properties
-     * @return array<int,array<string,mixed>>
+     * @param mixed[] $properties
+     * @return array[]
      */
     private static function normalize_properties(array $properties): array {
         $result = [];
@@ -578,9 +806,9 @@ PHP;
     /**
      * Normalize triggers, falling back to a single derived trigger.
      *
-     * @param array<int,mixed> $triggers
+     * @param mixed[] $triggers
      * @param string $description
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private static function normalize_triggers(array $triggers, string $description): array {
         $result = [];
@@ -611,8 +839,8 @@ PHP;
     /**
      * Trim, lowercase, and string-cast a flat list.
      *
-     * @param array<int,mixed> $items
-     * @return array<int,string>
+     * @param mixed[] $items
+     * @return string[]
      */
     private static function normalize_string_list(array $items): array {
         $result = [];
