@@ -35,6 +35,14 @@ use bookingextension_agent\local\wizard\skill_registry_factory;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class planner_catalog_service {
+    /**
+     * Discovery meta-skills (registry introspection + RAG fallback). They are only meaningful while
+     * the catalog is a SEMANTIC SUBSET (embed_topk): there they let the planner widen beyond the
+     * top-k. Once the FULL/static catalog is present (slim_all / slim_family) they would only imply
+     * non-existent "hidden" skills, so they are excluded from the full slim catalog.
+     */
+    public const DISCOVERY_META_SKILLS = ['wizard.list_skills', 'wizard.search_skills'];
+
     /** @var assistant_state_guidance_service */
     private assistant_state_guidance_service $assistantsummariesvc;
 
@@ -84,6 +92,28 @@ class planner_catalog_service {
         }
 
         return $slimcatalog;
+    }
+
+    /**
+     * Drop the discovery meta-skills ({@see self::DISCOVERY_META_SKILLS}) from a catalog.
+     *
+     * Used for the full/static catalog (slim_all / slim_family) and for the full skill listing that
+     * wizard.list_skills produces: once the planner already sees every skill, advertising "list/search
+     * skills" only implies more hidden skills that do not exist.
+     *
+     * @param array<int,mixed> $catalog
+     * @return array<int,array<string,mixed>>
+     */
+    public function exclude_discovery_meta_skills(array $catalog): array {
+        return array_values(array_filter(
+            $catalog,
+            static function ($entry): bool {
+                if (!is_array($entry)) {
+                    return false;
+                }
+                return !in_array((string)($entry['skill'] ?? ''), self::DISCOVERY_META_SKILLS, true);
+            }
+        ));
     }
 
     /**

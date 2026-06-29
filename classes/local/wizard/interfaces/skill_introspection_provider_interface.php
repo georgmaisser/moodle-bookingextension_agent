@@ -47,4 +47,19 @@ interface skill_introspection_provider_interface {
      * @return array{available: array<int,array<string,mixed>>, unavailable: array<int,array<string,mixed>>}
      */
     public function list_actions(int $userid, int $contextid, string $scope): array;
+
+    /**
+     * Render the full skill catalog for the user/context as the SAME compact text the planner sees in
+     * the no-embeddings (slim_all) path — minus the discovery meta-skills themselves.
+     *
+     * This is what wizard.list_skills hands back: when semantic retrieval did not surface what the user
+     * wants, the planner gets the complete skill list, but in the proven-acceptable slim representation
+     * rather than a bespoke verbose dump (thread 565).
+     *
+     * @param int    $userid
+     * @param int    $contextid
+     * @param string $scope 'all' | 'readonly' | 'mutating'
+     * @return string
+     */
+    public function render_full_skill_catalog(int $userid, int $contextid, string $scope): string;
 }

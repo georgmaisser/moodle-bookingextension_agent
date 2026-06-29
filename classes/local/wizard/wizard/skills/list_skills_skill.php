@@ -189,8 +189,6 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      * @return array
      */
     public function execute(array $input, int $contextid, int $userid): array {
-        $question = trim((string)($input['question'] ?? ''));
-        $outputlang = trim((string)($input['outputlang'] ?? ''));
         $scope = strtolower(trim((string)($input['scope'] ?? 'all')));
 
         // Introspection (registry + executability evaluation) is engine machinery — it is injected by
@@ -211,8 +209,13 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
 
         $debugmessage = $this->build_debug_summary($scope, $actions, $capabilities, $unavailableactions);
 
-        // ...observation_full: complete, unabridged list of all skills with descriptions.
-        $observation = $this->build_observation_full($actions, $outputlang);
+        // Planner-facing observation: the SAME compact catalog text the no-embeddings (slim_all) path
+        // uses, so a "what can you do" turn hands the planner the full skill list without the verbose
+        // dump that previously bloated the follow-up selection prompt into a gateway timeout (thread
+        // 565). The user-facing answer stays the grouped summary above. Engine-agnostic: the slim
+        // catalog comes via the injected introspection provider, not from engine internals here.
+        $observation = ($this->introspection ?? new skill_introspection_service())
+            ->render_full_skill_catalog($userid, $contextid, $scope);
         return [
             'status' => 'executed',
             'detail' => $summary,
@@ -224,56 +227,6 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
             'unavailable_actions' => $unavailableactions,
             'observation_full' => $observation,
         ];
-    }
-
-    /**
-     * Build a complete, formatted list of all skills and descriptions.
-     *
-     * @param array $actions
-     * @param string $lang
-     * @return string
-     */
-    private function build_observation_full(array $actions, string $lang): string {
-        if (empty($actions)) {
-            return $this->get_localized_string('ai_list_actions_summary_none', $lang);
-        }
-        $lines = [];
-        foreach ($actions as $action) {
-            $label = trim((string)($action['label'] ?? ''));
-            $desc = trim((string)($action['description'] ?? ''));
-            $readonly = !empty($action['readonly']) ? ' (readonly)' : '';
-            if ($label !== '' && $desc !== '') {
-                $lines[] = "- {$label}{$readonly}: {$desc}";
-            } else if ($label !== '') {
-                $lines[] = "- {$label}{$readonly}";
-            } else if ($desc !== '') {
-                $lines[] = "- {$desc}";
-            }
-        }
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Language-safe get_string for observation_full.
-     *
-     * @param string $identifier
-     * @param string $lang
-     * @return string
-     */
-
-    /**
-     * Language-safe get_string for observation_full.
-     *
-     * @param string $identifier
-     * @param string $lang
-     * @return string
-     */
-    private function get_localized_string(string $identifier, string $lang): string {
-        $targetlang = trim($lang);
-        if ($targetlang === '') {
-            return get_string($identifier, 'bookingextension_agent');
-        }
-        return get_string_manager()->get_string($identifier, 'bookingextension_agent', null, $targetlang);
     }
 
     /**

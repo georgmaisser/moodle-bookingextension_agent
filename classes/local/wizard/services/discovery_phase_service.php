@@ -451,11 +451,18 @@ class discovery_phase_service {
         // fixed via its anchors (description + example_utterances) or the embedding model, never by
         // substring/keyword routing. See docs/Blueprints/SKILL_REWORK.md §5.
         //
-        // SOLE sanctioned exception: wizard.search_skills, the engine RAG fallback. It is a meta-skill
-        // ("search the registry") whose anchors never semantically match task queries, so top-k can
-        // never surface it — yet the planner must always be able to fall back to it. Force-add it to the
-        // selector catalog (deduplicated), IN ADDITION to the semantic top-k.
-        $runtimecatalog = $this->ensure_search_skills_fallback($runtimecatalog, $allpromptcontracts);
+        // The discovery meta-skills (wizard.list_skills / wizard.search_skills) only make sense while
+        // the catalog is a SEMANTIC SUBSET (embed_topk): there, search_skills is the SOLE sanctioned
+        // force-include (the RAG fallback — its anchors never semantically match task queries, so top-k
+        // can never surface it, yet the planner must be able to fall back to it). When the catalog is
+        // STATIC (slim_all / slim_family — no embeddings), the planner already sees every skill, so
+        // both meta-skills are removed: advertising "list/search skills" would only imply non-existent
+        // hidden skills (thread 565).
+        if ($this->catalogsvc->catalog_mode_is_static($catalogselectionmode)) {
+            $runtimecatalog = $this->catalogsvc->exclude_discovery_meta_skills($runtimecatalog);
+        } else {
+            $runtimecatalog = $this->ensure_search_skills_fallback($runtimecatalog, $allpromptcontracts);
+        }
 
         $systemprompt = $this->build_system_prompt(
             $contextid,
@@ -724,5 +731,4 @@ class discovery_phase_service {
 
         return $history;
     }
-
 }

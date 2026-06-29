@@ -58,6 +58,11 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
                     ],
                 ];
             }
+
+            public function render_full_skill_catalog(int $userid, int $contextid, string $scope): string {
+                // The skill hands the planner the provider's slim catalog text verbatim.
+                return "## test.alpha [readonly]\nAlpha skill";
+            }
         };
 
         $skill = new list_skills_skill();

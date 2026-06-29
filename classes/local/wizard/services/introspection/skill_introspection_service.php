@@ -27,6 +27,9 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\introspection;
 
 use bookingextension_agent\local\wizard\interfaces\skill_introspection_provider_interface;
+use bookingextension_agent\local\wizard\services\agent_access_service;
+use bookingextension_agent\local\wizard\services\assistant_state_guidance_service;
+use bookingextension_agent\local\wizard\services\planner_catalog_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\skill_executability_evaluator;
 use bookingextension_agent\local\wizard\skill_registry;
@@ -113,5 +116,40 @@ class skill_introspection_service implements skill_introspection_provider_interf
         }
 
         return ['available' => $available, 'unavailable' => $unavailable];
+    }
+
+    /**
+     * Render the full skill catalog as the SAME compact text the planner sees on the no-embeddings
+     * (slim_all) path — scope-filtered and with the discovery meta-skills removed.
+     *
+     * @param int    $userid
+     * @param int    $contextid
+     * @param string $scope
+     * @return string
+     */
+    public function render_full_skill_catalog(int $userid, int $contextid, string $scope): string {
+        $contracts = $this->registry->get_prompt_contracts_for_context($this->evaluator, $userid, $contextid, true);
+
+        $catalogsvc = new planner_catalog_service(new assistant_state_guidance_service());
+
+        // Mirror the discovery slim_all path: without full access, mutating skills are not selectable.
+        if (!agent_access_service::has_full_access()) {
+            [$contracts] = $catalogsvc->split_prompt_contracts_by_full_access($contracts);
+        }
+
+        $catalog = $catalogsvc->slim_prompt_catalog_for_planner($contracts);
+
+        if ($scope === 'readonly' || $scope === 'mutating') {
+            $wantreadonly = ($scope === 'readonly');
+            $catalog = array_values(array_filter(
+                $catalog,
+                static fn(array $entry): bool => (bool)($entry['readonly'] ?? false) === $wantreadonly
+            ));
+        }
+
+        // The full list must not re-advertise the discovery meta-skills themselves.
+        $catalog = $catalogsvc->exclude_discovery_meta_skills($catalog);
+
+        return $catalogsvc->render_catalog_as_text($catalog);
     }
 }
