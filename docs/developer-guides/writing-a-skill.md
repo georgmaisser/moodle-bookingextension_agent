@@ -29,7 +29,6 @@ namespace yourcomponent\local\wizard\skills;
 
 use bookingextension_agent\local\wizard\base_skill;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 
 class do_something_skill extends base_skill {
     public const SKILL_NAME = 'yourcomponent.do_something';
@@ -40,14 +39,17 @@ class do_something_skill extends base_skill {
     }
 
     public function get_name(): string { return self::SKILL_NAME; }
-    // get_schema(), check_structure(), preflight(), execute() …
+    // get_schema(), check_structure(), run_preflight(), execute() …
 }
 ```
 
 `base_skill`'s constructor `(bool $readonly, string $riskclass)` validates the risk class
-immediately. The defaults it gives you: `check_structure()` → valid, `preflight()` → ok
+immediately. The defaults it gives you: `check_structure()` → valid, `run_preflight()` → pass
 after a structure check, `get_prompt_contract()` → derived from your schema's `prompt_meta`.
-`execute()` is abstract — you must implement it.
+`execute()` is abstract — you must implement it. You never name an engine type: `preflight()`
+and `get_prompt_contract()` are **final** wrappers; you override the DTO-free `run_preflight()`
+(returns `$this->pass()/invalid()/confirmable()`) and `prompt_contract_payload()` (returns an
+array). This is what lets the same skill run against any engine.
 
 ---
 
@@ -112,22 +114,26 @@ public function check_structure(array $input): array {
 
 ---
 
-## 5. `preflight()` — domain prepare (the DB-aware step)
+## 5. `run_preflight()` — domain prepare (the DB-aware step)
 
 This is [Layer 2](../architecture/09-preflight-pipeline.md) of preflight. Do the real
 checks — resolve the target, confirm the user may act on it — and return the **prepared
-input** the executor will run. You may soft-block (confirmable) or hard-block:
+input** the executor will run. Return the DTO-free primitive result via the `base_skill`
+helpers (`pass()`/`invalid()`/`confirmable()`); the final `base_skill::preflight()` wraps it
+into the engine result. You never name `preflight_result_v2`:
 
 ```php
-public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+protected function run_preflight(array $input, int $contextid, int $userid): array {
     // resolve + authorize …
     if ($notallowed) {
-        return preflight_result_v2::hard_block(['PERMISSION_ERROR']);
+        return $this->invalid([['code' => 'PERMISSION_ERROR', 'severity' => 'needs_clarification',
+            'message' => get_string('err_permission', 'yourcomponent')]]);
     }
     if ($looksLikeDuplicate && empty($input['override'])) {
-        return preflight_result_v2::soft_block(['DOMAIN_CONFLICT'], $prepared);
+        return $this->confirmable($prepared, [['code' => 'DOMAIN_CONFLICT',
+            'severity' => 'needs_confirmation', 'message' => '…']]);
     }
-    return preflight_result_v2::ok($prepared);
+    return $this->pass($prepared);
 }
 ```
 

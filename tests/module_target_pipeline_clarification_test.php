@@ -24,8 +24,8 @@ use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\services\preflight_pipeline;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
-use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\dto\preflight_result_v2;
+use bookingextension_agent\local\wizard\dto\skill_prompt_contract;
 use bookingextension_agent\local\wizard\skill_registry;
 use context_course;
 

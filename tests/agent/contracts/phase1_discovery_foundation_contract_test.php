@@ -25,7 +25,7 @@ use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\services\discovery\context_prior_builder;
 use bookingextension_agent\local\wizard\services\discovery\core_family_set;
 use bookingextension_agent\local\wizard\services\discovery\family_registry_service;
-use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\dto\skill_prompt_contract;
 use bookingextension_agent\local\wizard\skill_contract_validator;
 use PHPUnit\Framework\TestCase;
 
@@ -33,7 +33,7 @@ use PHPUnit\Framework\TestCase;
  * Contract tests for phase-1 family discovery foundation.
  *
  * @covers \bookingextension_agent\local\wizard\contracts\skill_family_contract
- * @covers \bookingextension_agent\local\wizard\services\skill_prompt_contract
+ * @covers \bookingextension_agent\local\wizard\dto\skill_prompt_contract
  * @covers \bookingextension_agent\local\wizard\skill_contract_validator
  * @covers \bookingextension_agent\local\wizard\services\discovery\family_registry_service
  * @covers \bookingextension_agent\local\wizard\services\discovery\core_family_set

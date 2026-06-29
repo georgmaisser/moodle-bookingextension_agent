@@ -16,8 +16,8 @@
 
 namespace bookingextension_agent\local\wizard\interfaces;
 
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
-use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\dto\preflight_result_v2;
+use bookingextension_agent\local\wizard\dto\skill_prompt_contract;
 
 /**
  * Structured AI skill interface.

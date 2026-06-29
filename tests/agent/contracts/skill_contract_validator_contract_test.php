@@ -19,7 +19,7 @@ namespace bookingextension_agent\local\wizard\tests;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\interfaces\skill_provider_interface;
-use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\dto\skill_prompt_contract;
 use bookingextension_agent\local\wizard\skill_contract_validator;
 use bookingextension_agent\local\wizard\skill_registry;
 use PHPUnit\Framework\TestCase;

@@ -18,7 +18,7 @@ namespace bookingextension_agent\local\wizard\tests;
 
 use bookingextension_agent\local\wizard\services\preflight_domain_check_runner;
 use bookingextension_agent\local\wizard\services\preflight_execution_gate;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
+use bookingextension_agent\local\wizard\dto\preflight_result_v2;
 use PHPUnit\Framework\TestCase;
 
 /**

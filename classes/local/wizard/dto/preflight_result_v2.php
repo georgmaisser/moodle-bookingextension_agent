@@ -16,7 +16,7 @@
 
 declare(strict_types=1);
 
-namespace bookingextension_agent\local\wizard\services;
+namespace bookingextension_agent\local\wizard\dto;
 
 /**
  * Preflight contract v2 DTO.

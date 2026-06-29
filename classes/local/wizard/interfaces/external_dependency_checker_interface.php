@@ -16,7 +16,7 @@
 
 namespace bookingextension_agent\local\wizard\interfaces;
 
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
+use bookingextension_agent\local\wizard\dto\preflight_result_v2;
 
 /**
  * External dependency checker contract for PF_L3_EXT.

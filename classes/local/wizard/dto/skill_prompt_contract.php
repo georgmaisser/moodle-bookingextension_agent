@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-namespace bookingextension_agent\local\wizard\services;
+namespace bookingextension_agent\local\wizard\dto;
 
 use bookingextension_agent\local\wizard\contracts\skill_family_contract;
 

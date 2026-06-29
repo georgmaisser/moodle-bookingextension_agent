@@ -128,10 +128,10 @@ final class decision_service_risk_gating_test extends TestCase {
                     /**
                      * Get prompt contract.
                      *
-                     * @return \bookingextension_agent\local\wizard\services\skill_prompt_contract
+                     * @return \bookingextension_agent\local\wizard\dto\skill_prompt_contract
                      */
-                    public function get_prompt_contract(): \bookingextension_agent\local\wizard\services\skill_prompt_contract {
-                         return new \bookingextension_agent\local\wizard\services\skill_prompt_contract([
+                    public function get_prompt_contract(): \bookingextension_agent\local\wizard\dto\skill_prompt_contract {
+                         return new \bookingextension_agent\local\wizard\dto\skill_prompt_contract([
                              'intent' => 'demo',
                              'anchors' => [],
                              'minimal_input' => [],
@@ -169,14 +169,14 @@ final class decision_service_risk_gating_test extends TestCase {
                      * @param array $input
                      * @param int $contextid
                      * @param int $userid
-                     * @return \bookingextension_agent\local\wizard\services\preflight_result_v2
+                     * @return \bookingextension_agent\local\wizard\dto\preflight_result_v2
                      */
                     public function preflight(
                         array $input,
                         int $contextid,
                         int $userid
-                    ): \bookingextension_agent\local\wizard\services\preflight_result_v2 {
-                        return \bookingextension_agent\local\wizard\services\preflight_result_v2::ok($input);
+                    ): \bookingextension_agent\local\wizard\dto\preflight_result_v2 {
+                        return \bookingextension_agent\local\wizard\dto\preflight_result_v2::ok($input);
                     }
 
                     /**
