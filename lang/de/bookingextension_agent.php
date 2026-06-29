@@ -369,6 +369,7 @@ $string['agent_booking_no_instance_in_scope_courses'] = 'Im aktuellen Kontext gi
 $string['agent_booking_no_instance_more'] = '…und {$a} weitere Buchungsaktivitäten.';
 $string['agent_target_ambiguous_choose'] = 'Es gibt mehr als eine passende Aktivität. Welche meinen Sie?';
 $string['agent_target_not_found'] = 'Ich konnte keine passende Aktivität für diese Aktion finden. Bitte öffnen Sie die Aktivität oder sagen Sie mir, welche (und in welchem Kurs) gemeint ist.';
+$string['agent_target_not_resolved_to_module'] = 'Ich konnte nicht bestimmen, auf welche Aktivität sich diese Aktion bezieht. Bitte sagen Sie mir, welche Aktivität (und in welchem Kurs), oder öffnen Sie sie zuerst.';
 $string['agent_booking_no_matching_options_to_update'] = 'Keine passenden Buchungsoptionen zum Aktualisieren gefunden.';
 $string['agent_booking_no_valid_course_enrolled'] = 'Kein gültiger Kurs für enrolledincoursequery gefunden.';
 $string['agent_booking_option_resolve_settings_failed'] = 'Buchungsoptionseinstellungen für optionid {$a} konnten nicht aufgelöst werden.';

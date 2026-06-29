@@ -180,6 +180,28 @@ class executor implements agent_executor {
             // native capability check) and execution run at the operating context.
             $operatingcontextid = (int)($cmd['operating_contextid'] ?? $contextid);
 
+            // Fail-closed for cross-context module targets (skill-agnostic): a skill that targets a
+            // module INSTANCE (get_target_context_level() === CONTEXT_MODULE) must execute at a
+            // resolved module context. If the operating context is not a context_module — e.g. a
+            // stale ambient course/site context slipped through because resolution did not persist —
+            // refuse rather than execute against the wrong scope (which surfaces as a raw
+            // "Invalid course module"). Surface a clarification so the planner names the activity.
+            // Mutating only: readonly module-targeted skills resolve eagerly inside execute() and may
+            // legitimately fall back to the ambient context — they must never be blocked (thread 515).
+            if (!$skill->is_read_only() && $this->skill_requires_module_target($skill)) {
+                $opcontext = context::instance_by_id($operatingcontextid, IGNORE_MISSING);
+                if (!($opcontext instanceof context_module)) {
+                    $results[] = [
+                        'status' => 'error',
+                        'detail' => get_string('agent_target_not_resolved_to_module', 'bookingextension_agent'),
+                        'issue_codes' => ['CONTEXT_TARGET_UNRESOLVED'],
+                        'resultid' => null,
+                        'skill' => $skillname,
+                    ];
+                    continue;
+                }
+            }
+
             // Lightweight structural guard only — no DB access.
             // Deep validation already happened in decision-service preflight.
             $structural = $skill->check_structure($input);
@@ -331,5 +353,20 @@ class executor implements agent_executor {
         }
 
         return $safe;
+    }
+
+    /**
+     * Whether a skill targets a concrete module instance (CONTEXT_MODULE) via the opt-in
+     * targeting contract — duck-typed so the executor stays skill-agnostic. Such a skill must
+     * run at a resolved module context; the caller fails closed when it does not.
+     *
+     * @param object $skill
+     * @return bool
+     */
+    private function skill_requires_module_target($skill): bool {
+        return method_exists($skill, 'supports_target_context')
+            && method_exists($skill, 'get_target_context_level')
+            && (bool)$skill->supports_target_context()
+            && (int)$skill->get_target_context_level() === CONTEXT_MODULE;
     }
 }

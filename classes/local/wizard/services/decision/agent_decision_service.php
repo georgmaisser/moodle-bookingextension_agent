@@ -579,7 +579,8 @@ class agent_decision_service {
                 $threadid,
                 $queueitemid,
                 $contextid,
-                $preparedinput
+                $preparedinput,
+                (int)($preparedcommand['operating_contextid'] ?? 0)
             );
         }
 
@@ -885,7 +886,8 @@ class agent_decision_service {
                     $threadid,
                     $queueitemid,
                     $contextid,
-                    $preparedinput
+                    $preparedinput,
+                    (int)($preparedcommand['operating_contextid'] ?? 0)
                 );
             }
         }

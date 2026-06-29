@@ -319,7 +319,13 @@ class queue_manager {
      * @param array<string,mixed> $preparedinput
      * @return void
      */
-    public function set_prepared_input(int $threadid, string $queueitemid, int $contextid, array $preparedinput): void {
+    public function set_prepared_input(
+        int $threadid,
+        string $queueitemid,
+        int $contextid,
+        array $preparedinput,
+        ?int $operatingcontextid = null
+    ): void {
         $items = $this->get_queue_items($threadid);
         $now = time();
         foreach ($items as &$item) {
@@ -327,12 +333,21 @@ class queue_manager {
                 continue;
             }
             $item['prepared_input'] = $preparedinput;
+            // Persist the operating context resolved during preflight (e.g. a cross-context module
+            // target) back onto the queue item, so the confirmed/async execution AND the guard token
+            // target the SAME context preflight resolved. Without this the item kept its creation-time
+            // (ambient) operating_contextid and a cross-context target silently fell back to the
+            // ambient scope at execution (thread 562: a site-home create_option ran against the site
+            // context → cmid 0 → "Invalid course module").
+            if ($operatingcontextid !== null && $operatingcontextid > 0) {
+                $item['operating_contextid'] = $operatingcontextid;
+            }
             $skillname = trim((string)($item['skill'] ?? ''));
             // Bind the guard to the item's operating context (cross-context target), falling back
             // to the passed contextid — must match what the executor verifies.
-            $operatingcontextid = (int)($item['operating_contextid'] ?? $contextid);
+            $opcontextid = (int)($item['operating_contextid'] ?? $contextid);
             $item['guard_token'] = $skillname !== ''
-                ? preflight_execution_gate::build_guard_token($skillname, $operatingcontextid, $preparedinput)
+                ? preflight_execution_gate::build_guard_token($skillname, $opcontextid, $preparedinput)
                 : '';
             $item['updated_at'] = $now;
             break;

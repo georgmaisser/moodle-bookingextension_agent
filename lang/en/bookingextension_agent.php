@@ -369,6 +369,7 @@ $string['agent_booking_no_instance_in_scope_courses'] = 'There is no booking act
 $string['agent_booking_no_instance_more'] = '…and {$a} more booking activities.';
 $string['agent_target_ambiguous_choose'] = 'There is more than one matching activity. Which one do you mean?';
 $string['agent_target_not_found'] = 'I could not find a matching activity for this action. Please open the activity, or tell me which one (and in which course) it should apply to.';
+$string['agent_target_not_resolved_to_module'] = 'I could not determine which activity this action applies to. Please tell me which activity (and in which course), or open it first.';
 $string['agent_booking_no_matching_options_to_update'] = 'No matching booking options found to update.';
 $string['agent_booking_no_valid_course_enrolled'] = 'No valid course found for enrolledincoursequery.';
 $string['agent_booking_option_resolve_settings_failed'] = 'Could not resolve booking option settings for optionid {$a}.';
