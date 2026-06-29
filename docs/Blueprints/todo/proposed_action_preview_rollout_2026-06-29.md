@@ -1,8 +1,10 @@
 # Individual pre-confirmation previews for ALL write tasks — rollout plan
 
-Status: IN PROGRESS (2026-06-29). Phase 1 IMPLEMENTED (mod_booking commit 25fbe1e90); phases 2–4
-pending. Depends on the proposed-action preview FRAMEWORK, which is already implemented and verified
-(this document is only about adopting it per write skill).
+Status: COMPLETE (2026-06-29). All 17 write tasks now ship a tier-3 describe_proposed_action(),
+all strings via get_string (bound to outputlang). Commits: P1 mod_booking 25fbe1e90 + agent lang;
+P2 mod_booking 768ce321b + agent lang 0fd61f0; P3 agent 9e1269a; P4 mod_booking 3bfe2009e + agent
+d86d640. Built on the proposed-action preview FRAMEWORK (ebd4598). Open decision #1 (label
+localization) resolved: labels ARE localized via get_string/outputlang.
 
 ## Foundation already in place (do NOT re-do)
 
@@ -134,9 +136,12 @@ Keep helpers data-only and reuse `base_skill::humanize_identifier()` /
   overrides + `option_preview_builder_test` (5/5). Labels English for now (open decision #1).
 - **Phase 2 — Rest of option family**: `update_option_trainer`, `bulk_update_options`,
   `configure_booking_instance`, `book_users` (R3 user list), `add_price_category`.
+  ✅ DONE (768ce321b): extended `option_preview_builder` (11/11 tests).
 - **Phase 3 — Course family**: `add_activity`, `update_activity`, `add_quiz`, `update_quiz` + helper.
+  ✅ DONE (9e1269a): `activity_preview_builder` (4/4 tests).
 - **Phase 4 — Rules + question + wizard**: `create_rule_from_template`,
   `update_rule_from_template`, `generate_questions`, `forget`, `recreate_skill_catalog`.
+  ✅ DONE (3bfe2009e + d86d640): `rule_preview_builder` + `preview_support` (6/6 tests).
 
 Each phase: implement overrides → unit tests → `phpcs` 0/0 → run focused PHPUnit. No `grunt` needed
 (JS framework already done). No engine touch.
