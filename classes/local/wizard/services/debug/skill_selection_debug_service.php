@@ -190,10 +190,26 @@ class skill_selection_debug_service {
             return ((float)$b['similarity']) <=> ((float)$a['similarity']);
         });
 
+        // Never truncate genuine collisions: keep ALL high/warn pairs regardless of $limit, then fill up
+        // to $limit with the next-highest low-risk ('ok') pairs for context. A pure top-N slice could hide
+        // real collisions behind many slightly-higher-scoring pairs — and made the debug view (limit 40)
+        // disagree with the governance view (limit 250) for the same catalog.
+        $risky = [];
+        $rest = [];
+        foreach ($pairs as $pair) {
+            if ($pair['risk'] === 'high' || $pair['risk'] === 'warn') {
+                $risky[] = $pair;
+            } else {
+                $rest[] = $pair;
+            }
+        }
+        $fill = max(0, $limit - count($risky));
+        $slice = array_merge($risky, array_slice($rest, 0, $fill));
+
         return [
             'has_embeddings' => !empty($rows),
             'skill_count' => count($rows),
-            'pairs' => array_slice($pairs, 0, $limit),
+            'pairs' => $slice,
         ];
     }
 

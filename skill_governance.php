@@ -108,7 +108,7 @@ $highcollisioncount = 0;
 if ($hasembeddings && !empty($collisionresult['pairs'])) {
     foreach ($collisionresult['pairs'] as $pair) {
         $risk = $pair['risk'] ?? 'ok';
-        if ($risk === 'high' || $risk === 'warning') {
+        if ($risk === 'high' || $risk === 'warn') {
             $skillcollisions[$pair['skill_a']][] = [
                 'other' => $pair['skill_b'],
                 'similarity' => $pair['similarity'],
