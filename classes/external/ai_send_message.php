@@ -41,6 +41,7 @@ use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\queue\queue_manager;
 use bookingextension_agent\local\wizard\services\pending_intent_service;
 use bookingextension_agent\local\wizard\services\preview_passthrough;
+use bookingextension_agent\local\wizard\services\proposed_action_preview;
 use bookingextension_agent\local\wizard\skill_registry;
 
 /**
@@ -284,6 +285,19 @@ class ai_send_message extends external_api {
         $responsecommands = self::resolve_response_commands($store, $threadid, $responsequeueitemid, $result);
         $phasetracejson = self::encode_phase_trace_for_response($result);
 
+        // Preview of EXECUTED results (post-execution skill previews accumulated across the chain).
+        $previewjson = preview_passthrough::resolve_preview_json(
+            (array)($result['results'] ?? []),
+            $threadid,
+            '_confirm_previews',
+            (array)($result['loop_results'] ?? [])
+        );
+        // For a pure confirmation request nothing has executed yet, so fall back to a human-readable,
+        // skill-agnostic preview of the PROPOSED command(s) instead of the raw parameter dump.
+        if (trim($previewjson) === '' && (string)($result['response_type'] ?? '') === 'confirmation_request') {
+            $previewjson = proposed_action_preview::build_preview_json($responsecommands, $registry);
+        }
+
         return [
             'response_type'         => $result['response_type'] ?? 'error',
             'message'               => $formattedmessage,
@@ -304,12 +318,7 @@ class ai_send_message extends external_api {
             'threadid'              => $threadid,
             'runid'                 => (int)($result['runid'] ?? 0),
             'resultsjson'           => json_encode($result['results'] ?? []),
-            'previewjson'           => preview_passthrough::resolve_preview_json(
-                (array)($result['results'] ?? []),
-                $threadid,
-                '_confirm_previews',
-                (array)($result['loop_results'] ?? [])
-            ),
+            'previewjson'           => $previewjson,
         ];
     }
 

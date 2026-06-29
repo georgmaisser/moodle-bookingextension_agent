@@ -36,6 +36,7 @@ use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\services\confirm_run_service;
+use bookingextension_agent\local\wizard\services\proposed_action_preview;
 
 /**
  * Confirm a proposed AI run and execute directly or via async skill.
@@ -158,6 +159,16 @@ class ai_confirm_run extends external_api {
             (bool)$params['allow_session']
         );
 
+        // A multi-step confirm chain can return a fresh confirmation request: when it does and the
+        // service produced no executed-result preview, fall back to the proposed-command preview.
+        $previewjson = (string)($payload['previewjson'] ?? '');
+        if (trim($previewjson) === '' && (string)($payload['response_type'] ?? '') === 'confirmation_request') {
+            $previewjson = proposed_action_preview::build_preview_json(
+                is_array($payload['commands'] ?? null) ? (array)$payload['commands'] : [],
+                $registry
+            );
+        }
+
         $message = (string)($payload['message'] ?? '');
         $displaymessage = $message;
         $privacyapplied = 0;
@@ -182,7 +193,7 @@ class ai_confirm_run extends external_api {
             'issuecodesjson' => json_encode((array)($payload['issue_codes'] ?? [])),
             'errorsjson' => json_encode((array)($payload['errors'] ?? [])),
             'queueitemid' => (string)($payload['queueitemid'] ?? ''),
-            'previewjson' => (string)($payload['previewjson'] ?? ''),
+            'previewjson' => $previewjson,
         ];
     }
 

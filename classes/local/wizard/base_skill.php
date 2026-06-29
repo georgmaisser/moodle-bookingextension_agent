@@ -189,6 +189,161 @@ abstract class base_skill implements skill_interface {
         return [];
     }
 
+    /** @var array<int,string> Framework-level control params that carry no user meaning in a preview. */
+    private const PROPOSED_ACTION_HIDDEN_KEYS = ['outputlang'];
+
+    /**
+     * Describe the proposed input of a (mutating) skill call for the confirmation preview.
+     *
+     * This is the pre-execution counterpart of the optional get_result_preview(): instead of a raw
+     * JSON dump of the parameter object, it returns a human-readable, data-only descriptor that the
+     * engine forwards verbatim (see proposed_action_preview + the client 'proposed_action' renderer).
+     * The engine stays skill-agnostic; only the skill knows what its fields mean.
+     *
+     * The default implementation is generic and works for every skill without any per-skill code
+     * (tiers 1+2): it surfaces ONLY the fields the skill declares in its prompt-facing schema, maps
+     * each to a label (schema 'label' if present, otherwise a humanized key) and formats the value by
+     * its declared type, dropping framework-internal, empty and falsy entries. Skills that want a
+     * richer preview (tier 3) override this method to collapse/relabel fields and add a one-line
+     * summary; they may reuse the protected helpers below.
+     *
+     * @param array<string,mixed> $input Proposed (prepared) input for the skill call.
+     * @return array{title:string,summary:string,rows:array<int,array{label:string,value:string}>}|null
+     *         Null when there is nothing worth showing.
+     */
+    public function describe_proposed_action(array $input): ?array {
+        $schema = (array)$this->get_schema();
+        $properties = is_array($schema['properties'] ?? null) ? (array)$schema['properties'] : [];
+
+        $rows = [];
+        foreach ($input as $key => $value) {
+            $key = (string)$key;
+            if (in_array($key, self::PROPOSED_ACTION_HIDDEN_KEYS, true)) {
+                continue;
+            }
+            // Only surface fields the skill actually declares in its prompt-facing schema; this drops
+            // internal/derived params (e.g. optiontype) that the skill sets behind the scenes.
+            if (!isset($properties[$key]) || !is_array($properties[$key])) {
+                continue;
+            }
+            $formatted = $this->format_proposed_action_value($value, (string)($properties[$key]['type'] ?? 'string'));
+            if ($formatted === null) {
+                continue;
+            }
+            $label = trim((string)($properties[$key]['label'] ?? ''));
+            if ($label === '') {
+                $label = $this->humanize_identifier($key);
+            }
+            $rows[] = ['label' => $label, 'value' => $formatted];
+        }
+
+        if (empty($rows)) {
+            return null;
+        }
+
+        return [
+            'title' => $this->humanize_identifier($this->short_skill_name()),
+            'summary' => '',
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * Return the skill name without its namespace prefix (the part after the last dot).
+     *
+     * @return string
+     */
+    protected function short_skill_name(): string {
+        $name = trim($this->get_name());
+        $pos = strrpos($name, '.');
+        return $pos === false ? $name : (string)substr($name, $pos + 1);
+    }
+
+    /**
+     * Turn a snake_case / dotted identifier into a human-readable label (first letter capitalized).
+     *
+     * @param string $identifier
+     * @return string
+     */
+    protected function humanize_identifier(string $identifier): string {
+        $text = str_replace(['_', '.'], ' ', trim($identifier));
+        $text = trim((string)preg_replace('/\s+/', ' ', $text));
+        if ($text === '') {
+            return '';
+        }
+        return \core_text::strtoupper(\core_text::substr($text, 0, 1)) . \core_text::substr($text, 1);
+    }
+
+    /**
+     * Format a single proposed-input value for display, honoring its declared schema type.
+     *
+     * Returns null when the value carries nothing worth showing (empty, or a falsy boolean), so the
+     * caller can omit the row entirely.
+     *
+     * @param mixed $value
+     * @param string $type Declared schema type (string|integer|boolean|array|object).
+     * @return string|null
+     */
+    protected function format_proposed_action_value($value, string $type): ?string {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($type === 'boolean' || is_bool($value)) {
+            return $this->is_truthy_preview_flag($value) ? get_string('yes') : null;
+        }
+
+        if (is_array($value)) {
+            return $this->format_proposed_action_array($value);
+        }
+
+        $text = trim((string)$value);
+        return $text === '' ? null : $text;
+    }
+
+    /**
+     * Interpret a (possibly string) value as a boolean flag for preview purposes.
+     *
+     * @param mixed $value
+     * @return bool
+     */
+    private function is_truthy_preview_flag($value): bool {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (int)$value !== 0;
+        }
+        return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Format an array value (list or map) into a compact human-readable string, or null when empty.
+     *
+     * @param array<mixed> $value
+     * @return string|null
+     */
+    private function format_proposed_action_array(array $value): ?string {
+        if (empty($value)) {
+            return null;
+        }
+
+        $islist = array_keys($value) === range(0, count($value) - 1);
+        $parts = [];
+        foreach ($value as $itemkey => $itemvalue) {
+            if (is_array($itemvalue) || is_object($itemvalue)) {
+                continue;
+            }
+            $text = trim((string)$itemvalue);
+            if ($text === '') {
+                continue;
+            }
+            $parts[] = $islist ? $text : ($this->humanize_identifier((string)$itemkey) . ': ' . $text);
+        }
+
+        return empty($parts) ? null : implode(', ', $parts);
+    }
+
     /**
      * DTO-free prompt-contract payload. Concrete skills override THIS (returning a plain array)
      * instead of get_prompt_contract(), so they never name the skill_prompt_contract DTO. The

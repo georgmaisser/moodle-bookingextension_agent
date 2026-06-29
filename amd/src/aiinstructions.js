@@ -642,6 +642,37 @@ registerPreviewRenderer('command_list', async (payload) => {
         + '</div></div>';
 });
 
+// Human-readable, skill-agnostic preview of the PROPOSED commands shown before confirmation.
+// The server (proposed_action_preview) asks each skill to describe its own input as plain data
+// (title/summary/label-value rows); this renderer only lays that data out. It supersedes the raw
+// command_list dump whenever the server provides a descriptor.
+registerPreviewRenderer('proposed_action', async (payload) => {
+    const actions = Array.isArray(payload && payload.actions) ? payload.actions : [];
+    if (actions.length === 0) {
+        return '';
+    }
+
+    const cards = actions.map((action) => {
+        const title = escapeHtml(action.title || '');
+        const summary = escapeHtml(action.summary || '');
+        const rows = Array.isArray(action.rows) ? action.rows : [];
+        const rowsHtml = rows.map((row) =>
+            '<tr>'
+            + `<th class="font-weight-normal text-muted pr-3 align-top">${escapeHtml(row.label || '')}</th>`
+            + `<td>${escapeHtml(row.value || '')}</td>`
+            + '</tr>'
+        ).join('');
+
+        return '<div class="booking-ai-proposed-action card mb-2"><div class="card-body p-3">'
+            + (title ? `<h6 class="mb-2">${title}</h6>` : '')
+            + (summary ? `<p class="text-muted small mb-2">${summary}</p>` : '')
+            + (rowsHtml ? `<table class="table table-sm mb-0"><tbody>${rowsHtml}</tbody></table>` : '')
+            + '</div></div>';
+    }).join('');
+
+    return cards;
+});
+
 export const dispatchSkillPreview = async (previewDescriptor, contextid) => {
     const type = String((previewDescriptor && previewDescriptor.type) || '').trim();
     if (!type) {
@@ -1427,7 +1458,7 @@ const handleAgentCommandResponse = (resp, source, responseType, cmds, messageTex
         return;
     }
 
-    showConfirmPanel(messageText, cmds);
+    showConfirmPanel(messageText, cmds, resp);
 };
 
 const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
@@ -1457,8 +1488,10 @@ const handleConfirmationResponse = (resp, source = 'ai_send_message') => {
  *
  * @param {string} message   AI summary message.
  * @param {Array}  commands  Validated command objects.
+ * @param {Object} [resp]    Raw WS response; when it carries a server-rendered previewjson the
+ *                           side preview was already dispatched, so we skip the raw command dump.
  */
-const showConfirmPanel = (message, commands) => {
+const showConfirmPanel = (message, commands, resp = null) => {
     pendingCommands = commands;
     if (pendingQueueItemId === '' && Array.isArray(commands) && commands.length > 0) {
         pendingQueueItemId = String((commands[0] && commands[0].queue_item_id) || '').trim();
@@ -1475,10 +1508,15 @@ const showConfirmPanel = (message, commands) => {
         ? `<div class="booking-ai-confirm-message mb-2">${messageHtml}</div>`
         : '';
 
-    // Pre-execution preview: there is no executed result yet, so we show the proposed commands
-    // (client-rendered). Rich per-skill previews are produced server-side from the executed result
-    // and arrive as ready HTML via previewjson.
-    dispatchSkillPreview({type: 'command_list', payload: {commands}}, currentContextId);
+    // Pre-execution preview. Prefer the server-rendered, skill-described proposed_action descriptor
+    // (already dispatched from previewjson by the response handler); only fall back to the raw
+    // client-side command dump when the server provided no descriptor.
+    const hasServerPreview = Boolean(
+        resp && typeof resp.previewjson === 'string' && resp.previewjson.trim() !== ''
+    );
+    if (!hasServerPreview) {
+        dispatchSkillPreview({type: 'command_list', payload: {commands}}, currentContextId);
+    }
 
     panel.classList.remove('d-none');
 };
