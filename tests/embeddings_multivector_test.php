@@ -48,9 +48,6 @@ final class embeddings_multivector_test extends \advanced_testcase {
             'anchor_index' => (string)$index,
             'anchor_kind' => $kind,
             'anchor_text' => $text,
-            'description' => 'desc of ' . $skill,
-            'intent' => 'mutate',
-            'readonly' => '0',
             'embedding_json' => json_encode($vector),
         ];
     }

@@ -47,16 +47,10 @@ final class embeddings_csv_repository_test extends advanced_testcase {
             'skill' => $skill,
             'anchor_index' => '0',
             'anchor_kind' => 'description',
-            // Another CSV-hostile field (commas, quotes, newline) so the anchor column round-trips too.
-            'anchor_text' => 'Set the "header" image, now, line1' . "\n" . 'line2',
-            'intent' => 'mutate',
-            'readonly' => '0',
-            // Backslashes, commas, double-quotes and a newline in a single field: exactly the
-            // content that the legacy backslash escape desynced.
-            'description' => 'Sets the header image. Path C:\\images\\logo.png, "quoted", line1' . "\n" . 'line2',
-            'minimal_input_json' => '{"optionid":1,"path":"a\\/b"}',
-            'example_input_json' => '{"text":"He said \"hi\", \\u00e4\\u00f6\\u00fc","p":"x\\y"}',
-            'message_triggers_json' => '["bild, hinterlegen","update \\"option\\""]',
+            // Backslashes, commas, double-quotes and a newline in a single field: exactly the content
+            // that the legacy backslash escape desynced. The anchor text is the only free-text column
+            // left, so it carries the CSV-hostile payload that proves escaping round-trips losslessly.
+            'anchor_text' => 'Sets the header image. Path C:\\images\\logo.png, "quoted", line1' . "\n" . 'line2',
             'embedding_model' => 'text-embedding-3-small',
             'embedding_dimensions' => '8',
             'content_hash' => hash('sha256', $skill),
@@ -122,7 +116,7 @@ final class embeddings_csv_repository_test extends advanced_testcase {
         $path = make_request_directory() . '/skill_catalog_embeddings.csv';
 
         $header = implode(',', embeddings_csv_repository::HEADERS);
-        $good = 'mod_booking.update_option,0,description,desc anchor,mutate,0,desc,{},{},[],text-embedding-3-small,8,'
+        $good = 'mod_booking.update_option,0,description,desc anchor,text-embedding-3-small,8,'
             . hash('sha256', 'x') . ',"[0.1,0.2]"';
         $bad = 'broken.skill,too,few,columns';
         file_put_contents($path, $header . "\n" . $good . "\n" . $bad . "\n");

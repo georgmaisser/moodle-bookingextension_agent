@@ -243,3 +243,22 @@ for the maintainer at the end.)_
 - ✅ **`D_TARGET_NOTE` updated** — the mutating-confirmation target note now names the target
   course **+ activity (module instance) + id**, so a mis-resolved booking instance is visible
   before the write, not just a mis-resolved course.
+
+### Flowchart updates 2026-06-29 (catalog metadata live re-join, thread 561, fix Y)
+
+- ✅ **Root cause of thread 561 was a frozen catalog snapshot, not the resolver.** The parameter
+  constructor's field list (`minimal_input`) came from the embeddings-catalog CSV (last built days
+  earlier), so the new `activityquery` field never reached the planner → the module target stayed
+  empty → `CONTEXT_TARGET_UNRESOLVED` every turn. The hash-based auto-rebuild never fired because
+  `content_hash` covers the embedding ANCHOR text only (description/utterances), NOT the card
+  metadata (`minimal_input`/`example_input`/`message_triggers`).
+- ✅ **`MV_SUBSET` updated (fix Y, live re-join).** `planner_catalog_service::sanitize_runtime_catalog_for_prompt`
+  now re-joins the card metadata LIVE from the skill registry per skill; the embeddings CSV row only
+  identifies the matched skill (+ anchor/score). A skill SCHEMA change now reaches the planner without
+  an embeddings rebuild; only an anchor-text change still needs one. (`build_planner_catalog_subset`,
+  the equivalent helper, is integration-test-only — its dead CSV-column fallback was removed too.)
+- ✅ **`MV_BUILD` + `MV_STORE` updated (CSV = hashed data + vector only).** The card-metadata columns
+  (`intent`/`readonly`/`description`/`minimal_input_json`/`example_input_json`/`message_triggers_json`)
+  were removed from the builder output and from `embeddings_csv_repository::HEADERS`. The CSV now holds
+  only the columns that feed `content_hash` plus the vector. Fixture + `embeddings_csv_repository_test` +
+  `embeddings_multivector_test` + `integration_agent_framework_test` updated to the slim schema.

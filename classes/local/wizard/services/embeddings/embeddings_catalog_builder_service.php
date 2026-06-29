@@ -54,31 +54,18 @@ class embeddings_catalog_builder_service {
                 continue;
             }
 
-            $intent = trim((string)($contract['intent'] ?? ''));
-            $readonly = !empty($contract['readonly']) ? '1' : '0';
             $description = trim((string)($contract['description'] ?? ''));
-            $minimalinput = (array)($contract['minimal_input'] ?? []);
-            $exampleinput = (array)($contract['example_input'] ?? []);
-            $messagetriggers = (array)($contract['message_triggers'] ?? []);
 
             // Multi-vector discovery: the skill is represented by several anchors — the description
             // (anchor #0) plus each example_utterance — and EACH anchor is embedded separately so a
             // query can match the single closest phrasing. See SKILL_REWORK.md §5.
             $anchors = $this->build_anchor_list($description, (array)($contract['example_utterances'] ?? []));
 
-            // Skill-level metadata is duplicated onto every anchor row, so whichever anchor a query
-            // matches still carries everything build_planner_catalog_subset() needs to build the
-            // candidate contract from a CSV row.
-            $skillmeta = [
-                'skill' => $skill,
-                'intent' => $intent,
-                'readonly' => $readonly,
-                'description' => $description,
-                'minimal_input_json' => json_encode($minimalinput, JSON_UNESCAPED_UNICODE),
-                'example_input_json' => json_encode($exampleinput, JSON_UNESCAPED_UNICODE),
-                'message_triggers_json' => json_encode($messagetriggers, JSON_UNESCAPED_UNICODE),
-            ];
-
+            // The CSV stores ONLY hashed data (skill + anchor identity + anchor text) and the vector.
+            // The planner card metadata (intent/readonly/description/minimal_input/example_input/
+            // message_triggers) is intentionally NOT persisted here — it is re-joined LIVE from the
+            // skill registry per skill in planner_catalog_service::sanitize_runtime_catalog_for_prompt,
+            // so a skill schema change reaches the planner without an embeddings rebuild (fix Y).
             foreach ($anchors as $anchor) {
                 $canonical = [
                     'skill' => $skill,
@@ -87,7 +74,8 @@ class embeddings_catalog_builder_service {
                     'anchor_text' => $anchor['text'],
                 ];
 
-                $rows[] = array_merge($skillmeta, [
+                $rows[] = [
+                    'skill' => $skill,
                     'anchor_index' => (string)$anchor['index'],
                     'anchor_kind' => $anchor['kind'],
                     'anchor_text' => $anchor['text'],
@@ -96,7 +84,7 @@ class embeddings_catalog_builder_service {
                     'content_hash' => $this->compute_content_hash($canonical, $model, $dimensions),
                     'embedding_json' => '',
                     '_embedding_input' => $this->to_embedding_input($canonical),
-                ]);
+                ];
             }
         }
 

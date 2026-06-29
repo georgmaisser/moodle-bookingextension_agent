@@ -291,8 +291,26 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['skill']);
         $this->assertTrue((bool)$sanitized[0]['readonly']);
         $this->assertSame('skill', (string)$sanitized[0]['intent']);
-        $this->assertSame([], $sanitized[0]['minimal_input']);
-        $this->assertSame(['question'], $sanitized[0]['example_input']);
+        // Card metadata is re-joined LIVE from the registry (fix Y): the sanitizer ignores the stale
+        // minimal_input/example_input the catalog row carried and reflects the current skill contract.
+        $livecontracts = skill_registry_factory::get_default()->get_all_prompt_contracts();
+        $livediag = [];
+        foreach ($livecontracts as $livecontract) {
+            if (($livecontract['skill'] ?? '') === 'mod_booking.diagnose_booking_issue') {
+                $livediag = $livecontract;
+                break;
+            }
+        }
+        $this->assertSame(
+            array_values((array)($livediag['minimal_input'] ?? [])),
+            array_values((array)$sanitized[0]['minimal_input']),
+            'minimal_input must come live from the skill contract, not the catalog row.'
+        );
+        $this->assertSame(
+            $catalogsvc->compact_catalog_example_input((array)($livediag['example_input'] ?? [])),
+            $sanitized[0]['example_input'],
+            'example_input must come live from the skill contract, not the catalog row.'
+        );
         $this->assertArrayHasKey('id', (array)($sanitized[0]['message_triggers'][0] ?? []));
         $this->assertArrayNotHasKey('embedding_json', $sanitized[0]);
         $this->assertArrayNotHasKey('embedding_model', $sanitized[0]);
@@ -300,14 +318,16 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertArrayNotHasKey('content_hash', $sanitized[0]);
         $this->assertArrayNotHasKey('score', $sanitized[0]);
 
+        // Entry [1] names a skill that is NOT registered, so there is no live contract to re-join:
+        // the sanitizer emits a minimal entry rather than trusting the catalog row's stale metadata.
         $this->assertSame(
             ['skill', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers'],
             array_keys($sanitized[1])
         );
         $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['skill']);
         $this->assertFalse((bool)$sanitized[1]['readonly']);
-        $this->assertSame('lookup', (string)$sanitized[1]['intent']);
-        $this->assertSame(['optionquery'], $sanitized[1]['minimal_input']);
+        $this->assertSame('', (string)$sanitized[1]['intent']);
+        $this->assertSame([], $sanitized[1]['minimal_input']);
         $this->assertArrayNotHasKey('example_input', $sanitized[1]);
     }
 
@@ -337,12 +357,9 @@ final class integration_agent_framework_test extends TestCase {
         $subset = $retrieval->build_planner_catalog_subset([
             [
                 'skill' => 'booking.create_rule_from_template',
-                'intent' => 'create',
-                'readonly' => '0',
-                'description' => $csvdescription,
-                'minimal_input_json' => '[]',
-                'example_input_json' => '{"templatequery":"booking confirmation","rulename":"Birthday reminder"}',
-                'message_triggers_json' => '[]',
+                'anchor_index' => '0',
+                'anchor_kind' => 'description',
+                'anchor_text' => $csvdescription,
                 'embedding_model' => 'wunderbyte-embeddings',
                 'embedding_dimensions' => '1536',
                 'content_hash' => 'dummy',
@@ -377,12 +394,9 @@ final class integration_agent_framework_test extends TestCase {
         $subset = $retrieval->build_planner_catalog_subset([
             [
                 'skill' => 'wizard.recreate_skill_catalog',
-                'intent' => 'mutate',
-                'readonly' => '0',
-                'description' => 'stale csv description',
-                'minimal_input_json' => '[]',
-                'example_input_json' => '{"force":true}',
-                'message_triggers_json' => '[]',
+                'anchor_index' => '0',
+                'anchor_kind' => 'description',
+                'anchor_text' => 'stale csv description',
                 'embedding_model' => 'wunderbyte-embeddings',
                 'embedding_dimensions' => '1536',
                 'content_hash' => 'dummy',

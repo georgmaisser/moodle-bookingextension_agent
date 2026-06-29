@@ -248,14 +248,16 @@ class embeddings_retrieval_service {
                 }
             }
 
+            // No live contract for this skill (e.g. it is no longer registered). The CSV stores no
+            // card metadata, so emit a minimal entry — never fabricate fields from the row.
             $subset[] = [
                 'skill' => $skill,
-                'intent' => (string)($row['intent'] ?? ''),
-                'readonly' => ((string)($row['readonly'] ?? '0') === '1'),
-                'description' => (string)($row['description'] ?? ''),
-                'minimal_input' => $this->decode_json_array($row['minimal_input_json'] ?? '[]'),
-                'example_input' => $this->decode_json_array($row['example_input_json'] ?? '[]'),
-                'message_triggers' => $this->decode_json_array($row['message_triggers_json'] ?? '[]'),
+                'intent' => '',
+                'readonly' => false,
+                'description' => '',
+                'minimal_input' => [],
+                'example_input' => [],
+                'message_triggers' => [],
                 'properties' => $compactproperties,
             ];
         }
@@ -355,15 +357,4 @@ class embeddings_retrieval_service {
         return $compact;
     }
 
-
-    /**
-     * Decode JSON array safely.
-     *
-     * @param string $json
-     * @return array<int|string,mixed>
-     */
-    private function decode_json_array(string $json): array {
-        $decoded = json_decode($json, true);
-        return is_array($decoded) ? $decoded : [];
-    }
 }

@@ -20,6 +20,7 @@ namespace bookingextension_agent\local\wizard\services;
 
 use core_text;
 use bookingextension_agent\local\wizard\contracts\skill_family_contract;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Planner skill-catalog shaping: slim / sanitize / render / compact / filter.
@@ -93,6 +94,7 @@ class planner_catalog_service {
      */
     public function sanitize_runtime_catalog_for_prompt(array $catalog): array {
         $sanitized = [];
+        $livecontracts = $this->live_contract_lookup();
 
         foreach ($catalog as $entry) {
             if (!is_array($entry)) {
@@ -104,24 +106,37 @@ class planner_catalog_service {
                 continue;
             }
 
-            $minimalinput = is_array($entry['minimal_input'] ?? null)
-                ? (array)$entry['minimal_input']
-                : $this->decode_catalog_json_array((string)($entry['minimal_input_json'] ?? '[]'));
-
-            $exampleinputraw = is_array($entry['example_input'] ?? null)
-                ? (array)$entry['example_input']
-                : $this->decode_catalog_json_array((string)($entry['example_input_json'] ?? '[]'));
-
-            $triggerraw = is_array($entry['message_triggers'] ?? null)
-                ? (array)$entry['message_triggers']
-                : $this->decode_catalog_json_array((string)($entry['message_triggers_json'] ?? '[]'));
+            // Card metadata (minimal_input/example_input/intent/readonly/description/message_triggers)
+            // is sourced LIVE from the skill registry, never from the embeddings-catalog row, which is
+            // only a frozen snapshot from the last rebuild. The row identifies WHICH skill matched; the
+            // planner-facing contract must reflect the CURRENT skill schema (e.g. a newly added cross-
+            // context targeting field). Without this, a skill change that does not alter the embedding
+            // anchor text (description/utterances) is invisible to the catalog until a manual rebuild.
+            $live = $livecontracts[$skill] ?? null;
+            if ($live !== null) {
+                $minimalinput = (array)($live['minimal_input'] ?? []);
+                $exampleinputraw = (array)($live['example_input'] ?? []);
+                $triggerraw = (array)($live['message_triggers'] ?? []);
+                $intent = trim((string)($live['intent'] ?? ''));
+                $readonly = !empty($live['readonly']);
+                $description = (string)($live['description'] ?? '');
+            } else {
+                // A row whose skill is no longer registered has no live metadata (the CSV stores none),
+                // so emit a minimal entry rather than fabricating fields.
+                $minimalinput = [];
+                $exampleinputraw = [];
+                $triggerraw = [];
+                $intent = '';
+                $readonly = false;
+                $description = '';
+            }
 
             $row = [
                 'skill' => $skill,
-                'readonly' => !empty($entry['readonly']) && (string)$entry['readonly'] !== '0',
-                'intent' => trim((string)($entry['intent'] ?? '')),
+                'readonly' => $readonly,
+                'intent' => $intent,
                 'minimal_input' => $minimalinput,
-                'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
+                'description' => $this->compact_catalog_description($description),
                 'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
             ];
 
@@ -134,6 +149,36 @@ class planner_catalog_service {
         }
 
         return $sanitized;
+    }
+
+    /**
+     * Live skill-name → prompt-contract lookup from the registry.
+     *
+     * The planner catalog's card metadata must reflect the current skill schema, not a frozen
+     * embeddings-catalog snapshot, so {@see self::sanitize_runtime_catalog_for_prompt()} re-joins it
+     * live by skill name. Returns an empty map when the registry is unavailable (defensive).
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    private function live_contract_lookup(): array {
+        try {
+            $registry = skill_registry_factory::get_default();
+        } catch (\Throwable $e) {
+            return [];
+        }
+
+        $lookup = [];
+        foreach ($registry->get_all_prompt_contracts() as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+            $skill = trim((string)($contract['skill'] ?? ''));
+            if ($skill !== '') {
+                $lookup[$skill] = $contract;
+            }
+        }
+
+        return $lookup;
     }
 
     /**

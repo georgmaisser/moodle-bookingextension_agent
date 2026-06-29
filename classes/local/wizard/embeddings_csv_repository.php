@@ -38,20 +38,20 @@ class embeddings_csv_repository extends embeddings_csv_repository_base {
      *
      * Multi-vector store (SKILL_REWORK.md §5): one row PER ANCHOR, so a skill spans several rows
      * keyed by (skill, anchor_index). anchor_kind is 'description' (#0) or 'utterance'; anchor_text
-     * is the exact embedded phrase. The remaining columns repeat the skill-level metadata on every
-     * anchor row so a matched row can rebuild the planner candidate on its own.
+     * is the exact embedded phrase.
+     *
+     * The store holds ONLY hashed data (the columns that feed content_hash) plus the vector. The
+     * planner card metadata (intent/readonly/description/minimal_input/example_input/message_triggers)
+     * is NOT stored — it is re-joined LIVE from the skill registry per skill when the planner catalog
+     * is built (planner_catalog_service::sanitize_runtime_catalog_for_prompt), so a skill schema
+     * change reaches the planner without an embeddings rebuild. Only an anchor-text change (which
+     * alters the vector) requires a rebuild.
      */
     public const HEADERS = [
         'skill',
         'anchor_index',
         'anchor_kind',
         'anchor_text',
-        'intent',
-        'readonly',
-        'description',
-        'minimal_input_json',
-        'example_input_json',
-        'message_triggers_json',
         'embedding_model',
         'embedding_dimensions',
         'content_hash',
