@@ -87,6 +87,7 @@ $string['agent:skill_course_diagnose_access'] = 'Diagnose course/activity access
 $string['agent:skill_course_diagnose_enrolment'] = 'Diagnose course enrolment problems';
 $string['agent:skill_course_diagnose_grades'] = 'Diagnose missing or wrong grades';
 $string['agent:skill_course_diagnose_progress'] = 'Diagnose a user\'s course progress and completion';
+$string['agent:skill_course_diagnose_user_in_course'] = 'Diagnose a user\'s situation in a course';
 $string['agent:skill_course_search_courses'] = 'Search courses';
 $string['agent:skill_course_update_activity'] = 'Edit an activity or resource in a course';
 $string['agent:skill_course_update_quiz'] = 'Edit a quiz and add questions';
