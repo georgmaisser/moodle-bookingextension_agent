@@ -91,7 +91,11 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             preview_support::str('previewlabel_category', $lang),
             preview_support::text($input['target_category'] ?? null)
         );
-        preview_support::push($rows, preview_support::str('previewlabel_number', $lang), preview_support::posint($input['count'] ?? null));
+        preview_support::push(
+            $rows,
+            preview_support::str('previewlabel_number', $lang),
+            preview_support::posint($input['count'] ?? null)
+        );
         preview_support::push(
             $rows,
             preview_support::str('previewlabel_types', $lang),
