@@ -225,7 +225,7 @@ foreach ($scenarios as $i => $scenario) {
             // Get the raw selector LLM response directly from the debug log —
             // this is the actual JSON the model emitted, before any parsing.
             $logrow = $DB->get_record_sql(
-                "SELECT requesttext, responsetext FROM {local_wizard_ai_llm_debug}
+                "SELECT requesttext, responsetext FROM {bx_agent_ai_llm_debug}
                   WHERE threadid = :tid AND source LIKE 'orc|p=sel%'
                   ORDER BY id DESC LIMIT 1",
                 ['tid' => $threadid]
@@ -235,7 +235,7 @@ foreach ($scenarios as $i => $scenario) {
             $tokenscompletion = $logrow ? (int)round(strlen($logrow->responsetext ?? '') / 4) : 0;
 
             // Archive the temporary thread to avoid polluting the user's history.
-            $DB->set_field('local_wizard_ai_threads', 'status', 'archived', ['id' => $threadid]);
+            $DB->set_field('bx_agent_ai_threads', 'status', 'archived', ['id' => $threadid]);
         } catch (\Throwable $ex) {
             $durationms = (int)round((microtime(true) - $t0) * 1000);
             cli_writeln('ERROR — ' . $ex->getMessage());

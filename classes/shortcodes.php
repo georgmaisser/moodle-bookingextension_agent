@@ -74,6 +74,13 @@ class shortcodes {
     ): string {
         global $PAGE, $OUTPUT, $USER;
 
+        // Coexistence: when the standalone local_wizard plugin owns the engine, it provides its own
+        // entry point — render nothing here so an authored [wbbagent] tag does not surface a second
+        // (inert) panel. Reverts automatically when local_wizard is removed.
+        if (!\bookingextension_agent\local\wizard\services\security\authorization_service::is_agent_engine_active()) {
+            return '';
+        }
+
         $configuredtoken = (string) \get_config('bookingextension_agent', 'shortcodetoken');
         $providedtoken = isset($args['securitytoken']) ? trim((string) $args['securitytoken']) : '';
 

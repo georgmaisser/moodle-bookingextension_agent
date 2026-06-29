@@ -69,7 +69,7 @@ final class user_memory_skills_test extends advanced_testcase {
         $thread = $store->get_or_create_thread((int)$user->id, $contextid);
 
         $ts = make_timestamp(2026, 6, 1, 10, 0);
-        $DB->insert_record('local_wizard_ai_messages', (object)[
+        $DB->insert_record('bx_agent_ai_messages', (object)[
             'threadid' => (int)$thread->id,
             'userid' => (int)$user->id,
             'role' => 'user',
@@ -77,7 +77,7 @@ final class user_memory_skills_test extends advanced_testcase {
             'structuredjson' => null,
             'timecreated' => $ts,
         ]);
-        $DB->insert_record('local_wizard_ai_messages', (object)[
+        $DB->insert_record('bx_agent_ai_messages', (object)[
             'threadid' => (int)$thread->id,
             'userid' => (int)$user->id,
             'role' => 'assistant',
@@ -86,7 +86,7 @@ final class user_memory_skills_test extends advanced_testcase {
             'timecreated' => $ts + 60,
         ]);
         // The recall_memory skill returns a PREVIOUS conversation, not the current active one; mark it archived.
-        $DB->set_field('local_wizard_ai_threads', 'status', 'archived', ['id' => (int)$thread->id]);
+        $DB->set_field('bx_agent_ai_threads', 'status', 'archived', ['id' => (int)$thread->id]);
 
         $result = (new recall_memory_skill())->execute(['mode' => 'last_thread'], $contextid, (int)$user->id);
 

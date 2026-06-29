@@ -54,17 +54,17 @@ echo $OUTPUT->header();
 $DB->get_manager(); // Ensure DB is loaded.
 
 // Check tables exist.
-if (!$DB->get_manager()->table_exists('local_wizard_benchmark_runs')) {
+if (!$DB->get_manager()->table_exists('bx_agent_benchmark_runs')) {
     echo $OUTPUT->notification(get_string('benchmark_tables_not_installed', 'bookingextension_agent'), 'error');
     echo $OUTPUT->footer();
     exit;
 }
 
-$total = $DB->count_records('local_wizard_benchmark_runs');
+$total = $DB->count_records('bx_agent_benchmark_runs');
 $runs  = $DB->get_records_sql(
     'SELECT r.*, b.label AS baseline_label
-       FROM {local_wizard_benchmark_runs} r
-       LEFT JOIN {local_wizard_benchmark_baselines} b ON b.run_id = r.id
+       FROM {bx_agent_benchmark_runs} r
+       LEFT JOIN {bx_agent_benchmark_baselines} b ON b.run_id = r.id
       ORDER BY r.timecreated DESC',
     [],
     $page * $perpage,
@@ -79,8 +79,8 @@ $thresholds = $calc->get_thresholds();
 // Multiple metrics per run share the same r.id, which would cause overwrites otherwise.
 $trendruns = $DB->get_records_sql(
     'SELECT m.id, r.id AS run_id, r.timecreated, m.metric_key, m.metric_value
-       FROM {local_wizard_benchmark_runs} r
-       JOIN {local_wizard_benchmark_metrics} m ON m.run_id = r.id
+       FROM {bx_agent_benchmark_runs} r
+       JOIN {bx_agent_benchmark_metrics} m ON m.run_id = r.id
       WHERE m.metric_key IN (\'e2e_success_rate\', \'skill_hit_rate\', \'json_validity_rate\')
         AND m.scenario_class IS NULL
       ORDER BY r.timecreated ASC'

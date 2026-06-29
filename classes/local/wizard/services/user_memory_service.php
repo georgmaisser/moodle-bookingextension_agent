@@ -20,7 +20,7 @@ namespace bookingextension_agent\local\wizard\services;
  * Central persistence + budget service for user-stated agent memories.
  *
  * Memories are global per user (no contextid). All persistence for the
- * local_wizard_user_memory table goes through this service — skills never
+ * bx_agent_user_memory table goes through this service — skills never
  * touch $DB directly.
  *
  * @package    bookingextension_agent
@@ -29,7 +29,7 @@ namespace bookingextension_agent\local\wizard\services;
  */
 class user_memory_service {
     /** Database table name. */
-    public const TABLE = 'local_wizard_user_memory';
+    public const TABLE = 'bx_agent_user_memory';
 
     /** Maximum number of memories a single user may store. */
     public const MAX_MEMORIES = 15;

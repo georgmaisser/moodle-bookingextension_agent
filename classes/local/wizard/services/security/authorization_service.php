@@ -57,6 +57,45 @@ class authorization_service implements agent_authorization_service {
     }
 
     /**
+     * Return true when the standalone local_wizard plugin is installed and upgraded.
+     *
+     * local_wizard is the extracted, standalone home of this AI engine. When it is present it
+     * OWNS the agent and this bundled bookingextension_agent subplugin deliberately steps aside
+     * (single source of truth, no double UI / double webservice handling). The check is dynamic
+     * (presence + upgraded), so the cutover is fully reversible: remove/disable local_wizard and
+     * the bundled engine resumes. Until local_wizard exists this is a permanent no-op (returns
+     * false), so wiring it now is inert coexistence prep.
+     *
+     * @return bool
+     */
+    public static function local_wizard_is_active(): bool {
+        if (!class_exists('\\core_plugin_manager')) {
+            return false;
+        }
+        try {
+            $plugininfo = \core_plugin_manager::instance()->get_plugin_info('local_wizard');
+            return ($plugininfo !== null) && (bool)$plugininfo->is_installed_and_upgraded();
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Return true when THIS bundled engine is the active agent for the site.
+     *
+     * The single coexistence chokepoint: the bundled engine is active only when it is installed
+     * AND the standalone local_wizard has not taken over. Routing every entry point (panel
+     * readiness, all webservice gates, the navbar head-hook) through here means the engine yields
+     * everywhere with one switch when local_wizard is installed — and resumes everywhere when it
+     * is removed (reversible cutover).
+     *
+     * @return bool
+     */
+    public static function is_agent_engine_active(): bool {
+        return self::is_agent_extension_installed() && !self::local_wizard_is_active();
+    }
+
+    /**
      * Resolve and validate the agent context by id.
      *
      * Context-level-agnostic: accepts every context level the agent can be hosted at.
@@ -86,7 +125,7 @@ class authorization_service implements agent_authorization_service {
      */
     public function require_use_capability(int $userid, int $contextid): void {
         $context = $this->resolve_valid_context($contextid);
-        if (!self::is_agent_extension_installed()) {
+        if (!self::is_agent_engine_active()) {
             throw new required_capability_exception($context, 'bookingextension/agent:useaiinstructions', 'nopermissions', '');
         }
         if (!has_capability('bookingextension/agent:useaiinstructions', $context, $userid)) {
@@ -117,7 +156,7 @@ class authorization_service implements agent_authorization_service {
      * @return array{code:string,message:string}|null
      */
     public function check_use_readiness(int $userid, int $contextid): ?array {
-        if (!self::is_agent_extension_installed()) {
+        if (!self::is_agent_engine_active()) {
             return [
                 'code' => 'agent_unavailable',
                 'message' => get_string('error_ai_unavailable', 'bookingextension_agent'),

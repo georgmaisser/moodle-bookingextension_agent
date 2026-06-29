@@ -44,19 +44,19 @@ class provider implements
     \core_privacy\local\request\core_userlist_provider,
     \core_privacy\local\request\plugin\provider {
     /** User memory table (stored at user context). */
-    private const MEMORY_TABLE = 'local_wizard_user_memory';
+    private const MEMORY_TABLE = 'bx_agent_user_memory';
 
     /** Conversation thread table. */
-    private const THREADS_TABLE = 'local_wizard_ai_threads';
+    private const THREADS_TABLE = 'bx_agent_ai_threads';
 
     /** Conversation message table. */
-    private const MESSAGES_TABLE = 'local_wizard_ai_messages';
+    private const MESSAGES_TABLE = 'bx_agent_ai_messages';
 
     /** Execution run table. */
-    private const RUNS_TABLE = 'local_wizard_ai_runs';
+    private const RUNS_TABLE = 'bx_agent_ai_runs';
 
     /** Raw LLM debug log table. */
-    private const DEBUG_TABLE = 'local_wizard_ai_llm_debug';
+    private const DEBUG_TABLE = 'bx_agent_ai_llm_debug';
 
     /**
      * Describe the personal data stored by this plugin.
@@ -68,67 +68,67 @@ class provider implements
         $collection->add_database_table(
             self::MEMORY_TABLE,
             [
-                'userid' => 'privacy:metadata:local_wizard_user_memory:userid',
-                'memory' => 'privacy:metadata:local_wizard_user_memory:memory',
-                'scopes' => 'privacy:metadata:local_wizard_user_memory:scopes',
-                'timecreated' => 'privacy:metadata:local_wizard_user_memory:timecreated',
-                'timemodified' => 'privacy:metadata:local_wizard_user_memory:timemodified',
+                'userid' => 'privacy:metadata:bx_agent_user_memory:userid',
+                'memory' => 'privacy:metadata:bx_agent_user_memory:memory',
+                'scopes' => 'privacy:metadata:bx_agent_user_memory:scopes',
+                'timecreated' => 'privacy:metadata:bx_agent_user_memory:timecreated',
+                'timemodified' => 'privacy:metadata:bx_agent_user_memory:timemodified',
             ],
-            'privacy:metadata:local_wizard_user_memory'
+            'privacy:metadata:bx_agent_user_memory'
         );
 
         $collection->add_database_table(
             self::THREADS_TABLE,
             [
-                'userid' => 'privacy:metadata:local_wizard_ai_threads:userid',
-                'contextid' => 'privacy:metadata:local_wizard_ai_threads:contextid',
-                'status' => 'privacy:metadata:local_wizard_ai_threads:status',
-                'metadatajson' => 'privacy:metadata:local_wizard_ai_threads:metadatajson',
-                'timecreated' => 'privacy:metadata:local_wizard_ai_threads:timecreated',
-                'timemodified' => 'privacy:metadata:local_wizard_ai_threads:timemodified',
+                'userid' => 'privacy:metadata:bx_agent_ai_threads:userid',
+                'contextid' => 'privacy:metadata:bx_agent_ai_threads:contextid',
+                'status' => 'privacy:metadata:bx_agent_ai_threads:status',
+                'metadatajson' => 'privacy:metadata:bx_agent_ai_threads:metadatajson',
+                'timecreated' => 'privacy:metadata:bx_agent_ai_threads:timecreated',
+                'timemodified' => 'privacy:metadata:bx_agent_ai_threads:timemodified',
             ],
-            'privacy:metadata:local_wizard_ai_threads'
+            'privacy:metadata:bx_agent_ai_threads'
         );
 
         $collection->add_database_table(
             self::MESSAGES_TABLE,
             [
-                'userid' => 'privacy:metadata:local_wizard_ai_messages:userid',
-                'role' => 'privacy:metadata:local_wizard_ai_messages:role',
-                'content' => 'privacy:metadata:local_wizard_ai_messages:content',
-                'structuredjson' => 'privacy:metadata:local_wizard_ai_messages:structuredjson',
-                'timecreated' => 'privacy:metadata:local_wizard_ai_messages:timecreated',
+                'userid' => 'privacy:metadata:bx_agent_ai_messages:userid',
+                'role' => 'privacy:metadata:bx_agent_ai_messages:role',
+                'content' => 'privacy:metadata:bx_agent_ai_messages:content',
+                'structuredjson' => 'privacy:metadata:bx_agent_ai_messages:structuredjson',
+                'timecreated' => 'privacy:metadata:bx_agent_ai_messages:timecreated',
             ],
-            'privacy:metadata:local_wizard_ai_messages'
+            'privacy:metadata:bx_agent_ai_messages'
         );
 
         $collection->add_database_table(
             self::RUNS_TABLE,
             [
-                'userid' => 'privacy:metadata:local_wizard_ai_runs:userid',
-                'contextid' => 'privacy:metadata:local_wizard_ai_runs:contextid',
-                'status' => 'privacy:metadata:local_wizard_ai_runs:status',
-                'commandsjson' => 'privacy:metadata:local_wizard_ai_runs:commandsjson',
-                'resultsjson' => 'privacy:metadata:local_wizard_ai_runs:resultsjson',
-                'timecreated' => 'privacy:metadata:local_wizard_ai_runs:timecreated',
-                'timemodified' => 'privacy:metadata:local_wizard_ai_runs:timemodified',
+                'userid' => 'privacy:metadata:bx_agent_ai_runs:userid',
+                'contextid' => 'privacy:metadata:bx_agent_ai_runs:contextid',
+                'status' => 'privacy:metadata:bx_agent_ai_runs:status',
+                'commandsjson' => 'privacy:metadata:bx_agent_ai_runs:commandsjson',
+                'resultsjson' => 'privacy:metadata:bx_agent_ai_runs:resultsjson',
+                'timecreated' => 'privacy:metadata:bx_agent_ai_runs:timecreated',
+                'timemodified' => 'privacy:metadata:bx_agent_ai_runs:timemodified',
             ],
-            'privacy:metadata:local_wizard_ai_runs'
+            'privacy:metadata:bx_agent_ai_runs'
         );
 
         $collection->add_database_table(
             self::DEBUG_TABLE,
             [
-                'userid' => 'privacy:metadata:local_wizard_ai_llm_debug:userid',
-                'contextid' => 'privacy:metadata:local_wizard_ai_llm_debug:contextid',
-                'source' => 'privacy:metadata:local_wizard_ai_llm_debug:source',
-                'requesttext' => 'privacy:metadata:local_wizard_ai_llm_debug:requesttext',
-                'responsetext' => 'privacy:metadata:local_wizard_ai_llm_debug:responsetext',
-                'success' => 'privacy:metadata:local_wizard_ai_llm_debug:success',
-                'errormessage' => 'privacy:metadata:local_wizard_ai_llm_debug:errormessage',
-                'timecreated' => 'privacy:metadata:local_wizard_ai_llm_debug:timecreated',
+                'userid' => 'privacy:metadata:bx_agent_ai_llm_debug:userid',
+                'contextid' => 'privacy:metadata:bx_agent_ai_llm_debug:contextid',
+                'source' => 'privacy:metadata:bx_agent_ai_llm_debug:source',
+                'requesttext' => 'privacy:metadata:bx_agent_ai_llm_debug:requesttext',
+                'responsetext' => 'privacy:metadata:bx_agent_ai_llm_debug:responsetext',
+                'success' => 'privacy:metadata:bx_agent_ai_llm_debug:success',
+                'errormessage' => 'privacy:metadata:bx_agent_ai_llm_debug:errormessage',
+                'timecreated' => 'privacy:metadata:bx_agent_ai_llm_debug:timecreated',
             ],
-            'privacy:metadata:local_wizard_ai_llm_debug'
+            'privacy:metadata:bx_agent_ai_llm_debug'
         );
 
         // User-entered content is forwarded to an external LLM provider for processing.
@@ -245,7 +245,7 @@ class provider implements
         }
 
         writer::with_context($context)->export_data(
-            [get_string('privacy:metadata:local_wizard_user_memory', 'bookingextension_agent')],
+            [get_string('privacy:metadata:bx_agent_user_memory', 'bookingextension_agent')],
             (object)['memories' => $data]
         );
     }
@@ -317,7 +317,7 @@ class provider implements
         }
 
         writer::with_context($context)->export_data(
-            [get_string('privacy:metadata:local_wizard_ai_threads', 'bookingextension_agent')],
+            [get_string('privacy:metadata:bx_agent_ai_threads', 'bookingextension_agent')],
             (object)['threads' => $exportthreads]
         );
     }

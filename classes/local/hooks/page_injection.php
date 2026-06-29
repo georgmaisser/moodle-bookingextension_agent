@@ -17,6 +17,7 @@
 namespace bookingextension_agent\local\hooks;
 
 use core\hook\output\before_standard_head_html_generation;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
 
 /**
  * Injects the navbar magic-wand entry point on every Moodle page.
@@ -42,6 +43,12 @@ class page_injection {
      */
     public static function extend_head(before_standard_head_html_generation $hook): void {
         global $PAGE;
+
+        // Coexistence: when the standalone local_wizard plugin has taken over, it injects its own
+        // navbar entry point — the bundled engine must not add a second wand.
+        if (!authorization_service::is_agent_engine_active()) {
+            return;
+        }
 
         if (empty(get_config('bookingextension_agent', 'inject_in_navbar'))) {
             return;

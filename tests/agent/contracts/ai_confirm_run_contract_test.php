@@ -120,7 +120,7 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
         ]);
         $this->assertCount(1, $created, 'Terminal confirm path must execute the queued mutation exactly once.');
 
-        $entries = $DB->get_records('local_wizard_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
+        $entries = $DB->get_records('bx_agent_ai_llm_debug', ['threadid' => $threadid], 'id ASC');
         $this->assertNotEmpty($entries, 'Expected LLM debug entries for terminal confirm thread.');
 
         $hassynchronizercall = false;

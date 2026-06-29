@@ -898,7 +898,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         global $DB;
 
         $record = $DB->get_record_sql(
-            'SELECT source FROM {local_wizard_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
+            'SELECT source FROM {bx_agent_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
             [$threadid],
             IGNORE_MULTIPLE
         );
@@ -926,7 +926,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
         }
 
         $records = $DB->get_records_sql(
-            'SELECT source FROM {local_wizard_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
+            'SELECT source FROM {bx_agent_ai_llm_debug} WHERE threadid = ? ORDER BY id DESC',
             [$threadid]
         );
 

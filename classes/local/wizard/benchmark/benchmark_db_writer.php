@@ -29,7 +29,7 @@ class benchmark_db_writer {
     /**
      * Persist a complete benchmark run atomically.
      *
-     * @param array $rundata    Fields for local_wizard_benchmark_runs.
+     * @param array $rundata    Fields for bx_agent_benchmark_runs.
      * @param array $scenarios  Array of scenario result arrays.
      * @param array $metrics    Array of ['metric_key', 'metric_value', 'metric_unit', 'scenario_class'].
      * @return int  The new run ID.
@@ -61,10 +61,10 @@ class benchmark_db_writer {
             'timecreated'        => $now,
         ]);
 
-        $runid = $DB->insert_record('local_wizard_benchmark_runs', $runrecord);
+        $runid = $DB->insert_record('bx_agent_benchmark_runs', $runrecord);
 
         foreach ($scenarios as $scenario) {
-            $DB->insert_record('local_wizard_benchmark_scenarios', (object) array_merge([
+            $DB->insert_record('bx_agent_benchmark_scenarios', (object) array_merge([
                 'run_id'                  => $runid,
                 'scenario_key'            => '',
                 'scenario_class'          => '',
@@ -87,7 +87,7 @@ class benchmark_db_writer {
         }
 
         foreach ($metrics as $metric) {
-            $DB->insert_record('local_wizard_benchmark_metrics', (object) [
+            $DB->insert_record('bx_agent_benchmark_metrics', (object) [
                 'run_id'         => $runid,
                 'metric_key'     => $metric['metric_key'] ?? '',
                 'metric_value'   => $metric['metric_value'] ?? 0.0,
@@ -111,8 +111,8 @@ class benchmark_db_writer {
      */
     public function pin_baseline(int $runid, string $label, string $description = '', int $createdby = 0): int {
         global $DB;
-        $DB->set_field('local_wizard_benchmark_runs', 'is_baseline', 1, ['id' => $runid]);
-        return $DB->insert_record('local_wizard_benchmark_baselines', (object) [
+        $DB->set_field('bx_agent_benchmark_runs', 'is_baseline', 1, ['id' => $runid]);
+        return $DB->insert_record('bx_agent_benchmark_baselines', (object) [
             'run_id'      => $runid,
             'label'       => $label,
             'locked'      => 0,
@@ -129,8 +129,8 @@ class benchmark_db_writer {
      */
     public function get_latest_baseline(): ?\stdClass {
         global $DB;
-        $sql = 'SELECT r.* FROM {local_wizard_benchmark_runs} r
-                  JOIN {local_wizard_benchmark_baselines} b ON b.run_id = r.id
+        $sql = 'SELECT r.* FROM {bx_agent_benchmark_runs} r
+                  JOIN {bx_agent_benchmark_baselines} b ON b.run_id = r.id
                  ORDER BY b.timecreated DESC';
         $records = $DB->get_records_sql($sql, [], 0, 1);
         return $records ? reset($records) : null;
@@ -145,16 +145,16 @@ class benchmark_db_writer {
     public function purge_old_runs(int $days = 365): int {
         global $DB;
         $cutoff = time() - ($days * 86400);
-        $sql = 'SELECT id FROM {local_wizard_benchmark_runs}
+        $sql = 'SELECT id FROM {bx_agent_benchmark_runs}
                  WHERE timecreated < :cutoff AND is_baseline = 0';
         $ids = $DB->get_fieldset_sql($sql, ['cutoff' => $cutoff]);
         if (empty($ids)) {
             return 0;
         }
         [$insql, $params] = $DB->get_in_or_equal($ids);
-        $DB->delete_records_select('local_wizard_benchmark_scenarios', "run_id {$insql}", $params);
-        $DB->delete_records_select('local_wizard_benchmark_metrics', "run_id {$insql}", $params);
-        $DB->delete_records_select('local_wizard_benchmark_runs', "id {$insql}", $params);
+        $DB->delete_records_select('bx_agent_benchmark_scenarios', "run_id {$insql}", $params);
+        $DB->delete_records_select('bx_agent_benchmark_metrics', "run_id {$insql}", $params);
+        $DB->delete_records_select('bx_agent_benchmark_runs', "id {$insql}", $params);
         return count($ids);
     }
 

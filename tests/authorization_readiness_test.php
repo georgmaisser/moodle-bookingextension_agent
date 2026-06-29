@@ -81,4 +81,39 @@ final class authorization_readiness_test extends advanced_testcase {
             get_string('error_ai_unavailable', 'bookingextension_agent')
         );
     }
+
+    /**
+     * Coexistence opt-out is a no-op while the standalone local_wizard plugin is absent.
+     *
+     * This is the whole behaviour of Phase-1 coexistence prep until local_wizard ships: the
+     * extra switch must not change anything. local_wizard is not active, so the bundled engine
+     * is the active engine and is_agent_engine_active() collapses to is_agent_extension_installed().
+     */
+    public function test_optout_switch_is_noop_without_local_wizard(): void {
+        $this->assertFalse(
+            authorization_service::local_wizard_is_active(),
+            'local_wizard is not installed in the test environment, so it must not be reported active.'
+        );
+        $this->assertSame(
+            authorization_service::is_agent_extension_installed(),
+            authorization_service::is_agent_engine_active(),
+            'With local_wizard absent the engine-active gate must equal the installed check (pure no-op).'
+        );
+    }
+
+    /**
+     * The active-engine gate genuinely controls readiness: with the bundled engine active a permitted
+     * user is ready. (When local_wizard takes over, the same gate flips and every entry point yields.)
+     */
+    public function test_readiness_follows_active_engine_gate(): void {
+        $this->resetAfterTest();
+        $this->assertTrue(authorization_service::is_agent_engine_active());
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        $this->assertNull((new authorization_service())->check_use_readiness((int)$teacher->id, $ctxid));
+    }
 }

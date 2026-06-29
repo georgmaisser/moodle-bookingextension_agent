@@ -57,8 +57,8 @@ if ($options['help']) {
 
 global $DB;
 
-$runstable = 'local_wizard_benchmark_runs';
-$scentable = 'local_wizard_benchmark_scenarios';
+$runstable = 'bx_agent_benchmark_runs';
+$scentable = 'bx_agent_benchmark_scenarios';
 
 $n = max(1, (int)$options['runs']);
 $set = (string)$options['set'];

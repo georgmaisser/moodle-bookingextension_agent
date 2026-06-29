@@ -65,7 +65,7 @@ class conversation_store implements agent_conversation_store {
     public function get_active_thread(int $userid, int $contextid): ?stdClass {
         global $DB;
 
-        $thread = $DB->get_record('local_wizard_ai_threads', [
+        $thread = $DB->get_record('bx_agent_ai_threads', [
             'userid' => $userid,
             'contextid' => $contextid,
             'status' => 'active',
@@ -84,7 +84,7 @@ class conversation_store implements agent_conversation_store {
     public function get_or_create_thread(int $userid, int $contextid): stdClass {
         global $DB;
 
-        $thread = $DB->get_record('local_wizard_ai_threads', [
+        $thread = $DB->get_record('bx_agent_ai_threads', [
             'userid' => $userid,
             'contextid' => $contextid,
             'status' => 'active',
@@ -102,7 +102,7 @@ class conversation_store implements agent_conversation_store {
         $record->metadatajson = null;
         $record->timecreated = $now;
         $record->timemodified = $now;
-        $record->id = $DB->insert_record('local_wizard_ai_threads', $record);
+        $record->id = $DB->insert_record('bx_agent_ai_threads', $record);
 
         return $record;
     }
@@ -118,7 +118,7 @@ class conversation_store implements agent_conversation_store {
         global $DB;
 
         $now = time();
-        $activethreads = $DB->get_records('local_wizard_ai_threads', [
+        $activethreads = $DB->get_records('bx_agent_ai_threads', [
             'userid' => $userid,
             'contextid' => $contextid,
             'status' => 'active',
@@ -129,7 +129,7 @@ class conversation_store implements agent_conversation_store {
             $update->id = (int)$thread->id;
             $update->status = 'archived';
             $update->timemodified = $now;
-            $DB->update_record('local_wizard_ai_threads', $update);
+            $DB->update_record('bx_agent_ai_threads', $update);
         }
 
         $record = new stdClass();
@@ -139,7 +139,7 @@ class conversation_store implements agent_conversation_store {
         $record->metadatajson = null;
         $record->timecreated = $now;
         $record->timemodified = $now;
-        $record->id = $DB->insert_record('local_wizard_ai_threads', $record);
+        $record->id = $DB->insert_record('bx_agent_ai_threads', $record);
 
         return $record;
     }
@@ -156,7 +156,7 @@ class conversation_store implements agent_conversation_store {
     public function add_message(int $threadid, string $role, string $content, array $structured = []): int {
         global $DB;
 
-        $thread = $DB->get_record('local_wizard_ai_threads', ['id' => $threadid], 'id, userid', IGNORE_MISSING);
+        $thread = $DB->get_record('bx_agent_ai_threads', ['id' => $threadid], 'id, userid', IGNORE_MISSING);
         if (!$thread) {
             throw new \coding_exception('Cannot add message to unknown thread id: ' . $threadid);
         }
@@ -169,7 +169,7 @@ class conversation_store implements agent_conversation_store {
         $record->structuredjson = !empty($structured) ? json_encode($structured) : null;
         $record->timecreated = time();
 
-        return (int) $DB->insert_record('local_wizard_ai_messages', $record);
+        return (int) $DB->insert_record('bx_agent_ai_messages', $record);
     }
 
     /**
@@ -203,7 +203,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function clear_step_messages(int $threadid): void {
         global $DB;
-        $DB->delete_records('local_wizard_ai_messages', ['threadid' => $threadid, 'role' => 'step']);
+        $DB->delete_records('bx_agent_ai_messages', ['threadid' => $threadid, 'role' => 'step']);
     }
 
     /**
@@ -217,7 +217,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_step_messages_since(int $threadid, int $sinceid): array {
         global $DB;
-        $sql = 'SELECT * FROM {local_wizard_ai_messages}
+        $sql = 'SELECT * FROM {bx_agent_ai_messages}
                  WHERE threadid = :threadid
                    AND role     = :role
                    AND id       > :sinceid
@@ -237,7 +237,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_messages(int $threadid): array {
         global $DB;
-        return array_values($DB->get_records('local_wizard_ai_messages', ['threadid' => $threadid], 'timecreated ASC'));
+        return array_values($DB->get_records('bx_agent_ai_messages', ['threadid' => $threadid], 'timecreated ASC'));
     }
 
     /**
@@ -248,7 +248,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_thread(int $threadid): ?stdClass {
         global $DB;
-        $thread = $DB->get_record('local_wizard_ai_threads', ['id' => $threadid]);
+        $thread = $DB->get_record('bx_agent_ai_threads', ['id' => $threadid]);
         return $thread ?: null;
     }
 
@@ -268,7 +268,7 @@ class conversation_store implements agent_conversation_store {
         if ($threadid <= 0) {
             return null;
         }
-        $thread = $DB->get_record('local_wizard_ai_threads', [
+        $thread = $DB->get_record('bx_agent_ai_threads', [
             'id' => $threadid,
             'userid' => $userid,
             'contextid' => $contextid,
@@ -297,7 +297,7 @@ class conversation_store implements agent_conversation_store {
         if ($threadid <= 0) {
             return false;
         }
-        return $DB->record_exists('local_wizard_ai_threads', [
+        return $DB->record_exists('bx_agent_ai_threads', [
             'id' => $threadid,
             'userid' => $userid,
             'contextid' => $contextid,
@@ -314,7 +314,7 @@ class conversation_store implements agent_conversation_store {
     public function get_recent_messages(int $threadid, int $limit): array {
         global $DB;
 
-        $sql = 'SELECT * FROM {local_wizard_ai_messages}
+        $sql = 'SELECT * FROM {bx_agent_ai_messages}
                 WHERE threadid = :threadid
                   AND role <> :steprole
                 ORDER BY timecreated DESC, id DESC';
@@ -341,7 +341,7 @@ class conversation_store implements agent_conversation_store {
     public function get_last_thread_for_user(int $userid, int $contextid): ?stdClass {
         global $DB;
 
-        $activethread = $DB->get_record('local_wizard_ai_threads', [
+        $activethread = $DB->get_record('bx_agent_ai_threads', [
             'userid' => $userid,
             'contextid' => $contextid,
             'status' => 'active',
@@ -349,7 +349,7 @@ class conversation_store implements agent_conversation_store {
         $activeid = (int)($activethread->id ?? 0);
 
         $sql = 'SELECT *
-                  FROM {local_wizard_ai_threads}
+                  FROM {bx_agent_ai_threads}
                  WHERE userid = :userid
                    AND contextid = :contextid
                    AND status = :status
@@ -365,7 +365,7 @@ class conversation_store implements agent_conversation_store {
         }
 
         $sql = 'SELECT *
-                  FROM {local_wizard_ai_threads}
+                  FROM {bx_agent_ai_threads}
                  WHERE userid = :userid
                    AND contextid = :contextid
                    AND status <> :status
@@ -390,7 +390,7 @@ class conversation_store implements agent_conversation_store {
             $params['activeid'] = $activeid;
         }
         $sql = 'SELECT *
-                  FROM {local_wizard_ai_threads}
+                  FROM {bx_agent_ai_threads}
                  WHERE userid = :userid
                    AND contextid = :contextid'
                 . $excludewhere
@@ -421,8 +421,8 @@ class conversation_store implements agent_conversation_store {
         // PostgreSQL (and MySQL under ONLY_FULL_GROUP_BY); MariaDB tolerates it. Selecting t.timemodified
         // keeps the query portable. t.id is the PK, so DISTINCT (id, timemodified) yields the same threads.
         $sql = 'SELECT DISTINCT t.id, t.timemodified
-                  FROM {local_wizard_ai_threads} t
-                  JOIN {local_wizard_ai_messages} m
+                  FROM {bx_agent_ai_threads} t
+                  JOIN {bx_agent_ai_messages} m
                     ON m.threadid = t.id
                  WHERE t.userid = :userid
                    AND m.userid = :userid2
@@ -460,7 +460,7 @@ class conversation_store implements agent_conversation_store {
     ): array {
         global $DB;
 
-        $thread = $DB->get_record('local_wizard_ai_threads', ['id' => $threadid, 'userid' => $userid], 'id', IGNORE_MISSING);
+        $thread = $DB->get_record('bx_agent_ai_threads', ['id' => $threadid, 'userid' => $userid], 'id', IGNORE_MISSING);
         if (!$thread) {
             return [];
         }
@@ -497,8 +497,8 @@ class conversation_store implements agent_conversation_store {
         }
 
         $sql = 'SELECT m.*
-                  FROM {local_wizard_ai_messages} m
-                  JOIN {local_wizard_ai_threads} t
+                  FROM {bx_agent_ai_messages} m
+                  JOIN {bx_agent_ai_threads} t
                     ON t.id = m.threadid
                  WHERE ' . $where . '
               ORDER BY m.timecreated ASC, m.id ASC';
@@ -530,7 +530,7 @@ class conversation_store implements agent_conversation_store {
         $record->timecreated = $now;
         $record->timemodified = $now;
 
-        return (int) $DB->insert_record('local_wizard_ai_runs', $record);
+        return (int) $DB->insert_record('bx_agent_ai_runs', $record);
     }
 
     /**
@@ -552,7 +552,7 @@ class conversation_store implements agent_conversation_store {
             $record->resultsjson = json_encode($results);
         }
 
-        $DB->update_record('local_wizard_ai_runs', $record);
+        $DB->update_record('bx_agent_ai_runs', $record);
     }
 
     /**
@@ -563,7 +563,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_run(int $runid): ?stdClass {
         global $DB;
-        return $DB->get_record('local_wizard_ai_runs', ['id' => $runid]) ?: null;
+        return $DB->get_record('bx_agent_ai_runs', ['id' => $runid]) ?: null;
     }
 
     /**
@@ -574,7 +574,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function get_latest_run(int $threadid): ?stdClass {
         global $DB;
-        $records = $DB->get_records('local_wizard_ai_runs', ['threadid' => $threadid], 'timecreated DESC', '*', 0, 1);
+        $records = $DB->get_records('bx_agent_ai_runs', ['threadid' => $threadid], 'timecreated DESC', '*', 0, 1);
         $record = reset($records);
         return $record ?: null;
     }
@@ -587,7 +587,7 @@ class conversation_store implements agent_conversation_store {
      */
     public function run_exists(string $idempotencykey): bool {
         global $DB;
-        return $DB->record_exists('local_wizard_ai_runs', ['idempotencykey' => $idempotencykey]);
+        return $DB->record_exists('bx_agent_ai_runs', ['idempotencykey' => $idempotencykey]);
     }
 
     /**
@@ -601,7 +601,7 @@ class conversation_store implements agent_conversation_store {
         global $DB;
 
         $sql = 'SELECT 1
-                  FROM {local_wizard_ai_runs}
+                  FROM {bx_agent_ai_runs}
                  WHERE idempotencykey = :idempotencykey
                    AND id <> :runid';
 
@@ -621,7 +621,7 @@ class conversation_store implements agent_conversation_store {
     public function get_thread_metadata_value(int $threadid, string $key) {
         global $DB;
 
-        $thread = $DB->get_record('local_wizard_ai_threads', ['id' => $threadid], 'id, metadatajson');
+        $thread = $DB->get_record('bx_agent_ai_threads', ['id' => $threadid], 'id, metadatajson');
         if (!$thread) {
             return null;
         }
@@ -645,7 +645,7 @@ class conversation_store implements agent_conversation_store {
     public function set_thread_metadata_value(int $threadid, string $key, $value): void {
         global $DB;
 
-        $thread = $DB->get_record('local_wizard_ai_threads', ['id' => $threadid], 'id, metadatajson');
+        $thread = $DB->get_record('bx_agent_ai_threads', ['id' => $threadid], 'id, metadatajson');
         if (!$thread) {
             return;
         }
@@ -661,7 +661,7 @@ class conversation_store implements agent_conversation_store {
         $update->id = $threadid;
         $update->metadatajson = json_encode($metadata);
         $update->timemodified = time();
-        $DB->update_record('local_wizard_ai_threads', $update);
+        $DB->update_record('bx_agent_ai_threads', $update);
     }
 
     /**
@@ -966,7 +966,7 @@ class conversation_store implements agent_conversation_store {
         $record->errormessage = $errormessage;
         $record->timecreated = time();
 
-        return (int)$DB->insert_record('local_wizard_ai_llm_debug', $record);
+        return (int)$DB->insert_record('bx_agent_ai_llm_debug', $record);
     }
 
     /**
@@ -980,7 +980,7 @@ class conversation_store implements agent_conversation_store {
         global $DB;
 
         $records = $DB->get_records(
-            'local_wizard_ai_llm_debug',
+            'bx_agent_ai_llm_debug',
             ['threadid' => $threadid],
             'id DESC',
             '*',

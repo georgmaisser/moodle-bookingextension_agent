@@ -4,7 +4,7 @@
     xsi:noNamespaceSchemaLocation="../../../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
-    <TABLE NAME="local_wizard_ai_threads" COMMENT="AI agent conversation threads, one per user per context">
+    <TABLE NAME="bx_agent_ai_threads" COMMENT="AI agent conversation threads, one per user per context">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -22,7 +22,7 @@
         <INDEX NAME="statusidx" UNIQUE="false" FIELDS="status"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_ai_messages" COMMENT="Individual messages within an AI agent conversation thread">
+    <TABLE NAME="bx_agent_ai_messages" COMMENT="Individual messages within an AI agent conversation thread">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="threadid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -34,14 +34,14 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="threadid" TYPE="foreign" FIELDS="threadid" REFTABLE="local_wizard_ai_threads" REFFIELDS="id"/>
+        <KEY NAME="threadid" TYPE="foreign" FIELDS="threadid" REFTABLE="bx_agent_ai_threads" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="threadidx" UNIQUE="false" FIELDS="threadid"/>
         <INDEX NAME="useridthreadidx" UNIQUE="false" FIELDS="userid, threadid"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_ai_runs" COMMENT="AI agent execution runs tracking actions to be or already executed">
+    <TABLE NAME="bx_agent_ai_runs" COMMENT="AI agent execution runs tracking actions to be or already executed">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="threadid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -56,7 +56,7 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="threadid" TYPE="foreign" FIELDS="threadid" REFTABLE="local_wizard_ai_threads" REFFIELDS="id"/>
+        <KEY NAME="threadid" TYPE="foreign" FIELDS="threadid" REFTABLE="bx_agent_ai_threads" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="useridcontextidx" UNIQUE="false" FIELDS="userid, contextid"/>
@@ -64,7 +64,7 @@
         <INDEX NAME="idempotencyidx" UNIQUE="true" FIELDS="idempotencykey"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_ai_llm_debug" COMMENT="Raw LLM request/response strings for booking AI debug mode">
+    <TABLE NAME="bx_agent_ai_llm_debug" COMMENT="Raw LLM request/response strings for booking AI debug mode">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="threadid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -79,14 +79,14 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="threadid" TYPE="foreign" FIELDS="threadid" REFTABLE="local_wizard_ai_threads" REFFIELDS="id"/>
+        <KEY NAME="threadid" TYPE="foreign" FIELDS="threadid" REFTABLE="bx_agent_ai_threads" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="threadtimeidx" UNIQUE="false" FIELDS="threadid, timecreated"/>
         <INDEX NAME="contextidtimeidx" UNIQUE="false" FIELDS="contextid, timecreated"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_benchmark_runs" COMMENT="One row per benchmark run (full scenario set execution)">
+    <TABLE NAME="bx_agent_benchmark_runs" COMMENT="One row per benchmark run (full scenario set execution)">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_uuid" TYPE="char" LENGTH="36" NOTNULL="true" SEQUENCE="false" COMMENT="UUID v4"/>
@@ -119,7 +119,7 @@
         <INDEX NAME="is_baseline_idx" UNIQUE="false" FIELDS="is_baseline"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_benchmark_scenarios" COMMENT="Individual scenario results within a benchmark run">
+    <TABLE NAME="bx_agent_benchmark_scenarios" COMMENT="Individual scenario results within a benchmark run">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -143,13 +143,13 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="local_wizard_benchmark_runs" REFFIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_benchmark_runs" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="run_scenario_idx" UNIQUE="false" FIELDS="run_id, scenario_key"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_benchmark_baselines" COMMENT="Pinned benchmark baselines for regression comparison">
+    <TABLE NAME="bx_agent_benchmark_baselines" COMMENT="Pinned benchmark baselines for regression comparison">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -161,10 +161,10 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="local_wizard_benchmark_runs" REFFIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_benchmark_runs" REFFIELDS="id"/>
       </KEYS>
     </TABLE>
-    <TABLE NAME="local_wizard_benchmark_metrics" COMMENT="Aggregated metric snapshots per benchmark run for trend queries">
+    <TABLE NAME="bx_agent_benchmark_metrics" COMMENT="Aggregated metric snapshots per benchmark run for trend queries">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -176,14 +176,14 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="local_wizard_benchmark_runs" REFFIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_benchmark_runs" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="run_metric_idx" UNIQUE="false" FIELDS="run_id, metric_key"/>
         <INDEX NAME="timecreated_idx" UNIQUE="false" FIELDS="timecreated"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_wizard_user_memory" COMMENT="User-stated memories/instructions for the AI agent (global per user)">
+    <TABLE NAME="bx_agent_user_memory" COMMENT="User-stated memories/instructions for the AI agent (global per user)">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Owning user"/>

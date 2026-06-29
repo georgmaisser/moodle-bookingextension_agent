@@ -385,7 +385,7 @@ class queue_manager {
             // FOR UPDATE is supported on MySQL/MariaDB and PostgreSQL; skip on MSSQL.
             $forupdate = $DB->get_dbfamily() !== 'mssql' ? ' FOR UPDATE' : '';
             $thread = $DB->get_record_sql(
-                "SELECT id, metadatajson FROM {local_wizard_ai_threads} WHERE id = :id{$forupdate}",
+                "SELECT id, metadatajson FROM {bx_agent_ai_threads} WHERE id = :id{$forupdate}",
                 ['id' => $threadid]
             );
 
@@ -435,7 +435,7 @@ class queue_manager {
             $update->id = $threadid;
             $update->metadatajson = json_encode($metadata);
             $update->timemodified = time();
-            $DB->update_record('local_wizard_ai_threads', $update);
+            $DB->update_record('bx_agent_ai_threads', $update);
 
             $transaction->allow_commit();
             return true;
