@@ -58,12 +58,12 @@ final class course_targeted_skill_trait_test extends advanced_testcase {
             // No course given -> current context applies (null selector).
             $this->assertNull($skill->get_target_selector([]), "{$name}: empty input must yield no selector.");
 
-            // courseid wins.
+            // Courseid wins.
             $byid = $skill->get_target_selector(['courseid' => 7]);
             $this->assertNotNull($byid);
             $this->assertSame(7, $byid->id(), "{$name}: courseid must resolve to the course selector id.");
 
-            // coursequery is carried through.
+            // Coursequery is carried through.
             $byquery = $skill->get_target_selector(['coursequery' => 'Algebra 101']);
             $this->assertNotNull($byquery);
             $this->assertSame('Algebra 101', $byquery->query(), "{$name}: coursequery must be carried into the selector.");

@@ -123,7 +123,12 @@ final class enrolment_aspect_diagnoser {
 
         // Disabled instance or site-disabled plugin are themselves the blocker.
         if ((int)$instance->status !== ENROL_INSTANCE_ENABLED) {
-            return diagnostic_result_builder::row('fail', 'Method "' . $label . '" is disabled', 'This enrolment method instance is turned off.', $url);
+            return diagnostic_result_builder::row(
+                'fail',
+                'Method "' . $label . '" is disabled',
+                'This enrolment method instance is turned off.',
+                $url
+            );
         }
         if (!enrol_is_enabled($method)) {
             return diagnostic_result_builder::row(
@@ -149,7 +154,12 @@ final class enrolment_aspect_diagnoser {
             );
         }
         // Other methods: name + active only (v1).
-        return diagnostic_result_builder::row('ok', 'Method "' . $label . '" is active', 'Not inspected in detail in this version.', $url);
+        return diagnostic_result_builder::row(
+            'ok',
+            'Method "' . $label . '" is active',
+            'Not inspected in detail in this version.',
+            $url
+        );
     }
 
     /**
@@ -306,7 +316,12 @@ final class enrolment_aspect_diagnoser {
 
         $status = $hasactive ? 'ok' : 'fail';
         $check = $hasactive ? 'Person is currently enrolled (active)' : 'Person has only inactive enrolments';
-        return diagnostic_result_builder::row($status, $check, implode('; ', $details), $links->user_profile($targetuserid, $courseid));
+        return diagnostic_result_builder::row(
+            $status,
+            $check,
+            implode('; ', $details),
+            $links->user_profile($targetuserid, $courseid)
+        );
     }
 
     /**

@@ -45,6 +45,9 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
         $this->resetAfterTest();
 
         $fake = new class implements skill_introspection_provider_interface {
+            /**
+             * Return canned available/unavailable action rows for the fake provider.
+             */
             public function list_actions(int $userid, int $contextid, string $scope): array {
                 return [
                     'available' => [
@@ -59,6 +62,9 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
                 ];
             }
 
+            /**
+             * Return a fixed slim catalog string for the fake provider.
+             */
             public function render_full_skill_catalog(int $userid, int $contextid, string $scope): string {
                 // The skill hands the planner the provider's slim catalog text verbatim.
                 return "## test.alpha [readonly]\nAlpha skill";
@@ -67,7 +73,7 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
 
         $skill = new list_skills_skill();
         $skill->set_introspection_provider($fake);
-        // contextid/userid are irrelevant — the fake provider ignores them, proving no engine call.
+        // Contextid/userid are irrelevant — the fake provider ignores them, proving no engine call.
         $result = $skill->execute(['scope' => 'all'], 999999, 1);
 
         $this->assertSame('executed', $result['status']);
@@ -89,6 +95,9 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
         $this->resetAfterTest();
 
         $fake = new class implements skill_discovery_provider_interface {
+            /**
+             * Return a single canned discovered skill with STATUS_OK.
+             */
             public function discover(string $query, int $contextid, int $userid, int $topk = 5): array {
                 return ['status' => self::STATUS_OK, 'discovered_skills' => [
                     ['skill' => 'mod_booking.create_option', 'schema' => ['description' => 'Create a booking option']],
@@ -127,9 +136,15 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
             $fake = new class ($status) implements skill_discovery_provider_interface {
                 /** @var string */
                 private string $status;
+                /**
+                 * Capture the status the fake provider should report.
+                 */
                 public function __construct(string $status) {
                     $this->status = $status;
                 }
+                /**
+                 * Return the configured failure status with no discovered skills.
+                 */
                 public function discover(string $query, int $contextid, int $userid, int $topk = 5): array {
                     return ['status' => $this->status, 'discovered_skills' => []];
                 }
@@ -152,6 +167,9 @@ final class skill_introspection_discovery_contract_test extends advanced_testcas
         $this->resetAfterTest();
 
         $provider = new class implements skill_discovery_provider_interface {
+            /**
+             * Fail loudly if discovery is consulted for an empty query.
+             */
             public function discover(string $query, int $contextid, int $userid, int $topk = 5): array {
                 throw new \RuntimeException('discover() must not be called for an empty query');
             }

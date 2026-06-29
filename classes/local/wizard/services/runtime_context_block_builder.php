@@ -132,7 +132,7 @@ class runtime_context_block_builder {
         $lines = [
             'timezone: ' . $timezonename,
         ];
-        // context_name is per-context (volatile): keep it OUT of the cached [SYSTEM_RUNTIME] prefix so
+        // Context_name is per-context (volatile): keep it OUT of the cached [SYSTEM_RUNTIME] prefix so
         // the large skill catalog that follows caches across contexts in the slim_all path. It is
         // emitted in the volatile [SYSTEM_RUNTIME_STATE] block instead (which sits past the cache
         // boundary anyway, below the user message).

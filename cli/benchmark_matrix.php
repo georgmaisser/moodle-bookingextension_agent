@@ -77,12 +77,24 @@ cli_writeln('=== runs (left = oldest, right = newest) ===');
 $rates = [];
 foreach ($runs as $r) {
     $rates[] = (float)$r->success_rate;
-    cli_writeln(sprintf('  id=%-4s %5.1f%%  %2d/%-2d  %s  model=%-22s label=%s',
-        $r->id, (float)$r->success_rate, (int)$r->passed, (int)$r->total_scenarios,
-        userdate((int)$r->timecreated, '%m-%d %H:%M'), (string)$r->model_id, (string)($r->label ?? '')));
+    cli_writeln(sprintf(
+        '  id=%-4s %5.1f%%  %2d/%-2d  %s  model=%-22s label=%s',
+        $r->id,
+        (float)$r->success_rate,
+        (int)$r->passed,
+        (int)$r->total_scenarios,
+        userdate((int)$r->timecreated, '%m-%d %H:%M'),
+        (string)$r->model_id,
+        (string)($r->label ?? '')
+    ));
 }
-cli_writeln(sprintf('  mean=%.1f%%  min=%.1f%%  max=%.1f%%  spread=%.1f pp',
-    array_sum($rates) / count($rates), min($rates), max($rates), max($rates) - min($rates)));
+cli_writeln(sprintf(
+    '  mean=%.1f%%  min=%.1f%%  max=%.1f%%  spread=%.1f pp',
+    array_sum($rates) / count($rates),
+    min($rates),
+    max($rates),
+    max($rates) - min($rates)
+));
 cli_writeln(str_repeat('-', 78));
 
 [$insql, $inparams] = $DB->get_in_or_equal($runids, SQL_PARAMS_NAMED);
@@ -124,10 +136,22 @@ foreach ($matrix as $key => $byrun) {
         $flag = ' ~flip';
         $flips++;
     }
-    cli_writeln(sprintf('  %-44s%s  %2d/%d  sel=%-32s%s',
-        $key, $cells, $pass, count($runids), $topsel, $flag));
+    cli_writeln(sprintf(
+        '  %-44s%s  %2d/%d  sel=%-32s%s',
+        $key,
+        $cells,
+        $pass,
+        count($runids),
+        $topsel,
+        $flag
+    ));
 }
 cli_writeln(str_repeat('-', 78));
-cli_writeln(sprintf('%d stable fails (0/%d = real targets) · %d flipping (noise) · %d total scenarios',
-    $stablefails, count($runids), $flips, count($matrix)));
+cli_writeln(sprintf(
+    '%d stable fails (0/%d = real targets) · %d flipping (noise) · %d total scenarios',
+    $stablefails,
+    count($runids),
+    $flips,
+    count($matrix)
+));
 cli_writeln('Judge a change by the stable-fail set, not by a single run\'s percentage.');

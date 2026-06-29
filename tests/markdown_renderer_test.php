@@ -53,6 +53,7 @@ final class markdown_renderer_test extends advanced_testcase {
      * Bold, italic and inline code spans.
      */
     public function test_inline_formatting(): void {
+        // phpcs:ignore moodle.Strings.ForbiddenStrings.Found
         $html = $this->render("Some **bold** and *italic* and `code` here.\n");
         $this->assertStringContainsString('<strong>bold</strong>', $html);
         $this->assertStringContainsString('<em>italic</em>', $html);
@@ -64,7 +65,7 @@ final class markdown_renderer_test extends advanced_testcase {
      * Fenced code blocks are escaped and wrapped in pre/code with a language class.
      */
     public function test_fenced_code_block(): void {
-        $md = "```php\n<?php echo 'hi';\n```\n";
+        $md = "```php\n<?php echo 'hi';\n```\n"; // phpcs:ignore moodle.Strings.ForbiddenStrings.Found
         $html = $this->render($md);
         $this->assertStringContainsString('<pre class="booking-doc-code"><code class="language-php">', $html);
         // Content is HTML-escaped (no raw tags can be injected).

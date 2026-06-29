@@ -61,7 +61,8 @@ class route_create_slotbooking_de extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Richte buchbare Beratungstermine jeden Montag und Mittwoch von 10 bis 14 Uhr ein, je 25 Minuten pro Slot, fuer den ganzen Juli.';
+        return 'Richte buchbare Beratungstermine jeden Montag und Mittwoch von 10 bis 14 Uhr ein, '
+            . 'je 25 Minuten pro Slot, fuer den ganzen Juli.';
     }
 
     /**

@@ -131,7 +131,7 @@ class agent_access_service {
      * @return array<int,object> Matching provider instances.
      */
     public static function find_wunderbyte_llm_instances(bool $enabledonly = false): array {
-        // provider_compat::get_provider_views() returns real instances on Moodle 5.x and
+        // Provider_compat::get_provider_views() returns real instances on Moodle 5.x and
         // synthesised, instance-shaped views on Moodle 4.5 (no get_provider_instances() there).
         $matches = [];
         foreach (provider_compat::get_provider_views() as $instance) {

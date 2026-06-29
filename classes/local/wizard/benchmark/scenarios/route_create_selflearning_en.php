@@ -61,7 +61,8 @@ class route_create_selflearning_en extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Create a self-learning course "Data Protection Basics" with a learning duration of 4 hours and no fixed time slots.';
+        return 'Create a self-learning course "Data Protection Basics" with a learning duration of 4 hours '
+            . 'and no fixed time slots.';
     }
 
     /**

@@ -107,6 +107,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
     private static function module_target_skill(): skill_interface {
         return new class implements skill_interface {
             /**
+             * Return the unique skill name.
+             *
              * @return string
              */
             public function get_name(): string {
@@ -114,6 +116,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Return the input schema.
+             *
              * @return array
              */
             public function get_schema(): array {
@@ -121,6 +125,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Return an example input payload.
+             *
              * @return array
              */
             public function get_example_input(): array {
@@ -128,6 +134,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Return the prompt contract describing this skill.
+             *
              * @return skill_prompt_contract
              */
             public function get_prompt_contract(): skill_prompt_contract {
@@ -145,6 +153,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Return the risk class of this skill.
+             *
              * @return string
              */
             public function get_risk_class(): string {
@@ -152,6 +162,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Validate the raw input structure.
+             *
              * @param array $input
              * @return array
              */
@@ -160,6 +172,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Run the preflight check and return the result.
+             *
              * @param array $input
              * @param int $contextid
              * @param int $userid
@@ -170,6 +184,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Execute the skill against the prepared input.
+             *
              * @param array $preparedinput
              * @param int $contextid
              * @param int $userid
@@ -180,6 +196,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Report whether the skill is read-only.
+             *
              * @return bool
              */
             public function is_read_only(): bool {
@@ -196,6 +214,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Return the targeted context level.
+             *
              * @return int
              */
             public function get_target_context_level(): int {
@@ -203,6 +223,8 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
             }
 
             /**
+             * Return the module name this skill targets.
+             *
              * @return string
              */
             public function get_target_modname(): string {

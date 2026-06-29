@@ -93,7 +93,14 @@ final class thread_idor_external_test extends advanced_testcase {
         $store = new conversation_store();
         $ownerthread = (int)$store->get_or_create_thread((int)$owner->id, $ctxid)->id;
         llm_debug_logger::log_exchange_always(
-            $store, $ownerthread, 0, (int)$owner->id, 'unit-test', 'the-request', 'the-response', true
+            $store,
+            $ownerthread,
+            0,
+            (int)$owner->id,
+            'unit-test',
+            'the-request',
+            'the-response',
+            true
         );
 
         // Owner: their raw log is returned.

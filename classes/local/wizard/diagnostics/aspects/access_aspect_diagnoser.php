@@ -72,7 +72,12 @@ final class access_aspect_diagnoser {
 
         // Check 1: course visibility.
         if ((int)$course->visible === 1) {
-            $rows[] = diagnostic_result_builder::row('ok', 'Course is visible', format_string($course->fullname), $links->course($courseid));
+            $rows[] = diagnostic_result_builder::row(
+                'ok',
+                'Course is visible',
+                format_string($course->fullname),
+                $links->course($courseid)
+            );
         } else {
             $rows[] = diagnostic_result_builder::row(
                 'fail',
@@ -209,7 +214,11 @@ final class access_aspect_diagnoser {
             return diagnostic_result_builder::row('warn', 'No activities in the course', '');
         }
         if ($hidden === 0) {
-            return diagnostic_result_builder::row('ok', 'All activities are visible to the user', $total . ' activit(y/ies) checked');
+            return diagnostic_result_builder::row(
+                'ok',
+                'All activities are visible to the user',
+                $total . ' activit(y/ies) checked'
+            );
         }
         return diagnostic_result_builder::row(
             'warn',
@@ -230,7 +239,11 @@ final class access_aspect_diagnoser {
     private function group_row(\stdClass $course, int $courseid, int $targetuserid, diagnostic_link_builder $links): array {
         $groupmode = (int)groups_get_course_groupmode($course);
         if ($groupmode === NOGROUPS) {
-            return diagnostic_result_builder::row('ok', 'No group mode enforced', 'Group membership does not restrict access here.');
+            return diagnostic_result_builder::row(
+                'ok',
+                'No group mode enforced',
+                'Group membership does not restrict access here.'
+            );
         }
         $usergroups = groups_get_user_groups($courseid, $targetuserid);
         $ingroup = !empty($usergroups[0]);

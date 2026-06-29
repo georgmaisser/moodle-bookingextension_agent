@@ -253,7 +253,9 @@ final class integration_agent_framework_test extends TestCase {
      */
     public function test_runtime_catalog_prompt_sanitizer_removes_embedding_json(): void {
         $catalogsvc = new \bookingextension_agent\local\wizard\services\planner_catalog_service(
-            new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service(skill_registry_factory::get_default())
+            new \bookingextension_agent\local\wizard\services\assistant_state_guidance_service(
+                skill_registry_factory::get_default()
+            )
         );
 
         $catalog = [
@@ -879,7 +881,7 @@ final class integration_agent_framework_test extends TestCase {
         );
         $service = $reflection->newInstanceWithoutConstructor();
 
-        // split_commands_by_mutability resolves risk class via risk_class_resolver, which receives
+        // Split_commands_by_mutability resolves risk class via risk_class_resolver, which receives
         // $this->registry; initialise the typed property with a stub (the commands carry explicit
         // risk_class, so get_skill() is never actually consulted here).
         $registry = $this->getMockBuilder(skill_registry::class)

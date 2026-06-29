@@ -166,6 +166,13 @@ class embeddings_retrieval_service {
 
         // Min-heap on score: the lowest-scoring kept candidate sits on top, ready to be evicted.
         $heap = new class extends \SplHeap {
+            /**
+             * Order candidates so the lowest score sits on top of the heap.
+             *
+             * @param mixed $value1
+             * @param mixed $value2
+             * @return int
+             */
             protected function compare($value1, $value2): int {
                 return $value2['score'] <=> $value1['score'];
             }
@@ -356,5 +363,4 @@ class embeddings_retrieval_service {
 
         return $compact;
     }
-
 }

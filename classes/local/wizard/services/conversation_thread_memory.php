@@ -33,12 +33,22 @@ class conversation_thread_memory implements thread_memory {
     private conversation_store $store;
 
     /**
+     * Constructor.
+     *
      * @param conversation_store|null $store
      */
     public function __construct(?conversation_store $store = null) {
         $this->store = $store ?? new conversation_store();
     }
 
+    /**
+     * Return a stored metadata value for the user's active thread.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @param string $key
+     * @return mixed The stored value, or null when no active thread exists.
+     */
     public function get_value(int $userid, int $contextid, string $key) {
         $thread = $this->store->get_active_thread($userid, $contextid);
         if (!$thread) {
@@ -47,6 +57,15 @@ class conversation_thread_memory implements thread_memory {
         return $this->store->get_thread_metadata_value((int)$thread->id, $key);
     }
 
+    /**
+     * Store a metadata value on the user's thread, creating one if needed.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @param string $key
+     * @param mixed $value
+     * @return void
+     */
     public function set_value(int $userid, int $contextid, string $key, $value): void {
         $thread = $this->store->get_or_create_thread($userid, $contextid);
         $this->store->set_thread_metadata_value((int)$thread->id, $key, $value);

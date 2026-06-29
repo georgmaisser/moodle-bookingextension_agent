@@ -75,7 +75,7 @@ final class docs_embeddings_streaming_test extends advanced_testcase {
         $written = $repo->commit_stream_write();
         $this->assertSame(count($rows), $written);
 
-        // stream_rows() yields exactly what read_rows() returns.
+        // Stream_rows() yields exactly what read_rows() returns.
         $streamed = iterator_to_array($repo->stream_rows(), false);
         $this->assertEquals($repo->read_rows(), $streamed);
         $this->assertCount(count($rows), $streamed);

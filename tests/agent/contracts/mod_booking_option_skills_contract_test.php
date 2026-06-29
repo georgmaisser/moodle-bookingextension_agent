@@ -156,8 +156,11 @@ final class mod_booking_option_skills_contract_test extends booking_advanced_tes
         $this->assertNotSame('', $observation, 'Bulk must emit an observation.');
         foreach ($optionids as $id) {
             // The fix: "Option <id> (<moodle_url>): confirmed" — id paired with its real link.
-            $this->assertStringContainsString('Option ' . $id . ' (http', $observation,
-                'Bulk observation must carry a real link for option ' . $id);
+            $this->assertStringContainsString(
+                'Option ' . $id . ' (http',
+                $observation,
+                'Bulk observation must carry a real link for option ' . $id
+            );
         }
     }
 

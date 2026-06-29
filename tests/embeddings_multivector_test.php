@@ -82,7 +82,7 @@ final class embeddings_multivector_test extends \advanced_testcase {
         $this->assertSame('the winning utterance', $top[0]['matched_anchor_text']);
         $this->assertGreaterThan((float)$top[1]['score'], (float)$top[0]['score']);
 
-        // top-k cut returns exactly k distinct skills.
+        // Top-k cut returns exactly k distinct skills.
         $two = $service->search_top_k_skills($query, $rows, 2);
         $this->assertSame(['ns.a', 'ns.b'], array_column($two, 'skill'));
     }
@@ -106,11 +106,14 @@ final class embeddings_multivector_test extends \advanced_testcase {
         $this->assertContains('description', $kinds, 'There must be a description anchor (#0).');
         $this->assertContains('utterance', $kinds, 'There must be at least one utterance anchor.');
 
-        // anchor #0 is the description; embedding input equals the anchor text; hashes are per-anchor.
+        // Anchor #0 is the description; embedding input equals the anchor text; hashes are per-anchor.
         $hashes = [];
         foreach ($anchors as $row) {
-            $this->assertSame((string)$row['anchor_text'], (string)$row['_embedding_input'],
-                'Embedding input must be the anchor text alone.');
+            $this->assertSame(
+                (string)$row['anchor_text'],
+                (string)$row['_embedding_input'],
+                'Embedding input must be the anchor text alone.'
+            );
             if ((string)$row['anchor_index'] === '0') {
                 $this->assertSame('description', (string)$row['anchor_kind']);
             }

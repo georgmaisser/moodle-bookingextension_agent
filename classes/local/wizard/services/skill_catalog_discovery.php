@@ -29,10 +29,21 @@ use bookingextension_agent\local\wizard\interfaces\skill_catalog;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class skill_catalog_discovery implements skill_catalog {
+    /**
+     * Return the skill instances registered for a component.
+     *
+     * @param string $component Frankenstyle component name.
+     * @return array Skill instances for the component.
+     */
     public function instances(string $component): array {
         return skill_discovery::get_skill_instances($component);
     }
 
+    /**
+     * Return diagnostics from the last skill discovery run.
+     *
+     * @return array Discovery diagnostics.
+     */
     public function diagnostics(): array {
         return skill_discovery::get_last_diagnostics();
     }

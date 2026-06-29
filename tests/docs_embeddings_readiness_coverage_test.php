@@ -131,7 +131,7 @@ final class docs_embeddings_readiness_coverage_test extends advanced_testcase {
         $corpaguide = $this->row('corpa');
         $corpaguide['chunk_path'] = 'GUIDE.md';
         $corpaguide['content_hash'] = sha1('corpa-guide');
-        // corpa: two documents indexed; corpb: nothing indexed; corpold: indexed but not configured.
+        // Corpa: two documents indexed; corpb: nothing indexed; corpold: indexed but not configured.
         (docs_embeddings_csv_repository::for_active_variant())
             ->write_rows([$this->row('corpa'), $corpaguide, $this->row('corpold')]);
 

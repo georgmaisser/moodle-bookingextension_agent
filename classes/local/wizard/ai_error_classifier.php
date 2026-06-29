@@ -115,5 +115,4 @@ class ai_error_classifier {
 
         return [];
     }
-
 }

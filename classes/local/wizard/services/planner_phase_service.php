@@ -832,5 +832,4 @@ class planner_phase_service {
 
         return $observations;
     }
-
 }

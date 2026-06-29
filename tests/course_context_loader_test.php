@@ -98,12 +98,12 @@ final class course_context_loader_test extends advanced_testcase {
         $loader = new course_context_loader();
         $inv = $loader->build_inventory($course, $teacherid);
 
-        // "second quiz" matches no name; with a quiz filter the pool is the two quizzes -> unresolved.
+        // Query "second quiz" matches no name; with a quiz filter the pool is the two quizzes -> unresolved.
         $res = $loader->resolve_activity($inv, 'second quiz', 0, 'quiz');
         $this->assertSame('unresolved', $res['status']);
         $this->assertCount(2, $res['candidates']);
 
-        // "quiz" contains both quiz names -> still ambiguous, never a silent pick.
+        // Query "quiz" contains both quiz names -> still ambiguous, never a silent pick.
         $res2 = $loader->resolve_activity($inv, 'quiz', 0, 'quiz');
         $this->assertSame('unresolved', $res2['status']);
     }

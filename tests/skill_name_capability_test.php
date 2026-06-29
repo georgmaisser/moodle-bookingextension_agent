@@ -76,14 +76,23 @@ final class skill_name_capability_test extends advanced_testcase {
             }
         }
 
-        $this->assertSame([], $undeclared,
+        $this->assertSame(
+            [],
+            $undeclared,
             'These skills expose no governance capability, so the gate cannot authorise them: '
-                . implode(', ', $undeclared));
-        $this->assertSame([], $mismatched,
-            'These skills do not expose their name-derived capability: ' . implode('; ', $mismatched));
-        $this->assertSame([], $undefined,
+            . implode(', ', $undeclared)
+        );
+        $this->assertSame(
+            [],
+            $mismatched,
+            'These skills do not expose their name-derived capability: ' . implode('; ', $mismatched)
+        );
+        $this->assertSame(
+            [],
+            $undefined,
             'These skills require a capability that is NOT defined in any db/access.php (the skill '
-                . 'would be silently always-denied): ' . implode('; ', $undefined));
+            . 'would be silently always-denied): ' . implode('; ', $undefined)
+        );
     }
 
     /**
@@ -115,9 +124,15 @@ final class skill_name_capability_test extends advanced_testcase {
         // A registry whose metadata declares NO capabilities, but whose component + skill name still
         // map to a real, defined capability (bookingextension/agent:skill_course_add_activity).
         $registry = new class extends skill_registry {
+            /**
+             * Return a contract that declares no capabilities for any skill.
+             */
             public function get_skill_contract(string $skillname): ?array {
                 return ['component' => 'bookingextension/agent', 'readonly' => true, 'capabilities' => []];
             }
+            /**
+             * Return no declared capabilities for any skill.
+             */
             public function get_skill_capabilities(string $skillname): array {
                 return [];
             }

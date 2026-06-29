@@ -95,10 +95,32 @@ final class prompt_cache_stability_test extends advanced_testcase {
         $builder = $this->builder($store);
 
         // Same inputs for both; only the context (and its thread) differs.
-        $blocka = $builder->build($threada, $ctxa, orchestrator::PHASE_SELECTION,
-            false, false, $catalog, [], [], '', [], $catalogisstatic);
-        $blockb = $builder->build($threadb, $ctxb, orchestrator::PHASE_SELECTION,
-            false, false, $catalog, [], [], '', [], $catalogisstatic);
+        $blocka = $builder->build(
+            $threada,
+            $ctxa,
+            orchestrator::PHASE_SELECTION,
+            false,
+            false,
+            $catalog,
+            [],
+            [],
+            '',
+            [],
+            $catalogisstatic
+        );
+        $blockb = $builder->build(
+            $threadb,
+            $ctxb,
+            orchestrator::PHASE_SELECTION,
+            false,
+            false,
+            $catalog,
+            [],
+            [],
+            '',
+            [],
+            $catalogisstatic
+        );
 
         return [$blocka, $blockb];
     }

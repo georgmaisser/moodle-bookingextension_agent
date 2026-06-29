@@ -61,7 +61,8 @@ class route_create_slotbooking_en extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Set up bookable consultation slots every Monday and Wednesday from 10:00 to 14:00, 25 minutes per slot, for the whole of July.';
+        return 'Set up bookable consultation slots every Monday and Wednesday from 10:00 to 14:00, '
+            . '25 minutes per slot, for the whole of July.';
     }
 
     /**

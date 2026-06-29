@@ -234,7 +234,7 @@ class provider_compat {
         $views = [];
         $plugins = \core_plugin_manager::instance()->get_plugins_of_type('aiprovider');
         foreach ($plugins as $plugin) {
-            $component = (string)$plugin->component;            // e.g. 'aiprovider_openai'
+            $component = (string)$plugin->component;            // E.g. 'aiprovider_openai'.
             $providerclass = $component . '\\provider';
             if (!class_exists($providerclass)) {
                 continue;

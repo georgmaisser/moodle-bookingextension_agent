@@ -355,7 +355,9 @@ class discovery_phase_service {
                                 }
 
                                 if (!empty($toprows)) {
-                                    $runtimecatalog = $this->catalogsvc->sanitize_runtime_catalog_for_prompt(array_values($toprows));
+                                    $runtimecatalog = $this->catalogsvc->sanitize_runtime_catalog_for_prompt(
+                                        array_values($toprows)
+                                    );
                                     $catalogselectionmode = $embeddingstatus === 'family_boosted'
                                         ? 'embed_topk_family_boost'
                                         : 'embed_topk';
@@ -435,7 +437,10 @@ class discovery_phase_service {
                     )));
 
                     if (!empty($selectedfamilies)) {
-                        $runtimecatalog = $this->catalogsvc->filter_catalog_by_selected_families($runtimecatalog, $selectedfamilies);
+                        $runtimecatalog = $this->catalogsvc->filter_catalog_by_selected_families(
+                            $runtimecatalog,
+                            $selectedfamilies
+                        );
                         if ($catalogselectionmode === 'slim_all') {
                             $catalogselectionmode = 'slim_family_stage_' . strtolower($discoverystage);
                         } else if (str_starts_with($catalogselectionmode, 'embed_topk')) {

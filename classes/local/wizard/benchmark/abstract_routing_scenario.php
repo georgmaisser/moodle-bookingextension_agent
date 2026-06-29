@@ -55,8 +55,10 @@ abstract class abstract_routing_scenario extends abstract_benchmark_scenario {
      */
     public function is_mutating(): bool {
         $skill = $this->get_expected_skill();
-        foreach (['create_', 'update_', 'add_', 'book_users', '.remember', '.forget',
-            'set_', 'configure_', 'bulk_', 'delete_', 'remove_'] as $needle) {
+        foreach (
+            ['create_', 'update_', 'add_', 'book_users', '.remember', '.forget',
+            'set_', 'configure_', 'bulk_', 'delete_', 'remove_'] as $needle
+        ) {
             if (strpos($skill, $needle) !== false) {
                 return true;
             }

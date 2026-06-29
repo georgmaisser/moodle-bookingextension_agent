@@ -61,6 +61,8 @@ final class discovery_search_skills_fallback_test extends advanced_testcase {
     }
 
     /**
+     * Invoke the protected ensure_search_skills_fallback method via reflection.
+     *
      * @param discovery_phase_service $svc
      * @param array $catalog
      * @param array $contracts

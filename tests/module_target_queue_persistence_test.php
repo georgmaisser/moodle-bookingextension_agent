@@ -191,22 +191,38 @@ final class module_target_queue_persistence_test extends advanced_testcase {
      */
     private static function module_target_skill(): skill_interface {
         return new class implements skill_interface {
-            /** @return string */
+            /**
+             * Return the unique skill name.
+             *
+             * @return string
+             */
             public function get_name(): string {
                 return 'demo.modtarget';
             }
 
-            /** @return array */
+            /**
+             * Return the input schema.
+             *
+             * @return array
+             */
             public function get_schema(): array {
                 return ['version' => 1, 'properties' => []];
             }
 
-            /** @return array */
+            /**
+             * Return an example input payload.
+             *
+             * @return array
+             */
             public function get_example_input(): array {
                 return [];
             }
 
-            /** @return skill_prompt_contract */
+            /**
+             * Return the prompt contract describing this skill.
+             *
+             * @return skill_prompt_contract
+             */
             public function get_prompt_contract(): skill_prompt_contract {
                 return new skill_prompt_contract([
                     'intent' => 'demo',
@@ -221,12 +237,18 @@ final class module_target_queue_persistence_test extends advanced_testcase {
                 ]);
             }
 
-            /** @return string */
+            /**
+             * Return the risk class of this skill.
+             *
+             * @return string
+             */
             public function get_risk_class(): string {
                 return skill_risk_class::R2;
             }
 
             /**
+             * Validate the raw input structure.
+             *
              * @param array $input
              * @return array
              */
@@ -235,6 +257,8 @@ final class module_target_queue_persistence_test extends advanced_testcase {
             }
 
             /**
+             * Run the preflight check and return the result.
+             *
              * @param array $input
              * @param int $contextid
              * @param int $userid
@@ -245,6 +269,8 @@ final class module_target_queue_persistence_test extends advanced_testcase {
             }
 
             /**
+             * Execute the skill against the prepared input.
+             *
              * @param array $preparedinput
              * @param int $contextid
              * @param int $userid
@@ -254,27 +280,45 @@ final class module_target_queue_persistence_test extends advanced_testcase {
                 return [];
             }
 
-            /** @return bool */
+            /**
+             * Report whether the skill is read-only.
+             *
+             * @return bool
+             */
             public function is_read_only(): bool {
                 return false;
             }
 
-            /** @return bool */
+            /**
+             * Opt into cross-context module targeting.
+             *
+             * @return bool
+             */
             public function supports_target_context(): bool {
                 return true;
             }
 
-            /** @return int */
+            /**
+             * Return the targeted context level.
+             *
+             * @return int
+             */
             public function get_target_context_level(): int {
                 return CONTEXT_MODULE;
             }
 
-            /** @return string */
+            /**
+             * Return the module name this skill targets.
+             *
+             * @return string
+             */
             public function get_target_modname(): string {
                 return 'booking';
             }
 
             /**
+             * Return the target selector resolving the booking instance in scope.
+             *
              * @param array $input
              * @return target_selector|null
              */

@@ -229,18 +229,34 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         // User-level blockers (the common causes).
         $email = trim((string)($targetuser->email ?? ''));
         if ($email === '') {
-            $rows[] = diagnostic_result_builder::row('fail', 'No e-mail address on the account', 'Moodle cannot send e-mail without an address.');
+            $rows[] = diagnostic_result_builder::row(
+                'fail',
+                'No e-mail address on the account',
+                'Moodle cannot send e-mail without an address.'
+            );
         } else if (email_is_not_allowed($email) !== false) {
-            $rows[] = diagnostic_result_builder::row('fail', 'E-mail address is not allowed', 'The address fails the site allow/deny rules.');
+            $rows[] = diagnostic_result_builder::row(
+                'fail',
+                'E-mail address is not allowed',
+                'The address fails the site allow/deny rules.'
+            );
         } else {
             $rows[] = diagnostic_result_builder::row('ok', 'E-mail address present', $email);
         }
 
         if ((int)($targetuser->confirmed ?? 1) === 0) {
-            $rows[] = diagnostic_result_builder::row('fail', 'Account not confirmed', 'Unconfirmed accounts do not receive e-mail.');
+            $rows[] = diagnostic_result_builder::row(
+                'fail',
+                'Account not confirmed',
+                'Unconfirmed accounts do not receive e-mail.'
+            );
         }
         if ((int)($targetuser->suspended ?? 0) === 1) {
-            $rows[] = diagnostic_result_builder::row('fail', 'Account suspended', 'Suspended accounts do not receive notifications.');
+            $rows[] = diagnostic_result_builder::row(
+                'fail',
+                'Account suspended',
+                'Suspended accounts do not receive notifications.'
+            );
         }
         if ((int)($targetuser->emailstop ?? 0) === 1) {
             $rows[] = diagnostic_result_builder::row(
@@ -327,7 +343,12 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         }
         $link = $links->if_admin($links->scheduled_tasks(), $userid);
         if (empty($unhealthy)) {
-            return [diagnostic_result_builder::row('ok', 'Mail/message scheduled tasks healthy', 'No disabled or failing mail tasks.', $link)];
+            return [diagnostic_result_builder::row(
+                'ok',
+                'Mail/message scheduled tasks healthy',
+                'No disabled or failing mail tasks.',
+                $link
+            )];
         }
         return [diagnostic_result_builder::row('fail', 'Mail/message scheduled task problem', implode('; ', $unhealthy), $link)];
     }

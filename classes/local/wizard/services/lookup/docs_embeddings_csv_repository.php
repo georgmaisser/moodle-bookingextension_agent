@@ -117,5 +117,4 @@ class docs_embeddings_csv_repository extends embeddings_csv_repository_base {
             return trim((string)($row['corpus_id'] ?? '')) === $corpusid;
         }));
     }
-
 }

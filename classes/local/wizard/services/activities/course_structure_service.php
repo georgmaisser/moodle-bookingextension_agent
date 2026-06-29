@@ -55,7 +55,7 @@ class course_structure_service {
 
         // Visibility is computed for THIS user. This is the single, capability-safe filter.
         $modinfo = get_fast_modinfo($course, $userid);
-        $sectionscmids = $modinfo->get_sections(); // [sectionnumber => [cmid, ...]] in display order.
+        $sectionscmids = $modinfo->get_sections(); // Map [sectionnumber => [cmid, ...]] in display order.
 
         $sections = [];
         foreach ($modinfo->get_section_info_all() as $section) {

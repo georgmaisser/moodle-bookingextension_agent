@@ -43,16 +43,20 @@ final class native_capability_guard_test extends advanced_testcase {
      * @return object
      */
     private function stub_skill(array $caps): object {
-        return new class($caps) {
+        return new class ($caps) {
             /** @var array */
             private array $caps;
             /**
+             * Store the declared native capabilities for this stub skill.
+             *
              * @param array $caps
              */
             public function __construct(array $caps) {
                 $this->caps = $caps;
             }
             /**
+             * Return the native capabilities this stub skill requires.
+             *
              * @return array
              */
             public function get_required_native_capabilities(): array {

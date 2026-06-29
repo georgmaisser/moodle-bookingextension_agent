@@ -19,7 +19,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services;
 
 use bookingextension_agent\local\wizard\dto\preflight_result_v2;
-
 use bookingextension_agent\local\wizard\booking_issue_code_provider;
 use bookingextension_agent\local\wizard\interfaces\issue_code_provider_interface;
 

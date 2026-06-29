@@ -89,13 +89,24 @@ $rates = [];
 cli_writeln('Per-run success rate (newest first):');
 foreach ($runs as $r) {
     $rates[] = (float)$r->success_rate;
-    cli_writeln(sprintf('  id=%-4s %5.1f%%  %2d/%-2d  model=%-22s %s',
-        $r->id, $r->success_rate, $r->passed, $r->total_scenarios, $r->model_id,
-        userdate($r->timecreated, '%Y-%m-%d %H:%M')));
+    cli_writeln(sprintf(
+        '  id=%-4s %5.1f%%  %2d/%-2d  model=%-22s %s',
+        $r->id,
+        $r->success_rate,
+        $r->passed,
+        $r->total_scenarios,
+        $r->model_id,
+        userdate($r->timecreated, '%Y-%m-%d %H:%M')
+    ));
 }
 $mean = array_sum($rates) / count($rates);
-cli_writeln(sprintf('  => mean %.1f%%  (min %.1f%%, max %.1f%%, spread %.1f pp)',
-    $mean, min($rates), max($rates), max($rates) - min($rates)));
+cli_writeln(sprintf(
+    '  => mean %.1f%%  (min %.1f%%, max %.1f%%, spread %.1f pp)',
+    $mean,
+    min($rates),
+    max($rates),
+    max($rates) - min($rates)
+));
 cli_writeln(str_repeat('-', 70));
 
 // Per-scenario pass count across the N runs.
@@ -135,8 +146,15 @@ foreach ($byscenario as $key => $s) {
         break;
     }
     $flag = $rate < 50 ? ' <<' : ($rate < 100 ? ' ~' : '');
-    cli_writeln(sprintf('  %5.0f%%  %d/%d  %-40s sel=%s%s',
-        $rate, $s['pass'], $s['total'], $key, $topsel, $flag));
+    cli_writeln(sprintf(
+        '  %5.0f%%  %d/%d  %-40s sel=%s%s',
+        $rate,
+        $s['pass'],
+        $s['total'],
+        $key,
+        $topsel,
+        $flag
+    ));
 }
 cli_writeln(str_repeat('-', 70));
 cli_writeln(sprintf('Stable fails (0%% over %d runs) are real; flipping scenarios are model noise.', $actualn));

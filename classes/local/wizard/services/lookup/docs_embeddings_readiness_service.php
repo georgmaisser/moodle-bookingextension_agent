@@ -157,8 +157,8 @@ class docs_embeddings_readiness_service {
      */
     public function get_corpus_index_summary(): array {
         $registry = new docs_corpus_registry();
-        $resolvable = $registry->list();              // corpus_id => absolute root (root exists now).
-        $declared = $registry->declared_corpus_ids(); // every syntactically valid corpus_id.
+        $resolvable = $registry->list();              // Corpus_id => absolute root (root exists now).
+        $declared = $registry->declared_corpus_ids(); // Every syntactically valid corpus_id.
 
         $provideravailable = $this->is_embeddings_provider_available();
         $repo = docs_embeddings_csv_repository::for_active_variant();

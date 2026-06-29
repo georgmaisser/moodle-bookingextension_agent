@@ -106,7 +106,11 @@ final class grades_aspect_diagnoser {
         $items = grade_item::fetch_all(['courseid' => $courseid]) ?: [];
         $items = $this->filter_items($items, trim((string)($input['itemquery'] ?? '')));
         if (empty($items)) {
-            $rows[] = diagnostic_result_builder::row('warn', 'No matching grade item', 'No grade item matched the request in this course.');
+            $rows[] = diagnostic_result_builder::row(
+                'warn',
+                'No matching grade item',
+                'No grade item matched the request in this course.'
+            );
         }
 
         $shown = 0;
@@ -182,7 +186,12 @@ final class grades_aspect_diagnoser {
 
         $grade = grade_grade::fetch(['itemid' => $item->id, 'userid' => $targetuserid]);
         if (!$grade || ($grade->finalgrade === null && $grade->rawgrade === null)) {
-            return diagnostic_result_builder::row('warn', 'Item "' . $name . '": no grade recorded', 'No grade stored for this person yet.', $url);
+            return diagnostic_result_builder::row(
+                'warn',
+                'Item "' . $name . '": no grade recorded',
+                'No grade stored for this person yet.',
+                $url
+            );
         }
 
         // Respect hidden grades for a self-request without viewall.

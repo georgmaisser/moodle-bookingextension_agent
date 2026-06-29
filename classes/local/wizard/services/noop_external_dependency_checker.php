@@ -17,7 +17,6 @@
 namespace bookingextension_agent\local\wizard\services;
 
 use bookingextension_agent\local\wizard\dto\preflight_result_v2;
-
 use bookingextension_agent\local\wizard\interfaces\external_dependency_checker_interface;
 
 /**

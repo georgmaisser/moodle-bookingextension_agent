@@ -203,7 +203,10 @@ class course_structure_preview {
         }
         $groupmode = (string)($activity['groupmode'] ?? 'none');
         if ($groupmode !== 'none') {
-            $badges .= $this->badge(get_string('cs_badge_groups', 'bookingextension_agent') . ': ' . $groupmode, 'bg-info text-dark');
+            $badges .= $this->badge(
+                get_string('cs_badge_groups', 'bookingextension_agent') . ': ' . $groupmode,
+                'bg-info text-dark'
+            );
         }
         $badges .= $this->restriction_note($activity);
         return $badges;

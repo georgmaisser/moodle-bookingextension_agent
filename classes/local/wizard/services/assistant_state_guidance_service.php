@@ -55,5 +55,4 @@ class assistant_state_guidance_service {
 
         return array_values($normalized);
     }
-
 }

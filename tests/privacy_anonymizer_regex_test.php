@@ -88,7 +88,7 @@ final class privacy_anonymizer_regex_test extends advanced_testcase {
         $this->assertSame(0, preg_match($bare, 'no at-sign in this sentence'));
         $this->assertSame(0, preg_match($bare, 'missing@tld'), 'A TLD of >=2 letters is required.');
 
-        // key=value matcher captures the address in group 2.
+        // Key=value matcher captures the address in group 2.
         $this->assertSame(1, preg_match($kv, 'email=foo.bar@sub.example.org', $kvm));
         $this->assertSame('foo.bar@sub.example.org', $kvm[2]);
     }

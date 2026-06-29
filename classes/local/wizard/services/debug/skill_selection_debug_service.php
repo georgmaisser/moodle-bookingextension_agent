@@ -260,7 +260,7 @@ class skill_selection_debug_service {
                 $searchcorpus[] = is_scalar($entry) ? (string)$entry : (string)json_encode($entry);
             }
             foreach ((array)($contract['example_input'] ?? []) as $entry) {
-                // example_input values can be nested arrays (e.g. optiondates) — flatten to JSON
+                // Example_input values can be nested arrays (e.g. optiondates) — flatten to JSON
                 // instead of casting an array to string (PHP "Array to string conversion" warning).
                 $searchcorpus[] = is_scalar($entry) ? (string)$entry : (string)json_encode($entry);
             }
