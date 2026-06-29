@@ -48,7 +48,7 @@ class module_catalog_service {
      *
      * @param stdClass $course
      * @param int $userid
-     * @return array<int,array{modname:string,label:string}> Ordered by human label.
+     * @return array[] Ordered by human label.
      */
     public function list_addable_modules(stdClass $course, int $userid): array {
         global $DB;
@@ -89,9 +89,9 @@ class module_catalog_service {
      * label (e.g. "Text and media area"), then a substring match on the label. The planner never invents
      * internal module names; it passes the user's wording, which we map deterministically here.
      *
-     * @param array<int,array{modname:string,label:string}> $addable
+     * @param array[] $addable
      * @param string $query
-     * @return array<int,array{modname:string,label:string}> The matching subset (0, 1, or many).
+     * @return array[] The matching subset (0, 1, or many).
      */
     public function resolve_module_name(array $addable, string $query): array {
         $needle = \core_text::strtolower(trim($query));

@@ -61,7 +61,7 @@ class provider_status_service {
      * Compute the runtime provider/availability status for a context.
      *
      * @param int $contextid
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_status(int $contextid): array {
         $default = [

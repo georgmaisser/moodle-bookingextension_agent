@@ -57,7 +57,7 @@ class language_policy_service {
     /**
      * Resolve output language via the shared authority order.
      *
-     * @param array<string,mixed> $result Planner/selection result carrying the selector's user_lang.
+     * @param array $result Planner/selection result carrying the selector's user_lang.
      * @return string
      */
     public function resolve_output_language(array $result): string {

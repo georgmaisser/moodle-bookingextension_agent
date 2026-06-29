@@ -44,7 +44,7 @@ class family_embeddings_index_service {
      * @param string|null $model
      * @param int|null $dimensions
      * @param bool $forcefullregen
-     * @return array<string,mixed>
+     * @return array
      */
     public function rebuild_catalog(
         skill_registry $registry,
@@ -219,7 +219,7 @@ class family_embeddings_index_service {
     /**
      * Stable per-anchor identity key (skill + anchor_index) for multi-vector reuse.
      *
-     * @param array<string,mixed> $row
+     * @param array $row
      * @return string
      */
     private function anchor_key(array $row): string {

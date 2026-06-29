@@ -26,7 +26,7 @@ namespace bookingextension_agent\local\wizard\services;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class finalization_template_service {
-    /** @var array<string,string> */
+    /** @var array */
     private const ISSUE_CODE_MESSAGES = [
         'BUDGET_EXCEEDED' =>
             'Execution stopped because the loop budget is exhausted. Please simplify your request and try again.',
@@ -45,7 +45,7 @@ class finalization_template_service {
             'Please repeat the action or provide the next concrete step.',
     ];
 
-    /** @var array<string,string> */
+    /** @var array */
     private const ERROR_CLASS_MESSAGES = [
         'provider_timeout' =>
             'The AI provider timed out while processing your request. Please try again.',
@@ -68,7 +68,7 @@ class finalization_template_service {
             'The requested action failed with an internal error. Please try again or rephrase your request.',
     ];
 
-    /** @var array<string,string> */
+    /** @var array */
     private const ERROR_CLASS_LANG_KEYS = [
         'auth_failed' => 'error_ai_trial_token_invalid',
         'quota_exceeded' => 'error_ai_provider_quota_exceeded',
@@ -81,7 +81,7 @@ class finalization_template_service {
         'skill_exception' => 'error_ai_skill_exception',
     ];
 
-    /** @var array<string,string> */
+    /** @var array */
     private const ISSUE_CODE_LANG_KEYS = [
         'PERMISSION_ERROR' => 'error_ai_permission_denied',
     ];
@@ -91,7 +91,7 @@ class finalization_template_service {
      *
      * Priority: issue_codes first, then error_class.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return string
      */
     public function resolve_message(array $result): string {

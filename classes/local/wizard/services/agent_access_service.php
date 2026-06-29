@@ -128,7 +128,7 @@ class agent_access_service {
      * (including disabled ones) so the trial "activate" path can find a configured-but-off trial.
      *
      * @param bool $enabledonly Only consider enabled instances.
-     * @return array<int,object> Matching provider instances.
+     * @return object[] Matching provider instances.
      */
     public static function find_wunderbyte_llm_instances(bool $enabledonly = false): array {
         // Provider_compat::get_provider_views() returns real instances on Moodle 5.x and

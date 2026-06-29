@@ -100,8 +100,8 @@ abstract class core_skill_base extends base_skill {
     /**
      * Add compact prompt metadata to a schema when the skill does not declare it explicitly.
      *
-     * @param array<string,mixed> $schema
-     * @return array<string,mixed>
+     * @param array $schema
+     * @return array
      */
     protected function enrich_schema_with_prompt_meta(array $schema): array {
         if (!empty($schema['prompt_meta']) && is_array($schema['prompt_meta'])) {
@@ -339,7 +339,7 @@ abstract class core_skill_base extends base_skill {
      * Build a normalized user payload with core Moodle user data.
      *
      * @param \stdClass $user
-     * @return array<string,mixed>
+     * @return array
      */
     protected function build_user_payload(\stdClass $user): array {
         global $CFG;
@@ -398,7 +398,7 @@ abstract class core_skill_base extends base_skill {
      * Build course enrolment payload for a user.
      *
      * @param int $userid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     protected function build_user_courses_payload(int $userid): array {
         global $DB;
@@ -451,8 +451,8 @@ abstract class core_skill_base extends base_skill {
      * Build flattened role assignment payload for a user.
      *
      * @param int $userid
-     * @param array<int,array<string,mixed>> $courses
-     * @return array<int,array<string,mixed>>
+     * @param array[] $courses
+     * @return array[]
      */
     protected function build_user_roles_payload(int $userid, array $courses = []): array {
         $payload = [];
@@ -500,7 +500,7 @@ abstract class core_skill_base extends base_skill {
      * Extract loaded custom profile fields from a user object.
      *
      * @param \stdClass $user
-     * @return array<string,mixed>
+     * @return array
      */
     protected function extract_custom_profile_fields(\stdClass $user): array {
         $fields = [];
@@ -520,7 +520,7 @@ abstract class core_skill_base extends base_skill {
      *
      * @param string $query
      * @param int $limit
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     protected function search_user_candidates_for_preview(string $query, int $limit = 10): array {
         global $CFG;
@@ -563,7 +563,7 @@ abstract class core_skill_base extends base_skill {
      *
      * @param string $query Search text or numeric course id.
      * @param int $limit Maximum number of matches.
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     protected function search_course_candidates_for_preview(string $query, int $limit = 10): array {
         $query = trim($query);
@@ -616,7 +616,7 @@ abstract class core_skill_base extends base_skill {
      * the returned slice to keep large sites cheap.
      *
      * @param int $limit Maximum number of courses to return.
-     * @return array{courses: array<int,array<string,mixed>>, total: int}
+     * @return array{courses: array[], total: int}
      */
     protected function list_course_candidates_for_preview(int $limit = 50): array {
         $records = get_courses('all', 'c.fullname ASC', 'c.id, c.fullname, c.shortname, c.visible, c.category');
@@ -671,7 +671,7 @@ abstract class core_skill_base extends base_skill {
     /**
      * Build a full observation string for one or more normalized user payloads.
      *
-     * @param array<int,array<string,mixed>> $users
+     * @param array[] $users
      * @return string
      */
     protected function build_user_observation_full(array $users): string {
@@ -764,7 +764,7 @@ abstract class core_skill_base extends base_skill {
     /**
      * Format enrolled course payloads for observation output.
      *
-     * @param array<int,array<string,mixed>> $courses
+     * @param array[] $courses
      * @return string
      */
     protected function format_course_observation(array $courses): string {
@@ -794,7 +794,7 @@ abstract class core_skill_base extends base_skill {
     /**
      * Format role payloads for observation output.
      *
-     * @param array<int,array<string,mixed>> $roles
+     * @param array[] $roles
      * @return string
      */
     protected function format_role_observation(array $roles): string {
@@ -822,7 +822,7 @@ abstract class core_skill_base extends base_skill {
     /**
      * Format custom profile fields for observation output.
      *
-     * @param array<string,mixed> $fields
+     * @param array $fields
      * @return string
      */
     protected function format_custom_profile_field_observation(array $fields): string {

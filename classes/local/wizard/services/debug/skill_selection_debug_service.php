@@ -60,7 +60,7 @@ class skill_selection_debug_service {
      * @param int $cmid
      * @param int $topk
      * @param bool $includeunavailable
-     * @return array<string,mixed>
+     * @return array
      */
     public function simulate_selection(
         string $input,
@@ -154,7 +154,7 @@ class skill_selection_debug_service {
      * Analyze pairwise skill collisions using embedding vectors.
      *
      * @param int $limit
-     * @return array<string,mixed>
+     * @return array
      */
     public function analyze_collisions(int $limit = 50): array {
         $limit = max(1, min(500, $limit));
@@ -219,7 +219,7 @@ class skill_selection_debug_service {
      * @param int $userid
      * @param int $contextid
      * @param bool $includeunavailable
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function get_prompt_contracts_for_context(int $userid, int $contextid, bool $includeunavailable): array {
         if ($contextid <= 0) {
@@ -234,9 +234,9 @@ class skill_selection_debug_service {
      * Build lexical ranking over prompt contracts.
      *
      * @param string $input
-     * @param array<int,array<string,mixed>> $contracts
+     * @param array[] $contracts
      * @param int $topk
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function build_lexical_ranking(string $input, array $contracts, int $topk): array {
         $inputtokens = $this->tokenize($input);
@@ -320,7 +320,7 @@ class skill_selection_debug_service {
      * @param int $userid
      * @param int $cmid
      * @param int $topk
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     private function build_embedding_ranking(string $input, int $userid, int $cmid, int $topk): array {
         if ($cmid <= 0 || trim($input) === '') {
@@ -372,7 +372,7 @@ class skill_selection_debug_service {
      * @param int $userid
      * @param string $input
      * @param int $dimensions
-     * @return array<int,float|int>
+     * @return array
      */
     private function generate_query_embedding(int $contextid, int $userid, string $input, int $dimensions): array {
         try {
@@ -420,7 +420,7 @@ class skill_selection_debug_service {
      * Normalize and tokenize text.
      *
      * @param string $text
-     * @return array<int,string>
+     * @return string[]
      */
     private function tokenize(string $text): array {
         $text = mb_strtolower($text);

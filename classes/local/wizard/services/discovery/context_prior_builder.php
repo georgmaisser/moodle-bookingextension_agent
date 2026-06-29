@@ -32,8 +32,8 @@ class context_prior_builder {
      * Build normalized prior payload from context and runtime signals.
      *
      * @param int $contextid
-     * @param array<string,mixed> $signals
-     * @return array<string,mixed>
+     * @param array $signals
+     * @return array
      */
     public function build(int $contextid, array $signals = []): array {
         $namespacehint = trim((string)($signals['namespace_hint'] ?? ''));

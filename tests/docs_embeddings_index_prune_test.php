@@ -109,7 +109,7 @@ final class docs_embeddings_index_prune_test extends advanced_testcase {
      * @param string $corpusid
      * @param string $root
      * @param string $relpath
-     * @return array<string,string>
+     * @return array
      */
     private function seed_row(string $corpusid, string $root, string $relpath): array {
         $content = (string)file_get_contents($root . '/' . $relpath);

@@ -222,7 +222,7 @@ final class analyze_course_structure_test extends advanced_testcase {
     /**
      * Build a course with: a visible activity + a hidden activity in section 1, and a hidden section 2.
      *
-     * @return array{0:\stdClass,1:\stdClass,2:\stdClass}
+     * @return array
      */
     private function build_course(): array {
         global $CFG;
@@ -246,8 +246,8 @@ final class analyze_course_structure_test extends advanced_testcase {
     /**
      * Flat list of all activity names in a structure.
      *
-     * @param array<string,mixed> $structure
-     * @return array<int,string>
+     * @param array $structure
+     * @return string[]
      */
     private function activity_names(array $structure): array {
         $names = [];
@@ -262,9 +262,9 @@ final class analyze_course_structure_test extends advanced_testcase {
     /**
      * Find an activity node by name.
      *
-     * @param array<string,mixed> $structure
+     * @param array $structure
      * @param string $name
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function find_activity(array $structure, string $name): ?array {
         foreach ((array)$structure['sections'] as $section) {
@@ -280,9 +280,9 @@ final class analyze_course_structure_test extends advanced_testcase {
     /**
      * Find a section node by number.
      *
-     * @param array<string,mixed> $structure
+     * @param array $structure
      * @param int $number
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function find_section(array $structure, int $number): ?array {
         foreach ((array)$structure['sections'] as $section) {

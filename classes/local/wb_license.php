@@ -89,7 +89,7 @@ class wb_license {
      * Collect license key candidates: the agent's own setting first, then Booking's
      * licensekey field (where a combined Booking + Agent key naturally lives).
      *
-     * @return array<int,string>
+     * @return string[]
      */
     private static function get_candidate_licensekeys(): array {
         $keys = [];

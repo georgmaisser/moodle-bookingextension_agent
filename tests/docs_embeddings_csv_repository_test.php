@@ -38,7 +38,7 @@ final class docs_embeddings_csv_repository_test extends advanced_testcase {
      *
      * @param string $corpusid
      * @param string $chunkpath
-     * @return array<string,string>
+     * @return array
      */
     private function make_row(string $corpusid, string $chunkpath): array {
         $vector = json_encode(array_map(static function ($i) {

@@ -62,8 +62,8 @@ class preflight_contract_validator {
     /**
      * Validate one command against the L1 preflight contract.
      *
-     * @param array<string,mixed> $command
-     * @return array{valid:bool,error_class:string,issue_codes:array<int,string>,errors:array<int,string>}
+     * @param array $command
+     * @return array{valid:bool,error_class:string,issue_codes:string[],errors:string[]}
      */
     public function validate(array $command): array {
         $schemaresult = $this->schemavalidator->validate($command);

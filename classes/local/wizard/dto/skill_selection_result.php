@@ -40,7 +40,7 @@ class skill_selection_result {
     /** @var bool */
     public readonly bool $valid;
 
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $errors;
 
     /**
@@ -50,7 +50,7 @@ class skill_selection_result {
      * @param int $version
      * @param skill_interface|null $skill
      * @param bool $valid
-     * @param array<int,string> $errors
+     * @param string[] $errors
      */
     public function __construct(
         string $skillname,

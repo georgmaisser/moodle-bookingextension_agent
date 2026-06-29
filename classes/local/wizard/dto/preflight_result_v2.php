@@ -38,7 +38,7 @@ class preflight_result_v2 {
     /** @var string pass|soft_block|hard_block|retry_hint */
     public readonly string $status;
 
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $issuecodes;
 
     /** @var string */
@@ -53,23 +53,23 @@ class preflight_result_v2 {
     /** @var int */
     public readonly int $durationms;
 
-    /** @var array<string,mixed> Legacy-kompatibel: prepared execute input. */
+    /** @var array Legacy-kompatibel: prepared execute input. */
     public readonly array $preparedinput;
 
-    /** @var array<int,array<string,mixed>> Legacy-kompatibel: structured issues. */
+    /** @var array[] Legacy-kompatibel: structured issues. */
     public readonly array $issues;
 
     /**
      * Create immutable preflight contract v2 result.
      *
      * @param string $status pass|soft_block|hard_block|retry_hint
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @param string $blockinglayer
      * @param int $retryafterms
      * @param int $retrycount
      * @param int $durationms
-     * @param array<string,mixed> $preparedinput
-     * @param array<int,array<string,mixed>> $issues
+     * @param array $preparedinput
+     * @param array[] $issues
      */
     public function __construct(
         string $status,
@@ -135,7 +135,7 @@ class preflight_result_v2 {
     /**
      * Export DTO as normalized associative array.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function to_array(): array {
         return [
@@ -151,7 +151,7 @@ class preflight_result_v2 {
     /**
      * Legacy helper: successful preflight with normalized input.
      *
-     * @param array<string,mixed> $preparedinput
+     * @param array $preparedinput
      * @return self
      */
     public static function ok(array $preparedinput): self {
@@ -161,8 +161,8 @@ class preflight_result_v2 {
     /**
      * Legacy helper: preflight passed with confirmable issues.
      *
-     * @param array<string,mixed> $preparedinput
-     * @param array<int,array<string,mixed>> $issues
+     * @param array $preparedinput
+     * @param array[] $issues
      * @return self
      */
     public static function confirmable(array $preparedinput, array $issues): self {
@@ -182,7 +182,7 @@ class preflight_result_v2 {
     /**
      * Legacy helper: preflight failed.
      *
-     * @param array<int,array<string,mixed>> $issues
+     * @param array[] $issues
      * @return self
      */
     public static function invalid(array $issues): self {
@@ -202,8 +202,8 @@ class preflight_result_v2 {
     /**
      * Extract canonical issue codes from legacy issue arrays.
      *
-     * @param array<int,array<string,mixed>> $issues
-     * @return array<int,string>
+     * @param array[] $issues
+     * @return string[]
      */
     private static function extract_issue_codes_from_issues(array $issues): array {
         return array_values(array_filter(array_map(

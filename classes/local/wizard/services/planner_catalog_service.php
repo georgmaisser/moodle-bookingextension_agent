@@ -101,8 +101,8 @@ class planner_catalog_service {
      * wizard.list_skills produces: once the planner already sees every skill, advertising "list/search
      * skills" only implies more hidden skills that do not exist.
      *
-     * @param array<int,mixed> $catalog
-     * @return array<int,array<string,mixed>>
+     * @param mixed[] $catalog
+     * @return array[]
      */
     public function exclude_discovery_meta_skills(array $catalog): array {
         return array_values(array_filter(
@@ -119,8 +119,8 @@ class planner_catalog_service {
     /**
      * Keep only planner-relevant fields before runtime catalog prompt injection.
      *
-     * @param array<int,array<string,mixed>> $catalog
-     * @return array<int,array<string,mixed>>
+     * @param array[] $catalog
+     * @return array[]
      */
     public function sanitize_runtime_catalog_for_prompt(array $catalog): array {
         $sanitized = [];
@@ -188,7 +188,7 @@ class planner_catalog_service {
      * embeddings-catalog snapshot, so {@see self::sanitize_runtime_catalog_for_prompt()} re-joins it
      * live by skill name. Returns an empty map when the registry is unavailable (defensive).
      *
-     * @return array<string,array<string,mixed>>
+     * @return array
      */
     private function live_contract_lookup(): array {
         try {
@@ -215,7 +215,7 @@ class planner_catalog_service {
      * Decode JSON array/object payload safely.
      *
      * @param string $json
-     * @return array<int|string,mixed>
+     * @return array
      */
     public function decode_catalog_json_array(string $json): array {
         $decoded = json_decode($json, true);
@@ -324,7 +324,7 @@ class planner_catalog_service {
      * token-heavy concrete sample payloads.
      *
      * @param array $exampleinput
-     * @return array<int,string>
+     * @return string[]
      */
     public function compact_catalog_example_input(array $exampleinput): array {
         $keys = [];
@@ -350,7 +350,7 @@ class planner_catalog_service {
      * Drop verbose trigger examples and keep compact id + short description only.
      *
      * @param array $triggers
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function compact_catalog_message_triggers(array $triggers): array {
         $compact = [];
@@ -390,9 +390,9 @@ class planner_catalog_service {
     /**
      * Keep only catalog entries whose skill family is in selected discovery families.
      *
-     * @param array<int,array<string,mixed>> $catalog
-     * @param array<int,string> $selectedfamilies
-     * @return array<int,array<string,mixed>>
+     * @param array[] $catalog
+     * @param string[] $selectedfamilies
+     * @return array[]
      */
     public function filter_catalog_by_selected_families(array $catalog, array $selectedfamilies): array {
         if (empty($catalog) || empty($selectedfamilies)) {
@@ -447,8 +447,8 @@ class planner_catalog_service {
      * Split prompt contracts into readonly (selectable without full access) and
      * mutating ones, which move to the unavailable catalog with an upgrade hint.
      *
-     * @param array<int,array<string,mixed>> $contracts
-     * @return array{0: array<int,array<string,mixed>>, 1: array<int,array<string,mixed>>}
+     * @param array[] $contracts
+     * @return array{0: array[], 1: array[]}
      */
     public function split_prompt_contracts_by_full_access(array $contracts): array {
         $available = [];
@@ -480,7 +480,7 @@ class planner_catalog_service {
     /**
      * Resolve a deterministic namespace hint from prompt contracts.
      *
-     * @param array<int,array<string,mixed>> $promptcontracts
+     * @param array[] $promptcontracts
      * @return string
      */
     public function resolve_namespace_hint_from_prompt_contracts(array $promptcontracts): string {

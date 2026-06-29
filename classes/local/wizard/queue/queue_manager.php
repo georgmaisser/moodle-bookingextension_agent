@@ -53,7 +53,7 @@ class queue_manager {
     /** @var int Default TTL for blocked confirmations in seconds. */
     private const DEFAULT_BLOCKED_TTL_SECONDS = 900;
 
-    /** @var array<int,string> Queue fields allowed via update_status extra payload. */
+    /** @var string[] Queue fields allowed via update_status extra payload. */
     private const ALLOWED_EXTRA_STATUS_FIELDS = [
         'preflight_retry_count',
         'retry_after_ms',
@@ -75,6 +75,7 @@ class queue_manager {
      * Constructor.
      *
      * @param conversation_store $store
+     * @param skill_registry|null $registry
      */
     public function __construct(conversation_store $store, ?skill_registry $registry = null) {
         $this->store = $store;
@@ -91,7 +92,7 @@ class queue_manager {
      * @param string $mutability readonly|mutating
      * @param string $status
      * @param array $dependson
-     * @return array<string,mixed>
+     * @return array
      */
     public function enqueue_command(
         int $threadid,
@@ -220,7 +221,7 @@ class queue_manager {
      * @param array $issuecodes
      * @param string $errorclass
      * @param string $lasterrormessage
-     * @param array<string,mixed> $extrafields
+     * @param array $extrafields
      * @return void
      */
     public function update_status(
@@ -270,7 +271,7 @@ class queue_manager {
      * Return all queue items for a thread.
      *
      * @param int $threadid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_queue_items(int $threadid): array {
         $items = $this->store->get_thread_metadata_value($threadid, self::META_QUEUE_ITEMS);
@@ -282,7 +283,7 @@ class queue_manager {
      *
      * @param int $threadid
      * @param string $queueitemid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function get_queue_item(int $threadid, string $queueitemid): ?array {
         $queueitemid = trim($queueitemid);
@@ -316,7 +317,8 @@ class queue_manager {
      * @param int $threadid
      * @param string $queueitemid
      * @param int $contextid
-     * @param array<string,mixed> $preparedinput
+     * @param array $preparedinput
+     * @param int|null $operatingcontextid
      * @return void
      */
     public function set_prepared_input(
@@ -451,9 +453,9 @@ class queue_manager {
     /**
      * Determine whether a queue item can be picked up right now.
      *
-     * @param array<string,mixed> $item
+     * @param array $item
      * @param int|null $now
-     * @param array<int,array<string,mixed>>|null $items
+     * @param array[]|null $items
      * @return bool
      */
     public function can_pickup_now(array $item, ?int $now = null, ?array $items = null): bool {
@@ -484,7 +486,7 @@ class queue_manager {
      * Check whether all dependencies for a queue item have succeeded.
      *
      * @param int $threadid
-     * @param array<string,mixed> $item
+     * @param array $item
      * @return bool
      */
     public function dependencies_succeeded(int $threadid, array $item): bool {
@@ -494,8 +496,8 @@ class queue_manager {
     /**
      * Check dependencies against a provided queue snapshot.
      *
-     * @param array<string,mixed> $item
-     * @param array<int,array<string,mixed>>|null $items
+     * @param array $item
+     * @param array[]|null $items
      * @return bool
      */
     private function dependencies_succeeded_from_items(array $item, ?array $items = null): bool {
@@ -539,8 +541,8 @@ class queue_manager {
     /**
      * Validate that appending a node with given dependencies keeps graph acyclic.
      *
-     * @param array<int,array<string,mixed>> $existingitems
-     * @param array<int,string> $newdependson
+     * @param array[] $existingitems
+     * @param string[] $newdependson
      * @return bool
      */
     public function validate_depends_on_is_dag(array $existingitems, array $newdependson): bool {
@@ -707,7 +709,7 @@ class queue_manager {
      * Used to inject pending steps into the selector prompt context.
      *
      * @param int $threadid
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_planned_placeholder_intents(int $threadid): array {
         $intents = [];
@@ -727,7 +729,7 @@ class queue_manager {
      *
      * @param string $skill
      * @param array $input
-     * @return array{signature:string,mode:string,payload:array<string,mixed>}
+     * @return array{signature:string,mode:string,payload:array}
      */
     private function build_input_signature_details(string $skill, array $input): array {
         $signaturepayload = $input;
@@ -818,6 +820,7 @@ class queue_manager {
      *
      * @param string $status
      * @param int $now
+     * @param string $riskclass
      * @return int|null
      */
     private function resolve_blocked_expires_at(string $status, int $now, string $riskclass = ''): ?int {
@@ -856,8 +859,8 @@ class queue_manager {
      * DFS helper for cycle detection.
      *
      * @param string $node
-     * @param array<string,array<int,string>> $graph
-     * @param array<string,int> $state
+     * @param array $graph
+     * @param array $state
      * @return bool
      */
     private function dfs_cycle_detect(string $node, array $graph, array &$state): bool {

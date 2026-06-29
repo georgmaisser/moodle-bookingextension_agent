@@ -43,7 +43,7 @@ use core_course_category;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class operating_context_target_registry {
-    /** @var array<int,operating_context_target_provider_interface> Providers for non-core levels. */
+    /** @var operating_context_target_provider_interface[] Providers for non-core levels. */
     private array $providers;
 
     /** @var module_target_resolver Generic CONTEXT_MODULE resolver (keyed by modname). */
@@ -52,7 +52,7 @@ class operating_context_target_registry {
     /**
      * Constructor.
      *
-     * @param array<int,operating_context_target_provider_interface> $providers Optional explicit
+     * @param operating_context_target_provider_interface[] $providers Optional explicit
      *        providers for non-core levels other than module (mainly for tests / third-party
      *        overrides). When omitted, none are active.
      * @param module_target_resolver|null $moduleresolver Injectable for tests.

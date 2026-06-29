@@ -106,7 +106,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -118,7 +118,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -137,7 +137,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -160,7 +160,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Return contextual guidance packs.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -233,6 +233,9 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      * Build a technical debug summary for developers.
      *
      * @param string $scope
+     * @param array $actions
+     * @param array $capabilities
+     * @param array $unavailableactions
      * @return string
      */
     private function build_debug_summary(
@@ -255,8 +258,8 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
      * Build a user-facing summary sentence for the selected scope.
      *
      * @param string $scope
-     * @param array<int,array<string,mixed>> $capabilities
-     * @param array<int,array<string,mixed>> $unavailableactions
+     * @param array[] $capabilities
+     * @param array[] $unavailableactions
      * @return string
      */
     private function build_user_summary(string $scope, array $capabilities, array $unavailableactions = []): string {
@@ -367,7 +370,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Build a compact technical detail string for an unavailable action.
      *
-     * @param array<string,mixed> $action
+     * @param array $action
      * @return string
      */
     private function build_unavailable_action_detail(array $action): string {
@@ -396,8 +399,8 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Build user-friendly capability blocks grouped by provider and read/write state.
      *
-     * @param array<int,array<string,mixed>> $actions
-     * @return array<int,array<string,mixed>>
+     * @param array[] $actions
+     * @return array[]
      */
     private function build_user_capabilities(array $actions): array {
         $grouped = [];

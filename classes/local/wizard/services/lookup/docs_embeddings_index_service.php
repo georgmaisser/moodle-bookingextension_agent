@@ -59,7 +59,7 @@ class docs_embeddings_index_service {
      * @param string|null $model      Override embedding model (uses config if null).
      * @param int|null    $dimensions Override dimensions (uses config if null).
      * @param bool        $force      Force re-embedding of all scanned chunks.
-     * @return array<string,mixed>  Summary: status, embedded, reused, deleted, written.
+     * @return array  Summary: status, embedded, reused, deleted, written.
      */
     public function rebuild(
         ?string $corpusid = null,
@@ -293,7 +293,7 @@ class docs_embeddings_index_service {
      * Scan a directory for all .md files recursively (excluding pix/ subdirs).
      *
      * @param string $rootdir
-     * @return array<int,string>  Absolute file paths, sorted.
+     * @return string[]  Absolute file paths, sorted.
      */
     private function scan_md_files(string $rootdir): array {
         if (!is_dir($rootdir)) {

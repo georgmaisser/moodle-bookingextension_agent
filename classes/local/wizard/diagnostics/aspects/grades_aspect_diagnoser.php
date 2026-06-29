@@ -51,7 +51,7 @@ final class grades_aspect_diagnoser {
      * @param int $actinguserid
      * @param array $input
      * @param diagnostic_link_builder $links
-     * @return array{rows:array<int,array<string,mixed>>,error:?array{message:string,error_class:string}}
+     * @return array{rows:array[],error:?array{message:string,error_class:string}}
      */
     public function diagnose(
         \stdClass $course,
@@ -143,9 +143,9 @@ final class grades_aspect_diagnoser {
     /**
      * Filter grade items by an optional name query (fuzzy).
      *
-     * @param array<int,grade_item> $items
+     * @param grade_item[] $items
      * @param string $itemquery
-     * @return array<int,grade_item>
+     * @return grade_item[]
      */
     private function filter_items(array $items, string $itemquery): array {
         if ($itemquery === '') {
@@ -171,7 +171,7 @@ final class grades_aspect_diagnoser {
      * @param bool $canviewall
      * @param int $courseid
      * @param diagnostic_link_builder $links
-     * @return array<string,mixed>
+     * @return array
      */
     private function item_row(
         grade_item $item,

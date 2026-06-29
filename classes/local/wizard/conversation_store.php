@@ -49,7 +49,7 @@ class conversation_store implements agent_conversation_store {
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
      *
-     * @return array<string,bool>
+     * @return array
      */
     public static function get_runtime_feature_flags_snapshot(): array {
         return runtime_feature_flags::snapshot();
@@ -668,7 +668,7 @@ class conversation_store implements agent_conversation_store {
      * Store the latest planner trace history on the thread.
      *
      * @param int $threadid
-     * @param array<int,string> $plannertracehistory
+     * @param string[] $plannertracehistory
      * @return void
      */
     public function set_planner_trace_history(int $threadid, array $plannertracehistory): void {
@@ -687,7 +687,7 @@ class conversation_store implements agent_conversation_store {
      * Store the latest phase trace on the thread.
      *
      * @param int $threadid
-     * @param array<string,mixed> $phasetrace
+     * @param array $phasetrace
      * @return void
      */
     public function set_phase_trace(int $threadid, array $phasetrace): void {
@@ -747,7 +747,7 @@ class conversation_store implements agent_conversation_store {
      * Retrieve the pending intent for a thread, or null if none is stored.
      *
      * @param int $threadid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function get_pending_intent(int $threadid): ?array {
         $value = $this->get_thread_metadata_value($threadid, 'pending_intent');
@@ -780,7 +780,7 @@ class conversation_store implements agent_conversation_store {
      * @param int $threadid
      * @param int $userid
      * @param int $contextid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function consume_pending_intent(int $threadid, int $userid = 0, int $contextid = 0): ?array {
         $pending = $this->get_pending_intent($threadid);
@@ -876,7 +876,7 @@ class conversation_store implements agent_conversation_store {
      * Load and prune the allowlist from user preferences.
      *
      * @param int $userid
-     * @return array<string,array<string,int>>
+     * @return array
      */
     private function get_confirmation_session_allowlist(int $userid): array {
         $raw = (string)get_user_preferences(self::CONFIRMATION_SESSION_ALLOWLIST_KEY, '', $userid);
@@ -923,7 +923,7 @@ class conversation_store implements agent_conversation_store {
      * Persist the allowlist in user preferences.
      *
      * @param int $userid
-     * @param array<string,array<string,int>> $allowlist
+     * @param array $allowlist
      * @return void
      */
     private function save_confirmation_session_allowlist(int $userid, array $allowlist): void {
@@ -974,7 +974,7 @@ class conversation_store implements agent_conversation_store {
      *
      * @param int $threadid
      * @param int $limit
-     * @return array<int,stdClass>
+     * @return stdClass[]
      */
     public function get_llm_debug_entries(int $threadid, int $limit = 100): array {
         global $DB;

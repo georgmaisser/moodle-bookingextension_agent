@@ -120,10 +120,10 @@ class planner_phase_service {
      * @param int $contextid
      * @param int $userid
      * @param array $observations
-     * @param array<string,mixed> $discoverystate
+     * @param array $discoverystate
      * @param context $context
      * @param ai_manager $manager
-     * @return array<string,mixed>
+     * @return array
      */
     public function run_selection(
         int $threadid,
@@ -305,10 +305,10 @@ class planner_phase_service {
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-     * @param array<string,mixed> $observations
-     * @param array<string,mixed> $discoverystate
-     * @param array<string,mixed> $selectionstate
-     * @return array<string,mixed>
+     * @param array $observations
+     * @param array $discoverystate
+     * @param array $selectionstate
+     * @return array
      */
     public function run_construction(
         int $threadid,
@@ -465,8 +465,8 @@ class planner_phase_service {
      * This strips accidental parameter payloads from selection commands and keeps
      * only the selected skill identity for constructor handoff.
      *
-     * @param array<string,mixed> $phaseoutput
-     * @return array<string,mixed>
+     * @param array $phaseoutput
+     * @return array
      */
     private function normalize_selection_phase_output_for_handoff(array $phaseoutput): array {
         $responsetype = trim((string)($phaseoutput['response_type'] ?? ''));
@@ -512,9 +512,9 @@ class planner_phase_service {
      * Restrict construction runtime catalog to the selector-chosen skill only.
      *
      * @param string $selectedskill
-     * @param array<int,array<string,mixed>> $runtimecatalog
-     * @param array<int,array<string,mixed>> $adaptivecatalog
-     * @return array<int,array<string,mixed>>
+     * @param array[] $runtimecatalog
+     * @param array[] $adaptivecatalog
+     * @return array[]
      */
     private function build_construction_runtime_catalog_for_selected_skill(
         string $selectedskill,
@@ -554,8 +554,8 @@ class planner_phase_service {
      * Attach concrete parameter examples for the selected construction skill.
      *
      * @param string $selectedskill
-     * @param array<string,mixed> $entry
-     * @return array<string,mixed>
+     * @param array $entry
+     * @return array
      */
     private function enrich_construction_catalog_entry(string $selectedskill, array $entry): array {
         $skill = $this->registry->get_skill($selectedskill);
@@ -590,7 +590,7 @@ class planner_phase_service {
      * trigger gate would only drop useful guidance.
      *
      * @param object $skill
-     * @return array<int,string>
+     * @return string[]
      */
     private function collect_skill_guidance_lines(object $skill): array {
         if (!method_exists($skill, 'get_contextual_prompt_packs')) {
@@ -616,7 +616,7 @@ class planner_phase_service {
     /**
      * Extract an explicitly selected skill from selection-phase output.
      *
-     * @param array<string,mixed> $phaseoutput
+     * @param array $phaseoutput
      * @return string
      */
     private function extract_selected_skill_from_selection_phase_output(array $phaseoutput): string {
@@ -628,7 +628,7 @@ class planner_phase_service {
      *
      * @param string $issuecode
      * @param string $error
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_selection_contract_error_result(string $issuecode, string $error): array {
         return [
@@ -649,7 +649,7 @@ class planner_phase_service {
     /**
      * Build a standardized selector-handoff error when construction lacks selected_skill.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_selector_handoff_error_result(): array {
         return [
@@ -691,9 +691,9 @@ class planner_phase_service {
      *
      * @param string $skillname
      * @param string $field the input field to receive the query
-     * @param array<string,mixed> $selectionstate
+     * @param array $selectionstate
      * @param \stdClass[] $messages
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_passthrough_construction_result(
         string $skillname,
@@ -740,8 +740,8 @@ class planner_phase_service {
     /**
      * Build a standardized provider error payload.
      *
-     * @param array<string,mixed> $call
-     * @return array<string,mixed>
+     * @param array $call
+     * @return array
      */
     private function build_provider_error_result(array $call): array {
         $errormessage = (string)($call['errormessage'] ?? 'Provider returned an error.');
@@ -780,7 +780,7 @@ class planner_phase_service {
     /**
      * Build a standardized empty-provider payload.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_empty_provider_result(): array {
         return [
@@ -798,9 +798,9 @@ class planner_phase_service {
     /**
      * Build compact observations to hand off discovery/selection outcomes.
      *
-     * @param array<string,mixed> $discoverystate
-     * @param array<string,mixed> $selectionstate
-     * @return array<int,string>
+     * @param array $discoverystate
+     * @param array $selectionstate
+     * @return string[]
      */
     private function build_phase_handoff_observations(array $discoverystate, array $selectionstate): array {
         $observations = [];

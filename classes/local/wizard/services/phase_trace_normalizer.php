@@ -38,7 +38,7 @@ class phase_trace_normalizer {
      * Keeps any value already stored under a canonical phase key; additionally accepts a flat list
      * of `['phase' => ..., …]` entries and slots the first entry of each phase into its bucket.
      *
-     * @param array<string,mixed> $phasetrace
+     * @param array $phasetrace
      * @return array{discovery:mixed,selection:mixed,parameter_construction:mixed}
      */
     public static function normalize(array $phasetrace): array {

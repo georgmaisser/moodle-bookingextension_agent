@@ -52,10 +52,10 @@ class preview_passthrough {
     /**
      * Resolve the preview JSON for a webservice response from executed skill results.
      *
-     * @param array<int,mixed> $results Executed skill results (each may carry a precomputed 'preview').
+     * @param mixed[] $results Executed skill results (each may carry a precomputed 'preview').
      * @param int $threadid
      * @param string $metadatakey Thread-metadata key used to accumulate previews across a chain.
-     * @param array<int,mixed> $loopresults Per-step loop results (each entry: {..., results: [...]}).
+     * @param mixed[] $loopresults Per-step loop results (each entry: {..., results: [...]}).
      * @return string JSON-encoded preview block, or '' when there is none.
      */
     public static function resolve_preview_json(
@@ -93,9 +93,9 @@ class preview_passthrough {
      * loop steps, so their result lives in loop_results, not in the terminal `results`). Most recent
      * loop step wins.
      *
-     * @param array<int,mixed> $results Terminal top-level results.
-     * @param array<int,mixed> $loopresults Per-step loop results (each entry: {..., results: [...]}).
-     * @return array<string,mixed>|null
+     * @param mixed[] $results Terminal top-level results.
+     * @param mixed[] $loopresults Per-step loop results (each entry: {..., results: [...]}).
+     * @return array|null
      */
     private static function extract_first_preview(array $results, array $loopresults): ?array {
         $preview = self::first_preview_in_entries($results);
@@ -124,8 +124,8 @@ class preview_passthrough {
      * Each entry may carry a self-contained 'preview' block attached by the executor at execution
      * time. This service does not call into skills; it only forwards the precomputed data.
      *
-     * @param array<int,mixed> $entries
-     * @return array<string,mixed>|null
+     * @param mixed[] $entries
+     * @return array|null
      */
     private static function first_preview_in_entries(array $entries): ?array {
         foreach ($entries as $entry) {
@@ -147,9 +147,9 @@ class preview_passthrough {
      * Type-agnostic: for HTML-based previews of the same type, the new HTML is appended to the
      * accumulated HTML so a multi-step chain shows every affected item.
      *
-     * @param array<string,mixed> $accumulated
-     * @param array<string,mixed> $preview
-     * @return array<string,mixed>
+     * @param array $accumulated
+     * @param array $preview
+     * @return array
      */
     private static function merge_with_accumulated(array $accumulated, array $preview): array {
         $sametype = isset($accumulated['type'], $preview['type'])

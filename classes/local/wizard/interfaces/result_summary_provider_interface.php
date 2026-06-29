@@ -30,7 +30,7 @@ interface result_summary_provider_interface {
     /**
      * Return result summary contributors provided by this component.
      *
-     * @return array<int,\bookingextension_agent\local\wizard\interfaces\summarizer\result_summary_contributor_interface>
+     * @return \bookingextension_agent\local\wizard\interfaces\summarizer\result_summary_contributor_interface[]
      */
     public function get_result_summary_contributors(): array;
 }

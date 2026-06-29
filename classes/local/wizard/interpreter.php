@@ -85,6 +85,7 @@ class interpreter implements agent_interpreter {
      * Parse and validate raw LLM output.
      *
      * @param string $rawresponse
+     * @param int    $contextid
      * @param int    $userid
      * @param string $lastusermessage
      * @return array
@@ -309,7 +310,7 @@ class interpreter implements agent_interpreter {
      *
      * @param string $rawresponse
      * @param string $phase
-     * @param array<string,mixed> $context
+     * @param array $context
      * @return array
      */
     public function interpret_phase_output(string $rawresponse, string $phase, array $context = []): array {
@@ -338,7 +339,7 @@ class interpreter implements agent_interpreter {
      * @param int $contextid
      * @param int $userid
      * @param string $lastusermessage
-     * @return array<string,mixed>
+     * @return array
      */
     private function interpret_selection_phase_output(
         string $rawresponse,
@@ -476,7 +477,7 @@ class interpreter implements agent_interpreter {
      *
      * @param array $result
      * @param string $phase
-     * @param array<string,mixed> $context
+     * @param array $context
      * @return array
      */
     private function enforce_phase_contract(array $result, string $phase, array $context = []): array {
@@ -1088,6 +1089,12 @@ class interpreter implements agent_interpreter {
      * delegated to agent_decision_service via skill->preflight().
      *
      * Returns [validated, errors, ambiguities, ambiguityoptions, attemptedskills, issuecodes, confirmablecommands].
+     *
+     * @param array $commands
+     * @param int $contextid
+     * @param int $userid
+     * @param string $lastusermessage
+     * @return array
      */
     private function validate_commands(array $commands, int $contextid, int $userid, string $lastusermessage = ''): array {
         $validated = [];

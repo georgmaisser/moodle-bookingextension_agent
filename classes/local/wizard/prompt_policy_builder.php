@@ -44,6 +44,8 @@ class prompt_policy_builder {
     /**
      * Build all NON-OPTIONAL planner policies as a single text block.
      *
+     * @param string $phase The current planner phase.
+     * @param bool $hasobservations True when observations already exist in this thread.
      * @param bool $isfirstassistantturn True when no assistant output exists yet in this thread.
      * @return string
      */
@@ -89,6 +91,7 @@ class prompt_policy_builder {
     /**
      * Build NON-OPTIONAL RESPONSE CONTRACT POLICY.
      *
+     * @param string $phase The current planner phase.
      * @return string
      */
     private static function build_response_contract_policy(string $phase): string {
@@ -243,6 +246,8 @@ class prompt_policy_builder {
      * Guides the LLM on when sufficient information has been gathered to provide a final answer.
      * This reduces unnecessary loop iterations by signaling when tool-calling should stop.
      *
+     * @param string $phase The current planner phase.
+     * @param bool $hasobservations True when observations already exist in this thread.
      * @return string
      */
     private static function build_sufficiency_policy(string $phase = 'discovery', bool $hasobservations = false): string {

@@ -51,8 +51,8 @@ class preflight_version_validator {
     /**
      * Validate skill registration + skill version for one command.
      *
-     * @param array<string,mixed> $command
-     * @return array{valid:bool,error_class:string,issue_codes:array<int,string>,errors:array<int,string>}
+     * @param array $command
+     * @return array{valid:bool,error_class:string,issue_codes:string[],errors:string[]}
      */
     public function validate(array $command): array {
         $skillname = trim((string)($command['skill'] ?? ''));
@@ -119,8 +119,8 @@ class preflight_version_validator {
     /**
      * Resolve requested version from command or fallback to contract version.
      *
-     * @param array<string,mixed> $command
-     * @param array<string,mixed> $contract
+     * @param array $command
+     * @param array $contract
      * @return int
      */
     private function resolve_requested_version(array $command, array $contract): int {

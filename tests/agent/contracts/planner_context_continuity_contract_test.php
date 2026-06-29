@@ -101,7 +101,7 @@ final class planner_context_continuity_contract_test extends TestCase {
      *
      * @param agent_runtime $runtime
      * @param string $method
-     * @param array<int,mixed> $args
+     * @param mixed[] $args
      * @return mixed
      */
     private function invoke_private_method(agent_runtime $runtime, string $method, array $args) {

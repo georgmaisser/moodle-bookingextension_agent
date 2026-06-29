@@ -55,7 +55,7 @@ interface benchmark_scenario_interface {
      * Previous conversation messages to inject (for follow-up scenarios).
      * Each element: ['role' => 'user'|'assistant', 'content' => '...']
      *
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function get_prior_messages(): array;
 
@@ -90,7 +90,7 @@ interface benchmark_scenario_interface {
      * Return array of ['label' => '...', 'passed' => bool, 'detail' => '...'].
      *
      * @param array $result Normalized selector result
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function assert_additional(array $result): array;
 }

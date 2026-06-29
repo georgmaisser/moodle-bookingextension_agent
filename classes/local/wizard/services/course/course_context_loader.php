@@ -41,7 +41,7 @@ class course_context_loader {
      *
      * @param \stdClass $course
      * @param int $foruserid the user whose visibility is applied (acting or target user)
-     * @return array<int,array<string,mixed>> rows: cmid, modname, name, sectionnum, sectionname, position, visible, uservisible
+     * @return array[] rows: cmid, modname, name, sectionnum, sectionname, position, visible, uservisible
      */
     public function build_inventory(\stdClass $course, int $foruserid): array {
         $modinfo = get_fast_modinfo($course, $foruserid);
@@ -69,11 +69,11 @@ class course_context_loader {
      * Deliberately conservative: only a single unambiguous match resolves. No ordinal/type guessing —
      * a non-unique reference returns 'unresolved' and the caller hands the inventory to the LLM.
      *
-     * @param array<int,array<string,mixed>> $inventory
+     * @param array[] $inventory
      * @param string $query free-text activity name (may be empty)
      * @param int $activityid resolved cmid when the LLM already picked one (takes precedence)
      * @param string $modnamefilter optional module-name filter (e.g. 'quiz'); '' = any
-     * @return array{status:string,row?:array<string,mixed>,candidates:array<int,array<string,mixed>>}
+     * @return array{status:string,row?:array,candidates:array[]}
      *         status: 'resolved' | 'unresolved' | 'none'
      */
     public function resolve_activity(
@@ -123,7 +123,7 @@ class course_context_loader {
     /**
      * Format an inventory (or candidate subset) as a compact, LLM-facing list — one line per activity.
      *
-     * @param array<int,array<string,mixed>> $rows
+     * @param array[] $rows
      * @return string
      */
     public function format_inventory(array $rows): string {
@@ -150,7 +150,7 @@ class course_context_loader {
      * of giving up — and never asks the user to perform a lookup the agent already did.
      *
      * @param string $reference the user's activity reference (e.g. "the second quiz")
-     * @param array<int,array<string,mixed>> $candidates
+     * @param array[] $candidates
      * @param string $skillname the skill to re-call with a resolved activityid
      * @return string
      */

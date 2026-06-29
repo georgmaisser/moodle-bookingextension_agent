@@ -49,7 +49,7 @@ class orchestrator_routing_service {
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
      *
-     * @return array<string,bool>
+     * @return array
      */
     public static function get_runtime_feature_flags_snapshot(): array {
         return runtime_feature_flags::snapshot();

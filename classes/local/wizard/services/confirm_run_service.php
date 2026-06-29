@@ -86,7 +86,7 @@ class confirm_run_service {
      * @param int $userid
      * @param string $queueitemid
      * @param bool $allowsession
-     * @return array<string,mixed>
+     * @return array
      */
     public function confirm(
         int $contextid,
@@ -482,7 +482,7 @@ class confirm_run_service {
      * @param int $userid
      * @param mixed $pendingintent
      * @param string $requestedqueueitemid
-     * @return array<string,mixed>
+     * @return array
      */
     private function resolve_run_target(
         queue_manager $queuesvc,
@@ -620,10 +620,11 @@ class confirm_run_service {
      * @param int $cmid
      * @param int $userid
      * @param string $message
-     * @param array<int,string> $issuecodes
-     * @param array<int,string> $errors
+     * @param string[] $issuecodes
+     * @param string[] $errors
      * @param string $queueitemid
-     * @return array<string,mixed>
+     * @param array $attemptbudget
+     * @return array
      */
     private function build_error_payload(
         int $threadid,
@@ -659,8 +660,10 @@ class confirm_run_service {
      * Build response preview fields from current result context.
      *
      * @param int $threadid
-     * @param array<int,mixed> $results
-     * @return array{previewjson:string}
+     * @param mixed[] $results
+     * @param int $contextid
+     * @param int $userid
+     * @return array
      */
     private function build_preview_response_fields(
         int $threadid,
@@ -678,6 +681,8 @@ class confirm_run_service {
      *
      * @param int $threadid
      * @param array $results
+     * @param int $contextid
+     * @param int $userid
      * @return string
      */
     private function resolve_and_accumulate_preview_json(
@@ -699,7 +704,7 @@ class confirm_run_service {
     /**
      * Deterministic signature of a mutating command (skill + normalized input).
      *
-     * @param array<string,mixed> $command
+     * @param array $command
      * @return string
      */
     private static function command_signature(array $command): string {
@@ -715,7 +720,7 @@ class confirm_run_service {
      * Record a non-retryable command failure so an identical re-issue can be short-circuited.
      *
      * @param int $threadid
-     * @param array<string,mixed> $command
+     * @param array $command
      * @param string $detail Human-readable failure detail (shown to the user on repeat).
      * @return void
      */
@@ -739,7 +744,7 @@ class confirm_run_service {
      * or null when it has not.
      *
      * @param int $threadid
-     * @param array<string,mixed> $command
+     * @param array $command
      * @return string|null
      */
     private function get_failed_command_detail(int $threadid, array $command): ?string {
@@ -777,7 +782,7 @@ class confirm_run_service {
      * Normalize list-like value into non-empty string list.
      *
      * @param mixed $value
-     * @return array<int,string>
+     * @return string[]
      */
     private function normalize_string_list($value): array {
         if (!is_array($value)) {
@@ -802,8 +807,8 @@ class confirm_run_service {
      * @param int $threadid
      * @param string $queueitemid
      * @param string $errorclass
-     * @param array<int,string> $issuecodes
-     * @return array{queue_status:string,issue_codes:array<int,string>,meta:array<string,int>}
+     * @param string[] $issuecodes
+     * @return array{queue_status:string,issue_codes:string[],meta:array}
      */
     private function build_retry_decision(
         queue_manager $queuesvc,
@@ -900,7 +905,7 @@ class confirm_run_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $excludequeueitemid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function find_next_mutating_queue_item(
         queue_manager $queuesvc,
@@ -926,7 +931,7 @@ class confirm_run_service {
      * Extract attempted skill names from commands.
      *
      * @param array $commands
-     * @return array<int,string>
+     * @return string[]
      */
     private function extract_attempted_skills_from_commands(array $commands): array {
         $skills = [];
@@ -949,7 +954,7 @@ class confirm_run_service {
      *
      * @param queue_manager $queuesvc
      * @param int $threadid
-     * @param array<string,mixed> $pendingintent
+     * @param array $pendingintent
      * @param string $requestedqueueitemid
      * @return string
      */
@@ -989,7 +994,7 @@ class confirm_run_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $activequeueitemid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function resolve_commands_for_run(
         queue_manager $queuesvc,
@@ -1055,7 +1060,7 @@ class confirm_run_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function get_active_mutating_queue_item(
         queue_manager $queuesvc,

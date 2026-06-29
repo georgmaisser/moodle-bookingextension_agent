@@ -65,7 +65,7 @@ final class docs_embeddings_readiness_coverage_test extends advanced_testcase {
      * Build a minimal valid index row.
      *
      * @param string $corpusid
-     * @return array<string,string>
+     * @return array
      */
     private function row(string $corpusid): array {
         return [

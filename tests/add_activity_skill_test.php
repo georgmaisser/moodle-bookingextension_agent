@@ -211,8 +211,8 @@ final class add_activity_skill_test extends advanced_testcase {
     /**
      * Create a course with an enrolled editing teacher.
      *
-     * @param array<string,mixed> $courseopts
-     * @return array{0:\stdClass,1:\stdClass}
+     * @param array $courseopts
+     * @return array
      */
     private function course_with_teacher(array $courseopts = []): array {
         $course = $this->getDataGenerator()->create_course($courseopts + ['format' => 'topics']);

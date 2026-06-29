@@ -84,8 +84,8 @@ class synchronizer_prompt_builder {
      * (now_iso, execution ledgers) so volatile content never busts the shared prefix.
      *
      * @param string $systemprompt
-     * @param array<int,\stdClass> $messages
-     * @param array<int,string> $observations
+     * @param \stdClass[] $messages
+     * @param string[] $observations
      * @param string $runtimecontext Per-thread-stable runtime facts.
      * @param string $runtimestate Per-request volatile runtime state.
      * @return string

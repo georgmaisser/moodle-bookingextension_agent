@@ -34,10 +34,10 @@ class family_embeddings_retrieval_service {
     /**
      * Compute family semantic scores from skill-catalog rows.
      *
-     * @param array<int,string> $families
-     * @param array<int,float|int> $queryvector
-     * @param array<int,array<string,string>> $catalogrows
-     * @return array<string,float>
+     * @param string[] $families
+     * @param array $queryvector
+     * @param array[] $catalogrows
+     * @return array
      */
     public function score_families(array $families, array $queryvector, array $catalogrows): array {
         $requested = [];
@@ -87,11 +87,11 @@ class family_embeddings_retrieval_service {
     /**
      * Boost skill rows with family scores and re-sort them deterministically.
      *
-     * @param array<int,array<string,mixed>> $toprows
-     * @param array<string,float> $familyscores
+     * @param array[] $toprows
+     * @param array $familyscores
      * @param float $skillweight
      * @param float $familyweight
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function boost_skill_rows(
         array $toprows,

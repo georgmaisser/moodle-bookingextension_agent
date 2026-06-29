@@ -89,7 +89,7 @@ class question_bank_target_resolver {
      *
      * @param context $ambient The context the agent is running in.
      * @param int     $userid  The acting user.
-     * @return array<int,array{categoryid:int,categoryname:string,questioncount:int,bankcmid:int,bankname:string,bankcontextid:int}>
+     * @return array[]
      */
     public function list_writable_targets(context $ambient, int $userid): array {
         global $DB;

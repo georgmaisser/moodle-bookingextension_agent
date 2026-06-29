@@ -30,10 +30,10 @@ class planner_result_composer {
      * Phase trace is restricted to selection + parameter_construction.
      * Discovery context remains available via planner_trace_history only.
      *
-     * @param array<string,mixed> $discoverystate
-     * @param array<string,mixed> $selectionstate
-     * @param array<string,mixed> $constructionstate
-     * @return array<string,mixed>
+     * @param array $discoverystate
+     * @param array $selectionstate
+     * @param array $constructionstate
+     * @return array
      */
     public function compose(array $discoverystate, array $selectionstate, array $constructionstate): array {
         $phasetrace = [
@@ -60,8 +60,8 @@ class planner_result_composer {
     /**
      * Reduce a phase state to a stable trace snapshot.
      *
-     * @param array<string,mixed> $state
-     * @return array<string,mixed>
+     * @param array $state
+     * @return array
      */
     private function build_phase_snapshot(array $state): array {
         return [

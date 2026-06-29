@@ -45,7 +45,7 @@ class section_resolver_service {
      * Return the course's existing sections with clear, human-readable names.
      *
      * @param stdClass $course
-     * @return array<int,array{sectionnum:int,name:string}> Ordered by section number.
+     * @return array[] Ordered by section number.
      */
     public function list_sections(stdClass $course): array {
         $modinfo = get_fast_modinfo($course);
@@ -72,7 +72,7 @@ class section_resolver_service {
      *
      * @param stdClass $course
      * @param string $query
-     * @return int|array<int,array{sectionnum:int,name:string}>|null
+     * @return int|array[]|null
      */
     public function resolve_placement(stdClass $course, string $query) {
         $needle = \core_text::strtolower(trim($query));

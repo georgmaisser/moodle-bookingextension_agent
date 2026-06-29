@@ -32,7 +32,7 @@ use bookingextension_agent\local\wizard\interfaces\summarizer\result_summary_con
  * Summarizes result payloads containing one structured object.
  */
 class single_object_result_summary_contributor implements result_summary_contributor_interface {
-    /** @var array<int,string> Candidate payload keys for singular object summaries. */
+    /** @var string[] Candidate payload keys for singular object summaries. */
     private const OBJECT_KEYS = ['site', 'entity', 'group', 'module', 'event', 'course', 'user'];
 
     /**

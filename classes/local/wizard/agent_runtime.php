@@ -71,7 +71,7 @@ class agent_runtime {
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
      *
-     * @return array<string,bool>
+     * @return array
      */
     public static function get_runtime_feature_flags_snapshot(): array {
         return runtime_feature_flags::snapshot();
@@ -515,7 +515,7 @@ class agent_runtime {
      * Resolve retry-eligible planner contract issue code for loop-level framework retry hints.
      *
      * @param array $result
-     * @param array<string,int> $retrycounts
+     * @param array $retrycounts
      * @return string|null
      */
     private function resolve_framework_retry_issue_code(array $result, array $retrycounts): ?string {
@@ -553,7 +553,7 @@ class agent_runtime {
      * Resolve retryable planner contract issue code that already exhausted loop retry budget.
      *
      * @param array $result
-     * @param array<string,int> $retrycounts
+     * @param array $retrycounts
      * @return string|null
      */
     private function resolve_exhausted_framework_retry_issue_code(array $result, array $retrycounts): ?string {
@@ -666,7 +666,7 @@ class agent_runtime {
      * keys are additionally protected inside the anonymizer itself.
      *
      * @param int $threadid
-     * @param array<int,mixed> $results result entries that produced the observation
+     * @param mixed[] $results result entries that produced the observation
      * @param string $observation
      * @return string
      */
@@ -1005,7 +1005,7 @@ class agent_runtime {
      * Persist phase trace snapshots per loop step for runtime telemetry.
      *
      * @param int $threadid
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return void
      */
     private function persist_phase_trace_for_loop_step(int $threadid, array $result): void {

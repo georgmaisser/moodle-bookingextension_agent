@@ -172,7 +172,7 @@ class explain_docs_skill extends core_skill_base implements
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -184,7 +184,7 @@ class explain_docs_skill extends core_skill_base implements
     /**
      * Return message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -204,7 +204,7 @@ class explain_docs_skill extends core_skill_base implements
     /**
      * Return contextual guidance packs for the planner.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -237,7 +237,7 @@ class explain_docs_skill extends core_skill_base implements
      * Structural validation — checks that question is present.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -408,12 +408,12 @@ class explain_docs_skill extends core_skill_base implements
     /**
      * Build a structured result payload from a doc read result.
      *
-     * @param array<string,mixed> $doc
+     * @param array $doc
      * @param docs_lookup_service $svc
      * @param string              $outputlang
      * @param string              $question
      * @param string              $debugsuffix
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_doc_result(
         array $doc,
@@ -569,7 +569,7 @@ class explain_docs_skill extends core_skill_base implements
      *
      * @param string $message
      * @param array  $input
-     * @return array<string,mixed>
+     * @return array
      */
     private function error_result(string $message, array $input): array {
         return [

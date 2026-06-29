@@ -251,7 +251,7 @@ class trial_provisioner {
      *
      * @param string $chatendpoint
      * @param string $chatmodel
-     * @return array<string, array<string, mixed>>
+     * @return array
      */
     private function build_cloned_actionconfig(string $chatendpoint, string $chatmodel): array {
         $chat = $chatendpoint;
@@ -489,7 +489,7 @@ class trial_provisioner {
      *
      * @param string $strategy 'wunderbyte' | 'openai'
      * @param string $endpoint LiteLLM base URL (no trailing slash expected, but tolerated)
-     * @return array<string, array<string, mixed>>
+     * @return array
      */
     private function build_actionconfig(string $strategy, string $endpoint): array {
         $base = rtrim($endpoint, '/');

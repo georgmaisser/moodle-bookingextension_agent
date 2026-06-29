@@ -50,7 +50,7 @@ class skill_family_contract {
     /**
      * Resolve and normalize family from prompt contract payload.
      *
-     * @param array<string,mixed> $promptcontract
+     * @param array $promptcontract
      * @param string $skillname
      * @return string
      */

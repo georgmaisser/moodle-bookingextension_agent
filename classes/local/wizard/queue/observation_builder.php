@@ -33,7 +33,7 @@ class observation_builder {
     /**
      * Build a compact observation summary from executed queue items.
      *
-     * @param array<int,array<string,mixed>> $queueitems
+     * @param array[] $queueitems
      * @return string
      */
     public function build_observation(array $queueitems): string {

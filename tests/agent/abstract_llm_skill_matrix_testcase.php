@@ -63,7 +63,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Shared skill matrix for real and future simulated LLM suites.
      *
-     * @return array<string,array{0:array<string,mixed>}>
+     * @return array
      */
     public static function skill_matrix_scenarios(): array {
         return llm_skill_matrix_scenario_provider::provide_registered_skill_scenarios();
@@ -72,7 +72,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Execute one matrix scenario and assert the skill completed successfully.
      *
-     * @param array<string,mixed> $scenario
+     * @param array $scenario
      * @return void
      */
     protected function assert_llm_skill_scenario_success(array $scenario): void {
@@ -354,8 +354,8 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Prepare runtime, thread and placeholder replacements for a scenario.
      *
-     * @param array<string,mixed> $scenario
-     * @return array{store:conversation_store,runtime:agent_runtime,threadid:int,replacements:array<string,string>}
+     * @param array $scenario
+     * @return array
      */
     protected function prepare_scenario_runtime(array $scenario): array {
         $prepared = [
@@ -399,7 +399,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Build common dynamic replacements used by prompts.
      *
-     * @return array<string,string>
+     * @return array
      */
     protected function default_scenario_replacements(): array {
         return [
@@ -424,7 +424,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Seed a same-thread memory snippet for wizard.recall_memory.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_recall_memory_scenario(): array {
         $token = 'matrix-memory-' . substr(sha1(uniqid('', true)), 0, 8);
@@ -465,7 +465,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
      * Distinct from prepare_recall_memory_scenario, which seeds past CONVERSATION
      * content — user memories are explicit stored facts, global per user.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_user_memory_scenario(): array {
         $token = 'matrix-fact-' . substr(sha1(uniqid('', true)), 0, 8);
@@ -484,7 +484,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Grant the native question-bank capability question.generate_questions checks in Gate 2.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_generate_questions_scenario(): array {
         $this->grant_optional_capability_to_editingteacher('moodle/question:add');
@@ -495,7 +495,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Provide deterministic placeholders for entities scenarios.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_entity_scenario(): array {
         $entityname = 'Matrix Entity ' . substr(sha1(uniqid('', true)), 0, 8);
@@ -533,7 +533,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Seed one existing booking option and expose its id for update-skill scenarios.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_update_option_scenario(): array {
         $optionname = 'Matrix Update Target ' . substr(sha1(uniqid('', true)), 0, 8);
@@ -574,7 +574,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Seed one standard course activity (page) and expose its name for update/diagnose scenarios.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_course_activity_scenario(): array {
         $activityname = 'Matrix Activity ' . substr(sha1(uniqid('', true)), 0, 8);
@@ -593,7 +593,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Seed one quiz activity and expose its name for the update-quiz scenario.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_course_quiz_scenario(): array {
         $quizname = 'Matrix Quiz ' . substr(sha1(uniqid('', true)), 0, 8);
@@ -612,7 +612,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Assert scenarios depending on booking rules service are executable.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_booking_rules_service_scenario(): array {
         $candidates = [
@@ -640,7 +640,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Seed a deterministic booking rule for update-rule scenarios.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prepare_booking_rule_update_scenario(): array {
         $serviceclass = '';
@@ -706,10 +706,10 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Evaluate the scenario-specific assertion contract.
      *
-     * @param array<string,mixed> $scenario
-     * @param array<string,string> $replacements
-     * @param array<string,mixed> $chatresult
-     * @param array<string,mixed> $finalresult
+     * @param array $scenario
+     * @param array $replacements
+     * @param array $chatresult
+     * @param array $finalresult
      * @param int $threadid
      * @return void
      */
@@ -818,7 +818,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Resolve a dotted field path from a payload.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @param string $field
      * @return mixed
      */
@@ -852,7 +852,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Count a resolved payload field when possible.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @param string $field
      * @return int
      */
@@ -872,7 +872,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Determine the best available step count from a response payload.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return int
      */
     protected function payload_step_count(array $payload): int {
@@ -944,7 +944,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
      * Render a placeholder-bearing assertion value.
      *
      * @param string $value
-     * @param array<string,string> $replacements
+     * @param array $replacements
      * @return string
      */
     protected function render_assertion_value(string $value, array $replacements): string {
@@ -969,9 +969,9 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Normalize a response payload to the concrete skill result when it is wrapped in an execution response.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @param string $skillname
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     protected function resolve_skill_result_payload(array $payload, string $skillname): ?array {
         $direct = $this->extract_skill_result($payload, $skillname);
@@ -1057,7 +1057,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
      * Render {{placeholder}} tokens inside scenario prompts.
      *
      * @param string $template
-     * @param array<string,string> $replacements
+     * @param array $replacements
      * @return string
      */
     protected function render_scenario_template(string $template, array $replacements): string {
@@ -1113,7 +1113,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Check whether the first loop turn contains a tool call for the expected skill.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @param string $skillname
      * @return bool
      */
@@ -1162,9 +1162,9 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
     /**
      * Find the first result entry for a skill in the final payload.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @param string $skillname
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     protected function find_skill_result_entry(array $payload, string $skillname): ?array {
         foreach ((array)($payload['results'] ?? []) as $entry) {
@@ -1220,7 +1220,7 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
      * Return skill-name candidates for legacy alias/canonical mappings.
      *
      * @param string $skillname
-     * @return array<int,string>
+     * @return string[]
      */
     protected function skill_result_candidate_names(string $skillname): array {
         $candidates = [$skillname];

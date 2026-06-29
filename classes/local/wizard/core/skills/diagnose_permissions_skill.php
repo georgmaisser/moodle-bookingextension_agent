@@ -144,7 +144,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['userquery' => 'Maria Jones', 'capability' => 'mod/booking:addoption'];
@@ -153,7 +153,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     /**
      * Discovery triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -175,7 +175,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -203,7 +203,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
@@ -274,7 +274,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      * @param string $capability
      * @param diagnostic_link_builder $links
      * @param int $actinguserid
-     * @return array<string,mixed>
+     * @return array
      */
     private function diagnose_capability(
         context $targetcontext,
@@ -356,7 +356,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      * @param bool $isself
      * @param diagnostic_link_builder $links
      * @param int $actinguserid
-     * @return array<string,mixed>
+     * @return array
      */
     private function diagnose_roles(
         context $targetcontext,
@@ -406,8 +406,8 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      * Suggest capability names closest to an unknown one.
      *
      * @param string $query
-     * @param array<int,string> $allnames
-     * @return array<int,string>
+     * @param string[] $allnames
+     * @return string[]
      */
     private function suggest_capabilities(string $query, array $allnames): array {
         $needle = \core_text::strtolower($query);
@@ -454,10 +454,10 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      * @param context $targetcontext
      * @param \stdClass $targetuser
      * @param bool $isself
-     * @param array<int,array<string,mixed>> $rows
+     * @param array[] $rows
      * @param string $titleprefix
      * @param string $mode
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_result(
         context $targetcontext,
@@ -529,7 +529,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
      *
      * @param string $message
      * @param string $errorclass
-     * @return array<string,mixed>
+     * @return array
      */
     private function error_result(string $message, string $errorclass): array {
         return diagnostic_result_builder::error_result($message, $errorclass, 'Permissions diagnosis could not run: ');

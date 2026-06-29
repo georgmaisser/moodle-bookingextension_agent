@@ -51,7 +51,7 @@ class embeddings_readiness_service {
      * @param skill_registry $registry
      * @param string $model
      * @param int $dimensions
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_catalog_status(skill_registry $registry, string $model, int $dimensions): array {
         // Variant-scoped store: only the active model's file is consulted, so a model switch never
@@ -133,7 +133,7 @@ class embeddings_readiness_service {
     /**
      * Stable per-anchor identity key (skill + anchor_index) for multi-vector readiness comparison.
      *
-     * @param array<string,mixed> $row
+     * @param array $row
      * @return string
      */
     private function anchor_key(array $row): string {
@@ -147,7 +147,7 @@ class embeddings_readiness_service {
     /**
      * Queue embeddings rebuild task when status is not ready.
      *
-     * @param array<string,mixed> $status
+     * @param array $status
      * @param string $model
      * @param int $dimensions
      * @param int $debounceseconds

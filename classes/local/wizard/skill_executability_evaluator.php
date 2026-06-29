@@ -56,7 +56,7 @@ class skill_executability_evaluator {
      * @param string $skillname
      * @param int $userid
      * @param int $contextid
-     * @return array<string,mixed>
+     * @return array
      */
     public function evaluate_skill(string $skillname, int $userid, int $contextid): array {
         $skillname = trim($skillname);
@@ -122,7 +122,7 @@ class skill_executability_evaluator {
      *
      * @param int $userid
      * @param int $contextid
-     * @return array<string,array<string,mixed>>
+     * @return array
      */
     public function evaluate_all_skills(int $userid, int $contextid): array {
         $results = [];
@@ -140,7 +140,7 @@ class skill_executability_evaluator {
      *
      * @param int $userid
      * @param int $contextid
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_executable_skill_names(int $userid, int $contextid): array {
         $skillnames = [];
@@ -159,8 +159,8 @@ class skill_executability_evaluator {
      *
      * @param string $skillname
      * @param string $reason
-     * @param array<string,mixed> $diagnostics
-     * @return array<string,mixed>
+     * @param array $diagnostics
+     * @return array
      */
     private function deny_result(string $skillname, string $reason, array $diagnostics = []): array {
         return [

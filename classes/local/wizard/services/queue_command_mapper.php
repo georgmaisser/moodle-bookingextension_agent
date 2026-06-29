@@ -35,9 +35,9 @@ class queue_command_mapper {
     /**
      * Build a normalized runtime command from a queue item.
      *
-     * @param array<string,mixed> $item
+     * @param array $item
      * @param bool $includeexecutionmetadata
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public static function from_queue_item(array $item, bool $includeexecutionmetadata = false): ?array {
         $skill = trim((string)($item['skill'] ?? ''));
@@ -80,9 +80,9 @@ class queue_command_mapper {
     /**
      * Build normalized runtime commands from queue items.
      *
-     * @param array<int,array<string,mixed>> $items
+     * @param array[] $items
      * @param bool $includeexecutionmetadata
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public static function from_queue_items(array $items, bool $includeexecutionmetadata = false): array {
         $commands = [];

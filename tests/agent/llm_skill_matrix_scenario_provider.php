@@ -36,14 +36,14 @@ final class llm_skill_matrix_scenario_provider {
      * bookingextension/oneclick or local/entities) are intentionally out of scope: they must not
      * produce smoke failures here, only our own mod/booking + agent skills do.
      *
-     * @var array<int,string>
+     * @var string[]
      */
     private const SMOKE_OWNED_COMPONENTS = ['mod/booking', 'bookingextension/agent'];
 
     /**
      * Build provider rows for the registered skills owned by mod/booking + the agent.
      *
-     * @return array<string,array{0:array<string,mixed>}>
+     * @return array
      */
     public static function provide_registered_skill_scenarios(): array {
         $definitions = self::get_scenario_definitions();
@@ -71,7 +71,7 @@ final class llm_skill_matrix_scenario_provider {
     /**
      * Return owned (mod/booking + agent) skill names that still have no explicit scenario definition.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public static function get_missing_registered_skill_scenarios(): array {
         $definitions = self::get_scenario_definitions();
@@ -94,7 +94,7 @@ final class llm_skill_matrix_scenario_provider {
     /**
      * Whether a skill contract belongs to a component the smoke matrix covers.
      *
-     * @param array<string,mixed> $contract registry skill contract metadata
+     * @param array $contract registry skill contract metadata
      * @return bool
      */
     private static function is_owned_smoke_skill(array $contract): bool {
@@ -104,7 +104,7 @@ final class llm_skill_matrix_scenario_provider {
     /**
      * Return the explicit scenario definitions keyed by skill name.
      *
-     * @return array<string,array<string,mixed>>
+     * @return array
      */
     private static function get_scenario_definitions(): array {
         return [

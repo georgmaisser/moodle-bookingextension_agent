@@ -32,7 +32,7 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
     /**
      * Build a course with a teacher, a student and two quizzes + a page.
      *
-     * @return array{0:\stdClass,1:\stdClass,2:\stdClass}
+     * @return array
      */
     private function build_course(): array {
         global $CFG;
@@ -155,7 +155,7 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
     /**
      * Aspect headers.
      *
-     * @return array<string,array{0:string,1:string}>
+     * @return array
      */
     public static function aspect_provider(): array {
         return [

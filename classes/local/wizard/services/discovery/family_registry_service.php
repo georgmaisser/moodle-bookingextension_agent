@@ -44,8 +44,8 @@ class family_registry_service {
     /**
      * Discover family candidates for the current context.
      *
-     * @param array<int,array<string,mixed>> $promptcontracts
-     * @param array<string,mixed> $contextprior
+     * @param array[] $promptcontracts
+     * @param array $contextprior
      * @return discovery_result
      */
     public function discover(array $promptcontracts, array $contextprior = []): discovery_result {

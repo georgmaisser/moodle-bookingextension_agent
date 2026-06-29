@@ -53,6 +53,7 @@ class llm_debug_logger {
      * @param string $responsetext
      * @param bool $success
      * @param string $errormessage
+     * @param bool $forcelog
      * @return void
      */
     public static function log_exchange(

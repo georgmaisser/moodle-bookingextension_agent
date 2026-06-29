@@ -41,6 +41,7 @@ final class user_memory_injection_test extends advanced_testcase {
      * @param int $threadid
      * @param int $contextid
      * @param string $phase
+     * @param string $channel
      * @return string
      */
     private function build_block(

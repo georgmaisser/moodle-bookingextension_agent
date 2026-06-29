@@ -59,9 +59,9 @@ class discovery_budget_policy {
     /**
      * Apply stage-specific hard budget to ranked family rows.
      *
-     * @param array<int,array<string,mixed>> $rankedfamilies
+     * @param array[] $rankedfamilies
      * @param string $stage
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function apply_budget(array $rankedfamilies, string $stage): array {
         return array_slice($rankedfamilies, 0, $this->get_stage_budget($stage));

@@ -124,7 +124,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -136,7 +136,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -157,7 +157,7 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];

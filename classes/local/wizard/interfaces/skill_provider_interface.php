@@ -41,7 +41,7 @@ interface skill_provider_interface {
     /**
      * Return optional contextual prompt packs.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array;
 
@@ -61,7 +61,7 @@ interface skill_provider_interface {
      * Allows plugins to customize the AI agent's behavior and reasoning within this domain.
      * Return empty array if not provided.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_prompt_guidance(): array;
 }

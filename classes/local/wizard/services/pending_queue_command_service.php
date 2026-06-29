@@ -43,9 +43,9 @@ class pending_queue_command_service {
     /**
      * Build mutating command payloads from queue item ids in a pending intent.
      *
-     * @param array<string,mixed> $pendingintent
+     * @param array $pendingintent
      * @param int $threadid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function build_mutating_commands_from_pending_intent(array $pendingintent, int $threadid): array {
         $queueitemids = $this->normalize_queue_item_ids($pendingintent['queue_item_ids'] ?? []);
@@ -75,7 +75,7 @@ class pending_queue_command_service {
      * Normalize queue item ids into non-empty string list.
      *
      * @param mixed $queueitemids
-     * @return array<int,string>
+     * @return string[]
      */
     private function normalize_queue_item_ids($queueitemids): array {
         if (!is_array($queueitemids)) {

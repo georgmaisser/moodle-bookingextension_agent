@@ -42,10 +42,10 @@ class embeddings_retrieval_service {
     /**
      * Search top-k skill rows by cosine similarity.
      *
-     * @param array<int,float|int> $queryvector
-     * @param array<int,array<string,string>> $catalogrows
+     * @param array $queryvector
+     * @param array[] $catalogrows
      * @param int $k
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function search_top_k(array $queryvector, array $catalogrows, int $k = 5): array {
         if ($k < 1 || empty($queryvector) || empty($catalogrows)) {
@@ -91,10 +91,10 @@ class embeddings_retrieval_service {
      * crowd the top-k and starve other skills. The returned shape matches search_top_k() (one row per
      * result, tagged with a 'score' string), so build_planner_catalog_subset() consumes it unchanged.
      *
-     * @param array<int,float|int> $queryvector
-     * @param array<int,array<string,string>> $anchorrows
+     * @param array $queryvector
+     * @param array[] $anchorrows
      * @param int $k Number of distinct skills to return.
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function search_top_k_skills(array $queryvector, array $anchorrows, int $k = 12): array {
         if ($k < 1 || empty($queryvector) || empty($anchorrows)) {
@@ -154,10 +154,10 @@ class embeddings_retrieval_service {
      * the catalog is consumed one row at a time and the heavy embedding vector is dropped once scored,
      * so peak memory is O(k) instead of O(catalog). Use for large stores (e.g. the docs index).
      *
-     * @param array<int,float|int> $queryvector
-     * @param iterable<array<string,string>> $rows
+     * @param array $queryvector
+     * @param iterable $rows
      * @param int $k
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function search_top_k_streaming(array $queryvector, iterable $rows, int $k = 5): array {
         if ($k < 1 || empty($queryvector)) {
@@ -213,9 +213,9 @@ class embeddings_retrieval_service {
     /**
      * Build planner-skill contracts from retrieved CSV rows.
      *
-     * @param array<int,array<string,string>> $toprows
-     * @param array<int,array<string,mixed>> $livecontracts
-     * @return array<int,array<string,mixed>>
+     * @param array[] $toprows
+     * @param array[] $livecontracts
+     * @return array[]
      */
     public function build_planner_catalog_subset(array $toprows, array $livecontracts = []): array {
         $subset = [];
@@ -275,8 +275,8 @@ class embeddings_retrieval_service {
     /**
      * Build a skill-name keyed lookup of live prompt contracts.
      *
-     * @param array<int,array<string,mixed>> $livecontracts
-     * @return array<string,array<string,mixed>>
+     * @param array[] $livecontracts
+     * @return array
      */
     private function build_live_contract_lookup(array $livecontracts): array {
         $contractsbyskill = [];
@@ -331,8 +331,8 @@ class embeddings_retrieval_service {
     /**
      * Build compact schema properties for planner prompts.
      *
-     * @param array<string,mixed> $properties
-     * @return array<string,array<string,mixed>>
+     * @param array $properties
+     * @return array
      */
     private function compact_properties_for_planner(array $properties): array {
         $compact = [];

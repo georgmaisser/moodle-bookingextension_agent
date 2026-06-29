@@ -41,8 +41,8 @@ class benchmark_metrics_calculator {
     /**
      * Calculate all metrics from a set of scenario result arrays.
      *
-     * @param array<int,array<string,mixed>> $scenarios
-     * @return array<int,array<string,mixed>> Metric records ready for benchmark_db_writer.
+     * @param array[] $scenarios
+     * @return array[] Metric records ready for benchmark_db_writer.
      */
     public function calculate(array $scenarios): array {
         if (empty($scenarios)) {
@@ -194,7 +194,7 @@ class benchmark_metrics_calculator {
      *
      * @param array $current  Current run metrics (metric_key => metric_value).
      * @param array $baseline Baseline metrics (metric_key => metric_value).
-     * @return array<string,array<string,mixed>> Keyed by metric_key, with delta, regressed, threshold.
+     * @return array Keyed by metric_key, with delta, regressed, threshold.
      */
     public function compare(array $current, array $baseline): array {
         $result = [];
@@ -231,7 +231,7 @@ class benchmark_metrics_calculator {
     /**
      * Return critical thresholds, overridden by Moodle admin config when available.
      *
-     * @return array<string,float>
+     * @return array
      */
     public function get_thresholds(): array {
         $thresholds = self::CRITICAL_THRESHOLDS;

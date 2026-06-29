@@ -43,7 +43,7 @@ final class access_aspect_diagnoser {
      * @param int $actinguserid
      * @param array $input
      * @param diagnostic_link_builder $links
-     * @return array{rows:array<int,array<string,mixed>>,error:?array{message:string,error_class:string}}
+     * @return array{rows:array[],error:?array{message:string,error_class:string}}
      */
     public function diagnose(
         \stdClass $course,
@@ -148,7 +148,7 @@ final class access_aspect_diagnoser {
      * @param \course_modinfo $modinfo
      * @param string $activityquery
      * @param diagnostic_link_builder $links
-     * @return array<string,mixed>
+     * @return array
      */
     private function activity_visibility_row(
         \course_modinfo $modinfo,
@@ -199,7 +199,7 @@ final class access_aspect_diagnoser {
      * Build the course-wide activity-visibility overview row.
      *
      * @param \course_modinfo $modinfo
-     * @return array<string,mixed>
+     * @return array
      */
     private function activity_overview_row(\course_modinfo $modinfo): array {
         $total = 0;
@@ -234,7 +234,7 @@ final class access_aspect_diagnoser {
      * @param int $courseid
      * @param int $targetuserid
      * @param diagnostic_link_builder $links
-     * @return array<string,mixed>
+     * @return array
      */
     private function group_row(\stdClass $course, int $courseid, int $targetuserid, diagnostic_link_builder $links): array {
         $groupmode = (int)groups_get_course_groupmode($course);

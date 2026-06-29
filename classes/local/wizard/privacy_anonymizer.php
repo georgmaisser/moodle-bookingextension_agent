@@ -43,7 +43,7 @@ class privacy_anonymizer {
     private const TOKEN_MAP_METADATA_KEY = 'privacy_anon_map';
     /** @var string Cache key for user-linked name matching index. */
     private const NAME_MATCH_INDEX_CACHE_KEY = 'user_name_match_index_v1';
-    /** @var array<int,string> Common words that must never be treated as person names. */
+    /** @var string[] Common words that must never be treated as person names. */
     private const NAME_STOPWORDS = [
         'von', 'bei', 'mit', 'und', 'oder', 'der', 'die', 'das', 'dem', 'den', 'des',
         'ein', 'eine', 'einer', 'einem', 'einen', 'ich', 'du', 'er', 'sie', 'wir', 'ihr',
@@ -53,11 +53,11 @@ class privacy_anonymizer {
         // Generic nouns frequently found in result summaries must never be treated as names.
         'user', 'users', 'benutzer', 'teilnehmer', 'teilnehmende',
     ];
-    /** @var array<int,string> Fields that should always resolve to original literal text for SQL updates. */
+    /** @var string[] Fields that should always resolve to original literal text for SQL updates. */
     private const SQL_TEXT_FIELDS = ['text', 'description', 'optionquery'];
-    /** @var array<int,string> Fields that represent user references and should prefer shorter observed variants. */
+    /** @var string[] Fields that represent user references and should prefer shorter observed variants. */
     private const USER_REFERENCE_FIELDS = ['userquery', 'teacherquery', 'targetuserquery'];
-    /** @var array<int,string> Structured person fields that must be anonymized independently. */
+    /** @var string[] Structured person fields that must be anonymized independently. */
     private const PERSON_IDENTITY_FIELDS = ['firstname', 'lastname', 'email'];
 
     /**
@@ -78,7 +78,7 @@ class privacy_anonymizer {
     /** @var conversation_store */
     private conversation_store $store;
 
-    /** @var array<int,string>|null Lazily-built union of built-in stop words and admin-configured protected words. */
+    /** @var string[]|null Lazily-built union of built-in stop words and admin-configured protected words. */
     private ?array $protectedwords = null;
 
     /**
@@ -98,7 +98,7 @@ class privacy_anonymizer {
      * words from being anonymized when a real account happens to use them as a name (e.g. a user
      * literally called "admin user"). Comparison is case-insensitive against normalized names.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     private function get_protected_words(): array {
         if ($this->protectedwords !== null) {
@@ -420,7 +420,7 @@ class privacy_anonymizer {
      * Recursively rewrite source-thread tokens to target-thread tokens in a string or nested array.
      *
      * @param mixed $value
-     * @param array<string,mixed> $sourceentries entries of the source thread's token map
+     * @param array $sourceentries entries of the source thread's token map
      * @param array $targetmap target thread token map (mutated in place via get_or_create_token)
      * @param bool $touched set true when at least one token was re-anchored
      * @return mixed
@@ -502,9 +502,9 @@ class privacy_anonymizer {
      * Planner output can contain ANON_USER_<n> while the token map contains only
      * ANON_USER_<n>_firstname / _lastname / _email / _both variants.
      *
-     * @param array<string,mixed> $entries
+     * @param array $entries
      * @param string $token
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function resolve_token_entry(array $entries, string $token): ?array {
         $entry = $entries[$token] ?? null;
@@ -532,6 +532,7 @@ class privacy_anonymizer {
      *
      * @param mixed $value
      * @param array $tokenmap
+     * @param string $fieldkey
      * @return mixed
      */
     private function anonymize_value_recursive($value, array &$tokenmap, string $fieldkey = '') {
@@ -560,6 +561,7 @@ class privacy_anonymizer {
      *
      * @param string $message
      * @param array $tokenmap
+     * @param string $fieldkey
      * @return string
      */
     private function anonymize_string_for_llm(string $message, array &$tokenmap, string $fieldkey = ''): string {
@@ -589,7 +591,7 @@ class privacy_anonymizer {
     /**
      * Anonymize labeled user fields in text while preserving field semantics.
      *
-     * Example pattern: firstname=Max, lastname=Mustermann, email=max@example.com
+     * Example pattern: firstname=Max, lastname=Mustermann, email=max[at]example.com
      *
      * @param string $message
      * @param array $tokenmap
@@ -911,7 +913,7 @@ class privacy_anonymizer {
      * Find byte-offset spans of email addresses in message text.
      *
      * @param string $message
-     * @return array<int,array{start:int,end:int}>
+     * @return array[]
      */
     private function find_email_spans(string $message): array {
         $spans = [];
@@ -952,7 +954,7 @@ class privacy_anonymizer {
      * are replaced as a whole before name anonymization runs.
      *
      * @param string $message
-     * @return array<int,array{start:int,end:int}>
+     * @return array[]
      */
     private function find_code_token_spans(string $message): array {
         $spans = [];
@@ -991,7 +993,7 @@ class privacy_anonymizer {
      * Return true when offset belongs to a protected span (email or code token).
      *
      * @param int $offset
-     * @param array<int,array{start:int,end:int}> $spans
+     * @param array[] $spans
      * @return bool
      */
     private function offset_overlaps_protected_span(int $offset, array $spans): bool {
@@ -1156,9 +1158,11 @@ class privacy_anonymizer {
      * Return existing token for value or create a new token entry.
      *
      * @param array $map
+     * @param string $identitykey
      * @param string $type
      * @param string $value
      * @param string $original
+     * @param array $variants
      * @return string
      */
     private function get_or_create_token(

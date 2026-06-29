@@ -49,8 +49,8 @@ class module_form_contract {
      * @param int $sectionnum An EXISTING section number (resolved beforehand; never created here).
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
-     * @return array{ok:bool,errors:array<string,string>,built:bool}
+     * @param array $settings
+     * @return array{ok:bool,errors:array,built:bool}
      *         errors keyed by field name; built=false means the form could not be built headless.
      */
     public function validate(
@@ -89,7 +89,7 @@ class module_form_contract {
      * @param int $sectionnum An EXISTING section number.
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
+     * @param array $settings
      * @return stdClass The prepared moduleinfo (not yet persisted).
      */
     public function build_prepared_moduleinfo(
@@ -132,8 +132,8 @@ class module_form_contract {
      *
      * @param stdClass $course
      * @param stdClass $cm Course module record (get_coursemodule_from_id).
-     * @param array<string,mixed> $changes name/intro/visible/settings — only provided keys change.
-     * @return array{ok:bool,errors:array<string,string>,built:bool}
+     * @param array $changes name/intro/visible/settings — only provided keys change.
+     * @return array{ok:bool,errors:array,built:bool}
      */
     public function validate_update(stdClass $course, stdClass $cm, array $changes): array {
         $restoreglobals = $this->push_build_globals($course);
@@ -159,7 +159,7 @@ class module_form_contract {
      *
      * @param stdClass $course
      * @param stdClass $cm
-     * @param array<string,mixed> $changes
+     * @param array $changes
      * @return stdClass
      */
     public function build_prepared_update_moduleinfo(stdClass $course, stdClass $cm, array $changes): stdClass {
@@ -202,7 +202,7 @@ class module_form_contract {
      *
      * @param stdClass $course
      * @param stdClass $cm
-     * @param array<string,mixed> $changes
+     * @param array $changes
      * @return array{0:moodleform,1:stdClass}
      * @throws \Throwable When the form cannot be built headless.
      */
@@ -247,7 +247,7 @@ class module_form_contract {
      * @param \MoodleQuickForm $quickform
      * @param moodleform $mform
      * @param stdClass $data
-     * @return array<string,string>
+     * @return array
      */
     private function collect_form_errors(\MoodleQuickForm $quickform, moodleform $mform, stdClass $data): array {
         $exported = (array)$quickform->exportValues();
@@ -276,6 +276,7 @@ class module_form_contract {
      *
      * @param stdClass $moduleinfo
      * @param \MoodleQuickForm $quickform
+     * @param bool $skipeditors
      * @return void
      */
     private function merge_exported(stdClass $moduleinfo, \MoodleQuickForm $quickform, bool $skipeditors = true): void {
@@ -301,7 +302,7 @@ class module_form_contract {
      * @param int $sectionnum
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
+     * @param array $settings
      * @return array{0:moodleform,1:stdClass}
      * @throws \Throwable When the form cannot be built headless.
      */
@@ -370,7 +371,7 @@ class module_form_contract {
     /**
      * Restore the $PAGE/$COURSE globals saved by push_build_globals().
      *
-     * @param array{page:mixed,course:mixed} $state
+     * @param array $state
      * @return void
      */
     private function pop_build_globals(array $state): void {
@@ -386,7 +387,7 @@ class module_form_contract {
      * are overlaid on top by the caller.
      *
      * @param \MoodleQuickForm $quickform
-     * @return array<string,string>
+     * @return array
      */
     private function element_defaults(\MoodleQuickForm $quickform): array {
         $defaults = [];
@@ -405,8 +406,8 @@ class module_form_contract {
     /**
      * Coerce null scalar values to '' so core's raw trim()/json_decode() in validation() stay quiet.
      *
-     * @param array<string,mixed> $values
-     * @return array<string,mixed>
+     * @param array $values
+     * @return array
      */
     private function normalize_for_validation(array $values): array {
         foreach ($values as $key => $value) {
@@ -444,7 +445,7 @@ class module_form_contract {
      * @param string $modname
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
+     * @param array $settings
      * @return void
      */
     private function apply_inputs(stdClass $data, string $modname, string $name, string $intro, array $settings): void {

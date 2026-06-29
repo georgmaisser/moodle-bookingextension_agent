@@ -410,7 +410,7 @@ class result_payload_summarizer {
      * @param string $category
      * @param int $step
      * @param string $mode
-     * @return array<string,mixed>
+     * @return array
      */
     private static function build_summary_context(array $entry, string $category, int $step, string $mode): array {
         $skillname = trim((string)($entry['skill'] ?? ''));
@@ -435,7 +435,7 @@ class result_payload_summarizer {
      * Try skill-authored summary providers first.
      *
      * @param array $entry
-     * @param array<string,mixed> $context
+     * @param array $context
      * @return string
      */
     private static function summarize_with_skill_provider(array $entry, array $context): string {

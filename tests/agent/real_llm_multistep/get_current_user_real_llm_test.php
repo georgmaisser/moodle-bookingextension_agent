@@ -105,7 +105,7 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
     /**
      * Flatten payload content for assertion diagnostics.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return string
      */
     protected function payload_text(array $payload): string {
@@ -122,7 +122,7 @@ final class get_current_user_real_llm_test extends abstract_agent_testcase {
     /**
      * Check whether the LLM response references the expected skill.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @param string $skillname
      * @return bool
      */

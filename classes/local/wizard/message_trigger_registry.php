@@ -88,7 +88,7 @@ class message_trigger_registry {
     /**
      * Return all available message trigger definitions.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_available_triggers(): array {
         $all = self::CORE_TRIGGERS;

@@ -103,7 +103,7 @@ class attempt_budget_dto {
     /**
      * Build a budget DTO from queue item retry metadata.
      *
-     * @param array<string,mixed> $queueitem
+     * @param array $queueitem
      * @param int $hardlimit
      * @param string $exhaustedreason
      * @return self
@@ -126,7 +126,7 @@ class attempt_budget_dto {
     /**
      * Export to a stable array payload.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function to_array(): array {
         return [

@@ -45,19 +45,19 @@ namespace bookingextension_agent\local\wizard\services\lookup;
  * prune (B1) never deletes a declared-but-momentarily-unreadable corpus.
  */
 class docs_corpus_registry {
-    /** @var array<string,string>|null Per-instance resolved map (corpus_id => abs root). */
+    /** @var array|null Per-instance resolved map (corpus_id => abs root). */
     private ?array $corpora = null;
 
-    /** @var array{declared: string[], resolvable: array<string,string>, warnings: string[], notices: string[]}|null */
+    /** @var array{declared: string[], resolvable: array, warnings: string[], notices: string[]}|null */
     private ?array $parsed = null;
 
-    /** @var array<string,string>|null Test override (only honoured under PHPUNIT_TEST). */
+    /** @var array|null Test override (only honoured under PHPUNIT_TEST). */
     private static ?array $testcorpora = null;
 
     /**
      * Constructor.
      *
-     * @param array<string,string>|null $corpora Explicit corpus_id => absolute root map (bypasses
+     * @param array|null $corpora Explicit corpus_id => absolute root map (bypasses
      *                                           parsing; mainly for callers that already know the
      *                                           set). When null, the registry parses the setting.
      */
@@ -70,7 +70,7 @@ class docs_corpus_registry {
     /**
      * Return all resolvable corpora as corpus_id => absolute root.
      *
-     * @return array<string,string>
+     * @return array
      */
     public function list(): array {
         if ($this->corpora !== null) {
@@ -136,7 +136,7 @@ class docs_corpus_registry {
     /**
      * Parse the configured textarea once per instance.
      *
-     * @return array{declared: string[], resolvable: array<string,string>, warnings: string[], notices: string[]}
+     * @return array{declared: string[], resolvable: array, warnings: string[], notices: string[]}
      */
     private function parsed(): array {
         if ($this->parsed === null) {
@@ -149,8 +149,8 @@ class docs_corpus_registry {
     /**
      * Normalise an explicit corpus map (drop empties, trim roots).
      *
-     * @param array<string,string> $corpora
-     * @return array<string,string>
+     * @param array $corpora
+     * @return array
      */
     private function sanitize(array $corpora): array {
         $clean = [];
@@ -167,7 +167,7 @@ class docs_corpus_registry {
     /**
      * Override the corpus set for unit tests (e.g. temp-dir corpora).
      *
-     * @param array<string,string>|null $corpora Map to use, or null to restore parsing.
+     * @param array|null $corpora Map to use, or null to restore parsing.
      * @return void
      */
     public static function set_corpora_for_testing(?array $corpora): void {

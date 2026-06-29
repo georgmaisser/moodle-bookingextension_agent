@@ -82,11 +82,11 @@ class preflight_pipeline {
     /**
      * Run full preflight L1->L2->L3 for a command batch.
      *
-     * @param array<int,mixed> $commands
+     * @param mixed[] $commands
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_skills:array<int,string>,issues:array<int,array<string,mixed>>}
+     * @return array{status:string,issue_codes:string[],blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array[],errors:string[],attempted_skills:string[],issues:array[]}
      */
     public function run(array $commands, int $threadid, int $contextid, int $userid): array {
         $preparedcommands = [];
@@ -320,7 +320,7 @@ class preflight_pipeline {
     /**
      * Resolve the highest-risk class present in the batch.
      *
-     * @param array<int,mixed> $commands
+     * @param mixed[] $commands
      * @return string
      */
     private function resolve_batch_risk_class(array $commands): string {
@@ -343,13 +343,13 @@ class preflight_pipeline {
      * Map internal values to the public preflight batch output shape.
      *
      * @param bool $valid
-     * @param array<int,array<string,mixed>> $preparedcommands
-     * @param array<int,string> $errors
-     * @param array<int,string> $attemptedskills
-     * @param array<int,string> $issuecodes
-     * @param array<int,array<string,mixed>> $issues
+     * @param array[] $preparedcommands
+     * @param string[] $errors
+     * @param string[] $attemptedskills
+     * @param string[] $issuecodes
+     * @param array[] $issues
      * @param preflight_result_v2 $result
-     * @return array{status:string,issue_codes:array<int,string>,blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array<int,array<string,mixed>>,errors:array<int,string>,attempted_skills:array<int,string>,issues:array<int,array<string,mixed>>}
+     * @return array{status:string,issue_codes:string[],blocking_layer:string,retry_after_ms:int,retry_count:int,duration_ms:int,prepared_commands:array[],errors:string[],attempted_skills:string[],issues:array[]}
      */
     private function build_output(
         bool $valid,

@@ -30,8 +30,8 @@ interface queue_identity_provider_interface {
     /**
      * Build canonical queue business identity for deduplication.
      *
-     * @param array<string,mixed> $input
-     * @return array<string,mixed>
+     * @param array $input
+     * @return array
      */
     public function build_queue_business_identity(array $input): array;
 }

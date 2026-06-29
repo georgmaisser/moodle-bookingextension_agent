@@ -58,7 +58,7 @@ interface skill_interface {
      * Used only for prompt routing hints. This must not be synthesized by the
      * registry so skill metadata stays with the skill class.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array;
 
@@ -84,7 +84,7 @@ interface skill_interface {
      * MUST NOT perform DB lookups or any I/O.
      *
      * @param  array $input  Raw command input from the LLM.
-     * @return array{valid:bool,errors:array<int,string>}
+     * @return array{valid:bool,errors:string[]}
      */
     public function check_structure(array $input): array;
 

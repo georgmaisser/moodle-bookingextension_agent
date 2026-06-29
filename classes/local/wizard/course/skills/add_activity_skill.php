@@ -194,7 +194,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -212,7 +212,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
     /**
      * Return message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -228,7 +228,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
     /**
      * Construction-phase guidance surfaced once this skill is selected.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -260,7 +260,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * Structural validation (pure, no DB).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -460,7 +460,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * Resolve the module type from input against the addable catalog.
      *
      * @param module_catalog_service $catalog
-     * @param array<int,array{modname:string,label:string}> $addable
+     * @param array[] $addable
      * @param string $query
      * @return string|array The resolved module name, or a clarification.
      */
@@ -534,7 +534,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @param string $modname
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
+     * @param array $settings
      * @return array|null
      */
     private function minimal_field_guard(string $modname, string $name, string $intro, array $settings): ?array {
@@ -556,7 +556,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
     /**
      * Build a needs_clarification listing the addable module types.
      *
-     * @param array<int,array{modname:string,label:string}> $modules
+     * @param array[] $modules
      * @param string $lead
      * @return array
      */
@@ -579,7 +579,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
     /**
      * Build a needs_clarification listing the course sections.
      *
-     * @param array<int,array{sectionnum:int,name:string}> $sections
+     * @param array[] $sections
      * @param string $lead
      * @return array
      */
@@ -604,7 +604,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * Format real mod_form field errors into a clarification message.
      *
      * @param string $modname
-     * @param array<string,string> $errors
+     * @param array $errors
      * @return string
      */
     private function format_field_errors(string $modname, array $errors): string {
@@ -619,9 +619,9 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
     /**
      * Build the success result payload.
      *
-     * @param array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int} $created
+     * @param array $created
      * @param int $attempts
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_success_result(array $created, int $attempts): array {
         $cmid = (int)($created['cmid'] ?? 0);
@@ -661,7 +661,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * Build an error result payload.
      *
      * @param string $message
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_error_result(string $message): array {
         return [

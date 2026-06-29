@@ -74,7 +74,7 @@ trait module_targeted_skill {
      * Always returns a selector carrying the modname so the engine resolves the operating context
      * (auto-pick when neither cmid nor query is given).
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @return target_selector|null
      */
     public function get_target_selector(array $input): ?target_selector {

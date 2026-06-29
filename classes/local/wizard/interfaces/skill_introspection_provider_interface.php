@@ -44,7 +44,7 @@ interface skill_introspection_provider_interface {
      * @param int    $userid
      * @param int    $contextid
      * @param string $scope 'all' | 'readonly' | 'mutating'
-     * @return array{available: array<int,array<string,mixed>>, unavailable: array<int,array<string,mixed>>}
+     * @return array{available: array[], unavailable: array[]}
      */
     public function list_actions(int $userid, int $contextid, string $scope): array;
 

@@ -26,14 +26,14 @@ namespace bookingextension_agent\local\wizard\services;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preflight_schema_validator {
-    /** @var array<string,mixed>|null Cached decoded schema. */
+    /** @var array|null Cached decoded schema. */
     private static ?array $cachedschema = null;
 
     /**
      * Validate one command array against the command schema.
      *
-     * @param array<string,mixed> $command
-     * @return array{valid:bool,error_class:string,issue_codes:array<int,string>,errors:array<int,string>}
+     * @param array $command
+     * @return array{valid:bool,error_class:string,issue_codes:string[],errors:string[]}
      */
     public function validate(array $command): array {
         $schema = $this->get_schema();
@@ -156,7 +156,7 @@ class preflight_schema_validator {
     /**
      * Load and cache the command schema.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     private function get_schema(): array {
         if (self::$cachedschema !== null) {

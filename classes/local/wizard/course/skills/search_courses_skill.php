@@ -112,7 +112,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     /**
      * Return example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -124,7 +124,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -143,7 +143,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     /**
      * Return contextual guidance packs.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -176,7 +176,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         // An empty query is valid: it lists all courses visible to the user.
@@ -255,7 +255,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     /**
      * Build a user-facing course observation string.
      *
-     * @param array<int,array<string,mixed>> $courses
+     * @param array[] $courses
      * @param string $lang
      * @param string $headline Optional headline override (empty = default "found" line).
      * @return string
@@ -299,7 +299,7 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     /**
      * Resolve the course search query from canonical and legacy alias fields.
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @return string
      */
     private function resolve_query(array $input): string {

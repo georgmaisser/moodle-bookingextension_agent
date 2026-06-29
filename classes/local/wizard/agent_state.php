@@ -55,7 +55,7 @@ final class agent_state {
      *
      * Each entry: ['step' => int, 'tool_calls' => array, 'results' => array, 'observation' => string]
      *
-     * @var array<int,array>
+     * @var array[]
      */
     private array $steps = [];
 
@@ -72,7 +72,7 @@ final class agent_state {
     /**
      * Per-run discovery family/cache payloads keyed by fingerprint.
      *
-     * @var array<string,array<string,mixed>>
+     * @var array
      */
     private array $familycache = [];
 
@@ -151,7 +151,7 @@ final class agent_state {
     /**
      * Return all recorded step records (for debugging / testing).
      *
-     * @return array<int,array>
+     * @return array[]
      */
     public function get_steps(): array {
         return $this->steps;
@@ -179,7 +179,7 @@ final class agent_state {
      * Return cached discovery family payload for the given key.
      *
      * @param string $cachekey
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function get_discovery_family_cache(string $cachekey): ?array {
         return $this->get_cache_entry($this->familycache, $cachekey);
@@ -189,7 +189,7 @@ final class agent_state {
      * Store discovery family payload for later loop steps.
      *
      * @param string $cachekey
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return void
      */
     public function set_discovery_family_cache(string $cachekey, array $payload): void {
@@ -199,9 +199,9 @@ final class agent_state {
     /**
      * Read one cache entry from a phase-local cache.
      *
-     * @param array<string,array<string,mixed>> $cache
+     * @param array $cache
      * @param string $cachekey
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function get_cache_entry(array $cache, string $cachekey): ?array {
         $key = trim($cachekey);
@@ -216,9 +216,9 @@ final class agent_state {
     /**
      * Write one cache entry into a phase-local cache.
      *
-     * @param array<string,array<string,mixed>> $cache
+     * @param array $cache
      * @param string $cachekey
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return void
      */
     private function set_cache_entry(array &$cache, string $cachekey, array $payload): void {

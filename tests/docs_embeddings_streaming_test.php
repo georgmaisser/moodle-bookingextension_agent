@@ -202,7 +202,7 @@ final class docs_embeddings_streaming_test extends advanced_testcase {
      * A minimal valid docs row with the given chunk_path.
      *
      * @param string $path
-     * @return array<string,string>
+     * @return array
      */
     private function row(string $path): array {
         return [

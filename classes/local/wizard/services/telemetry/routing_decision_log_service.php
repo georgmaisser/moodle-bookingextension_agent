@@ -51,8 +51,8 @@ class routing_decision_log_service {
      * @param conversation_store $store
      * @param int $threadid
      * @param array $telemetry
-     * @param array<string,bool> $flags
-     * @param array<string,mixed> $discoverycontext
+     * @param array $flags
+     * @param array $discoverycontext
      * @return void
      */
     public function persist_thread_routing_decision(
@@ -95,7 +95,7 @@ class routing_decision_log_service {
      * Normalize routing telemetry to fixed schema and stable value domain.
      *
      * @param array $telemetry
-     * @return array<string,mixed>
+     * @return array
      */
     public static function normalize_telemetry(array $telemetry): array {
         $catalogselectionmode = trim((string)($telemetry['catalogselectionmode'] ?? 'none'));
@@ -133,10 +133,10 @@ class routing_decision_log_service {
     /**
      * Build shadow-only decision output detached from live routing.
      *
-     * @param array<string,mixed> $normalized
-     * @param array<string,bool> $flags
-     * @param array<string,mixed> $discoverycontext
-     * @return array<string,mixed>
+     * @param array $normalized
+     * @param array $flags
+     * @param array $discoverycontext
+     * @return array
      */
     public static function build_shadow_result(array $normalized, array $flags, array $discoverycontext = []): array {
         $familyenabled = !empty($flags[runtime_feature_flags::FAMILY_DISCOVERY_ENABLED]);
@@ -178,10 +178,10 @@ class routing_decision_log_service {
     /**
      * Build a compact comparison snapshot for live-vs-shadow embedding routing.
      *
-     * @param array<string,mixed> $normalized
-     * @param array<string,mixed> $shadow
-     * @param array<string,bool> $flags
-     * @return array<string,mixed>
+     * @param array $normalized
+     * @param array $shadow
+     * @param array $flags
+     * @return array
      */
     public static function build_embeddings_comparison(array $normalized, array $shadow, array $flags): array {
         $familyembeddingsenabled = !empty($flags[runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED]);

@@ -26,25 +26,25 @@ namespace bookingextension_agent\local\wizard\dto;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class parameter_construction_result {
-    /** @var array<string,mixed> */
+    /** @var array */
     public readonly array $input;
 
     /** @var bool */
     public readonly bool $valid;
 
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $errors;
 
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $issuecodes;
 
     /**
      * Constructor.
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @param bool $valid
-     * @param array<int,string> $errors
-     * @param array<int,string> $issuecodes
+     * @param string[] $errors
+     * @param string[] $issuecodes
      */
     public function __construct(array $input, bool $valid, array $errors = [], array $issuecodes = []) {
         $this->input = $input;

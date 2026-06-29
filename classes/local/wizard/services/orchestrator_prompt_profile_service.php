@@ -104,9 +104,9 @@ class orchestrator_prompt_profile_service {
      * outside that tail window — so long clarification threads never lose the originating ask.
      * Tool results/observations are injected separately and are unaffected by this windowing.
      *
-     * @param array<int,\stdClass> $messages Conversation messages, oldest-first, without 'step' rows.
+     * @param \stdClass[] $messages Conversation messages, oldest-first, without 'step' rows.
      * @param string $phase
-     * @return array<int,\stdClass>
+     * @return \stdClass[]
      */
     public function select_history_messages(array $messages, string $phase): array {
         $messages = array_values($messages);

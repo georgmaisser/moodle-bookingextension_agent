@@ -150,7 +150,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['coursequery' => 'Mathematics 101'];
@@ -159,7 +159,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
     /**
      * Discovery triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -182,7 +182,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -209,7 +209,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
@@ -274,7 +274,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
     /**
      * Build the deterministic, LLM-facing structure text.
      *
-     * @param array<string,mixed> $structure
+     * @param array $structure
      * @return string
      */
     private function build_observation(array $structure): string {
@@ -327,7 +327,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
     /**
      * Build the bracketed flag suffix for a section/activity node.
      *
-     * @param array<string,mixed> $node
+     * @param array $node
      * @param bool $issection
      * @return string
      */
@@ -373,7 +373,7 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
      *
      * @param string $message
      * @param string $errorclass
-     * @return array<string,mixed>
+     * @return array
      */
     private function error_result(string $message, string $errorclass): array {
         return [

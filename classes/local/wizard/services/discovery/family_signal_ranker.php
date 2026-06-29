@@ -41,7 +41,7 @@ class family_signal_ranker {
     /**
      * Constructor.
      *
-     * @param array<string,float|int> $weights
+     * @param array $weights
      */
     public function __construct(array $weights = []) {
         $this->baseweight = $this->normalize_weight($weights['base'] ?? 0.20);
@@ -53,10 +53,10 @@ class family_signal_ranker {
     /**
      * Score families from context priors and recency signals.
      *
-     * @param array<int,string> $families
-     * @param array<string,mixed> $contextprior
-     * @param array<int,string> $recentskillnames
-     * @return array<string,float>
+     * @param string[] $families
+     * @param array $contextprior
+     * @param string[] $recentskillnames
+     * @return array
      */
     public function score_families(array $families, array $contextprior, array $recentskillnames = []): array {
         $scores = [];

@@ -31,7 +31,7 @@ class booking_issue_code_provider implements issue_code_provider_interface {
     /**
      * Return issue codes that indicate a specific confirmation is required.
      *
-     * @return array<int, string>
+     * @return string[]
      */
     public function get_duplicate_confirmation_issue_codes(): array {
         return [
@@ -43,7 +43,7 @@ class booking_issue_code_provider implements issue_code_provider_interface {
     /**
      * Return issue codes indicating token/subscription problems.
      *
-     * @return array<int, string>
+     * @return string[]
      */
     public function get_token_subscription_issue_codes(): array {
         return [
@@ -58,7 +58,7 @@ class booking_issue_code_provider implements issue_code_provider_interface {
     /**
      * Return issue codes that may remain confirmation-gated despite pre-validation errors.
      *
-     * @return array<int, string>
+     * @return string[]
      */
     public function get_prevalidation_confirmable_issue_codes(): array {
         return [

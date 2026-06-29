@@ -50,7 +50,7 @@ class preflight_domain_check_runner {
     /**
      * Evaluate domain-level issue codes and classify the result.
      *
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @param float $startmicrotime
      * @return preflight_result_v2
      */

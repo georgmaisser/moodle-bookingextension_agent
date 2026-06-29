@@ -97,6 +97,8 @@ class ai_send_message extends external_api {
      * @param int    $contextid
      * @param string $message
      * @param int    $threadid
+     * @param string $attachments
+     * @param string $pagecontext
      * @return array
      */
     public static function execute(
@@ -367,8 +369,8 @@ class ai_send_message extends external_api {
      * @param conversation_store $store
      * @param int $threadid
      * @param string $queueitemid
-     * @param array<string,mixed> $result
-     * @return array<int,array<string,mixed>>
+     * @param array $result
+     * @return array[]
      */
     private static function resolve_response_commands(
         conversation_store $store,
@@ -414,7 +416,7 @@ class ai_send_message extends external_api {
     /**
      * Encode split-pipeline phase trace for external API consumers.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return string
      */
     private static function encode_phase_trace_for_response(array $result): string {
@@ -442,7 +444,7 @@ class ai_send_message extends external_api {
      * never inject prompt lines or bloat the context. Informational only — never an authorization source.
      *
      * @param string $json
-     * @return array<string,mixed>
+     * @return array
      */
     private static function sanitize_page_context(string $json): array {
         $raw = json_decode($json, true);

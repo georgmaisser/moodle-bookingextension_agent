@@ -89,7 +89,7 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [

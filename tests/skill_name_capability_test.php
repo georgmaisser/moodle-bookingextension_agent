@@ -126,12 +126,18 @@ final class skill_name_capability_test extends advanced_testcase {
         $registry = new class extends skill_registry {
             /**
              * Return a contract that declares no capabilities for any skill.
+             *
+             * @param string $skillname The skill name.
+             * @return array|null
              */
             public function get_skill_contract(string $skillname): ?array {
                 return ['component' => 'bookingextension/agent', 'readonly' => true, 'capabilities' => []];
             }
             /**
              * Return no declared capabilities for any skill.
+             *
+             * @param string $skillname The skill name.
+             * @return array
              */
             public function get_skill_capabilities(string $skillname): array {
                 return [];

@@ -46,6 +46,7 @@ interface agent_interpreter {
      *  - 'error'                – Unrecoverable parse or schema error.
      *
      * @param string $rawresponse      Raw text output from the LLM.
+     * @param int    $contextid        Context id.
      * @param int    $userid           User id.
      * @param string $lastusermessage  Optional: the latest user message text, used as fallback
      *                                 when the LLM omits a required 'question' field.

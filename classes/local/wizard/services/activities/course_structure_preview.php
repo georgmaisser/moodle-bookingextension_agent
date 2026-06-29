@@ -37,7 +37,7 @@ class course_structure_preview {
     /**
      * Build the preview data block from a course structure.
      *
-     * @param array<string,mixed> $structure The structure produced by {@see course_structure_service::analyze()}.
+     * @param array $structure The structure produced by {@see course_structure_service::analyze()}.
      * @return array{type:string,html:string,payload:array}|null Null when there is nothing renderable.
      */
     public function render(array $structure): ?array {
@@ -78,8 +78,8 @@ class course_structure_preview {
     /**
      * Build the structure HTML.
      *
-     * @param array<string,mixed> $structure
-     * @param array<int,array<string,mixed>> $sections
+     * @param array $structure
+     * @param array[] $sections
      * @return string
      */
     private function build_html(array $structure, array $sections): string {
@@ -106,7 +106,7 @@ class course_structure_preview {
     /**
      * Render one section and its activities.
      *
-     * @param array<string,mixed> $section
+     * @param array $section
      * @return string
      */
     private function section_html(array $section): string {
@@ -138,7 +138,7 @@ class course_structure_preview {
     /**
      * Render one activity row.
      *
-     * @param array<string,mixed> $activity
+     * @param array $activity
      * @return string
      */
     private function activity_html(array $activity): string {
@@ -168,7 +168,7 @@ class course_structure_preview {
     /**
      * Badges for a section.
      *
-     * @param array<string,mixed> $section
+     * @param array $section
      * @return string
      */
     private function section_badges(array $section): string {
@@ -188,7 +188,7 @@ class course_structure_preview {
     /**
      * Badges for an activity.
      *
-     * @param array<string,mixed> $activity
+     * @param array $activity
      * @return string
      */
     private function activity_badges(array $activity): string {
@@ -215,7 +215,7 @@ class course_structure_preview {
     /**
      * Render the restriction reason text, if any.
      *
-     * @param array<string,mixed> $node
+     * @param array $node
      * @return string
      */
     private function restriction_note(array $node): string {

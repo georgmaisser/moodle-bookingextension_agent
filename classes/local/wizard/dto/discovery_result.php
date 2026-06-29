@@ -26,25 +26,25 @@ namespace bookingextension_agent\local\wizard\dto;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class discovery_result {
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $families;
 
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $contextfamilies;
 
-    /** @var array<int,string> */
+    /** @var string[] */
     public readonly array $corefamilies;
 
-    /** @var array<string,mixed> */
+    /** @var array */
     public readonly array $contextprior;
 
     /**
      * Constructor.
      *
-     * @param array<int,string> $families
-     * @param array<int,string> $contextfamilies
-     * @param array<int,string> $corefamilies
-     * @param array<string,mixed> $contextprior
+     * @param string[] $families
+     * @param string[] $contextfamilies
+     * @param string[] $corefamilies
+     * @param array $contextprior
      */
     public function __construct(
         array $families,
@@ -61,7 +61,7 @@ class discovery_result {
     /**
      * Convert DTO to array payload.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function to_array(): array {
         return [

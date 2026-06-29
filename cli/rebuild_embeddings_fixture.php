@@ -284,7 +284,7 @@ function read_fixture_rows(string $path): array {
  * Write fixture rows to CSV path.
  *
  * @param string $path
- * @param array<int,array<string,string>> $rows
+ * @param array $rows
  * @return void
  */
 function write_fixture_rows(string $path, array $rows): void {

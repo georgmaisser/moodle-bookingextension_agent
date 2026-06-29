@@ -66,10 +66,10 @@ class discovery_stage_controller {
     /**
      * Resolve staged discovery output.
      *
-     * @param array<int,array<string,mixed>> $rankedfamilies
-     * @param array<int,string> $contextfamilies
-     * @param array<int,string> $corefamilies
-     * @return array<string,mixed>
+     * @param array[] $rankedfamilies
+     * @param string[] $contextfamilies
+     * @param string[] $corefamilies
+     * @return array
      */
     public function resolve(array $rankedfamilies, array $contextfamilies, array $corefamilies): array {
         if (empty($rankedfamilies)) {
@@ -148,8 +148,8 @@ class discovery_stage_controller {
      * escalation so that cross-namespace skills (e.g. course.* from a booking context)
      * are not silently filtered out.
      *
-     * @param array<int,array<string,mixed>> $rankedfamilies
-     * @param array<int,string> $stageafamilies
+     * @param array[] $rankedfamilies
+     * @param string[] $stageafamilies
      * @return bool
      */
     private function stage_a_covers_intent(array $rankedfamilies, array $stageafamilies): bool {
@@ -174,9 +174,9 @@ class discovery_stage_controller {
     /**
      * Append a controlled low-score tail from the authoritative family ranker.
      *
-     * @param array<int,string> $selectedfamilies
-     * @param array<int,array<string,mixed>> $rankedfamilies
-     * @return array<int,string>
+     * @param string[] $selectedfamilies
+     * @param array[] $rankedfamilies
+     * @return string[]
      */
     private function append_low_score_tail(array $selectedfamilies, array $rankedfamilies): array {
         $tail = $this->familyranker->select_low_score_tail($rankedfamilies, $selectedfamilies);
@@ -190,9 +190,9 @@ class discovery_stage_controller {
     /**
      * Filter ranked rows by candidate family list while preserving rank order.
      *
-     * @param array<int,array<string,mixed>> $rankedfamilies
-     * @param array<int,string> $families
-     * @return array<int,array<string,mixed>>
+     * @param array[] $rankedfamilies
+     * @param string[] $families
+     * @return array[]
      */
     private function rows_for_families(array $rankedfamilies, array $families): array {
         $allowed = array_fill_keys($families, true);
@@ -211,7 +211,7 @@ class discovery_stage_controller {
     /**
      * Return top confidence score from ranked rows.
      *
-     * @param array<int,array<string,mixed>> $rows
+     * @param array[] $rows
      * @return float|null
      */
     private function top_score(array $rows): ?float {

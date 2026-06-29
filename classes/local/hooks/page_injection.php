@@ -95,7 +95,7 @@ class page_injection {
      * and is a best-effort hint for the agent's runtime context, never an authorization source.
      *
      * @param \moodle_page $page
-     * @return array<string,mixed>
+     * @return array
      */
     private static function current_page_context(\moodle_page $page): array {
         // Each access is guarded: a page that has not set a url/context must never break injection.

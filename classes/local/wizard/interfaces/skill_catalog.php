@@ -33,14 +33,14 @@ interface skill_catalog {
      * Return the component's skill instances, keyed by skill name.
      *
      * @param string $component
-     * @return array<string,skill_interface>
+     * @return array
      */
     public function instances(string $component): array;
 
     /**
      * Return diagnostics from the last enumeration.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public function diagnostics(): array;
 }

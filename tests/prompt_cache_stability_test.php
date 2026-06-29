@@ -63,7 +63,7 @@ final class prompt_cache_stability_test extends advanced_testcase {
     /**
      * A small, deterministic, context-independent catalog (its rendering must be identical everywhere).
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function probe_catalog(): array {
         return [
@@ -76,7 +76,7 @@ final class prompt_cache_stability_test extends advanced_testcase {
      * Build the runtime blocks for two DISTINCT contexts with otherwise identical inputs.
      *
      * @param bool $catalogisstatic
-     * @return array{0: array{stable:string,volatile:string}, 1: array{stable:string,volatile:string}}
+     * @return array
      */
     private function build_two_contexts(bool $catalogisstatic): array {
         $user = $this->getDataGenerator()->create_user();

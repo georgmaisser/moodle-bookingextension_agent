@@ -28,7 +28,12 @@ use bookingextension_agent\local\wizard\interfaces\external_dependency_checker_i
  */
 class noop_external_dependency_checker implements external_dependency_checker_interface {
     /**
-     * {@inheritDoc}
+     * No-op external dependency check.
+     *
+     * @param array $command
+     * @param int $contextid
+     * @param int $userid
+     * @return preflight_result_v2
      */
     public function check(array $command, int $contextid, int $userid): preflight_result_v2 {
         $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];

@@ -28,7 +28,7 @@ use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interf
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class skill_discovery {
-    /** @var array<int,string> diagnostics collected during the last discovery run */
+    /** @var string[] diagnostics collected during the last discovery run */
     private static array $lastdiagnostics = [];
 
     /**
@@ -39,7 +39,7 @@ class skill_discovery {
      * third-party skill cannot break the whole agent.
      *
      * @param string $component
-     * @return array<string,skill_interface>
+     * @return array
      */
     public static function get_skill_instances(string $component = 'bookingextension_agent'): array {
         self::$lastdiagnostics = [];
@@ -84,7 +84,7 @@ class skill_discovery {
      * provider interface are ignored silently.
      *
      * @param string $component
-     * @return array<int,skill_trigger_provider_interface>
+     * @return skill_trigger_provider_interface[]
      */
     public static function get_trigger_provider_instances(string $component = 'bookingextension_agent'): array {
         $providers = [];
@@ -104,7 +104,7 @@ class skill_discovery {
     /**
      * Return diagnostics collected during the last discovery run.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public static function get_last_diagnostics(): array {
         return self::$lastdiagnostics;
@@ -114,7 +114,7 @@ class skill_discovery {
      * Find all PHP classes under a component's local/wizard tree.
      *
      * @param string $component
-     * @return array<int,string>
+     * @return string[]
      */
     private static function find_candidate_classes(string $component): array {
         [$plugintype, $pluginname] = core_component::normalize_component($component);
@@ -168,7 +168,7 @@ class skill_discovery {
      * Return canonical skill directories below local/wizard.
      *
      * @param string $basedir
-     * @return array<int,string>
+     * @return string[]
      */
     private static function get_skill_directories(string $basedir): array {
         $skilldirs = [];

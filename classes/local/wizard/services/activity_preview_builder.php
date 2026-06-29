@@ -36,8 +36,8 @@ class activity_preview_builder {
     /**
      * Preview for creating a course activity.
      *
-     * @param array<string,mixed> $input Prepared input.
-     * @return array{title:string,summary:string,rows:array<int,array{label:string,value:string}>}|null
+     * @param array $input Prepared input.
+     * @return array{title:string,summary:string,rows:array[]}|null
      */
     public static function add_activity_descriptor(array $input): ?array {
         $lang = self::lang($input);
@@ -57,8 +57,8 @@ class activity_preview_builder {
     /**
      * Preview for updating a course activity (target + changed fields).
      *
-     * @param array<string,mixed> $input Prepared input.
-     * @return array{title:string,summary:string,rows:array<int,array{label:string,value:string}>}|null
+     * @param array $input Prepared input.
+     * @return array{title:string,summary:string,rows:array[]}|null
      */
     public static function update_activity_descriptor(array $input): ?array {
         $lang = self::lang($input);
@@ -74,8 +74,8 @@ class activity_preview_builder {
     /**
      * Preview for creating a quiz.
      *
-     * @param array<string,mixed> $input Prepared input.
-     * @return array{title:string,summary:string,rows:array<int,array{label:string,value:string}>}|null
+     * @param array $input Prepared input.
+     * @return array{title:string,summary:string,rows:array[]}|null
      */
     public static function add_quiz_descriptor(array $input): ?array {
         $lang = self::lang($input);
@@ -95,8 +95,8 @@ class activity_preview_builder {
     /**
      * Preview for updating a quiz (target + changed fields + question changes).
      *
-     * @param array<string,mixed> $input Prepared input.
-     * @return array{title:string,summary:string,rows:array<int,array{label:string,value:string}>}|null
+     * @param array $input Prepared input.
+     * @return array{title:string,summary:string,rows:array[]}|null
      */
     public static function update_quiz_descriptor(array $input): ?array {
         $lang = self::lang($input);
@@ -113,9 +113,9 @@ class activity_preview_builder {
     /**
      * Changed basic fields shared by activity/quiz updates (name, visibility, description).
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @param string $lang
-     * @return array<int,array{label:string,value:string}>
+     * @return array[]
      */
     private static function changed_basic_rows(array $input, string $lang): array {
         $rows = [];
@@ -133,7 +133,7 @@ class activity_preview_builder {
     /**
      * Summarize the question changes of a quiz create/update, or null when none.
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @param string $lang
      * @return string|null
      */
@@ -179,7 +179,7 @@ class activity_preview_builder {
     /**
      * Resolve the target course's full name from courseid, or null.
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @return string|null
      */
     private static function course_name(array $input): ?string {
@@ -198,7 +198,7 @@ class activity_preview_builder {
     /**
      * Localized "Section N" label from sectionnum/section, or null.
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @param string $lang
      * @return string|null
      */
@@ -214,7 +214,7 @@ class activity_preview_builder {
      * Build a `Verb "target activity name" (cmid #id)` title for an update.
      *
      * @param string $stringid
-     * @param array<string,mixed> $input
+     * @param array $input
      * @param string $lang
      * @return string
      */
@@ -266,7 +266,7 @@ class activity_preview_builder {
     /**
      * Append a row when the value is meaningful.
      *
-     * @param array<int,array{label:string,value:string}> $rows
+     * @param array[] $rows
      * @param string $label
      * @param string|null $value
      * @return void
@@ -324,7 +324,7 @@ class activity_preview_builder {
     /**
      * Resolve the conversation output language from the input, or '' for the current language.
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @return string
      */
     private static function lang(array $input): string {

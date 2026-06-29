@@ -35,7 +35,7 @@ final class embeddings_csv_repository_test extends advanced_testcase {
      * Build one catalog row whose payloads exercise CSV-hostile characters.
      *
      * @param string $skill
-     * @return array<string,string>
+     * @return array
      */
     private function make_row(string $skill): array {
         // Embedding vector serialized as a JSON array (commas) — like the real catalog.

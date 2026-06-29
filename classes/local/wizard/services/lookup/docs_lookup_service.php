@@ -88,7 +88,7 @@ class docs_lookup_service {
      * @param int    $contextid Moodle context id (for the embedding API call).
      * @param int    $userid    User id (for the embedding API call).
      * @param int    $limit     Maximum results to return.
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function search_semantic(
         string $question,
@@ -184,7 +184,7 @@ class docs_lookup_service {
      *
      * @param string[] $queries
      * @param int      $limit
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function search_multi(array $queries, int $limit = 3): array {
         $queries = array_values(array_unique(array_filter(array_map('trim', $queries))));
@@ -238,7 +238,7 @@ class docs_lookup_service {
      * @param string $relpath   Relative path within that corpus root.
      * @param int    $linestart First line to return (1-based).
      * @param int    $linecount Maximum lines to return.
-     * @return array<string,mixed>|null  Doc payload (incl. corpus_id) or null if not found.
+     * @return array|null  Doc payload (incl. corpus_id) or null if not found.
      */
     public function read_doc_by_path(
         string $corpusid,
@@ -279,7 +279,7 @@ class docs_lookup_service {
      * @param string $relpath
      * @param int    $linestart
      * @param int    $linecount
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function read_doc_any_corpus(
         string $relpath,
@@ -300,7 +300,7 @@ class docs_lookup_service {
      *
      * @param int $linestart
      * @param int $linecount
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function read_root_doc(int $linestart = 1, int $linecount = self::DEFAULT_LINE_COUNT): ?array {
         $primary = $this->registry->primary();
@@ -313,7 +313,7 @@ class docs_lookup_service {
     /**
      * Build a short summary string from a doc payload.
      *
-     * @param array<string,mixed> $doc
+     * @param array $doc
      * @param string $outputlang
      * @param string $question
      * @return string
@@ -341,7 +341,7 @@ class docs_lookup_service {
      *
      * @param string $question
      * @param int    $limit
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function search_lexical(string $question, int $limit = 5): array {
         $tokens = $this->extract_query_tokens($question);
@@ -371,7 +371,7 @@ class docs_lookup_service {
     /**
      * Load metadata for all .md files in the docs root (without full content).
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function load_docs(): array {
         $docs = [];
@@ -435,7 +435,7 @@ class docs_lookup_service {
      *
      * @param string $root    Absolute corpus root the relpath lives in.
      * @param string $relpath
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function load_doc_meta(string $root, string $relpath): ?array {
         $relpath = $this->sanitize_rel_path($relpath);
@@ -477,7 +477,7 @@ class docs_lookup_service {
      * @param string $content
      * @param int    $linestart 1-based start line.
      * @param int    $linecount Lines to include.
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_windowed_doc(string $relpath, string $content, int $linestart, int $linecount): array {
         $alllines = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
@@ -513,7 +513,7 @@ class docs_lookup_service {
     /**
      * Score a document against query tokens using lexical heuristics.
      *
-     * @param array<string,mixed> $doc
+     * @param array $doc
      * @param string[]            $tokens
      * @param string              $question
      * @return int  Score ≥ 0; 0 means no match.

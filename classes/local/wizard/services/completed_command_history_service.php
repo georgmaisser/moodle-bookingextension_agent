@@ -57,7 +57,7 @@ class completed_command_history_service {
      * Extract recently completed commands (skill + executed input) from assistant state.
      *
      * @param array $messages
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function extract_from_messages(array $messages): array {
         $completed = [];
@@ -135,8 +135,8 @@ class completed_command_history_service {
      * Merge queue-sourced executed commands into completed command history.
      *
      * @param int $threadid
-     * @param array<int,array<string,mixed>> $existing
-     * @return array<int,array<string,mixed>>
+     * @param array[] $existing
+     * @return array[]
      */
     public function merge_from_queue(int $threadid, array $existing): array {
         if ($threadid <= 0) {
@@ -208,7 +208,7 @@ class completed_command_history_service {
     /**
      * Build a deterministic signature for completed command deduplication.
      *
-     * @param array<string,mixed> $command
+     * @param array $command
      * @return string
      */
     private function build_signature(array $command): string {
@@ -235,7 +235,7 @@ class completed_command_history_service {
      * Normalize executed input for SYSTEM_RUNTIME.completed_commands.
      *
      * @param array $input
-     * @return array<string,mixed>
+     * @return array
      */
     private function normalize_input(array $input): array {
         $dropkeys = [

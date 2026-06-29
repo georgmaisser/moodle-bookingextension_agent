@@ -110,7 +110,7 @@ class queue_status_policy {
     /**
      * Return actionable mutating statuses.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public static function actionable_mutating_statuses(): array {
         return self::ACTIONABLE_MUTATING_STATUSES;
@@ -119,7 +119,7 @@ class queue_status_policy {
     /**
      * Return execution-pickup eligible statuses.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public static function pickup_ready_statuses(): array {
         return self::PICKUP_READY_STATUSES;

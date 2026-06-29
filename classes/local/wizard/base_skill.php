@@ -220,13 +220,13 @@ abstract class base_skill implements skill_interface {
      * Concrete skill families can override this to provide centralized example
      * metadata close to their skill implementations.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [];
     }
 
-    /** @var array<int,string> Framework-level control params that carry no user meaning in a preview. */
+    /** @var string[] Framework-level control params that carry no user meaning in a preview. */
     private const PROPOSED_ACTION_HIDDEN_KEYS = ['outputlang'];
 
     /**
@@ -244,8 +244,8 @@ abstract class base_skill implements skill_interface {
      * richer preview (tier 3) override this method to collapse/relabel fields and add a one-line
      * summary; they may reuse the protected helpers below.
      *
-     * @param array<string,mixed> $input Proposed (prepared) input for the skill call.
-     * @return array{title:string,summary:string,rows:array<int,array{label:string,value:string}>}|null
+     * @param array $input Proposed (prepared) input for the skill call.
+     * @return array{title:string,summary:string,rows:array[]}|null
      *         Null when there is nothing worth showing.
      */
     public function describe_proposed_action(array $input): ?array {
@@ -357,7 +357,7 @@ abstract class base_skill implements skill_interface {
     /**
      * Format an array value (list or map) into a compact human-readable string, or null when empty.
      *
-     * @param array<mixed> $value
+     * @param mixed[] $value
      * @return string|null
      */
     private function format_proposed_action_array(array $value): ?string {
@@ -386,7 +386,7 @@ abstract class base_skill implements skill_interface {
      * instead of get_prompt_contract(), so they never name the skill_prompt_contract DTO. The
      * default derives the payload from the skill schema.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     protected function prompt_contract_payload(): array {
         $schema = (array)$this->get_schema();
@@ -426,7 +426,7 @@ abstract class base_skill implements skill_interface {
      * Override in concrete skills to check required fields without DB access.
      *
      * @param  array $input
-     * @return array{valid:bool,errors:array<int,string>}
+     * @return array{valid:bool,errors:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => []];

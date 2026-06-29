@@ -44,7 +44,7 @@ class preflight_execution_gate {
      *
      * @param string $errorclass
      * @param int $retrycount
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @return preflight_result_v2
      */
     public function evaluate(string $errorclass, int $retrycount, array $issuecodes = []): preflight_result_v2 {
@@ -130,7 +130,7 @@ class preflight_execution_gate {
      *
      * @param string $skillname
      * @param int $contextid
-     * @param array<string,mixed> $preparedinput
+     * @param array $preparedinput
      * @return string
      */
     public static function build_guard_token(string $skillname, int $contextid, array $preparedinput): string {
@@ -145,7 +145,7 @@ class preflight_execution_gate {
      * @param string $guardtoken
      * @param string $skillname
      * @param int $contextid
-     * @param array<string,mixed> $preparedinput
+     * @param array $preparedinput
      * @return bool
      */
     public static function verify_guard_token(

@@ -56,7 +56,7 @@ class skill_provider implements result_summary_provider_interface, skill_provide
     /**
      * Return discovery diagnostics from the last get_skills() call.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_discovery_diagnostics(): array {
         return skill_discovery::get_last_diagnostics();
@@ -65,7 +65,7 @@ class skill_provider implements result_summary_provider_interface, skill_provide
     /**
      * Return contextual prompt packs.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         $packs = [];
@@ -109,7 +109,7 @@ class skill_provider implements result_summary_provider_interface, skill_provide
     /**
      * Return optional prompt guidance (domain-specific LLM instructions).
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_prompt_guidance(): array {
         // For now, no custom prompt guidance beyond what orchestrator provides.
@@ -120,7 +120,7 @@ class skill_provider implements result_summary_provider_interface, skill_provide
     /**
      * Return result summary contributors for this component.
      *
-     * @return array<int,\bookingextension_agent\local\wizard\interfaces\summarizer\result_summary_contributor_interface>
+     * @return \bookingextension_agent\local\wizard\interfaces\summarizer\result_summary_contributor_interface[]
      */
     public function get_result_summary_contributors(): array {
         return [

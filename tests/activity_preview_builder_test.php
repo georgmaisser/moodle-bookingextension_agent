@@ -36,7 +36,7 @@ final class activity_preview_builder_test extends advanced_testcase {
      * Map a descriptor's rows into a label => value array.
      *
      * @param array $descriptor
-     * @return array<string,string>
+     * @return array
      */
     private function rows_map(array $descriptor): array {
         $map = [];

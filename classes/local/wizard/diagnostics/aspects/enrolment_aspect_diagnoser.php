@@ -44,7 +44,7 @@ final class enrolment_aspect_diagnoser {
      * @param int $actinguserid
      * @param array $input
      * @param diagnostic_link_builder $links
-     * @return array{rows:array<int,array<string,mixed>>,error:array{message:string,error_class:string}|null}
+     * @return array{rows:array[],error:array{message:string,error_class:string}|null}
      */
     public function diagnose(
         \stdClass $course,
@@ -108,7 +108,7 @@ final class enrolment_aspect_diagnoser {
      * @param int $targetuserid 0 = no specific person.
      * @param diagnostic_link_builder $links
      * @param int $courseid
-     * @return array<string,mixed>
+     * @return array
      */
     private function analyse_instance(
         \stdClass $instance,
@@ -169,7 +169,7 @@ final class enrolment_aspect_diagnoser {
      * @param string $label
      * @param int $targetuserid
      * @param \moodle_url $url
-     * @return array<string,mixed>
+     * @return array
      */
     private function analyse_self(\stdClass $instance, string $label, int $targetuserid, \moodle_url $url): array {
         global $DB;
@@ -224,7 +224,7 @@ final class enrolment_aspect_diagnoser {
      * @param int $targetuserid
      * @param \moodle_url $url
      * @param diagnostic_link_builder $links
-     * @return array<string,mixed>
+     * @return array
      */
     private function analyse_cohort(
         \stdClass $instance,
@@ -273,7 +273,7 @@ final class enrolment_aspect_diagnoser {
      * @param int $targetuserid
      * @param \context $coursecontext
      * @param diagnostic_link_builder $links
-     * @return array<string,mixed>
+     * @return array
      */
     private function existing_enrolment_row(
         int $courseid,
@@ -329,7 +329,7 @@ final class enrolment_aspect_diagnoser {
      *
      * @param diagnostic_link_builder $links
      * @param int $userid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function enrolment_task_rows(diagnostic_link_builder $links, int $userid): array {
         global $DB;

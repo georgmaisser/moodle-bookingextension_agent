@@ -137,7 +137,7 @@ final class list_skills_real_llm_test extends abstract_agent_testcase {
     /**
      * Flatten relevant payload text for marker assertions.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return string
      */
     protected function payload_text(array $payload): string {

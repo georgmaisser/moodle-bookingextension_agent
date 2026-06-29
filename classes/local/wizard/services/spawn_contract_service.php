@@ -30,8 +30,8 @@ class spawn_contract_service {
      * Normalize skill result for spawn contract keys.
      *
      * @param string $skillname
-     * @param array<string,mixed> $result
-     * @return array<string,mixed>
+     * @param array $result
+     * @return array
      */
     public function normalize_skill_result(string $skillname, array $result): array {
         $result['produced_outputs'] = $this->normalize_produced_outputs($skillname, $result);
@@ -42,10 +42,10 @@ class spawn_contract_service {
     /**
      * Resolve output bindings for one child command.
      *
-     * @param array<string,mixed> $input
-     * @param array<string,mixed> $outputbindings
-     * @param array<string,mixed> $availableoutputs
-     * @return array{input:array<string,mixed>,errors:array<int,string>}
+     * @param array $input
+     * @param array $outputbindings
+     * @param array $availableoutputs
+     * @return array{input:array,errors:string[]}
      */
     public function apply_output_bindings(array $input, array $outputbindings, array $availableoutputs): array {
         $errors = [];
@@ -80,8 +80,8 @@ class spawn_contract_service {
     /**
      * Normalize spawn command list to deterministic command records.
      *
-     * @param array<int,mixed> $spawncommands
-     * @return array<int,array<string,mixed>>
+     * @param mixed[] $spawncommands
+     * @return array[]
      */
     public function normalize_spawn_commands(array $spawncommands): array {
         $normalized = [];
@@ -121,8 +121,8 @@ class spawn_contract_service {
      * Build available output map for binding resolution.
      *
      * @param string $skillname
-     * @param array<string,mixed> $result
-     * @return array<string,mixed>
+     * @param array $result
+     * @return array
      */
     private function normalize_produced_outputs(string $skillname, array $result): array {
         $raw = is_array($result['produced_outputs'] ?? null) ? (array)$result['produced_outputs'] : [];

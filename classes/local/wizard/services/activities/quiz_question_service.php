@@ -136,7 +136,7 @@ class quiz_question_service {
      *
      * @param context $coursecontext
      * @param int $userid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function list_available_categories(context $coursecontext, int $userid): array {
         return (new question_bank_target_resolver())->list_writable_targets($coursecontext, $userid);
@@ -147,9 +147,9 @@ class quiz_question_service {
      *
      * Shared by the add/update quiz skills, which supply their own lead sentence and issue code.
      *
-     * @param array<int,array<string,mixed>> $categories
+     * @param array[] $categories
      * @param string $lead Already-resolved lead sentence.
-     * @return array{message:string, options:array<int,array<string,mixed>>}
+     * @return array{message:string, options:array[]}
      */
     public static function build_source_clarification(array $categories, string $lead): array {
         $lines = [$lead, ''];
@@ -191,7 +191,7 @@ class quiz_question_service {
      * @param array $plan A plan from resolve_source() with mode generate|ids|category.
      * @param int $userid
      * @param int $ambientcontextid Context the chat lives in (for the generation LLM call).
-     * @return array{added:int,questionids:array<int,int>,mode:string,error:?string}
+     * @return array{added:int,questionids:int[],mode:string,error:?string}
      */
     public function add_questions_to_quiz(
         stdClass $course,
@@ -244,7 +244,7 @@ class quiz_question_service {
      * @param array $plan A generate-mode plan (content/count/qtypes/...).
      * @param int $userid
      * @param int $ambientcontextid
-     * @return array{questionids:array<int,int>,error:?string}
+     * @return array{questionids:int[],error:?string}
      */
     public function generate_into_bank(
         stdClass $course,
@@ -301,8 +301,8 @@ class quiz_question_service {
      *
      * @param stdClass $course
      * @param int $quizinstanceid
-     * @param array<int,int> $questionids
-     * @return array{added:int,questionids:array<int,int>,mode:string,error:?string}
+     * @param int[] $questionids
+     * @return array{added:int,questionids:int[],mode:string,error:?string}
      */
     public function reference_existing(stdClass $course, int $quizinstanceid, array $questionids): array {
         global $DB;
@@ -315,8 +315,8 @@ class quiz_question_service {
      * Reference specific existing questions into the quiz.
      *
      * @param stdClass $quiz
-     * @param array<int,int> $questionids
-     * @return array{added:int,questionids:array<int,int>,mode:string,error:?string}
+     * @param int[] $questionids
+     * @return array{added:int,questionids:int[],mode:string,error:?string}
      */
     private function add_by_ids(stdClass $quiz, array $questionids): array {
         global $DB;
@@ -347,7 +347,7 @@ class quiz_question_service {
      * @param string $categoryname
      * @param int $count
      * @param int $userid
-     * @return array{added:int,questionids:array<int,int>,mode:string,error:?string}
+     * @return array{added:int,questionids:int[],mode:string,error:?string}
      */
     private function add_random_from_category(
         context $coursecontext,
@@ -384,7 +384,7 @@ class quiz_question_service {
      * Reference a list of question ids into a quiz and recompute its sum grades.
      *
      * @param stdClass $quiz
-     * @param array<int,int> $questionids
+     * @param int[] $questionids
      * @return int Number added.
      */
     private function reference_ids_into_quiz(stdClass $quiz, array $questionids): int {

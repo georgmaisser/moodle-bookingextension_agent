@@ -64,7 +64,7 @@ class skill_contract_validator {
      *
      * @param skill_interface $skill
      * @param string $component
-     * @return array<string,mixed>
+     * @return array
      */
     public static function build_skill_metadata(skill_interface $skill, string $component): array {
         $schema = (array)$skill->get_schema();
@@ -128,8 +128,8 @@ class skill_contract_validator {
     /**
      * Validate one normalized metadata record.
      *
-     * @param array<string,mixed> $skillmeta
-     * @return array{valid:bool,errors:array<int,string>}
+     * @param array $skillmeta
+     * @return array{valid:bool,errors:string[]}
      */
     public static function validate_skill_metadata(array $skillmeta): array {
         $errors = [];
@@ -222,8 +222,8 @@ class skill_contract_validator {
     /**
      * Validate registry-wide metadata conflicts (duplicates, broken aliases).
      *
-     * @param array<string,array<string,mixed>> $skillcontracts
-     * @return array<int,string>
+     * @param array $skillcontracts
+     * @return string[]
      */
     public static function validate_registry_contracts(array $skillcontracts): array {
         $errors = [];

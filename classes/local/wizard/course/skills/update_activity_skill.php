@@ -184,7 +184,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['activityquery' => 'Welcome page', 'name' => 'Course introduction'];
@@ -193,7 +193,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     /**
      * Message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -210,7 +210,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -235,7 +235,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -469,7 +469,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * Collect the requested changes from input (only provided, meaningful fields).
      *
      * @param array $input
-     * @return array<string,mixed>
+     * @return array
      */
     private function collect_changes(array $input): array {
         $changes = [];
@@ -510,7 +510,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     /**
      * Build a needs_clarification listing candidate activities.
      *
-     * @param array<int,\cm_info> $cms
+     * @param \cm_info[] $cms
      * @param string $lead
      * @return array
      */
@@ -530,7 +530,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * Format real mod_form field errors into a clarification message.
      *
      * @param string $modname
-     * @param array<string,string> $errors
+     * @param array $errors
      * @return string
      */
     private function format_field_errors(string $modname, array $errors): string {
@@ -545,11 +545,11 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     /**
      * Build the success result payload (with a human-readable before/after).
      *
-     * @param array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int} $updated
-     * @param array<string,mixed> $changes
-     * @param array<string,mixed> $before
+     * @param array $updated
+     * @param array $changes
+     * @param array $before
      * @param int $attempts
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_success_result(array $updated, array $changes, array $before, int $attempts): array {
         $cmid = (int)($updated['cmid'] ?? 0);
@@ -589,8 +589,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     /**
      * Build a short human-readable description of the changes (old → new where known).
      *
-     * @param array<string,mixed> $changes
-     * @param array<string,mixed> $before
+     * @param array $changes
+     * @param array $before
      * @return string
      */
     private function describe_changes(array $changes, array $before): string {
@@ -617,7 +617,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * Build an error result payload.
      *
      * @param string $message
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_error_result(string $message): array {
         return [

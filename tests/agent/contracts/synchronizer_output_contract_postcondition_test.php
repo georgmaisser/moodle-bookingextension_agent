@@ -163,6 +163,7 @@ final class synchronizer_output_contract_postcondition_test extends TestCase {
      * Test that sync issue codes route to template only strategy.
      *
      * @dataProvider sync_issue_codes_provider
+     * @param string $issuecode
      */
     public function test_sync_issue_code_routes_to_template_only(string $issuecode): void {
         $classifier = new finalization_classifier();
@@ -183,7 +184,7 @@ final class synchronizer_output_contract_postcondition_test extends TestCase {
     /**
      * Data provider for sync issue codes.
      *
-     * @return array<string,array<string>>
+     * @return array
      */
     public static function sync_issue_codes_provider(): array {
         return [

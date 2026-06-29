@@ -152,7 +152,7 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
      *
      * @param object $instance
      * @param string $method
-     * @param array<int,mixed> $args
+     * @param mixed[] $args
      * @return mixed
      */
     private function invoke_private_method(object $instance, string $method, array $args) {

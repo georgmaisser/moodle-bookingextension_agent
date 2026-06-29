@@ -219,7 +219,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['activityquery' => 'Chapter 1 quiz', 'content' => 'Photosynthesis', 'count' => 5];
@@ -228,7 +228,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -244,7 +244,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -270,7 +270,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
@@ -514,7 +514,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * Collect settings changes (name/intro/visible) — only provided ones.
      *
      * @param array $input
-     * @return array<string,mixed>
+     * @return array
      */
     private function collect_settings_changes(array $input): array {
         $changes = [];
@@ -539,7 +539,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     /**
      * Build the question-source clarification (three options + available categories).
      *
-     * @param array<int,array<string,mixed>> $categories
+     * @param array[] $categories
      * @param string $lead
      * @return array
      */
@@ -556,8 +556,8 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * @param \stdClass $course
      * @param int $courseid
      * @param int $cmid
-     * @param array<int,string> $stages
-     * @return array<string,mixed>
+     * @param string[] $stages
+     * @return array
      */
     private function build_success_result(\stdClass $course, int $courseid, int $cmid, array $stages): array {
         try {
@@ -589,7 +589,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * Build an error result.
      *
      * @param string $message
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_error_result(string $message): array {
         return [

@@ -33,7 +33,7 @@ interface issue_code_provider_interface {
      *
      * Examples: DUPLICATE_TITLE_CONFIRM_REQUIRED, MISSING_LOCATION_CONFIRM_REQUIRED
      *
-     * @return array<int, string>
+     * @return string[]
      */
     public function get_duplicate_confirmation_issue_codes(): array;
 
@@ -44,7 +44,7 @@ interface issue_code_provider_interface {
      *
      * Examples: TRIAL_TOKEN_INVALID, SUBSCRIPTION_REQUIRED, AI_PROVIDER_AUTH_FAILED
      *
-     * @return array<int, string>
+     * @return string[]
      */
     public function get_token_subscription_issue_codes(): array;
 
@@ -56,7 +56,7 @@ interface issue_code_provider_interface {
      *
      * Examples: CONFIRMATION_REQUIRED, MISSING_LOCATION_CONFIRM_REQUIRED
      *
-     * @return array<int, string>
+     * @return string[]
      */
     public function get_prevalidation_confirmable_issue_codes(): array;
 

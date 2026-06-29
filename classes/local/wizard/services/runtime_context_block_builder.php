@@ -442,7 +442,7 @@ class runtime_context_block_builder {
     /**
      * Append the USER MEMORY block (user-stated facts) for the thread owner, filtered to one channel.
      *
-     * @param array<int,string> $lines
+     * @param string[] $lines
      * @param int $threadid
      * @param string $channel One of user_memory_service::SCOPE_*
      * @return void
@@ -472,7 +472,7 @@ class runtime_context_block_builder {
     /**
      * Append a JSON-encoded object section to runtime context lines.
      *
-     * @param array<int,string> $lines
+     * @param string[] $lines
      * @param string $heading
      * @param mixed $value
      * @return void
@@ -491,9 +491,9 @@ class runtime_context_block_builder {
     /**
      * Append a bullet-style JSON list section to runtime context lines.
      *
-     * @param array<int,string> $lines
+     * @param string[] $lines
      * @param string $heading
-     * @param array<int,mixed> $items
+     * @param mixed[] $items
      * @return void
      */
     private function append_json_list_section(array &$lines, string $heading, array $items): void {

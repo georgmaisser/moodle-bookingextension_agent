@@ -34,8 +34,8 @@ class issue_code_normalizer {
     /**
      * Normalize a list of issue codes: uppercase, trim, drop empties, de-duplicate (order kept).
      *
-     * @param array<int,mixed> $codes
-     * @return array<int,string>
+     * @param mixed[] $codes
+     * @return string[]
      */
     public static function normalize(array $codes): array {
         $normalized = [];
@@ -55,8 +55,8 @@ class issue_code_normalizer {
      * A non-array `issue_codes` value yields an empty list (it is not coerced) — matching the
      * historical finalization behavior.
      *
-     * @param array<string,mixed> $result
-     * @return array<int,string>
+     * @param array $result
+     * @return string[]
      */
     public static function from_result(array $result): array {
         $raw = $result['issue_codes'] ?? [];

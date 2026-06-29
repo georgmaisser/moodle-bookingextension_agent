@@ -51,11 +51,11 @@ class queue_transition_service {
      *
      * @param queue_manager $queuesvc
      * @param int $threadid
-     * @param array<int,string> $queueitemids
+     * @param string[] $queueitemids
      * @param string $status
-     * @param array<int,string> $issuecodes
-     * @param array<int,string> $errors
-     * @param array<string,mixed> $v2result
+     * @param string[] $issuecodes
+     * @param string[] $errors
+     * @param array $v2result
      * @param bool $autoconfirmmode
      * @return void
      */
@@ -201,7 +201,8 @@ class queue_transition_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
-     * @param array<int,string> $issuecodes
+     * @param string $reasoncode
+     * @param string[] $issuecodes
      * @return void
      */
     public function to_ready(
@@ -228,7 +229,8 @@ class queue_transition_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
-     * @param array<int,string> $issuecodes
+     * @param string $reasoncode
+     * @param string[] $issuecodes
      * @return void
      */
     public function to_blocked_confirmation(
@@ -255,10 +257,11 @@ class queue_transition_service {
      * @param queue_manager $queuesvc
      * @param int $threadid
      * @param string $queueitemid
-     * @param array<int,string> $issuecodes
+     * @param string $reasoncode
+     * @param string[] $issuecodes
      * @param string $errorclass
      * @param string $message
-     * @param array<string,mixed> $meta
+     * @param array $meta
      * @return void
      */
     public function to_retry_waiting(
@@ -390,10 +393,10 @@ class queue_transition_service {
      * Evaluate whether a retry transition is allowed under layer guardrails.
      *
      * @param string $previouserrorclass
-     * @param array<int,string> $existinglayers
+     * @param string[] $existinglayers
      * @param string $currenterrorclass
      * @param string $reasoncode
-     * @return array{allow:bool,layers:array<int,string>}
+     * @return array{allow:bool,layers:string[]}
      */
     private function evaluate_retry_layer_guard(
         string $previouserrorclass,
@@ -429,7 +432,7 @@ class queue_transition_service {
      * @param int $threadid
      * @param string $queueitemid
      * @param string $reasoncode
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @param string $errorclass
      * @param string $message
      * @return void
@@ -461,7 +464,7 @@ class queue_transition_service {
      * @param int $threadid
      * @param string $queueitemid
      * @param string $reasoncode
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @param string $errorclass
      * @param string $message
      * @return void
@@ -493,7 +496,7 @@ class queue_transition_service {
      * @param int $threadid
      * @param string $queueitemid
      * @param string $reasoncode
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @return void
      */
     public function to_succeeded(
@@ -553,7 +556,7 @@ class queue_transition_service {
      * Normalize persisted retry layers to a unique non-empty list.
      *
      * @param mixed $layers
-     * @return array<int,string>
+     * @return string[]
      */
     private function normalize_retry_layers($layers): array {
         if (!is_array($layers)) {
@@ -574,8 +577,8 @@ class queue_transition_service {
     /**
      * Normalize queue item ids into non-empty unique string list.
      *
-     * @param array<int,mixed> $queueitemids
-     * @return array<int,string>
+     * @param mixed[] $queueitemids
+     * @return string[]
      */
     private function normalize_queue_item_ids(array $queueitemids): array {
         $normalized = [];

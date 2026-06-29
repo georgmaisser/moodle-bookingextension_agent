@@ -97,7 +97,7 @@ class module_target_resolver {
      * Turn a candidate set into a resolution: 0 → null (let the caller try the next scope),
      * 1 → resolved, many → ambiguous (carrying the candidate list for the clarification).
      *
-     * @param array<int,array{cmid:int,name:string,courseid:int,coursename:string,url:string}> $candidates
+     * @param array[] $candidates
      * @return context_target_resolution|null
      */
     private function decide(array $candidates): ?context_target_resolution {
@@ -157,9 +157,9 @@ class module_target_resolver {
      * literally named "booking" rather than going ambiguous against "booking (copy)". Only when no
      * exact match exists do we fall back to a substring match.
      *
-     * @param array<int,array{cmid:int,name:string,courseid:int,coursename:string,url:string}> $instances
+     * @param array[] $instances
      * @param string $query
-     * @return array<int,array{cmid:int,name:string,courseid:int,coursename:string,url:string}>
+     * @return array[]
      */
     private function filter_by_name(array $instances, string $query): array {
         if ($query === '') {
@@ -190,7 +190,7 @@ class module_target_resolver {
      * @param string   $modname
      * @param int      $userid
      * @param int|null $courseid Restrict to one course, or null for the whole site (rare fallback).
-     * @return array<int,array{cmid:int,name:string,courseid:int,coursename:string,url:string}>
+     * @return array[]
      */
     private function collect_instances(string $modname, int $userid, ?int $courseid): array {
         global $DB;

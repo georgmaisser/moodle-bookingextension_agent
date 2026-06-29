@@ -49,7 +49,7 @@ final class progress_aspect_diagnoser {
      * @param int $actinguserid           The acting (current) user id.
      * @param array $input                Skill input (uses $input['activityquery']).
      * @param diagnostic_link_builder $links Link builder for action URLs.
-     * @return array{rows:array<int,array<string,mixed>>,error:array{message:string,error_class:string}|null}
+     * @return array{rows:array[],error:array{message:string,error_class:string}|null}
      */
     public function diagnose(
         \stdClass $course,
@@ -194,7 +194,7 @@ final class progress_aspect_diagnoser {
      * @param int $targetuserid
      * @param string $name
      * @param diagnostic_link_builder $links
-     * @return array{0:array<string,mixed>,1:bool}  [row, iscomplete]
+     * @return array{0:array,1:bool}  [row, iscomplete]
      */
     private function activity_row(
         completion_info $completion,
@@ -247,7 +247,7 @@ final class progress_aspect_diagnoser {
      * @param int $targetuserid
      * @param int $courseid
      * @param diagnostic_link_builder $links
-     * @param array<int,array<string,mixed>> $rows  (by reference)
+     * @param array[] $rows  (by reference)
      * @return void
      */
     private function append_course_completion_rows(

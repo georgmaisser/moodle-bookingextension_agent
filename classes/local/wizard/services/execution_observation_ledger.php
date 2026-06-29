@@ -63,8 +63,8 @@ class execution_observation_ledger {
      * Append canonical observation entries derived from execution results.
      *
      * @param int $threadid
-     * @param array<int,mixed> $results
-     * @param array<string,mixed> $meta
+     * @param mixed[] $results
+     * @param array $meta
      * @return void
      */
     public function append_from_results(int $threadid, array $results, array $meta = []): void {
@@ -164,7 +164,7 @@ class execution_observation_ledger {
      *
      * @param int $threadid
      * @param int $limit
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_recent_for_runtime(int $threadid, int $limit = 12): array {
         $entries = $this->read_entries($threadid);
@@ -213,7 +213,7 @@ class execution_observation_ledger {
      * Read raw ledger entries from thread metadata.
      *
      * @param int $threadid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function read_entries(int $threadid): array {
         $value = $this->store->get_thread_metadata_value($threadid, self::META_KEY);
@@ -227,8 +227,8 @@ class execution_observation_ledger {
     /**
      * Normalize input for stable signatures and compact planner context.
      *
-     * @param array<string,mixed> $input
-     * @return array<string,mixed>
+     * @param array $input
+     * @return array
      */
     private function normalize_input(array $input): array {
         $dropkeys = [
@@ -277,7 +277,7 @@ class execution_observation_ledger {
     /**
      * Build deterministic dedupe signature.
      *
-     * @param array<string,mixed> $entry
+     * @param array $entry
      * @return string
      */
     private function build_signature(array $entry): string {

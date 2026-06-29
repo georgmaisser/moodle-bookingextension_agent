@@ -58,7 +58,7 @@ class retry_policy_service {
      * Resolve retry hint category from structured context.
      *
      * @param string $errorclass
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @param string $layer
      * @return string
      */
@@ -134,8 +134,8 @@ class retry_policy_service {
      * Evaluate provider circuit breaker constraints.
      *
      * @param string $errorclass
-     * @param array<int,string> $issuecodes
-     * @return array{allow:bool,issue_codes:array<int,string>,terminal_reason:string}
+     * @param string[] $issuecodes
+     * @return array{allow:bool,issue_codes:string[],terminal_reason:string}
      */
     public function evaluate_provider_circuit_breaker(string $errorclass, array $issuecodes): array {
         $normalizederrorclass = trim(strtolower($errorclass));

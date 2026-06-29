@@ -44,9 +44,9 @@ class skill_version_policy {
     /**
      * Evaluate a concrete skill version against normalized skill metadata.
      *
-     * @param array<string,mixed> $skillcontract
+     * @param array $skillcontract
      * @param int $requestedversion
-     * @return array{status:string,issue_codes:array<int,string>,supported_version:int,min_supported_version:int}
+     * @return array{status:string,issue_codes:string[],supported_version:int,min_supported_version:int}
      */
     public function evaluate(array $skillcontract, int $requestedversion): array {
         $supportedversion = max(1, (int)($skillcontract['version'] ?? 1));
@@ -81,7 +81,7 @@ class skill_version_policy {
     /**
      * Determine whether a requested version should be marked deprecated.
      *
-     * @param array<string,mixed> $skillcontract
+     * @param array $skillcontract
      * @param int $requestedversion
      * @return bool
      */

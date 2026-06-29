@@ -32,7 +32,7 @@ final class module_form_contract_test extends advanced_testcase {
     /**
      * Minimal valid inputs per whitelist module.
      *
-     * @return array<string,array{0:string,1:string,2:string,3:array<string,mixed>}>
+     * @return array
      */
     public static function valid_inputs_provider(): array {
         return [
@@ -52,7 +52,7 @@ final class module_form_contract_test extends advanced_testcase {
      * @param string $modname
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
+     * @param array $settings
      */
     public function test_form_builds_and_validates(string $modname, string $name, string $intro, array $settings): void {
         global $PAGE;

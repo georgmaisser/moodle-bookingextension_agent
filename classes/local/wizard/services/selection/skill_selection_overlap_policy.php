@@ -30,7 +30,7 @@ class skill_selection_overlap_policy {
      * Resolve canonical skill name from exact name or unique short suffix.
      *
      * @param string $candidate
-     * @param array<int,string> $allowedskills
+     * @param string[] $allowedskills
      * @return string|null
      */
     public function resolve(string $candidate, array $allowedskills): ?string {

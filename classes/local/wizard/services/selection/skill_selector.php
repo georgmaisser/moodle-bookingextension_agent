@@ -48,8 +48,8 @@ class skill_selector {
     /**
      * Select one valid skill from a raw command payload.
      *
-     * @param array<string,mixed> $command
-     * @param array<int,string> $allowedskills
+     * @param array $command
+     * @param string[] $allowedskills
      * @param string $label
      * @return skill_selection_result
      */

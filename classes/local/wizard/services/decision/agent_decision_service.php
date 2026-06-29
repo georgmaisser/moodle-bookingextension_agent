@@ -321,6 +321,7 @@ class agent_decision_service {
      *
      * @param array $result
      * @param array $pendingintent
+     * @param int $threadid
      * @param string $outputlang
      * @return array
      */
@@ -1017,9 +1018,9 @@ class agent_decision_service {
     /**
      * Attach deterministic execution guard tokens to mutating prepared commands.
      *
-     * @param array<int,array<string,mixed>> $commands
+     * @param array[] $commands
      * @param int $contextid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function apply_execution_guard_tokens(array $commands, int $contextid): array {
         foreach ($commands as &$command) {
@@ -1059,7 +1060,7 @@ class agent_decision_service {
      * @param int $threadid
      * @param int $userid
      * @param int $contextid
-     * @param array<int,mixed> $queueitemids
+     * @param mixed[] $queueitemids
      * @return string
      */
     private function persist_pending_intent_pointer(
@@ -1085,8 +1086,8 @@ class agent_decision_service {
      * Resolve risk classes for a set of queue items.
      *
      * @param int $threadid
-     * @param array<int,string> $queueitemids
-     * @return array<int,string>
+     * @param string[] $queueitemids
+     * @return string[]
      */
     private function resolve_queue_item_risk_classes(int $threadid, array $queueitemids): array {
         $riskclasses = [];
@@ -1113,10 +1114,12 @@ class agent_decision_service {
      * Execute read-only commands directly and return an execution result payload.
      *
      * @param  array  $commands
+     * @param  array  $queueitemids
      * @param  int    $threadid
      * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
+     * @param  string $nextstepintent
      * @return array
      */
     private function execute_readonly_commands(
@@ -1422,7 +1425,7 @@ class agent_decision_service {
      * Unknown or malformed commands are treated as R3 for safety.
      *
      * @param  array $commands
-     * @return array{r0:array<int,array<string,mixed>>,r1:array<int,array<string,mixed>>,r2:array<int,array<string,mixed>>,r3:array<int,array<string,mixed>>}
+     * @return array{r0:array[],r1:array[],r2:array[],r3:array[]}
      */
     private function split_commands_by_risk_class(array $commands): array {
         $groups = [
@@ -1471,8 +1474,8 @@ class agent_decision_service {
     /**
      * Inject resolved risk_class into commands.
      *
-     * @param array<int,array<string,mixed>> $commands
-     * @return array<int,array<string,mixed>>
+     * @param array[] $commands
+     * @return array[]
      */
     private function inject_risk_class_into_commands(array $commands): array {
         foreach ($commands as &$command) {
@@ -1626,7 +1629,7 @@ class agent_decision_service {
      * Normalize queue item identifiers to non-empty strings.
      *
      * @param mixed $value
-     * @return array<int,string>
+     * @return string[]
      */
     private function normalize_queue_item_ids($value): array {
         return array_values(array_filter(array_map('strval', (array)$value)));

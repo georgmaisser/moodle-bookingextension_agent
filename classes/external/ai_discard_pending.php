@@ -56,7 +56,7 @@ class ai_discard_pending extends external_api {
      *
      * @param int $contextid
      * @param int $threadid
-     * @return array<string,mixed>
+     * @return array
      */
     public static function execute(int $contextid, int $threadid): array {
         global $USER;

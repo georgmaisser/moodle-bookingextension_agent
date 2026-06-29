@@ -120,7 +120,7 @@ class runtime_feature_flags {
     /**
      * Return all known runtime flags as a normalized boolean snapshot.
      *
-     * @return array<string,bool>
+     * @return array
      */
     public static function snapshot(): array {
         $snapshot = [];

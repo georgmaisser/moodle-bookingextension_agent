@@ -32,8 +32,8 @@ class core_family_set {
     /**
      * Resolve core families from prompt contracts plus stable defaults.
      *
-     * @param array<int,array<string,mixed>> $promptcontracts
-     * @return array<int,string>
+     * @param array[] $promptcontracts
+     * @return string[]
      */
     public function resolve(array $promptcontracts): array {
         $families = ['wizard.general'];

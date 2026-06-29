@@ -29,7 +29,7 @@ interface external_dependency_checker_interface {
     /**
      * Check external dependencies for one command.
      *
-     * @param array<string,mixed> $command
+     * @param array $command
      * @param int $contextid
      * @param int $userid
      * @return preflight_result_v2

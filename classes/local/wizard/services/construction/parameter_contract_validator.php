@@ -33,7 +33,7 @@ class parameter_contract_validator {
      * Validate canonical input against skill structural contract.
      *
      * @param skill_interface $skill
-     * @param array<string,mixed> $input
+     * @param array $input
      * @param string $label
      * @return parameter_construction_result
      */

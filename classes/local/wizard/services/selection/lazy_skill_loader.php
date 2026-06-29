@@ -45,7 +45,7 @@ class lazy_skill_loader {
      * Load one concrete skill lazily by canonical skill name.
      *
      * @param string $skillname
-     * @param array<int,string> $allowedskills Optional allow-list for phase-scoped loading.
+     * @param string[] $allowedskills Optional allow-list for phase-scoped loading.
      * @return skill_interface|null
      */
     public function load_skill(string $skillname, array $allowedskills = []): ?skill_interface {

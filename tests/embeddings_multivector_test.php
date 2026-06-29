@@ -39,8 +39,8 @@ final class embeddings_multivector_test extends \advanced_testcase {
      * @param int $index
      * @param string $kind
      * @param string $text
-     * @param array<int,float> $vector
-     * @return array<string,string>
+     * @param float[] $vector
+     * @return array
      */
     private function anchor_row(string $skill, int $index, string $kind, string $text, array $vector): array {
         return [

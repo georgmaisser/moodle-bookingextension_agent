@@ -175,7 +175,7 @@ class synchronizer_output_contract {
      * Extract option ids from free text using common skill output patterns.
      *
      * @param string $text
-     * @return array<int,int>
+     * @return int[]
      */
     private function extract_option_ids(string $text): array {
         $trimmed = trim($text);

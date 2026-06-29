@@ -41,10 +41,10 @@ class family_ranker {
     /**
      * Rank families by combined signal and semantic scores.
      *
-     * @param array<int,string> $families
-     * @param array<string,float> $signalscores
-     * @param array<string,float> $semanticscores
-     * @return array<int,array<string,mixed>>
+     * @param string[] $families
+     * @param array $signalscores
+     * @param array $semanticscores
+     * @return array[]
      */
     public function rank(array $families, array $signalscores, array $semanticscores = []): array {
         $rows = [];
@@ -80,11 +80,11 @@ class family_ranker {
     /**
      * Select a small deterministic low-score tail outside already selected families.
      *
-     * @param array<int,array<string,mixed>> $rankedfamilies
-     * @param array<int,string> $selectedfamilies
+     * @param array[] $rankedfamilies
+     * @param string[] $selectedfamilies
      * @param int|null $maxitems
      * @param float|null $minscore
-     * @return array<int,string>
+     * @return string[]
      */
     public function select_low_score_tail(
         array $rankedfamilies,

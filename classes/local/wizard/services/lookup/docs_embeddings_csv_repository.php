@@ -105,7 +105,7 @@ class docs_embeddings_csv_repository extends embeddings_csv_repository_base {
      * Read rows filtered by corpus_id.
      *
      * @param string $corpusid
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function read_rows_for_corpus(string $corpusid): array {
         $rows = $this->read_rows();

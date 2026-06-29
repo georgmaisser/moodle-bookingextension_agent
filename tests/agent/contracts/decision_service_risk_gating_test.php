@@ -66,7 +66,7 @@ final class decision_service_risk_gating_test extends TestCase {
     /**
      * Build a decision service with a skill registry mock that returns risk-class aware skills.
      *
-     * @param array<string,string> $skillriskmap
+     * @param array $skillriskmap
      * @return agent_decision_service
      */
     private function build_service(array $skillriskmap): agent_decision_service {
@@ -218,7 +218,7 @@ final class decision_service_risk_gating_test extends TestCase {
      *
      * @param agent_decision_service $service
      * @param string $method
-     * @param array<int,mixed> $args
+     * @param mixed[] $args
      * @return mixed
      */
     private function invoke_private_method(agent_decision_service $service, string $method, array $args) {

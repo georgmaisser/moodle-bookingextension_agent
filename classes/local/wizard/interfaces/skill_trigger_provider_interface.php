@@ -31,7 +31,7 @@ interface skill_trigger_provider_interface {
      * - description (string, required): what should count as a match
      * - examples (array<int,string>, optional): non-exhaustive positive examples
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array;
 }

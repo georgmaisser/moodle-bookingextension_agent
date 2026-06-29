@@ -36,7 +36,7 @@ class benchmark_result_collector {
      * @param int     $durationms   Wall-clock time for this call.
      * @param int     $tokensprompt
      * @param int     $tokenscompletion
-     * @return array<string,mixed>  Scenario result record (matches benchmark_scenarios table).
+     * @return array  Scenario result record (matches benchmark_scenarios table).
      */
     public function evaluate(
         benchmark_scenario_interface $scenario,
@@ -143,7 +143,7 @@ class benchmark_result_collector {
      * decodes to an object carrying a response_type (the selector payload), then any decodable object.
      *
      * @param string $rawresponse raw model output (plain JSON, fenced, or wrapped in prose)
-     * @return array<string,mixed>|null decoded object, or null when nothing decodes
+     * @return array|null decoded object, or null when nothing decodes
      */
     private function decode_response_tolerantly(string $rawresponse): ?array {
         $fallback = null;
@@ -164,7 +164,7 @@ class benchmark_result_collector {
      * Basic selector contract compliance check.
      *
      * @param array  $parsed
-     * @param array &$errors
+     * @param array  $errors
      * @return bool
      */
     private function check_contract_compliance(array $parsed, array &$errors): bool {

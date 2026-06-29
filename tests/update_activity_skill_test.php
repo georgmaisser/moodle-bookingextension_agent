@@ -33,8 +33,8 @@ final class update_activity_skill_test extends advanced_testcase {
     /**
      * Create a course + editing teacher + one page activity, acting as the teacher with the course context.
      *
-     * @param array<string,mixed> $pageopts
-     * @return array{0:\stdClass,1:\stdClass,2:\stdClass,3:int} [course, teacher, page cm record, coursecontextid]
+     * @param array $pageopts
+     * @return array [course, teacher, page cm record, coursecontextid]
      */
     private function setup_page(array $pageopts = []): array {
         global $PAGE;

@@ -31,10 +31,10 @@ class assistant_state_guidance_service {
     /**
      * Normalize an arbitrary list into non-empty trimmed strings.
      *
-     * @param array<int,mixed> $values
+     * @param mixed[] $values
      * @param int $maxitems
      * @param int $maxchars
-     * @return array<int,string>
+     * @return string[]
      */
     public function normalize_nonempty_string_list(array $values, int $maxitems = 0, int $maxchars = 0): array {
         if ($maxitems > 0) {

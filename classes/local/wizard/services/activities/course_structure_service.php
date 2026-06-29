@@ -47,7 +47,7 @@ class course_structure_service {
      * @param \stdClass $course               The course record.
      * @param int       $userid               The user whose visibility scopes the result.
      * @param bool      $includedescriptions  Whether to load section summaries + activity intros (1 DB read per activity).
-     * @return array<string,mixed> Normalised structure (see the skill's data contract).
+     * @return array Normalised structure (see the skill's data contract).
      */
     public function analyze(\stdClass $course, int $userid, bool $includedescriptions = true): array {
         $courseid = (int)$course->id;
@@ -90,9 +90,9 @@ class course_structure_service {
      * @param \context_course $coursecontext
      * @param \course_modinfo $modinfo
      * @param \section_info $section
-     * @param array<int,int> $cmids Course-module ids of this section, in display order.
+     * @param int[] $cmids Course-module ids of this section, in display order.
      * @param bool $includedescriptions
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function build_section_node(
         \stdClass $course,
@@ -148,7 +148,7 @@ class course_structure_service {
      * @param \cm_info $cm
      * @param int $position
      * @param bool $includedescriptions
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function build_activity_node(\stdClass $course, \cm_info $cm, int $position, bool $includedescriptions): ?array {
         if (!empty($cm->deletioninprogress)) {

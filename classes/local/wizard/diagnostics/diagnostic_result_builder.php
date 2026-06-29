@@ -67,7 +67,7 @@ class diagnostic_result_builder {
      * @param string $message
      * @param string $errorclass
      * @param string $observationprefix e.g. "Access diagnosis could not run: " — skill-specific.
-     * @return array<string,mixed>
+     * @return array
      */
     public static function error_result(string $message, string $errorclass, string $observationprefix): array {
         return [

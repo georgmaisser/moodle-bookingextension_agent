@@ -60,6 +60,9 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
 
     /**
      * Build a pipeline service with a skill registry mock that returns risk-class aware skills.
+     *
+     * @param array $skillriskmap
+     * @return preflight_pipeline
      */
     private function build_pipeline_service(array $skillriskmap): preflight_pipeline {
         $registry = $this->getMockBuilder(skill_registry::class)
@@ -215,7 +218,7 @@ final class preflight_pipeline_risk_class_contract_test extends TestCase {
      *
      * @param preflight_pipeline $pipeline
      * @param string $method
-     * @param array<int,mixed> $args
+     * @param mixed[] $args
      * @return mixed
      */
     private function invoke_private_method(preflight_pipeline $pipeline, string $method, array $args) {

@@ -215,7 +215,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['name' => 'Chapter 1 quiz', 'content' => 'Photosynthesis basics', 'count' => 5];
@@ -224,7 +224,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -241,7 +241,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -267,7 +267,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
@@ -433,7 +433,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * @param int $sectionnum
      * @param string $name
      * @param string $intro
-     * @param array<string,mixed> $settings
+     * @param array $settings
      * @return array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int}
      */
     private function create_quiz_hull(\stdClass $course, int $sectionnum, string $name, string $intro, array $settings): array {
@@ -493,7 +493,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Build the question-source clarification (the three options + available categories).
      *
-     * @param array<int,array<string,mixed>> $categories
+     * @param array[] $categories
      * @param string $lead
      * @return array
      */
@@ -507,10 +507,10 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Build the success result payload with staged feedback.
      *
-     * @param array{cmid:int,instance:int,modname:string,name:string,url:string,coursecontextid:int} $created
-     * @param array<int,string> $stages
+     * @param array $created
+     * @param string[] $stages
      * @param int $added
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_success_result(array $created, array $stages, int $added): array {
         $cmid = (int)($created['cmid'] ?? 0);
@@ -546,7 +546,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * Build an error result payload.
      *
      * @param string $message
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_error_result(string $message): array {
         return [

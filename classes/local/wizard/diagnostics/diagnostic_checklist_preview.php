@@ -36,18 +36,18 @@ class diagnostic_checklist_preview {
     /** Preview type string the client dispatches on. */
     public const PREVIEW_TYPE = 'diagnostic_checklist';
 
-    /** @var array<string,string> Status -> glyph. */
+    /** @var array Status -> glyph. */
     private const GLYPHS = ['ok' => '✓', 'fail' => '✗', 'warn' => '⚠'];
 
-    /** @var array<string,string> Status -> bootstrap text class. */
+    /** @var array Status -> bootstrap text class. */
     private const TEXTCLASS = ['ok' => 'text-success', 'fail' => 'text-danger', 'warn' => 'text-warning'];
 
     /**
      * Build the preview data block from checklist rows.
      *
-     * @param array<int,array{status?:string,check?:string,finding?:string,url?:mixed}> $rows
+     * @param array[] $rows
      * @param string $title Optional heading for the checklist.
-     * @param array<string,mixed> $payload Extra payload passed through to the client.
+     * @param array $payload Extra payload passed through to the client.
      * @return array{type:string,html:string,payload:array}|null Null when there are no renderable rows.
      */
     public function render(array $rows, string $title = '', array $payload = []): ?array {
@@ -79,7 +79,7 @@ class diagnostic_checklist_preview {
     /**
      * Build the checklist HTML.
      *
-     * @param array<int,array<string,mixed>> $rows
+     * @param array[] $rows
      * @param string $title
      * @return string
      */

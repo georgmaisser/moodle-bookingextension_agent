@@ -52,7 +52,7 @@ final class all_skills_real_llm_test extends abstract_llm_skill_matrix_testcase 
     /**
      * Return the shared skill matrix through a local PHPUnit provider entrypoint.
      *
-     * @return array<string,array{0:array<string,mixed>}>
+     * @return array
      */
     public static function real_skill_matrix_scenarios(): array {
         return llm_skill_matrix_scenario_provider::provide_registered_skill_scenarios();
@@ -66,7 +66,7 @@ final class all_skills_real_llm_test extends abstract_llm_skill_matrix_testcase 
      * Smoke-test each registered skill through the real LLM using the shared matrix.
      *
      * @dataProvider real_skill_matrix_scenarios
-     * @param array<string,mixed> $scenario
+     * @param array $scenario
      */
     public function test_all_registered_skills_can_complete_via_real_llm(array $scenario): void {
         $this->assert_llm_skill_scenario_success($scenario);

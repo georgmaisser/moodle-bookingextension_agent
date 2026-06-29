@@ -62,7 +62,7 @@ class provider_compat {
      * `->name`, `->id`, `->config` (incl. `apikey`, `name`) and `->actionconfig` keyed by
      * action class name with `['enabled' => bool, 'settings' => ['endpoint','model',...]]`.
      *
-     * @return array<int,object> Provider instances (5.x) or synthesised views (4.5).
+     * @return object[] Provider instances (5.x) or synthesised views (4.5).
      */
     public static function get_provider_views(): array {
         try {
@@ -228,7 +228,7 @@ class provider_compat {
      * whether it is currently enabled — disabled-but-configured must stay visible so the
      * trial "activate" path can still find it.
      *
-     * @return array<int,object>
+     * @return object[]
      */
     private static function synthesise_legacy_views(): array {
         $views = [];
@@ -272,8 +272,8 @@ class provider_compat {
      * Assemble a 5.x-shaped actionconfig map from 4.5 per-action flat config keys.
      *
      * @param string $component The aiprovider component (e.g. 'aiprovider_openai').
-     * @param array<int,string> $actionlist Action class names the provider supports.
-     * @return array<string,array{enabled:bool,settings:array<string,mixed>}>
+     * @param string[] $actionlist Action class names the provider supports.
+     * @return array
      */
     private static function legacy_actionconfig(string $component, array $actionlist): array {
         $actionconfig = [];

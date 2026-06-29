@@ -43,7 +43,7 @@ class markdown_chunker {
      *
      * @param string $content  Raw file content.
      * @param int    $maxchars Size budget per chunk (characters).
-     * @return array<int,array{title:string,line_start:int,line_end:int,text:string}>
+     * @return array[]
      */
     public static function chunk(string $content, int $maxchars = self::DEFAULT_MAX_CHARS): array {
         $maxchars = max(500, $maxchars);

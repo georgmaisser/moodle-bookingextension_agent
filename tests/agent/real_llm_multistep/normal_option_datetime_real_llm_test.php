@@ -479,9 +479,9 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     /**
      * Extract first command by skill name from endpoint payload.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @param string $skillname
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     private function extract_command_from_payload(array $payload, string $skillname): ?array {
         $commands = $this->decode_commands_from_payload($payload);
@@ -500,8 +500,8 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     /**
      * Decode commands array from endpoint payload.
      *
-     * @param array<string,mixed> $payload
-     * @return array<int,mixed>
+     * @param array $payload
+     * @return mixed[]
      */
     private function decode_commands_from_payload(array $payload): array {
         $commandsraw = $payload['commands'] ?? [];
@@ -522,7 +522,7 @@ final class normal_option_datetime_real_llm_test extends abstract_agent_testcase
     /**
      * Flatten relevant payload text for assertion debugging.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return string
      */
     protected function payload_text(array $payload): string {

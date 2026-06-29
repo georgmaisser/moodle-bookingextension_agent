@@ -176,7 +176,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['aspect' => 'access', 'userquery' => 'Maria Jones', 'activityquery' => 'Quiz 3'];
@@ -185,7 +185,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
     /**
      * Discovery triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -207,7 +207,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -243,7 +243,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
@@ -357,8 +357,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      * @param int $courseid
      * @param int $targetuserid 0 = course-level (enrolment overview)
      * @param int $actinguserid
-     * @param array<int,array<string,mixed>> $rows
-     * @return array<string,mixed>
+     * @param array[] $rows
+     * @return array
      */
     private function build_result(
         string $aspect,
@@ -424,8 +424,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      *
      * @param course_context_loader $loader
      * @param string $activityquery
-     * @param array<int,array<string,mixed>> $candidates
-     * @return array<string,mixed>
+     * @param array[] $candidates
+     * @return array
      */
     private function inventory_observation_result(
         course_context_loader $loader,
@@ -453,7 +453,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      * the course list/links stay identical to core.search_users.
      *
      * @param \stdClass $targetuser
-     * @return array<string,mixed>
+     * @return array
      */
     private function enrolment_overview_result(\stdClass $targetuser): array {
         $targetuserid = (int)$targetuser->id;
@@ -509,7 +509,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      *
      * @param string $message
      * @param string $errorclass
-     * @return array<string,mixed>
+     * @return array
      */
     private function error_result(string $message, string $errorclass): array {
         return diagnostic_result_builder::error_result($message, $errorclass, 'Diagnosis could not run: ');

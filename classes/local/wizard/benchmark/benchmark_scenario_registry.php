@@ -42,7 +42,7 @@ use bookingextension_agent\local\wizard\benchmark\scenarios\get_current_user_rea
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class benchmark_scenario_registry {
-    /** @var array<string,array<string>> Scenario set name -> list of class names. */
+    /** @var array Scenario set name -> list of class names. */
     private const SETS = [
         'core_booking_v1' => [
             create_option_basic::class,

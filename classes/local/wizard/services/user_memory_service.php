@@ -52,7 +52,7 @@ class user_memory_service {
     /**
      * Return the valid injection channels.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public static function valid_scopes(): array {
         return [self::SCOPE_SELECTION, self::SCOPE_CONSTRUCTION, self::SCOPE_SYNCHRONIZATION];
@@ -63,7 +63,7 @@ class user_memory_service {
      *
      * @param int $userid
      * @param string $text
-     * @param array<int,string> $scopes Injection channels this memory is relevant for
+     * @param string[] $scopes Injection channels this memory is relevant for
      *   (selection/construction/synchronization). Empty = all channels.
      * @return array{status:string,message:string,id:?int}
      *   status is one of: ok | empty | too_long | limit_count | limit_total | duplicate
@@ -144,7 +144,7 @@ class user_memory_service {
      * Return all memory records for a user, oldest first.
      *
      * @param int $userid
-     * @return array<int,\stdClass> records with id, userid, memory, timecreated, timemodified
+     * @return \stdClass[] records with id, userid, memory, timecreated, timemodified
      */
     public function get_all(int $userid): array {
         global $DB;
@@ -185,7 +185,7 @@ class user_memory_service {
      *
      * @param int $userid
      * @param string $query
-     * @return array<int,\stdClass> matching records
+     * @return \stdClass[] matching records
      */
     public function find(int $userid, string $query): array {
         $needle = \core_text::strtolower($this->normalize($query));
@@ -210,7 +210,7 @@ class user_memory_service {
      *
      * @param int $userid
      * @param string $scope One of the valid_scopes() values.
-     * @return array<int,\stdClass>
+     * @return \stdClass[]
      */
     public function get_for_scope(int $userid, string $scope): array {
         $scope = trim($scope);
@@ -229,7 +229,7 @@ class user_memory_service {
      * Parse a stored comma-separated scopes string into a clean array.
      *
      * @param string|null $scopes
-     * @return array<int,string>
+     * @return string[]
      */
     public static function parse_scopes(?string $scopes): array {
         $scopes = trim((string)$scopes);
@@ -246,8 +246,8 @@ class user_memory_service {
      *
      * Unknown entries are dropped; an empty/invalid result means "all channels".
      *
-     * @param array<int,string> $scopes
-     * @return array<int,string>
+     * @param string[] $scopes
+     * @return string[]
      */
     private function normalize_scopes(array $scopes): array {
         $requested = [];

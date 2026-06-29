@@ -91,7 +91,7 @@ final class queue_risk_class_contract_test extends TestCase {
      *
      * @param queue_manager $queuesvc
      * @param string $method
-     * @param array<int,mixed> $args
+     * @param mixed[] $args
      * @return mixed
      */
     private function invoke_private_method(queue_manager $queuesvc, string $method, array $args) {

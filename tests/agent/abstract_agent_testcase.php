@@ -84,7 +84,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
     /** @var bool Enforce generate_text debug assertion in tearDown for real-LLM tests. */
     protected bool $enforcegeneratetextassertion = false;
 
-    /** @var array<int,int> Threads used by run_loop/chat in this test. */
+    /** @var int[] Threads used by run_loop/chat in this test. */
     protected array $trackedllmthreadids = [];
 
     // -------------------------------------------------------------------------
@@ -549,7 +549,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      * Lives here (not in the matrix testcase) because plain real-LLM tests
      * extending this base also build assertion messages from WS payloads.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      * @return string
      */
     protected function payload_text(array $payload): string {
@@ -674,7 +674,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
      *
      * Returns [store, runtime, threadid].
      *
-     * @return array{0: conversation_store, 1: agent_runtime, 2: int}
+     * @return array
      */
     protected function build_runtime(): array {
         $store    = new conversation_store();

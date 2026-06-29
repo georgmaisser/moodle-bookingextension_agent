@@ -36,13 +36,13 @@ final class proposed_action_preview_test extends advanced_testcase {
     /**
      * Build a stub skill whose schema declares the given properties.
      *
-     * @param array<string,mixed> $properties
+     * @param array $properties
      * @param string $name
      * @return base_skill
      */
     private function make_stub_skill(array $properties, string $name = 'mod_booking.create_thing'): base_skill {
         return new class ($properties, $name) extends base_skill {
-            /** @var array<string,mixed> Declared schema properties. */
+            /** @var array Declared schema properties. */
             private array $properties;
             /** @var string Skill name. */
             private string $skillname;
@@ -50,7 +50,7 @@ final class proposed_action_preview_test extends advanced_testcase {
             /**
              * Build the stub.
              *
-             * @param array<string,mixed> $properties
+             * @param array $properties
              * @param string $skillname
              */
             public function __construct(array $properties, string $skillname) {

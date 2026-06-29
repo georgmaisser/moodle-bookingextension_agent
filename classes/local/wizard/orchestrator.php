@@ -93,7 +93,7 @@ class orchestrator {
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
      *
-     * @return array<string,bool>
+     * @return array
      */
     public static function get_runtime_feature_flags_snapshot(): array {
         return runtime_feature_flags::snapshot();
@@ -202,7 +202,7 @@ class orchestrator {
      * readiness UI and runtime message processing.
      *
      * @param int $contextid Moodle context id (any level the agent runs at).
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_runtime_provider_status(int $contextid): array {
         // Logic lives in provider_status_service (orchestrator split, provider-status seam);
@@ -308,8 +308,8 @@ class orchestrator {
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-     * @param array<int,string> $observations
-     * @return array<string,mixed>
+     * @param string[] $observations
+     * @return array
      */
     public function process_synchronizer(
         int $threadid,
@@ -392,8 +392,8 @@ class orchestrator {
      *
      * Shared by the synchronizer step here and (duplicated) by planner_phase_service.
      *
-     * @param array<string,mixed> $call
-     * @return array<string,mixed>
+     * @param array $call
+     * @return array
      */
     private function build_provider_error_result(array $call): array {
         $errormessage = (string)($call['errormessage'] ?? 'Provider returned an error.');
@@ -432,7 +432,7 @@ class orchestrator {
     /**
      * Build a standardized empty-provider payload.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_empty_provider_result(): array {
         return [
@@ -494,7 +494,7 @@ class orchestrator {
      * @param context $context
      * @param ai_manager $manager
      * @param skill_executability_evaluator $evaluator
-     * @return array<string,mixed>
+     * @return array
      */
     private function run_discovery_phase(
         int $threadid,
@@ -527,10 +527,10 @@ class orchestrator {
      * @param int $contextid
      * @param int $userid
      * @param array $observations
-     * @param array<string,mixed> $discoverystate
+     * @param array $discoverystate
      * @param context $context
      * @param ai_manager $manager
-     * @return array<string,mixed>
+     * @return array
      */
     private function run_selection_phase(
         int $threadid,
@@ -560,10 +560,10 @@ class orchestrator {
      * @param int $threadid
      * @param int $contextid
      * @param int $userid
-     * @param array<string,mixed> $observations
-     * @param array<string,mixed> $discoverystate
-     * @param array<string,mixed> $selectionstate
-     * @return array<string,mixed>
+     * @param array $observations
+     * @param array $discoverystate
+     * @param array $selectionstate
+     * @return array
      */
     private function run_construction_phase(
         int $threadid,
@@ -764,6 +764,7 @@ PROMPT;
      * content (timestamp, adaptive catalog, execution ledgers) never invalidates
      * the cacheable prompt prefix.
      *
+     * @param int $threadid
      * @param int $contextid
      * @param string $phase
      * @param bool $isfirstassistantturn
@@ -775,7 +776,8 @@ PROMPT;
      * @param array $liveobservations observation strings already emitted as [OBSERVATION n]
      *                                blocks in the same prompt — used to compact duplicate
      *                                ledger entries
-     * @return array{stable: string, volatile: string}
+     * @param bool $catalogisstatic
+     * @return array
      */
     private function build_runtime_context_block(
         int $threadid,

@@ -34,7 +34,7 @@ class preflight_error_classifier {
     /**
      * Infer error class from structured issue codes.
      *
-     * @param array<int,string> $issuecodes
+     * @param string[] $issuecodes
      * @return string
      */
     public static function infer_from_issue_codes(array $issuecodes): string {

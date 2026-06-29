@@ -65,7 +65,7 @@ class skill_introspection_service implements skill_introspection_provider_interf
      * @param int    $userid
      * @param int    $contextid
      * @param string $scope
-     * @return array{available: array<int,array<string,mixed>>, unavailable: array<int,array<string,mixed>>}
+     * @return array{available: array[], unavailable: array[]}
      */
     public function list_actions(int $userid, int $contextid, string $scope): array {
         $available = [];

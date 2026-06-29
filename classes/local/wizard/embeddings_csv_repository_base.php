@@ -225,7 +225,7 @@ abstract class embeddings_csv_repository_base {
     /**
      * Read all CSV rows as associative arrays.
      *
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function read_rows(): array {
         $path = $this->get_csv_path();
@@ -270,7 +270,7 @@ abstract class embeddings_csv_repository_base {
      * Parse a CSV file into associative rows using RFC-4180 quoting (escape disabled).
      *
      * @param string $path
-     * @return array{0: array<int,array<string,string>>, 1: int} parsed rows and skipped-row count
+     * @return array{0: array[], 1: int} parsed rows and skipped-row count
      */
     protected function parse_file(string $path): array {
         $handle = fopen($path, 'rb');
@@ -307,7 +307,7 @@ abstract class embeddings_csv_repository_base {
     /**
      * Validate row schema and non-empty key fields.
      *
-     * @param array<int,array<string,string>> $rows
+     * @param array[] $rows
      * @return bool
      */
     public function is_valid_schema(array $rows): bool {
@@ -344,7 +344,7 @@ abstract class embeddings_csv_repository_base {
      * caller sees an exception — which lets Moodle's task scheduler apply faildelay backoff instead
      * of looping expensive embeddings rebuilds.
      *
-     * @param array<int,array<string,string>> $rows
+     * @param array[] $rows
      * @return void
      */
     public function write_rows(array $rows): void {
@@ -402,7 +402,7 @@ abstract class embeddings_csv_repository_base {
      *
      * Same header check and malformed-row skipping as parse_file(), but memory stays at one row.
      *
-     * @return \Generator<int,array<string,string>>
+     * @return \Generator
      */
     public function stream_rows(): \Generator {
         $path = $this->get_csv_path();
@@ -479,7 +479,7 @@ abstract class embeddings_csv_repository_base {
      * passed straight to read_row_at().
      *
      * @param callable $keyfn fn(array $row): string — return '' to skip a row.
-     * @return array{index: array<string,array{content_hash:string,offset:int}>, total: int}
+     * @return array{index: array, total: int}
      */
     public function build_key_offset_index(callable $keyfn): array {
         $index = [];
@@ -534,7 +534,7 @@ abstract class embeddings_csv_repository_base {
      * close_random_reader() when done.
      *
      * @param int $offset
-     * @return array<string,string>|null
+     * @return array|null
      */
     public function read_row_at(int $offset): ?array {
         if ($this->randomhandle === null) {
@@ -596,7 +596,7 @@ abstract class embeddings_csv_repository_base {
     /**
      * Write one data row to the streaming write in progress (fields ordered by headers()).
      *
-     * @param array<string,mixed> $row
+     * @param array $row
      * @return void
      */
     public function stream_write_row(array $row): void {
@@ -703,7 +703,7 @@ abstract class embeddings_csv_repository_base {
     /**
      * Compare CSV headers against expected schema.
      *
-     * @param array<int,string> $headers
+     * @param string[] $headers
      * @return bool
      */
     protected function headers_match(array $headers): bool {

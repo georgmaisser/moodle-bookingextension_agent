@@ -35,8 +35,8 @@ class vector_math {
      *
      * Returns 0.0 for empty input or a zero-magnitude vector (no direction to compare).
      *
-     * @param array<int,float|int> $a
-     * @param array<int,float|int> $b
+     * @param array $a
+     * @param array $b
      * @return float Similarity in [-1, 1].
      */
     public static function cosine_similarity(array $a, array $b): float {

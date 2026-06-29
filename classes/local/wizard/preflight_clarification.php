@@ -39,7 +39,7 @@ trait preflight_clarification {
      *
      * @param string $message
      * @param string $code
-     * @param array<int,array<string,mixed>> $options
+     * @param array[] $options
      * @return array{status:string,prepared_input:array,issues:array}
      */
     private function clarify(string $message, string $code, array $options = []): array {

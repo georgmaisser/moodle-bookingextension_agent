@@ -34,7 +34,7 @@ class shared_json_payload_extractor {
      * Handles plain JSON, markdown-fenced JSON blocks and mixed multi-object output.
      *
      * @param string $text
-     * @return array<int,string>
+     * @return string[]
      */
     public static function extract_json_candidates(string $text): array {
         $candidates = [];
@@ -66,7 +66,7 @@ class shared_json_payload_extractor {
      * Extract balanced top-level JSON object snippets from arbitrary text.
      *
      * @param string $text
-     * @return array<int,string>
+     * @return string[]
      */
     public static function extract_balanced_json_objects(string $text): array {
         $objects = [];

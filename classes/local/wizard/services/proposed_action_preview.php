@@ -56,7 +56,7 @@ class proposed_action_preview {
      *
      * Best-effort: a skill that cannot be resolved or whose descriptor throws is skipped, never fatal.
      *
-     * @param array<int,mixed> $commands Proposed commands (each: {skill, input, …}).
+     * @param mixed[] $commands Proposed commands (each: {skill, input, …}).
      * @param skill_registry $registry
      * @return string JSON-encoded descriptor, or '' when there is nothing to show.
      */
@@ -111,8 +111,8 @@ class proposed_action_preview {
     /**
      * Normalize and validate the label/value rows a skill returned.
      *
-     * @param array<int,mixed> $rows
-     * @return array<int,array{label:string,value:string}>
+     * @param mixed[] $rows
+     * @return array[]
      */
     private static function sanitize_rows(array $rows): array {
         $clean = [];

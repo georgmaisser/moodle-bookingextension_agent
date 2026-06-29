@@ -93,7 +93,7 @@ class finalization_classifier {
     /**
      * Classify finalization strategy from normalized result metadata.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return string One of STRATEGY_* constants.
      */
     public function classify(array $result): string {
@@ -143,7 +143,7 @@ class finalization_classifier {
     /**
      * Check whether the synchronizer output must include an irreversibility notice.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return bool
      */
     public function requires_irreversibility_notice(array $result): bool {
@@ -157,7 +157,7 @@ class finalization_classifier {
     /**
      * Check whether the synchronizer output must include an affected-scope summary.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return bool
      */
     public function requires_affected_scope_summary(array $result): bool {
@@ -174,7 +174,7 @@ class finalization_classifier {
      * Synchronizer guard requirements should only trigger when risk_class
      * is declared explicitly by runtime output, not inferred implicitly.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return string
      */
     private function resolve_explicit_risk_class(array $result): string {
@@ -189,7 +189,7 @@ class finalization_classifier {
     /**
      * Determine whether the result currently carries executable commands.
      *
-     * @param array<string,mixed> $result
+     * @param array $result
      * @return bool
      */
     private function has_commands(array $result): bool {

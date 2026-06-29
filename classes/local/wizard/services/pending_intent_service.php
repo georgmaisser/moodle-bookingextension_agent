@@ -48,7 +48,7 @@ class pending_intent_service {
      * Get pending intent for a thread.
      *
      * @param int $threadid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function get(int $threadid): ?array {
         return $this->store->get_pending_intent($threadid);
@@ -60,7 +60,7 @@ class pending_intent_service {
      * @param int $threadid
      * @param int $userid
      * @param int $contextid
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function consume(int $threadid, int $userid, int $contextid): ?array {
         return $this->store->consume_pending_intent($threadid, $userid, $contextid);
@@ -82,7 +82,7 @@ class pending_intent_service {
      * @param int $threadid
      * @param int $userid
      * @param int $contextid
-     * @param array<string,mixed> $metadata
+     * @param array $metadata
      * @return string
      */
     public function set(

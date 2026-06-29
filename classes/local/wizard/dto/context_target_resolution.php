@@ -48,7 +48,7 @@ final class context_target_resolution {
     /** @var context|null The resolved context (only when STATUS_RESOLVED). */
     private ?context $context;
 
-    /** @var array<int,array{id:int,name:string}> Candidate list (only when STATUS_AMBIGUOUS). */
+    /** @var array[] Candidate list (only when STATUS_AMBIGUOUS). */
     private array $candidates;
 
     /**
@@ -56,7 +56,7 @@ final class context_target_resolution {
      *
      * @param string                                  $status
      * @param context|null                            $context
-     * @param array<int,array{id:int,name:string}>    $candidates
+     * @param array[]    $candidates
      */
     private function __construct(string $status, ?context $context, array $candidates) {
         $this->status = $status;
@@ -77,7 +77,7 @@ final class context_target_resolution {
     /**
      * An ambiguous resolution carrying its candidates.
      *
-     * @param array<int,array{id:int,name:string}> $candidates
+     * @param array[] $candidates
      * @return self
      */
     public static function ambiguous(array $candidates): self {
@@ -132,7 +132,7 @@ final class context_target_resolution {
     /**
      * Candidate list for an ambiguous resolution.
      *
-     * @return array<int,array{id:int,name:string}>
+     * @return array[]
      */
     public function candidates(): array {
         return $this->candidates;

@@ -132,7 +132,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     /**
      * Return deterministic example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -144,7 +144,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -170,7 +170,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -329,7 +329,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
      *
      * @param int $userid
      * @param string $datehint
-     * @return array<string,int>|null
+     * @return array|null
      */
     private function resolve_date_window(int $userid, string $datehint): ?array {
         $normalized = \core_text::strtolower(trim($datehint));
@@ -410,7 +410,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
      * Duck-typed by executor — skills that carry sensitive input fields declare them here
      * so the executor stays skill-agnostic.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_sensitive_input_fields(): array {
         return ['query'];
@@ -419,7 +419,9 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     /**
      * Build planner-friendly previous-message observation text.
      *
-     * @param array<int,array<string,mixed>> $messages
+     * @param array[] $messages
+     * @param int|null $fromtimestamp
+     * @param int|null $totimestamp
      * @return string
      */
     private function build_memory_observation_text(

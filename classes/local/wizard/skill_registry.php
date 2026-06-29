@@ -47,22 +47,22 @@ use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interf
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class skill_registry {
-    /** @var array<string, skill_provider_interface> component => provider instance */
+    /** @var array component => provider instance */
     private array $providers = [];
 
-    /** @var array<string, skill_interface> skill name => skill instance */
+    /** @var array skill name => skill instance */
     private array $skills = [];
 
-    /** @var array<string, skill_provider_interface> skill name => provider instance */
+    /** @var array skill name => provider instance */
     private array $skillproviders = [];
 
-    /** @var array<string,array<string,mixed>> skill name => normalized governance metadata */
+    /** @var array skill name => normalized governance metadata */
     private array $skillcontracts = [];
 
-    /** @var array<int,string> contract diagnostics collected during registration */
+    /** @var string[] contract diagnostics collected during registration */
     private array $contractdiagnostics = [];
 
-    /** @var array<int,result_summary_contributor_interface> */
+    /** @var result_summary_contributor_interface[] */
     private array $resultsummarycontributors = [];
 
 
@@ -273,7 +273,7 @@ class skill_registry {
      * @param int $userid
      * @param int $contextid
      * @param bool $includeunavailable
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_skill_names_for_context(
         skill_executability_evaluator $evaluator,
@@ -301,7 +301,7 @@ class skill_registry {
      * Return normalized governance metadata for a single skill.
      *
      * @param string $skillname
-     * @return array<string,mixed>|null
+     * @return array|null
      */
     public function get_skill_contract(string $skillname): ?array {
         return $this->skillcontracts[$skillname] ?? null;
@@ -310,7 +310,7 @@ class skill_registry {
     /**
      * Return normalized governance metadata for all registered skills.
      *
-     * @return array<string,array<string,mixed>>
+     * @return array
      */
     public function get_skill_contracts(): array {
         return $this->skillcontracts;
@@ -319,7 +319,7 @@ class skill_registry {
     /**
      * Return contract diagnostics collected during provider/skill registration.
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_contract_diagnostics(): array {
         return $this->contractdiagnostics;
@@ -328,7 +328,7 @@ class skill_registry {
     /**
      * Return all registered result summary contributors.
      *
-     * @return array<int,result_summary_contributor_interface>
+     * @return result_summary_contributor_interface[]
      */
     public function get_result_summary_contributors(): array {
         return $this->resultsummarycontributors;
@@ -402,7 +402,7 @@ class skill_registry {
      * Return skill capability requirements from governance metadata.
      *
      * @param string $skillname
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_skill_capabilities(string $skillname): array {
         $meta = $this->get_skill_contract($skillname);
@@ -419,7 +419,7 @@ class skill_registry {
      * This intentionally excludes full field descriptions so the initial prompt
      * stays small. Runtime validation continues to use the full skill schemas.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_all_prompt_contracts(): array {
         $contracts = [];
@@ -436,7 +436,7 @@ class skill_registry {
      * @param int $userid
      * @param int $contextid
      * @param bool $includeunavailable
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_prompt_contracts_for_context(
         skill_executability_evaluator $evaluator,
@@ -469,7 +469,7 @@ class skill_registry {
      *
      * @param string $skillname
      * @param skill_interface $skill
-     * @return array<string,mixed>
+     * @return array
      */
     private function build_prompt_contract(string $skillname, skill_interface $skill): array {
         $schema = (array)$skill->get_schema();
@@ -549,7 +549,7 @@ class skill_registry {
     /**
      * Return all context-specific prompt packs from registered providers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         $packs = [];
@@ -638,7 +638,7 @@ class skill_registry {
      *
      * @param self $registry
      * @param string $component
-     * @param array<string,bool> $registeredcomponents
+     * @param array $registeredcomponents
      * @return void
      */
     private static function register_discovered_skills_without_provider(
@@ -662,17 +662,17 @@ class skill_registry {
             /** @var string */
             private string $component;
 
-            /** @var array<int,skill_interface> */
+            /** @var skill_interface[] */
             private array $skills;
 
-            /** @var array<int,string> */
+            /** @var string[] */
             private array $diagnostics;
 
             /**
              * Create a provider wrapper for discovered fallback skills.
              *
              * @param string $component
-             * @param array<int,skill_interface> $skills
+             * @param skill_interface[] $skills
              */
             public function __construct(string $component, array $skills) {
                 $this->component = $component;
@@ -701,7 +701,7 @@ class skill_registry {
             /**
              * Return contextual prompt packs.
              *
-             * @return array<int,array<string,mixed>>
+             * @return array[]
              */
             public function get_contextual_prompt_packs(): array {
                 return [];
@@ -719,7 +719,7 @@ class skill_registry {
             /**
              * Return prompt guidance payload.
              *
-             * @return array<string,mixed>
+             * @return array
              */
             public function get_prompt_guidance(): array {
                 return [];
@@ -728,7 +728,7 @@ class skill_registry {
             /**
              * Return discovery diagnostics captured during wrapper creation.
              *
-             * @return array<int,string>
+             * @return string[]
              */
             public function get_discovery_diagnostics(): array {
                 return $this->diagnostics;

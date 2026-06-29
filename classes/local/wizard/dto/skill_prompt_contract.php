@@ -26,13 +26,13 @@ use bookingextension_agent\local\wizard\contracts\skill_family_contract;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class skill_prompt_contract {
-    /** @var array<string,mixed> */
+    /** @var array */
     private array $payload;
 
     /**
      * Constructor.
      *
-     * @param array<string,mixed> $payload
+     * @param array $payload
      */
     public function __construct(array $payload = []) {
         $this->payload = $payload;
@@ -41,7 +41,7 @@ class skill_prompt_contract {
     /**
      * Convert to normalized array payload.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function to_array(): array {
         $namespace = trim((string)($this->payload['namespace'] ?? ''));
@@ -67,8 +67,8 @@ class skill_prompt_contract {
     /**
      * Normalize a list of scalar/string values into unique, trimmed strings.
      *
-     * @param array<int,mixed> $values
-     * @return array<int,string>
+     * @param mixed[] $values
+     * @return string[]
      */
     private static function normalize_string_list(array $values): array {
         $normalized = [];

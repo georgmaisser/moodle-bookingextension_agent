@@ -54,7 +54,7 @@ class risk_class_resolver {
      * Prefers the command's own declared risk_class; otherwise looks up the skill's declared class
      * from the registry; falls back to R3 when neither yields a valid class.
      *
-     * @param array<string,mixed> $command
+     * @param array $command
      * @param skill_registry      $registry
      * @return string One of skill_risk_class::R0..R3.
      */

@@ -64,9 +64,10 @@ class phase_prompt_bundle_builder {
      *
      * @param  int    $userid
      * @param  int    $contextid
+     * @param  string $phase
      * @param  string $actionclass
      * @param  bool   $hasobservations
-     * @param  array  $adaptivecatalog Optional adaptive skill catalog (reduced by recency/tier). If null, uses full catalog.
+     * @param  array|null $adaptivecatalog Optional adaptive skill catalog (reduced by recency/tier). If null, uses full catalog.
      * @param  array  $systemskillcatalog Optional exact skill catalog to embed into SYSTEM placeholders.
      * @param  bool   $isfirstassistantturn True when no assistant message exists yet in this thread.
      * @param  bool   $includeskillcatalog If true, embed skill catalog placeholder in SYSTEM block.
@@ -220,9 +221,11 @@ PROMPT;
      * @param  string      $systemprompt
      * @param  \stdClass[] $messages
      * @param  string[]    $observations  Structured observation strings (may be empty).
+     * @param  string      $phase The current planner phase.
      * @param  string      $runtimecontext Per-thread-stable runtime facts appended after static system prompt.
      * @param  string[]    $plannertracehistory Full planner trace history from thread metadata.
      * @param  bool        $autoconfirmmode Whether confirmation is already allowed for this thread.
+     * @param  array       $plannedstepintents Planned step intents for this thread.
      * @param  string      $runtimestate Per-request volatile runtime state appended after history.
      * @return string
      */
@@ -295,7 +298,6 @@ PROMPT;
      * Build a local output contract reminder close to the assistant output slot.
      *
      * @param string $phase
-     * @param bool $autoconfirmmode
      * @return string
      */
     private function build_output_contract_block(string $phase): string {
@@ -383,10 +385,10 @@ PROMPT;
      *
      * Desired shape: USER, PLANNER_TRACE 1, OBSERVATION 1, PLANNER_TRACE 2, OBSERVATION 2, ...
      *
-     * @param array<int,string> $parts
-     * @param array<int,string> $plannertracehistory
-     * @param array<int,string> $observations
-     * @return array<int,string>
+     * @param string[] $parts
+     * @param string[] $plannertracehistory
+     * @param string[] $observations
+     * @return string[]
      */
     private function append_planner_traces_and_observations(
         array $parts,

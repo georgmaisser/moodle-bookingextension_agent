@@ -123,7 +123,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
     /**
      * Example input.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return ['userquery' => 'Maria Jones'];
@@ -132,7 +132,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
     /**
      * Discovery triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
@@ -153,7 +153,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
     /**
      * Contextual guidance.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_contextual_prompt_packs(): array {
         return [
@@ -180,7 +180,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
      * Structural validation (pure).
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,ambiguities:array<int,string>}
+     * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
@@ -322,7 +322,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
      *
      * @param diagnostic_link_builder $links
      * @param int $userid
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     private function mail_task_rows(diagnostic_link_builder $links, int $userid): array {
         global $DB;
@@ -356,7 +356,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
     /**
      * Whether all rows so far are OK (no blocker yet).
      *
-     * @param array<int,array<string,mixed>> $rows
+     * @param array[] $rows
      * @return bool
      */
     private function all_ok(array $rows): bool {
@@ -373,8 +373,8 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
      *
      * @param \stdClass $targetuser
      * @param bool $isself
-     * @param array<int,array<string,mixed>> $rows
-     * @return array<string,mixed>
+     * @param array[] $rows
+     * @return array
      */
     private function build_result(\stdClass $targetuser, bool $isself, array $rows): array {
         $subject = $isself ? 'you' : fullname($targetuser);
@@ -437,7 +437,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
      *
      * @param string $message
      * @param string $errorclass
-     * @return array<string,mixed>
+     * @return array
      */
     private function error_result(string $message, string $errorclass): array {
         return diagnostic_result_builder::error_result($message, $errorclass, 'Notification diagnosis could not run: ');

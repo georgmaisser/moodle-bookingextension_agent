@@ -38,7 +38,7 @@ class embeddings_catalog_builder_service {
      * @param skill_registry $registry
      * @param string $model
      * @param int $dimensions
-     * @return array<int,array<string,string>>
+     * @return array[]
      */
     public function build_full_catalog_rows(skill_registry $registry, string $model, int $dimensions): array {
         $rows = [];
@@ -95,8 +95,8 @@ class embeddings_catalog_builder_service {
      * Build the ordered anchor list for one skill: description (#0) then deduplicated utterances.
      *
      * @param string $description
-     * @param array<int,mixed> $utterances
-     * @return array<int,array{index:int,kind:string,text:string}>
+     * @param mixed[] $utterances
+     * @return array[]
      */
     private function build_anchor_list(string $description, array $utterances): array {
         $anchors = [];
@@ -127,7 +127,7 @@ class embeddings_catalog_builder_service {
     /**
      * Compute stable hash for one row payload.
      *
-     * @param array<string,mixed> $canonicalrow
+     * @param array $canonicalrow
      * @param string $model
      * @param int $dimensions
      * @return string
@@ -150,7 +150,7 @@ class embeddings_catalog_builder_service {
      * message_triggers + contextual_prompt_packs) diluted the signal and dragged non-English trigger
      * text into the vector. See SKILL_REWORK.md §5.
      *
-     * @param array<string,mixed> $canonicalrow
+     * @param array $canonicalrow
      * @return string
      */
     public function to_embedding_input(array $canonicalrow): string {

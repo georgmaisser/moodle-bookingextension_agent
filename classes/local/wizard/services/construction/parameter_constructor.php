@@ -45,7 +45,7 @@ class parameter_constructor {
      * Build canonical input for one selected skill.
      *
      * @param string $skillname
-     * @param array<string,mixed> $rawinput
+     * @param array $rawinput
      * @param string $lastusermessage
      * @return parameter_construction_result
      */
@@ -73,6 +73,9 @@ class parameter_constructor {
 
     /**
      * Normalize self-reference fields in raw command input.
+     *
+     * @param array $input
+     * @return array
      */
     private function normalize_self_user_references(array $input): array {
         $fields = ['teacherquery', 'selectusersquery', 'bookusersquery'];
@@ -104,6 +107,10 @@ class parameter_constructor {
 
     /**
      * Canonicalize skill input through registry-owned normalizers.
+     *
+     * @param string $skillname
+     * @param array $input
+     * @return array
      */
     private function canonicalize_command_input(string $skillname, array $input): array {
         $input = $this->registry->normalize_skill_input($skillname, $input);
@@ -124,6 +131,11 @@ class parameter_constructor {
 
     /**
      * Hydrate a missing question field from the last user message.
+     *
+     * @param string $skillname
+     * @param array $input
+     * @param string $lastusermessage
+     * @return array
      */
     private function hydrate_question_field(string $skillname, array $input, string $lastusermessage): array {
         if ($lastusermessage === '' || trim((string)($input['question'] ?? '')) !== '') {
@@ -146,6 +158,9 @@ class parameter_constructor {
 
     /**
      * Remove empty placeholders from a normalized input payload.
+     *
+     * @param array $input
+     * @return array
      */
     private function prune_empty_input_values(array $input): array {
         $cleaned = [];
@@ -172,6 +187,9 @@ class parameter_constructor {
 
     /**
      * Normalize a timestamp-like value to a unix timestamp.
+     *
+     * @param mixed $value
+     * @return int|null
      */
     private function normalize_timestamp_value($value): ?int {
         if (is_int($value)) {

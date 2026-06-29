@@ -127,7 +127,7 @@ class discovery_phase_service {
      * @param context $context
      * @param ai_manager $manager
      * @param skill_executability_evaluator $evaluator
-     * @return array<string,mixed>
+     * @return array
      */
     public function run(
         int $threadid,
@@ -610,7 +610,7 @@ class discovery_phase_service {
      * Scans assistant responses for attempted/executed skill calls (from message metadata).
      *
      * @param \stdClass[] $messages
-     * @return array<string> Skill names in reverse chronological order (most recent first).
+     * @return string[] Skill names in reverse chronological order (most recent first).
      */
     private function extract_recent_skill_names_from_messages(array $messages): array {
         $skillnames = [];
@@ -710,7 +710,7 @@ class discovery_phase_service {
      * Normalize planner trace history values from thread metadata.
      *
      * @param mixed $value
-     * @return array<int,string>
+     * @return string[]
      */
     private function normalize_planner_trace_history($value): array {
         if (!is_array($value)) {

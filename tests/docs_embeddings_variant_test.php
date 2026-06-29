@@ -56,7 +56,7 @@ final class docs_embeddings_variant_test extends advanced_testcase {
      * @param string $relpath
      * @param string $model
      * @param int    $dims
-     * @return array<string,string>
+     * @return array
      */
     private function seed_row(string $root, string $relpath, string $model, int $dims): array {
         $content = (string)file_get_contents($root . '/' . $relpath);

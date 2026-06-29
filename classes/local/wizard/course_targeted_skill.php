@@ -48,7 +48,7 @@ trait course_targeted_skill {
      * Resolve the operating-context selector from the command's courseid/coursequery, or null when
      * neither is provided (then the current context applies).
      *
-     * @param array<string,mixed> $input
+     * @param array $input
      * @return target_selector|null
      */
     public function get_target_selector(array $input): ?target_selector {

@@ -123,7 +123,7 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Return deterministic example input for planner contract rendering.
      *
-     * @return array<string,mixed>
+     * @return array
      */
     public function get_example_input(): array {
         return [
@@ -136,7 +136,7 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
      * Check skill input structure.
      *
      * @param array $input
-     * @return array{valid:bool,errors:array<int,string>,issue_codes:array<int,string>}
+     * @return array{valid:bool,errors:string[],issue_codes:string[]}
      */
     public function check_structure(array $input): array {
         $errors = [];
@@ -288,7 +288,7 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Fields that must be omitted from executed_input result echoes (none are sensitive here).
      *
-     * @return array<int,string>
+     * @return string[]
      */
     public function get_sensitive_input_fields(): array {
         return [];
@@ -297,7 +297,7 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
     /**
      * Return skill-specific message triggers.
      *
-     * @return array<int,array<string,mixed>>
+     * @return array[]
      */
     public function get_message_triggers(): array {
         return [
