@@ -98,10 +98,10 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         );
 
         $this->assertSame('executed', $res['status']);
-        $this->assertStringContainsString('cmid=', $res['observation_full']);
+        $this->assertStringContainsString('activityid=', $res['observation_full']);
         $this->assertStringContainsString('Quiz A', $res['observation_full']);
         $this->assertStringContainsString('Quiz B', $res['observation_full']);
-        $this->assertStringContainsString('Do NOT tell the user', $res['observation_full']);
+        $this->assertStringContainsString('do NOT repeat the same activityquery', $res['observation_full']);
         $this->assertTrue(!empty($res['observation_engine_static']));
     }
 

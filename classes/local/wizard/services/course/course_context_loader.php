@@ -132,7 +132,9 @@ class course_context_loader {
         }
         $lines = [];
         foreach ($rows as $r) {
-            $lines[] = '- [cmid=' . (int)$r['cmid'] . '] ' . (string)$r['name']
+            // Label the id with the ACTUAL skill parameter name (activityid), so the LLM re-calls with
+            // activityid=<n> instead of inventing a new activityquery.
+            $lines[] = '- activityid=' . (int)$r['cmid'] . ' — "' . (string)$r['name'] . '"'
                 . ' (type=' . (string)$r['modname']
                 . ', section=' . (int)$r['sectionnum'] . ' "' . (string)$r['sectionname'] . '"'
                 . ', position=' . (int)$r['position']
@@ -157,9 +159,15 @@ class course_context_loader {
         $header = $ref !== ''
             ? 'The activity reference "' . $ref . '" did not match exactly one activity.'
             : 'No specific activity was named.';
-        return $header . ' These are the activities in the course — pick the one the user means and call '
-            . $skillname . ' again with its numeric activityid, or ask the user which one if it is genuinely '
-            . 'unclear. Do NOT tell the user to look it up themselves, and do NOT conclude the activity does '
-            . "not exist:\n" . $this->format_inventory($candidates);
+        $exampleid = !empty($candidates) ? (int)($candidates[0]['cmid'] ?? 0) : 0;
+        $example = $exampleid > 0 ? ' (for example activityid=' . $exampleid . ')' : '';
+        // Unambiguous, self-correcting instruction — NOT a user clarification (which only confuses here).
+        // Force the next call onto the exact id parameter so it converges instead of looping on activityquery.
+        return $header . ' To fix this, re-call ' . $skillname . ' with the "activityid" parameter set to '
+            . 'EXACTLY ONE of the activityid values listed below' . $example . '. Both activityid and '
+            . 'activityquery are accepted, but to resolve this ambiguity you MUST use activityid — do NOT '
+            . 'repeat the same activityquery, and do NOT conclude the activity does not exist. The diagnosis '
+            . "will then report that single activity's status for the user.\nActivities in the course:\n"
+            . $this->format_inventory($candidates);
     }
 }

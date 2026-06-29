@@ -122,9 +122,9 @@ final class course_context_loader_test extends advanced_testcase {
     }
 
     /**
-     * The resolution observation carries the candidates + the no-delegation instruction.
+     * The resolution observation lists candidates by activityid and instructs an unambiguous re-call.
      */
-    public function test_resolution_observation_lists_candidates_and_forbids_delegation(): void {
+    public function test_resolution_observation_instructs_activityid_recall(): void {
         $this->resetAfterTest();
         [$course, $teacherid] = $this->build_course();
         $loader = new course_context_loader();
@@ -133,7 +133,10 @@ final class course_context_loader_test extends advanced_testcase {
         $obs = $loader->build_resolution_observation('the second quiz', $inv, 'course.diagnose_user_in_course');
         $this->assertStringContainsString('Quiz A', $obs);
         $this->assertStringContainsString('Quiz B', $obs);
-        $this->assertStringContainsString('cmid=', $obs);
-        $this->assertStringContainsString('Do NOT tell the user', $obs);
+        // Ids are labelled with the real parameter so the LLM re-calls with activityid (not cmid).
+        $this->assertStringContainsString('activityid=', $obs);
+        // Unambiguous, self-correcting instruction — no user-clarification, no query-rephrase loop.
+        $this->assertStringContainsString('EXACTLY ONE', $obs);
+        $this->assertStringContainsString('do NOT repeat the same activityquery', $obs);
     }
 }
