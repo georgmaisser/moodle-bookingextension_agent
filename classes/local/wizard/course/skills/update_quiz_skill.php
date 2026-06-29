@@ -26,6 +26,7 @@ use bookingextension_agent\local\wizard\services\activities\activity_creation_se
 use bookingextension_agent\local\wizard\services\activities\activity_preview_renderer;
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
+use bookingextension_agent\local\wizard\services\activity_preview_builder;
 use context;
 use context_course;
 
@@ -64,6 +65,16 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      */
     public function get_name(): string {
         return self::SKILL_NAME;
+    }
+
+    /**
+     * Human-readable preview of the quiz update (tier-3): target + changed fields + questions.
+     *
+     * @param array $input Prepared input.
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        return activity_preview_builder::update_quiz_descriptor($input);
     }
 
     /**

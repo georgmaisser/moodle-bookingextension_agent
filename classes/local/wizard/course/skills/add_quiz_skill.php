@@ -27,6 +27,7 @@ use bookingextension_agent\local\wizard\services\activities\activity_preview_ren
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
+use bookingextension_agent\local\wizard\services\activity_preview_builder;
 use context;
 use context_course;
 
@@ -68,6 +69,16 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      */
     public function get_name(): string {
         return self::SKILL_NAME;
+    }
+
+    /**
+     * Human-readable preview of the quiz to be created (tier-3 confirmation preview).
+     *
+     * @param array $input Prepared input.
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        return activity_preview_builder::add_quiz_descriptor($input);
     }
 
     /**

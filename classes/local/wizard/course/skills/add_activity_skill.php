@@ -27,6 +27,7 @@ use bookingextension_agent\local\wizard\services\activities\activity_preview_ren
 use bookingextension_agent\local\wizard\services\activities\module_catalog_service;
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
+use bookingextension_agent\local\wizard\services\activity_preview_builder;
 use context;
 
 /**
@@ -66,6 +67,16 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      */
     public function get_name(): string {
         return self::SKILL_NAME;
+    }
+
+    /**
+     * Human-readable preview of the activity to be created (tier-3 confirmation preview).
+     *
+     * @param array $input Prepared input.
+     * @return array|null
+     */
+    public function describe_proposed_action(array $input): ?array {
+        return activity_preview_builder::add_activity_descriptor($input);
     }
 
     /**
