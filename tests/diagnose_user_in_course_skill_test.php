@@ -182,4 +182,49 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
         $this->assertSame('error', $res['status']);
         $this->assertSame('permission_denied', $res['error_class']);
     }
+
+    /**
+     * Regression (thread 559): a non-matching/spurious activityquery on a progress diagnosis must NOT
+     * be reported as "no completion-tracked activities" when the course actually tracks completion.
+     */
+    public function test_progress_nonmatching_activityquery_does_not_claim_no_tracking(): void {
+        global $CFG;
+        $this->resetAfterTest();
+        require_once($CFG->libdir . '/completionlib.php');
+        $CFG->enablecompletion = 1;
+
+        $gen = $this->getDataGenerator();
+        $course = $gen->create_course(['enablecompletion' => 1]);
+        $teacher = $gen->create_user();
+        $student = $gen->create_user();
+        $gen->enrol_user((int)$teacher->id, (int)$course->id, 'editingteacher');
+        $gen->enrol_user((int)$student->id, (int)$course->id, 'student');
+        $gen->create_module('quiz', [
+            'course' => $course->id,
+            'name' => 'Final Quiz',
+            'completion' => COMPLETION_TRACKING_MANUAL,
+        ]);
+        rebuild_course_cache((int)$course->id, true);
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        // A spurious / non-matching activity filter must not hide the real progress.
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'progress', 'userid' => (int)$student->id, 'activityquery' => 'selflearning'],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('executed', $res['status']);
+        $obs = (string)$res['observation_full'];
+        $this->assertStringNotContainsString('No completion-tracked activities', $obs);
+        $this->assertStringContainsString('No completion-tracked activity matches', $obs);
+        $this->assertStringContainsString('Final Quiz', $obs);
+
+        // Without a filter, the tracked quiz is reported course-wide.
+        $res2 = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'progress', 'userid' => (int)$student->id],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertStringContainsString('Final Quiz', (string)$res2['observation_full']);
+    }
 }

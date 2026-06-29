@@ -108,14 +108,24 @@ final class progress_aspect_diagnoser {
         $tracked = 0;
         $done = 0;
         $shown = 0;
+        $trackedtotal = 0;   // Completion-tracked activities in the course, BEFORE the activityquery filter.
+        $matched = 0;        // Completion-tracked activities matching the activityquery (or all, if none given).
+        $trackednames = [];  // Names of completion-tracked activities, for a "no match" hint.
         foreach ($modinfo->get_cms() as $cm) {
             if ((int)$cm->completion === COMPLETION_TRACKING_NONE) {
                 continue; // No completion tracking on this activity.
             }
             $name = (string)$cm->get_formatted_name();
+            $trackedtotal++;
+            if (count($trackednames) < self::MAX_ITEMS) {
+                $trackednames[] = $name;
+            }
+            // A (possibly spurious) activityquery must never turn a real course progress into "no tracking":
+            // it only narrows which rows are shown. The trackedtotal/no-match branch below reports the truth.
             if ($activityquery !== '' && !str_contains(\core_text::strtolower($name), $activityquery)) {
                 continue;
             }
+            $matched++;
 
             // An activity the target cannot reach because of an access restriction is a completion
             // blocker too — surface it and point at the access diagnosis (no recompute of restrictions).
@@ -152,11 +162,21 @@ final class progress_aspect_diagnoser {
                     . 'activity (activityquery) to narrow down.'
             );
         }
-        if ($tracked === 0) {
+        if ($trackedtotal === 0) {
             $rows[] = diagnostic_result_builder::row(
                 'warn',
                 'No completion-tracked activities',
-                'No visible activity in this course has completion tracking enabled.'
+                'No activity in this course has completion tracking enabled.'
+            );
+        } else if ($activityquery !== '' && $matched === 0) {
+            // The course DOES track completion, the named/assumed activity just did not match — never
+            // report this as "no progress measurable" (that was the thread-559 false negative).
+            $rows[] = diagnostic_result_builder::row(
+                'warn',
+                'No completion-tracked activity matches "' . $activityquery . '"',
+                'This course HAS ' . $trackedtotal . ' completion-tracked activit'
+                    . ($trackedtotal === 1 ? 'y' : 'ies') . ': ' . implode(', ', $trackednames)
+                    . '. For overall progress omit the activity filter; otherwise name one of these activities.'
             );
         }
 

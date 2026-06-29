@@ -227,6 +227,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                     '  ONE call (per-activity completion + unmet completion rules) — do NOT use aspect=access with a',
                     '  single activity for a progress/completion question.',
                     '- Use aspect=access only for "cannot see/open/reach THIS activity" (visibility/availability).',
+                    '- For aspect=progress, leave activityquery EMPTY for a whole-course question; set it ONLY when',
+                    '  the user explicitly names ONE activity — never invent/guess an activity name.',
                     '- NOT for "cannot book" (mod_booking.diagnose_booking_issue).',
                     '- Identify the person via userquery/userid (default: the asking user). For aspect=access about one',
                     '  activity, pass activityquery (name) OR activityid; if the returned list shows several, re-call',
