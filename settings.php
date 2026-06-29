@@ -378,7 +378,7 @@ if ($agentenabled) {
         'bookingextension_agent_skillgovernance',
         get_string('skillgovernance', 'bookingextension_agent'),
         $skillgovurl,
-        'moodle/site:config',
+        'bookingextension/agent:managegovernance',
         true
     ));
 

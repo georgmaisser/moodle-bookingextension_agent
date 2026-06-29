@@ -45,7 +45,7 @@ try {
     $PAGE->set_pagelayout('admin');
 }
 
-require_capability('moodle/site:config', $context);
+require_capability('bookingextension/agent:managegovernance', $context);
 
 $registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_default();
 $contracts = $registry->get_skill_contracts();

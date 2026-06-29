@@ -25,6 +25,7 @@
 $string['agent:debugskillselection'] = 'Use skill selection debug tool';
 $string['agent:ignoreaiavailability'] = 'Ignore course/module AI availability toggles for the Booking Wizard';
 $string['agent:managebenchmarks'] = 'Manage AI benchmark runs';
+$string['agent:managegovernance'] = 'Manage AI skill governance';
 $string['agent:requesttrial'] = 'Start the AI trial setup';
 $string['agent:seemagicwand'] = 'See the global Booking Wizard magic wand';
 $string['agent:skill_booking_add_price_category'] = 'Add a booking price category';

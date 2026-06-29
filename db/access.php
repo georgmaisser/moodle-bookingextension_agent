@@ -228,3 +228,17 @@ $capabilities['bookingextension/agent:managebenchmarks'] = [
     'contextlevel' => CONTEXT_SYSTEM,
     'archetypes'   => [],
 ];
+
+// Skill Governance & Analysis admin page: inspect skill contracts, enable/disable skills and
+// rebuild the skill embedding catalog. This is a site-wide, config-style action. Previously the
+// page was gated by moodle/site:config (admin-only); it now has its own capability so the page can
+// be delegated to managers without granting full site config. Admins still pass implicitly via
+// moodle/site:doanything.
+$capabilities['bookingextension/agent:managegovernance'] = [
+    'riskbitmask'  => RISK_CONFIG,
+    'captype'      => 'write',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes'   => [
+        'manager' => CAP_ALLOW,
+    ],
+];
