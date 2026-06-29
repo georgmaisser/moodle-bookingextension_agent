@@ -88,12 +88,11 @@ if ((int)get_config('bookingextension_agent', 'hgideupdatehint') !== 1) {
         new admin_setting_configcheckbox(
             'bookingextension_agent/hgideupdatehint',
             get_string('updatehint_heading', 'bookingextension_agent'),
-            get_string('updatehint_body', 'bookingextension_agent')
-                . html_writer::tag(
-                    'p',
-                    get_string('hgideupdatehint_desc', 'bookingextension_agent'),
-                    ['class' => 'text-muted mt-2']
-                ),
+            html_writer::tag(
+                'p',
+                html_writer::tag('strong', get_string('hgideupdatehint_desc', 'bookingextension_agent'))
+            )
+                . get_string('updatehint_body', 'bookingextension_agent'),
             0
         )
     );
