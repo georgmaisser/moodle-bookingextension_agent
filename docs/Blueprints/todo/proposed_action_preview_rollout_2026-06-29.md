@@ -1,7 +1,8 @@
 # Individual pre-confirmation previews for ALL write tasks — rollout plan
 
-Status: PLANNED (2026-06-29). Depends on the proposed-action preview FRAMEWORK, which is already
-implemented and verified (this document is only about adopting it per write skill).
+Status: IN PROGRESS (2026-06-29). Phase 1 IMPLEMENTED (mod_booking commit 25fbe1e90); phases 2–4
+pending. Depends on the proposed-action preview FRAMEWORK, which is already implemented and verified
+(this document is only about adopting it per write skill).
 
 ## Foundation already in place (do NOT re-do)
 
@@ -129,6 +130,8 @@ Keep helpers data-only and reuse `base_skill::humanize_identifier()` /
 
 - **Phase 1 — Option family core** (highest traffic, biggest win): `create_slotbooking_option`
   (the worked example) + `create_option` + `update_option`, plus the shared option preview helper.
+  ✅ DONE (mod_booking 25fbe1e90): `option_preview_builder` + the three `describe_proposed_action()`
+  overrides + `option_preview_builder_test` (5/5). Labels English for now (open decision #1).
 - **Phase 2 — Rest of option family**: `update_option_trainer`, `bulk_update_options`,
   `configure_booking_instance`, `book_users` (R3 user list), `add_price_category`.
 - **Phase 3 — Course family**: `add_activity`, `update_activity`, `add_quiz`, `update_quiz` + helper.
