@@ -96,8 +96,10 @@ flowchart TB
 
 ---
 
-## 5. Offene Architektur-Entscheidungen (für Georg)
+## 5. Entscheidungen (Georg 2026-06-29 — „nachhaltig vor schnell")
 
-1. **`skill_discovery` (B.3):** echt invertieren (Interface) ODER als **Contract-Utility** akzeptieren (es ist ein reiner Enumerations-Helfer, keine Orchestrator/Executor-Internas)? Letzteres spart Arbeit, hält aber `skill_discovery` im Engine-NS.
-2. **`booking_skill_support` statisch vs. instanzbasiert:** Durchreichen (minimal) vs. echte Dependency-Injection (sauberer, größerer Umbau)?
-3. **Accessor-Ort:** `base_skill`-Methoden (passt zum Preflight-Muster) — bestätigt?
+1. **`skill_discovery` (B.3): ECHT invertieren** via `skill_catalog`-Interface — nicht als Engine-NS-Contract-Utility belassen.
+2. **`booking_skill_support`: instanzbasiert mit Dependency-Injection** der Engine-Dienste — nicht statisch durchreichen.
+3. **Accessoren auf `base_skill`** (`$this->attachments()`, `$this->thread_memory()`) — **bestätigt** (gleiches Muster wie `pass()/invalid()`).
+
+Leitplanke: „nachhaltig" ≠ „über-engineered" — kein separates SDK-Plugin; saubere Contract-Surface reicht.
