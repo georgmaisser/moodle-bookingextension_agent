@@ -39,4 +39,12 @@ interface attachment_resolver {
      * @return array{path:string,filename:string} empty path when unresolved
      */
     public function resolve(string $token, int $userid, int $contextid): array;
+
+    /**
+     * Invalidate a token after use (one-shot lifecycle cleanup of the temp file).
+     *
+     * @param string $token
+     * @return void
+     */
+    public function invalidate(string $token): void;
 }
