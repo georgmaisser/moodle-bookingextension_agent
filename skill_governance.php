@@ -35,7 +35,13 @@ try {
     if ($e->errorcode !== 'sectionerror') {
         throw $e;
     }
+    // Fallback when the admin external page node is not (yet) registered (e.g. mid-upgrade):
+    // admin_externalpage_setup() did not run, so set context, URL and layout ourselves —
+    // otherwise $PAGE->url (used by the redirect() calls below) triggers a "did not call
+    // set_url()" debugging notice.
     require_login();
+    $PAGE->set_context($context);
+    $PAGE->set_url('/mod/booking/bookingextension/agent/skill_governance.php');
     $PAGE->set_pagelayout('admin');
 }
 
