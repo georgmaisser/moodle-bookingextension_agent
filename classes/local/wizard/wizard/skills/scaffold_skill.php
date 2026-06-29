@@ -62,10 +62,21 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_schema(): array {
         $schema = [
             'version' => 1,
-            'description' => 'Generate a downloadable starter template for a new AI agent skill in a '
-                . 'third-party plugin. Fills the skill contract (name, schema, risk class, capability, '
-                . 'triggers) with guided comments; does not implement the behaviour.',
+            'description' => 'Create / scaffold a NEW custom agent skill: generate a downloadable starter '
+                . 'template for a new AI agent skill (action/command) in a third-party plugin. Use this when '
+                . 'the user wants to BUILD or ADD their own skill, capability, command or action to the agent '
+                . '(e.g. "I want to create my own skill that ..."). Fills the skill contract (name, schema, '
+                . 'risk class, capability, triggers) with guided comments; it does not implement the behaviour '
+                . 'and does not run the new skill. NOT for using an existing skill — only for authoring a new one.',
             'readonly' => $this->is_read_only(),
+            'example_utterances' => [
+                'I want to create my own skill to see all users in a course',
+                'How do I build a custom agent skill for my plugin?',
+                'Scaffold a new skill that exports bookings to CSV',
+                'Add a new command / action to the agent',
+                'Generate a starter template for a new agent skill',
+                'Create my own skill',
+            ],
             'properties' => [
                 'component' => [
                     'type' => 'string',

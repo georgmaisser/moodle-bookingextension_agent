@@ -721,9 +721,15 @@ class planner_phase_service {
         return [
             'response_type' => 'skill_call',
             'message' => '',
+            // Populate BOTH input and parameters with the query. The executor (and a readonly skill,
+            // which skips the preflight parameters->input mapping) reads `input`; this result is built
+            // directly here and is NOT re-parsed by the interpreter, so a parameters-only command would
+            // reach a readonly skill with an empty input — exactly the empty-query failure that made the
+            // search_skills RAG fallback dead-end ("Search query must not be empty.", thread 5).
             'commands' => [[
                 'skill' => $skillname,
                 'version' => 1,
+                'input' => [$field => $query],
                 'parameters' => [$field => $query],
             ]],
             'ambiguities' => [],

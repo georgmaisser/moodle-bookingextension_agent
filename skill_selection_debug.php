@@ -49,7 +49,9 @@ $action = optional_param('action', '', PARAM_ALPHA);
 $input = optional_param('input', '', PARAM_RAW_TRIMMED);
 $cmid = optional_param('cmid', 0, PARAM_INT);
 $topk = optional_param('topk', 10, PARAM_INT);
-$includeunavailable = optional_param('includeunavailable', 1, PARAM_BOOL);
+// Default to the live planner pool (executable skills only) so the simulation matches discovery 1:1;
+// pass includeunavailable=1 explicitly to also inspect skills the user cannot currently run.
+$includeunavailable = optional_param('includeunavailable', 0, PARAM_BOOL);
 $collisionlimit = optional_param('collisionlimit', 40, PARAM_INT);
 
 $service = new skill_selection_debug_service();

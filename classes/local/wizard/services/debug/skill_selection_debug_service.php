@@ -73,71 +73,41 @@ class skill_selection_debug_service {
         $contextid = $this->resolve_contextid_from_cmid($cmid);
         $contracts = $this->get_prompt_contracts_for_context($userid, $contextid, $includeunavailable);
 
+        // Lexical scores are computed for REFERENCE ONLY (a column in the table) — they MUST NOT drive
+        // the ranking. Live discovery is SEMANTIC-ONLY (embedding top-k; no lexical / intent-trigger
+        // component — see the binding DISCO_RULE in the flowchart), so this simulator ranks by embedding
+        // only to reflect the live selection 1:1. A previous hybrid score (embedding*0.75 + lexical*0.25)
+        // mis-ranked skills here that live never surfaces (thread 5: scaffold_skill appeared #1 only via
+        // its lexical "create … skill" match, while live, semantic-only, did not list it).
         $lexical = $this->build_lexical_ranking($input, $contracts, $topk);
         $embedding = $this->build_embedding_ranking($input, $userid, $cmid, $topk);
 
-        $byskill = [];
-        foreach ($lexical as $row) {
-            $skill = (string)($row['skill'] ?? '');
-            $byskill[$skill] = [
-                'skill' => $skill,
-                'lexical_score' => (float)($row['lexical_score'] ?? 0.0),
-                'embedding_score' => null,
-                'combined_score' => (float)($row['lexical_score'] ?? 0.0),
-                'match_terms' => (array)($row['match_terms'] ?? []),
-                'readonly' => !empty($row['readonly']),
-                'intent' => (string)($row['intent'] ?? ''),
-                'source' => 'lexical',
-            ];
+        // Pool the live planner actually ranks over (executable skills for this user/context unless
+        // unavailable are explicitly included), so an embedded-but-out-of-scope skill is not shown.
+        $poolskills = [];
+        foreach ($contracts as $contract) {
+            $name = (string)($contract['skill'] ?? '');
+            if ($name !== '') {
+                $poolskills[$name] = true;
+            }
         }
 
-        foreach ($embedding as $row) {
+        $lexicalbyskill = [];
+        foreach ($lexical as $row) {
             $skill = (string)($row['skill'] ?? '');
             if ($skill === '') {
                 continue;
             }
-
-            $score = (float)($row['score'] ?? 0.0);
-            // Multi-vector: which anchor (description/utterance + the exact phrase) won this skill.
-            $matchedkind = (string)($row['matched_anchor_kind'] ?? ($row['anchor_kind'] ?? ''));
-            $matchedtext = (string)($row['matched_anchor_text'] ?? ($row['anchor_text'] ?? ''));
-            if (!isset($byskill[$skill])) {
-                $byskill[$skill] = [
-                    'skill' => $skill,
-                    'lexical_score' => 0.0,
-                    'embedding_score' => $score,
-                    'combined_score' => $score,
-                    'match_terms' => [],
-                    'readonly' => ((string)($row['readonly'] ?? '0') === '1'),
-                    'intent' => (string)($row['intent'] ?? ''),
-                    'source' => 'embedding',
-                    'matched_anchor_kind' => $matchedkind,
-                    'matched_anchor_text' => $matchedtext,
-                ];
-            } else {
-                $byskill[$skill]['embedding_score'] = $score;
-                $byskill[$skill]['matched_anchor_kind'] = $matchedkind;
-                $byskill[$skill]['matched_anchor_text'] = $matchedtext;
-            }
+            $lexicalbyskill[$skill] = [
+                'lexical_score' => (float)($row['lexical_score'] ?? 0.0),
+                'match_terms' => (array)($row['match_terms'] ?? []),
+                'readonly' => !empty($row['readonly']),
+                'intent' => (string)($row['intent'] ?? ''),
+            ];
         }
 
-        foreach ($byskill as $skill => $row) {
-            $lex = (float)($row['lexical_score'] ?? 0.0);
-            $emb = $row['embedding_score'];
-            if ($emb === null) {
-                $byskill[$skill]['combined_score'] = $lex;
-                continue;
-            }
-
-            $byskill[$skill]['combined_score'] = ((float)$emb * 0.75) + ($lex * 0.25);
-            $byskill[$skill]['source'] = 'hybrid';
-        }
-
-        $candidates = array_values($byskill);
-        usort($candidates, static function (array $a, array $b): int {
-            return ((float)$b['combined_score']) <=> ((float)$a['combined_score']);
-        });
-        $candidates = array_slice($candidates, 0, $topk);
+        $embeddingenabled = !empty($embedding);
+        $candidates = $this->rank_simulation_candidates($embedding, $lexicalbyskill, $poolskills, $topk);
 
         return [
             'input' => $input,
@@ -146,8 +116,83 @@ class skill_selection_debug_service {
             'selected_skill' => (string)($candidates[0]['skill'] ?? ''),
             'candidates' => $candidates,
             'contracts_count' => count($contracts),
-            'embedding_enabled' => !empty($embedding),
+            'embedding_enabled' => $embeddingenabled,
         ];
+    }
+
+    /**
+     * Assemble the ranked candidate list, mirroring the live selection 1:1.
+     *
+     * When embeddings are present the ranking is EMBEDDING-ONLY (the live semantic top-k order),
+     * restricted to the planner pool; lexical scores ride along only as a reference column. When
+     * embeddings are absent there is no live semantic ranking to mirror (live would show the full
+     * unranked slim catalog), so the lexical ordering is returned purely as a debugging aid.
+     *
+     * Pure (no DB/provider) so it is unit-testable without a live embedding provider.
+     *
+     * @param array<int,array<string,mixed>> $embedding      Embedding top-k rows (skill, score, anchor...).
+     * @param array<string,array<string,mixed>> $lexicalbyskill Lexical info keyed by skill.
+     * @param array<string,bool> $poolskills                  Skill names the live planner ranks over.
+     * @param int $topk
+     * @return array<int,array<string,mixed>>
+     */
+    public function rank_simulation_candidates(
+        array $embedding,
+        array $lexicalbyskill,
+        array $poolskills,
+        int $topk
+    ): array {
+        $candidates = [];
+
+        if (!empty($embedding)) {
+            // Embedding-only ranking = the live semantic top-k order.
+            foreach ($embedding as $row) {
+                $skill = (string)($row['skill'] ?? '');
+                if ($skill === '' || empty($poolskills[$skill])) {
+                    continue;
+                }
+                $score = (float)($row['score'] ?? 0.0);
+                $lex = $lexicalbyskill[$skill] ?? null;
+                $candidates[] = [
+                    'skill' => $skill,
+                    'lexical_score' => $lex !== null ? (float)$lex['lexical_score'] : 0.0,
+                    'embedding_score' => $score,
+                    'combined_score' => $score,
+                    'match_terms' => $lex !== null ? (array)$lex['match_terms'] : [],
+                    'readonly' => ((string)($row['readonly'] ?? '0') === '1'),
+                    'intent' => (string)($row['intent'] ?? ''),
+                    'source' => 'embedding',
+                    // Multi-vector: which anchor (description/utterance + the exact phrase) won this skill.
+                    'matched_anchor_kind' => (string)($row['matched_anchor_kind'] ?? ($row['anchor_kind'] ?? '')),
+                    'matched_anchor_text' => (string)($row['matched_anchor_text'] ?? ($row['anchor_text'] ?? '')),
+                ];
+            }
+            usort($candidates, static function (array $a, array $b): int {
+                return ((float)$b['embedding_score']) <=> ((float)$a['embedding_score']);
+            });
+        } else {
+            // Embeddings unavailable: live would fall back to the full UNRANKED slim catalog (every
+            // skill visible, no top-k). There is no semantic ranking to mirror, so we surface the
+            // lexical ordering purely as a debugging aid — flagged via embedding_enabled=false — and
+            // never present it as the live selection.
+            foreach ($lexicalbyskill as $skill => $lex) {
+                $candidates[] = [
+                    'skill' => (string)$skill,
+                    'lexical_score' => (float)$lex['lexical_score'],
+                    'embedding_score' => null,
+                    'combined_score' => (float)$lex['lexical_score'],
+                    'match_terms' => (array)$lex['match_terms'],
+                    'readonly' => !empty($lex['readonly']),
+                    'intent' => (string)$lex['intent'],
+                    'source' => 'lexical',
+                ];
+            }
+            usort($candidates, static function (array $a, array $b): int {
+                return ((float)$b['lexical_score']) <=> ((float)$a['lexical_score']);
+            });
+        }
+
+        return array_slice($candidates, 0, $topk);
     }
 
     /**
