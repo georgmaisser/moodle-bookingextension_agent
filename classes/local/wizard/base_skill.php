@@ -190,11 +190,13 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
-     * Default explicit prompt-contract derived from skill schema.
+     * DTO-free prompt-contract payload. Concrete skills override THIS (returning a plain array)
+     * instead of get_prompt_contract(), so they never name the skill_prompt_contract DTO. The
+     * default derives the payload from the skill schema.
      *
-     * @return skill_prompt_contract
+     * @return array<string,mixed>
      */
-    public function get_prompt_contract(): skill_prompt_contract {
+    protected function prompt_contract_payload(): array {
         $schema = (array)$this->get_schema();
         $promptmeta = (array)($schema['prompt_meta'] ?? []);
         $skillname = trim($this->get_name());
@@ -203,7 +205,7 @@ abstract class base_skill implements skill_interface {
             $namespace = (string)substr($skillname, 0, (int)strpos($skillname, '.'));
         }
 
-        return new skill_prompt_contract([
+        return [
             'intent' => trim((string)($promptmeta['intent'] ?? '')),
             'anchors' => array_values(array_filter((array)($promptmeta['anchor_fields'] ?? []), 'is_string')),
             'minimal_input' => array_values(array_filter((array)($promptmeta['input_fields_for_prompt'] ?? []), 'is_string')),
@@ -213,7 +215,17 @@ abstract class base_skill implements skill_interface {
             'capabilities' => array_values(array_filter((array)($promptmeta['capabilities'] ?? []), 'is_string')),
             'context_scopes' => array_values(array_filter((array)($promptmeta['context_scopes'] ?? ['module']), 'is_string')),
             'risk_class' => skill_risk_class::is_valid($this->riskclass) ? $this->riskclass : '',
-        ]);
+        ];
+    }
+
+    /**
+     * DTO wrapper around prompt_contract_payload(). FINAL: concrete skills override the DTO-free
+     * prompt_contract_payload() instead, so no skill names the skill_prompt_contract type.
+     *
+     * @return skill_prompt_contract
+     */
+    final public function get_prompt_contract(): skill_prompt_contract {
+        return new skill_prompt_contract($this->prompt_contract_payload());
     }
 
     /**
