@@ -19,8 +19,14 @@ namespace bookingextension_agent\local\wizard;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
+use bookingextension_agent\local\wizard\interfaces\attachment_resolver;
+use bookingextension_agent\local\wizard\interfaces\thread_memory;
+use bookingextension_agent\local\wizard\interfaces\skill_catalog;
 use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use bookingextension_agent\local\wizard\services\skill_prompt_contract;
+use bookingextension_agent\local\wizard\services\attachment\attachment_token_service;
+use bookingextension_agent\local\wizard\services\conversation_thread_memory;
+use bookingextension_agent\local\wizard\services\skill_catalog_discovery;
 
 /**
  * Base class for AI skills.
@@ -175,6 +181,37 @@ abstract class base_skill implements skill_interface {
         foreach ($this->get_required_native_capabilities() as $capability) {
             require_capability($capability, $operatingcontext, $userid);
         }
+    }
+
+    /**
+     * The active engine's attachment resolver (chat-upload token -> temp file).
+     *
+     * Skills/their services use $this->attachments()->resolve(...) instead of naming the engine's
+     * concrete attachment service, so they stay engine-agnostic (the conditional-extends base
+     * binds to whichever engine is installed).
+     *
+     * @return attachment_resolver
+     */
+    protected function attachments(): attachment_resolver {
+        return new attachment_token_service();
+    }
+
+    /**
+     * The active engine's per-user/per-context conversation-thread key/value memory.
+     *
+     * @return thread_memory
+     */
+    protected function thread_memory(): thread_memory {
+        return new conversation_thread_memory();
+    }
+
+    /**
+     * The active engine's skill catalog (enumeration of a component's skills).
+     *
+     * @return skill_catalog
+     */
+    protected function skill_catalog(): skill_catalog {
+        return new skill_catalog_discovery();
     }
 
     /**

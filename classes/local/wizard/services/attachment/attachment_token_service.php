@@ -18,6 +18,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\attachment;
 
+use bookingextension_agent\local\wizard\interfaces\attachment_resolver;
+
 /**
  * Token-based lifecycle management for uploaded attachment temp files.
  *
@@ -29,7 +31,7 @@ namespace bookingextension_agent\local\wizard\services\attachment;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class attachment_token_service {
+class attachment_token_service implements attachment_resolver {
     /**
      * Cache component name (matches db/caches.php).
      */
