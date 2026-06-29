@@ -158,31 +158,51 @@ $embeddingstatusbyskill = [];
 $missingembeddingcount = 0;
 try {
     $embsettings = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->resolve();
-    $catalogbyskill = [];
+    // Multi-vector catalog: a skill spans MANY anchor rows (the description #0 plus one per example
+    // utterance), so aggregate ALL of a skill's rows instead of letting the last row win — otherwise
+    // a single unembedded anchor (or row ordering) makes a fully-retrievable skill look "empty".
     // Read the ACTIVE variant file (…__<model>__<dims>.csv) -- the same one the rebuild task and the
     // runtime semantic discovery use. A bare `new embeddings_csv_repository()` would read the legacy
     // un-suffixed file that is never written, making every skill look "missing" from the catalog.
+    $catalogrowsbyskill = [];
     foreach (\bookingextension_agent\local\wizard\embeddings_csv_repository::for_active_variant()->read_rows() as $catalogrow) {
-        $catalogbyskill[(string)($catalogrow['skill'] ?? '')] = $catalogrow;
+        $catalogrowsbyskill[(string)($catalogrow['skill'] ?? '')][] = $catalogrow;
     }
-    $expectedhashbyskill = [];
+    // Expected per-skill anchor content-hash SET (drift detection over the whole anchor set, not a
+    // single row): an added/removed/changed anchor flips the set and is surfaced as "stale".
+    $expectedhashesbyskill = [];
     $expectedrows = (new \bookingextension_agent\local\wizard\services\embeddings\embeddings_catalog_builder_service())
         ->build_full_catalog_rows($registry, (string)$embsettings['model'], (int)$embsettings['dimensions']);
     foreach ($expectedrows as $expectedrow) {
-        $expectedhashbyskill[(string)($expectedrow['skill'] ?? '')] = (string)($expectedrow['content_hash'] ?? '');
+        $expectedhashesbyskill[(string)($expectedrow['skill'] ?? '')][(string)($expectedrow['content_hash'] ?? '')] = true;
     }
     foreach ($contracts as $skillname => $meta) {
-        $catalogrow = $catalogbyskill[(string)$skillname] ?? null;
-        $vector = is_array($catalogrow) ? trim((string)($catalogrow['embedding_json'] ?? '')) : '';
-        $expectedhash = $expectedhashbyskill[(string)$skillname] ?? '';
-        if (!is_array($catalogrow)) {
+        $rows = $catalogrowsbyskill[(string)$skillname] ?? [];
+        if (empty($rows)) {
             $state = 'missing';
-        } else if ($vector === '' || $vector === '[]') {
-            $state = 'empty';
-        } else if ($expectedhash !== '' && (string)($catalogrow['content_hash'] ?? '') !== $expectedhash) {
-            $state = 'stale';
         } else {
-            $state = 'current';
+            $storedhashes = [];
+            $embeddedanchors = 0;
+            foreach ($rows as $r) {
+                $vector = trim((string)($r['embedding_json'] ?? ''));
+                if ($vector !== '' && $vector !== '[]') {
+                    $embeddedanchors++;
+                }
+                $storedhashes[(string)($r['content_hash'] ?? '')] = true;
+            }
+            $expectedhashes = $expectedhashesbyskill[(string)$skillname] ?? [];
+            // Sets equal iff same size and expected ⊆ stored.
+            $hashesmatch = !empty($expectedhashes)
+                && count($storedhashes) === count($expectedhashes)
+                && empty(array_diff_key($expectedhashes, $storedhashes));
+            if ($embeddedanchors === 0) {
+                // No anchor carries a vector → genuinely not retrievable.
+                $state = 'empty';
+            } else if (!$hashesmatch) {
+                $state = 'stale';
+            } else {
+                $state = 'current';
+            }
         }
         $embeddingstatusbyskill[(string)$skillname] = $state;
         if ($state !== 'current') {
