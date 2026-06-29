@@ -19,7 +19,6 @@ namespace bookingextension_agent\local\wizard\wizard\skills;
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use bookingextension_agent\local\wizard\services\scaffold\skill_template_generator;
 
 /**
@@ -166,14 +165,14 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
      * @param array $input
      * @param int $contextid
      * @param int $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $structure = $this->check_structure($input);
         if (empty($structure['valid'])) {
-            return preflight_result_v2::invalid($structure['errors']);
+            return $this->invalid($structure['errors']);
         }
-        return preflight_result_v2::ok($input);
+        return $this->pass($input);
     }
 
     /**

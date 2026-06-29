@@ -27,7 +27,6 @@ use bookingextension_agent\local\wizard\services\activities\activity_preview_ren
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use context;
 use context_course;
 
@@ -269,9 +268,9 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * @param array $input
      * @param int   $contextid
      * @param int   $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
@@ -332,7 +331,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
             }
         }
 
-        return preflight_result_v2::ok([
+        return $this->pass([
             'courseid' => (int)$course->id,
             'sectionnum' => $sectionnum,
             'name' => $name,
@@ -485,9 +484,9 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      *
      * @param array<int,array<string,mixed>> $categories
      * @param string $lead
-     * @return preflight_result_v2
+     * @return array
      */
-    private function build_source_clarification(array $categories, string $lead = ''): preflight_result_v2 {
+    private function build_source_clarification(array $categories, string $lead = ''): array {
         $lead = $lead !== '' ? $lead : 'Which questions should I add to the quiz?';
         $content = quiz_question_service::build_source_clarification($categories, $lead);
         return $this->clarify($content['message'], 'ADD_QUIZ_QUESTION_SOURCE', $content['options']);

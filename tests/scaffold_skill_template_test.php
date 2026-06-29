@@ -78,7 +78,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
         $skillsource = $bundle['files']['classes/local/wizard/scaffolddemo/skills/archive_item_skill.php'];
         // Method docblocks must carry correct @param/@return tags, not just prose.
         $this->assertStringContainsString('@param array $input', $skillsource);
-        $this->assertStringContainsString('@return preflight_result_v2', $skillsource);
+        $this->assertStringContainsString('@return array{status:string,prepared_input:array,issues:array}', $skillsource);
         $this->assertStringContainsString('@return array<int,string>', $skillsource);
 
         $skillfile = make_request_directory() . '/archive_item_skill.php';

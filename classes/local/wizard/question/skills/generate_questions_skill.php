@@ -22,7 +22,6 @@ use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver;
 use bookingextension_agent\local\wizard\services\questions\question_generation_service;
 use bookingextension_agent\local\wizard\services\questions\question_import_service;
@@ -296,12 +295,12 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @param array $input
      * @param int   $contextid
      * @param int   $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $sourcetext = $this->resolve_source_text($input, $contextid, $userid);
         if ($sourcetext === null) {
-            return preflight_result_v2::invalid([[
+            return $this->invalid([[
                 'severity' => 'needs_clarification',
                 'message' => 'I need something to base the questions on. Either upload a document/PDF, or tell me '
                     . 'the topic, the facts, or the exact question and its correct answer.',
@@ -312,7 +311,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
-            return preflight_result_v2::invalid([[
+            return $this->invalid([[
                 'severity' => 'needs_clarification',
                 'message' => 'Questions can only be generated within a course.',
                 'code' => 'GENERATE_QUESTIONS_NO_COURSE',
@@ -321,7 +320,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
 
         // Gate 2: the user must natively be allowed to add questions in this course.
         if (!has_capability('moodle/question:add', $coursecontext, $userid)) {
-            return preflight_result_v2::invalid([[
+            return $this->invalid([[
                 'severity' => 'needs_clarification',
                 'message' => get_string('nopermissions', 'error', 'moodle/question:add'),
                 'code' => 'NO_NATIVE_CAPABILITY',
@@ -331,14 +330,14 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         // When the course already offers more than one writable question-bank category, ask the user
         // where exactly to create the questions instead of silently picking the default bank.
         $targetselection = $this->resolve_target_selection($input, $context, $userid);
-        if ($targetselection instanceof preflight_result_v2) {
+        if (is_array($targetselection)) {
             return $targetselection;
         }
 
         $qtypes = array_values(array_filter(array_map('strval', (array)($input['qtypes'] ?? []))));
         $qtypes = array_values(array_intersect($qtypes, self::ALLOWED_QTYPES));
 
-        return preflight_result_v2::ok([
+        return $this->pass([
             'sourcetext' => $sourcetext,
             'count' => max(1, min(question_generation_service::MAX_COUNT, (int)($input['count'] ?? self::DEFAULT_COUNT))),
             'qtypes' => $qtypes,
@@ -358,7 +357,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @param array   $input
      * @param context $context Ambient context of the run.
      * @param int     $userid
-     * @return int|preflight_result_v2
+     * @return int|array
      */
     private function resolve_target_selection(array $input, context $context, int $userid) {
         $resolver = new question_bank_target_resolver();
@@ -465,9 +464,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      *
      * @param array<int,array<string,mixed>> $targets
      * @param string $lead Lead-in sentence for the message.
-     * @return preflight_result_v2
+     * @return array
      */
-    private function build_target_clarification(array $targets, string $lead): preflight_result_v2 {
+    private function build_target_clarification(array $targets, string $lead): array {
         $lines = [$lead, ''];
         $options = [];
         foreach ($targets as $target) {
@@ -489,7 +488,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         $lines[] = '';
         $lines[] = 'Just reply with the name of the category you want and I will create the questions there.';
 
-        return preflight_result_v2::invalid([[
+        return $this->invalid([[
             'severity' => 'needs_clarification',
             'message' => implode("\n", $lines),
             'code' => 'GENERATE_QUESTIONS_TARGET_AMBIGUOUS',

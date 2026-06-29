@@ -19,7 +19,6 @@ namespace bookingextension_agent\local\wizard\wizard\skills;
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use bookingextension_agent\local\wizard\services\user_memory_service;
 
 /**
@@ -171,12 +170,12 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
      * @param array $input
      * @param int $contextid
      * @param int $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $structure = $this->check_structure($input);
         if (!($structure['valid'] ?? false)) {
-            return preflight_result_v2::invalid($this->clarification_issues((array)($structure['errors'] ?? [])));
+            return $this->invalid($this->clarification_issues((array)($structure['errors'] ?? [])));
         }
 
         $service = new user_memory_service();
@@ -187,12 +186,12 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         if (!empty($input['all'])) {
             $records = $service->get_all($userid);
             if (empty($records)) {
-                return preflight_result_v2::invalid($this->clarification_issues([
+                return $this->invalid($this->clarification_issues([
                     get_string('agent_memory_forget_none_stored', 'bookingextension_agent'),
                 ]));
             }
 
-            return preflight_result_v2::ok([
+            return $this->pass([
                 'all' => true,
                 'ids' => array_map(static fn($record): int => (int)$record->id, $records),
                 'memory' => $this->format_candidates($records),
@@ -209,12 +208,12 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 }
             }
             if ($owned === null) {
-                return preflight_result_v2::invalid($this->clarification_issues([
+                return $this->invalid($this->clarification_issues([
                     get_string('agent_memory_forget_id_not_found', 'bookingextension_agent', $id),
                 ]));
             }
 
-            return preflight_result_v2::ok([
+            return $this->pass([
                 'id' => $id,
                 'memory' => (string)$owned->memory,
             ]);
@@ -228,12 +227,12 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
             // right entry instead of wrongly concluding the memory is empty.
             $stored = $service->get_all($userid);
             if (empty($stored)) {
-                return preflight_result_v2::invalid($this->clarification_issues([
+                return $this->invalid($this->clarification_issues([
                     get_string('agent_memory_forget_none_stored', 'bookingextension_agent'),
                 ]));
             }
 
-            return preflight_result_v2::invalid($this->clarification_issues([
+            return $this->invalid($this->clarification_issues([
                 get_string('agent_memory_forget_no_match_with_list', 'bookingextension_agent', (object)[
                     'query' => s($query),
                     'candidates' => $this->format_candidates($stored),
@@ -242,13 +241,13 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         }
 
         if (count($matches) > 1) {
-            return preflight_result_v2::invalid($this->clarification_issues([
+            return $this->invalid($this->clarification_issues([
                 get_string('agent_memory_forget_multi_match', 'bookingextension_agent', $this->format_candidates($matches)),
             ]));
         }
 
         $match = reset($matches);
-        return preflight_result_v2::ok([
+        return $this->pass([
             'id' => (int)$match->id,
             'memory' => (string)$match->memory,
         ]);

@@ -26,11 +26,12 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard;
 
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
-
 /**
  * Builds an invalid preflight result that asks the user a clarifying question. Previously copied
  * verbatim across the add/update activity and add/update quiz skills.
+ *
+ * DTO-free: returns the primitive result shape via base_skill::invalid(); the using skill's
+ * base_skill wraps it into the engine's preflight_result_v2.
  */
 trait preflight_clarification {
     /**
@@ -39,13 +40,13 @@ trait preflight_clarification {
      * @param string $message
      * @param string $code
      * @param array<int,array<string,mixed>> $options
-     * @return preflight_result_v2
+     * @return array{status:string,prepared_input:array,issues:array}
      */
-    private function clarify(string $message, string $code, array $options = []): preflight_result_v2 {
+    private function clarify(string $message, string $code, array $options = []): array {
         $issue = ['severity' => 'needs_clarification', 'message' => $message, 'code' => $code];
         if (!empty($options)) {
             $issue['options'] = $options;
         }
-        return preflight_result_v2::invalid([$issue]);
+        return $this->invalid([$issue]);
     }
 }

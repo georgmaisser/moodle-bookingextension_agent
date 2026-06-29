@@ -26,7 +26,6 @@ use bookingextension_agent\local\wizard\services\activities\activity_creation_se
 use bookingextension_agent\local\wizard\services\activities\activity_preview_renderer;
 use bookingextension_agent\local\wizard\services\activities\module_catalog_service;
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use context;
 
 /**
@@ -241,9 +240,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * @param array $input
      * @param int   $contextid Operating context (target course context when one was named).
      * @param int   $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
@@ -262,7 +261,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
 
         // Resolve the target course module.
         $cmresolution = $this->resolve_target_cm($course, $context, $input);
-        if ($cmresolution instanceof preflight_result_v2) {
+        if (is_array($cmresolution)) {
             return $cmresolution;
         }
         $cm = $cmresolution;
@@ -291,7 +290,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             );
         }
 
-        return preflight_result_v2::ok([
+        return $this->pass([
             'courseid' => (int)$course->id,
             'cmid' => (int)$cm->id,
             'modname' => $modname,
@@ -385,7 +384,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * @param \stdClass $course
      * @param context|false $context Ambient context.
      * @param array $input
-     * @return \cm_info|preflight_result_v2
+     * @return \cm_info|array
      */
     private function resolve_target_cm(\stdClass $course, $context, array $input) {
         $catalog = new module_catalog_service();
@@ -502,9 +501,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      *
      * @param array<int,\cm_info> $cms
      * @param string $lead
-     * @return preflight_result_v2
+     * @return array
      */
-    private function build_activity_clarification(array $cms, string $lead): preflight_result_v2 {
+    private function build_activity_clarification(array $cms, string $lead): array {
         $lines = [$lead, ''];
         $options = [];
         foreach ($cms as $cm) {

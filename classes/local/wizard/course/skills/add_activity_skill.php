@@ -27,7 +27,6 @@ use bookingextension_agent\local\wizard\services\activities\activity_preview_ren
 use bookingextension_agent\local\wizard\services\activities\module_catalog_service;
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use context;
 
 /**
@@ -282,9 +281,9 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @param array $input
      * @param int   $contextid Operating context (the target course context when one was named).
      * @param int   $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         // 1) Resolve the course context.
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
@@ -317,14 +316,14 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
         }
 
         $modresolution = $this->resolve_module($catalog, $addable, trim((string)($input['modname'] ?? '')));
-        if ($modresolution instanceof preflight_result_v2) {
+        if (is_array($modresolution)) {
             return $modresolution;
         }
         $modname = $modresolution;
 
         // 4) Section placement (Stage) — unless this module type must live in section 0.
         $sectionnum = $this->resolve_section($course, $modname, trim((string)($input['section'] ?? '')));
-        if ($sectionnum instanceof preflight_result_v2) {
+        if (is_array($sectionnum)) {
             return $sectionnum;
         }
 
@@ -344,12 +343,12 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
             // Form could not be built headless and we have no concrete errors: fall through with a
             // best-effort minimal guard for the most critical user-supplied field.
             $guard = $this->minimal_field_guard($modname, $name, $intro, $settings);
-            if ($guard instanceof preflight_result_v2) {
+            if (is_array($guard)) {
                 return $guard;
             }
         }
 
-        return preflight_result_v2::ok([
+        return $this->pass([
             'courseid' => (int)$course->id,
             'modname' => $modname,
             'sectionnum' => (int)$sectionnum,
@@ -452,7 +451,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @param module_catalog_service $catalog
      * @param array<int,array{modname:string,label:string}> $addable
      * @param string $query
-     * @return string|preflight_result_v2 The resolved module name, or a clarification.
+     * @return string|array The resolved module name, or a clarification.
      */
     private function resolve_module(module_catalog_service $catalog, array $addable, string $query) {
         if ($query === '') {
@@ -484,7 +483,7 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @param \stdClass $course
      * @param string $modname
      * @param string $query
-     * @return int|preflight_result_v2
+     * @return int|array
      */
     private function resolve_section(\stdClass $course, string $modname, string $query) {
         // Module types that are not displayed on the course page must always be in section 0.
@@ -525,9 +524,9 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @param string $name
      * @param string $intro
      * @param array<string,mixed> $settings
-     * @return preflight_result_v2|null
+     * @return array|null
      */
-    private function minimal_field_guard(string $modname, string $name, string $intro, array $settings): ?preflight_result_v2 {
+    private function minimal_field_guard(string $modname, string $name, string $intro, array $settings): ?array {
         if ($modname === 'url') {
             $url = trim((string)($settings['externalurl'] ?? $settings['url'] ?? $settings['link'] ?? ''));
             if ($url === '') {
@@ -548,9 +547,9 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      *
      * @param array<int,array{modname:string,label:string}> $modules
      * @param string $lead
-     * @return preflight_result_v2
+     * @return array
      */
-    private function build_module_clarification(array $modules, string $lead): preflight_result_v2 {
+    private function build_module_clarification(array $modules, string $lead): array {
         $lines = [$lead, ''];
         $options = [];
         foreach ($modules as $module) {
@@ -571,9 +570,9 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      *
      * @param array<int,array{sectionnum:int,name:string}> $sections
      * @param string $lead
-     * @return preflight_result_v2
+     * @return array
      */
-    private function build_section_clarification(array $sections, string $lead): preflight_result_v2 {
+    private function build_section_clarification(array $sections, string $lead): array {
         $lines = [$lead, ''];
         $options = [];
         foreach ($sections as $section) {

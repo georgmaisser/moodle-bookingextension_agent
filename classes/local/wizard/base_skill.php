@@ -302,16 +302,16 @@ abstract class base_skill implements skill_interface {
      * DTO wrapper around run_preflight(): the single place a skill's primitive
      * preflight result is mapped onto the engine's preflight_result_v2.
      *
-     * Stays non-final during the Phase 0 migration (some skills still override
-     * preflight() directly); becomes final once every skill returns via
-     * run_preflight() (Phase 0 A.3).
+     * FINAL: concrete skills override the DTO-free run_preflight() instead, so no skill
+     * ever names an engine DTO type in its signatures (enables the engine-agnostic
+     * conditional-extends pattern).
      *
      * @param  array $input
      * @param  int   $contextid
      * @param  int   $userid
      * @return preflight_result_v2
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    final public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
         $result = $this->run_preflight($input, $contextid, $userid);
         switch ($result['status'] ?? 'pass') {
             case 'invalid':

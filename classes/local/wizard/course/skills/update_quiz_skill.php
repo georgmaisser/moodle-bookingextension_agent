@@ -26,7 +26,6 @@ use bookingextension_agent\local\wizard\services\activities\activity_creation_se
 use bookingextension_agent\local\wizard\services\activities\activity_preview_renderer;
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 use context;
 use context_course;
 
@@ -272,9 +271,9 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * @param array $input
      * @param int   $contextid
      * @param int   $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
@@ -292,7 +291,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         $course = get_course($coursecontext->instanceid);
 
         $cm = $this->resolve_target_quiz($course, $context, $input);
-        if ($cm instanceof preflight_result_v2) {
+        if (is_array($cm)) {
             return $cm;
         }
 
@@ -334,7 +333,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
             }
         }
 
-        return preflight_result_v2::ok([
+        return $this->pass([
             'courseid' => (int)$course->id,
             'cmid' => (int)$cm->id,
             'instance' => (int)$cm->instance,
@@ -442,7 +441,7 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      * @param \stdClass $course
      * @param context|false $context
      * @param array $input
-     * @return \cm_info|preflight_result_v2
+     * @return \cm_info|array
      */
     private function resolve_target_quiz(\stdClass $course, $context, array $input) {
         $modinfo = get_fast_modinfo($course);
@@ -531,9 +530,9 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
      *
      * @param array<int,array<string,mixed>> $categories
      * @param string $lead
-     * @return preflight_result_v2
+     * @return array
      */
-    private function build_source_clarification(array $categories, string $lead = ''): preflight_result_v2 {
+    private function build_source_clarification(array $categories, string $lead = ''): array {
         $lead = $lead !== '' ? $lead : 'Which questions should I add?';
         $content = quiz_question_service::build_source_clarification($categories, $lead);
         return $this->clarify($content['message'], 'UPDATE_QUIZ_QUESTION_SOURCE', $content['options']);

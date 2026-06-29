@@ -20,7 +20,6 @@ use context_course;
 use context_system;
 use bookingextension_agent\local\wizard\base_skill;
 use bookingextension_agent\local\wizard\services\observation_time;
-use bookingextension_agent\local\wizard\services\preflight_result_v2;
 
 /**
  * Shared helper base for core Moodle data skills.
@@ -318,9 +317,9 @@ abstract class core_skill_base extends base_skill {
      * @param array $input
      * @param int   $contextid
      * @param int   $userid
-     * @return preflight_result_v2
+     * @return array
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         $structure = $this->check_structure($input);
         if (!($structure['valid'] ?? false)) {
             $issues = [];
@@ -331,9 +330,9 @@ abstract class core_skill_base extends base_skill {
                     'message' => (string)$error,
                 ];
             }
-            return preflight_result_v2::invalid($issues);
+            return $this->invalid($issues);
         }
-        return preflight_result_v2::ok($input);
+        return $this->pass($input);
     }
 
     /**

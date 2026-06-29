@@ -26,7 +26,7 @@ use core_text;
  * Deterministic generator for third-party skill templates.
  *
  * Produces a ready-to-drop, heavily-commented skill class plus the wiring snippets a developer
- * needs, packaged as a downloadable ZIP. It NEVER emits business logic: preflight()/execute()
+ * needs, packaged as a downloadable ZIP. It NEVER emits business logic: run_preflight()/execute()
  * bodies are guided TODO comments and execute() is an inert "not implemented yet" placeholder, so
  * the agent (and Wunderbyte) never authors the third party's actual behaviour.
  *
@@ -207,13 +207,12 @@ namespace {{NAMESPACE}};
 use {{USEPREFIX}}\base_skill;
 use {{USEPREFIX}}\dto\skill_risk_class;
 use {{USEPREFIX}}\interfaces\skill_trigger_provider_interface;
-use {{USEPREFIX}}\services\preflight_result_v2;
 
 /**
  * AI agent skill: {{SKILLNAME}}.
  *
  * GENERATED SCAFFOLD - the contract is filled in; the behaviour is NOT.
- * Implement preflight() and execute() where marked "TODO (you)". Until then this skill is inert
+ * Implement run_preflight() and execute() where marked "TODO (you)". Until then this skill is inert
  * and only reports that it is unfinished.
  *
  * Drop this file at: {{RELATIVEPATH}}
@@ -269,7 +268,7 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
     }
 
     /**
-     * Native Moodle capabilities the underlying action requires (enforced in preflight via
+     * Native Moodle capabilities the underlying action requires (enforced in run_preflight via
      * require_native_capabilities()). Return [] for a purely read-only skill with no extra gate.
      *
      * @return array<int,string>
@@ -295,26 +294,26 @@ class {{CLASSNAME}} extends base_skill implements skill_trigger_provider_interfa
      * Deep validation + preparation. Resolve entities (DB lookups), authorise the user, and return
      * the data execute() will act on. DO NOT mutate anything here.
      *
-     * Return one of:
-     *   preflight_result_v2::ok($preparedinput)             - ready to execute
-     *   preflight_result_v2::confirmable($prepared, $issues) - needs user confirmation
-     *   preflight_result_v2::invalid($issues)                - cannot proceed
+     * Return one of (DTO-free - the base class wraps these into the engine result):
+     *   $this->pass($preparedinput)              - ready to execute
+     *   $this->confirmable($prepared, $issues)   - needs user confirmation
+     *   $this->invalid($issues)                  - cannot proceed
      *
      * @param array $input raw input from the planner
      * @param int $contextid operating context id
      * @param int $userid acting user id
-     * @return preflight_result_v2
+     * @return array{status:string,prepared_input:array,issues:array}
      */
-    public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+    protected function run_preflight(array $input, int $contextid, int $userid): array {
         // TODO (you): resolve the target entity from $input, authorise via
         // $this->require_native_capabilities($context, $userid), and collect everything execute() needs.
-        return preflight_result_v2::ok($input);
+        return $this->pass($input);
     }
 
     /**
-     * Perform the action. Use ONLY $preparedinput from preflight() - do not re-resolve.
+     * Perform the action. Use ONLY $preparedinput from run_preflight() - do not re-resolve.
      *
-     * @param array $preparedinput prepared input returned by preflight()
+     * @param array $preparedinput prepared input returned by run_preflight()
      * @param int $contextid operating context id
      * @param int $userid acting user id
      * @return array result, e.g. ['status' => 'executed', 'detail' => '...', 'observation_full' => '...']
@@ -490,7 +489,7 @@ PHP;
             . $warnings
             . "\nThis bundle scaffolds an AI agent skill for component `{$spec['component']}`.\n"
             . "It fills the **contract** (name, schema, risk class, capability, triggers) and leaves the\n"
-            . "**behaviour** to you - `preflight()` and `execute()` contain `TODO (you)` markers and the\n"
+            . "**behaviour** to you - `run_preflight()` and `execute()` contain `TODO (you)` markers and the\n"
             . "skill is inert until you implement them.\n\n"
             . "## 1. Drop the skill file\n"
             . "Copy the generated file to:\n\n    {$relativepath}\n\n"
@@ -511,7 +510,7 @@ PHP;
             . "So the planner can route to your skill, rebuild the skill-catalog embeddings from the\n"
             . "governance page (or via the agent's embeddings CLI).\n\n"
             . "## 6. Implement the behaviour\n"
-            . "Fill in `preflight()` (resolve + authorise, no mutation) and `execute()` (act using only the\n"
+            . "Fill in `run_preflight()` (resolve + authorise, no mutation) and `execute()` (act using only the\n"
             . "prepared input). Replace the placeholder return and the \"under construction\" preview.\n";
         // phpcs:enable moodle.Strings.ForbiddenStrings.Found
     }
