@@ -194,13 +194,20 @@ class search_users_skill extends core_skill_base implements
 
         $debugbase = $this->build_skill_debug_message(self::SKILL_NAME, $input);
 
-        // Per-target visibility gate (audit 12-F01): core.search_users resolves arbitrary users
-        // site-wide, so without a gate a teacher could enumerate any user's contact PII. Only surface
-        // users the acting user is actually allowed to view. user_can_view_profile() applies the core
-        // per-target relationship/capability checks (self, shared course, moodle/user:viewdetails,
-        // admin/viewalldetails, …), so a user the actor shares no context with is dropped — while a
-        // student in the actor's own course is still returned. The skill runs in the actor's session
-        // ($USER == actor), so the core $USER-based check is the right authority here.
+        // Per-target visibility gate (audit 12-F01 / CAP-01): core.search_users resolves arbitrary users
+        // site-wide, so without a gate a teacher could enumerate any user's contact PII. user_can_view_profile()
+        // is NOT sufficient — it returns true for everyone when $CFG->forceloginforprofiles is off, and only
+        // authorises profile-page visibility, not identity fields. So: (1) drop any candidate the actor has no
+        // legitimate relationship with — keep only self, users sharing a course, or (for holders of a site-level
+        // user:viewdetails/viewalldetails or admins) anyone; (2) strip identity/contact fields unless the actor
+        // holds moodle/site:viewuseridentity at the system context OR in a shared course (so an in-course teacher
+        // still sees their own student's email). The skill runs in the actor's session ($USER == actor).
+        $systemctx = \context_system::instance();
+        $canviewallusers = is_siteadmin()
+            || has_capability('moodle/user:viewdetails', $systemctx)
+            || has_capability('moodle/user:viewalldetails', $systemctx);
+        $canviewidentitysystem = has_capability('moodle/site:viewuseridentity', $systemctx);
+
         $candidates = $this->search_user_candidates_for_preview($query, $limit);
         $payloadusers = [];
         $hiddencount = 0;
@@ -211,12 +218,22 @@ class search_users_skill extends core_skill_base implements
             }
 
             $user = \core_user::get_user($candidateid, '*', MUST_EXIST);
-            if (!self::actor_can_view_user($user)) {
+            [$related, $canviewidentity] = self::resolve_actor_visibility(
+                $user,
+                $userid,
+                $canviewallusers,
+                $canviewidentitysystem
+            );
+            if (!$related) {
                 $hiddencount++;
                 continue;
             }
 
-            $payloadusers[] = $this->build_user_payload($user);
+            $payload = $this->build_user_payload($user);
+            if (!$canviewidentity) {
+                $payload = self::strip_user_identity_fields($payload);
+            }
+            $payloadusers[] = $payload;
         }
 
         if (empty($payloadusers)) {
@@ -263,18 +280,77 @@ class search_users_skill extends core_skill_base implements
     }
 
     /**
-     * Whether the acting user is allowed to view the given user's profile at all.
+     * Identity/contact fields removed from a user payload when the actor may not view user identity.
+     */
+    private const IDENTITY_FIELDS = [
+        'username', 'email', 'idnumber', 'institution', 'department',
+        'city', 'country', 'address', 'phone1', 'phone2',
+        'description', 'descriptionformat', 'customprofilefields',
+    ];
+
+    /**
+     * Decide whether a candidate is visible to the actor at all, and whether their identity (contact)
+     * fields may be shown. Closes audit CAP-01 (site-wide PII enumeration).
      *
-     * Runs in the acting user's session ($USER is the actor for every web-service entry point), so the
-     * core $USER-based profile visibility check is the correct authority here.
+     * Relationship (visible at all): the actor themselves, a user sharing a course with the actor, or —
+     * for holders of a site-level user:viewdetails/viewalldetails or admins — anyone. Otherwise the
+     * candidate is dropped (the "fall back to users in my own courses" scoping).
+     *
+     * Identity fields: only when the actor holds moodle/site:viewuseridentity at the system context, or
+     * in one of the shared courses (so an in-course teacher still sees their student's email).
      *
      * @param \stdClass $user
-     * @return bool
+     * @param int $actorid
+     * @param bool $canviewallusers
+     * @param bool $canviewidentitysystem
+     * @return array{0:bool,1:bool} [related, canviewidentity]
      */
-    private static function actor_can_view_user(\stdClass $user): bool {
+    private static function resolve_actor_visibility(
+        \stdClass $user,
+        int $actorid,
+        bool $canviewallusers,
+        bool $canviewidentitysystem
+    ): array {
         global $CFG;
-        require_once($CFG->dirroot . '/user/lib.php');
-        return user_can_view_profile($user);
+
+        if ((int)$user->id === $actorid) {
+            return [true, true];
+        }
+
+        require_once($CFG->libdir . '/enrollib.php');
+        $sharedcourses = enrol_get_shared_courses($actorid, (int)$user->id, false, false);
+        if (!$canviewallusers && empty($sharedcourses)) {
+            return [false, false];
+        }
+
+        $canviewidentity = $canviewidentitysystem;
+        if (!$canviewidentity && !empty($sharedcourses)) {
+            foreach ($sharedcourses as $course) {
+                $courseid = (int)($course->id ?? 0);
+                if (
+                    $courseid > 0
+                        && has_capability('moodle/site:viewuseridentity', \context_course::instance($courseid))
+                ) {
+                    $canviewidentity = true;
+                    break;
+                }
+            }
+        }
+
+        return [true, $canviewidentity];
+    }
+
+    /**
+     * Remove identity/contact PII fields from a user payload.
+     *
+     * @param array $payload
+     * @return array
+     */
+    private static function strip_user_identity_fields(array $payload): array {
+        foreach (self::IDENTITY_FIELDS as $field) {
+            unset($payload[$field]);
+        }
+        return $payload;
     }
 
     /**
