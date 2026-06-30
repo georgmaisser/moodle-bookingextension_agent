@@ -911,6 +911,7 @@ $string['benchmark_run_endpoint_label'] = 'Endpoint';
 $string['benchmark_run_env_active'] = 'BOOKING_TEST_AI_*-Umgebungs-Overrides sind aktiv — diese Werte überschreiben den konfigurierten Provider.';
 $string['benchmark_run_env_inactive'] = 'Keine Umgebungs-Overrides gesetzt — es wird der konfigurierte Provider verwendet, genau wie im Normalbetrieb.';
 $string['benchmark_run_heading'] = 'Benchmark starten';
+$string['benchmark_run_instance'] = 'Provider-Instanz';
 $string['benchmark_run_key_label'] = 'API-Schlüssel';
 $string['benchmark_run_key_none'] = 'kein API-Schlüssel konfiguriert';
 $string['benchmark_run_key_provider'] = 'konfigurierter Provider';

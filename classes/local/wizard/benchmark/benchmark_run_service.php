@@ -77,6 +77,7 @@ class benchmark_run_service {
         $benchcmid   = (int)($options['cmid'] ?? 25);
         $benchuserid = (int)($options['userid'] ?? 2);
         $tier        = (string)($options['tier'] ?? 'probabilistic');
+        $providerinstanceid = (int)($options['provider_instance_id'] ?? 0);
 
         // Record whether family/skill embeddings are live for this run (vs keyword-only routing), so a
         // run's score is attributable to its routing mode. This is the same flag the orchestrator's
@@ -88,11 +89,17 @@ class benchmark_run_service {
         $metrics   = new benchmark_metrics_calculator();
         $dbwriter  = new benchmark_db_writer();
 
-        // When BOOKING_TEST_AI_KEY is set, inject the env-override AI manager (process-local DI, no
-        // DB writes) so a DB provider with an empty apikey is still usable and env models apply.
+        // Choose the AI provider for the run (process-local DI override, no DB writes). Precedence:
+        // 1. an explicitly chosen provider instance (from the interface) — pins every action to it;
+        // 2. else BOOKING_TEST_AI_KEY env vars (CLI/CI only — web/cron never sees them);
+        // 3. else the default configured provider.
         $envkey = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
-        if (!$usestub && $envkey !== '') {
-            di::set(ai_manager::class, new benchmark_envkey_manager($DB));
+        if (!$usestub) {
+            if ($providerinstanceid > 0) {
+                di::set(ai_manager::class, new benchmark_instance_manager($DB, $providerinstanceid));
+            } else if ($envkey !== '') {
+                di::set(ai_manager::class, new benchmark_envkey_manager($DB));
+            }
         }
 
         $store = null;

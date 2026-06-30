@@ -61,10 +61,18 @@ if ($action === 'pinbaseline' && $runid > 0 && confirm_sesskey()) {
 // panel next to the button.
 if ($action === 'runbenchmark' && confirm_sesskey()) {
     require_capability('bookingextension/agent:runbenchmarks', context_system::instance());
+    $runinstanceid = optional_param('benchinstance', 0, PARAM_INT);
+    $instancename = '';
+    if ($runinstanceid > 0) {
+        $instancename = (string)((new \bookingextension_agent\local\wizard\benchmark\benchmark_provider_preview())
+            ->list_instances()[$runinstanceid] ?? '');
+    }
     $task = new \bookingextension_agent\task\run_benchmark_adhoc();
     $task->set_custom_data([
-        'env'   => 'ui',
-        'label' => date('Y-m-d H:i') . ' (UI: ' . fullname($USER) . ')',
+        'env'                  => 'ui',
+        'label'                => date('Y-m-d H:i') . ' (UI: ' . fullname($USER)
+            . ($instancename !== '' ? ', ' . $instancename : '') . ')',
+        'provider_instance_id' => $runinstanceid,
     ]);
     \core\task\manager::queue_adhoc_task($task, true);
     redirect(
@@ -86,17 +94,44 @@ if (!$DB->get_manager()->table_exists('bx_agent_benchmark_runs')) {
     exit;
 }
 
-// Run-a-benchmark panel — only for holders of the run capability. Shows up front exactly which
-// provider/model/key values the run will use: env overrides if BOOKING_TEST_AI_* is set, otherwise the
-// configured provider (the same resolution as outside benchmarks).
+// Run-a-benchmark panel — only for holders of the run capability. Lets the user pick a configured AI
+// provider INSTANCE (own key/model/endpoint, set in the standard AI admin UI) and shows up front
+// exactly which values the run will use. Env (BOOKING_TEST_AI_*) only applies to CLI runs — the
+// web/cron path that runs an interface benchmark never sees it, hence explicit instance selection.
 if (has_capability('bookingextension/agent:runbenchmarks', context_system::instance())) {
-    $preview = (new \bookingextension_agent\local\wizard\benchmark\benchmark_provider_preview())->describe();
+    $previewer = new \bookingextension_agent\local\wizard\benchmark\benchmark_provider_preview();
+    $instancelist = $previewer->list_instances();
+    $benchinstance = optional_param('benchinstance', 0, PARAM_INT);
+    if (!isset($instancelist[$benchinstance])) {
+        $benchinstance = $instancelist ? (int)array_key_first($instancelist) : 0;
+    }
+    $preview = $previewer->describe($benchinstance ?: null);
     $srcenv = get_string('benchmark_run_source_env', 'bookingextension_agent');
     $srcprov = get_string('benchmark_run_source_provider', 'bookingextension_agent');
+    $provlabel = $preview['instance_name'] !== '' ? s($preview['instance_name']) : $srcprov;
+
+    // Provider-instance picker — auto-submits (GET) to refresh the preview for the chosen instance.
+    $picker = '';
+    if (count($instancelist) > 1) {
+        $select = new single_select(
+            new moodle_url('/mod/booking/bookingextension/agent/benchmark_report.php'),
+            'benchinstance',
+            $instancelist,
+            $benchinstance
+        );
+        $select->label = get_string('benchmark_run_instance', 'bookingextension_agent') . ' ';
+        $picker = html_writer::div($OUTPUT->render($select), 'mb-2');
+    } else if (count($instancelist) === 1) {
+        $picker = html_writer::div(
+            get_string('benchmark_run_instance', 'bookingextension_agent') . ': '
+            . html_writer::tag('strong', $provlabel),
+            'mb-2'
+        );
+    }
 
     $rows = '';
     foreach ($preview['actions'] as $a) {
-        $src = $a['source'] === 'env' ? $srcenv . ' (' . s($a['envvar']) . ')' : $srcprov;
+        $src = $a['source'] === 'env' ? $srcenv . ' (' . s($a['envvar']) . ')' : $provlabel;
         $model = $a['model'] !== '' ? html_writer::tag('code', s($a['model'])) : '—';
         $rows .= html_writer::tag('tr', html_writer::tag('td', s($a['label']))
             . html_writer::tag('td', $model) . html_writer::tag('td', $src));
@@ -106,22 +141,16 @@ if (has_capability('bookingextension/agent:runbenchmarks', context_system::insta
     $rows .= html_writer::tag('tr', html_writer::tag('td', get_string('benchmark_run_key_label', 'bookingextension_agent'))
         . html_writer::tag('td', '') . html_writer::tag('td', $keysrc));
     if ($preview['endpoint']['value'] !== '') {
-        $endsrc = $preview['endpoint']['source'] === 'env' ? $srcenv : $srcprov;
+        $endsrc = $preview['endpoint']['source'] === 'env' ? $srcenv : $provlabel;
         $rows .= html_writer::tag('tr', html_writer::tag('td', get_string('benchmark_run_endpoint_label', 'bookingextension_agent'))
             . html_writer::tag('td', html_writer::tag('code', s($preview['endpoint']['value']))) . html_writer::tag('td', $endsrc));
     }
     $table = html_writer::tag('table', html_writer::tag('tbody', $rows), ['class' => 'table table-sm w-auto mb-2']);
 
-    $note = html_writer::div(
-        $preview['env_override_active']
-            ? get_string('benchmark_run_env_active', 'bookingextension_agent')
-            : get_string('benchmark_run_env_inactive', 'bookingextension_agent'),
-        'text-muted small mb-2'
-    );
+    $note = '';
     if (!$preview['provider_found'] && !$preview['env_override_active']) {
         $note .= $OUTPUT->notification(get_string('benchmark_run_provider_missing', 'bookingextension_agent'), 'warning');
     }
-
     // Whether embeddings are currently live for the run (family/skill embeddings flag).
     $emblabel = $preview['embeddings_active']
         ? get_string('benchmark_run_embeddings_live', 'bookingextension_agent')
@@ -142,6 +171,7 @@ if (has_capability('bookingextension/agent:runbenchmarks', context_system::insta
         'form',
         html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'runbenchmark'])
         . html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()])
+        . html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'benchinstance', 'value' => $benchinstance])
         . $button,
         ['method' => 'post', 'action' => $PAGE->url->out(false)]
     );
@@ -153,7 +183,7 @@ if (has_capability('bookingextension/agent:runbenchmarks', context_system::insta
     );
     echo html_writer::div(
         html_writer::tag('h4', get_string('benchmark_run_heading', 'bookingextension_agent'))
-        . $subhead . $note . $table . $form,
+        . $picker . $subhead . $note . $table . $form,
         'card card-body mb-4'
     );
 }

@@ -911,6 +911,7 @@ $string['benchmark_run_endpoint_label'] = 'Endpoint';
 $string['benchmark_run_env_active'] = 'BOOKING_TEST_AI_* environment overrides are active — these values override the configured provider.';
 $string['benchmark_run_env_inactive'] = 'No environment overrides set — the configured provider is used, exactly as in normal operation.';
 $string['benchmark_run_heading'] = 'Run a benchmark';
+$string['benchmark_run_instance'] = 'Provider instance';
 $string['benchmark_run_key_label'] = 'API key';
 $string['benchmark_run_key_none'] = 'no API key configured';
 $string['benchmark_run_key_provider'] = 'configured provider';

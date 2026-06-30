@@ -18,13 +18,17 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\benchmark;
 
+use bookingextension_agent\local\wizard\wb_action_names;
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+
 /**
- * Describes which provider/model/key values a benchmark run will actually use,
- * so the interface can show them next to the "run benchmark" button.
+ * Describes which provider/model/key values a benchmark run will actually use, so the
+ * interface can show them next to the "run benchmark" button and the provider-instance picker.
  *
- * Mirrors {@see benchmark_envkey_manager}: when BOOKING_TEST_AI_KEY is set the
- * BOOKING_TEST_AI_* env vars override the configured provider; otherwise the
- * configured wunderbyte provider is used exactly as in production.
+ * A run targets a chosen core_ai provider INSTANCE (its own key/model/endpoint, configured in the
+ * standard AI admin UI). The BOOKING_TEST_AI_* env vars still override when present, but only for
+ * CLI runs launched in a shell that exports them — the web/cron context never sees them, which is
+ * why the interface uses explicit instance selection rather than env vars.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -35,28 +39,61 @@ class benchmark_provider_preview {
     private const WB_PROVIDER_CLASS = 'aiprovider_wunderbyte\\provider';
 
     /** @var string Action: planner/selector. */
-    private const ACTION_PLANNER = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const ACTION_PLANNER = wb_action_names::PLANNER_DECIDE;
 
     /** @var string Action: agent reply. */
-    private const ACTION_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const ACTION_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
     /** @var string Action: embeddings. */
-    private const ACTION_EMBED = 'aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+    private const ACTION_EMBED = wb_action_names::GENERATE_EMBEDDINGS;
 
     /**
-     * Compute the effective benchmark provider values.
+     * The configured wunderbyte provider instances, id => provider object.
      *
+     * @return array
+     */
+    private function wunderbyte_instances(): array {
+        global $DB;
+        $out = [];
+        try {
+            $manager = new \core_ai\manager($DB);
+            $wbclass = self::WB_PROVIDER_CLASS;
+            foreach ($manager->get_sorted_providers() as $provider) {
+                if ($provider instanceof $wbclass) {
+                    $out[(int)$provider->id] = $provider;
+                }
+            }
+        } catch (\Throwable $e) {
+            $out = [];
+        }
+        return $out;
+    }
+
+    /**
+     * Selectable provider instances for the run form: id => display name.
+     *
+     * @return array
+     */
+    public function list_instances(): array {
+        $out = [];
+        foreach ($this->wunderbyte_instances() as $id => $provider) {
+            $out[$id] = (string)$provider->name;
+        }
+        return $out;
+    }
+
+    /**
+     * Compute the effective benchmark provider values for the chosen instance.
+     *
+     * @param int|null $instanceid The provider instance to describe; null = the default (first sorted).
      * @return array {
-     *   env_override_active: bool,
-     *   provider_found: bool,
-     *   key: array{source: string, detail: string},
-     *   endpoint: array{source: string, value: string},
+     *   env_override_active: bool, embeddings_active: bool, provider_found: bool,
+     *   instance_id: int, instance_name: string,
+     *   key: array{source: string, detail: string}, endpoint: array{source: string, value: string},
      *   actions: array<int, array{label: string, model: string, source: string, envvar: string}>
      * }
      */
-    public function describe(): array {
-        global $DB;
-
+    public function describe(?int $instanceid = null): array {
         $envkey        = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
         $envmodel      = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
         $envmodelmini  = trim((string)(getenv('BOOKING_TEST_AI_MODEL_MINI') ?: ''));
@@ -65,36 +102,25 @@ class benchmark_provider_preview {
         $envactive     = $envkey !== '';
 
         // Whether family/skill embeddings are currently live — the routing mode a run would use.
-        $embeddingsactive = \bookingextension_agent\local\wizard\config\runtime_feature_flags::is_enabled(
-            \bookingextension_agent\local\wizard\config\runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED
-        );
+        $embeddingsactive = runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED);
 
-        // Read the configured wunderbyte provider straight from the standard manager (no override),
-        // exactly the instance a non-env run would use.
-        $config = [];
-        $actionconfig = [];
-        $providerfound = false;
-        try {
-            $manager   = new \core_ai\manager($DB);
-            $providers = $manager->get_sorted_providers();
-            $wbclass   = self::WB_PROVIDER_CLASS;
-            foreach ($providers as $provider) {
-                if ($provider instanceof $wbclass) {
-                    $config       = (array)($provider->config ?? []);
-                    $actionconfig = (array)($provider->actionconfig ?? []);
-                    $providerfound = true;
-                    break;
-                }
-            }
-        } catch (\Throwable $e) {
-            $providerfound = false;
+        // Resolve the target instance: the one requested, else the default (first sorted).
+        $instances = $this->wunderbyte_instances();
+        $target = null;
+        if ($instanceid !== null && isset($instances[$instanceid])) {
+            $target = $instances[$instanceid];
+        } else if (!empty($instances)) {
+            $target = reset($instances);
         }
+        $providerfound = $target !== null;
+        $config        = $providerfound ? (array)($target->config ?? []) : [];
+        $actionconfig  = $providerfound ? (array)($target->actionconfig ?? []) : [];
+        $instname      = $providerfound ? (string)$target->name : '';
+        $instid        = $providerfound ? (int)$target->id : 0;
 
         $providermodel = static function (string $action) use ($actionconfig): string {
             return (string)($actionconfig[$action]['settings']['model'] ?? '');
         };
-
-        // Resolve one action's effective model + where it comes from.
         $resolve = static function (string $action, string $envvalue, string $envvarname) use ($envactive, $providermodel): array {
             if ($envactive && $envvalue !== '') {
                 return ['model' => $envvalue, 'source' => 'env', 'envvar' => $envvarname];
@@ -109,11 +135,11 @@ class benchmark_provider_preview {
         $reply   = $resolve(self::ACTION_REPLY, $envmodel, 'BOOKING_TEST_AI_MODEL');
         $embed   = $resolve(self::ACTION_EMBED, $envembedmodel, 'BOOKING_TEST_AI_EMBEDDING_MODEL');
 
-        // Key source.
+        // Key source: env override (CLI only), else the instance's own key, else none.
         if ($envactive) {
             $key = ['source' => 'env', 'detail' => 'BOOKING_TEST_AI_KEY'];
         } else if (!empty($config['apikey'])) {
-            $key = ['source' => 'provider', 'detail' => get_string('benchmark_run_key_provider', 'bookingextension_agent')];
+            $key = ['source' => 'provider', 'detail' => $instname];
         } else {
             $key = ['source' => 'none', 'detail' => get_string('benchmark_run_key_none', 'bookingextension_agent')];
         }
@@ -129,6 +155,8 @@ class benchmark_provider_preview {
             'env_override_active' => $envactive,
             'embeddings_active'   => $embeddingsactive,
             'provider_found'      => $providerfound,
+            'instance_id'         => $instid,
+            'instance_name'       => $instname,
             'key'                 => $key,
             'endpoint'            => $endpoint,
             'actions'             => [
