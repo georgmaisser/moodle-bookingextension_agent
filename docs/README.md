@@ -76,6 +76,7 @@ one subsystem per chapter.
 | [Skill providers & families](developer-guides/skill-providers-and-families.md) | How a third-party plugin contributes skills and families without engine changes |
 | [Web services API](developer-guides/web-services-api.md) | Every external function: parameters, returns, errors |
 | [Data model & DB](developer-guides/data-model-and-db.md) | `db/install.xml` tables, the install-only rollout policy |
+| [Coding conventions](developer-guides/coding-conventions.md) | `strict_types` policy, single-source-of-truth helpers, strings, engine↔domain boundary |
 
 ### Operations
 

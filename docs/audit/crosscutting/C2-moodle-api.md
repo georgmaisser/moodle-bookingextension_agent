@@ -16,7 +16,7 @@
 | Dimension | Verdict | Notes |
 |-----------|---------|-------|
 | D1 Security        | n/a    | Owned by C1; entry-guard spot-checks here were clean (sesskey/cap/validate_context present on every WS + entry page). |
-| D2 Moodle API      | issues | External API shape, `db/access.php`, `db/services.php`, `db/tasks.php`, capability-lang, PSR-4, CLI guards all clean. Defects: (1) ~~upgrade.php migrates `local_wizard_*` tables~~ **FIXED 2026-06-30** (upgrade.php emptied of schema migrations; install-only); (2) two defined caches never `cache::make`-d; (3) ~~`managebenchmarks` cap defined-but-unused~~ **FIXED 2026-06-30**; (4) two `.py` files inside autoloaded `classes/`; (5) 69/291 class files lack `declare(strict_types=1)`. |
+| D2 Moodle API      | issues | External API shape, `db/access.php`, `db/services.php`, `db/tasks.php`, capability-lang, PSR-4, CLI guards all clean. Defects: (1) ~~upgrade.php migrates `local_wizard_*` tables~~ **FIXED 2026-06-30** (upgrade.php emptied of schema migrations; install-only); (2) two defined caches never `cache::make`-d; (3) ~~`managebenchmarks` cap defined-but-unused~~ **FIXED 2026-06-30**; (4) two `.py` files inside autoloaded `classes/`; (5) ~~69/291 class files lack `declare(strict_types=1)`~~ **RESOLVED 2026-06-30** as a documented deliberate policy (coding-conventions.md §1). |
 | D3 Structure       | n/a    | Owned by C3; only the `.py`-in-`classes/` and `_adhoc`-named scheduled task noted as incidental. |
 | D4 Duplication     | n/a    | Owned by C4; benchmark-page cap-gate inconsistency noted under D2. |
 | D5 Flowchart       | n/a    | Not a D2 concern. |
@@ -144,7 +144,9 @@ and ships unrelated server code with the plugin. No load/security impact (PHP au
 **Recommendation:** Move both files out of `classes/` into a non-shipped docs/ops location (or delete
 from the plugin tree).
 
-### [C2-F06] 🟢 LOW · D2 Moodle API · classes/ (69 files)
+### [C2-F06] ✅ RESOLVED — documented policy (was 🟢 LOW) · D2 Moodle API · classes/
+**✅ Resolved 2026-06-30 (option: documented deliberate policy):** the mixed state is **intentional** and is now written down in [`docs/developer-guides/coding-conventions.md §1`](../../developer-guides/coding-conventions.md). Policy: new isolated service/value classes ship `declare(strict_types=1)`; the always-on engine core (`orchestrator`, `executor`, `conversation_store`, runtime loop) stays **non-strict on purpose** because it sits on the LLM-JSON↔typed-API boundary and relies on implicit scalar coercion — flipping it to strict would turn working coercions into fatal `TypeError`s (the project memory *strict_types-Coercion bei Extraktion* records the real bug that proved this). The convention is to harden at the call site with explicit casts, not to blanket-enable strict on engine files. — _Original finding below._
+
 **What:** 69 of 291 class files lack `declare(strict_types=1)` while the other 222 have it.
 **Evidence:** Sweep listed e.g. `orchestrator.php`, `executor.php`, `conversation_store.php`,
 `skill_registry.php`, `authorization_service.php`, all `interfaces/*`, several `*/skills/*`. The
@@ -232,7 +234,7 @@ minimum the always-on engine core (`orchestrator`, `executor`, `conversation_sto
 #### `classes/**` (PSR-4, headers, strict_types)
 - [x] D2 PSR-4 — 0 mismatches across 291 files.
 - [x] D2 headers — GPL + @package on all PHP.
-- [ ] D2 strict_types — see C2-F06 (69/291 missing).
+- [x] D2 strict_types — C2-F06 RESOLVED 2026-06-30 as a documented deliberate policy (coding-conventions.md §1): engine core non-strict on purpose, new isolated files strict.
 - [ ] D2 file-type hygiene — see C2-F05 (2 `.py` in `classes/`).
 
 #### root `*.php` (`lib.php`, `settings.php`, `version.php`, `trial_challenge.php`, `benchmark_*`, `skill_*`)

@@ -64,7 +64,7 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
   bleibt deine Governance-Entscheidung).
 - ℹ️ **[03-F05]** „totes `has_observations()`" = False Positive (wird genutzt).
 
-**MEDIUM/LOW, noch offen (nicht launch-gating):**
+**MEDIUM/LOW — alle erledigt oder bewusst akzeptiert (nicht launch-gating):**
 - ✅ **[04-F06]** byte-identische Provider-Error-Builder → in `provider_error_result_trait` extrahiert (erledigt).
 - ✅ **[03-F03]** `normalize_input`-Duplikat → **gelöst (Option A)**: gemeinsamer `input_normalizer::normalize($input,$opts)`,
   beide Verhalten als Presets (compact vs signature) **byte-genau erhalten** (20/20 Standalone-Äquivalenz bewiesen);
@@ -74,9 +74,13 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
 - ✅ **[C3-F02 / 08-F01]** parallele Issue-Code-Klassifizierer → kanonische `issue_code_taxonomy` (zwei Methoden,
   je eigene Präzedenz verbatim); beide Klassifizierer delegieren, `CATEGORY_*` aliased. Verhaltensneutral
   (28/28 Standalone-Äquivalenz inkl. Präzedenz-Konflikte) + Test. Erledigt.
-- **[C2-F06]** `strict_types` (69/295) — am Orchestrator bewusst NICHT (bekannter Coercion-Bug).
-- **[05-F03]** `spawn_contract_service` — **behalten** (test-abgedeckter Spawn-Contract-Seam, ch.11 §8; kein toter Code).
-- **[02-F02]** totes `require_capability_at()` — Engine-Interface-Methode, Entfernung separat.
+- ✅ **[C2-F06]** `strict_types` → **dokumentierte Policy** (`docs/developer-guides/coding-conventions.md §1`):
+  Engine-Kern bewusst non-strict (Coercion-Grenze, harten per Cast am Call-Site), neue isolierte Files strict. Erledigt.
+- ✅ **[05-F03]** `spawn_contract_service` → **akzeptiert/behalten** (dokumentierter + test-abgedeckter Spawn-Seam, ch.11 §8; kein toter Code).
+- ✅ **[02-F02]** `require_capability_at()` → Doc korrigiert; **Methode akzeptiert** (kleine, korrekte Interface-Methode; Entfernung = Interface-Bruch ohne Nutzen). Erledigt.
+
+> **Damit ist die D4-Duplikations-Dimension vollständig abgeräumt und alle MEDIUM/LOW-Struktur-/API-Punkte
+> sind entweder gefixt oder als bewusste Entscheidung dokumentiert.**
 
 **Doc-Coverage-HIGH-Cluster (Doku-only, siehe B):** C5-F01 (observability.md noch `local_wizard_`),
 C5-F02 / 03-F02 / 04-F07 (stale orchestrator-Zeilennummern), C5-F05 (`bx_agent_user_memory` in Data-Model fehlt).

@@ -38,8 +38,8 @@ A grep of the whole skill tree (`classes/local/wizard/{course,wizard,core,questi
 **Compensating control:** Both copies currently agree, so no behavioural bug today.
 **Recommendation:** Extract one shared helper (e.g. a small `input_payload_pruner` used by both, or a static on `shared_json_payload_extractor`'s neighbourhood) and call it from a single place.
 
-### [05-F03] 🟢 LOW · D3 Structure · classes/local/wizard/services/spawn_contract_service.php
-**What:** `spawn_contract_service` has no runtime (`classes/`) caller — only test code references it.
+### [05-F03] ✅ RESOLVED — accepted by design (was 🟢 LOW) · D3 Structure · classes/local/wizard/services/spawn_contract_service.php
+**✅ Resolved 2026-06-30 (accepted/keep):** **not dead code** — `spawn_contract_service` is the schema/contract-level seam for spawn commands, which [ch. 11 §8](../../architecture/11-executor.md) documents as *recognized at the contract level, runtime enqueue path optional*. It has dedicated contract tests (`spawn_contract_service_test`, `reference_scenarios_contract_test`). Deleting it would remove a documented, tested feature seam, not clean up cruft — so it is kept by design. — _Original finding below._
 **Evidence:** `grep -rln spawn_contract_service classes/` returns only the file itself; callers are `tests/agent/contracts/spawn_contract_service_test.php` and `reference_scenarios_contract_test.php`. Its three public methods (`normalize_skill_result`, `apply_output_bindings`, `normalize_spawn_commands`) are exercised only by those tests. The flowchart node `EXC_SPAWN` concedes this: "runtime enqueue path currently optional".
 **Impact:** Designed-but-unwired contract surface. Not dead in the framework-entry-point sense (it is a contract service with passing tests for a planned feature), but it ships with no production consumer.
 **Compensating control:** Test-covered; clearly labelled as optional in the flowchart, so this is an intentional staging state, not an oversight.
