@@ -49,6 +49,7 @@ class run_benchmark_adhoc extends \core\task\adhoc_task {
             . ', passed=' . (int)($summary['passed'] ?? 0) . '/' . (int)($summary['total'] ?? 0)
             . ' (' . (float)($summary['success_rate'] ?? 0) . '%)'
             . ', ' . (int)($summary['duration_ms'] ?? 0) . 'ms'
+            . ', embeddings=' . (!empty($summary['embeddings_used']) ? 'on' : 'off')
             . (!empty($summary['regression']) ? ' [REGRESSION]' : ''));
     }
 }

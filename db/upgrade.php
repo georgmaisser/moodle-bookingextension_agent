@@ -29,6 +29,19 @@
  * @return bool
  */
 function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
+    global $DB;
+    $dbman = $DB->get_manager();
+
+    if ($oldversion < 2026063003) {
+        // Record per benchmark run whether family/skill embeddings were live (vs keyword-only routing).
+        // New, correctly-prefixed bx_agent_ field, guarded + idempotent.
+        $table = new xmldb_table('bx_agent_benchmark_runs');
+        $field = new xmldb_field('embeddings_used', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'git_ref');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026063003, 'bookingextension', 'agent');
+    }
 
     return true;
 }

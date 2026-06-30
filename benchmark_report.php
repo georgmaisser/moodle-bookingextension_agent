@@ -122,6 +122,17 @@ if (has_capability('bookingextension/agent:runbenchmarks', context_system::insta
         $note .= $OUTPUT->notification(get_string('benchmark_run_provider_missing', 'bookingextension_agent'), 'warning');
     }
 
+    // Whether embeddings are currently live for the run (family/skill embeddings flag).
+    $emblabel = $preview['embeddings_active']
+        ? get_string('benchmark_run_embeddings_live', 'bookingextension_agent')
+        : get_string('benchmark_run_embeddings_off', 'bookingextension_agent');
+    $embbadge = $preview['embeddings_active'] ? 'badge badge-success' : 'badge badge-secondary';
+    $note .= html_writer::div(
+        get_string('benchmark_run_embeddings_label', 'bookingextension_agent') . ': '
+        . html_writer::span($emblabel, $embbadge),
+        'mb-2'
+    );
+
     $button = html_writer::tag(
         'button',
         get_string('benchmark_run_button', 'bookingextension_agent'),
@@ -251,6 +262,7 @@ $table->head = [
     get_string('benchmark_label', 'bookingextension_agent'),
     get_string('benchmark_model', 'bookingextension_agent'),
     get_string('benchmark_set', 'bookingextension_agent'),
+    get_string('benchmark_embeddings', 'bookingextension_agent'),
     get_string('benchmark_success', 'bookingextension_agent'),
     get_string('benchmark_passed', 'bookingextension_agent'),
     get_string('benchmark_duration', 'bookingextension_agent'),
@@ -307,6 +319,9 @@ foreach ($runs as $run) {
         htmlspecialchars($run->label) . $baseline . $regression,
         htmlspecialchars($run->model_id),
         htmlspecialchars($run->skill_set),
+        !empty($run->embeddings_used)
+            ? html_writer::span(get_string('benchmark_embeddings_on', 'bookingextension_agent'), 'badge badge-success')
+            : html_writer::span(get_string('benchmark_embeddings_off', 'bookingextension_agent'), 'badge badge-secondary'),
         html_writer::span("{$rate}%", "badge badge-{$color}"),
         "{$run->passed}/{$run->total_scenarios}",
         number_format($run->duration_ms / 1000, 1) . 's',

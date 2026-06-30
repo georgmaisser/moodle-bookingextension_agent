@@ -64,6 +64,11 @@ class benchmark_provider_preview {
         $envendpoint   = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
         $envactive     = $envkey !== '';
 
+        // Whether family/skill embeddings are currently live — the routing mode a run would use.
+        $embeddingsactive = \bookingextension_agent\local\wizard\config\runtime_feature_flags::is_enabled(
+            \bookingextension_agent\local\wizard\config\runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED
+        );
+
         // Read the configured wunderbyte provider straight from the standard manager (no override),
         // exactly the instance a non-env run would use.
         $config = [];
@@ -122,6 +127,7 @@ class benchmark_provider_preview {
 
         return [
             'env_override_active' => $envactive,
+            'embeddings_active'   => $embeddingsactive,
             'provider_found'      => $providerfound,
             'key'                 => $key,
             'endpoint'            => $endpoint,

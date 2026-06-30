@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\benchmark;
 
+use bookingextension_agent\local\wizard\config\runtime_feature_flags;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\interpreter;
 use bookingextension_agent\local\wizard\orchestrator;
@@ -76,6 +77,11 @@ class benchmark_run_service {
         $benchcmid   = (int)($options['cmid'] ?? 25);
         $benchuserid = (int)($options['userid'] ?? 2);
         $tier        = (string)($options['tier'] ?? 'probabilistic');
+
+        // Record whether family/skill embeddings are live for this run (vs keyword-only routing), so a
+        // run's score is attributable to its routing mode. This is the same flag the orchestrator's
+        // discovery path reads, captured at run time.
+        $embeddingsused = runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED) ? 1 : 0;
 
         $registry  = new benchmark_scenario_registry();
         $collector = new benchmark_result_collector();
@@ -255,6 +261,7 @@ class benchmark_run_service {
             'duration_ms'         => $rundurationms,
             'environment'         => $env,
             'git_ref'             => $gitref,
+            'embeddings_used'     => $embeddingsused,
             'regression_detected' => $regression ? 1 : 0,
         ];
 
@@ -277,6 +284,7 @@ class benchmark_run_service {
             'label'        => $label,
             'tier'         => $tier,
             'scenario_set' => $setname,
+            'embeddings_used' => (bool)$embeddingsused,
         ];
     }
 }
