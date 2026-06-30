@@ -32,13 +32,15 @@ $context = context_system::instance();
 try {
     admin_externalpage_setup('bookingextension_agent_skillgovernance');
 } catch (\core\exception\moodle_exception $e) {
-    if ($e->errorcode !== 'sectionerror') {
+    // admin_externalpage_setup() builds the admin tree per user and bails when the node cannot be
+    // located: 'sectionerror' for a site-config holder (e.g. mid-upgrade), but 'accessdenied' for a
+    // user WITHOUT moodle/site:config — which includes a manager who legitimately holds
+    // bookingextension/agent:managegovernance but cannot navigate the site-administration tree.
+    // Both mean "no admin-tree setup": fall back to a manual page setup and let the explicit
+    // require_capability() below be the real access gate, so a manager with the capability gets in.
+    if ($e->errorcode !== 'sectionerror' && $e->errorcode !== 'accessdenied') {
         throw $e;
     }
-    // Fallback when the admin external page node is not (yet) registered (e.g. mid-upgrade):
-    // admin_externalpage_setup() did not run, so set context, URL and layout ourselves —
-    // otherwise $PAGE->url (used by the redirect() calls below) triggers a "did not call
-    // set_url()" debugging notice.
     require_login();
     $PAGE->set_context($context);
     $PAGE->set_url('/mod/booking/bookingextension/agent/skill_governance.php');
