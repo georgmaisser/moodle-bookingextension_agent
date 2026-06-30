@@ -69,9 +69,10 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
 - ✅ **[03-F03]** `normalize_input`-Duplikat → **gelöst (Option A)**: gemeinsamer `input_normalizer::normalize($input,$opts)`,
   beide Verhalten als Presets (compact vs signature) **byte-genau erhalten** (20/20 Standalone-Äquivalenz bewiesen);
   PHPUnit-Test nagelt beide fest; Flowchart-Signatur-Determinismus intakt.
-- **[05-F02]** `prune_empty_input_values`-Duplikat — verbatim, extrahierbar, **aber** in `parameter_constructor.php`
-  (gerade für 05-F01 refaktoriert) → Kollisionsrisiko; harmlos (beide Kopien stimmen überein); vertagt.
-- **[C3-F02]** parallele Issue-Code-Klassifizierer — Merge verhaltens-riskant (könnten subtil divergieren).
+- ✅ **[05-F02]** `prune_empty_input_values`-Duplikat → in `input_payload_pruner::prune()` extrahiert
+  (beide Konsumenten umgestellt; 6/6 Standalone-Äquivalenz; Test). Erledigt.
+- **[C3-F02]** parallele Issue-Code-Klassifizierer — Merge verhaltens-riskant (könnten subtil divergieren);
+  lösbar wie 03-F03 (kanonische Map + Äquivalenz-Beweis), aber größer — deine Entscheidung vor/nach Go-Live.
 - **[C2-F06]** `strict_types` (69/295) — am Orchestrator bewusst NICHT (bekannter Coercion-Bug).
 - **[05-F03]** `spawn_contract_service` — **behalten** (test-abgedeckter Spawn-Contract-Seam, ch.11 §8; kein toter Code).
 - **[02-F02]** totes `require_capability_at()` — Engine-Interface-Methode, Entfernung separat.

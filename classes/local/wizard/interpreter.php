@@ -26,6 +26,7 @@ namespace bookingextension_agent\local\wizard;
 
 use bookingextension_agent\local\wizard\services\construction\parameter_constructor;
 use bookingextension_agent\local\wizard\services\construction\parameter_contract_validator;
+use bookingextension_agent\local\wizard\services\input_payload_pruner;
 use bookingextension_agent\local\wizard\services\selection\lazy_skill_loader;
 use bookingextension_agent\local\wizard\services\selection\skill_selector;
 use bookingextension_agent\local\wizard\interfaces\agent_interpreter;
@@ -616,7 +617,7 @@ class interpreter implements agent_interpreter {
                     $input = array_merge($input, $command['input']);
                 }
                 $input = $this->unwrap_redundant_input_envelope($input);
-                $input = $this->prune_empty_input_values($input);
+                $input = input_payload_pruner::prune($input);
 
                 $normalized[] = [
                     'skill' => $skillname,
@@ -640,7 +641,7 @@ class interpreter implements agent_interpreter {
                 $input = array_merge($input, $parsed['input']);
             }
             $input = $this->unwrap_redundant_input_envelope($input);
-            $input = $this->prune_empty_input_values($input);
+            $input = input_payload_pruner::prune($input);
             return [[
                 'skill' => $skillname,
                 'version' => max(1, (int)($parsed['version'] ?? 1)),
@@ -678,39 +679,6 @@ class interpreter implements agent_interpreter {
             $input = $nested + $input;
         }
         return $input;
-    }
-
-    /**
-     * Remove empty scalar placeholders from normalized input payloads.
-     *
-     * Keeps numeric 0 and boolean false values intact.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function prune_empty_input_values(array $input): array {
-        $cleaned = [];
-        foreach ($input as $key => $value) {
-            if (is_array($value)) {
-                $nested = $this->prune_empty_input_values($value);
-                if (!empty($nested)) {
-                    $cleaned[$key] = $nested;
-                }
-                continue;
-            }
-
-            if (is_string($value) && trim($value) === '') {
-                continue;
-            }
-
-            if ($value === null) {
-                continue;
-            }
-
-            $cleaned[$key] = $value;
-        }
-
-        return $cleaned;
     }
 
     /**

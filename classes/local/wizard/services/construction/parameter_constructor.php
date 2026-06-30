@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\construction;
 
 use bookingextension_agent\local\wizard\dto\parameter_construction_result;
+use bookingextension_agent\local\wizard\services\input_payload_pruner;
 use bookingextension_agent\local\wizard\skill_registry;
 
 /**
@@ -55,7 +56,7 @@ class parameter_constructor {
         // fields); free-text hydration is driven by the schema `from_user_message` flag (audit 05-F01).
         $input = $this->canonicalize_command_input($skillname, $rawinput);
         $input = $this->hydrate_user_message_fields($skillname, $input, $lastusermessage);
-        $input = $this->prune_empty_input_values($input);
+        $input = input_payload_pruner::prune($input);
 
         return new parameter_construction_result($input, true, [], []);
     }
@@ -109,34 +110,5 @@ class parameter_constructor {
         }
 
         return $input;
-    }
-
-    /**
-     * Remove empty placeholders from a normalized input payload.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function prune_empty_input_values(array $input): array {
-        $cleaned = [];
-        foreach ($input as $key => $value) {
-            if (is_array($value)) {
-                $nested = $this->prune_empty_input_values($value);
-                if (!empty($nested)) {
-                    $cleaned[$key] = $nested;
-                }
-                continue;
-            }
-
-            if (is_string($value) && trim($value) === '') {
-                continue;
-            }
-            if ($value === null) {
-                continue;
-            }
-            $cleaned[$key] = $value;
-        }
-
-        return $cleaned;
     }
 }
