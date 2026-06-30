@@ -126,7 +126,6 @@ $teacherskills = [
     'booking_search_options',
     'core_search_users',
     'booking_update_option',
-    'wizard_recreate_skill_catalog',
     'wizard_search_skills',
     'question_generate_questions',
 ];
@@ -154,6 +153,10 @@ $managerskills = [
     'booking_core_update_group',
     'booking_create_rule_from_template',
     'booking_update_rule_from_template',
+    // Rebuilds the site-global skill-catalog embeddings (cost-bearing) — manager/admin only,
+    // not teacher-grantable (audit CAP-03). Execution additionally requires moodle/site:config
+    // via the skill's native capability (Gate 2).
+    'wizard_recreate_skill_catalog',
 ];
 
 $adminonlyskills = [
