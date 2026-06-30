@@ -69,11 +69,27 @@ Consequences that recur throughout the engine:
 This is the `LG_CTX` legend in the flowchart: *"Runtime uses Moodle contextid as the scope
 key."*
 
+### Ambient vs operating context
+
+The thread's `contextid` is the **ambient** context. A single command may nonetheless act on
+a *different* instance — a module-targeting skill can name another activity (e.g. via an
+`activityquery`), so the context it actually mutates is resolved per command. That resolved
+context is the **operating context**. The split matters for authorization:
+
+- **Gate 1** — the agent *use* capability (`require_use_capability`, §1) — is enforced once at
+  the **ambient** entry point.
+- **Gate 2** — the skill's native per-skill capabilities (§3) — is enforced at the **operating
+  context**, centrally in preflight, *after* the target is resolved. See
+  [ch. 09 §2b](09-preflight-pipeline.md#2b-operating-context-resolution--gate-2-per-command)
+  for the resolver (`skill_operating_context_resolver`), the scope cascade, the
+  `CONTEXT_TARGET_UNRESOLVED` clarification, and `native_capability_guard`. This is the
+  `LG_OPCTX` legend.
+
 ---
 
 ## 3. Capabilities (`db/access.php`)
 
-The plugin declares two fixed capabilities plus a large, **generated** set of per-skill
+The plugin declares several fixed capabilities plus a large, **generated** set of per-skill
 capabilities.
 
 ### Fixed capabilities
@@ -83,11 +99,25 @@ capabilities.
 | `bookingextension/agent:useaiinstructions` | write | `CONTEXT_MODULE` | `editingteacher` (allow) |
 | `bookingextension/agent:ignoreaiavailability` | read | `CONTEXT_COURSE` | `manager` (allow); site admins implicitly | 
 | `bookingextension/agent:debugskillselection` | write | `CONTEXT_SYSTEM` | `manager` (allow) |
+| `bookingextension/agent:managegovernance` | write (`RISK_CONFIG`) | `CONTEXT_SYSTEM` | `manager` (allow) |
 | `bookingextension/agent:viewbenchmarks` | read | `CONTEXT_SYSTEM` | `manager` (allow) |
 | `bookingextension/agent:managebenchmarks` | write | `CONTEXT_SYSTEM` | — (manual) |
+| `bookingextension/agent:runbenchmarks` | write (`RISK_CONFIG`) | `CONTEXT_SYSTEM` | — (admin-only; delegable) |
 
 `…:useaiinstructions` is **the** gate: without it `can_use()` is false and the chat panel
 is inert. `…:ignoreaiavailability` belongs to the availability layer (§3a below).
+
+The four `CONTEXT_SYSTEM` caps gate the admin-style pages and actions: `debugskillselection`
+the selection-debug page, `managegovernance` the skill-governance page (inspect contracts,
+enable/disable skills, rebuild the embedding catalog), `viewbenchmarks` the benchmark report,
+`managebenchmarks` the baseline-pin **write** on it, and `runbenchmarks` the "Run benchmark"
+button (a live run issues real LLM calls, so it is admin-only by default). These pages were
+previously gated on `moodle/site:config`; each now has its own **delegable** capability so a
+manager can be granted the page without full site config. The page itself calls
+`admin_externalpage_setup()` only when the user holds `moodle/site:config` (so the admin tree
+renders for admins) and otherwise sets the page up manually — the real gate is always the
+`require_capability()` on the cap above; admins still pass implicitly via
+`moodle/site:doanything`.
 
 ### 3a. The availability layer (`enableaitools` toggles + bypass)
 
@@ -136,6 +166,13 @@ courses means disabling the toggle elsewhere.
   `booking_core_send_user_message`, …).
 - **admin-only skills** (no default archetype, manual assignment) — e.g.
   `booking_create_user`.
+
+> **Per-target visibility on top of the cap.** Holding a skill's capability is necessary but
+> not always sufficient for *whose* data is returned. `core.search_users` additionally filters
+> every free-text-matched candidate through `user_can_view_profile()` and drops users the actor
+> shares no context with, so the module-level cap cannot be used to enumerate site-wide PII (a
+> student in the actor's own course is still returned). Read skills should follow this pattern:
+> the capability gates the action, Moodle's profile/identity visibility gates the exposure.
 
 These per-skill capabilities are what the [executor's releasability check](11-executor.md)
 (`skill_executability_evaluator`, deny reason `missing_capability`) enforces at run time: a

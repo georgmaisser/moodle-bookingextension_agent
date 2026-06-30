@@ -18,7 +18,9 @@ The queue/executor core is, on its security-critical invariants, sound: the guar
 
 ## B. Findings
 
-### [09-F01] 🟠 HIGH · D6 Docs coverage · docs/architecture/11-executor.md §3 + §7 / flowchart EXC_EVAL
+### [09-F01] ✅ RESOLVED (was 🟠 HIGH) · D6 Docs coverage · docs/architecture/11-executor.md §3 + §7 / flowchart EXC_EVAL
+**✅ Resolved 2026-06-30:** `11-executor.md` corrected. §3 deny-reason table now lists `DENY_REQUIRES_PRO` (in evaluation order, between `DENY_INACTIVE` and `DENY_MISSING_CAPABILITY`) and drops the non-existent `DENY_SKILL_VERSION_UNSUPPORTED` (version support is checked in preflight Layer 1, noted as such). §7 rewritten: AI runs always execute **inline**; the `execute_ai_run_adhoc` task + `aiexecutionmode` were removed — the "Files:" header no longer lists the task. (The `.mmd` `EXC_EVAL` node itself is governed by the flowchart-policy and left to the maintainer.) — _Original finding below._
+
 **What:** The executor chapter and the `EXC_EVAL` flowchart node both describe releasability deny reasons and an async execution path that the code does not implement, while omitting a deny branch the code does implement.
 **Evidence:**
 - ch.11 §3 table claims `skill_executability_evaluator::evaluate_skill` gates "registry → runtime → active → capability → context" and returns `DENY_SKILL_VERSION_UNSUPPORTED` "when the requested skill version is not supported (`skill_version_policy`)". But `skill_executability_evaluator::evaluate_skill()` (lines 61–118) has exactly these branches: `DENY_NOT_REGISTERED` (65), `DENY_RUNTIME_DISABLED` (71), `DENY_INACTIVE` (77), `DENY_REQUIRES_PRO` (85–93), `DENY_MISSING_CAPABILITY` (95), `DENY_CONTEXT_INVALID` (101). There is **no** version check; `grep` shows `skill_version_policy`/`preflight_version_validator` live only in the **preflight** layer, never in the evaluator. The `DENY_SKILL_VERSION_UNSUPPORTED` constant exists (`skill_contract_validator.php:60`) but is consumed only by `list_skills_skill.php:362` for display — never returned by the gate the chapter attributes it to.

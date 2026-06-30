@@ -73,6 +73,17 @@ into a canonical input by `parameter_constructor::build(skillname, rawinput,
 lastusermessage): parameter_construction_result`, which normalizes the payload against the
 skill's schema (single-skill focus, 50+ properties supported).
 
+> **Module-target skills emit a target-selection field, not a resolved context.** For a
+> skill that opts into module/course targeting (the `module_targeted_skill` /
+> `course_targeted_skill` traits), the schema exposes a natural-language **target query**
+> (e.g. `activityquery`) and the constructor fills it like any other parameter — it does
+> **not** resolve an instance here, and construction never touches the database. The actual
+> instance/context resolution (the scope cascade, the candidate-list clarification) happens
+> later, per command, during [preflight §2b](09-preflight-pipeline.md#2b-operating-context-resolution--gate-2-per-command).
+> Surfacing this field correctly in the construction prompt is what lets "create it in
+> activity X" target the right instance — its earlier absence from the prompt contract was the
+> root cause of the cross-context mis-targeting fixed in that work.
+
 ---
 
 ## 5. Validation

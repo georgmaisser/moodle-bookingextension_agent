@@ -40,11 +40,11 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
    Engine-Freeze für die `local_wizard`-Auskopplung** (danach teurer; erfordert einige Änderungen). Plan:
    `Blueprints/skill_engine_service_boundary*` (Leaks B.2/B.3/B.5).
 
-2. **[09-F01] HIGH — Executor-Kapitel beschreibt nicht-existenten Async-Task** ·
-   `docs/architecture/11-executor.md:55,124-127` vs `classes/local/wizard/skill_executability_evaluator.php:89`
-   Kapitel 11 §7 beschreibt einen `execute_ai_run_adhoc`-Adhoc-Task + `executionmode = adhoc` (existiert nicht im
-   Code), §3 nennt `DENY_SKILL_VERSION_UNSUPPORTED` statt des realen `DENY_REQUIRES_PRO`. **Doku-only**, aber führt
-   über die letzte Verteidigungslinie des Executors in die Irre. Siehe Abschnitt B.
+2. **[09-F01] HIGH — Executor-Kapitel beschreibt nicht-existenten Async-Task** · ✅ **ERLEDIGT (2026-06-30)** ·
+   `docs/architecture/11-executor.md` korrigiert: §3 Deny-Tabelle nennt jetzt `DENY_REQUIRES_PRO` (in Reihenfolge,
+   ohne `DENY_SKILL_VERSION_UNSUPPORTED`), §7 auf „Execution ist immer inline" umgeschrieben (kein
+   `execute_ai_run_adhoc`/`aiexecutionmode` mehr), Files-Header bereinigt. `.mmd EXC_EVAL` bleibt per Flowchart-Policy
+   beim Maintainer.
 
 **Maintainer-Entscheidung (offen, von dir):**
 
@@ -79,11 +79,11 @@ D5-Dimension laut Audit verhaltenstreu (kein Widerspruch in 14 Subgraphen).
 
 | Prio | Datei | Was fehlt / ist falsch |
 |---|---|---|
-| **vor Go-Live** | `architecture/09-preflight-pipeline.md:49` | Beschreibt `preflight(input, contextid, userid)` gegen den **ambient** Context — stale. Realer Pfad löst zuerst einen **Operating-Context** auf (`skill_operating_context_resolver` → `operating_context_target_registry` → `module_target_resolver`), erzwingt Gate 2 dort, wirft `CONTEXT_TARGET_UNRESOLVED` + Kandidatenliste. (`.mmd:202` ist die Wahrheit.) |
-| **vor Go-Live** | `architecture/07-selection-and-construction.md` | Null Erwähnung von `activityquery` / Operating-Context / Cross-Context. Das ist genau die Lücke, die Thread 561 verursacht hat. |
-| **vor Go-Live** | `architecture/11-executor.md:55,124-127` | **= 09-F01 HIGH.** Nicht-existenter `execute_ai_run_adhoc`-Task + falsche Deny-Reasons (`DENY_REQUIRES_PRO` fehlt). |
-| **vor Go-Live** | `architecture/02-authorization-and-context.md:83-87,133` | Cap-Tabelle ohne neue `managegovernance` (manager, RISK_CONFIG) und `runbenchmarks` (admin-only); impliziert noch `site:config`-Gating, das `86cc443`/`2ca3b25`/`fb78a16` bewusst auf delegierbare Plugin-Caps verlegt haben. Außerdem: `search_users`-`user_can_view_profile()`-Filter (12-F01) gehört hier vermerkt. Deckt sich mit 02-F04 (Operating-Context-Subsystem undokumentiert). |
-| minor | `architecture/03-conversation-store.md:167-168` | LLM-Debug-Retention (`purge_old_llm_debug_entries()`, `cleanup_old_llm_debug_task`, `llm_debug_retention_days`) fehlt; Operations-Docs haben es schon. |
+| ✅ erledigt 30.06. | `architecture/09-preflight-pipeline.md` | Neue §2b „Operating-context resolution & Gate 2"; §3 läuft jetzt am Operating-Context; §6 Audit als „retired" korrigiert (`preflight_audit_enabled` entfernt). |
+| ✅ erledigt 30.06. | `architecture/07-selection-and-construction.md` | §4 dokumentiert jetzt das Target-Selection-Feld (`activityquery`) für module-targeted Skills + Verweis auf Preflight-Auflösung (die Thread-561-Lücke). |
+| ✅ erledigt 30.06. | `architecture/11-executor.md` | **= 09-F01.** Deny-Tabelle korrigiert (`DENY_REQUIRES_PRO` statt `DENY_SKILL_VERSION_UNSUPPORTED`); §7 „Execution ist immer inline"; Files-Header bereinigt. |
+| ✅ erledigt 30.06. | `architecture/02-authorization-and-context.md` | Cap-Tabelle um `managegovernance` + `runbenchmarks` ergänzt + Admin-Page-Gating-Story; §2 „ambient vs operating context" (Gate 1/Gate 2); `search_users`-`user_can_view_profile()`-Filter vermerkt. |
+| **offen, minor** | `architecture/03-conversation-store.md:167-168` | LLM-Debug-Retention (`purge_old_llm_debug_entries()`, `cleanup_old_llm_debug_task`, `llm_debug_retention_days`) fehlt; Operations-Docs haben es schon. |
 | kosmetisch | `reference/flowchart-guide.md:115-121` | C4-F05: abgelöster „mandatory tier"-Eintrag noch da; QNORM-STATUS-Label-Rest (C4-F03). Authoritative `.mmd` ist korrekt. |
 
 **Kernsatz:** Wer nur die Architektur-Kapitel (nicht den `.mmd`) liest, erfährt nichts vom Module-Target-/
@@ -149,7 +149,9 @@ in einen `todo/`-Stub auslagern (unten markiert).
 ## D. Empfohlene Reihenfolge bis Go-Live
 
 1. **05-F01** (Engine-Leak) — 🔧 bereits in Arbeit (George, 2026-06-30); *vor* dem Engine-Freeze für den `local_wizard`-Cut abschließen (Plan: `skill_engine_service_boundary*`).
-2. **Architektur-Kapitel 07 + 09 + 02** nachziehen (mit dir abgestimmt, Flowchart-Policy) — inkl. 09-F01.
+2. ✅ **Architektur-Kapitel 02 + 07 + 09 + 11 nachgezogen (2026-06-30)** — inkl. 09-F01. Rest: Kap. 03
+   (LLM-Debug-Retention, minor) + `flowchart-guide.md` C4-F05/QNORM (kosmetisch) + `agent_access_service`/`wb_license`
+   (02-F04-Rest) offen.
 3. **Maintainer-Entscheidung 15-F01** (Debug-Logging gaten?) + **15-F02** (Credential-Write auf `site:config`?).
 4. **Doc-Cluster** C5-F01/F02/F05 + observability.md re-prefixen.
 5. **`phcs --standard=moodle` + PHPUnit im Container** über die 2026-06-30-Fixes (wurden nur handgeprüft).

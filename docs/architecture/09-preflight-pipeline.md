@@ -11,7 +11,9 @@ exact prepared input if so?* It **never executes** — it returns a single
 **Files:** `services/preflight_pipeline.php`, `preflight_schema_validator.php`,
 `preflight_version_validator.php`, `preflight_domain_check_runner.php`,
 `preflight_execution_gate.php`, `preflight_error_classifier.php`,
-`preflight_contract_validator.php`, `preflight_result_v2.php`, `preflight_audit_logger.php`,
+`preflight_contract_validator.php`, `preflight_result_v2.php`,
+`services/security/skill_operating_context_resolver.php`,
+`services/security/native_capability_guard.php`,
 `retry_policy_service.php`, `interfaces/external_dependency_checker_interface.php`,
 `services/noop_external_dependency_checker.php`.
 
@@ -32,6 +34,10 @@ highest risk class and activates layers accordingly:
 L3 additionally only fires when the error class is *retryable*; the external dependency
 check fires only for R3 commands.
 
+Per command, before the domain layer, the pipeline also resolves the **operating context**
+(§2b) — the context the command actually acts on, which may differ from the chat's ambient
+context — and enforces **Gate 2** there.
+
 ---
 
 ## 2. Layer 1 — schema + version
@@ -44,11 +50,42 @@ registration surfaces as `SKILL_NOT_REGISTERED`.
 
 ---
 
+## 2b. Operating-context resolution & Gate 2 (per command)
+
+The chat runs in an **ambient** context (the thread's `contextid`). A command may, however,
+act on a *different* instance — e.g. *"in welche Aktivität soll das?"* or a booking option
+named via a target query like `activityquery`. So between Layer 1 and Layer 2, for each
+command, `skill_operating_context_resolver::resolve(skill, input, ambient, userid)` derives
+the **operating context** the command actually acts on:
+
+- Skills that do not opt in (the `module_targeted_skill` / `course_targeted_skill` traits)
+  keep the ambient context unchanged.
+- Opted-in skills resolve their target by the scope cascade: one platform-wide instance of
+  that module type → use it; in a course with several → the named/implied one; otherwise the
+  candidate set is offered.
+- If the target cannot be resolved **uniquely**, a `context_target_unresolved_exception` is
+  caught and surfaced as the `CONTEXT_TARGET_UNRESOLVED` issue code → a **clarification**:
+  an *ambiguous* outcome lists the candidate instances (name + course) so the user can pick;
+  *not-found* / *unsupported* get their own message. The command does not proceed.
+
+The resolved id is written onto the command as `operating_contextid`, and **Gate 2** —
+`native_capability_guard::missing_capabilities(skill, operatingcontextid, userid)` — is
+enforced **at that operating context**, not the ambient one. A missing native capability
+yields `NO_NATIVE_CAPABILITY` and blocks the command before any guard token is issued; the
+executor re-checks as the backstop ([ch. 11 §3](11-executor.md#3-releasability)). Placing
+Gate 2 centrally here means a skill that forgets or mis-scopes its own check is still denied
+cleanly. (Gate 1 — the agent *use* capability — was already enforced at the ambient entry
+point, [ch. 02](02-authorization-and-context.md).) The `.mmd` source of truth is the `PF_L2P`
+node; the generic target contract is the `LG_OPCTX` legend.
+
+---
+
 ## 3. Layer 2 — domain prepare
 
-This is where the skill itself participates: `skill::preflight(input, contextid, userid)`
-does the DB-dependent preparation and validation (resolve the option, check the user may
-write it, …) and returns a `preflight_result_v2`. `preflight_domain_check_runner::run()`
+This is where the skill itself participates: `skill::preflight(input, operatingcontextid,
+userid)` does the DB-dependent preparation and validation **at the operating context resolved
+in §2b** (resolve the option, check the user may write it, …) and returns a
+`preflight_result_v2`. `preflight_domain_check_runner::run()`
 then classifies the issue codes:
 
 - **hard block**: `PERMISSION_ERROR`, `VALIDATION_ERROR`, `SCHEMA_ERROR`, any `MISSING_*`;
@@ -116,11 +153,13 @@ that a webhook is reachable or a payment provider is ready, hard-blocking when i
 
 ---
 
-## 6. Audit
+## 6. Audit (retired)
 
-When `preflight_audit_enabled` is set, `preflight_audit_logger::append()` writes a structured
-event (skill, layer, status, reason, issue codes, retry/timing, error class) into thread
-metadata under `_preflight_audit_log`. See
+Preflight audit logging has been **retired**: the `preflight_audit_enabled` admin setting was
+removed (the `db/upgrade.php` install-only history `unset_config`s it) and the gate is now
+always off, so no `_preflight_audit_log` is written in normal operation. Per-turn diagnostics
+now live in the LLM-debug trail and the execution observation ledger
+([ch. 11 §6](11-executor.md#6-confirm-run-terminalization)). See
 [operations/observability.md](../operations/observability.md).
 
 ---

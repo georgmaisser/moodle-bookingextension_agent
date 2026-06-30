@@ -12,7 +12,7 @@ second full preflight.
 **Files:** `executor.php`, `skill_executability_evaluator.php`,
 `services/execution/execution_feedback_service.php`,
 `services/execution_observation_ledger.php`,
-`services/completed_command_history_service.php`, `task/execute_ai_run_adhoc.php`.
+`services/completed_command_history_service.php`.
 
 ---
 
@@ -43,19 +43,22 @@ signature, the executor dedupes by already-executed run.
 ## 3. Releasability
 
 `skill_executability_evaluator::evaluate_skill(skillname, userid, contextid)` gates each
-command, in order — registry → runtime → active → capability → context. Deny reasons:
+command, in order — registry → runtime → active → **PRO** → capability → context. Deny
+reasons (the literal `skill_contract_validator::DENY_*` constants, in evaluation order):
 
 | Reason | Condition |
 |--------|-----------|
 | `DENY_NOT_REGISTERED` | skill not in the registry |
 | `DENY_RUNTIME_DISABLED` | the agent extension is not installed/enabled |
 | `DENY_INACTIVE` | `registry->is_skill_active()` is false |
+| `DENY_REQUIRES_PRO` | the skill needs the PRO/WB-LLM tier the site does not hold (the readonly-license gate — see [operations/governance.md](../operations/governance.md)) |
 | `DENY_MISSING_CAPABILITY` | the user lacks the skill's per-skill capability ([ch. 02 §3](02-authorization-and-context.md)) |
 | `DENY_CONTEXT_INVALID` | the context is not valid for this skill |
-| `DENY_SKILL_VERSION_UNSUPPORTED` | the requested skill version is not supported (`skill_version_policy`) |
 
 A deny ends the command as `failed` — this is the last line of defense even though the
-decision service already routed by risk.
+decision service already routed by risk. (Skill-version support is checked earlier, in
+[preflight Layer 1](09-preflight-pipeline.md#2-layer-1--schema--version) via
+`skill_version_policy`, not here.)
 
 ---
 
@@ -121,14 +124,15 @@ for observations and for the compact bulk-result view.
 
 ---
 
-## 7. Async execution: `execute_ai_run_adhoc`
+## 7. Execution is always inline
 
-When the confirm path chooses `executionmode = adhoc`, the confirmed run is processed by the
-`execute_ai_run_adhoc` ad-hoc task instead of synchronously: it loads the run, marks it
-`running`, calls `execute_commands()`, builds completion feedback, marks the run
-`completed`/`failed`, and appends the assistant message to the thread. This decouples a
-long-running mutation from the web request. See
-[operations/tasks-and-async.md](../operations/tasks-and-async.md).
+AI runs **always execute synchronously** within the confirming request — `execute_commands()`
+is called inline, completion feedback is built, the run is marked `completed`/`failed`, and the
+assistant message is appended to the thread, all in the same request. There is **no** ad-hoc
+execution mode and **no** `execute_ai_run_adhoc` task: the former `aiexecutionmode` setting
+(`direct`/`adhoc`) and its async run path were removed (see the install-only `db/upgrade.php`
+history and `operations/tasks-and-async.md`). The only async tasks in the plugin are the
+embeddings-rebuild and the LLM-debug-retention/temp-file-cleanup jobs — none of them executes a run.
 
 ---
 
