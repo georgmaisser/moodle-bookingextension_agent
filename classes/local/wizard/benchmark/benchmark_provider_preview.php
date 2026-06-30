@@ -77,7 +77,13 @@ class benchmark_provider_preview {
     public function list_instances(): array {
         $out = [];
         foreach ($this->wunderbyte_instances() as $id => $provider) {
-            $out[$id] = (string)$provider->name;
+            $name = (string)$provider->name;
+            // Disabled instances are listed too — a key use of interface benchmarks is to score a
+            // not-yet-live instance before enabling it — but flagged so it is obvious.
+            if (empty($provider->enabled)) {
+                $name .= ' ' . get_string('benchmark_run_instance_disabled', 'bookingextension_agent');
+            }
+            $out[$id] = $name;
         }
         return $out;
     }

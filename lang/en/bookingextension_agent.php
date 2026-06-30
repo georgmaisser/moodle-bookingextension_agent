@@ -912,6 +912,7 @@ $string['benchmark_run_env_active'] = 'BOOKING_TEST_AI_* environment overrides a
 $string['benchmark_run_env_inactive'] = 'No environment overrides set — the configured provider is used, exactly as in normal operation.';
 $string['benchmark_run_heading'] = 'Run a benchmark';
 $string['benchmark_run_instance'] = 'Provider instance';
+$string['benchmark_run_instance_disabled'] = '(disabled)';
 $string['benchmark_run_key_label'] = 'API key';
 $string['benchmark_run_key_none'] = 'no API key configured';
 $string['benchmark_run_key_provider'] = 'configured provider';

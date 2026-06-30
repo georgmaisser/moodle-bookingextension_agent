@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\benchmark;
 
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\wb_action_names;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\interpreter;
 use bookingextension_agent\local\wizard\orchestrator;
@@ -89,25 +90,29 @@ class benchmark_run_service {
         $metrics   = new benchmark_metrics_calculator();
         $dbwriter  = new benchmark_db_writer();
 
-        // Choose the AI provider for the run (process-local DI override, no DB writes). Precedence:
-        // 1. an explicitly chosen provider instance (from the interface) — pins every action to it;
-        // 2. else BOOKING_TEST_AI_KEY env vars (CLI/CI only — web/cron never sees them);
-        // 3. else the default configured provider.
-        $envkey = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
-        if (!$usestub) {
-            if ($providerinstanceid > 0) {
-                di::set(ai_manager::class, new benchmark_instance_manager($DB, $providerinstanceid));
-            } else if ($envkey !== '') {
-                di::set(ai_manager::class, new benchmark_envkey_manager($DB));
-            }
-        }
-
+        // Build the orchestrator stack BEFORE installing the provider override, so the only code
+        // running while the override is active is the (per-scenario try/catch'd) loop below — that
+        // keeps the restore further down reliable.
         $store = null;
         $orc   = null;
         if (!$usestub) {
             $skillregistry = skill_registry_factory::get_default();
             $store         = new conversation_store();
             $orc           = new orchestrator($skillregistry, new interpreter($skillregistry), $store);
+        }
+
+        // Provider override for this run (process-local, no DB writes): a chosen provider INSTANCE has
+        // its key/models applied as if they were the BOOKING_TEST_AI_* env vars (putenv) and then
+        // patched onto the working provider by benchmark_envkey_manager — reusing the existing override
+        // so even a DISABLED (not-yet-live) instance can be benchmarked. Otherwise the env vars apply
+        // (CLI/CI), else the default configured provider. Both the env vars and the manager are restored
+        // right after the run loop, so nothing leaks to other code or a later task in the same process.
+        $envunset = ($providerinstanceid > 0 && !$usestub) ? $this->apply_instance_as_env($providerinstanceid) : [];
+        $envkey = trim((string)(getenv('BOOKING_TEST_AI_KEY') ?: ''));
+        $previousmanager = null;
+        if (!$usestub && $envkey !== '') {
+            $previousmanager = di::get(ai_manager::class);
+            di::set(ai_manager::class, new benchmark_envkey_manager($DB));
         }
 
         $allscenarios = $registry->get_scenarios($setname);
@@ -217,6 +222,15 @@ class benchmark_run_service {
             $emit("[{$idx}/{$total}] {$key} ... {$status}{$detail}");
         }
 
+        // Restore the AI manager + clear the test env now the LLM calls are done, so a later task in
+        // the same cron run keeps the default provider.
+        if ($previousmanager !== null) {
+            di::set(ai_manager::class, $previousmanager);
+        }
+        foreach ($envunset as $var) {
+            putenv($var);
+        }
+
         $rundurationms = (int)round((microtime(true) - $runstart) * 1000);
         $passed        = array_sum(array_column($scenarioresults, 'passed'));
         $failed        = $total - $passed;
@@ -293,5 +307,46 @@ class benchmark_run_service {
             'scenario_set' => $setname,
             'embeddings_used' => (bool)$embeddingsused,
         ];
+    }
+
+    /**
+     * Apply a chosen provider instance's key/models/endpoint to the process env as the
+     * BOOKING_TEST_AI_* vars, so benchmark_envkey_manager patches them onto the working provider for
+     * the run (the existing env-override path). This lets a disabled / not-yet-live instance be
+     * benchmarked through a functional provider's plumbing.
+     *
+     * @param int $instanceid The m_ai_providers id.
+     * @return string[] The env var names that were set, to unset again after the run.
+     */
+    private function apply_instance_as_env(int $instanceid): array {
+        global $DB;
+        try {
+            $providers = (new ai_manager($DB))->get_sorted_providers();
+        } catch (\Throwable $e) {
+            return [];
+        }
+        if (!isset($providers[$instanceid])) {
+            return [];
+        }
+        $provider = $providers[$instanceid];
+        $config = (array)($provider->config ?? []);
+        $ac     = (array)($provider->actionconfig ?? []);
+        $model  = static fn(string $action): string => (string)($ac[$action]['settings']['model'] ?? '');
+
+        $vars = [
+            'BOOKING_TEST_AI_KEY'             => (string)($config['apikey'] ?? ''),
+            'BOOKING_TEST_AI_MODEL'           => $model(wb_action_names::GENERATE_AGENT_REPLY),
+            'BOOKING_TEST_AI_MODEL_MINI'      => $model(wb_action_names::PLANNER_DECIDE),
+            'BOOKING_TEST_AI_EMBEDDING_MODEL' => $model(wb_action_names::GENERATE_EMBEDDINGS),
+            'BOOKING_TEST_AI_ENDPOINT'        => (string)($config['endpoint'] ?? ''),
+        ];
+        $set = [];
+        foreach ($vars as $name => $value) {
+            if ($value !== '') {
+                putenv($name . '=' . $value);
+                $set[] = $name;
+            }
+        }
+        return $set;
     }
 }

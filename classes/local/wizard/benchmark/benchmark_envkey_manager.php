@@ -98,11 +98,16 @@ class benchmark_envkey_manager extends \core_ai\manager {
         $envmodel        = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
         $envmodelmini    = trim((string)(getenv('BOOKING_TEST_AI_MODEL_MINI') ?: ''));
         $envembedmodel   = trim((string)(getenv('BOOKING_TEST_AI_EMBEDDING_MODEL') ?: ''));
+        $envendpoint     = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
 
-        // Clone config array and patch apikey so is_provider_configured() passes.
+        // Clone config array and patch apikey so is_provider_configured() passes; patch the endpoint
+        // too when given, so a benchmarked provider instance with a different endpoint is honoured.
         $newconfig = $provider->config;
         if ($envkey !== '') {
             $newconfig['apikey'] = $envkey;
+        }
+        if ($envendpoint !== '') {
+            $newconfig['endpoint'] = $envendpoint;
         }
 
         // Clone actionconfig and patch model for each supported action.
