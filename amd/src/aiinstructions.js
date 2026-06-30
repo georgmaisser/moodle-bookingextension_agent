@@ -32,7 +32,6 @@ let pendingQueueItemId = '';
 let currentThreadId = 0;
 let currentContextId = 0;
 let debugModeEnabled = false;
-let llmDebugEnabled = false;
 let sessionAutoConfirmEnabled = false;
 let privacyCheckRunningLabel = 'Privacy check running...';
 let privacyAnswerNoteLabel = 'Privacy note: personal data in this response was de-anonymized for display.';
@@ -2680,11 +2679,13 @@ const setDebugMode = (toggle) => {
             toggle.checked = !enabled;
             return resp;
         }
-        // Keep the in-page debug state and the "Debug logs" button in sync with the new setting,
-        // so the logs button appears/disappears with the toggle (only when LLM debug logging is on).
+        // aidebugmode is a SINGLE switch driving both the in-page debug mode and LLM debug logging.
+        // Gate the "Debug logs" button on the LIVE toggle state so it appears/disappears immediately —
+        // the page-load snapshot used before stayed stale, so the button never showed when debug was
+        // turned on after the page had loaded.
         debugModeEnabled = enabled;
         const logsbtn = document.getElementById('booking-ai-debug-refresh');
-        if (logsbtn && llmDebugEnabled) {
+        if (logsbtn) {
             logsbtn.classList.toggle('d-none', !enabled);
         }
         return resp;
@@ -3286,7 +3287,6 @@ export const init = (jsModulesOrConfig = {}, config = null) => {
             num_options: Number(wrapper.dataset.numOptions || 0),
             num_booked: Number(wrapper.dataset.numBooked || 0),
             debug_mode: String(wrapper.dataset.debugMode || '0') === '1',
-            llm_debug_enabled: String(wrapper.dataset.llmDebugEnabled || '0') === '1',
             privacy_check_running: String(wrapper.dataset.privacyCheckRunning || 'Privacy check running...'),
             privacy_answer_note: String(
                 wrapper.dataset.privacyAnswerNote
@@ -3301,7 +3301,6 @@ export const init = (jsModulesOrConfig = {}, config = null) => {
     currentContextId = runtimeConfig.contextid || 0;
     currentThreadId = runtimeConfig.threadid || 0;
     debugModeEnabled = Boolean(runtimeConfig.debug_mode);
-    llmDebugEnabled = Boolean(runtimeConfig.llm_debug_enabled);
     privacyCheckRunningLabel = String(runtimeConfig.privacy_check_running || privacyCheckRunningLabel);
     privacyAnswerNoteLabel = String(runtimeConfig.privacy_answer_note || privacyAnswerNoteLabel);
     trialTokenInvalidMessageLabel = String(runtimeConfig.trial_token_invalid_message || '');
