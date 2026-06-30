@@ -216,10 +216,11 @@ message unconditionally.
 > `agent_runtime::run_loop()`. The `LOOP_STEP` node now states this.
 
 > **✓ Two planner LLM calls confirmed.** The `LG_PLAN` invariant ("exactly two planner LLM
-> calls") holds: `orchestrator::process()` issues a planner chat call only in
-> `run_selection_phase()` (orchestrator.php:1057) and `run_construction_phase()`
-> (orchestrator.php:1292). Discovery makes no planner chat call (only `invoke_embeddings` at
-> :687); the third `invoke()` at :489 is the **synchronizer**, a separate pass. Note: on a
+> calls") holds: `orchestrator::process()` issues a planner chat call only via
+> `run_selection_phase()` and `run_construction_phase()`, which delegate to
+> `planner_phase_service::run_selection()` / `run_construction()`. Discovery makes no planner
+> chat call (only the embeddings vector call in `discovery_phase_service`); the remaining
+> `invoke_for_context()` in `orchestrator` is the **synchronizer**, a separate pass. Note: on a
 > non-`skill_call` selection (clarification/sufficient/error) construction is skipped, so a
 > turn can have **one** planner call — "two" is the maximum, not a fixed count.
 

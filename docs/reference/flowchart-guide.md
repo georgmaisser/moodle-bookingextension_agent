@@ -87,10 +87,12 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 
 ### Planner (ch. 05–07)
 
-- ✓ **Two planner LLM calls — confirmed.** Selection `orchestrator.php:1057`, construction
-  `:1292`; discovery uses only `invoke_embeddings` (`:687`); synchronizer `:489` is a
-  separate pass. *Suggest annotating that construction (`CPLLM`) is conditional on a
-  `skill_call` selection — a clarification turn makes only one planner call.*
+- ✓ **Two planner LLM calls — confirmed.** Selection `planner_phase_service::run_selection()`,
+  construction `::run_construction()` (both extracted from `orchestrator` in the orchestrator
+  split); discovery uses only the embeddings vector call in `discovery_phase_service`;
+  the synchronizer call still in `orchestrator` is a separate pass. *Suggest annotating that
+  construction (`CPLLM`) is conditional on a `skill_call` selection — a clarification turn
+  makes only one planner call.* (Citations name classes/methods, not line numbers, which drift.)
 - ✓ **`OR_LANG` — confirmed.** No de/en token lists; language follows the latest user
   message.
 - ✅ **`CINT` command-envelope unwrap — flowchart updated (2026-06-10).** Added

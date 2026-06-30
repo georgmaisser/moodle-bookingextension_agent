@@ -154,9 +154,11 @@ in einen `todo/`-Stub auslagern (unten markiert).
    (02-F04-Rest) offen.
 3. **Maintainer-Entscheidung 15-F01** (Debug-Logging gaten?) + **15-F02** (Credential-Write auf `site:config`?).
 4. **Doc-Cluster:** ✅ C5-F01 (observability + data-model re-prefixt), ✅ C5-F05 (`bx_agent_user_memory` ergänzt),
-   ✅ 02-F04 (Operating-Context + PRO/Readonly-Gate dokumentiert), ✅ Kap. 03 Retention. **Offen:** C5-F02 (stale
-   Orchestrator-Zeilennummern in Kap. 04/05 — empfohlen: volatile Zeilennummern aus der Prosa entfernen statt
-   nachzuziehen) + `flowchart-guide.md` (bei Inspektion war der EMB_QUERY-Eintrag bereits aktuell — nichts zu tun).
+   ✅ 02-F04 (Operating-Context + PRO/Readonly-Gate dokumentiert), ✅ Kap. 03 Retention, ✅ **C5-F02** (stale
+   Orchestrator-Zeilennummern in Kap. 04/05 + flowchart-guide entfernt und auf stabile Klassen-/Methodennamen
+   re-anchort). **Offen:** **C5-F03** (`query_english_normalizer` Discovery-LLM-Call undokumentiert) + **C5-F04**
+   (flowchart-guide-Planner-Eintrag beschreibt das entfernte `get_mandatory_skills()` noch als live — Korrektur
+   meiner früheren Einschätzung: der Eintrag IST stale; einzige Force-Include ist `wizard.search_skills`).
 5. **`phcs --standard=moodle` + PHPUnit im Container** über die 2026-06-30-Fixes (wurden nur handgeprüft).
 6. **Cleaning** der MD-/Code-Cruft nach Abschnitt C.
 7. MEDIUM/LOW-Backlog (Cache-/Cap-Leichen, Duplikation, `strict_types`) nach Launch.

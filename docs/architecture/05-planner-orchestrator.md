@@ -61,14 +61,20 @@ planner *chat* calls (`llm_call_service::invoke_for_context(...)`) in `process()
 
 | Phase | Call site | Source / action |
 |-------|-----------|-----------------|
-| Selection | `orchestrator.php:1075` | `planner_selection` / selector pick-skill |
-| Construction | `orchestrator.php:1309` | `planner_construction` / constructor build-params |
+| Selection | `planner_phase_service::run_selection()` | `planner_selection` / selector pick-skill |
+| Construction | `planner_phase_service::run_construction()` | `planner_construction` / constructor build-params |
 
-Discovery issues **no** chat call — only `invoke_embeddings_for_context()` at
-`orchestrator.php:707` (a vector call, not a planner decision). The third
-`invoke_for_context()` in the file, at `orchestrator.php:492`, belongs to
-**`process_synchronizer()`** — a separate pass, not part of the planner pipeline (see
-[§8](#8-the-synchronizer-reuse) and [ch. 12](12-synchronizer.md)).
+Both planner phases were extracted from `orchestrator` into
+`services/planner_phase_service` in the orchestrator split; `orchestrator` keeps thin
+`run_selection_phase()` / `run_construction_phase()` wrappers that delegate to it. Discovery
+issues **no** chat call — only `invoke_embeddings_for_context()` in
+`services/discovery_phase_service` (a vector call, not a planner decision). The one remaining
+`invoke_for_context()` in `orchestrator` itself belongs to **`process_synchronizer()`** — a
+separate pass, not part of the planner pipeline (see [§8](#8-the-synchronizer-reuse) and
+[ch. 12](12-synchronizer.md)).
+
+> Citations name classes/methods, not line numbers — the planner call sites moved during the
+> orchestrator split and exact lines drift; grep the method names to locate them.
 
 So: **two** planner chat calls for a `skill_call` turn, **one** for a clarification/sufficient
 turn, plus an optional embeddings call in discovery.
@@ -212,8 +218,9 @@ the final reply pass. It does **not** run the discovery/selection/construction p
 
 - it uses `synchronizer_prompt_builder` (not `phase_prompt_bundle_builder`);
 - it resolves its own action class (`WB_ACTION_GENERATE_AGENT_REPLY` → `generate_text`);
-- it makes a **single** LLM call (`orchestrator.php:489`) and returns the interpreted
-  result directly, with no composition.
+- it makes a **single** `invoke_for_context()` LLM call (the one planner-style call that
+  still lives in `orchestrator` itself) and returns the interpreted result directly, with no
+  composition.
 
 It is invoked by `agent_runtime` only for `llm_polish` finalization states. Full detail in
 [ch. 12 · Synchronizer](12-synchronizer.md).
@@ -224,8 +231,9 @@ It is invoked by `agent_runtime` only for `llm_polish` finalization states. Full
 
 > **✓ Two-planner-call invariant confirmed** — see [§2](#2-exactly-two-planner-llm-calls).
 > The diagram's `SPLLM` (selection), `CPLLM` (construction), and `SLLM` (synchronizer) map
-> exactly to `orchestrator.php:1057`, `:1292`, and `:489`. Worth noting in the diagram that
-> construction (`CPLLM`) is **conditional** on a `skill_call` selection.
+> exactly to `planner_phase_service::run_selection()`, `::run_construction()`, and the
+> synchronizer call in `orchestrator`. Worth noting in the diagram that construction
+> (`CPLLM`) is **conditional** on a `skill_call` selection.
 
 > **✓ `OR_LANG` confirmed** — no token lists; language follows the latest user message.
 
