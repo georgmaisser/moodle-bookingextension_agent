@@ -105,6 +105,13 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
                     'required' => false,
                 ],
             ],
+            'prompt_meta' => [
+                'input_fields_for_prompt' => [],
+                'anchor_fields' => [],
+                // Rebuilding the global skill-catalog embeddings CSV is a site-wide action,
+                // not module-scoped — declare the real blast radius (audit 12-F02).
+                'context_scopes' => ['system'],
+            ],
         ];
 
         return $this->enrich_schema_with_prompt_meta($schema);

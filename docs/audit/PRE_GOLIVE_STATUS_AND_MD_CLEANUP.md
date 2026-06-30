@@ -60,12 +60,11 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
 - ✅ **[C3-F01]** WB_ACTION_*-FQCN-Duplikation → zentrale `wb_action_names`-Klasse; alle 10 Klassen + 6 inline
   `class_exists`-Literale aliasen sie (Drift inkl. Leading-Backslash eliminiert).
 - ✅ **[06-F02]** totes `search_top_k()` entfernt.
+- ✅ **[12-F02]** `recreate_skill_catalog`-Scope `['module']` → `['system']` deklariert (Cap-Move teacher→manager
+  bleibt deine Governance-Entscheidung).
 - ℹ️ **[03-F05]** „totes `has_observations()`" = False Positive (wird genutzt).
 
 **MEDIUM/LOW, noch offen (nicht launch-gating):**
-
-- **[12-F02]** `recreate_skill_catalog`-Scope (`['module']` → system) — Scope-Deklaration nicht in der Skill-Datei,
-  bräuchte tieferen Blick.
 - **[C3-F02 / 03-F03 / 05-F02 / 04-F06]** weitere Logik-Duplikate (Issue-Code-Klassifizierer, `normalize_*`,
   Provider-Error-Builder) — Verhaltens-riskantere Refactors; bewusst zurückgestellt (separat anschauen).
 - **[C2-F06]** `strict_types` (69/295) — am Orchestrator bewusst NICHT (bekannter Coercion-Bug).
