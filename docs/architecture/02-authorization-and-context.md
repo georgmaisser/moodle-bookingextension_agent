@@ -25,8 +25,7 @@ exposes these methods (the first three are the flowchart's `AZ1`–`AZ3`):
 | `is_agent_extension_installed(): bool` *(static)* | the plugin is installed and upgraded (via `core_plugin_manager`) | returns `false` (never throws) |
 | `require_use_capability(int $userid, int $contextid): void` | plugin installed **and** `has_capability('bookingextension/agent:useaiinstructions', context)` | throws `required_capability_exception` (`nopermissions`) |
 | `require_valid_context(int $contextid): void` | the context exists and is one of `CONTEXT_MODULE`, `CONTEXT_COURSE`, `CONTEXT_COURSECAT`, `CONTEXT_USER`, `CONTEXT_SYSTEM` — user contexts host the dashboard for the navbar entry point (delegates to a private `resolve_valid_context()`) | throws `moodle_exception('invalidcontext')` |
-| `require_valid_context_for_levels(int $contextid, array $allowedlevels): agent_context` | same, but with an explicit allow-list of context levels; returns the resolved [`agent_context`](#2-context-authority--agent_context) DTO | throws `moodle_exception('invalidcontext')` |
-| `require_capability_at(int $userid, context $operatingcontext, string $capability): void` | re-checks a capability at a (possibly switched) operating context — used by the runtime context switch (`context_resolver`) | throws `required_capability_exception` |
+| `require_capability_at(int $userid, context $operatingcontext, string $capability): void` | re-checks a capability at a (possibly switched) operating context (available helper; currently no runtime caller — Gate 2 is enforced via `native_capability_guard` in preflight) | throws `required_capability_exception` |
 | `can_use(int $userid, int $contextid): bool` | the same as `require_use_capability` + valid context, but **safe** | returns `false` (catches all `Throwable`) |
 
 The split between the throwing `require_*` methods and the boolean `can_use()` matters:
@@ -45,9 +44,10 @@ preflight check (Gate 2).
 
 The runtime carries the **`contextid`** as the scope key, not a course id, cmid or a
 booking instance id. The value object `dto\agent_context` is the single carrier for
-"where am I running": built once at the entry point (e.g. via
-`require_valid_context_for_levels()`), it exposes the context id, level and display name,
-and resolves module details **lazily and optionally**:
+"where am I running": built once at the entry point via
+`agent_context::from_contextid()` (after `authorization_service::require_valid_context()`),
+it exposes the context id, level and display name, and resolves module details **lazily and
+optionally**:
 
 ```php
 $ctx = agent_context::from_contextid($contextid);

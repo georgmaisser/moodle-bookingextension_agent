@@ -114,7 +114,9 @@ admin-only by default (empty archetypes) deliberately. Residual (optional, not a
 read-only pages benchmark_compare.php / benchmark_run_detail.php still gate on `moodle/site:config`
 (stricter, not write-under-read) — unifying those gates is a separate cleanup.
 
-### [C2-F04] 🟡 MEDIUM · D2 Moodle API · db/caches.php
+### [C2-F04] ✅ RESOLVED (was 🟡 MEDIUM) · D2 Moodle API · db/caches.php
+**✅ Resolved 2026-06-30:** the two dead cache areas `aiwaitstate` and `aiwaitmailbox` were removed from `db/caches.php` (grep confirmed 0 `cache::make` references tree-wide); the data-model §6 cache table dropped their rows too. The remaining three (`aiprivacynames`, `trialnonce`, `attachment_tokens`) are all used. phpcs clean. — _Original finding below._
+
 **What:** Two cache areas are defined but never instantiated via `cache::make`.
 **Evidence:** `db/caches.php` defines `aiwaitstate` (`:35`) and `aiwaitmailbox` (`:41`). Grep across
 `classes/`, `cli/`, `amd/`, `*.php`: zero hits for either name. The other three (`aiprivacynames`,
@@ -209,7 +211,7 @@ minimum the always-on engine core (`orchestrator`, `executor`, `conversation_sto
 - [x] D2 — all 13 classes exist; ajax/type/capabilities coherent; one service definition valid.
 
 #### `db/caches.php`
-- [ ] D2 — see C2-F04 (`aiwaitstate`, `aiwaitmailbox` unused). 3 of 5 used.
+- [x] D2 — C2-F04 FIXED 2026-06-30: dead `aiwaitstate`/`aiwaitmailbox` removed; the 3 remaining are all used.
 
 #### `db/tasks.php`
 - [x] D2 — both classes exist, extend `scheduled_task`, schedules valid (naming nit → C2-F07).

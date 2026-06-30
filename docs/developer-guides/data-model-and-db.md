@@ -74,8 +74,6 @@ service and [ch. 03](../architecture/03-conversation-store.md).
 | Cache | Mode | TTL | Holds |
 |-------|------|-----|-------|
 | `aiprivacynames` | application | 900 s | privacy name mappings |
-| `aiwaitstate` | session | 60 s | conversation state during polling |
-| `aiwaitmailbox` | session | 60 s | long-poll mailbox results |
 | `trialnonce` | application | 600 s | trial challenge nonces |
 | `attachment_tokens` | application | 1800 s | token → temp-file path (30-min window) |
 

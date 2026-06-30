@@ -140,9 +140,12 @@ in einen `todo/`-Stub auslagern (unten markiert).
 
 ### Code-Cruft (kein MD, aber Teil von „cleaning")
 
-- `classes/local/wizard/wunderbyte_trial_endpoint.py` + `wunderbyte_shop_endpoint.py` — Python im PSR-4-`classes/`-Baum (C2-F05 / C5-F09 / 11-F07). Aus dem Plugin-Tree entfernen.
-- `classes/local/wizard/__pycache__/` — Build-Cruft (C4-F06 / 11-F07). Vor Packaging entfernen.
-- `obsolet/` (`ROADMAP.md`, `todo`) — vor dem Packaging klären (C4-F06 / 16-F11).
+- ✅ `classes/local/wizard/__pycache__/` — Build-Cruft (C4-F06 / 11-F07) **entfernt 2026-06-30**.
+- ✅ `db/caches.php` — tote Caches `aiwaitstate`/`aiwaitmailbox` **entfernt** (C2-F04), Doc §6 angepasst.
+- ⏸️ `classes/local/wizard/wunderbyte_trial_endpoint.py` + `wunderbyte_shop_endpoint.py` (C2-F05 / C5-F09 / 11-F07) —
+  server-seitige Referenz-Implementierungen, 0 PHP-Referenzen. **Nicht eigenmächtig gelöscht** (von mir nicht
+  erstellt; evtl. einzige Repo-Kopie). George-Entscheidung: aus `classes/` rausziehen/löschen — sag Bescheid.
+- ⏸️ `obsolet/` (`ROADMAP.md`, `todo`) — vor dem Packaging klären (C4-F06 / 16-F11).
 
 ---
 

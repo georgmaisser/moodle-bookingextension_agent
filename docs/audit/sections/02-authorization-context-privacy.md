@@ -19,14 +19,18 @@ The security core is sound. The two-gate model (Gate 1 use/skill capabilities at
 
 ## B. Findings
 
-### [02-F01] 🟡 MEDIUM · D6 Docs coverage · docs/architecture/02-authorization-and-context.md:28,49
+### [02-F01] ✅ RESOLVED (was 🟡 MEDIUM) · D6 Docs coverage · docs/architecture/02-authorization-and-context.md
+**✅ Resolved 2026-06-30:** the non-existent `require_valid_context_for_levels` row was removed from the §1 method table, and the §2 "built once at the entry point" example now reads `agent_context::from_contextid()` (after `require_valid_context()`) — exactly the real path. — _Original finding below._
+
 **What:** The chapter documents a method `require_valid_context_for_levels(int $contextid, array $allowedlevels): agent_context` that does not exist anywhere in the code or in the `agent_authorization_service` interface.
 **Evidence:** Ch.02 §1 table row 4 and §2 ("built once at the entry point (e.g. via `require_valid_context_for_levels()`)") both name it. Grep across `classes/` for `require_valid_context_for_levels` returns **no hits**. The interface (`interfaces/agent_authorization_service.php`) declares only `require_use_capability`, `can_use`, `check_use_readiness`, `require_valid_context`, `require_capability_at`. The real validation helper is the **private** `authorization_service::resolve_valid_context()` (line 110), which carries a hardcoded level allow-list, not a caller-supplied one.
 **Impact:** A maintainer following the chapter would call a non-existent API; the documented "explicit allow-list of context levels" capability does not exist, so a reader believes the engine supports per-entry-point level restriction that it does not.
 **Compensating control:** None (documentation only; no runtime effect).
 **Recommendation:** Remove the `require_valid_context_for_levels` row and the §2 reference, or implement it. Replace the §2 "built once at the entry point" example with `agent_context::from_contextid()` / `require_valid_context()`.
 
-### [02-F02] 🟢 LOW · D3 Structure · classes/local/wizard/services/security/authorization_service.php:203
+### [02-F02] 🟢 LOW (doc claim fixed; method retained) · D3 Structure · classes/local/wizard/services/security/authorization_service.php:203
+**◐ Partially addressed 2026-06-30:** the **false doc claim** that `require_capability_at` is "used by the runtime context switch (`context_resolver`)" was corrected in ch.02 §1 (now: "available helper; currently no runtime caller — Gate 2 is enforced via `native_capability_guard` in preflight"). The **method itself is left in place** — removing it is an engine-interface edit (it is on `agent_authorization_service`), deferred to avoid colliding with the in-flight engine work and per the engine-boundary policy. — _Original finding below._
+
 **What:** `require_capability_at()` is defined on the service and the interface but has **zero productive callers**; the Gate-2 re-check at the operating context is actually performed by `native_capability_guard::missing_capabilities()`.
 **Evidence:** Grep for `require_capability_at` across `classes/` returns only the interface declaration (`interfaces/agent_authorization_service.php:95`) and the implementation (`authorization_service.php:203`). The real operating-context capability enforcement is `native_capability_guard::missing_capabilities()` called in `preflight_pipeline.php` and `executor.php:266`. The chapter §1 row even claims `require_capability_at` is "used by the runtime context switch (`context_resolver`)" — `context_resolver` never calls it.
 **Impact:** Dead method plus a false architectural claim; a reader may believe Gate 2 flows through `authorization_service` when it flows through `native_capability_guard`. No security impact (the enforcement that matters is present and double-checked).

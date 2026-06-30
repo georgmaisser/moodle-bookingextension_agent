@@ -32,18 +32,6 @@ $definitions = [
         'staticaccelerationsize' => 5,
         'ttl' => 900,
     ],
-    'aiwaitstate' => [
-        'mode' => cache_store::MODE_SESSION,
-        'simplekeys' => true,
-        'staticacceleration' => false,
-        'ttl' => 60,
-    ],
-    'aiwaitmailbox' => [
-        'mode' => cache_store::MODE_SESSION,
-        'simplekeys' => true,
-        'staticacceleration' => false,
-        'ttl' => 60,
-    ],
     'trialnonce' => [
         'mode' => cache_store::MODE_APPLICATION,
         'simplekeys' => true,
