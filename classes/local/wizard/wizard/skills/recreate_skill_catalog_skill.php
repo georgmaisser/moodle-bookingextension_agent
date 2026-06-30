@@ -118,19 +118,6 @@ class recreate_skill_catalog_skill extends core_skill_base implements skill_trig
     }
 
     /**
-     * Native capabilities the actor must hold for this skill (audit CAP-03).
-     *
-     * Rebuilding the global skill-catalog embeddings is a site-wide, cost-bearing action, so it
-     * requires moodle/site:config — enforced by native_capability_guard at the operating context
-     * (preflight + executor backstop). Previously the skill declared none, making Gate 2 a no-op.
-     *
-     * @return array
-     */
-    public function get_required_native_capabilities(): array {
-        return ['moodle/site:config'];
-    }
-
-    /**
      * Return example input for planner contract rendering.
      *
      * @return array

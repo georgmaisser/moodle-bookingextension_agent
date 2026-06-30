@@ -172,10 +172,12 @@ The three HIGH findings are fixed, each with a first-of-its-kind capability deni
 |----|--------|-----|
 | **CAP-01** `search_users` | ✅ Fixed | `execute()` drops candidates with no actor relationship (self / shared course / site-level `user:viewdetails`/`viewalldetails` / admin) and strips identity fields unless `moodle/site:viewuseridentity` (system or shared course). New `search_users_capability_test` (4/4) — first `viewuseridentity` denial test in the suite. |
 | **CAP-02** `get_option_details` | ✅ Fixed | Per-option visibility gate (`actor_can_view_option`) at the end of `resolve_target_option_ids` — every path (direct id, system numeric/title, module query) now drops options whose hosting activity isn't `uservisible` to the actor. New `get_option_details_capability_test` (3/3). |
-| **CAP-03** `recreate_skill_catalog` | ✅ Fixed | Cap moved `$teacherskills` → `$managerskills`; skill declares `get_required_native_capabilities() = ['moodle/site:config']` so Gate 2 enforces admin-only execution; `context_scopes => ['system']` already in place. New `recreate_skill_catalog_capability_test` (3/3). |
+| **CAP-03** `recreate_skill_catalog` | ✅ Fixed | Cap moved `$teacherskills` → `$managerskills` so it is no longer teacher-grantable — that is the substantive fix. The skill is an external/meta action with no native Moodle capability, so it is gated by its **manager-only name-derived capability** (Gate 1), like the other `wizard.*` meta skills (which the governance test already exempts); no `get_required_native_capabilities()` is declared. `context_scopes => ['system']` already in place. New `recreate_skill_catalog_capability_test` (3/3: teacher lacks the cap, manager holds it, no native cap). |
 
 phpcs 0/0 on all; all tests run green on the VM (Moodle 5.1.1+, PHP 8.3). Commits: agent
-`1c76453` (CAP-01 + audit corpus), `7b9b2bd` (CAP-03); mod_booking `547db7fab` (CAP-02).
+`1c76453` (CAP-01 + audit corpus); mod_booking `547db7fab` (CAP-02). CAP-03 landed across two
+commits (the `$managerskills` move `7b9b2bd`, then the clean-up to drop the redundant
+`site:config` Gate-2 cap in favour of the name-cap-only gating).
 
 **Note (corrected) — `oneclick.*` and the governance test.** During CAP-03 verification the test
 `native_capability_guard_test::test_every_mutating_skill_declares_native_capabilities` fails on an
@@ -192,5 +194,12 @@ The real takeaway is that the governance **invariant is too strict** for externa
 either whitelist them in `test_every_mutating_skill_declares_native_capabilities` or have them declare
 a sentinel. Out of scope for this audit (separate plugin); flagged for the oneclick maintainer as a
 test-fit issue, not a vulnerability.
+
+> **Empirical note.** Simply removing the explicit `get_required_native_capabilities()` override from
+> the oneclick skills does **not** fix the test — `base_skill::get_required_native_capabilities()`
+> also returns `[]`, and the test checks `empty(...)` whether the method is overridden or inherited.
+> So the failure is the invariant itself, not the override; the clean fix is the deliberate
+> engine-agnostic opt-out flag (deferred — no rushed patch). The oneclick overrides were left in
+> place (they document the deliberate "no native capability" choice).
 
 The MEDIUM/LOW findings (CAP-04…CAP-12) remain open per the fix plan above.
