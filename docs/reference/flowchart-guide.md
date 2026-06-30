@@ -114,13 +114,15 @@ Legend: ❓ open question for maintainer · ✏ flowchart change proposed (not y
 - ✅ **`EMB_QUERY` ALWAYS_INCLUDE list — flowchart corrected (B3).** Added `core.search_skills`
   to the node (the always-reachable RAG fallback). Pure omission; the always-include behaviour
   is by design.
-- ✅ **`EMB_QUERY` mandatory tier — flowchart updated (2026-06-10, engine boundary cleanup).**
-  The node previously named the hardcoded `ALWAYS_INCLUDE_SKILL_NAMES` constant. That constant
-  was removed: the mandatory tier is now `adaptive_skill_catalog_service::get_mandatory_skills()`,
-  which unions the per-skill `always_available` governance flag (domain skills declare it in
-  their schema — no `mod_booking.*` names in the engine) with the engine-level
-  `MANDATORY_SKILL_KEYWORDS` (keeps `core.search_skills` reachable). Tracks an approved code
-  change, not a diagram imprecision.
+- ✅ **`EMB_QUERY` mandatory tier — REMOVED (discovery is semantic-only).** An earlier revision
+  of this note named `adaptive_skill_catalog_service::get_mandatory_skills()` +
+  `MANDATORY_SKILL_KEYWORDS` + the per-skill `always_available` flag as the live mandatory tier.
+  All of that is now **removed**: discovery is purely semantic, with **no** lexical
+  always-include tier (`get_adaptive_catalog()` returns the full catalog; `get_mandatory_skills`
+  no longer exists). The single sanctioned force-include is `wizard.search_skills`, added to the
+  selector catalog by `discovery_phase_service::ensure_search_skills_fallback()` — a meta-skill
+  whose anchors can never match task queries, so top-k could never surface it. Source of truth:
+  [ch. 06 §4](../architecture/06-discovery-families-embeddings.md#4-the-embedding-query).
 
 ### Decision / preflight / queue / executor (ch. 08–11)
 

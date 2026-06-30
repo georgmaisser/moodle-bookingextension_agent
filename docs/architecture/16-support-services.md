@@ -102,6 +102,11 @@ no framework rewiring.* See
 - `prompt_policy_builder` — assembles policy text shared across prompts (e.g. the
   "answer in the user's language", routing-determinism, and docs-answer policies), with no
   language token lists.
+- `query_english_normalizer` — the one discovery-time LLM helper: a `generate_text` call that
+  translates the embedding query to English (so it matches the English skill anchors),
+  protecting `<<KEEP…>>` literals. Fail-open (returns the original query on any error/missing
+  provider) and not config-gated; scope is the embedding query only, never skill routing. See
+  [ch. 06 §4](06-discovery-families-embeddings.md#4-the-embedding-query).
 - `provider_routing_util` — provider/action routing helpers shared by the orchestrator
   routing services.
 - `shared_json_payload_extractor` — robust JSON extraction shared by the interpreters.

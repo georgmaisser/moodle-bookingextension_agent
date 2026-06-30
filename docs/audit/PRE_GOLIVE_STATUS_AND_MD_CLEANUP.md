@@ -156,9 +156,9 @@ in einen `todo/`-Stub auslagern (unten markiert).
 4. **Doc-Cluster:** ✅ C5-F01 (observability + data-model re-prefixt), ✅ C5-F05 (`bx_agent_user_memory` ergänzt),
    ✅ 02-F04 (Operating-Context + PRO/Readonly-Gate dokumentiert), ✅ Kap. 03 Retention, ✅ **C5-F02** (stale
    Orchestrator-Zeilennummern in Kap. 04/05 + flowchart-guide entfernt und auf stabile Klassen-/Methodennamen
-   re-anchort). **Offen:** **C5-F03** (`query_english_normalizer` Discovery-LLM-Call undokumentiert) + **C5-F04**
-   (flowchart-guide-Planner-Eintrag beschreibt das entfernte `get_mandatory_skills()` noch als live — Korrektur
-   meiner früheren Einschätzung: der Eintrag IST stale; einzige Force-Include ist `wizard.search_skills`).
+   re-anchort), ✅ **C5-F03** (`query_english_normalizer` Discovery-LLM-Call in Kap. 06 §4 + 16 dokumentiert,
+   „no chat call" weichgezeichnet), ✅ **C5-F04** (flowchart-guide-Mandatory-Tier-Eintrag an ch.06 §4 angeglichen:
+   `get_mandatory_skills()` entfernt, einzige Force-Include `wizard.search_skills`). **Doc-Cluster komplett.**
 5. **`phcs --standard=moodle` + PHPUnit im Container** über die 2026-06-30-Fixes (wurden nur handgeprüft).
 6. **Cleaning** der MD-/Code-Cruft nach Abschnitt C.
 7. MEDIUM/LOW-Backlog (Cache-/Cap-Leichen, Duplikation, `strict_types`) nach Launch.

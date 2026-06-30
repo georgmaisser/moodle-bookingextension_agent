@@ -67,9 +67,12 @@ planner *chat* calls (`llm_call_service::invoke_for_context(...)`) in `process()
 Both planner phases were extracted from `orchestrator` into
 `services/planner_phase_service` in the orchestrator split; `orchestrator` keeps thin
 `run_selection_phase()` / `run_construction_phase()` wrappers that delegate to it. Discovery
-issues **no** chat call — only `invoke_embeddings_for_context()` in
-`services/discovery_phase_service` (a vector call, not a planner decision). The one remaining
-`invoke_for_context()` in `orchestrator` itself belongs to **`process_synchronizer()`** — a
+issues **no planner *decision* chat call** — only `invoke_embeddings_for_context()` in
+`services/discovery_phase_service` (a vector call, not a planner decision); it may make one
+optional, fail-open `query_english_normalizer` translation call that shapes the embedding
+query without choosing a skill (see [ch. 06 §4](06-discovery-families-embeddings.md#4-the-embedding-query)).
+The one remaining `invoke_for_context()` in `orchestrator` itself belongs to
+**`process_synchronizer()`** — a
 separate pass, not part of the planner pipeline (see [§8](#8-the-synchronizer-reuse) and
 [ch. 12](12-synchronizer.md)).
 
@@ -119,7 +122,7 @@ enclosing course id/fullname/shortname, module cmid/modname/instance id/name) is
 
 | Phase | moodle_context block |
 |---|---|
-| Discovery | no (no chat call) |
+| Discovery | no (no decision call; the optional query-translation call carries no context block) |
 | Selection | **no** — skill choice follows intent, not course structure (token economy) |
 | Parameter construction | **yes** — the constructor needs real ids to fill parameters without clarification round-trips |
 | Synchronizer (`process_synchronizer`, passes the `synchronization` memory channel) | **yes** — the final reply references the user's environment |

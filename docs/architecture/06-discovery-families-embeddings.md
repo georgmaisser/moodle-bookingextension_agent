@@ -4,7 +4,10 @@
 > relevant before any concrete skill is loaded, on two independent paths. Flowchart
 > subgraph: `ORCH` (discovery half) + `SUPPORT` embeddings.
 
-Discovery is the part of the planner that runs **without a chat call**. Its job is to hand
+Discovery is the part of the planner that runs **without a planner *decision* chat call** —
+it routes by embeddings and structural signals, never by asking the model to choose a skill.
+(One *optional*, fail-open query-translation call may run to normalise the embedding query;
+see [§4](#4-the-embedding-query) — it does not make a routing decision.) Its job is to hand
 the [selector](07-selection-and-construction.md) a small, deterministic, budgeted set of
 **family-scoped** skill candidates — never the full skill list. It does this two ways,
 depending on whether semantic embeddings are available, and both ways converge on the same
@@ -106,6 +109,18 @@ Appending `next_step_intent` is what prevents a short confirmation ("ja", "ok", 
 from being treated as a brand-new, contextless request — the pending intent keeps the query
 anchored to what the agent was about to do. See [ch. 03 §5](03-conversation-store.md) for
 where `next_step_intent` is stored.
+
+#### Query normalization (the one discovery-time LLM call)
+
+Before retrieval, the assembled query is run through
+`query_english_normalizer::to_english()` — a `generate_text` (chat) call that translates the
+query to English so it matches the English skill anchors, protecting any `<<KEEP…>>` literals
+verbatim. This is the **only** LLM call in discovery, and it is **not** a routing decision: it
+shapes the embedding query, nothing else. It is **fail-open** (on any error, an empty/over-long
+result, or a missing provider it returns the original query unchanged) and **not config-gated**,
+so on a non-English turn discovery issues one extra `generate_text` call. Skill anchors stay
+English and replies stay in the user's language — see [ch. 16 §6](16-support-services.md) and
+the language policy.
 
 ### Discovery is semantic-only — one sanctioned force-include
 
