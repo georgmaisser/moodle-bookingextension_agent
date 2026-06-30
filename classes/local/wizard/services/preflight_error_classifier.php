@@ -18,8 +18,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services;
 
-use core_text;
-
 /**
  * Central classifier for preflight/execution error classes.
  *
@@ -38,29 +36,9 @@ class preflight_error_classifier {
      * @return string
      */
     public static function infer_from_issue_codes(array $issuecodes): string {
-        foreach ($issuecodes as $code) {
-            $upper = core_text::strtoupper(trim((string)$code));
-            if ($upper === '') {
-                continue;
-            }
-            if (str_contains($upper, 'TIMEOUT')) {
-                return 'provider_timeout';
-            }
-            if (str_contains($upper, 'TRANSIENT_IO') || str_contains($upper, 'IO_TRANSIENT')) {
-                return 'transient_io';
-            }
-            if (str_contains($upper, 'PERMISSION')) {
-                return 'permission_error';
-            }
-            if (str_contains($upper, 'CONFLICT')) {
-                return 'domain_conflict';
-            }
-            if (str_contains($upper, 'VALIDATION') || str_contains($upper, 'MISSING_')) {
-                return 'validation_error';
-            }
-        }
-
-        return '';
+        // Canonical rules live in issue_code_taxonomy (audit C3-F02); this stays as the
+        // existing entry point for the preflight/confirm callers.
+        return issue_code_taxonomy::error_class_for($issuecodes);
     }
 
     /**

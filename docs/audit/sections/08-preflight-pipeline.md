@@ -16,8 +16,8 @@
 
 ## B. Findings
 
-### [08-F01] 🟡 MEDIUM · D4 Duplication · services/preflight_error_classifier.php:46 + services/retry_policy_service.php:72
-**What:** Two independent substring-matching classifiers over the same issue-code vocabulary live side by side and can silently drift.
+### [08-F01] ✅ RESOLVED (was 🟡 MEDIUM) · D4 Duplication · preflight_error_classifier + retry_policy_service
+**✅ Resolved 2026-06-30 (= C3-F02):** both classifiers now delegate to the canonical `services/issue_code_taxonomy` (`error_class_for` + `retry_category_for`), so the issue-code vocabulary lives in one place; each view keeps its own match precedence verbatim. Behaviour-preserving (28/28 standalone-equivalence, incl. the precedence-conflict cases) + a regression test. See [C3-F02](../crosscutting/C3-duplication.md) for the full note. — _Original finding below._
 **Evidence:** `preflight_error_classifier::infer_from_issue_codes()` matches `TIMEOUT`/`TRANSIENT_IO`/`PERMISSION`/`CONFLICT`/`VALIDATION`/`MISSING_` to error classes; `retry_policy_service::resolve_retry_hint_category()` matches an overlapping but NOT identical set (`VALIDATION|CONFLICT|DOMAIN|MISSING_|PERMISSION` → DOMAIN; `TIMEOUT|TRANSIENT|CONTRACT_|PARSE|SELECTION|RETRY_WAITING|EXECUTION_GUARD` → TECHNICAL; `AUTH|QUOTA|RATE_LIMIT|PROVIDER|EXTERNAL` → EXTERNAL_DEPENDENCY). The classifier knows nothing of `CONTRACT_`/`PARSE`/`AUTH`/`QUOTA`, the policy knows nothing of the `transient_io` distinction. A new issue code added to one map but not the other yields inconsistent gating.
 **Impact:** Maintenance hazard; a future code could be deemed retryable by one layer and terminal by the other, producing confusing retry behaviour. No current correctness defect — the pipeline only uses the classifier to *gate entry* to the gate and the policy to *categorise inside* it, and the current code values line up.
 **Compensating control:** `preflight_layers_contract_test` and `preflight_pipeline_risk_class_contract_test` pin current behaviour.

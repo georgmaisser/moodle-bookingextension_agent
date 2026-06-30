@@ -30,17 +30,17 @@ namespace bookingextension_agent\local\wizard\services;
  * Maps retry hints to categories and guard decisions.
  */
 class retry_policy_service {
-    /** Retry hint category: technical faults. */
-    public const CATEGORY_TECHNICAL = 'TECHNICAL';
+    /** Retry hint category: technical faults. Canonical values live in issue_code_taxonomy. */
+    public const CATEGORY_TECHNICAL = issue_code_taxonomy::CATEGORY_TECHNICAL;
 
     /** Retry hint category: domain/business constraints. */
-    public const CATEGORY_DOMAIN = 'DOMAIN';
+    public const CATEGORY_DOMAIN = issue_code_taxonomy::CATEGORY_DOMAIN;
 
     /** Retry hint category: external dependency/provider conditions. */
-    public const CATEGORY_EXTERNAL_DEPENDENCY = 'EXTERNAL_DEPENDENCY';
+    public const CATEGORY_EXTERNAL_DEPENDENCY = issue_code_taxonomy::CATEGORY_EXTERNAL_DEPENDENCY;
 
     /** Category fallback for undefined or unknown signals. */
-    public const CATEGORY_UNDEFINED = 'UNDEFINED';
+    public const CATEGORY_UNDEFINED = issue_code_taxonomy::CATEGORY_UNDEFINED;
 
     /** Issue code when retry category cannot be inferred. */
     public const ISSUE_RETRY_CATEGORY_UNDEFINED = 'RETRY_HINT_CATEGORY_UNDEFINED';
@@ -63,60 +63,9 @@ class retry_policy_service {
      * @return string
      */
     public function resolve_retry_hint_category(string $errorclass, array $issuecodes, string $layer = ''): string {
-        $normalizederrorclass = trim(strtolower($errorclass));
-        $upperissuecodes = array_map(
-            static fn(string $code): string => strtoupper(trim($code)),
-            array_values(array_unique(array_filter(array_map('strval', $issuecodes))))
-        );
-
-        foreach ($upperissuecodes as $code) {
-            if (
-                str_contains($code, 'VALIDATION')
-                || str_contains($code, 'CONFLICT')
-                || str_contains($code, 'DOMAIN')
-                || str_contains($code, 'MISSING_')
-                || str_contains($code, 'PERMISSION')
-            ) {
-                return self::CATEGORY_DOMAIN;
-            }
-            if (
-                str_contains($code, 'TIMEOUT')
-                || str_contains($code, 'TRANSIENT')
-                || str_contains($code, 'CONTRACT_')
-                || str_contains($code, 'PARSE')
-                || str_contains($code, 'SELECTION')
-                || str_contains($code, 'RETRY_WAITING')
-                || str_contains($code, 'EXECUTION_GUARD')
-            ) {
-                return self::CATEGORY_TECHNICAL;
-            }
-            if (
-                str_contains($code, 'AUTH')
-                || str_contains($code, 'QUOTA')
-                || str_contains($code, 'RATE_LIMIT')
-                || str_contains($code, 'PROVIDER')
-                || str_contains($code, 'EXTERNAL')
-            ) {
-                return self::CATEGORY_EXTERNAL_DEPENDENCY;
-            }
-        }
-
-        if (in_array($normalizederrorclass, ['preflight_retry', 'provider_timeout', 'transient_io'], true)) {
-            return self::CATEGORY_TECHNICAL;
-        }
-        if (in_array($normalizederrorclass, ['domain_conflict', 'validation_error', 'permission_error'], true)) {
-            return self::CATEGORY_DOMAIN;
-        }
-        if (in_array($normalizederrorclass, ['provider_error', 'auth_error', 'quota_error'], true)) {
-            return self::CATEGORY_EXTERNAL_DEPENDENCY;
-        }
-
-        // Execution layer without explicit signals defaults to technical fallback.
-        if (trim(strtolower($layer)) === 'execution' && $normalizederrorclass !== '') {
-            return self::CATEGORY_TECHNICAL;
-        }
-
-        return self::CATEGORY_UNDEFINED;
+        // Canonical rules live in issue_code_taxonomy (audit C3-F02); this stays as the existing
+        // instance entry point for the preflight-gate / queue-transition callers.
+        return issue_code_taxonomy::retry_category_for($errorclass, $issuecodes, $layer);
     }
 
     /**

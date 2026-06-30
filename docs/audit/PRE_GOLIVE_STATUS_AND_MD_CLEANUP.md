@@ -71,8 +71,9 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
   PHPUnit-Test nagelt beide fest; Flowchart-Signatur-Determinismus intakt.
 - ✅ **[05-F02]** `prune_empty_input_values`-Duplikat → in `input_payload_pruner::prune()` extrahiert
   (beide Konsumenten umgestellt; 6/6 Standalone-Äquivalenz; Test). Erledigt.
-- **[C3-F02]** parallele Issue-Code-Klassifizierer — Merge verhaltens-riskant (könnten subtil divergieren);
-  lösbar wie 03-F03 (kanonische Map + Äquivalenz-Beweis), aber größer — deine Entscheidung vor/nach Go-Live.
+- ✅ **[C3-F02 / 08-F01]** parallele Issue-Code-Klassifizierer → kanonische `issue_code_taxonomy` (zwei Methoden,
+  je eigene Präzedenz verbatim); beide Klassifizierer delegieren, `CATEGORY_*` aliased. Verhaltensneutral
+  (28/28 Standalone-Äquivalenz inkl. Präzedenz-Konflikte) + Test. Erledigt.
 - **[C2-F06]** `strict_types` (69/295) — am Orchestrator bewusst NICHT (bekannter Coercion-Bug).
 - **[05-F03]** `spawn_contract_service` — **behalten** (test-abgedeckter Spawn-Contract-Seam, ch.11 §8; kein toter Code).
 - **[02-F02]** totes `require_capability_at()` — Engine-Interface-Methode, Entfernung separat.
