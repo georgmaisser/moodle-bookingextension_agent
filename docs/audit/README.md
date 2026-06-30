@@ -126,6 +126,23 @@ HIGHs below (e.g. the upgrade-path break is found by both `16` and `C2`).
 
 ---
 
+### Remediation log (2026-06-30)
+
+Fixes landed in this pass (in addition to the C-team's already-committed work on the upgrade path,
+data-model docs, and benchmark write-cap):
+
+| Item | Status | What changed |
+|------|--------|--------------|
+| **[12-F01] search_users PII** | ✅ Fixed | `search_users_skill::execute()` now gates every candidate through `user_can_view_profile()` — users the actor shares no context with are dropped (with a hidden-count in the debug trail); a student in the actor's own course is still returned. Closes the site-wide enumeration vector while staying Moodle-idiomatic (profile visibility governs identity exposure). |
+| **[15-F01] LLM debug PII store** | ✅ Fixed (retention route) | New scheduled task `cleanup_old_llm_debug_task` + `conversation_store::purge_old_llm_debug_entries()` + `llm_debug_retention_days` setting (default 30d) bound the previously-unbounded `bx_agent_ai_llm_debug` table. Logging stays always-on to preserve the production diagnostic trail the agent test harness asserts on. **Open for maintainer:** if you prefer logging *off* unless `aidebugmode` is set (stronger privacy, but removes prod observability and would need the agent test harness to enable debug mode), say so and I'll gate it. |
+| **[06-F01] markdown_renderer scheme** | ✅ Fixed | `format_non_doc_link()` now allow-lists `http`/`https`/`mailto`; any other scheme (`javascript:`/`data:`/`vbscript:`) is neutralised to `#`. Closes the XSS vector. |
+| **[C1-F01 / C2-F03] benchmark write-cap** | ✅ Already fixed | Commit `8402580` gates `pinbaseline` on `managebenchmarks`; the dead-cap concern (C1-F02) is resolved with it. |
+| **[16-F01 / C2-F01] upgrade path** | ✅ Already fixed | Commit `5c6556c` (install-only `upgrade.php` + corrected data-model docs). |
+
+**Version** bumped `2026063000 → 2026063001` so the new cleanup task registers.
+**Not yet run (no PHP toolchain on this mount):** `phpcs --standard=moodle` and PHPUnit must be run in
+the container before merge — the changes were hand-checked for line-length/whitespace but not phpcs-verified.
+
 ### Confidence & method notes
 
 - Every "zero callers / dead" claim was grep-verified tree-wide; framework-invoked entry points

@@ -20,6 +20,7 @@
 ## B. Findings
 
 ### [06-F01] 🟠 HIGH · D1 Security · classes/local/wizard/services/lookup/markdown_renderer.php:379-398
+> **✅ FIXED 2026-06-30** — `format_non_doc_link()` now allow-lists `http`/`https`/`mailto`; other schemes (`javascript:`/`data:`/`vbscript:`) are neutralised to `#`. See `docs/audit/README.md` remediation log.
 **What:** A relative markdown link with a dangerous URL scheme (e.g. `[x](javascript:alert(1))`) is emitted into an `href` attribute without scheme validation, only `htmlspecialchars`-escaped — which does not neutralise the `javascript:`/`data:`/`vbscript:` scheme.
 **Evidence:** `resolve_internal_doc_link()` returns `null` for anything matching `^[a-z][a-z0-9+.-]*:` (line 282), so a `javascript:` href falls through to `format_non_doc_link()`. There, `parse_url('javascript:alert(1)')` yields `scheme=javascript` and the function returns `$raw` unchanged (lines 373-381); the caller then renders `'<a href="' . htmlspecialchars($raw) . '">'` (line 237-238). `htmlspecialchars` escapes quotes/`<`/`>` but leaves `javascript:alert(1)` intact, producing a clickable XSS link.
 **Impact:** If any indexed corpus file contains attacker-influenced markdown, a click on the rendered preview link executes script in the viewing admin/teacher's session. The preview HTML is delivered as `get_result_preview` `type=>html` and inserted client-side.

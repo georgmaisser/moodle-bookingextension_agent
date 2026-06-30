@@ -366,6 +366,18 @@ if ($agentenabled) {
         )
     );
 
+    // Retention for the raw LLM debug exchanges (only written while aidebugmode is on). The
+    // cleanup_old_llm_debug_task purges rows older than this; 0 keeps them forever (audit 15-F01).
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'bookingextension_agent/llm_debug_retention_days',
+            get_string('llm_debug_retention_days', 'bookingextension_agent'),
+            get_string('llm_debug_retention_days_desc', 'bookingextension_agent'),
+            '30',
+            PARAM_INT
+        )
+    );
+
     // Queue depends_on DAG validation and blocked-confirmation TTL expiry are always on (no admin
     // toggle). Governance strict mode (fail registry init on contract diagnostics) is a CI/dev tool,
     // not an admin setting — it stays off by default and can be forced via set_config in CI.

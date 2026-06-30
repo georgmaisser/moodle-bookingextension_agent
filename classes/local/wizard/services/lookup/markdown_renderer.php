@@ -375,9 +375,18 @@ class markdown_renderer {
             return $raw;
         }
 
-        // Keep absolute external URLs as-is (already escaped by caller).
+        // Keep absolute external URLs as-is (already escaped by caller), but only for safe schemes.
+        // A non-empty scheme reaching here was NOT caught by the caller's http(s) fast-path, so it is
+        // something like javascript:/data:/vbscript: — htmlspecialchars does NOT neutralise the scheme,
+        // the result would still be a clickable script link. Reject anything outside the allow-list
+        // (audit 06-F01).
         if (!empty($parts['scheme'])) {
-            return $raw;
+            $scheme = strtolower((string)$parts['scheme']);
+            if (in_array($scheme, ['http', 'https', 'mailto'], true)) {
+                return $raw;
+            }
+            // Dangerous or unknown scheme: neutralise to a harmless anchor.
+            return '#';
         }
 
         $path = (string)($parts['path'] ?? '');

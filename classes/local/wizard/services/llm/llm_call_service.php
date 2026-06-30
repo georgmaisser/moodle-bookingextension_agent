@@ -108,6 +108,8 @@ class llm_call_service {
             $errorname = '';
         }
 
+        // Raw exchange retained for diagnostics; the cleanup_old_llm_debug_task prunes rows past the
+        // llm_debug_retention_days TTL so this is no longer an unbounded PII store (audit 15-F01).
         llm_debug_logger::log_exchange_always(
             $this->store,
             $threadid,
@@ -189,6 +191,8 @@ class llm_call_service {
             $errorname = '';
         }
 
+        // Raw exchange retained for diagnostics; the cleanup_old_llm_debug_task prunes rows past the
+        // llm_debug_retention_days TTL so this is no longer an unbounded PII store (audit 15-F01).
         llm_debug_logger::log_exchange_always(
             $this->store,
             $threadid,

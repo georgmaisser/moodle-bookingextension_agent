@@ -45,4 +45,14 @@ $tasks = [
         'dayofweek' => '*',
         'disabled'  => 0,
     ],
+    [
+        'classname' => '\bookingextension_agent\task\cleanup_old_llm_debug_task',
+        'blocking'  => 0,
+        'minute'    => '45',
+        'hour'      => '3',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+        'disabled'  => 0,
+    ],
 ];

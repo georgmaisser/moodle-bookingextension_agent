@@ -990,4 +990,29 @@ class conversation_store implements agent_conversation_store {
 
         return array_reverse(array_values($records));
     }
+
+    /**
+     * Delete raw LLM debug exchanges older than the given number of days.
+     *
+     * Bounds the standing PII store in bx_agent_ai_llm_debug (audit 15-F01). A retention of 0 (or less)
+     * is treated as "keep forever" and deletes nothing.
+     *
+     * @param int $days
+     * @return int Number of rows deleted.
+     */
+    public function purge_old_llm_debug_entries(int $days): int {
+        global $DB;
+
+        if ($days <= 0) {
+            return 0;
+        }
+
+        $cutoff = time() - ($days * DAYSECS);
+        $count = $DB->count_records_select('bx_agent_ai_llm_debug', 'timecreated < :cutoff', ['cutoff' => $cutoff]);
+        if ($count > 0) {
+            $DB->delete_records_select('bx_agent_ai_llm_debug', 'timecreated < :cutoff', ['cutoff' => $cutoff]);
+        }
+
+        return (int)$count;
+    }
 }

@@ -194,19 +194,32 @@ class search_users_skill extends core_skill_base implements
 
         $debugbase = $this->build_skill_debug_message(self::SKILL_NAME, $input);
 
-        $users = $this->search_user_candidates_for_preview($query, $limit);
+        // Per-target visibility gate (audit 12-F01): core.search_users resolves arbitrary users
+        // site-wide, so without a gate a teacher could enumerate any user's contact PII. Only surface
+        // users the acting user is actually allowed to view. user_can_view_profile() applies the core
+        // per-target relationship/capability checks (self, shared course, moodle/user:viewdetails,
+        // admin/viewalldetails, …), so a user the actor shares no context with is dropped — while a
+        // student in the actor's own course is still returned. The skill runs in the actor's session
+        // ($USER == actor), so the core $USER-based check is the right authority here.
+        $candidates = $this->search_user_candidates_for_preview($query, $limit);
         $payloadusers = [];
-        foreach ($users as $candidate) {
+        $hiddencount = 0;
+        foreach ($candidates as $candidate) {
             $candidateid = (int)($candidate['userid'] ?? 0);
             if ($candidateid <= 0) {
                 continue;
             }
 
             $user = \core_user::get_user($candidateid, '*', MUST_EXIST);
+            if (!self::actor_can_view_user($user)) {
+                $hiddencount++;
+                continue;
+            }
+
             $payloadusers[] = $this->build_user_payload($user);
         }
 
-        if (empty($users)) {
+        if (empty($payloadusers)) {
             $usermessage = $this->localized_string('agent_booking_search_users_no_results', null, $outputlang);
             return [
                 'status' => 'executed',
@@ -215,32 +228,53 @@ class search_users_skill extends core_skill_base implements
                 'resultid' => null,
                 'users' => [],
                 'observation_full' => 'Found 0 user(s).',
-                'debugmessage' => $debugbase . "\nResults: 0",
+                'debugmessage' => $debugbase . "\nResults: 0"
+                    . ($hiddencount > 0 ? "\nHidden (not visible to actor): " . $hiddencount : ''),
             ];
         }
 
+        $count = count($payloadusers);
         $usermessage = $this->localized_string(
             'agent_booking_search_users_found',
-            count($users),
+            $count,
             $outputlang
         );
-        $previewids = array_values(array_map(static fn(array $u): int => (int)($u['userid'] ?? 0), $users));
+        $previewids = array_values(array_map(static fn(array $u): int => (int)($u['userid'] ?? 0), $payloadusers));
         $debugextra = [
-            'Results: ' . count($users),
-            'Top user: ' . ((string)($users[0]['fullname'] ?? '') ?: (string)($users[0]['username'] ?? '')) . ' ',
+            'Results: ' . $count,
+            'Top user: ' . ((string)($payloadusers[0]['fullname'] ?? '')
+                ?: (string)($payloadusers[0]['username'] ?? '')) . ' ',
             'Preview user ids: ' . implode(', ', $previewids),
         ];
+        if ($hiddencount > 0) {
+            $debugextra[] = 'Hidden (not visible to actor): ' . $hiddencount;
+        }
 
         return [
             'status' => 'executed',
             'detail' => $usermessage,
             'usermessage' => $usermessage,
-            'resultid' => (int)($payloadusers[0]['userid'] ?? ($users[0]['userid'] ?? 0)),
+            'resultid' => (int)($payloadusers[0]['userid'] ?? 0),
             'users' => $payloadusers,
             'user' => $payloadusers[0] ?? [],
             'observation_full' => $this->build_user_observation_full($payloadusers),
             'debugmessage' => $debugbase . "\n" . implode("\n", $debugextra),
         ];
+    }
+
+    /**
+     * Whether the acting user is allowed to view the given user's profile at all.
+     *
+     * Runs in the acting user's session ($USER is the actor for every web-service entry point), so the
+     * core $USER-based profile visibility check is the correct authority here.
+     *
+     * @param \stdClass $user
+     * @return bool
+     */
+    private static function actor_can_view_user(\stdClass $user): bool {
+        global $CFG;
+        require_once($CFG->dirroot . '/user/lib.php');
+        return user_can_view_profile($user);
     }
 
     /**
