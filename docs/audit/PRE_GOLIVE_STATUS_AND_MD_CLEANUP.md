@@ -83,7 +83,7 @@ D5-Dimension laut Audit verhaltenstreu (kein Widerspruch in 14 Subgraphen).
 | ✅ erledigt 30.06. | `architecture/07-selection-and-construction.md` | §4 dokumentiert jetzt das Target-Selection-Feld (`activityquery`) für module-targeted Skills + Verweis auf Preflight-Auflösung (die Thread-561-Lücke). |
 | ✅ erledigt 30.06. | `architecture/11-executor.md` | **= 09-F01.** Deny-Tabelle korrigiert (`DENY_REQUIRES_PRO` statt `DENY_SKILL_VERSION_UNSUPPORTED`); §7 „Execution ist immer inline"; Files-Header bereinigt. |
 | ✅ erledigt 30.06. | `architecture/02-authorization-and-context.md` | Cap-Tabelle um `managegovernance` + `runbenchmarks` ergänzt + Admin-Page-Gating-Story; §2 „ambient vs operating context" (Gate 1/Gate 2); `search_users`-`user_can_view_profile()`-Filter vermerkt. |
-| **offen, minor** | `architecture/03-conversation-store.md:167-168` | LLM-Debug-Retention (`purge_old_llm_debug_entries()`, `cleanup_old_llm_debug_task`, `llm_debug_retention_days`) fehlt; Operations-Docs haben es schon. |
+| ✅ erledigt 30.06. | `architecture/03-conversation-store.md` | §8 ergänzt: `purge_old_llm_debug_entries()` + Gating-/Retention-Notiz (Logging nur bei `aidebugmode`, 30-d-Pruning). |
 | kosmetisch | `reference/flowchart-guide.md:115-121` | C4-F05: abgelöster „mandatory tier"-Eintrag noch da; QNORM-STATUS-Label-Rest (C4-F03). Authoritative `.mmd` ist korrekt. |
 
 **Kernsatz:** Wer nur die Architektur-Kapitel (nicht den `.mmd`) liest, erfährt nichts vom Module-Target-/
@@ -153,7 +153,10 @@ in einen `todo/`-Stub auslagern (unten markiert).
    (LLM-Debug-Retention, minor) + `flowchart-guide.md` C4-F05/QNORM (kosmetisch) + `agent_access_service`/`wb_license`
    (02-F04-Rest) offen.
 3. **Maintainer-Entscheidung 15-F01** (Debug-Logging gaten?) + **15-F02** (Credential-Write auf `site:config`?).
-4. **Doc-Cluster** C5-F01/F02/F05 + observability.md re-prefixen.
+4. **Doc-Cluster:** ✅ C5-F01 (observability + data-model re-prefixt), ✅ C5-F05 (`bx_agent_user_memory` ergänzt),
+   ✅ 02-F04 (Operating-Context + PRO/Readonly-Gate dokumentiert), ✅ Kap. 03 Retention. **Offen:** C5-F02 (stale
+   Orchestrator-Zeilennummern in Kap. 04/05 — empfohlen: volatile Zeilennummern aus der Prosa entfernen statt
+   nachzuziehen) + `flowchart-guide.md` (bei Inspektion war der EMB_QUERY-Eintrag bereits aktuell — nichts zu tun).
 5. **`phcs --standard=moodle` + PHPUnit im Container** über die 2026-06-30-Fixes (wurden nur handgeprüft).
 6. **Cleaning** der MD-/Code-Cruft nach Abschnitt C.
 7. MEDIUM/LOW-Backlog (Cache-/Cap-Leichen, Duplikation, `strict_types`) nach Launch.

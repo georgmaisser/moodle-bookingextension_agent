@@ -62,7 +62,9 @@ false (stale name/number/path) · **incomplete** = material live behaviour omitt
 
 ## B. Findings
 
-### [C5-F01] 🟠 HIGH · D6 Docs coverage · docs/developer-guides/data-model-and-db.md (§2,§3,§5,§8) + docs/operations/observability.md (lines 18,78)
+### [C5-F01] ✅ RESOLVED (was 🟠 HIGH) · D6 Docs coverage · docs/developer-guides/data-model-and-db.md + docs/operations/observability.md
+**✅ Resolved 2026-06-30:** `data-model-and-db.md` was re-prefixed to `bx_agent_` under C2-F02; `observability.md` lines 18/78 are now likewise `bx_agent_ai_llm_debug` (`grep local_wizard docs/operations/observability.md` → 0). No doc names the abandoned prefix as a live table. — _Original finding below._
+
 **What:** Every documented agent table name uses the obsolete `local_wizard_` prefix; the real schema renamed all tables to `bx_agent_`.
 **Evidence:** `db/install.xml` declares `bx_agent_ai_threads`, `bx_agent_ai_messages`, `bx_agent_ai_runs`, `bx_agent_ai_llm_debug`, `bx_agent_benchmark_runs/scenarios/baselines/metrics`, `bx_agent_user_memory`. `conversation_store.php` queries `'bx_agent_ai_threads'` etc. The data-model guide §2 states *"All agent tables use the **`local_wizard_`** prefix … **not** `bookingextension_agent_`"* and gives `m_local_wizard_ai_llm_debug`; observability.md line 18 prints `local_wizard_ai_llm_debug → physical: m_local_wizard_ai_llm_debug`. No `local_wizard_*` table exists in `install.xml`.
 **Impact:** An operator following the docs to debug a live incident (LLM debug logs, run idempotency, thread metadata/queue) queries a **nonexistent** table (`m_local_wizard_ai_llm_debug`) and concludes "no data" — the single most operationally misleading error in the corpus. Also misleads anyone writing migrations or backups.
@@ -90,7 +92,9 @@ false (stale name/number/path) · **incomplete** = material live behaviour omitt
 **Compensating control:** ch.06 and skills/README are accurate, so the canonical narrative is right; only the historical log entry is stale.
 **Recommendation:** Replace the two stale entries with a single ✅ entry: the mandatory tier was removed; the only force-include is `wizard.search_skills` via `ensure_search_skills_fallback()`. Fix the `core.search_skills` → `wizard.search_skills` name.
 
-### [C5-F05] 🟡 MEDIUM · D6 Docs coverage · docs/developer-guides/data-model-and-db.md §3/§8
+### [C5-F05] ✅ RESOLVED (was 🟡 MEDIUM) · D6 Docs coverage · docs/developer-guides/data-model-and-db.md
+**✅ Resolved 2026-06-30:** `data-model-and-db.md` gained a `## 5b. User memory` section documenting `bx_agent_user_memory` (userid, memory, scopes, timecreated/timemodified) and its per-channel injection. — _Original finding below._
+
 **What:** The data-model guide omits the live `bx_agent_user_memory` table, which backs the agent's memory feature.
 **Evidence:** `db/install.xml` declares `<TABLE NAME="bx_agent_user_memory">`. It is read/written by `services/user_memory_service.php`, the `wizard.remember`/`forget`/`list_memories` skills, `runtime_context_block_builder.php`, `orchestrator.php`, and exported by `classes/privacy/provider.php`. The guide's table inventory (§3) lists only threads/messages/runs/llm_debug + the four benchmark tables; the entity sketch (§8) omits it.
 **Impact:** A reader auditing PII/GDPR scope or planning a data export/purge would miss a user-data table — relevant because it stores user-stated facts/preferences and is part of the privacy provider's export. Operational/privacy completeness gap.

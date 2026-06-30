@@ -180,6 +180,22 @@ user may *use* the agent yet still be blocked from a specific skill. The mapping
 to capability is part of the skill-governance picture — see
 [operations/governance.md](../operations/governance.md).
 
+### 3b. Full-access vs. readonly (the PRO / WB-LLM gate)
+
+Capabilities decide *who* may run *which* skill; a separate **license gate** decides whether
+the site may run the *write/PRO* skills at all. `agent_access_service::has_full_access()`
+returns true when either:
+
+- the primary enabled AI provider's configured action **endpoint is a Wunderbyte LLM host**
+  (`agent_access_service::is_wunderbyte_host()` — a site driving the WB gateway gets full
+  access), or
+- the site holds a **PRO license** (`wb_license`, products `wbagent` / `bookingagent`).
+
+Without full access the agent runs in **readonly mode**: PRO/write skills are filtered out of
+discovery and, as a backstop, the executor denies them with `DENY_REQUIRES_PRO`
+([ch. 11 §3](11-executor.md#3-releasability)). This is orthogonal to the per-skill capability
+check — a skill must pass *both* the license gate and the user's capability.
+
 ---
 
 ## 4. Readiness (`aiready`)

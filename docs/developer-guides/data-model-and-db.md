@@ -60,6 +60,15 @@ The same `metadatajson` blob also holds the well-known keys documented in
 
 See [operations/benchmarking.md](../operations/benchmarking.md).
 
+## 5b. User memory
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `bx_agent_user_memory` | user-stated memories/instructions for the agent, **global per user** (not thread- or context-scoped) | `id`, `userid`→user, `memory` (the stated fact/preference/instruction), `scopes` (comma-separated injection channels `selection,construction,synchronization`; empty = all), `timecreated`, `timemodified` |
+
+These are injected into the relevant planner prompts for the owning user; see the user-memory
+service and [ch. 03](../architecture/03-conversation-store.md).
+
 ## 6. Caches (`db/caches.php`)
 
 | Cache | Mode | TTL | Holds |

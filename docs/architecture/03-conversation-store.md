@@ -164,12 +164,20 @@ Ephemeral progress bubbles (role `step`), surfaced by `ai_poll_thread`.
 
 | Method | Behavior |
 |--------|----------|
-| `add_llm_debug_entry(threadid, userid, contextid, source, requesttext, responsetext, success, errormessage='')` | record a raw LLM exchange when debug mode is on |
+| `add_llm_debug_entry(threadid, userid, contextid, source, requesttext, responsetext, success, errormessage='')` | low-level insert of one raw LLM exchange |
 | `get_llm_debug_entries(threadid, limit=100)` | read them back, oldest first |
+| `purge_old_llm_debug_entries(cutoff)` | delete rows older than a cutoff (the retention task's worker) |
 
 This is the data behind `ai_get_thread_debug_logs` and the observability tooling — see
 [operations/observability.md](../operations/observability.md), which also confirms the
 backing table name.
+
+> **Gated + bounded (audit 15-F01).** Nothing is written unless `aidebugmode` is on: the only
+> engine path here is `llm_debug_logger::log_exchange`, which self-gates on
+> `is_enabled()` (the `aidebugmode` config), so `bx_agent_ai_llm_debug` stays empty in normal
+> operation. When debug mode is on, the scheduled `cleanup_old_llm_debug_task` calls
+> `purge_old_llm_debug_entries()` to prune rows older than the `llm_debug_retention_days`
+> setting (default 30 d), so the trail is neither unbounded nor a standing PII store.
 
 ---
 
