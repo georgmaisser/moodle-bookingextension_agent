@@ -161,3 +161,27 @@ overview path (CAP-04).
 
 None of the HIGH findings is a *write* escalation; CAP-01/02 are **read/PII** exposures (GDPR-relevant
 in the USI context), CAP-03 is an abuse/cost vector. All are fixable without engine surgery.
+
+---
+
+## Remediation log (2026-06-30)
+
+The three HIGH findings are fixed, each with a first-of-its-kind capability denial test:
+
+| ID | Status | Fix |
+|----|--------|-----|
+| **CAP-01** `search_users` | ✅ Fixed | `execute()` drops candidates with no actor relationship (self / shared course / site-level `user:viewdetails`/`viewalldetails` / admin) and strips identity fields unless `moodle/site:viewuseridentity` (system or shared course). New `search_users_capability_test` (4/4) — first `viewuseridentity` denial test in the suite. |
+| **CAP-02** `get_option_details` | ✅ Fixed | Per-option visibility gate (`actor_can_view_option`) at the end of `resolve_target_option_ids` — every path (direct id, system numeric/title, module query) now drops options whose hosting activity isn't `uservisible` to the actor. New `get_option_details_capability_test` (3/3). |
+| **CAP-03** `recreate_skill_catalog` | ✅ Fixed | Cap moved `$teacherskills` → `$managerskills`; skill declares `get_required_native_capabilities() = ['moodle/site:config']` so Gate 2 enforces admin-only execution; `context_scopes => ['system']` already in place. New `recreate_skill_catalog_capability_test` (3/3). |
+
+phpcs 0/0 on all; all tests run green on the VM (Moodle 5.1.1+, PHP 8.3). Commits: agent
+`1c76453` (CAP-01 + audit corpus), `7b9b2bd` (CAP-03); mod_booking `547db7fab` (CAP-02).
+
+**New finding surfaced during CAP-03 verification — `oneclick.*` mutating skills declare no native
+capabilities.** The governance test `native_capability_guard_test::test_every_mutating_skill_declares_native_capabilities`
+fails on an environment with the `bookingextension/oneclick` plugin installed because
+`oneclick.create_instance` / `oneclick.delete_instance` are mutating skills with **no**
+`get_required_native_capabilities()` → Gate 2 is a no-op for them (same exposure class as CAP-03,
+in a different plugin). Out of scope for this audit (separate repo); flagged for the oneclick maintainer.
+
+The MEDIUM/LOW findings (CAP-04…CAP-12) remain open per the fix plan above.
