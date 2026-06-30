@@ -31,15 +31,26 @@ use bookingextension_agent\local\wizard\services\debug\skill_selection_debug_ser
 
 $context = context_system::instance();
 
-try {
-    admin_externalpage_setup('bookingextension_agent_skillselectiondebug');
-} catch (\core\exception\moodle_exception $e) {
-    // In some environments the external page node may not be present yet
-    // (e.g. stale admin tree cache). Keep the page accessible in admin layout.
-    if ($e->errorcode !== 'sectionerror') {
-        throw $e;
+// Only call the site-administration page setup for users who can navigate the admin tree
+// (moodle/site:config). For anyone else admin_externalpage_setup() would throw a KNOWN accessdenied,
+// so set the page up manually instead. The real access gate is the require_capability() below, so a
+// manager holding debugskillselection gets in while everyone else is denied.
+$adminpagesetup = false;
+if (has_capability('moodle/site:config', $context)) {
+    try {
+        admin_externalpage_setup('bookingextension_agent_skillselectiondebug');
+        $adminpagesetup = true;
+    } catch (\core\exception\moodle_exception $e) {
+        // Stale admin-tree cache / mid-upgrade: the node is not located yet → manual setup below.
+        if ($e->errorcode !== 'sectionerror') {
+            throw $e;
+        }
     }
+}
+if (!$adminpagesetup) {
     require_login();
+    $PAGE->set_context($context);
+    $PAGE->set_url('/mod/booking/bookingextension/agent/skill_selection_debug.php');
     $PAGE->set_pagelayout('admin');
 }
 

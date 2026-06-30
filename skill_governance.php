@@ -29,18 +29,24 @@ require_once($CFG->libdir . '/adminlib.php');
 
 $context = context_system::instance();
 
-try {
-    admin_externalpage_setup('bookingextension_agent_skillgovernance');
-} catch (\core\exception\moodle_exception $e) {
-    // admin_externalpage_setup() builds the admin tree per user and bails when the node cannot be
-    // located: 'sectionerror' for a site-config holder (e.g. mid-upgrade), but 'accessdenied' for a
-    // user WITHOUT moodle/site:config — which includes a manager who legitimately holds
-    // bookingextension/agent:managegovernance but cannot navigate the site-administration tree.
-    // Both mean "no admin-tree setup": fall back to a manual page setup and let the explicit
-    // require_capability() below be the real access gate, so a manager with the capability gets in.
-    if ($e->errorcode !== 'sectionerror' && $e->errorcode !== 'accessdenied') {
-        throw $e;
+// Only call the site-administration page setup for users who can navigate the admin tree
+// (moodle/site:config). For anyone else admin_externalpage_setup() would throw a KNOWN accessdenied,
+// so we set the page up manually instead — no point catching an error we expect to fire. The real
+// access gate is the require_capability() below: a manager holding our own capability gets in either
+// way, a user without it is denied either way.
+$adminpagesetup = false;
+if (has_capability('moodle/site:config', $context)) {
+    try {
+        admin_externalpage_setup('bookingextension_agent_skillgovernance');
+        $adminpagesetup = true;
+    } catch (\core\exception\moodle_exception $e) {
+        // Stale admin-tree cache / mid-upgrade: the node is not located yet → manual setup below.
+        if ($e->errorcode !== 'sectionerror') {
+            throw $e;
+        }
     }
+}
+if (!$adminpagesetup) {
     require_login();
     $PAGE->set_context($context);
     $PAGE->set_url('/mod/booking/bookingextension/agent/skill_governance.php');

@@ -25,7 +25,10 @@
 require_once(__DIR__ . '/../../../../config.php');
 
 require_login();
-require_capability('moodle/site:config', context_system::instance());
+// Gate on the benchmark view capability (manager archetype) rather than moodle/site:config, so a
+// manager can view the report. This page sets the admin layout up manually (no admin_externalpage_setup),
+// so there is no admin-tree access error to handle here.
+require_capability('bookingextension/agent:viewbenchmarks', context_system::instance());
 
 use bookingextension_agent\local\wizard\benchmark\benchmark_db_writer;
 use bookingextension_agent\local\wizard\benchmark\benchmark_metrics_calculator;
