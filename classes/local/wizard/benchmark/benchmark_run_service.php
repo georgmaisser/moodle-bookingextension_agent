@@ -19,7 +19,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\benchmark;
 
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
-use bookingextension_agent\local\wizard\wb_action_names;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\interpreter;
 use bookingextension_agent\local\wizard\orchestrator;
@@ -328,17 +327,14 @@ class benchmark_run_service {
         if (!isset($providers[$instanceid])) {
             return [];
         }
-        $provider = $providers[$instanceid];
-        $config = (array)($provider->config ?? []);
-        $ac     = (array)($provider->actionconfig ?? []);
-        $model  = static fn(string $action): string => (string)($ac[$action]['settings']['model'] ?? '');
-
+        // Provider-type agnostic extraction (works for any provider, incl. a disabled one).
+        $ov = benchmark_provider_preview::extract_overrides($providers[$instanceid]);
         $vars = [
-            'BOOKING_TEST_AI_KEY'             => (string)($config['apikey'] ?? ''),
-            'BOOKING_TEST_AI_MODEL'           => $model(wb_action_names::GENERATE_AGENT_REPLY),
-            'BOOKING_TEST_AI_MODEL_MINI'      => $model(wb_action_names::PLANNER_DECIDE),
-            'BOOKING_TEST_AI_EMBEDDING_MODEL' => $model(wb_action_names::GENERATE_EMBEDDINGS),
-            'BOOKING_TEST_AI_ENDPOINT'        => (string)($config['endpoint'] ?? ''),
+            'BOOKING_TEST_AI_KEY'             => $ov['key'],
+            'BOOKING_TEST_AI_MODEL'           => $ov['reply'],
+            'BOOKING_TEST_AI_MODEL_MINI'      => $ov['planner'],
+            'BOOKING_TEST_AI_EMBEDDING_MODEL' => $ov['embed'],
+            'BOOKING_TEST_AI_ENDPOINT'        => $ov['endpoint'],
         ];
         $set = [];
         foreach ($vars as $name => $value) {

@@ -25,43 +25,51 @@ use bookingextension_agent\local\wizard\config\runtime_feature_flags;
  * Describes which provider/model/key values a benchmark run will actually use, so the
  * interface can show them next to the "run benchmark" button and the provider-instance picker.
  *
- * A run targets a chosen core_ai provider INSTANCE (its own key/model/endpoint, configured in the
- * standard AI admin UI). The BOOKING_TEST_AI_* env vars still override when present, but only for
- * CLI runs launched in a shell that exports them — the web/cron context never sees them, which is
- * why the interface uses explicit instance selection rather than env vars.
+ * A run targets a chosen core_ai provider INSTANCE — any provider type, enabled or not (a key use is
+ * to benchmark a not-yet-live instance). Its key/model/endpoint are extracted and applied as the
+ * BOOKING_TEST_AI_* override onto the working provider, so the agent's wunderbyte actions run with
+ * the chosen instance's credentials. The BOOKING_TEST_AI_* env vars themselves still override for CLI
+ * runs; the web/cron path never sees them, hence explicit instance selection.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class benchmark_provider_preview {
-    /** @var string Wunderbyte provider class. */
-    private const WB_PROVIDER_CLASS = 'aiprovider_wunderbyte\\provider';
-
-    /** @var string Action: planner/selector. */
-    private const ACTION_PLANNER = wb_action_names::PLANNER_DECIDE;
-
-    /** @var string Action: agent reply. */
-    private const ACTION_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
-
-    /** @var string Action: embeddings. */
-    private const ACTION_EMBED = wb_action_names::GENERATE_EMBEDDINGS;
+    /**
+     * Per-role candidate action classes, tried in order against an instance's actionconfig. Covers
+     * both the wunderbyte provider (agent actions) and generic providers (core_ai text/embeddings).
+     *
+     * @var array<string, string[]>
+     */
+    private const ROLE_ACTIONS = [
+        'planner' => [
+            wb_action_names::PLANNER_DECIDE,
+            wb_action_names::GENERATE_AGENT_REPLY,
+            'core_ai\\aiactions\\generate_text',
+        ],
+        'reply' => [
+            wb_action_names::GENERATE_AGENT_REPLY,
+            'core_ai\\aiactions\\generate_text',
+        ],
+        'embed' => [
+            wb_action_names::GENERATE_EMBEDDINGS,
+            'core_ai\\aiactions\\generate_embeddings',
+        ],
+    ];
 
     /**
-     * The configured wunderbyte provider instances, id => provider object.
+     * All configured provider instances (any type, enabled or not), id => provider object.
      *
      * @return array
      */
-    private function wunderbyte_instances(): array {
+    private function provider_instances(): array {
         global $DB;
         $out = [];
         try {
             $manager = new \core_ai\manager($DB);
-            $wbclass = self::WB_PROVIDER_CLASS;
             foreach ($manager->get_sorted_providers() as $provider) {
-                if ($provider instanceof $wbclass) {
-                    $out[(int)$provider->id] = $provider;
-                }
+                $out[(int)$provider->id] = $provider;
             }
         } catch (\Throwable $e) {
             $out = [];
@@ -70,13 +78,65 @@ class benchmark_provider_preview {
     }
 
     /**
-     * Selectable provider instances for the run form: id => display name.
+     * Extract the override values (key / per-role model / endpoint) from a provider instance,
+     * provider-type agnostically: for each role pick the first candidate action present that carries
+     * a model, and read that action's model + endpoint from its settings.
+     *
+     * @param \core_ai\provider $provider
+     * @return array{key: string, planner: string, reply: string, embed: string, endpoint: string}
+     */
+    public static function extract_overrides(\core_ai\provider $provider): array {
+        $config = (array)($provider->config ?? []);
+        $ac     = (array)($provider->actionconfig ?? []);
+
+        $modelof = static fn(string $action): string => (string)($ac[$action]['settings']['model'] ?? '');
+        $endpointof = static fn(string $action): string => (string)($ac[$action]['settings']['endpoint'] ?? '');
+
+        $pick = static function (array $actions) use ($ac, $modelof): array {
+            foreach ($actions as $action) {
+                if (isset($ac[$action]) && $modelof($action) !== '') {
+                    return [$action, $modelof($action)];
+                }
+            }
+            return ['', ''];
+        };
+
+        [$replyaction, $replymodel] = $pick(self::ROLE_ACTIONS['reply']);
+        [, $plannermodel]           = $pick(self::ROLE_ACTIONS['planner']);
+        [, $embedmodel]             = $pick(self::ROLE_ACTIONS['embed']);
+
+        // Endpoint lives in the action settings (not config); take it from the reply action, else the
+        // first action that carries one, else any config-level endpoint.
+        $endpoint = $replyaction !== '' ? $endpointof($replyaction) : '';
+        if ($endpoint === '') {
+            foreach ($ac as $entry) {
+                if (!empty($entry['settings']['endpoint'])) {
+                    $endpoint = (string)$entry['settings']['endpoint'];
+                    break;
+                }
+            }
+        }
+        if ($endpoint === '') {
+            $endpoint = (string)($config['endpoint'] ?? ($config['apiendpoint'] ?? ''));
+        }
+
+        return [
+            'key'      => (string)($config['apikey'] ?? ''),
+            'planner'  => $plannermodel,
+            'reply'    => $replymodel,
+            'embed'    => $embedmodel,
+            'endpoint' => $endpoint,
+        ];
+    }
+
+    /**
+     * Selectable provider instances for the run form: id => display name (disabled ones flagged).
      *
      * @return array
      */
     public function list_instances(): array {
         $out = [];
-        foreach ($this->wunderbyte_instances() as $id => $provider) {
+        foreach ($this->provider_instances() as $id => $provider) {
             $name = (string)$provider->name;
             // Disabled instances are listed too — a key use of interface benchmarks is to score a
             // not-yet-live instance before enabling it — but flagged so it is obvious.
@@ -93,7 +153,7 @@ class benchmark_provider_preview {
      *
      * @param int|null $instanceid The provider instance to describe; null = the default (first sorted).
      * @return array {
-     *   env_override_active: bool, embeddings_active: bool, provider_found: bool,
+     *   env_override_active: bool, embeddings_active: bool, provider_found: bool, instance_enabled: bool,
      *   instance_id: int, instance_name: string,
      *   key: array{source: string, detail: string}, endpoint: array{source: string, value: string},
      *   actions: array<int, array{label: string, model: string, source: string, envvar: string}>
@@ -111,7 +171,7 @@ class benchmark_provider_preview {
         $embeddingsactive = runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED);
 
         // Resolve the target instance: the one requested, else the default (first sorted).
-        $instances = $this->wunderbyte_instances();
+        $instances = $this->provider_instances();
         $target = null;
         if ($instanceid !== null && isset($instances[$instanceid])) {
             $target = $instances[$instanceid];
@@ -119,48 +179,46 @@ class benchmark_provider_preview {
             $target = reset($instances);
         }
         $providerfound = $target !== null;
-        $config        = $providerfound ? (array)($target->config ?? []) : [];
-        $actionconfig  = $providerfound ? (array)($target->actionconfig ?? []) : [];
         $instname      = $providerfound ? (string)$target->name : '';
         $instid        = $providerfound ? (int)$target->id : 0;
+        $instenabled   = $providerfound ? !empty($target->enabled) : false;
+        $ov            = $providerfound
+            ? self::extract_overrides($target)
+            : ['key' => '', 'planner' => '', 'reply' => '', 'embed' => '', 'endpoint' => ''];
 
-        $providermodel = static function (string $action) use ($actionconfig): string {
-            return (string)($actionconfig[$action]['settings']['model'] ?? '');
-        };
-        $resolve = static function (string $action, string $envvalue, string $envvarname) use ($envactive, $providermodel): array {
+        $resolve = static function (string $role, string $envvalue, string $envvarname) use ($envactive, $ov): array {
             if ($envactive && $envvalue !== '') {
                 return ['model' => $envvalue, 'source' => 'env', 'envvar' => $envvarname];
             }
-            return ['model' => $providermodel($action), 'source' => 'provider', 'envvar' => $envvarname];
+            return ['model' => $ov[$role], 'source' => 'provider', 'envvar' => $envvarname];
         };
 
-        // Planner/mini falls back to BOOKING_TEST_AI_MODEL when MINI is unset (same as the manager).
         $plannerenv = $envmodelmini !== '' ? $envmodelmini : $envmodel;
         $plannervar = $envmodelmini !== '' ? 'BOOKING_TEST_AI_MODEL_MINI' : 'BOOKING_TEST_AI_MODEL';
-        $planner = $resolve(self::ACTION_PLANNER, $plannerenv, $plannervar);
-        $reply   = $resolve(self::ACTION_REPLY, $envmodel, 'BOOKING_TEST_AI_MODEL');
-        $embed   = $resolve(self::ACTION_EMBED, $envembedmodel, 'BOOKING_TEST_AI_EMBEDDING_MODEL');
+        $planner = $resolve('planner', $plannerenv, $plannervar);
+        $reply   = $resolve('reply', $envmodel, 'BOOKING_TEST_AI_MODEL');
+        $embed   = $resolve('embed', $envembedmodel, 'BOOKING_TEST_AI_EMBEDDING_MODEL');
 
         // Key source: env override (CLI only), else the instance's own key, else none.
         if ($envactive) {
             $key = ['source' => 'env', 'detail' => 'BOOKING_TEST_AI_KEY'];
-        } else if (!empty($config['apikey'])) {
+        } else if ($ov['key'] !== '') {
             $key = ['source' => 'provider', 'detail' => $instname];
         } else {
             $key = ['source' => 'none', 'detail' => get_string('benchmark_run_key_none', 'bookingextension_agent')];
         }
 
-        // Endpoint source.
         if ($envactive && $envendpoint !== '') {
             $endpoint = ['source' => 'env', 'value' => $envendpoint];
         } else {
-            $endpoint = ['source' => 'provider', 'value' => (string)($config['endpoint'] ?? ($config['apiendpoint'] ?? ''))];
+            $endpoint = ['source' => 'provider', 'value' => $ov['endpoint']];
         }
 
         return [
             'env_override_active' => $envactive,
             'embeddings_active'   => $embeddingsactive,
             'provider_found'      => $providerfound,
+            'instance_enabled'    => $instenabled,
             'instance_id'         => $instid,
             'instance_name'       => $instname,
             'key'                 => $key,
