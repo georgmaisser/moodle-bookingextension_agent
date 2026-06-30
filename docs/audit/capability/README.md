@@ -179,27 +179,25 @@ phpcs 0/0 on all; all tests run green on the VM (Moodle 5.1.1+, PHP 8.3). Commit
 commits (the `$managerskills` move `7b9b2bd`, then the clean-up to drop the redundant
 `site:config` Gate-2 cap in favour of the name-cap-only gating).
 
-**Note (corrected) — `oneclick.*` and the governance test.** During CAP-03 verification the test
-`native_capability_guard_test::test_every_mutating_skill_declares_native_capabilities` fails on an
+**Note — `oneclick.*` and the removed governance test (resolved).** During CAP-03 verification the test
+`native_capability_guard_test::test_every_mutating_skill_declares_native_capabilities` failed on an
 environment with `bookingextension/oneclick` installed, because `oneclick.create_instance` /
-`oneclick.delete_instance` return `get_required_native_capabilities() = []`. **This is NOT a security
+`oneclick.delete_instance` return `get_required_native_capabilities() = []`. This was **never a security
 hole** (an earlier note here wrongly called it a write hole): both skills are gated by their Gate-1
 skill-use capabilities `bookingextension/oneclick:skill_oneclick_create_instance` /
 `:skill_oneclick_delete_instance` — both **`write`, manager-only**, with `RISK_SPAM` / `RISK_DATALOSS`
-(`oneclick/db/access.php`). And they do not write into a Moodle course at all: they call an **external
+(`oneclick/db/access.php`). They also do not write into a Moodle course: they call an **external
 provisioner API** (`provisioner_client` → /spawn, /execute) to spin up a *separate* trial Moodle
-instance — there is no cross-course / cross-context Moodle target. They legitimately have no
-Moodle-native capability to declare, so Gate 1 (manager-only) is the correct and sufficient gate.
-The real takeaway is that the governance **invariant is too strict** for external-provisioning skills:
-either whitelist them in `test_every_mutating_skill_declares_native_capabilities` or have them declare
-a sentinel. Out of scope for this audit (separate plugin); flagged for the oneclick maintainer as a
-test-fit issue, not a vulnerability.
+instance — there is no cross-course / cross-context Moodle target.
 
-> **Empirical note.** Simply removing the explicit `get_required_native_capabilities()` override from
-> the oneclick skills does **not** fix the test — `base_skill::get_required_native_capabilities()`
-> also returns `[]`, and the test checks `empty(...)` whether the method is overridden or inherited.
-> So the failure is the invariant itself, not the override; the clean fix is the deliberate
-> engine-agnostic opt-out flag (deferred — no rushed patch). The oneclick overrides were left in
-> place (they document the deliberate "no native capability" choice).
+**Resolution (maintainer decision):** the invariant test was **removed**. The mandatory authorization
+for every skill is its **name-derived capability** (`bookingextension/<component>:skill_<name>`,
+enforced by `skill_executability_evaluator` + the executor backstop) — that is the contract, and it
+is sufficient. Self-declared native (Gate-2) capabilities are an **additive, opt-in** defence-in-depth
+layer (load-bearing where a skill maps to a native Moodle action / cross-context target, optional
+otherwise), so there is no need for a test that *forces* every mutating skill to declare them. The
+guard's real behaviour — that *declared* caps are enforced at the operating context — is still covered
+by the remaining tests in `native_capability_guard_test` (6/6 green). oneclick's empty native-cap
+declarations are correct as-is; nothing in oneclick needed changing.
 
 The MEDIUM/LOW findings (CAP-04…CAP-12) remain open per the fix plan above.

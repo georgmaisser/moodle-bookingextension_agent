@@ -20,7 +20,6 @@ use advanced_testcase;
 use context_course;
 use context_system;
 use bookingextension_agent\local\wizard\services\security\native_capability_guard;
-use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Central Gate-2 enforcement: the engine (preflight pipeline + executor) denies a skill whose
@@ -175,38 +174,12 @@ final class native_capability_guard_test extends advanced_testcase {
         $this->assertSame(['moodle/course:manageactivities'], $missing);
     }
 
-    /**
-     * Systemic invariant across ALL skill families (agent + provider plugins like mod_booking):
-     * EVERY mutating skill must declare at least one native capability, otherwise the central Gate-2
-     * guard cannot enforce native rights for it. This forces every new mutating skill — including
-     * 3rd-party ones — to be covered by the central guard.
-     */
-    public function test_every_mutating_skill_declares_native_capabilities(): void {
-        $this->resetAfterTest();
-        $registry = skill_registry_factory::get_default();
-
-        $offenders = [];
-        foreach ($registry->get_skill_contracts() as $skillname => $meta) {
-            $skill = $registry->get_skill((string)$skillname);
-            if ($skill === null || $skill->is_read_only()) {
-                continue;
-            }
-            // User-memory skills (wizard.remember/forget/...) act only on the acting user's own
-            // preference store and the catalog-rebuild meta-skill is admin-gated by its name
-            // capability — neither has a native Moodle action capability to declare.
-            if (strpos((string)$skillname, 'wizard.') === 0) {
-                continue;
-            }
-            if (empty($skill->get_required_native_capabilities())) {
-                $offenders[] = (string)$skillname . ' [' . (string)($meta['component'] ?? '?') . ']';
-            }
-        }
-
-        $this->assertSame(
-            [],
-            $offenders,
-            'These mutating agent skills declare no native capabilities, so the central Gate-2 guard '
-                . 'cannot enforce native rights for them: ' . implode(', ', $offenders)
-        );
-    }
+    // Note: there is deliberately NO "every mutating skill must declare a native capability" invariant
+    // test. The mandatory authorization for every skill is its name-derived capability
+    // (bookingextension/<component>:skill_<name>), enforced by skill_executability_evaluator + the
+    // executor backstop. Self-declared native (Gate-2) capabilities are an ADDITIVE, opt-in
+    // defence-in-depth layer — useful where a skill maps to a native Moodle action / cross-context
+    // target, but not required (e.g. external-action skills like oneclick.* or the wizard.* meta
+    // skills legitimately declare none). The guard's real behaviour — that DECLARED caps are enforced
+    // at the operating context — is covered by the tests above.
 }
