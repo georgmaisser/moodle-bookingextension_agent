@@ -46,17 +46,17 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
    `execute_ai_run_adhoc`/`aiexecutionmode` mehr), Files-Header bereinigt. `.mmd EXC_EVAL` bleibt per Flowchart-Policy
    beim Maintainer.
 
-**Maintainer-Entscheidung (offen, von dir):**
+**Maintainer-Entscheidungen — getroffen & umgesetzt (2026-06-30):**
 
-- **[15-F01-Rest] Debug-Logging „always-on"** — der Retention-Task begrenzt die Aufbewahrung (30 d), aber geloggt
-  wird weiterhin bei *jedem* Call (nicht nur bei `aidebugmode`). Stärker für Privacy wäre, das Logging hinter
-  `aidebugmode` zu gaten — kostet aber Prod-Observability (die Test-Harness erwartet den Trail). **Deine Wahl.**
+- ✅ **[15-F01] Debug-Logging gegated** — Entscheidung George: nur loggen, wenn `aidebugmode` an ist. Beide
+  `llm_call_service`-Stellen nutzen jetzt `log_exchange` (self-gated); `log_exchange_always` + `$forcelog`
+  entfernt; Test-Basis setzt `aidebugmode`. Retention (30 d) bleibt für den Debug-Fall.
+- ✅ **[15-F02] eigene admin-only Capability** — Entscheidung George: nicht `site:config`, sondern neue
+  `bookingextension/agent:manageaiproviders` (leere archetypes = admin-only, explizit delegierbar, kein
+  Automatismus). Beide Provider-Endpunkte umgestellt; Lang en/de + version-Bump.
 
-**MEDIUM für den Security-Review wert (nicht launch-gating):**
+**MEDIUM, noch offen (nicht launch-gating):**
 
-- **[15-F02] MEDIUM** — provider-credential-Write hängt an `requesttrial`, nicht `site:config` ·
-  `store_provider_apikey.php:86`, `configure_provider_from_existing.php:79`. Ein manager-vergebbares `requesttrial`
-  kann damit site-globale Provider-Credentials schreiben. Erwägen: auf `site:config` heben.
 - **[12-F02] MEDIUM** — `recreate_skill_catalog` mis-scoped `['module']` (sollte system sein).
 
 **Doc-Coverage-HIGH-Cluster (Doku-only, siehe B):** C5-F01 (observability.md noch `local_wizard_`),

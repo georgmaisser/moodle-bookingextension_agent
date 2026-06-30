@@ -53,7 +53,6 @@ class llm_debug_logger {
      * @param string $responsetext
      * @param bool $success
      * @param string $errormessage
-     * @param bool $forcelog
      * @return void
      */
     public static function log_exchange(
@@ -65,10 +64,11 @@ class llm_debug_logger {
         string $requesttext,
         string $responsetext,
         bool $success,
-        string $errormessage = '',
-        bool $forcelog = false
+        string $errormessage = ''
     ): void {
-        if (!$forcelog && !self::is_enabled()) {
+        // Self-gate: nothing is persisted unless aidebugmode is on (audit 15-F01). This is the only
+        // path to bx_agent_ai_llm_debug from the engine, so the table stays empty in normal operation.
+        if (!self::is_enabled()) {
             return;
         }
 
@@ -81,45 +81,6 @@ class llm_debug_logger {
             $responsetext,
             $success ? 1 : 0,
             $errormessage
-        );
-    }
-
-    /**
-     * Persist one raw request/response exchange unconditionally.
-     *
-     * @param conversation_store $store
-     * @param int $threadid
-     * @param int $cmid
-     * @param int $userid
-     * @param string $source
-     * @param string $requesttext
-     * @param string $responsetext
-     * @param bool $success
-     * @param string $errormessage
-     * @return void
-     */
-    public static function log_exchange_always(
-        conversation_store $store,
-        int $threadid,
-        int $cmid,
-        int $userid,
-        string $source,
-        string $requesttext,
-        string $responsetext,
-        bool $success,
-        string $errormessage = ''
-    ): void {
-        self::log_exchange(
-            $store,
-            $threadid,
-            $cmid,
-            $userid,
-            $source,
-            $requesttext,
-            $responsetext,
-            $success,
-            $errormessage,
-            true
         );
     }
 }

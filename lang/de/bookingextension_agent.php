@@ -24,6 +24,7 @@
 
 $string['agent:debugskillselection'] = 'Skill-Selection-Debug-Tool verwenden';
 $string['agent:ignoreaiavailability'] = 'Kurs-/Modul-KI-Verfügbarkeitsschalter für den Booking Wizard ignorieren';
+$string['agent:manageaiproviders'] = 'KI-Provider-Zugangsdaten konfigurieren';
 $string['agent:managebenchmarks'] = 'KI-Benchmark-Durchläufe verwalten';
 $string['agent:managegovernance'] = 'KI-Skill-Governance verwalten';
 $string['agent:requesttrial'] = 'KI-Testversion einrichten';

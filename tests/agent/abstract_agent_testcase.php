@@ -129,6 +129,9 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
 
         // Test baseline: keep governance skill gates open unless a test overrides it explicitly.
         set_config('aiskillenableall', 1, 'bookingextension_agent');
+        // LLM-debug logging now self-gates on aidebugmode (audit 15-F01); the agent test base asserts
+        // on the bx_agent_ai_llm_debug trail, so enable debug mode for the suite.
+        set_config('aidebugmode', 1, 'bookingextension_agent');
 
         $this->maybe_register_live_ai_provider();
         $this->maybe_load_embeddings_fixture();

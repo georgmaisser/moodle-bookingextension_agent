@@ -108,9 +108,11 @@ class llm_call_service {
             $errorname = '';
         }
 
-        // Raw exchange retained for diagnostics; the cleanup_old_llm_debug_task prunes rows past the
-        // llm_debug_retention_days TTL so this is no longer an unbounded PII store (audit 15-F01).
-        llm_debug_logger::log_exchange_always(
+        // Raw exchange persisted ONLY when aidebugmode is on (audit 15-F01): log_exchange self-gates
+        // on llm_debug_logger::is_enabled(), so no prompts/responses are stored in normal operation;
+        // when debug mode is on, cleanup_old_llm_debug_task additionally prunes rows past the
+        // llm_debug_retention_days TTL.
+        llm_debug_logger::log_exchange(
             $this->store,
             $threadid,
             (int)$contextid,
@@ -191,9 +193,9 @@ class llm_call_service {
             $errorname = '';
         }
 
-        // Raw exchange retained for diagnostics; the cleanup_old_llm_debug_task prunes rows past the
-        // llm_debug_retention_days TTL so this is no longer an unbounded PII store (audit 15-F01).
-        llm_debug_logger::log_exchange_always(
+        // Raw exchange persisted ONLY when aidebugmode is on (audit 15-F01): log_exchange self-gates
+        // on llm_debug_logger::is_enabled(), so nothing is stored in normal operation.
+        llm_debug_logger::log_exchange(
             $this->store,
             $threadid,
             0,

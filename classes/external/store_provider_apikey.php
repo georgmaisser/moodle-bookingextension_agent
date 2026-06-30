@@ -82,8 +82,9 @@ class store_provider_apikey extends external_api {
         }
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
         self::validate_context($context);
-        // Same onboarding gate as the trial: managers may set this up, admins pass via doanything.
-        require_capability('bookingextension/agent:requesttrial', context_system::instance());
+        // Writing site-global provider credentials is admin-only by default (audit 15-F02): its own
+        // capability, no automatic role assignment, delegable explicitly. Admins pass via doanything.
+        require_capability('bookingextension/agent:manageaiproviders', context_system::instance());
 
         return (new trial_provisioner())->configure_from_apikey((int)$params['contextid'], (string)$params['apikey']);
     }

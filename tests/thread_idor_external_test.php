@@ -92,7 +92,8 @@ final class thread_idor_external_test extends advanced_testcase {
 
         $store = new conversation_store();
         $ownerthread = (int)$store->get_or_create_thread((int)$owner->id, $ctxid)->id;
-        llm_debug_logger::log_exchange_always(
+        // With aidebugmode enabled above, log_exchange persists the entry.
+        llm_debug_logger::log_exchange(
             $store,
             $ownerthread,
             0,

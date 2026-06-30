@@ -252,3 +252,14 @@ $capabilities['bookingextension/agent:managegovernance'] = [
         'manager' => CAP_ALLOW,
     ],
 ];
+
+// Configure the site-wide AI provider credentials (store an API key, adopt an existing provider) used
+// by the agent. This writes site-global secrets, so it is admin-only by default (empty archetypes) and
+// must be granted explicitly to delegate it — there is deliberately no automatic role assignment.
+// Previously these endpoints reused the manager-grantable requesttrial cap (audit 15-F02).
+$capabilities['bookingextension/agent:manageaiproviders'] = [
+    'riskbitmask'  => RISK_CONFIG,
+    'captype'      => 'write',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes'   => [],
+];
