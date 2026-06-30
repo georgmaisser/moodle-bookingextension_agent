@@ -17,6 +17,7 @@
 ## B. Findings
 
 ### [05-F01] 🟠 HIGH · D3 Structure · classes/local/wizard/services/construction/parameter_constructor.php:81,58-69,118,140-154
+> **✅ FIXED 2026-06-30** — engine de-leaked: booking self-ref/timestamp fields → mod_booking `slot_booking_normalizer`; `search_queries` → `explain_docs` skill; `question` hydration → schema-driven `from_user_message` flag (6 skills declare it). `parameter_constructor` now names no domain field. phpcs 0/0; construction + booking-skill contract tests green; real-LLM matrix verifies end-to-end. See `docs/audit/README.md` remediation log.
 **What:** The engine-layer parameter constructor hard-codes mod_booking/local_musi-specific field names, violating the "no engine→domain leak" boundary the architecture mandates.
 **Evidence:**
 - `normalize_self_user_references()` line 81: `$fields = ['teacherquery', 'selectusersquery', 'bookusersquery'];` — all three are booking/musi skill field names.

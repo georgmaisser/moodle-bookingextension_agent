@@ -88,13 +88,16 @@ final class phase3_selection_construction_contract_test extends TestCase {
     }
 
     /**
-     * Parameter construction should normalize inputs and hydrate missing questions.
+     * Parameter construction should apply the registry normalizer, hydrate schema fields flagged
+     * `from_user_message`, and prune empties — without carrying any domain field heuristics
+     * (audit 05-F01: the engine names no domain field).
      */
     public function test_parameter_constructor_normalizes_and_hydrates_question(): void {
         $skill = $this->createMock(skill_interface::class);
         $skill->method('get_schema')->willReturn([
             'properties' => [
-                'question' => ['type' => 'string'],
+                // Schema-driven hydration: only a field flagged from_user_message is filled.
+                'question' => ['type' => 'string', 'from_user_message' => true],
             ],
         ]);
 
@@ -117,8 +120,11 @@ final class phase3_selection_construction_contract_test extends TestCase {
         ], 'Need help with the booking flow');
 
         $this->assertTrue($result->valid);
+        // Schema-flagged field is hydrated from the last user message.
         $this->assertSame('Need help with the booking flow', $result->input['question']);
-        $this->assertSame(['alpha', 'beta'], $result->input['search_queries']);
+        // The engine no longer splits domain fields such as search_queries — that responsibility moved
+        // to the owning skill, so the engine passes the raw value through untouched (audit 05-F01).
+        $this->assertSame('alpha, beta', $result->input['search_queries']);
         $this->assertSame('mod_booking.create_booking', $result->input['normalized_by_registry']);
         $this->assertArrayNotHasKey('empty_list', $result->input);
     }

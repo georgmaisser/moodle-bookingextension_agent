@@ -88,6 +88,7 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
                     'type' => 'string',
                     'description' => 'Optional original user question for language detection and phrasing.',
                     'required' => false,
+                    'from_user_message' => true,
                 ],
                 'scope' => [
                     'type' => 'string',

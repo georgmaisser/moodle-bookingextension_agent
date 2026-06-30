@@ -50,59 +50,14 @@ class parameter_constructor {
      * @return parameter_construction_result
      */
     public function build(string $skillname, array $rawinput, string $lastusermessage = ''): parameter_construction_result {
-        $input = $this->normalize_self_user_references($rawinput);
-        $input = $this->canonicalize_command_input($skillname, $input);
-        $input = $this->hydrate_question_field($skillname, $input, $lastusermessage);
+        // Schema/hook-driven only — no domain field names live here. Provider-owned
+        // skill_input_normalizers handle domain coercion (e.g. booking timestamp / self-reference
+        // fields); free-text hydration is driven by the schema `from_user_message` flag (audit 05-F01).
+        $input = $this->canonicalize_command_input($skillname, $rawinput);
+        $input = $this->hydrate_user_message_fields($skillname, $input, $lastusermessage);
         $input = $this->prune_empty_input_values($input);
 
-        if (array_key_exists('coursestarttime', $input)) {
-            $ts = $this->normalize_timestamp_value($input['coursestarttime']);
-            if ($ts !== null) {
-                $input['coursestarttime'] = $ts;
-            }
-        }
-        if (array_key_exists('courseendtime', $input)) {
-            $ts = $this->normalize_timestamp_value($input['courseendtime']);
-            if ($ts !== null) {
-                $input['courseendtime'] = $ts;
-            }
-        }
-
         return new parameter_construction_result($input, true, [], []);
-    }
-
-    /**
-     * Normalize self-reference fields in raw command input.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function normalize_self_user_references(array $input): array {
-        $fields = ['teacherquery', 'selectusersquery', 'bookusersquery'];
-        foreach ($fields as $field) {
-            if (!isset($input[$field]) || !is_string($input[$field])) {
-                continue;
-            }
-
-            $raw = trim($input[$field]);
-            if ($raw === '') {
-                continue;
-            }
-
-            $parts = array_map('trim', explode(',', $raw));
-            $normalizedparts = [];
-            foreach ($parts as $part) {
-                if ($part !== '') {
-                    $normalizedparts[] = $part;
-                }
-            }
-
-            if (!empty($normalizedparts)) {
-                $input[$field] = implode(', ', $normalizedparts);
-            }
-        }
-
-        return $input;
     }
 
     /**
@@ -115,11 +70,6 @@ class parameter_constructor {
     private function canonicalize_command_input(string $skillname, array $input): array {
         $input = $this->registry->normalize_skill_input($skillname, $input);
 
-        if (isset($input['search_queries']) && is_string($input['search_queries'])) {
-            $parts = array_values(array_filter(array_map('trim', explode(',', $input['search_queries']))));
-            $input['search_queries'] = $parts;
-        }
-
         foreach ($input as $key => $value) {
             if (is_array($value) && count($value) === 0) {
                 unset($input[$key]);
@@ -130,15 +80,16 @@ class parameter_constructor {
     }
 
     /**
-     * Hydrate a missing question field from the last user message.
+     * Hydrate any schema property flagged `from_user_message` with the last user message when the
+     * planner left it empty. Schema-driven: the engine names no domain field (audit 05-F01).
      *
      * @param string $skillname
      * @param array $input
      * @param string $lastusermessage
      * @return array
      */
-    private function hydrate_question_field(string $skillname, array $input, string $lastusermessage): array {
-        if ($lastusermessage === '' || trim((string)($input['question'] ?? '')) !== '') {
+    private function hydrate_user_message_fields(string $skillname, array $input, string $lastusermessage): array {
+        if ($lastusermessage === '') {
             return $input;
         }
 
@@ -147,10 +98,14 @@ class parameter_constructor {
             return $input;
         }
 
-        $schema = $skill->get_schema();
-        $props = $schema['properties'] ?? [];
-        if (isset($props['question'])) {
-            $input['question'] = $lastusermessage;
+        $props = $skill->get_schema()['properties'] ?? [];
+        foreach ($props as $field => $spec) {
+            if (!is_array($spec) || empty($spec['from_user_message'])) {
+                continue;
+            }
+            if (trim((string)($input[$field] ?? '')) === '') {
+                $input[$field] = $lastusermessage;
+            }
         }
 
         return $input;
@@ -183,39 +138,5 @@ class parameter_constructor {
         }
 
         return $cleaned;
-    }
-
-    /**
-     * Normalize a timestamp-like value to a unix timestamp.
-     *
-     * @param mixed $value
-     * @return int|null
-     */
-    private function normalize_timestamp_value($value): ?int {
-        if (is_int($value)) {
-            return $value > 0 ? $value : null;
-        }
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            if ($trimmed === '') {
-                return null;
-            }
-            if (ctype_digit($trimmed)) {
-                $parsed = (int)$trimmed;
-                return $parsed > 0 ? $parsed : null;
-            }
-            $parsed = strtotime($trimmed);
-            return $parsed !== false ? $parsed : null;
-        }
-        if (is_array($value)) {
-            if (isset($value['timestamp'])) {
-                return $this->normalize_timestamp_value($value['timestamp']);
-            }
-            if (isset($value['value'])) {
-                return $this->normalize_timestamp_value($value['value']);
-            }
-        }
-
-        return null;
     }
 }

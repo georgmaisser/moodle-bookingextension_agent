@@ -109,6 +109,7 @@ class explain_docs_skill extends core_skill_base implements
                     'type' => 'string',
                     'description' => 'The user\'s question or topic to look up, verbatim.',
                     'required' => true,
+                    'from_user_message' => true,
                 ],
                 'outputlang' => [
                     'type' => 'string',
@@ -271,9 +272,15 @@ class explain_docs_skill extends core_skill_base implements
             array_map('strval', (array)($input['doc_path_candidates'] ?? [])),
             static fn(string $v): bool => trim($v) !== ''
         ));
+        // Accept either an array or a comma-separated string — the engine no longer splits this
+        // field, domain handling stays in the skill (audit 05-F01).
+        $rawqueries = $input['search_queries'] ?? [];
+        if (is_string($rawqueries)) {
+            $rawqueries = explode(',', $rawqueries);
+        }
         $searchqueries = array_values(array_filter(
-            array_map('strval', (array)($input['search_queries'] ?? [])),
-            static fn(string $v): bool => trim($v) !== ''
+            array_map(static fn($v): string => trim((string)$v), (array)$rawqueries),
+            static fn(string $v): bool => $v !== ''
         ));
         $linestart = max(1, (int)($input['line_start'] ?? 1));
         $linecount = min(160, max(10, (int)($input['line_count'] ?? self::FIRST_STEP_LINE_COUNT)));
