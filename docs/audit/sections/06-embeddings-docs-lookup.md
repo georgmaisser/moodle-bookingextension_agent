@@ -27,7 +27,9 @@
 **Compensating control:** Corpora are admin-configured directories strictly under `$CFG->dirroot` (`corpus_source_parser` E2 confinement) and contain shipped `.md` docs, not user uploads — so today the markdown source is trusted. Residual risk is the day a corpus points at a directory that ingests less-trusted markdown. Also `target=_blank` external links already carry `rel="noopener noreferrer"` (line 216), showing scheme-awareness was intended.
 **Recommendation:** In `format_non_doc_link()` (and the external-URL branch is already fine), reject non-`http(s)`/non-relative schemes: if `parse_url` returns a non-empty `scheme` that is not `http`/`https`, drop the href (render the label as plain text or `#`). One guard closes the whole vector.
 
-### [06-F02] 🟡 MEDIUM · D3 Structure · classes/local/wizard/services/embeddings/embeddings_retrieval_service.php:50-79
+### [06-F02] ✅ RESOLVED (was 🟡 MEDIUM) · D3 Structure · classes/local/wizard/services/embeddings/embeddings_retrieval_service.php
+**✅ Resolved 2026-06-30:** the dead `search_top_k()` method was removed (re-verified 0 production + 0 test callers); the live multi-vector path (`search_top_k_skills` / `search_top_k_streaming`) is untouched. Two docblock comments and one in `docs_lookup_service` that referenced the removed method were updated. phpcs clean. — _Original finding below._
+
 **What:** `search_top_k()` is dead code — zero production and zero test callers.
 **Evidence:** Grepped the whole `classes/` + `tests/` tree: `search_top_k(` appears only at its own definition (`:50`) and in three doc-comments (`:91`, `:153`, and `docs_lookup_service.php:137`). The live skill-retrieval path uses `search_top_k_skills()` (multi-vector aggregation) and the docs path uses `search_top_k_streaming()`. No caller invokes the plain single-vector `search_top_k()`.
 **Impact:** Maintenance noise; a future reader may mistake it for the live retrieval entry point.

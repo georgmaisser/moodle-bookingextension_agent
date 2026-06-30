@@ -76,7 +76,7 @@ class docs_embeddings_index_service {
             ];
         }
 
-        if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
+        if (!class_exists(\bookingextension_agent\local\wizard\wb_action_names::GENERATE_EMBEDDINGS)) {
             return [
                 'status' => 'skipped',
                 'reason' => 'embeddings_provider_unavailable',

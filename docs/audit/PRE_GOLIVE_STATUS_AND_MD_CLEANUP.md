@@ -55,9 +55,22 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
   `bookingextension/agent:manageaiproviders` (leere archetypes = admin-only, explizit delegierbar, kein
   Automatismus). Beide Provider-Endpunkte umgestellt; Lang en/de + version-Bump.
 
-**MEDIUM, noch offen (nicht launch-gating):**
+**Engine-Cleanups erledigt 2026-06-30 (nach 05-F01, mit Freigabe):**
 
-- **[12-F02] MEDIUM** — `recreate_skill_catalog` mis-scoped `['module']` (sollte system sein).
+- ✅ **[C3-F01]** WB_ACTION_*-FQCN-Duplikation → zentrale `wb_action_names`-Klasse; alle 10 Klassen + 6 inline
+  `class_exists`-Literale aliasen sie (Drift inkl. Leading-Backslash eliminiert).
+- ✅ **[06-F02]** totes `search_top_k()` entfernt.
+- ℹ️ **[03-F05]** „totes `has_observations()`" = False Positive (wird genutzt).
+
+**MEDIUM/LOW, noch offen (nicht launch-gating):**
+
+- **[12-F02]** `recreate_skill_catalog`-Scope (`['module']` → system) — Scope-Deklaration nicht in der Skill-Datei,
+  bräuchte tieferen Blick.
+- **[C3-F02 / 03-F03 / 05-F02 / 04-F06]** weitere Logik-Duplikate (Issue-Code-Klassifizierer, `normalize_*`,
+  Provider-Error-Builder) — Verhaltens-riskantere Refactors; bewusst zurückgestellt (separat anschauen).
+- **[C2-F06]** `strict_types` (69/295) — am Orchestrator bewusst NICHT (bekannter Coercion-Bug).
+- **[05-F03]** `spawn_contract_service` — **behalten** (test-abgedeckter Spawn-Contract-Seam, ch.11 §8; kein toter Code).
+- **[02-F02]** totes `require_capability_at()` — Engine-Interface-Methode, Entfernung separat.
 
 **Doc-Coverage-HIGH-Cluster (Doku-only, siehe B):** C5-F01 (observability.md noch `local_wizard_`),
 C5-F02 / 03-F02 / 04-F07 (stale orchestrator-Zeilennummern), C5-F05 (`bx_agent_user_memory` in Data-Model fehlt).

@@ -34,19 +34,20 @@ use core_ai\aiactions\summarise_text;
 use core_ai\manager as ai_manager;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\llm_debug_logger;
+use bookingextension_agent\local\wizard\wb_action_names;
 
 /**
  * Provides one entry point for all model calls in the booking agent.
  */
 class llm_call_service {
     /** Wunderbyte planner action class name. */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
 
     /** Wunderbyte final reply action class name. */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
     /** Wunderbyte embedding action class name. */
-    private const WB_ACTION_GENERATE_EMBEDDINGS = 'aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+    private const WB_ACTION_GENERATE_EMBEDDINGS = wb_action_names::GENERATE_EMBEDDINGS;
 
     /** @var conversation_store */
     private conversation_store $store;

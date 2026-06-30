@@ -27,6 +27,7 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\skill_executability_evaluator;
 use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\skill_registry_factory;
+use bookingextension_agent\local\wizard\wb_action_names;
 use context_module;
 use core\di;
 use core_ai\manager as ai_manager;
@@ -40,7 +41,7 @@ use core_ai\manager as ai_manager;
  */
 class skill_selection_debug_service {
     /** Embeddings action class for wunderbyte provider. */
-    private const WB_ACTION_GENERATE_EMBEDDINGS = '\\aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+    private const WB_ACTION_GENERATE_EMBEDDINGS = wb_action_names::GENERATE_EMBEDDINGS;
 
     /** @var skill_registry */
     private skill_registry $registry;

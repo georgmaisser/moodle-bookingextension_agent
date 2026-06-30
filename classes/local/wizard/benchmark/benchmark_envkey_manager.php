@@ -55,13 +55,13 @@ namespace bookingextension_agent\local\wizard\benchmark;
  */
 class benchmark_envkey_manager extends \core_ai\manager {
     /** Action class: planner/selector. */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = \bookingextension_agent\local\wizard\wb_action_names::PLANNER_DECIDE;
 
     /** Action class: final agent reply. */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = \bookingextension_agent\local\wizard\wb_action_names::GENERATE_AGENT_REPLY;
 
     /** Action class: embeddings. */
-    private const WB_ACTION_GENERATE_EMBEDDINGS = 'aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+    private const WB_ACTION_GENERATE_EMBEDDINGS = \bookingextension_agent\local\wizard\wb_action_names::GENERATE_EMBEDDINGS;
 
     /** Wunderbyte provider class. */
     private const WB_PROVIDER_CLASS = 'aiprovider_wunderbyte\\provider';

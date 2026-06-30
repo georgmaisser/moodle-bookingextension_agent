@@ -49,6 +49,7 @@ use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_retrieval_service;
 use bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service;
 use bookingextension_agent\local\wizard\services\llm\llm_call_service;
+use bookingextension_agent\local\wizard\wb_action_names;
 
 /**
  * Runs the planner discovery phase: routing, runtime catalog assembly, embedding
@@ -64,7 +65,7 @@ class discovery_phase_service {
     use planner_phase_prompt_trait;
 
     /** Wunderbyte planner decide action class name (mirrors orchestrator private const). */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
 
     /** @var conversation_store */
     private conversation_store $store;

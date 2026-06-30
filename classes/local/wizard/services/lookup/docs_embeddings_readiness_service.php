@@ -41,7 +41,7 @@ class docs_embeddings_readiness_service {
      * @return bool
      */
     public function is_embeddings_provider_available(): bool {
-        return class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings');
+        return class_exists(\bookingextension_agent\local\wizard\wb_action_names::GENERATE_EMBEDDINGS);
     }
 
     /**

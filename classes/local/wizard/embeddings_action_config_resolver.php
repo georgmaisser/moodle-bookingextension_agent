@@ -31,7 +31,7 @@ namespace bookingextension_agent\local\wizard;
  */
 class embeddings_action_config_resolver {
     /** Embeddings action class key in provider action config. */
-    private const WB_ACTION_GENERATE_EMBEDDINGS = 'aiprovider_wunderbyte\\aiactions\\generate_embeddings';
+    private const WB_ACTION_GENERATE_EMBEDDINGS = wb_action_names::GENERATE_EMBEDDINGS;
 
     /** Wunderbyte provider class key. */
     private const WB_PROVIDER_CLASS = 'aiprovider_wunderbyte\\provider';

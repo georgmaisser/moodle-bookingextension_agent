@@ -27,8 +27,8 @@
 
 ## B. Findings
 
-### [C3-F01] 🟡 MEDIUM · D4 Duplication · 9 classes redeclare the `WB_ACTION_*` provider-action FQCNs
-**What:** The fully-qualified class names of the `aiprovider_wunderbyte` AI actions — `…\aiactions\planner_decide`, `…\aiactions\generate_agent_reply`, `…\aiactions\generate_embeddings` — are independently redeclared as `private const WB_ACTION_*` in nine separate classes, with no single canonical holder.
+### [C3-F01] ✅ RESOLVED (was 🟡 MEDIUM) · D4 Duplication · 9 classes redeclare the `WB_ACTION_*` provider-action FQCNs
+**✅ Resolved 2026-06-30:** added a single canonical holder `bookingextension_agent\local\wizard\wb_action_names` (consts `PLANNER_DECIDE` / `GENERATE_AGENT_REPLY` / `GENERATE_EMBEDDINGS`). All redeclared `WB_ACTION_*` consts now alias it (`= wb_action_names::X`), so the FQCN string lives in exactly one place — across the original 9 classes **plus** the newer `benchmark_provider_preview` (a 10th, same pattern). The drift this finding warned about (`skill_selection_debug_service` carried a leading backslash) is eliminated. The 6 inline `class_exists('\\…generate_embeddings')` literals in the rebuild tasks / index+readiness services were also re-pointed at `wb_action_names::GENERATE_EMBEDDINGS`. (Only `trial_provisioner` still embeds the FQCNs — there they are provider-actionconfig **map keys**, a different pattern; left as-is.) phpcs clean on all touched files. — _Original finding below._
 **Evidence:** `private const WB_ACTION_*` declarations in:
 - `local/wizard/orchestrator.php:88,91`
 - `local/wizard/embeddings_action_config_resolver.php:34`

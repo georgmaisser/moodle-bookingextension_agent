@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services;
 
 use bookingextension_agent\local\wb_license;
+use bookingextension_agent\local\wizard\wb_action_names;
 use core\di;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
@@ -51,10 +52,10 @@ class agent_access_service {
     private const WUNDERBYTE_LLM_HOST_SUFFIX = 'wunderbyte.at';
 
     /** Wunderbyte planner action class name (optional plugin, referenced by name). */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
 
     /** Wunderbyte final reply action class name (optional plugin, referenced by name). */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
     /** @var bool|null Request-scoped memoization (evaluator runs once per skill). */
     private static ?bool $fullaccess = null;

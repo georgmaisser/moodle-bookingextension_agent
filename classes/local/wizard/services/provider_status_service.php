@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services;
 
+use bookingextension_agent\local\wizard\wb_action_names;
 use core\context;
 use core\di;
 use core_ai\manager as ai_manager;
@@ -40,10 +41,10 @@ use core_ai\aiactions\summarise_text;
  */
 class provider_status_service {
     /** Wunderbyte planner action class (custom, not placement-backed in core). */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
 
     /** Wunderbyte final-reply action class (custom, not placement-backed in core). */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
     /** @var orchestrator_routing_service */
     private orchestrator_routing_service $routingsvc;

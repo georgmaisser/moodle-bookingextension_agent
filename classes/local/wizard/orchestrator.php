@@ -85,10 +85,10 @@ class orchestrator {
     public const EMBEDDINGS_REBUILD_DEBOUNCE_SECONDS = 100;
 
     /** Wunderbyte planner action class name. */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
 
     /** Wunderbyte final reply action class name. */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
     /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.

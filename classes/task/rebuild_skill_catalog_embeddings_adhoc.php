@@ -41,7 +41,7 @@ class rebuild_skill_catalog_embeddings_adhoc extends \core\task\adhoc_task {
      * @return void
      */
     public function execute(): void {
-        if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
+        if (!class_exists(\bookingextension_agent\local\wizard\wb_action_names::GENERATE_EMBEDDINGS)) {
             return;
         }
 

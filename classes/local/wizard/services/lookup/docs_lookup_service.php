@@ -134,7 +134,7 @@ class docs_lookup_service {
         $results = [];
         $dangling = false;
         foreach ($toprows as $hit) {
-            // Cosine similarity is stored under 'score' (0–1) by search_top_k().
+            // Cosine similarity is stored under 'score' (0–1) by the retrieval service.
             $score = (float)($hit['score'] ?? 0.0);
             if ($score < self::SEMANTIC_MIN_SCORE) {
                 continue;

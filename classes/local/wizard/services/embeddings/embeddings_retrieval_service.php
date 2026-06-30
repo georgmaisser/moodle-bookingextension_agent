@@ -40,45 +40,6 @@ class embeddings_retrieval_service {
     public const SEMANTIC_MIN_SCORE = 0.0;
 
     /**
-     * Search top-k skill rows by cosine similarity.
-     *
-     * @param array $queryvector
-     * @param array[] $catalogrows
-     * @param int $k
-     * @return array[]
-     */
-    public function search_top_k(array $queryvector, array $catalogrows, int $k = 5): array {
-        if ($k < 1 || empty($queryvector) || empty($catalogrows)) {
-            return [];
-        }
-
-        $scored = [];
-        foreach ($catalogrows as $row) {
-            $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
-            if (!is_array($embedding) || empty($embedding)) {
-                continue;
-            }
-
-            $score = vector_math::cosine_similarity($queryvector, $embedding);
-            $scored[] = [
-                'score' => $score,
-                'row' => $row,
-            ];
-        }
-
-        usort($scored, static function (array $a, array $b): int {
-            return $b['score'] <=> $a['score'];
-        });
-
-        $top = array_slice($scored, 0, $k);
-        return array_values(array_map(static function (array $entry): array {
-            $row = (array)$entry['row'];
-            $row['score'] = (string)($entry['score'] ?? 0.0);
-            return $row;
-        }, $top));
-    }
-
-    /**
      * Multi-vector skill retrieval: score every anchor row, aggregate to the MAX score per skill,
      * and return the top-k DISTINCT skills (SKILL_REWORK.md §5).
      *
@@ -88,8 +49,8 @@ class embeddings_retrieval_service {
      *   - matched_anchor_text  : the exact phrase that matched,
      *   - matched_anchor_index : its anchor index.
      * Distinct-skill aggregation is REQUIRED: without it, several anchors of one strong skill would
-     * crowd the top-k and starve other skills. The returned shape matches search_top_k() (one row per
-     * result, tagged with a 'score' string), so build_planner_catalog_subset() consumes it unchanged.
+     * crowd the top-k and starve other skills. Each returned row is tagged with a 'score' string (one
+     * row per result), so build_planner_catalog_subset() consumes it unchanged.
      *
      * @param array $queryvector
      * @param array[] $anchorrows
@@ -150,7 +111,7 @@ class embeddings_retrieval_service {
     /**
      * Stream top-k by cosine similarity over an iterable of rows, holding only k candidates in memory.
      *
-     * Identical ranking/output to search_top_k() (rows tagged with a 'score' string, descending), but
+     * Same ranking/output shape as search_top_k_skills (rows tagged with a 'score' string, descending), but
      * the catalog is consumed one row at a time and the heavy embedding vector is dropped once scored,
      * so peak memory is O(k) instead of O(catalog). Use for large stores (e.g. the docs index).
      *

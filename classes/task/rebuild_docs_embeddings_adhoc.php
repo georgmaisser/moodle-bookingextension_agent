@@ -47,7 +47,7 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
             return;
         }
 
-        if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
+        if (!class_exists(\bookingextension_agent\local\wizard\wb_action_names::GENERATE_EMBEDDINGS)) {
             mtrace('bookingextension_agent docs embeddings rebuild: skipped (embeddings provider unavailable)');
             return;
         }

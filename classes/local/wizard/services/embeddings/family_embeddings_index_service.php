@@ -52,7 +52,7 @@ class family_embeddings_index_service {
         ?int $dimensions = null,
         bool $forcefullregen = false
     ): array {
-        if (!class_exists('\\aiprovider_wunderbyte\\aiactions\\generate_embeddings')) {
+        if (!class_exists(\bookingextension_agent\local\wizard\wb_action_names::GENERATE_EMBEDDINGS)) {
             return [
                 'status' => 'skipped',
                 'reason' => 'embeddings_provider_unavailable',

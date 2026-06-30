@@ -31,16 +31,17 @@ use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\wb_action_names;
 
 /**
  * Build phase-specific prompt bundles without mixing orchestration concerns.
  */
 class phase_prompt_bundle_builder {
     /** Wunderbyte final reply action class name. */
-    private const WB_ACTION_GENERATE_AGENT_REPLY = 'aiprovider_wunderbyte\\aiactions\\generate_agent_reply';
+    private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
     /** Wunderbyte planner action class name. */
-    private const WB_ACTION_PLANNER_DECIDE = 'aiprovider_wunderbyte\\aiactions\\planner_decide';
+    private const WB_ACTION_PLANNER_DECIDE = wb_action_names::PLANNER_DECIDE;
 
     /** @var skill_registry */
     private skill_registry $registry;
