@@ -227,18 +227,21 @@ if ($agentenabled) {
         )
     );
 
-    // Seed the two default corpora so sites get the out-of-the-box documentation sources. The
-    // agent's own corpus points at the curated END-USER docs (docs/user) only, NOT the whole docs/
-    // tree, so explain_docs never embeds the developer/architecture docs (embedding cost + keeps
-    // internal docs out of user-facing answers). Re-seed when unset OR still on the previous bare
-    // default; a deliberately-emptied ('') or admin-customised value is preserved.
+    // Seed the two default corpora so sites get the out-of-the-box documentation sources. BOTH
+    // corpora point at the curated END-USER docs (docs/user) only, NOT the whole docs/ tree, so
+    // explain_docs never embeds the developer/architecture/implementation docs (embedding cost +
+    // keeps internal docs out of user-facing answers). Re-seed when unset, on the original bare
+    // default, OR on the previous half-scoped value (agent scoped, mod_booking still bare); a
+    // deliberately-emptied ('') or admin-customised value is preserved.
     $aidocsrootcurrent = get_config('bookingextension_agent', 'aidocsroot');
-    if ($aidocsrootcurrent === false || $aidocsrootcurrent === "bookingextension_agent\nmod_booking") {
-        set_config(
-            'aidocsroot',
-            "bookingextension_agent = mod/booking/bookingextension/agent/docs/user\nmod_booking",
-            'bookingextension_agent'
-        );
+    $aidocsrootscoped = "bookingextension_agent = mod/booking/bookingextension/agent/docs/user\n"
+        . "mod_booking = mod/booking/docs/user";
+    if (
+        $aidocsrootcurrent === false
+        || $aidocsrootcurrent === "bookingextension_agent\nmod_booking"
+        || $aidocsrootcurrent === "bookingextension_agent = mod/booking/bookingextension/agent/docs/user\nmod_booking"
+    ) {
+        set_config('aidocsroot', $aidocsrootscoped, 'bookingextension_agent');
     }
 
     // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a
@@ -293,7 +296,7 @@ if ($agentenabled) {
         'bookingextension_agent/aidocsroot',
         get_string('aidocsroot', 'bookingextension_agent'),
         $docscorporadesc,
-        "bookingextension_agent\nmod_booking",
+        $aidocsrootscoped,
         PARAM_RAW
     );
     // Fast path: a corpus change schedules an (gated) incremental rebuild straight away.
