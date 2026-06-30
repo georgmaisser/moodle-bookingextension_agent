@@ -19,7 +19,9 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\benchmark;
 
 use bookingextension_agent\local\wizard\wb_action_names;
-use bookingextension_agent\local\wizard\config\runtime_feature_flags;
+use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
+use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service;
+use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
  * Describes which provider/model/key values a benchmark run will actually use, so the
@@ -167,8 +169,11 @@ class benchmark_provider_preview {
         $envendpoint   = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
         $envactive     = $envkey !== '';
 
-        // Whether family/skill embeddings are currently live — the routing mode a run would use.
-        $embeddingsactive = runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED);
+        // Embeddings are live for routing iff the skill catalog is current for the active variant —
+        // the same freshness check skill_governance surfaces. When live, capture the embedding model.
+        $embedoverride = ($envactive && $envembedmodel !== '') ? $envembedmodel : null;
+        $embeddingsmodel = self::catalog_model_if_ready($embedoverride);
+        $embeddingsactive = $embeddingsmodel !== '';
 
         // Resolve the target instance: the one requested, else the default (first sorted).
         $instances = $this->provider_instances();
@@ -217,6 +222,7 @@ class benchmark_provider_preview {
         return [
             'env_override_active' => $envactive,
             'embeddings_active'   => $embeddingsactive,
+            'embeddings_model'    => $embeddingsmodel,
             'provider_found'      => $providerfound,
             'instance_enabled'    => $instenabled,
             'instance_id'         => $instid,
@@ -229,5 +235,27 @@ class benchmark_provider_preview {
                 ['label' => get_string('benchmark_run_action_embed', 'bookingextension_agent')] + $embed,
             ],
         ];
+    }
+
+    /**
+     * The embedding model in use when the skill catalog is current for the active variant (the same
+     * freshness check skill_governance surfaces), or '' when the catalog is stale/missing or no
+     * embeddings provider is available — i.e. when embeddings are not live for routing.
+     *
+     * @param string|null $modeloverride Explicit embedding-model override (CLI env), or null.
+     * @return string
+     */
+    public static function catalog_model_if_ready(?string $modeloverride = null): string {
+        $readiness = new embeddings_readiness_service();
+        if (!$readiness->is_wunderbyte_embeddings_available()) {
+            return '';
+        }
+        $cfg = (new embeddings_action_config_resolver())->resolve_with_overrides($modeloverride, null);
+        $status = $readiness->get_catalog_status(
+            skill_registry_factory::get_default(),
+            (string)$cfg['model'],
+            (int)$cfg['dimensions']
+        );
+        return ((string)($status['status'] ?? '')) === 'ready' ? (string)$cfg['model'] : '';
     }
 }

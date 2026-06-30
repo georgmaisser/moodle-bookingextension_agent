@@ -59,6 +59,7 @@ class benchmark_db_writer {
             'environment'        => $rundata['environment'] ?? 'local',
             'git_ref'            => $rundata['git_ref'] ?? '',
             'embeddings_used'    => $rundata['embeddings_used'] ?? 0,
+            'embeddings_model'   => $rundata['embeddings_model'] ?? '',
             'timecreated'        => $now,
         ]);
 

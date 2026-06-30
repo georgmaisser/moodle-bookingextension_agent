@@ -151,9 +151,10 @@ if (has_capability('bookingextension/agent:runbenchmarks', context_system::insta
     if (!$preview['provider_found'] && !$preview['env_override_active']) {
         $note .= $OUTPUT->notification(get_string('benchmark_run_provider_missing', 'bookingextension_agent'), 'warning');
     }
-    // Whether embeddings are currently live for the run (family/skill embeddings flag).
+    // Whether embeddings are live for the run — true iff the skill catalog is current. When live, show
+    // the embedding model that will be used.
     $emblabel = $preview['embeddings_active']
-        ? get_string('benchmark_run_embeddings_live', 'bookingextension_agent')
+        ? get_string('benchmark_run_embeddings_live', 'bookingextension_agent') . ' — ' . s((string)$preview['embeddings_model'])
         : get_string('benchmark_run_embeddings_off', 'bookingextension_agent');
     $embbadge = $preview['embeddings_active'] ? 'badge badge-success' : 'badge badge-secondary';
     $note .= html_writer::div(
@@ -350,7 +351,10 @@ foreach ($runs as $run) {
         htmlspecialchars($run->model_id),
         htmlspecialchars($run->skill_set),
         !empty($run->embeddings_used)
-            ? html_writer::span(get_string('benchmark_embeddings_on', 'bookingextension_agent'), 'badge badge-success')
+            ? html_writer::span(
+                s((string)($run->embeddings_model ?? '') ?: get_string('benchmark_embeddings_on', 'bookingextension_agent')),
+                'badge badge-success'
+            )
             : html_writer::span(get_string('benchmark_embeddings_off', 'bookingextension_agent'), 'badge badge-secondary'),
         html_writer::span("{$rate}%", "badge badge-{$color}"),
         "{$run->passed}/{$run->total_scenarios}",

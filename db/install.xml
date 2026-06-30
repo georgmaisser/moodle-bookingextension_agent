@@ -109,6 +109,7 @@
         <FIELD NAME="environment" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="git_ref" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="embeddings_used" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if family/skill embeddings were live for this run, 0 if keyword-only routing"/>
+        <FIELD NAME="embeddings_model" TYPE="char" LENGTH="80" NOTNULL="false" SEQUENCE="false" COMMENT="Embedding model used when embeddings were live (catalog current); empty when not live"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>

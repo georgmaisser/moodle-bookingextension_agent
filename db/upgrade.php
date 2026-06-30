@@ -43,5 +43,15 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026063003, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026063008) {
+        // Record the embedding model used when embeddings were live (catalog current) for a run.
+        $table = new xmldb_table('bx_agent_benchmark_runs');
+        $field = new xmldb_field('embeddings_model', XMLDB_TYPE_CHAR, '80', null, null, null, null, 'embeddings_used');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026063008, 'bookingextension', 'agent');
+    }
+
     return true;
 }

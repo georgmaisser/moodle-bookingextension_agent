@@ -314,6 +314,9 @@ if ($regression && $tier !== 'deterministic') {
     cli_writeln("WARNING: Critical metric regression detected!");
 }
 
+$embeddingsmodel = \bookingextension_agent\local\wizard\benchmark\benchmark_provider_preview::catalog_model_if_ready(
+    trim((string)(getenv('BOOKING_TEST_AI_EMBEDDING_MODEL') ?: '')) ?: null
+);
 $rundata = [
     'label'              => $label,
     'model_id'           => $modelid,
@@ -328,6 +331,8 @@ $rundata = [
     'duration_ms'        => $rundurationms,
     'environment'        => $env,
     'git_ref'            => $gitref,
+    'embeddings_used'    => $embeddingsmodel !== '' ? 1 : 0,
+    'embeddings_model'   => $embeddingsmodel,
     'regression_detected' => $regression ? 1 : 0,
 ];
 
