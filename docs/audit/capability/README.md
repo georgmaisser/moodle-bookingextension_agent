@@ -177,11 +177,20 @@ The three HIGH findings are fixed, each with a first-of-its-kind capability deni
 phpcs 0/0 on all; all tests run green on the VM (Moodle 5.1.1+, PHP 8.3). Commits: agent
 `1c76453` (CAP-01 + audit corpus), `7b9b2bd` (CAP-03); mod_booking `547db7fab` (CAP-02).
 
-**New finding surfaced during CAP-03 verification — `oneclick.*` mutating skills declare no native
-capabilities.** The governance test `native_capability_guard_test::test_every_mutating_skill_declares_native_capabilities`
-fails on an environment with the `bookingextension/oneclick` plugin installed because
-`oneclick.create_instance` / `oneclick.delete_instance` are mutating skills with **no**
-`get_required_native_capabilities()` → Gate 2 is a no-op for them (same exposure class as CAP-03,
-in a different plugin). Out of scope for this audit (separate repo); flagged for the oneclick maintainer.
+**Note (corrected) — `oneclick.*` and the governance test.** During CAP-03 verification the test
+`native_capability_guard_test::test_every_mutating_skill_declares_native_capabilities` fails on an
+environment with `bookingextension/oneclick` installed, because `oneclick.create_instance` /
+`oneclick.delete_instance` return `get_required_native_capabilities() = []`. **This is NOT a security
+hole** (an earlier note here wrongly called it a write hole): both skills are gated by their Gate-1
+skill-use capabilities `bookingextension/oneclick:skill_oneclick_create_instance` /
+`:skill_oneclick_delete_instance` — both **`write`, manager-only**, with `RISK_SPAM` / `RISK_DATALOSS`
+(`oneclick/db/access.php`). And they do not write into a Moodle course at all: they call an **external
+provisioner API** (`provisioner_client` → /spawn, /execute) to spin up a *separate* trial Moodle
+instance — there is no cross-course / cross-context Moodle target. They legitimately have no
+Moodle-native capability to declare, so Gate 1 (manager-only) is the correct and sufficient gate.
+The real takeaway is that the governance **invariant is too strict** for external-provisioning skills:
+either whitelist them in `test_every_mutating_skill_declares_native_capabilities` or have them declare
+a sentinel. Out of scope for this audit (separate plugin); flagged for the oneclick maintainer as a
+test-fit issue, not a vulnerability.
 
 The MEDIUM/LOW findings (CAP-04…CAP-12) remain open per the fix plan above.
