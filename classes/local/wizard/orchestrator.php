@@ -30,7 +30,6 @@ use core_ai\aiactions\explain_text;
 use core_ai\aiactions\generate_text;
 use core_ai\aiactions\summarise_text;
 use core\di;
-use core_text;
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
 use bookingextension_agent\local\wizard\interfaces\agent_interpreter;
 use bookingextension_agent\local\wizard\queue\queue_manager;
@@ -63,6 +62,8 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class orchestrator {
+    use provider_error_result_trait;
+
     /** Discovery planner phase identifier. */
     public const PHASE_DISCOVERY = 'discovery';
 
@@ -385,66 +386,6 @@ class orchestrator {
         }
 
         return $interpreted;
-    }
-
-    /**
-     * Build a standardized provider error payload.
-     *
-     * Shared by the synchronizer step here and (duplicated) by planner_phase_service.
-     *
-     * @param array $call
-     * @return array
-     */
-    private function build_provider_error_result(array $call): array {
-        $errormessage = (string)($call['errormessage'] ?? 'Provider returned an error.');
-        $errorcode = (int)($call['errorcode'] ?? 0);
-        $errorname = (string)($call['errorname'] ?? '');
-        $issuecodes = ai_error_classifier::classify_from_response($errormessage, $errorcode, $errorname);
-
-        $errorclass = 'provider_error';
-        if (in_array('TRIAL_TOKEN_INVALID', $issuecodes, true)) {
-            $errorclass = 'auth_failed';
-        } else if (in_array('AI_PROVIDER_QUOTA_EXCEEDED', $issuecodes, true)) {
-            $errorclass = 'quota_exceeded';
-        } else {
-            $lower = core_text::strtolower($errormessage);
-            if (strpos($lower, 'timeout') !== false || strpos($lower, 'timed out') !== false) {
-                $errorclass = 'provider_timeout';
-            } else if (strpos($lower, 'curl error 28') !== false || strpos($lower, 'connection reset') !== false) {
-                $errorclass = 'transient_io';
-            }
-        }
-
-        return [
-            'response_type' => 'error',
-            // Deliberately empty: the template fallback resolves the localized
-            // class-specific text from error_class (provider classes never go to
-            // the synchronizer — the provider itself is the failing component).
-            'message' => '',
-            'commands' => [],
-            'ambiguities' => [],
-            'errors' => [$errormessage],
-            'issue_codes' => $issuecodes,
-            'error_class' => $errorclass,
-        ];
-    }
-
-    /**
-     * Build a standardized empty-provider payload.
-     *
-     * @return array
-     */
-    private function build_empty_provider_result(): array {
-        return [
-            'response_type' => 'error',
-            // Deliberately empty — the transient_io class template resolves it.
-            'message' => '',
-            'commands' => [],
-            'ambiguities' => [],
-            'errors' => ['Provider returned empty content.'],
-            'issue_codes' => [],
-            'error_class' => 'transient_io',
-        ];
     }
 
     /**

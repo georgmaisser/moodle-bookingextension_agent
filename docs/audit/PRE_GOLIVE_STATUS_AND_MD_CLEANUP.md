@@ -65,8 +65,9 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
 - ℹ️ **[03-F05]** „totes `has_observations()`" = False Positive (wird genutzt).
 
 **MEDIUM/LOW, noch offen (nicht launch-gating):**
-- **[C3-F02 / 03-F03 / 05-F02 / 04-F06]** weitere Logik-Duplikate (Issue-Code-Klassifizierer, `normalize_*`,
-  Provider-Error-Builder) — Verhaltens-riskantere Refactors; bewusst zurückgestellt (separat anschauen).
+- ✅ **[04-F06]** byte-identische Provider-Error-Builder → in `provider_error_result_trait` extrahiert (erledigt).
+- **[C3-F02 / 03-F03 / 05-F02]** weitere Logik-Duplikate (Issue-Code-Klassifizierer, `normalize_*`) —
+  Verhaltens-riskantere Merges (Klassifizierer könnten subtil divergieren); bewusst zurückgestellt.
 - **[C2-F06]** `strict_types` (69/295) — am Orchestrator bewusst NICHT (bekannter Coercion-Bug).
 - **[05-F03]** `spawn_contract_service` — **behalten** (test-abgedeckter Spawn-Contract-Seam, ch.11 §8; kein toter Code).
 - **[02-F02]** totes `require_capability_at()` — Engine-Interface-Methode, Entfernung separat.

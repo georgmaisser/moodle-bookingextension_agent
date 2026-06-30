@@ -54,7 +54,9 @@ The strict two-call planner split, the family signal formula (base .20 / core .1
 **Compensating control:** Two-gate capability enforcement downstream; constrained JSON output contract; per-phase allowed-skill restriction in construction (`allowed_skills => [$selectedskill]`).
 **Recommendation:** Accept as residual (inherent to text-prompt LLMs). Optionally strip bracketed section markers from user `$content` before injection as defence-in-depth.
 
-### [04-F06] 🟢 LOW · D4 Duplication · classes/local/wizard/orchestrator.php:398-448 ↔ classes/local/wizard/services/planner_phase_service.php:752-802
+### [04-F06] ✅ RESOLVED (was 🟢 LOW) · D4 Duplication · orchestrator ↔ planner_phase_service
+**✅ Resolved 2026-06-30:** the two byte-identical builders were extracted into a shared `provider_error_result_trait` (namespace `bookingextension_agent\local\wizard`). Both `orchestrator` and `planner_phase_service` now `use` the trait and their duplicate copies were removed (the orphaned `core_text` / `ai_error_classifier` imports were cleaned up too). A fix to the error-class ladder is now made once. php -l + phpcs clean. — _Original finding below._
+
 **What:** `build_provider_error_result()` and `build_empty_provider_result()` are byte-for-byte duplicated between the orchestrator (synchronizer path) and `planner_phase_service` (planner path), including the identical error-class classification ladder.
 **Evidence:** Compare orchestrator.php:398-448 with planner_phase_service.php:752-802 — same body, same comments. The orchestrator docblock at line 393 even notes "Shared by the synchronizer step here and (duplicated) by planner_phase_service."
 **Impact:** Two copies drift independently; a fix to error classification must be made twice.
