@@ -5,25 +5,32 @@
 
 ## 1. Install-only rollout
 
-New schema for the agent ships via [`db/install.xml`](../../db/install.xml) **only** — there
-are no `upgrade.php` migrations for the agent's own tables (the `LG_DB` legend). For a
-contributor this means: change `install.xml`, bump `version.php`, and rely on a clean
-(re)install of the plugin tables rather than incremental migration steps.
+The agent is **install-only**: it has never shipped to production, so there is no legacy
+schema to migrate. The complete schema ships via [`db/install.xml`](../../db/install.xml), and
+[`db/upgrade.php`](../../db/upgrade.php) is intentionally **empty** (`return true;`) — it carries
+no migrations of any kind. For a contributor this means: add/change the table in `install.xml`,
+bump `version.php`, and rely on a clean (re)install of the plugin tables rather than incremental
+migration steps. **Do not** add `create_table`/`add_field` migrations to `upgrade.php`.
+
+> **History.** Earlier `upgrade.php` revisions migrated tables under an abandoned
+> `local_wizard_` prefix that no runtime code uses; those bodies were a rename trap (they could
+> never reach a working install) and were removed. If you still see that prefix referenced
+> anywhere, it is stale.
 
 ## 2. Table prefix
 
-All agent tables use the **`local_wizard_`** prefix (a legacy of the engine namespace),
-**not** `bookingextension_agent_`. With the Moodle DB prefix `m_`, the physical table for
-LLM debug logs is e.g. `m_local_wizard_ai_llm_debug`.
+All agent tables use the **`bx_agent_`** prefix, **not** `local_wizard_` (an abandoned legacy
+of the engine namespace) or `bookingextension_agent_`. With the Moodle DB prefix `m_`, the
+physical table for LLM debug logs is e.g. `m_bx_agent_ai_llm_debug`.
 
 ## 3. Conversation tables
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
-| `local_wizard_ai_threads` | one conversation per (user, context) | `id`, `userid`, `contextid`, `status` (`active`/archived), `metadatajson`, `timecreated`, `timemodified` |
-| `local_wizard_ai_messages` | messages in a thread | `id`, `threadid`→threads, `userid`, `role` (`user`/`assistant`/`system`/`step`), `content`, `structuredjson`, `timecreated` |
-| `local_wizard_ai_runs` | a confirmed/executed command set (unit of idempotency) | `id`, `threadid`, `userid`, `contextid`, `status` (`pending`→`completed`/`failed`), `idempotencykey` (sha256), `commandsjson`, `timecreated`, `timemodified` |
-| `local_wizard_ai_llm_debug` | raw LLM exchanges (debug mode) | `id`, `threadid`, `userid`, `contextid`, `source`, `success`, request/response text, `timecreated` |
+| `bx_agent_ai_threads` | one conversation per (user, context) | `id`, `userid`, `contextid`, `status` (`active`/archived), `metadatajson`, `timecreated`, `timemodified` |
+| `bx_agent_ai_messages` | messages in a thread | `id`, `threadid`→threads, `userid`, `role` (`user`/`assistant`/`system`/`step`), `content`, `structuredjson`, `timecreated` |
+| `bx_agent_ai_runs` | a confirmed/executed command set (unit of idempotency) | `id`, `threadid`, `userid`, `contextid`, `status` (`pending`→`completed`/`failed`), `idempotencykey` (sha256), `commandsjson`, `timecreated`, `timemodified` |
+| `bx_agent_ai_llm_debug` | raw LLM exchanges (debug mode) | `id`, `threadid`, `userid`, `contextid`, `source`, `success`, request/response text, `timecreated` |
 
 ## 4. Where the queue, pending intent, and traces live
 
@@ -31,7 +38,7 @@ There is **no queue table**. The [shadow queue](../architecture/10-shadow-queue.
 persisted **inside the thread's `metadatajson`** (`queue_manager` reads/writes the
 `META_QUEUE_ITEMS` key via `conversation_store::get/set_thread_metadata_value`). The atomic
 "one running item per thread" lock is a `SELECT … FOR UPDATE` on
-`local_wizard_ai_threads`.
+`bx_agent_ai_threads`.
 
 The same `metadatajson` blob also holds the well-known keys documented in
 [ch. 03 §5](../architecture/03-conversation-store.md#5-thread-metadata): `pending_intent`,
@@ -46,10 +53,10 @@ The same `metadatajson` blob also holds the well-known keys documented in
 
 | Table | Purpose |
 |-------|---------|
-| `local_wizard_benchmark_runs` | one row per benchmark run (model, success rate, tokens, cost, duration, baseline flags) |
-| `local_wizard_benchmark_scenarios` | per-scenario results (passed, json_valid, contract_compliant, expected/actual, tokens) |
-| `local_wizard_benchmark_metrics` | aggregated metric snapshots per run (key/value/unit/scenario_class) |
-| `local_wizard_benchmark_baselines` | pinned baselines for regression comparison |
+| `bx_agent_benchmark_runs` | one row per benchmark run (model, success rate, tokens, cost, duration, baseline flags) |
+| `bx_agent_benchmark_scenarios` | per-scenario results (passed, json_valid, contract_compliant, expected/actual, tokens) |
+| `bx_agent_benchmark_metrics` | aggregated metric snapshots per run (key/value/unit/scenario_class) |
+| `bx_agent_benchmark_baselines` | pinned baselines for regression comparison |
 
 See [operations/benchmarking.md](../operations/benchmarking.md).
 
@@ -71,9 +78,9 @@ scheduled/ad-hoc tasks in [`db/tasks.php`](../operations/tasks-and-async.md).
 ## 8. Entity sketch
 
 ```
-local_wizard_ai_threads (1) ──< local_wizard_ai_messages (N)
+bx_agent_ai_threads (1) ──< bx_agent_ai_messages (N)
         │  └─ metadatajson: { queue items, pending_intent, traces, … }
-        └──< local_wizard_ai_runs (N) ── idempotencykey
-local_wizard_ai_llm_debug ── threadid (debug mode)
-local_wizard_benchmark_runs (1) ──< scenarios / metrics ; baselines
+        └──< bx_agent_ai_runs (N) ── idempotencykey
+bx_agent_ai_llm_debug ── threadid (debug mode)
+bx_agent_benchmark_runs (1) ──< scenarios / metrics ; baselines
 ```
