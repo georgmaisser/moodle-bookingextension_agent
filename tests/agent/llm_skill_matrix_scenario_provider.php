@@ -992,24 +992,6 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
-            'oneclick.create_instance' => [
-                'prompt' => 'Use oneclick.create_instance to provision a new booking activity called '
-                    . '"Oneclick {{batch_label}}" in this course.',
-                'skip_reason' => 'Requires configured oneclick provisioner templates that are not seeded in CI.',
-                'assertions' => [
-                    [
-                        'target' => 'final',
-                        'type' => 'field_equals',
-                        'field' => 'status',
-                        'value' => 'executed',
-                    ],
-                    [
-                        'target' => 'chat',
-                        'type' => 'step_count_gte',
-                        'value' => 1,
-                    ],
-                ],
-            ],
         ];
     }
 }
