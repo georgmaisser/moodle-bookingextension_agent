@@ -21,7 +21,6 @@ namespace bookingextension_agent\local\wizard\services;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\queue\queue_manager;
 use bookingextension_agent\local\wizard\services\queue_status_policy;
-use core_text;
 
 /**
  * Builds and normalizes completed command history for runtime prompt context.
@@ -41,6 +40,17 @@ use core_text;
  *   Source-of-truth hierarchy: observations > completed_commands > assistant narrative.
  */
 class completed_command_history_service {
+    /**
+     * Compact normalization preset for the completed_commands prompt blob: drop noise keys,
+     * cap strings/lists and drop empties to keep the blob small (audit 03-F03).
+     */
+    private const COMPACT_OPTS = [
+        'dropkeys' => ['confirmed', 'outputlang', 'lang', 'user_lang', 'sessiontoken', 'sesskey'],
+        'capstring' => 160,
+        'caplist' => 20,
+        'dropempty' => true,
+    ];
+
     /** @var conversation_store */
     private conversation_store $store;
 
@@ -117,7 +127,7 @@ class completed_command_history_service {
 
             $input = (array)($entry['input'] ?? $entry['executed_input'] ?? []);
             $compact = ['skill' => $skill];
-            $normalizedinput = $this->normalize_input($input);
+            $normalizedinput = input_normalizer::normalize($input, self::COMPACT_OPTS);
             if (!empty($normalizedinput)) {
                 $compact['input'] = $normalizedinput;
             }
@@ -180,7 +190,7 @@ class completed_command_history_service {
             }
 
             $compact = ['skill' => $skill];
-            $normalizedinput = $this->normalize_input($input);
+            $normalizedinput = input_normalizer::normalize($input, self::COMPACT_OPTS);
             if (!empty($normalizedinput)) {
                 $compact['input'] = $normalizedinput;
             }
@@ -229,84 +239,5 @@ class completed_command_history_service {
         }
 
         return hash('sha256', $skill . '|' . $json);
-    }
-
-    /**
-     * Normalize executed input for SYSTEM_RUNTIME.completed_commands.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function normalize_input(array $input): array {
-        $dropkeys = [
-            'confirmed',
-            'outputlang',
-            'lang',
-            'user_lang',
-            'sessiontoken',
-            'sesskey',
-        ];
-
-        $normalized = [];
-        foreach ($input as $key => $value) {
-            if (!is_string($key) || $key === '' || in_array($key, $dropkeys, true)) {
-                continue;
-            }
-
-            $cleanvalue = $this->normalize_value($value);
-            if ($cleanvalue === null) {
-                continue;
-            }
-
-            $normalized[$key] = $cleanvalue;
-        }
-
-        return $normalized;
-    }
-
-    /**
-     * Normalize one completed command value recursively.
-     *
-     * @param mixed $value
-     * @return mixed|null
-     */
-    private function normalize_value($value) {
-        if (is_null($value) || is_bool($value) || is_int($value) || is_float($value)) {
-            return $value;
-        }
-
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            if ($trimmed === '') {
-                return null;
-            }
-            return core_text::substr($trimmed, 0, 160);
-        }
-
-        if (is_array($value)) {
-            $out = [];
-            $count = 0;
-            foreach ($value as $k => $v) {
-                if ($count >= 20) {
-                    break;
-                }
-
-                $normalized = $this->normalize_value($v);
-                if ($normalized === null) {
-                    continue;
-                }
-
-                if (is_string($k)) {
-                    $out[$k] = $normalized;
-                } else {
-                    $out[] = $normalized;
-                }
-                $count++;
-            }
-
-            return empty($out) ? null : $out;
-        }
-
-        return null;
     }
 }

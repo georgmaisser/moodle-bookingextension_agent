@@ -66,9 +66,9 @@ non-gating MEDIUM/LOW/INFO). Alle **sicherheits-/privacy-/datenkritischen HIGHs 
 
 **MEDIUM/LOW, noch offen (nicht launch-gating):**
 - ✅ **[04-F06]** byte-identische Provider-Error-Builder → in `provider_error_result_trait` extrahiert (erledigt).
-- **[03-F03]** `normalize_input`-Duplikat — die zwei Kopien sind **bereits divergiert** (eine kappt Strings/Listen,
-  die andere `ksort`t ohne Kappung) → Merge = Verhaltens-Entscheidung (welches Verhalten ist kanonisch?), kein
-  mechanischer Extract. Deine Entscheidung nötig.
+- ✅ **[03-F03]** `normalize_input`-Duplikat → **gelöst (Option A)**: gemeinsamer `input_normalizer::normalize($input,$opts)`,
+  beide Verhalten als Presets (compact vs signature) **byte-genau erhalten** (20/20 Standalone-Äquivalenz bewiesen);
+  PHPUnit-Test nagelt beide fest; Flowchart-Signatur-Determinismus intakt.
 - **[05-F02]** `prune_empty_input_values`-Duplikat — verbatim, extrahierbar, **aber** in `parameter_constructor.php`
   (gerade für 05-F01 refaktoriert) → Kollisionsrisiko; harmlos (beide Kopien stimmen überein); vertagt.
 - **[C3-F02]** parallele Issue-Code-Klassifizierer — Merge verhaltens-riskant (könnten subtil divergieren).

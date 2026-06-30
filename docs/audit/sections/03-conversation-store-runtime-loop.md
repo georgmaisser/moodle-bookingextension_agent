@@ -66,7 +66,9 @@ budget guard) were verified correct against `agent_runtime.php`.
 **Recommendation:** Update §9 line citations to the `planner_phase_service`/`discovery_phase_service`
 locations (tracked centrally as C5-F02).
 
-### [03-F03] 🟡 MEDIUM · D4 Duplication · services/completed_command_history_service.php:240 + services/execution_observation_ledger.php:233
+### [03-F03] ✅ RESOLVED (was 🟡 MEDIUM) · D4 Duplication · services/completed_command_history_service.php + services/execution_observation_ledger.php
+**✅ Resolved 2026-06-30 (option A — parameterized, behaviour-preserving):** the shared drop-key list + recursion skeleton are now in one place, `services/input_normalizer::normalize($input, $opts)`. The two genuinely-different transforms are kept exactly and expressed as explicit option presets: the **compact** consumer (`completed_command_history_service`, COMPACT_OPTS = capstring 160 / caplist 20 / dropempty) and the **signature** consumer (`execution_observation_ledger`, SIGNATURE_OPTS = ksort, keep-everything). Both private `normalize_input/normalize_value` pairs were removed. **Equivalence was proven**: a standalone harness ran 10 representative inputs through the original method bodies vs the helper for both presets — **20/20 byte-identical**, so the dedupe signature (idempotency) and the prompt blob are unchanged (the flowchart's signature-determinism claim is intact). A new `tests/input_normalizer_test.php` locks both presets so they can't be silently merged again. php -l + phpcs clean. — _Original finding below._
+
 **What:** `normalize_input()` and its recursive `normalize_value()` helper are duplicated almost verbatim
 across two runtime services.
 **Evidence:** Both define `$dropkeys = ['confirmed','outputlang','lang','user_lang','sessiontoken','sesskey']`

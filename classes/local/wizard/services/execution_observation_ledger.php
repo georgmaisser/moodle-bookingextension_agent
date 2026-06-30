@@ -41,6 +41,15 @@ use bookingextension_agent\local\wizard\result_payload_summarizer;
  *   Source-of-truth hierarchy: observations > completed_commands > assistant narrative.
  */
 class execution_observation_ledger {
+    /**
+     * Signature normalization preset: drop noise keys and ksort (top level and nested maps)
+     * for an order-stable dedupe signature; values are kept verbatim (audit 03-F03).
+     */
+    private const SIGNATURE_OPTS = [
+        'dropkeys' => ['confirmed', 'outputlang', 'lang', 'user_lang', 'sessiontoken', 'sesskey'],
+        'ksort' => true,
+    ];
+
     /** Metadata key for persisted execution observations. */
     private const META_KEY = '_execution_observations_v1';
 
@@ -118,7 +127,7 @@ class execution_observation_ledger {
                 'source' => $source,
                 'skill' => $skill,
                 'status' => $status,
-                'input' => $this->normalize_input($input),
+                'input' => input_normalizer::normalize($input, self::SIGNATURE_OPTS),
                 'observation_canonical' => $observationcanonical,
                 'observation_full' => $observationfull,
                 'produced_outputs' => is_array($entry['produced_outputs'] ?? null) ? (array)$entry['produced_outputs'] : [],
@@ -222,56 +231,6 @@ class execution_observation_ledger {
         }
 
         return array_values(array_filter($value, static fn($row): bool => is_array($row)));
-    }
-
-    /**
-     * Normalize input for stable signatures and compact planner context.
-     *
-     * @param array $input
-     * @return array
-     */
-    private function normalize_input(array $input): array {
-        $dropkeys = [
-            'confirmed',
-            'outputlang',
-            'lang',
-            'user_lang',
-            'sessiontoken',
-            'sesskey',
-        ];
-
-        $normalized = [];
-        foreach ($input as $key => $value) {
-            if (!is_string($key) || $key === '' || in_array($key, $dropkeys, true)) {
-                continue;
-            }
-            $normalized[$key] = $this->normalize_value($value);
-        }
-
-        ksort($normalized);
-        return $normalized;
-    }
-
-    /**
-     * Recursively normalize scalar/list/map value.
-     *
-     * @param mixed $value
-     * @return mixed
-     */
-    private function normalize_value($value) {
-        if (!is_array($value)) {
-            return $value;
-        }
-
-        if (array_is_list($value)) {
-            return array_map(fn($item) => $this->normalize_value($item), $value);
-        }
-
-        ksort($value);
-        foreach ($value as $k => $item) {
-            $value[$k] = $this->normalize_value($item);
-        }
-        return $value;
     }
 
     /**
