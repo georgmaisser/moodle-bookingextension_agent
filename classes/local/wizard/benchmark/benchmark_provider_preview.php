@@ -18,8 +18,8 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\benchmark;
 
+use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\wb_action_names;
-use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wizard\skill_registry_factory;
 
@@ -85,7 +85,7 @@ class benchmark_provider_preview {
      * a model, and read that action's model + endpoint from its settings.
      *
      * @param \core_ai\provider $provider
-     * @return array{key: string, planner: string, reply: string, embed: string, endpoint: string}
+     * @return array{key: string, planner: string, reply: string, embed: string, embeddims: int, endpoint: string}
      */
     public static function extract_overrides(\core_ai\provider $provider): array {
         $config = (array)($provider->config ?? []);
@@ -105,7 +105,8 @@ class benchmark_provider_preview {
 
         [$replyaction, $replymodel] = $pick(self::ROLE_ACTIONS['reply']);
         [, $plannermodel]           = $pick(self::ROLE_ACTIONS['planner']);
-        [, $embedmodel]             = $pick(self::ROLE_ACTIONS['embed']);
+        [$embedaction, $embedmodel] = $pick(self::ROLE_ACTIONS['embed']);
+        $embeddims = $embedaction !== '' ? (int)($ac[$embedaction]['settings']['dimensions'] ?? 0) : 0;
 
         // Endpoint lives in the action settings (not config); take it from the reply action, else the
         // first action that carries one, else any config-level endpoint.
@@ -127,6 +128,7 @@ class benchmark_provider_preview {
             'planner'  => $plannermodel,
             'reply'    => $replymodel,
             'embed'    => $embedmodel,
+            'embeddims' => $embeddims,
             'endpoint' => $endpoint,
         ];
     }
@@ -169,12 +171,6 @@ class benchmark_provider_preview {
         $envendpoint   = trim((string)(getenv('BOOKING_TEST_AI_ENDPOINT') ?: ''));
         $envactive     = $envkey !== '';
 
-        // Embeddings are live for routing iff the skill catalog is current for the active variant —
-        // the same freshness check skill_governance surfaces. When live, capture the embedding model.
-        $embedoverride = ($envactive && $envembedmodel !== '') ? $envembedmodel : null;
-        $embeddingsmodel = self::catalog_model_if_ready($embedoverride);
-        $embeddingsactive = $embeddingsmodel !== '';
-
         // Resolve the target instance: the one requested, else the default (first sorted).
         $instances = $this->provider_instances();
         $target = null;
@@ -203,6 +199,16 @@ class benchmark_provider_preview {
         $planner = $resolve('planner', $plannerenv, $plannervar);
         $reply   = $resolve('reply', $envmodel, 'BOOKING_TEST_AI_MODEL');
         $embed   = $resolve('embed', $envembedmodel, 'BOOKING_TEST_AI_EMBEDDING_MODEL');
+
+        // Embeddings are live for routing iff a CURRENT skill catalog exists for the embedding variant
+        // this run will actually use — the SELECTED instance's embedding model + dimensions (the same
+        // freshness check skill_governance surfaces). Show that model only when live.
+        $embeddims = (int)($ov['embeddims'] ?? 0);
+        if ($embeddims < 1) {
+            $embeddims = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
+        }
+        $embeddingsmodel = self::catalog_model_if_ready((string)$embed['model'], $embeddims);
+        $embeddingsactive = $embeddingsmodel !== '';
 
         // Key source: env override (CLI only), else the instance's own key, else none.
         if ($envactive) {
@@ -238,24 +244,48 @@ class benchmark_provider_preview {
     }
 
     /**
-     * The embedding model in use when the skill catalog is current for the active variant (the same
-     * freshness check skill_governance surfaces), or '' when the catalog is stale/missing or no
-     * embeddings provider is available — i.e. when embeddings are not live for routing.
+     * The embedding model/dimensions a run will use for the given provider instance: its configured
+     * embeddings model (or the BOOKING_TEST_AI_EMBEDDING_MODEL env override) and dimensions (or the
+     * orchestrator default when the instance does not declare them).
      *
-     * @param string|null $modeloverride Explicit embedding-model override (CLI env), or null.
+     * @param int|null $instanceid The provider instance, or null for the default (first sorted).
+     * @return array{model: string, dimensions: int}
+     */
+    public function embedding_variant_for_instance(?int $instanceid): array {
+        $envembedmodel = trim((string)(getenv('BOOKING_TEST_AI_EMBEDDING_MODEL') ?: ''));
+        $instances = $this->provider_instances();
+        $target = ($instanceid !== null && isset($instances[$instanceid]))
+            ? $instances[$instanceid]
+            : (!empty($instances) ? reset($instances) : null);
+        $ov = $target !== null ? self::extract_overrides($target) : ['embed' => '', 'embeddims' => 0];
+
+        $model = $envembedmodel !== '' ? $envembedmodel : trim((string)($ov['embed'] ?? ''));
+        $dims = (int)($ov['embeddims'] ?? 0);
+        if ($dims < 1) {
+            $dims = orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
+        }
+        return ['model' => $model, 'dimensions' => $dims];
+    }
+
+    /**
+     * The embedding model when a CURRENT skill catalog exists for the given variant (model + dims) —
+     * the same freshness check skill_governance surfaces — or '' when the catalog is stale/missing/empty
+     * or no embedding model is configured. This is what decides "embeddings live" for a run.
+     *
+     * @param string $model
+     * @param int $dimensions
      * @return string
      */
-    public static function catalog_model_if_ready(?string $modeloverride = null): string {
-        $readiness = new embeddings_readiness_service();
-        if (!$readiness->is_wunderbyte_embeddings_available()) {
+    public static function catalog_model_if_ready(string $model, int $dimensions): string {
+        $model = trim($model);
+        if ($model === '' || $dimensions < 1) {
             return '';
         }
-        $cfg = (new embeddings_action_config_resolver())->resolve_with_overrides($modeloverride, null);
-        $status = $readiness->get_catalog_status(
+        $status = (new embeddings_readiness_service())->get_catalog_status(
             skill_registry_factory::get_default(),
-            (string)$cfg['model'],
-            (int)$cfg['dimensions']
+            $model,
+            $dimensions
         );
-        return ((string)($status['status'] ?? '')) === 'ready' ? (string)$cfg['model'] : '';
+        return ((string)($status['status'] ?? '')) === 'ready' ? $model : '';
     }
 }

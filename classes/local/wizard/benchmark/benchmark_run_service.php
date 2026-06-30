@@ -75,10 +75,14 @@ class benchmark_run_service {
         $tier        = (string)($options['tier'] ?? 'probabilistic');
         $providerinstanceid = (int)($options['provider_instance_id'] ?? 0);
 
-        // Embeddings are live for this run iff the skill catalog is current for the active variant
-        // (the same freshness check skill_governance surfaces). When live, record the embedding model
-        // used; the run's score is then attributable to its routing mode.
-        $embeddingsmodel = benchmark_provider_preview::catalog_model_if_ready();
+        // Embeddings are live for this run iff a CURRENT skill catalog exists for the embedding variant
+        // the SELECTED provider instance uses (the same freshness check skill_governance surfaces).
+        // When live, record the embedding model used; the run's score is then attributable to its mode.
+        $embvariant = (new benchmark_provider_preview())->embedding_variant_for_instance($providerinstanceid ?: null);
+        $embeddingsmodel = benchmark_provider_preview::catalog_model_if_ready(
+            $embvariant['model'],
+            $embvariant['dimensions']
+        );
         $embeddingsused = $embeddingsmodel !== '' ? 1 : 0;
 
         $registry  = new benchmark_scenario_registry();
