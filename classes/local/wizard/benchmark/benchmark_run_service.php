@@ -65,9 +65,6 @@ class benchmark_run_service {
         };
 
         $setname   = (string)($options['scenario-set'] ?? 'decision_core');
-        $envmodel  = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
-        $defaultmodel = (string)(get_config('bookingextension_agent', 'default_model') ?: 'unknown');
-        $modelid   = (string)(($options['model'] ?? '') ?: ($envmodel ?: $defaultmodel));
         $label     = (string)(($options['label'] ?? '') ?: date('Y-m-d H:i') . ' ' . $setname);
         $env       = (string)($options['env'] ?? 'local');
         $gitref    = (string)($options['git-ref'] ?? '');
@@ -113,6 +110,12 @@ class benchmark_run_service {
             $previousmanager = di::get(ai_manager::class);
             di::set(ai_manager::class, new benchmark_envkey_manager($DB));
         }
+
+        // Record the model actually used — resolved AFTER the override above, so a chosen instance's
+        // model (injected into BOOKING_TEST_AI_MODEL by apply_instance_as_env) is captured for the run.
+        $envmodel = trim((string)(getenv('BOOKING_TEST_AI_MODEL') ?: ''));
+        $defaultmodel = (string)(get_config('bookingextension_agent', 'default_model') ?: 'unknown');
+        $modelid = (string)(($options['model'] ?? '') ?: ($envmodel ?: $defaultmodel));
 
         $allscenarios = $registry->get_scenarios($setname);
 
