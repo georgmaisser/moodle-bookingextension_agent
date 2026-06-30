@@ -111,9 +111,9 @@ The four `CONTEXT_SYSTEM` caps gate the admin-style pages and actions: `debugski
 the selection-debug page, `managegovernance` the skill-governance page (inspect contracts,
 enable/disable skills, rebuild the embedding catalog), `viewbenchmarks` the benchmark report,
 `managebenchmarks` the baseline-pin **write** on it, and `runbenchmarks` the "Run benchmark"
-button (a live run issues real LLM calls, so it is admin-only by default). These pages were
-previously gated on `moodle/site:config`; each now has its own **delegable** capability so a
-manager can be granted the page without full site config. The page itself calls
+button (a live run issues real LLM calls, so it is admin-only by default). Each page has its
+own **delegable** capability so a manager can be granted the page without full site config.
+The page itself calls
 `admin_externalpage_setup()` only when the user holds `moodle/site:config` (so the admin tree
 renders for admins) and otherwise sets the page up manually — the real gate is always the
 `require_capability()` on the cap above; admins still pass implicitly via
@@ -124,9 +124,8 @@ renders for admins) and otherwise sets the page up manually — the real gate is
 Distinct from permissions, the agent honours Moodle core's **AI availability toggles**:
 the per-course `enableaitools` field and the per-course-module `enableaitools` field.
 These express *"AI should not be used here"* — a steering instrument aimed at
-non-privileged users, not a rights system. The full design rationale and the staged
-rollout (admin → teacher → student) live in
-[`agent_permissions_concept_2026-06-10.md`](../Blueprints/agent_permissions_concept_2026-06-10.md).
+non-privileged users, not a rights system. They support a staged rollout
+(admin → teacher → student): more privileged audiences are never blocked by these toggles.
 
 Enforcement is centralised in `orchestrator::get_runtime_provider_status()` and works
 like this for the **current user** (`$USER` — the status is always computed inside a

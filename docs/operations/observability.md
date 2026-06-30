@@ -1,11 +1,10 @@
 # Operations · Observability & debugging
 
 > **Scope.** How to see what the agent did: LLM debug logs, phase traces, routing decision
-> logs, preflight audit, and the thread debug endpoint.
+> logs, and the thread debug endpoint.
 
 **Files:** `llm_debug_logger.php`, `services/telemetry/routing_decision_log_service.php`,
-`services/preflight_audit_logger.php`, `external/ai_get_thread_debug_logs.php`,
-`services/runtime_step_analysis_service.php`, `Blueprints/observability_queries.md`.
+`external/ai_get_thread_debug_logs.php`, `services/runtime_step_analysis_service.php`.
 
 ---
 
@@ -24,10 +23,8 @@ text, a `success` flag, an optional error message, and `timecreated`. `log_excha
 forces a row regardless of the flag (for hard failures).
 
 **Reading them.** The `ai_get_thread_debug_logs` web service (`limit` clamped 1–500) surfaces
-them to the UI; for SQL analysis the queries in
-[`Blueprints/observability_queries.md`](../Blueprints/observability_queries.md) filter the
-table by thread. A typical thread analysis selects `source`, `success`, and the request/
-response text ordered by `timecreated`.
+them to the UI; for SQL analysis, filter the table by thread. A typical thread analysis
+selects `source`, `success`, and the request/response text ordered by `timecreated`.
 
 ---
 
@@ -54,16 +51,7 @@ how you tell whether the semantic or the deterministic path produced a given sel
 
 ---
 
-## 4. Preflight audit
-
-With `preflight_audit_enabled` on, `preflight_audit_logger::append()` writes a structured
-event per preflight evaluation (skill, layer, status, reason code, issue codes, retry/timing,
-error class) into the `_preflight_audit_log` thread-metadata key — a full trail of why a
-mutation was allowed, blocked, or retried ([ch. 09 §6](../architecture/09-preflight-pipeline.md#6-audit)).
-
----
-
-## 5. Runtime step analysis
+## 4. Runtime step analysis
 
 `runtime_step_analysis_service` supports the runtime's per-step bookkeeping (what each loop
 step did, the attempt budget). Combined with the phase trace it reconstructs a full turn:
@@ -71,11 +59,11 @@ discovery → selection → construction → decision → preflight → queue �
 
 ---
 
-## 6. Where to look for what
+## 5. Where to look for what
 
 | Question | Source |
 |----------|--------|
 | What exactly did the model receive/return? | `aidebugmode` → `bx_agent_ai_llm_debug` |
 | Why was *this* skill chosen? | phase trace + routing decision log + [skill-selection debug](governance.md#4-skill-selection-debugging) |
-| Why was a mutation blocked/retried? | `_preflight_audit_log` (preflight) + queue retry metadata ([ch. 10](../architecture/10-shadow-queue.md)) |
+| Why was a mutation blocked/retried? | phase trace + queue retry metadata ([ch. 10](../architecture/10-shadow-queue.md)) |
 | Did a regression slip in? | the [benchmark](benchmarking.md) trend + CI gate |

@@ -224,24 +224,18 @@ by blending skill and family scores (default 0.7/0.3). See
 
 ## 9. Flowchart notes
 
-> **✓ `FSIG` signal list (flowchart corrected).** The node previously listed
-> `intent_code + trigger_id + context_prior + recency`. `family_signal_ranker` actually
+> `FSIG` signal list: `family_signal_ranker`
 > scores on **base (0.20) + core bonus (0.10) + namespace_hint (0.35) + recency_namespace
 > (0.20)** — there is no `intent_code` or `trigger_id` input (the former is carried by the
-> semantic path; the latter was dropped, consistent with "no trigger→skill routing"). The
-> `FSIG` node now names the real signals.
+> semantic path; there is no trigger→skill routing).
 
-> **✓ `FRANK` scoring formula (flowchart corrected).** The node previously described an
-> additive `semantic_similarity + signal + context_prior + recency_bias`. `family_ranker`
-> actually computes a **weighted blend** `0.7·signal + 0.3·semantic` (or signal alone with no
+> `FRANK` scoring formula: `family_ranker`
+> computes a **weighted blend** `0.7·signal + 0.3·semantic` (or signal alone with no
 > embeddings), clamped to [0,1]; `context_prior` and `recency` are folded **into** the signal
-> score, not added separately. Same inputs, hierarchical (not additive) combination — the
-> bounded blend caps semantic influence at 30%. The `FRANK` node now states the real formula.
+> score, not added separately. The bounded blend caps semantic influence at 30%.
 
-> **✓ Confirmed:** dual path with deterministic fallback; query = latest message +
-> next_step_intent; discovery is semantic-only — the lexical mandatory tier (`always_available`,
-> `MANDATORY_SKILL_KEYWORDS`) is removed; the only force-include is **wizard.search_skills** via
+> Dual path with deterministic fallback; query = latest message +
+> next_step_intent; discovery is semantic-only — there is no lexical mandatory tier; the only
+> force-include is **wizard.search_skills** via
 > `discovery_phase_service::ensure_search_skills_fallback()`; Stage budgets 12/24/36; confidence
 > 0.60/0.45; context prior is soft (`is_hard_filter = false`); low-score tail (max 2, min 0.15).
-
-See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for the consolidated log.

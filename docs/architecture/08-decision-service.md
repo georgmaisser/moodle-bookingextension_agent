@@ -106,11 +106,9 @@ consume, and that guard #2 reads.
 
 ## 7. Flowchart notes
 
-> **✓ Guard chain confirmed** — preview → pending → lookup → promotion, in that order, with
+> Guard chain: preview → pending → lookup → promotion, in that order, with
 > the exact trigger names. Risk-routed command handling (R0 inline / R1 session-allow /
-> R2 forced / R3 manual) matches.
+> R2 forced / R3 manual).
 
-> **✓ Unsafe-default rule (annotated).** `resolve_command_risk_class()` treats an unknown
-> skill as **R3** (fail-safe). The `D_PROMOTE` node now states this invariant.
-
-See [reference/flowchart-guide.md](../reference/flowchart-guide.md).
+> Unsafe-default rule: `resolve_command_risk_class()` treats an unknown
+> skill as **R3** (fail-safe). The `D_PROMOTE` node states this invariant.

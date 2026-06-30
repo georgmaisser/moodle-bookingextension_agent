@@ -227,11 +227,18 @@ if ($agentenabled) {
         )
     );
 
-    // Seed the two default corpora (agent + mod_booking) the first time only, so existing sites
-    // that predate the textarea setting also get the out-of-the-box documentation sources. A
-    // deliberately-emptied value (saved as '') is preserved.
-    if (get_config('bookingextension_agent', 'aidocsroot') === false) {
-        set_config('aidocsroot', "bookingextension_agent\nmod_booking", 'bookingextension_agent');
+    // Seed the two default corpora so sites get the out-of-the-box documentation sources. The
+    // agent's own corpus points at the curated END-USER docs (docs/user) only, NOT the whole docs/
+    // tree, so explain_docs never embeds the developer/architecture docs (embedding cost + keeps
+    // internal docs out of user-facing answers). Re-seed when unset OR still on the previous bare
+    // default; a deliberately-emptied ('') or admin-customised value is preserved.
+    $aidocsrootcurrent = get_config('bookingextension_agent', 'aidocsroot');
+    if ($aidocsrootcurrent === false || $aidocsrootcurrent === "bookingextension_agent\nmod_booking") {
+        set_config(
+            'aidocsroot',
+            "bookingextension_agent = mod/booking/bookingextension/agent/docs/user\nmod_booking",
+            'bookingextension_agent'
+        );
     }
 
     // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a

@@ -1,6 +1,6 @@
 # Operations · Governance
 
-> **Scope.** The skill governance page and service: reviewing, activating, and auditing
+> **Scope.** The skill governance page and service: reviewing, activating, and inspecting
 > skills and their risk declarations.
 
 **Files:** `skill_governance.php` (page), `services/governance/skill_governance_service.php`,

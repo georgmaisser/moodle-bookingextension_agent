@@ -41,7 +41,7 @@ its own docs — see [skill-providers-and-families.md](../developer-guides/skill
 
 Each falls back to the built-in template when empty (see [ch. 05](../architecture/05-planner-orchestrator.md)).
 
-## Safety / queue / audit flags
+## Safety / queue flags
 
 | Config | Type | Default | Effect |
 |--------|------|---------|--------|
@@ -49,7 +49,6 @@ Each falls back to the built-in template when empty (see [ch. 05](../architectur
 | `queue_dag_validation_enabled` | checkbox | 1 | validate queue dependency DAGs ([ch. 10](../architecture/10-shadow-queue.md)) |
 | `queue_blocked_ttl_enabled` | checkbox | 1 | enable TTL expiry of `blocked_confirmation` items |
 | `queue_blocked_ttl_seconds` | int | (default 900) | fallback blocked TTL when risk-specific value not used |
-| `preflight_audit_enabled` | checkbox | 0 | write a preflight audit trail to thread metadata ([ch. 09](../architecture/09-preflight-pipeline.md)) |
 
 ## Skill activation
 

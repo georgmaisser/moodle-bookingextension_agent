@@ -86,7 +86,7 @@ one subsystem per chapter.
 | [Tasks & async execution](operations/tasks-and-async.md) | Scheduled and ad-hoc tasks, the adhoc run worker |
 | [Governance](operations/governance.md) | The skill governance page and service |
 | [Benchmarking](operations/benchmarking.md) | The benchmark harness, scenarios, CI gate |
-| [Observability & debugging](operations/observability.md) | LLM debug logs, the skill-selection debug tools, audit trails |
+| [Observability & debugging](operations/observability.md) | LLM debug logs, phase traces, the skill-selection debug tools |
 
 ### Reference
 
@@ -94,21 +94,16 @@ one subsystem per chapter.
 |------|-------------|
 | [Glossary](reference/glossary.md) | Every term of art used in this corpus |
 | [Issue codes & error classes](reference/issue-codes.md) | The complete catalog with meanings and routing effect |
-| [Flowchart guide](reference/flowchart-guide.md) | How to read the canonical diagram and how it maps to code |
 
 ### Topic notes
 
 | Page | Description |
 |------|-------------|
-| [Shortcode escaping in replies](shortcode_escaping_in_replies.md) | Why the agent escapes `[shortcode]` brackets in chat replies |
 | [PDF text extraction](architecture/01-entry-and-web-services.md#7-attachments-docs--previews) | How uploaded PDFs become text: `pdftotext` fast path + bundled pure-PHP `smalot/pdfparser` fallback ([`thirdparty/pdfparser/`](../thirdparty/pdfparser/), LGPL-3.0); no OCR; 15 000-char cap |
 
-### Blueprints (working documents)
+### Flowchart
 
-The [`Blueprints/`](Blueprints) subfolder holds design analyses, roadmaps, and
-refactor plans. They are development working documents, not end-user documentation, and
-may describe states that are planned rather than shipped. The authoritative design
-reference is the flowchart in
+The authoritative design reference is the flowchart in
 [`Blueprints/flowcharts/`](Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd).
 
 ---
@@ -118,9 +113,7 @@ reference is the flowchart in
 - **Start with the [architecture overview](architecture/README.md).** It gives you the
   whole loop in one page and links into each subsystem chapter for depth.
 - **The flowchart is the source of truth for design.** Each chapter ends with a *Flowchart
-  notes* section recording how its subsystem maps to the diagram — confirmations and any
-  corrections that were applied to it. The full code↔diagram history is in the
-  [discrepancy log](reference/flowchart-guide.md).
+  notes* section recording how its subsystem maps to the diagram.
 - **Every chapter names the files it documents** so you can jump from prose to code.
 
 ---

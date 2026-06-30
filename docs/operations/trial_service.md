@@ -18,7 +18,7 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
       endpoints = https://llm.wunderbyte.at)
 ```
 
-- **Moodle side** (this repo): `classes/external/request_trial_key.php` (capability `requesttrial` + GDPR consent gate → `trial_consent_given` event) → `classes/local/wizard/services/trial/trial_provisioner.php` → core_ai provider instance. The trial endpoint is **hardcoded** as `trial_provisioner::BASE_URL = https://llm.wunderbyte.at`; the former admin setting `trial_endpoint_base_url` was removed (the upgrade unsets the orphaned config).
+- **Moodle side** (this repo): `classes/external/request_trial_key.php` (capability `requesttrial` + GDPR consent gate → `trial_consent_given` event) → `classes/local/wizard/services/trial/trial_provisioner.php` → core_ai provider instance. The trial endpoint is **hardcoded** as `trial_provisioner::BASE_URL = https://llm.wunderbyte.at`; there is no admin setting for it.
 - **Trial service** (separate server, container `litellm_trial_api`): `classes/local/wizard/wunderbyte_trial_endpoint.py` is the **reference copy**. The running service has its own copy baked into its image — apply changes there and **rebuild**, not just restart.
 - **LiteLLM proxy** (container `litellm_proxy`, `127.0.0.1:4000`): mints/serves keys and models.
 
@@ -27,13 +27,13 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
 | Env | Purpose | Value used |
 |---|---|---|
 | `LITELLM_BASE_URL` | LiteLLM proxy base (what the service talks to) | internal, e.g. `http://litellm:4000` |
-| `LITELLM_TRIALCREATE_KEY` | **Scoped** admin key for `/key/generate` + `/key/list` (NOT the master key — H1) | `sk-…` |
+| `LITELLM_TRIALCREATE_KEY` | **Scoped** admin key for `/key/generate` + `/key/list` (NOT the master key) | `sk-…` |
 | `TRIAL_BUDGET_USD` | One-time credit per key | `3` |
 | `TRIAL_DAYS` | Key lifetime (days) | `30` |
 | `TRIAL_MODELS` | Models the key may use; must match the Moodle actionconfig and exist on the proxy | `wunderbyte-privat,wunderbyte-privat-mini,wunderbyte-embeddings` |
 | `TRIAL_TEAM_ID` | LiteLLM team every key is created into (isolation + team budget backstop) | `<team id>` |
-| `TRIAL_MAX_KEYS_PER_IP` | Per-IP key cap (C2) | `3` |
-| `TRIAL_MAX_ACTIVE_KEYS` | Global cap over the trailing window (C2) | `500` |
+| `TRIAL_MAX_KEYS_PER_IP` | Per-IP key cap | `3` |
+| `TRIAL_MAX_ACTIVE_KEYS` | Global cap over the trailing window | `500` |
 | `TRIAL_ACTIVE_WINDOW_DAYS` | Window for the global cap | `30` |
 
 > ⚠️ The public base URL Moodle stores in the provider (`https://llm.wunderbyte.at`) comes
@@ -52,7 +52,7 @@ Moodle (customer site)                     llm.wunderbyte.at (Wunderbyte infra)
           "models":["wunderbyte-privat","wunderbyte-privat-mini","wunderbyte-embeddings"]}'
    # -> set the returned team_id as TRIAL_TEAM_ID
    ```
-3. **Scoped admin key** for the service (H1 — keep the master key off the trial box):
+3. **Scoped admin key** for the service (keep the master key off the trial box):
    ```bash
    curl -X POST 'http://127.0.0.1:4000/user/new' \
      -H "Authorization: Bearer $LITELLM_MASTER_KEY" -H 'Content-Type: application/json' \
@@ -125,15 +125,13 @@ Verify after deploy: a freshly minted key's `metadata.request_ip` should be a re
   endpoint is hardcoded (`trial_provisioner::BASE_URL = https://llm.wunderbyte.at`); there is no
   admin setting. Capability `bookingextension/agent:requesttrial` (manager + admin) gates the trial.
 
-## Security controls (implemented)
+## Security controls
 
-- **C1** — origin challenge re-enabled (`_verify_origin`); minting requires proof the caller controls the declared `wwwroot`.
-- **H2** — SSRF guards on that challenge: https-only, private/loopback/link-local/metadata IPs rejected, no redirects.
-- **C2** — per-IP cap (`TRIAL_MAX_KEYS_PER_IP`) + global trailing-window cap (`TRIAL_MAX_ACTIVE_KEYS`/`_ACTIVE_WINDOW_DAYS`); a `/key/list` failure fails OPEN (logged).
-- **H1** — service uses the scoped `LITELLM_TRIALCREATE_KEY`, not the master key.
-- **Key scoping** — each key: `max_budget` one-time (no `budget_duration` → never refills), `duration` expiry, `models` allowlist, `allowed_routes` = `["llm_api_routes","/key/info"]`, created into `TRIAL_TEAM_ID`.
-
-Still open (see the security review): **H3** (challenge only proves control, not approval — mitigated by C2 + per-site dedup), **M1** (key stored plaintext in `ai_providers.config` — mitigated by budget/expiry), **M2** (confirm no key leaks into debug logs).
+- **Origin challenge** (`_verify_origin`): minting requires proof the caller controls the declared `wwwroot`.
+- **SSRF guards** on that challenge: https-only, private/loopback/link-local/metadata IPs rejected, no redirects.
+- **Rate caps**: per-IP cap (`TRIAL_MAX_KEYS_PER_IP`) + global trailing-window cap (`TRIAL_MAX_ACTIVE_KEYS`/`_ACTIVE_WINDOW_DAYS`); a `/key/list` failure fails OPEN (logged).
+- **Scoped service key**: the service uses the scoped `LITELLM_TRIALCREATE_KEY`, not the master key.
+- **Key scoping** — each key: `max_budget` one-time (no `budget_duration` → never refills), `duration` expiry, `models` allowlist, `allowed_routes` = `["llm_api_routes","/key/info"]`, created into `TRIAL_TEAM_ID`. Keys are bounded by budget and expiry.
 
 ## Common ops tasks
 
@@ -156,19 +154,18 @@ curl -X POST "$P/key/delete" -H "$H" -H 'Content-Type: application/json' \
  -d '{"keys":["sk-…"]}'
 ```
 
-## Troubleshooting (issues seen during rollout)
+## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `Request to http://litellm:4000/key/info failed: The URL is blocked` | provider endpoint was the service's internal URL | already fixed in code (uses public `trial_endpoint_base_url`); re-provision the instance |
-| `key not allowed to access model … wunderbyte-privat-mini` | key minted before the 3-model change | redeploy trial service; delete old key; re-mint |
+| `Request to http://litellm:4000/key/info failed: The URL is blocked` | provider endpoint set to the service's internal URL | use the public `trial_provisioner::BASE_URL`; re-provision the instance |
+| `key not allowed to access model … wunderbyte-privat-mini` | key minted against an older model set | redeploy trial service; delete old key; re-mint |
 | `could not reliably parse the last step` | LLM call failing (blocked URL or model not granted) | the two rows above |
-| Key shows `expires: null` | LiteLLM ignores raw `expires`; needs `duration` | fixed (payload uses `duration`); re-mint |
-| "Budget resets mid-month" | `budget_duration` made the credit recurring | fixed (removed; one-time `max_budget`); re-mint |
+| Key shows `expires: null` | LiteLLM ignores raw `expires`; needs `duration` | the payload uses `duration`; re-mint |
+| "Budget resets mid-month" | a `budget_duration` makes the credit recurring | use a one-time `max_budget` (no `budget_duration`); re-mint |
 | `request_ip` shows `127.0.0.1`/docker IP | fronting proxy not passing XFF | set `X-Forwarded-For` on the proxy |
 | New env value not taking effect | container not recreated / not rebuilt | `up -d` (env) or `up -d --build` (code) |
 
 ## Pointers
-- Design + decisions: [`../Blueprints/todo/oneclick_ai_setup_blueprint_2026-06-15.md`](../Blueprints/todo/oneclick_ai_setup_blueprint_2026-06-15.md)
 - Moodle provisioner: [`../../classes/local/wizard/services/trial/trial_provisioner.php`](../../classes/local/wizard/services/trial/trial_provisioner.php)
 - Trial service reference: [`../../classes/local/wizard/wunderbyte_trial_endpoint.py`](../../classes/local/wizard/wunderbyte_trial_endpoint.py)

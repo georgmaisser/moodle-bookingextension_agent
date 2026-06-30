@@ -6,7 +6,7 @@
 
 ## 1. `declare(strict_types=1)` — deliberate, not uniform
 
-This is a **deliberate policy decision** (audit C2-F06), not an oversight:
+This is a **deliberate policy decision**, not an oversight:
 
 - **New, isolated service/value classes ship with `declare(strict_types=1)`.** They have
   narrow, well-typed boundaries, so strict typing catches real mistakes early. This is the
@@ -18,27 +18,25 @@ This is a **deliberate policy decision** (audit C2-F06), not an oversight:
   flowing into an `int` parameter). Turning on `strict_types` there would convert
   silently-working coercions into fatal `TypeError`s.
 
-  This is not theoretical: a real coercion bug was once caught exactly here — a context
-  property arrived as a string and was passed into an `int` core API. The fix was an **explicit
-  cast at the call site** (`(int)$context->instanceid`), not a blanket `strict_types`. The
-  lesson encoded in this policy: **harden at the call site with explicit casts; do not flip a
-  whole engine file to strict and hope.**
+  When a context property arrives as a string and must reach an `int` core API, harden at the
+  call site with an **explicit cast** (`(int)$context->instanceid`) rather than a blanket
+  `strict_types`. The policy: **harden at the call site with explicit casts; do not flip a
+  whole engine file to strict.**
 
 **Rule of thumb.** Adding `declare(strict_types=1)` to an *existing* engine file is **not** a
 free, mechanical change — it changes that file's runtime behaviour at every function boundary.
-Only do it after auditing the file's call sites for coercion-dependent inputs and adding
+Only do it after checking the file's call sites for coercion-dependent inputs and adding
 explicit casts where needed. New isolated files: strict from the start.
 
 ## 2. Single sources of truth
 
 - **Provider action class names** (`aiprovider_wunderbyte\aiactions\…`) live only in
-  `wb_action_names` — never re-declare the FQCN string (audit C3-F01).
+  `wb_action_names` — never re-declare the FQCN string.
 - **Issue-code meaning** lives only in `issue_code_taxonomy` (`error_class_for` /
   `retry_category_for`) — the two views keep their own match precedence on purpose, but both
-  rule sets live in that one class (audit C3-F02 / 08-F01).
+  rule sets live in that one class.
 - **Input normalization / pruning** lives in `services/input_normalizer` (option-driven) and
-  `services/input_payload_pruner` — don't re-implement these recursions inline (audit 03-F03 /
-  05-F02).
+  `services/input_payload_pruner` — don't re-implement these recursions inline.
 
 ## 3. User-facing strings
 

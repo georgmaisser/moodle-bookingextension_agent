@@ -64,8 +64,7 @@ planner *chat* calls (`llm_call_service::invoke_for_context(...)`) in `process()
 | Selection | `planner_phase_service::run_selection()` | `planner_selection` / selector pick-skill |
 | Construction | `planner_phase_service::run_construction()` | `planner_construction` / constructor build-params |
 
-Both planner phases were extracted from `orchestrator` into
-`services/planner_phase_service` in the orchestrator split; `orchestrator` keeps thin
+Both planner phases live in `services/planner_phase_service`; `orchestrator` keeps thin
 `run_selection_phase()` / `run_construction_phase()` wrappers that delegate to it. Discovery
 issues **no planner *decision* chat call** — only `invoke_embeddings_for_context()` in
 `services/discovery_phase_service` (a vector call, not a planner decision); it may make one
@@ -76,8 +75,7 @@ The one remaining `invoke_for_context()` in `orchestrator` itself belongs to
 separate pass, not part of the planner pipeline (see [§8](#8-the-synchronizer-reuse) and
 [ch. 12](12-synchronizer.md)).
 
-> Citations name classes/methods, not line numbers — the planner call sites moved during the
-> orchestrator split and exact lines drift; grep the method names to locate them.
+> Citations name classes/methods, not line numbers; grep the method names to locate them.
 
 So: **two** planner chat calls for a `skill_call` turn, **one** for a clarification/sufficient
 turn, plus an optional embeddings call in discovery.
@@ -232,13 +230,13 @@ It is invoked by `agent_runtime` only for `llm_polish` finalization states. Full
 
 ## 9. Flowchart notes
 
-> **✓ Two-planner-call invariant confirmed** — see [§2](#2-exactly-two-planner-llm-calls).
+> Two-planner-call invariant — see [§2](#2-exactly-two-planner-llm-calls).
 > The diagram's `SPLLM` (selection), `CPLLM` (construction), and `SLLM` (synchronizer) map
-> exactly to `planner_phase_service::run_selection()`, `::run_construction()`, and the
-> synchronizer call in `orchestrator`. Worth noting in the diagram that construction
-> (`CPLLM`) is **conditional** on a `skill_call` selection.
+> to `planner_phase_service::run_selection()`, `::run_construction()`, and the
+> synchronizer call in `orchestrator`. Construction (`CPLLM`) is **conditional** on a
+> `skill_call` selection.
 
-> **✓ `OR_LANG` confirmed** — no token lists; language follows the latest user message.
+> `OR_LANG`: no token lists; language follows the latest user message.
 
-Discovery-phase discrepancies (signal components, ranker formula) are documented in
+Discovery-phase signal components and the ranker formula are documented in
 [ch. 06 §9](06-discovery-families-embeddings.md#9-flowchart-notes).

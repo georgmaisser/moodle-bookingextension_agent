@@ -12,16 +12,11 @@ no migrations of any kind. For a contributor this means: add/change the table in
 bump `version.php`, and rely on a clean (re)install of the plugin tables rather than incremental
 migration steps. **Do not** add `create_table`/`add_field` migrations to `upgrade.php`.
 
-> **History.** Earlier `upgrade.php` revisions migrated tables under an abandoned
-> `local_wizard_` prefix that no runtime code uses; those bodies were a rename trap (they could
-> never reach a working install) and were removed. If you still see that prefix referenced
-> anywhere, it is stale.
-
 ## 2. Table prefix
 
-All agent tables use the **`bx_agent_`** prefix, **not** `local_wizard_` (an abandoned legacy
-of the engine namespace) or `bookingextension_agent_`. With the Moodle DB prefix `m_`, the
-physical table for LLM debug logs is e.g. `m_bx_agent_ai_llm_debug`.
+All agent tables use the **`bx_agent_`** prefix (not `bookingextension_agent_`). With the
+Moodle DB prefix `m_`, the physical table for LLM debug logs is e.g.
+`m_bx_agent_ai_llm_debug`.
 
 ## 3. Conversation tables
 
@@ -42,7 +37,7 @@ persisted **inside the thread's `metadatajson`** (`queue_manager` reads/writes t
 
 The same `metadatajson` blob also holds the well-known keys documented in
 [ch. 03 §5](../architecture/03-conversation-store.md#5-thread-metadata): `pending_intent`,
-`next_step_intent`, `phase_trace`, `planner_trace_history`, `_preflight_audit_log`,
+`next_step_intent`, `phase_trace`, `planner_trace_history`,
 `_confirm_previews`, routing telemetry, language keys, and the queue sequence counter.
 
 > **Design consequence.** A thread row is the single transactional unit for a conversation:

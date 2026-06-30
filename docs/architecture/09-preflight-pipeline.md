@@ -145,34 +145,21 @@ that a webhook is reachable or a payment provider is ready, hard-blocking when i
 | `retryafterms` / `retrycount` / `durationms` | retry + timing |
 | `preparedinput` | the exact input the executor will run |
 
-> **✓ Flowchart note (corrected).** The `PRV2` node previously listed `execution_guard_token`
-> as a field of `preflight_result_v2`. It is **not** on the DTO; the guard token is built from
+> The guard token is **not** a field of the `preflight_result_v2` DTO; it is built from
 > the prepared input (`preflight_execution_gate::build_guard_token(skill, contextid,
 > prepared_input)`) and persisted on the **queue item**, then verified by the executor
-> (see [ch. 11](11-executor.md)). The `PRV2` node now states this.
+> (see [ch. 11](11-executor.md)).
 
 ---
 
-## 6. Audit (retired)
+## 6. Flowchart notes
 
-Preflight audit logging has been **retired**: the `preflight_audit_enabled` admin setting was
-removed (the `db/upgrade.php` install-only history `unset_config`s it) and the gate is now
-always off, so no `_preflight_audit_log` is written in normal operation. Per-turn diagnostics
-now live in the LLM-debug trail and the execution observation ledger
-([ch. 11 §6](11-executor.md#6-confirm-run-terminalization)). See
-[operations/observability.md](../operations/observability.md).
-
----
-
-## 7. Flowchart notes
-
-> **✓ Confirmed:** risk→layer gating (R0 none / R1 L1+L2 / R2 +L3 / R3 +external);
+> Risk→layer gating (R0 none / R1 L1+L2 / R2 +L3 / R3 +external);
 > L3 constants 500/200/4/4000; retryable categories TECHNICAL + EXTERNAL_DEPENDENCY;
 > circuit-breaker auth/quota → hard_block.
 
-> **✓ Soft-block codes — leak inverted.** The diagram's generic `PROVIDER_CONFIRMABLE_*` is
-> now literally accurate: `preflight_domain_check_runner` no longer hardcodes the
-> booking-specific `DUPLICATE_TITLE_*` codes — it injects `issue_code_provider_interface` and
+> Soft-block codes: the generic `PROVIDER_CONFIRMABLE_*` is literally accurate.
+> `preflight_domain_check_runner` injects `issue_code_provider_interface` and
 > reads `get_prevalidation_confirmable_issue_codes()`, keeping only the engine-generic
-> `DOMAIN_CONFLICT` itself. This removed a domain leak into the engine (one of the "5 leaks").
-> Behaviour-neutral; covered by `preflight_layers_contract_test`.
+> `DOMAIN_CONFLICT` itself, so no booking-specific codes are hardcoded in the engine.
+> Covered by `preflight_layers_contract_test`.

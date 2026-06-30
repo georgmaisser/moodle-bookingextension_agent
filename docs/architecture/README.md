@@ -7,8 +7,7 @@ depth.
 The design source of truth is the diagram
 [`AGENT_IMPLEMENTATION_FLOWCHART.mmd`](../Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd).
 Every chapter in this section documents one of its subgraphs and ends with **Flowchart
-notes** recording how it maps to the diagram — what is confirmed and which corrections were
-applied to it (the full history is in the [discrepancy log](../reference/flowchart-guide.md)).
+notes** recording how it maps to the diagram.
 
 ---
 
@@ -303,5 +302,5 @@ Each diagram subgraph maps to a chapter:
 | `LEGEND` risk-class contracts | [15 Risk classes](15-risk-classes.md) |
 | `SUPPORT` | [16 Support services](16-support-services.md) |
 
-See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for how to read the
-diagram itself and a current list of code↔diagram discrepancies.
+The diagram itself is
+[`AGENT_IMPLEMENTATION_FLOWCHART.mmd`](../Blueprints/flowcharts/AGENT_IMPLEMENTATION_FLOWCHART.mmd).

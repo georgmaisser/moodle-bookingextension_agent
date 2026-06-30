@@ -96,10 +96,10 @@ A generic key/value store on the thread (`get_thread_metadata_value` /
 | `user_input_lang` / `last_output_lang` | language policy | authoritative turn language / last reply language |
 | `routing_embeddings_comparison` | telemetry | embedding-routing comparison data |
 
-> **✓ Flowchart note (resolved).** `phase_trace_loop_history` is a real third telemetry key
+> `phase_trace_loop_history` is a third telemetry key
 > (written by `agent_runtime::persist_phase_trace_for_loop_step()`, capped at
 > `MAX_LOOP_STEPS`), distinct from the store's canonical `phase_trace` and
-> `planner_trace_history`. The `CS15` node now lists all three.
+> `planner_trace_history`. The `CS15` node lists all three.
 
 Convenience writers `set_phase_trace()` (normalizes to the three canonical phase keys) and
 `set_planner_trace_history()` (drops empties) wrap the raw metadata API.
@@ -125,10 +125,10 @@ Key facts:
 - The `_thread` variants exist only for call-site compatibility; they delegate to the
   session-scoped logic.
 
-> **✓ Flowchart note (resolved).** The session-allowance TTL is **900 s (15 min)**, matching
+> The session-allowance TTL is **900 s (15 min)**, matching
 > the flowchart's `LG_AUTO` / `LG_RISK_CONF` value and the pending-intent / queue
-> `blocked_expires_at` windows. (It was 12 h; reduced to 900 s so auto-confirm does not
-> outlive a working session.) The "confirm & execute for this session" button label is
+> `blocked_expires_at` windows, so auto-confirm does not outlive a working session.
+> The "confirm & execute for this session" button label is
 > rendered dynamically from this constant — see `aiready::export_for_template()`
 > (`session_confirm_minutes`) and the `ai_btn_confirm_session` string — so it always shows
 > the real value.
@@ -153,10 +153,9 @@ Ephemeral progress bubbles (role `step`), surfaced by `ai_poll_thread`.
   "thinking" placeholder) and then **inside `orchestrator::process()`** for each
   discovery/selection/construction phase, emitting the resolved `next_step_intent` label.
 
-> **✓ Flowchart note (corrected).** The `LOOP_STEP` node previously attributed
-> `clear_step_messages() + add_step_message(next_step_intent)` to the agent loop head. Neither
-> call is there: clearing happens once at the entry in `ai_send_message`, and per-step writes
-> happen in `orchestrator::process()`. The `LOOP_STEP` node now states this.
+> `LOOP_STEP` step-message attribution: clearing happens once at the entry in
+> `ai_send_message`, and per-step writes happen in `orchestrator::process()`; neither
+> `clear_step_messages()` nor `add_step_message()` runs in the agent loop head.
 
 ---
 
@@ -172,7 +171,7 @@ This is the data behind `ai_get_thread_debug_logs` and the observability tooling
 [operations/observability.md](../operations/observability.md), which also confirms the
 backing table name.
 
-> **Gated + bounded (audit 15-F01).** Nothing is written unless `aidebugmode` is on: the only
+> **Gated + bounded.** Nothing is written unless `aidebugmode` is on: the only
 > engine path here is `llm_debug_logger::log_exchange`, which self-gates on
 > `is_enabled()` (the `aidebugmode` config), so `bx_agent_ai_llm_debug` stays empty in normal
 > operation. When debug mode is on, the scheduled `cleanup_old_llm_debug_task` calls

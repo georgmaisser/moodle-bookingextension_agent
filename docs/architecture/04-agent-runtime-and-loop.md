@@ -208,25 +208,21 @@ message unconditionally.
 
 ## 9. Flowchart notes
 
-> **✓ `LOOP_STEP` step-message attribution (corrected).** The node previously said the loop
-> head runs `clear_step_messages()` + `add_step_message(next_step_intent)`. Verified against
-> code: `clear_step_messages()` runs **once** in `ai_send_message::execute()` before the loop;
-> `add_step_message()` runs in **`orchestrator::process()`** (orchestrator.php ~line 389),
-> once per `process()` call, using the selector's `next_step_intent`. Neither is in
-> `agent_runtime::run_loop()`. The `LOOP_STEP` node now states this.
+> `LOOP_STEP` step-message attribution: `clear_step_messages()` runs **once** in
+> `ai_send_message::execute()` before the loop; `add_step_message()` runs in
+> **`orchestrator::process()`**, once per `process()` call, using the selector's
+> `next_step_intent`. Neither is in `agent_runtime::run_loop()`.
 
-> **✓ Two planner LLM calls confirmed.** The `LG_PLAN` invariant ("exactly two planner LLM
+> Two planner LLM calls: the `LG_PLAN` invariant ("exactly two planner LLM
 > calls") holds: `orchestrator::process()` issues a planner chat call only via
 > `run_selection_phase()` and `run_construction_phase()`, which delegate to
 > `planner_phase_service::run_selection()` / `run_construction()`. Discovery makes no planner
 > chat call (only the embeddings vector call in `discovery_phase_service`); the remaining
-> `invoke_for_context()` in `orchestrator` is the **synchronizer**, a separate pass. Note: on a
+> `invoke_for_context()` in `orchestrator` is the **synchronizer**, a separate pass. On a
 > non-`skill_call` selection (clarification/sufficient/error) construction is skipped, so a
 > turn can have **one** planner call — "two" is the maximum, not a fixed count.
 
-> **✓ `phase_trace_loop_history` (added to `CS15`).** `agent_runtime::persist_phase_trace_for_loop_step()`
+> `phase_trace_loop_history` (`CS15`): `agent_runtime::persist_phase_trace_for_loop_step()`
 > writes a `phase_trace_loop_history` metadata array (capped at `MAX_LOOP_STEPS`), separate
 > from the store's canonical `phase_trace` / `planner_trace_history` keys (see
-> [ch. 03 §5](03-conversation-store.md)). The `CS15` node now lists all three telemetry keys.
-
-See [reference/flowchart-guide.md](../reference/flowchart-guide.md) for the consolidated log.
+> [ch. 03 §5](03-conversation-store.md)). The `CS15` node lists all three telemetry keys.
