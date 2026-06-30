@@ -90,6 +90,7 @@ documents the *abandoned* prefix as canonical.
 install-only invariant honestly), and globally replace `local_wizard_` with `bx_agent_` in §2–§4.
 
 ### [C2-F03] 🟡 MEDIUM · D2 Moodle API · db/access.php + benchmark_report.php
+> **✅ FIXED 2026-06-30** (commit `8402580`) — `managebenchmarks` is now enforced on the `pinbaseline` write action in `benchmark_report.php` (it is no longer a dead capability), and the write is no longer gated by the read-only `viewbenchmarks` cap. Same fix as C1-F01.
 **What:** Capability `bookingextension/agent:managebenchmarks` is defined but checked nowhere, and the
 one benchmark *write* action is gated only by the *read* capability `viewbenchmarks`.
 **Evidence:** `db/access.php:226` defines `managebenchmarks` (`captype write`, empty `archetypes`).

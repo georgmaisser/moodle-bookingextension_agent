@@ -103,6 +103,7 @@ and still ownership-gated. All 9 `cli/*.php` declare `CLI_SCRIPT`. The admin POS
 ## B. Findings
 
 ### [C1-F01] 🟠 HIGH · D1 Security · benchmark_report.php:31,48
+> **✅ FIXED 2026-06-30** (commit `8402580`) — the `pinbaseline` write action now calls `require_capability('bookingextension/agent:managebenchmarks', context_system::instance())` before writing the baseline, so the read-only `viewbenchmarks` cap no longer authorises the write (resolves C2-F03 too).
 **What:** A state-changing action (`pinbaseline`, which writes a benchmark baseline row) is gated
 only by the **read** capability `bookingextension/agent:viewbenchmarks`, not by a write capability.
 **Evidence:** The page guards with `require_capability('bookingextension/agent:viewbenchmarks', context_system::instance())`

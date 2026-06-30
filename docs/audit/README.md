@@ -30,6 +30,17 @@ bottom; this section is the consolidated verdict.
 
 ### 🟡 Verdict: **CONDITIONAL GO**
 
+> **Status update 2026-06-30 — all gate-level (HIGH) findings are now resolved & tested.** Every
+> original HIGH (search_users PII `12-F01`, LLM-debug logging `15-F01`, upgrade path `16-F01`,
+> markdown scheme `06-F01`, benchmark write-cap `C1-F01`, engine→domain leak `05-F01`, the
+> docs-coverage cluster `C2-F02`/`C5-*`/`09-F01`) has been fixed and committed; see the
+> **[Remediation log](#remediation-log-2026-06-30)** below. A follow-up **capability-fidelity
+> sub-audit** ([`capability/`](capability/README.md)) then re-hardened the read side: **CAP-01**
+> (search_users — supersedes the incomplete first 12-F01 pass), **CAP-02** (get_option_details
+> cross-instance read), **CAP-03** (recreate_skill_catalog teacher→manager) — all fixed with
+> first-of-their-kind denial tests. **Residual = MEDIUM/LOW only** (`CAP-04…CAP-12` + assorted
+> deferred mediums), tracked in the fix lists below. Zero blockers throughout.
+
 The engine is **structurally sound and safe to ship after a short, well-defined pre-launch fix
 list.** There are **zero BLOCKER findings** and — importantly — the flowchart sweep (C4) found
 **no behavioural contradiction in any of the 14 subgraphs**; the safety machinery (two-gate
@@ -83,11 +94,12 @@ HIGHs below (e.g. the upgrade-path break is found by both `16` and `C2`).
 
 ### Pre-launch fix list (ordered — the actionable output of this audit)
 
-> **Remediation already in progress (2026-06-30):** the cross-cutting findings (C1–C5) are
-> already being worked on, so items below that originate from a `C*` sweep — #4 (06-F01/C1-F03),
-> #5 (C1-F01/C2-F03), #3 (16-F01/C2-F01), and the doc-coverage cluster #7 — are in flight. The
-> two section-only security/privacy must-fixes **#1 (12-F01 `search_users`)** and **#2 (15-F01
-> debug logging)** are the items most likely still outside that workstream — confirm they're covered.
+> **✅ All items below are now resolved (2026-06-30).** This ordered list is the original actionable
+> output of the audit; every HIGH item #1–#7 has since been fixed and committed — see the
+> [Remediation log](#remediation-log-2026-06-30) for the specific change and test per item. #1
+> (`search_users`) was additionally re-hardened by capability audit **CAP-01** after the first pass
+> proved insufficient. Only the MEDIUM/LOW items (#8 and `CAP-04…CAP-12`) remain open. Kept here for
+> traceability.
 
 
 **Must fix or formally waive before go-live (security/privacy/data-integrity):**
