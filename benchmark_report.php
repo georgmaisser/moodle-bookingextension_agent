@@ -46,10 +46,33 @@ $PAGE->set_pagelayout('admin');
 
 // Handle actions.
 if ($action === 'pinbaseline' && $runid > 0 && confirm_sesskey()) {
+    // Pinning the baseline is a WRITE: gate it on managebenchmarks, not the read-only viewbenchmarks
+    // the whole page uses — otherwise any report viewer (e.g. a manager) could mutate the baseline.
+    require_capability('bookingextension/agent:managebenchmarks', context_system::instance());
     $label = optional_param('baselinelabel', date('Y-m-d'), PARAM_TEXT);
     $writer = new benchmark_db_writer();
     $writer->pin_baseline($runid, $label, '', $USER->id);
     redirect($PAGE->url, get_string('benchmark_baseline_pinned', 'bookingextension_agent'), 2);
+}
+
+// Run a benchmark from the interface (queued as an adhoc task). More privileged than viewing — a live
+// run issues real LLM calls — so it has its own capability. Provider/model resolution is identical to
+// production (env overrides only when BOOKING_TEST_AI_* is set); the effective values are shown in the
+// panel next to the button.
+if ($action === 'runbenchmark' && confirm_sesskey()) {
+    require_capability('bookingextension/agent:runbenchmarks', context_system::instance());
+    $task = new \bookingextension_agent\task\run_benchmark_adhoc();
+    $task->set_custom_data([
+        'env'   => 'ui',
+        'label' => date('Y-m-d H:i') . ' (UI: ' . fullname($USER) . ')',
+    ]);
+    \core\task\manager::queue_adhoc_task($task, true);
+    redirect(
+        $PAGE->url,
+        get_string('benchmark_run_queued', 'bookingextension_agent'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
 }
 
 echo $OUTPUT->header();
@@ -61,6 +84,67 @@ if (!$DB->get_manager()->table_exists('bx_agent_benchmark_runs')) {
     echo $OUTPUT->notification(get_string('benchmark_tables_not_installed', 'bookingextension_agent'), 'error');
     echo $OUTPUT->footer();
     exit;
+}
+
+// Run-a-benchmark panel — only for holders of the run capability. Shows up front exactly which
+// provider/model/key values the run will use: env overrides if BOOKING_TEST_AI_* is set, otherwise the
+// configured provider (the same resolution as outside benchmarks).
+if (has_capability('bookingextension/agent:runbenchmarks', context_system::instance())) {
+    $preview = (new \bookingextension_agent\local\wizard\benchmark\benchmark_provider_preview())->describe();
+    $srcenv = get_string('benchmark_run_source_env', 'bookingextension_agent');
+    $srcprov = get_string('benchmark_run_source_provider', 'bookingextension_agent');
+
+    $rows = '';
+    foreach ($preview['actions'] as $a) {
+        $src = $a['source'] === 'env' ? $srcenv . ' (' . s($a['envvar']) . ')' : $srcprov;
+        $model = $a['model'] !== '' ? html_writer::tag('code', s($a['model'])) : '—';
+        $rows .= html_writer::tag('tr', html_writer::tag('td', s($a['label']))
+            . html_writer::tag('td', $model) . html_writer::tag('td', $src));
+    }
+    $keysrc = $preview['key']['source'] === 'env'
+        ? $srcenv . ' (' . s($preview['key']['detail']) . ')' : s($preview['key']['detail']);
+    $rows .= html_writer::tag('tr', html_writer::tag('td', get_string('benchmark_run_key_label', 'bookingextension_agent'))
+        . html_writer::tag('td', '') . html_writer::tag('td', $keysrc));
+    if ($preview['endpoint']['value'] !== '') {
+        $endsrc = $preview['endpoint']['source'] === 'env' ? $srcenv : $srcprov;
+        $rows .= html_writer::tag('tr', html_writer::tag('td', get_string('benchmark_run_endpoint_label', 'bookingextension_agent'))
+            . html_writer::tag('td', html_writer::tag('code', s($preview['endpoint']['value']))) . html_writer::tag('td', $endsrc));
+    }
+    $table = html_writer::tag('table', html_writer::tag('tbody', $rows), ['class' => 'table table-sm w-auto mb-2']);
+
+    $note = html_writer::div(
+        $preview['env_override_active']
+            ? get_string('benchmark_run_env_active', 'bookingextension_agent')
+            : get_string('benchmark_run_env_inactive', 'bookingextension_agent'),
+        'text-muted small mb-2'
+    );
+    if (!$preview['provider_found'] && !$preview['env_override_active']) {
+        $note .= $OUTPUT->notification(get_string('benchmark_run_provider_missing', 'bookingextension_agent'), 'warning');
+    }
+
+    $button = html_writer::tag(
+        'button',
+        get_string('benchmark_run_button', 'bookingextension_agent'),
+        ['type' => 'submit', 'class' => 'btn btn-primary']
+    );
+    $form = html_writer::tag(
+        'form',
+        html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'runbenchmark'])
+        . html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()])
+        . $button,
+        ['method' => 'post', 'action' => $PAGE->url->out(false)]
+    );
+
+    $subhead = html_writer::tag(
+        'div',
+        get_string('benchmark_run_effective_values', 'bookingextension_agent'),
+        ['class' => 'fw-bold mb-1']
+    );
+    echo html_writer::div(
+        html_writer::tag('h4', get_string('benchmark_run_heading', 'bookingextension_agent'))
+        . $subhead . $note . $table . $form,
+        'card card-body mb-4'
+    );
 }
 
 $total = $DB->count_records('bx_agent_benchmark_runs');

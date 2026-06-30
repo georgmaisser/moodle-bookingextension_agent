@@ -229,6 +229,16 @@ $capabilities['bookingextension/agent:managebenchmarks'] = [
     'archetypes'   => [],
 ];
 
+// Run a benchmark from the interface (the "Run benchmark" button on benchmark_report.php). Distinct
+// from viewbenchmarks (reading reports): a live run issues real LLM calls and consumes credits, so it
+// is admin-only by default (empty archetypes) and must be granted explicitly to delegate it.
+$capabilities['bookingextension/agent:runbenchmarks'] = [
+    'riskbitmask'  => RISK_CONFIG,
+    'captype'      => 'write',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes'   => [],
+];
+
 // Skill Governance & Analysis admin page: inspect skill contracts, enable/disable skills and
 // rebuild the skill embedding catalog. This is a site-wide, config-style action. Previously the
 // page was gated by moodle/site:config (admin-only); it now has its own capability so the page can
