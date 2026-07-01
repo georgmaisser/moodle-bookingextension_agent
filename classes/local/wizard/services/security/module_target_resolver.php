@@ -78,8 +78,9 @@ class module_target_resolver {
         }
 
         // Scope cascade: the ambient course first, then site-wide as a fallback.
+        // The site course (front page, id 1) is a valid scope — it can carry activities — so include it.
         $courseid = $ambient !== null ? $ambient->courseid() : null;
-        if ($courseid !== null && $courseid > 1) {
+        if ($courseid !== null && $courseid >= 1) {
             $incourse = $this->filter_by_name($this->collect_instances($modname, $userid, (int)$courseid), $query);
             $decided = $this->decide($incourse);
             if ($decided !== null) {
@@ -209,7 +210,7 @@ class module_target_resolver {
                JOIN {course} c ON c.id = inst.course
                JOIN {modules} md ON md.name = :modname
                JOIN {course_modules} cm ON cm.instance = inst.id AND cm.module = md.id AND cm.course = c.id
-              WHERE c.id > 1" . $coursewhere . "
+              WHERE c.id >= 1" . $coursewhere . "
            ORDER BY c.fullname, inst.name",
             $params
         );

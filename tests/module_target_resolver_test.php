@@ -106,6 +106,28 @@ final class module_target_resolver_test extends advanced_testcase {
     }
 
     /**
+     * A module instance on the site course (front page, id 1) is resolvable — the front page is a
+     * valid activity host and must not be excluded from module targeting.
+     */
+    public function test_site_course_instance_resolves(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $cmid = $this->make_booking(SITEID, 'Front page booking');
+        $ambient = agent_context::from_context(context_course::instance(SITEID));
+
+        $resolution = (new module_target_resolver())->resolve(
+            target_selector::for_module(null, null, 'booking'),
+            $ambient,
+            $this->userid()
+        );
+
+        $this->assertSame(context_target_resolution::STATUS_RESOLVED, $resolution->status());
+        $this->assertInstanceOf(context_module::class, $resolution->context());
+        $this->assertSame($cmid, (int)$resolution->context()->instanceid);
+    }
+
+    /**
      * No instance in the ambient course but exactly one site-wide → use it regardless of where I am.
      */
     public function test_zero_in_course_falls_back_to_single_site_instance(): void {

@@ -24,6 +24,7 @@ use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\operating_context_target_provider_interface;
 use context_course;
 use core_course_category;
+use core_text;
 
 /**
  * Resolves a {@see target_selector} to a concrete operating context.
@@ -120,6 +121,16 @@ class operating_context_target_registry {
             return $context ? context_target_resolution::resolved($context) : context_target_resolution::not_found();
         }
 
+        // The site course (front page, id 1) is a legitimate target — Moodle lets activities and
+        // resources live on the front page — but the course catalog search below never returns it.
+        // Resolve it explicitly when the query names the site (its full/short name) or refers to the
+        // current front-page context (its context name, e.g. "Site home"). Resolving a context is not
+        // a permission grant: the caller still enforces the capability at this context (Gate 2).
+        if ($this->query_denotes_site_course($query)) {
+            $context = context_course::instance(SITEID, IGNORE_MISSING);
+            return $context ? context_target_resolution::resolved($context) : context_target_resolution::not_found();
+        }
+
         // Free-text: match against the visible course list (respects the acting user's visibility).
         $courses = core_course_category::search_courses(
             ['search' => $query],
@@ -130,7 +141,7 @@ class operating_context_target_registry {
         foreach ($courses as $course) {
             $courseid = (int)($course->id ?? 0);
             if ($courseid <= 1) {
-                // Skip invalid ids and the site course (id 1).
+                // Skip invalid ids; the site course (id 1) is handled explicitly above.
                 continue;
             }
             $candidates[] = [
@@ -149,5 +160,29 @@ class operating_context_target_registry {
         }
 
         return context_target_resolution::ambiguous($candidates);
+    }
+
+    /**
+     * Whether a free-text query denotes the site course (front page, id 1).
+     *
+     * Matches, case-insensitively, the site's full or short name, or the site course context name
+     * (e.g. the localized "Site home") — the latter is what the runtime context block shows the
+     * planner as the current context on the front page, so "add a label here" resolves correctly.
+     *
+     * @param string $query
+     * @return bool
+     */
+    private function query_denotes_site_course(string $query): bool {
+        $needle = core_text::strtolower(trim($query));
+        if ($needle === '') {
+            return false;
+        }
+        $site = get_site();
+        $names = [
+            core_text::strtolower(format_string($site->fullname)),
+            core_text::strtolower((string)$site->shortname),
+            core_text::strtolower(context_course::instance(SITEID)->get_context_name(false)),
+        ];
+        return in_array($needle, array_filter($names), true);
     }
 }

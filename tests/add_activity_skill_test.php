@@ -84,6 +84,52 @@ final class add_activity_skill_test extends advanced_testcase {
     }
 
     /**
+     * Gate 2 on the front page: a user without manage-activities on the SITE course context is
+     * blocked, exactly like in any other course. Full front-page support must not weaken the
+     * capability check.
+     */
+    public function test_preflight_gate2_blocks_user_on_site_course(): void {
+        $this->resetAfterTest();
+        $sitecoursecontextid = (int)context_course::instance(SITEID)->id;
+        $user = $this->getDataGenerator()->create_user();
+
+        $result = (new add_activity_skill())->preflight(
+            ['modname' => 'label', 'intro' => 'Hi'],
+            $sitecoursecontextid,
+            (int)$user->id
+        );
+        $this->assertSame('hard_block', $result->status);
+        $this->assertContains('NO_NATIVE_CAPABILITY', $result->issuecodes);
+    }
+
+    /**
+     * A user allowed to manage activities can add a label to the Moodle front page (site course,
+     * id 1) — the activity really lands on the site course. Course/section resolution is covered by
+     * the resolver tests; here we prove creation targets the site course.
+     */
+    public function test_execute_creates_label_on_site_course(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+        $sitecoursecontextid = (int)context_course::instance(SITEID)->id;
+
+        $prepared = [
+            'courseid' => (int)SITEID,
+            'modname' => 'label',
+            'sectionnum' => 0,
+            'name' => '',
+            'intro' => 'Hello!',
+            'settings' => [],
+        ];
+        $result = (new add_activity_skill())->execute($prepared, $sitecoursecontextid, (int)$USER->id);
+        $this->assertSame('executed', $result['status'], (string)($result['detail'] ?? ''));
+        $this->assertGreaterThan(0, (int)$result['created_cmid']);
+
+        $cm = get_coursemodule_from_id('label', (int)$result['created_cmid'], 0, false, MUST_EXIST);
+        $this->assertSame((int)SITEID, (int)$cm->course);
+    }
+
+    /**
      * No module type given → list the addable types as a clarification with options.
      */
     public function test_preflight_asks_for_module(): void {

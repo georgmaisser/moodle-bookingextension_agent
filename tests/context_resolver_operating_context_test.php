@@ -144,6 +144,42 @@ final class context_resolver_operating_context_test extends advanced_testcase {
     }
 
     /**
+     * The site course (front page, id 1) is a legitimate target: it resolves by its full/short name,
+     * by its context name (what the front page shows as the current context, e.g. "Site home") and by
+     * explicit id — even though the course catalog search never returns it. Resolving is not a grant;
+     * the capability is still enforced separately at this context.
+     */
+    public function test_site_course_resolves_by_name_context_name_and_id(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $registry = new operating_context_target_registry();
+        $sitectxid = (int)context_course::instance(SITEID)->id;
+        $site = get_site();
+
+        $queries = array_filter([
+            (string)$site->fullname,
+            (string)$site->shortname,
+            context_course::instance(SITEID)->get_context_name(false),
+        ], static fn($q): bool => trim((string)$q) !== '');
+
+        foreach ($queries as $query) {
+            $resolution = $registry->resolve(target_selector::for_course(null, $query));
+            $this->assertSame(
+                context_target_resolution::STATUS_RESOLVED,
+                $resolution->status(),
+                'Query "' . $query . '" should resolve to the site course.'
+            );
+            $this->assertSame($sitectxid, (int)$resolution->context()->id);
+        }
+
+        // Explicit numeric id 1 resolves too.
+        $byid = $registry->resolve(target_selector::for_course(SITEID));
+        $this->assertSame(context_target_resolution::STATUS_RESOLVED, $byid->status());
+        $this->assertSame($sitectxid, (int)$byid->context()->id);
+    }
+
+    /**
      * An unknown course name is not-found, and surfaces as the unresolved exception.
      */
     public function test_unknown_course_name_is_not_found(): void {
