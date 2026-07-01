@@ -20,29 +20,31 @@ use bookingextension_agent\local\wizard\services\synchronizer_output_contract;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Contract tests for the source-side merge rejection behind thread 58 (a correct synthesized answer
- * discarded and replaced by "Please clarify").
+ * Contract tests for the ERROR-FAITHFULNESS guard (source_conflict_reason) and its interaction with
+ * thread 58 — pinning that the guard's rejection is DELIBERATE, and that the real thread-58 fix is at
+ * the source, not in the guard.
  *
- * Root cause, confirmed from the aidebugmode trace of the original run (llm_debug row 6344):
- * the synchronizer returned response_type 'sufficient' with the correct multi-course answer
- * (success=1) — it was NOT at fault. The output contract discarded it on the SOURCE side.
+ * Flowchart (AGENT_IMPLEMENTATION_FLOWCHART.mmd, SCONTRACT): free message replacement is REJECTED when
+ * the source response_type == 'error' OR the latest source result row status == 'error' — UNLESS
+ * error_presentation_requested. The abandon guard keeps any-success runs 'sufficient' precisely so this
+ * guard applies "instead of free composition". Its purpose is to stop the synchronizer papering over a
+ * failed sub-step (see integration_agent_framework_test:
+ * test_synchronizer_output_contract_rejects_success_when_latest_result_is_error — a failed
+ * update_option_trainer must not be narrated as "all actions completed successfully").
  *
- * The turn was an any-success 'sufficient' run: the planner diagnosed three courses (successes) and
- * also made one course-less diagnose call that hard-failed with a missing_course error (pre-2a). The
- * abandon guard (reclassify_abandoned_run_as_error) keeps such a run 'sufficient' precisely because
- * at least one step succeeded — "any-success stays sufficient". But source_conflict_reason() then
- * rejects the sync message replacement anyway, because latest_source_result_is_error() sees that
- * trailing error result row (SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED). The two guards disagree
- * about the same run.
+ * Thread 58, correctly understood (aidebugmode trace, llm_debug row 6344): the synchronizer returned a
+ * correct 'sufficient' multi-course answer, but the turn carried a TRAILING error result row — a
+ * course-less diagnose call that hard-failed with missing_course. That error was SPURIOUS: the person
+ * was already resolved, only the course was unnamed. The guard then did its documented job and rejected
+ * the free composition, so the user got the "please clarify" template. The defect was the spurious error
+ * row, not the guard. Fix 2a makes the course-less diagnose return a soft 'executed' clarification
+ * instead of an error row; with no error row the guard no longer fires and the answer flows — which is
+ * exactly why turn 2 of the same thread (identical answer, no hard error) was accepted.
  *
- * Fix 2a removes the trigger (the course-less diagnose no longer emits an error row), which is why
- * turn 2 of the same thread — the identical answer without the hard error — was accepted. Fix 1b is
- * the defence in depth: align source_conflict_reason() with the abandon guard so an any-success
- * 'sufficient' run is not rejected merely because its last result row is an error.
- *
- * test_current_* pin today's behaviour (a regression net for fix 1b). The test_target_* case is the
- * executable spec for fix 1b — skipped until source_conflict_reason() respects the any-success
- * invariant. Removing the single markTestSkipped line turns it into the pass criterion.
+ * Conclusion pinned by these tests: the guard is left UNCHANGED by design. Loosening it to tolerate an
+ * any-success trailing error would reintroduce the "papered-over failed sub-step" hole the integration
+ * test guards against. Any future "faithful partial narration" for reads is a separate flowchart-level
+ * design decision, not a guard bug.
  *
  * @covers \bookingextension_agent\local\wizard\services\synchronizer_output_contract
  *
@@ -50,7 +52,7 @@ use PHPUnit\Framework\TestCase;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-final class synchronizer_reject_error_presentation_test extends TestCase {
+final class synchronizer_error_faithfulness_guard_test extends TestCase {
     /** @var string A composed, user-facing answer — no option ids, no parse/contract markers. */
     private const GOOD_MESSAGE = 'Fortschritt von Maria Huber: Kurs A teilweise abgeschlossen, '
         . 'Kurs B und Kurs C ohne Abschlussverfolgung.';
@@ -77,15 +79,16 @@ final class synchronizer_reject_error_presentation_test extends TestCase {
     }
 
     // -----------------------------------------------------------------------
-    // Characterisation — pins today's behaviour (regression net for fix 1b).
+    // The guard is intended behaviour — pin it, do not loosen it.
     // Separator.
 
     /**
-     * Thread 58 turn 1 reproduction: a clean 'sufficient' synchronizer answer is discarded because the
-     * any-success source carries a trailing error result row. This is the exact defect — the correct
-     * composed message never reaches the user.
+     * A trailing error result row rejects free composition even on an any-success 'sufficient' turn.
+     * This is the ERROR-FAITHFULNESS guard working as designed — it is NOT a bug to fix in the contract.
+     * In thread 58 the trailing error was spurious; the fix belongs at the source (fix 2a), which stops
+     * emitting it.
      */
-    public function test_current_trailing_error_on_sufficient_turn_is_rejected(): void {
+    public function test_trailing_error_on_sufficient_turn_is_rejected_by_design(): void {
         $contract = new synchronizer_output_contract();
         $source = $this->any_success_sufficient_source_with_trailing_error();
         $sync = ['response_type' => 'sufficient', 'message' => self::GOOD_MESSAGE];
@@ -94,18 +97,18 @@ final class synchronizer_reject_error_presentation_test extends TestCase {
 
         $this->assertContains('SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED', (array)($result['issue_codes'] ?? []));
         $this->assertSame('failed', $result['sync_gate_status'] ?? '');
-        // The good answer is rolled back to the (message-less) source, not delivered.
         $this->assertNotSame(self::GOOD_MESSAGE, $result['message'] ?? '');
     }
 
     /**
-     * The mirror image: the SAME any-success source WITHOUT the trailing error (turn 2 of the thread)
-     * accepts the identical answer. Proves the trailing error row is the sole differentiator.
+     * The thread-58 resolution at the source level: with the spurious trailing error removed (what fix
+     * 2a achieves), the SAME any-success source accepts the identical answer. Proves the trailing error
+     * row is the sole differentiator between turn 1 (rejected) and turn 2 (accepted).
      */
-    public function test_current_no_trailing_error_accepts_same_answer(): void {
+    public function test_no_trailing_error_accepts_same_answer(): void {
         $contract = new synchronizer_output_contract();
         $source = $this->any_success_sufficient_source_with_trailing_error();
-        // Drop the trailing error row — leave the three successes.
+        // Fix 2a's effect: the course-less diagnose no longer yields an error row.
         array_pop($source['results']);
         $sync = ['response_type' => 'sufficient', 'message' => self::GOOD_MESSAGE];
 
@@ -116,11 +119,10 @@ final class synchronizer_reject_error_presentation_test extends TestCase {
     }
 
     /**
-     * source_conflict_reason() already honours error_presentation_requested: an error source whose
-     * cause is being deliberately presented is not rejected. Documents the consistent counter-case —
-     * the flag path fix 1b should leave untouched.
+     * The escape hatch: when the error is deliberately being presented (error_presentation_requested),
+     * the guard steps aside so the synchronizer can narrate the real cause in the user's language.
      */
-    public function test_current_error_presentation_source_is_accepted(): void {
+    public function test_error_presentation_source_is_accepted(): void {
         $contract = new synchronizer_output_contract();
         $source = [
             'response_type' => 'error',
@@ -138,37 +140,9 @@ final class synchronizer_reject_error_presentation_test extends TestCase {
         $this->assertNotContains('SYNC_SOURCE_RESPONSE_ERROR_REJECTED', (array)($result['issue_codes'] ?? []));
     }
 
-    // -----------------------------------------------------------------------
-    // Executable spec for fix 1b — SKIPPED until source_conflict_reason() respects any-success.
-    // Remove the markTestSkipped line once fix 1b lands.
-    // Separator.
-
     /**
-     * Target 1b: an any-success 'sufficient' run must not have its synchronizer answer rejected merely
-     * because the last result row is an error — the source-side guard must respect the same invariant
-     * the abandon guard already encodes ("any-success stays sufficient"). The composed message is
-     * delivered; no SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED.
-     */
-    public function test_target_any_success_sufficient_survives_trailing_error(): void {
-        $this->markTestSkipped('Pending fix 1b: source_conflict_reason() must respect any-success sufficient.');
-
-        $contract = new synchronizer_output_contract();
-        $source = $this->any_success_sufficient_source_with_trailing_error();
-        $sync = ['response_type' => 'sufficient', 'message' => self::GOOD_MESSAGE];
-
-        $result = $contract->merge($source, $sync);
-
-        $this->assertNotContains('SYNC_SOURCE_RESULT_STATUS_CONFLICT_REJECTED', (array)($result['issue_codes'] ?? []));
-        $this->assertSame(self::GOOD_MESSAGE, $result['message'] ?? '');
-    }
-
-    // -----------------------------------------------------------------------
-    // Guard: fix 1b must NOT loosen genuine failure rejections.
-    // Separator.
-
-    /**
-     * A run where every step failed (abandon guard flips it to response_type 'error') must stay
-     * rejected — fix 1b only concerns any-success runs, never all-failed ones.
+     * A run where every step failed (abandon guard flips it to response_type 'error') stays rejected on
+     * the response-type branch of the guard.
      */
     public function test_all_failed_error_source_stays_rejected(): void {
         $contract = new synchronizer_output_contract();
@@ -186,8 +160,8 @@ final class synchronizer_reject_error_presentation_test extends TestCase {
     }
 
     /**
-     * A real parse failure must stay rejected regardless of source shape — fix 1b never touches the
-     * JSON/contract defect branches in reject_reason().
+     * A real parse failure stays rejected regardless of source shape — unrelated to the source-side
+     * error-faithfulness branch, but pinned here so the two rejection families are not conflated.
      */
     public function test_parse_failure_stays_rejected(): void {
         $contract = new synchronizer_output_contract();
