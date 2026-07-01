@@ -92,16 +92,20 @@ class shortcodes {
             return self::render_shortcode_warning('shortcode_warning_invalid_securitytoken');
         }
 
-        // The agent is rendered for the current page context and the current viewer.
-        // aiready + the aiinstructions template are the same entry point the inline
-        // booking view and the navbar fragment use; the template self-bootstraps its
-        // AMD chat module, so rendering it is enough.
-        if (empty($PAGE->context) || !\class_exists('\\bookingextension_agent\\local\\wizard\\aiready')) {
+        // The agent is rendered for the context of the formatted content and the current viewer.
+        // aiready + the aiinstructions template are the same entry point the inline booking view and
+        // the navbar fragment use; the template self-bootstraps its AMD chat module, so rendering it
+        // is enough. Take the context from the filter environment ($env->context), NOT
+        // empty($PAGE->context): moodle_page has __get but no __isset, so empty() consults __isset and
+        // always reports the magic property as empty even when a valid context exists. $env->context is
+        // a plain property (no magic gotcha) and is the correct context for the content being filtered.
+        $context = $env->context ?? ($PAGE->context ?? null);
+        if (empty($context) || !\class_exists('\bookingextension_agent\local\wizard\aiready')) {
             return '';
         }
 
         try {
-            $aiready = new \bookingextension_agent\local\wizard\aiready((int)$PAGE->context->id, (int)$USER->id);
+            $aiready = new \bookingextension_agent\local\wizard\aiready((int)$context->id, (int)$USER->id);
             return $OUTPUT->render_from_template('bookingextension_agent/aiinstructions', $aiready->export_for_template());
         } catch (\Throwable $e) {
             // Never let a misplaced shortcode (e.g. an unsupported context) break the page.
