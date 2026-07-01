@@ -497,6 +497,12 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
      * @return int|array
      */
     private function resolve_section(\stdClass $course, string $modname, string $query) {
+        // Site front page: it has no selectable topic sections — section 0 is not rendered there, so
+        // every activity lands in section 1 regardless of what was asked ("top"/"homepage"/a number).
+        // Hard-coded because on the front page placement is not a real user choice.
+        if (section_resolver_service::is_site_front_page($course)) {
+            return section_resolver_service::SITE_FRONT_PAGE_SECTION;
+        }
         // Module types that are not displayed on the course page must always be in section 0.
         if (!\course_modinfo::is_mod_type_visible_on_course($modname)) {
             return 0;

@@ -127,6 +127,10 @@ class activity_preview_builder {
             self::push($rows, self::str('previewlabel_visibility', $lang), $visible);
         }
         self::push($rows, self::str('previewlabel_description', $lang), self::text_value($input['intro'] ?? null));
+        $section = $input['section'] ?? ($input['section_move'] ?? null);
+        if ($section !== null && $section !== '' && is_numeric($section)) {
+            self::push($rows, self::str('previewlabel_section', $lang), (string)(int)$section);
+        }
         return $rows;
     }
 

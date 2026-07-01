@@ -136,6 +136,90 @@ final class update_activity_skill_test extends advanced_testcase {
     }
 
     /**
+     * Move an activity to another section (course-structure op, not a mod_form field).
+     */
+    public function test_move_to_section(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 3, 'format' => 'topics']);
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $page = $this->getDataGenerator()->create_module(
+            'page',
+            ['course' => $course->id, 'name' => 'Welcome page', 'section' => 0]
+        );
+        $ctxid = (int)context_course::instance($course->id)->id;
+        $this->setUser($teacher);
+        $PAGE->set_context(context_course::instance($course->id));
+
+        $this->assertSame(0, (int)get_fast_modinfo($course)->get_cm((int)$page->cmid)->sectionnum);
+
+        $skill = new update_activity_skill();
+        $pf = $skill->preflight(['cmid' => (int)$page->cmid, 'section' => 2], $ctxid, (int)$teacher->id);
+        $this->assertSame('pass', $pf->status);
+        $this->assertSame(2, (int)$pf->preparedinput['section_move']);
+
+        $result = $skill->execute($pf->preparedinput, $ctxid, (int)$teacher->id);
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame(2, (int)get_fast_modinfo($course)->get_cm((int)$page->cmid)->sectionnum);
+        $this->assertStringContainsString('section 2', (string)$result['detail']);
+    }
+
+    /**
+     * A move to a non-existent section asks rather than silently failing.
+     */
+    public function test_move_to_missing_section_clarifies(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['numsections' => 1, 'format' => 'topics']);
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $page = $this->getDataGenerator()->create_module(
+            'page',
+            ['course' => $course->id, 'name' => 'Welcome page', 'section' => 0]
+        );
+        $ctxid = (int)context_course::instance($course->id)->id;
+        $this->setUser($teacher);
+        $PAGE->set_context(context_course::instance($course->id));
+
+        $pf = (new update_activity_skill())->preflight(
+            ['cmid' => (int)$page->cmid, 'section' => 9],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('hard_block', $pf->status);
+        $this->assertContains('UPDATE_ACTIVITY_SECTION_INVALID', $pf->issuecodes);
+    }
+
+    /**
+     * Regression (thread 66): on the site front page every section maps to section 1 — a requested
+     * section 0 move is normalised to 1 (section 0 is not rendered there), so the activity becomes visible.
+     */
+    public function test_move_on_site_front_page_forces_section_1(): void {
+        global $CFG, $PAGE;
+        require_once($CFG->dirroot . '/course/lib.php');
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $site = get_site();
+        course_create_sections_if_missing($site, [0, 1]);
+        $label = $this->getDataGenerator()->create_module('label', ['course' => $site->id, 'section' => 0]);
+        $ctxid = (int)context_course::instance($site->id)->id;
+        $PAGE->set_context(context_course::instance($site->id));
+
+        $this->assertSame(0, (int)get_fast_modinfo($site)->get_cm((int)$label->cmid)->sectionnum);
+
+        $skill = new update_activity_skill();
+        // The user names section 0, but on the front page that must resolve to section 1.
+        $pf = $skill->preflight(['cmid' => (int)$label->cmid, 'section' => 0], $ctxid, (int)get_admin()->id);
+        $this->assertSame('pass', $pf->status);
+        $this->assertSame(1, (int)$pf->preparedinput['section_move']);
+
+        $result = $skill->execute($pf->preparedinput, $ctxid, (int)get_admin()->id);
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame(1, (int)get_fast_modinfo($site)->get_cm((int)$label->cmid)->sectionnum);
+    }
+
+    /**
      * Gate 2: a student without manageactivities is blocked.
      */
     public function test_gate_blocks_student(): void {

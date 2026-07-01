@@ -48,6 +48,16 @@ final class section_resolver_service_test extends advanced_testcase {
     }
 
     /**
+     * The site front page is detected (format 'site' / SITEID) so callers can force section 1.
+     */
+    public function test_is_site_front_page(): void {
+        $this->resetAfterTest();
+        $normal = $this->getDataGenerator()->create_course(['format' => 'topics']);
+        $this->assertFalse(section_resolver_service::is_site_front_page($normal));
+        $this->assertTrue(section_resolver_service::is_site_front_page(get_site()));
+    }
+
+    /**
      * Top / bottom / numeric resolution.
      */
     public function test_resolve_placement_keywords_and_number(): void {

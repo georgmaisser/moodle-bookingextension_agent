@@ -26,6 +26,7 @@ use bookingextension_agent\local\wizard\services\activities\activity_creation_se
 use bookingextension_agent\local\wizard\services\activities\activity_preview_renderer;
 use bookingextension_agent\local\wizard\services\activities\module_catalog_service;
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
+use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
 use bookingextension_agent\local\wizard\services\activity_preview_builder;
 use context;
 
@@ -116,8 +117,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         return [
             'version' => 1,
             'description' => 'Edit / change an existing activity or resource in a course — rename it, change its '
-                . 'description, show or hide it, or change a module-specific setting (e.g. a URL\'s link). Use for '
-                . '"rename the page to X", "hide the forum", "change the activity\'s URL", "hide the quiz". '
+                . 'description, show or hide it, change a module-specific setting (e.g. a URL\'s link), or MOVE it '
+                . 'to a different section/topic. Use for "rename the page to X", "hide the forum", "change the '
+                . 'activity\'s URL", "hide the quiz", "move the label to section 2", "move the page one section down". '
                 . 'Only the fields you give are changed. To CREATE a new activity use course.add_activity instead.',
             'readonly' => false,
             'example_utterances' => [
@@ -126,6 +128,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'change the description of the folder',
                 'make the link point to a new URL',
                 'show the page that is currently hidden',
+                'move the label to section 1',
+                'move the page one section down',
             ],
             'properties' => [
                 'activityquery' => [
@@ -158,7 +162,15 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'settings' => [
                     'type' => 'object',
                     'description' => 'Module-specific fields to change, as an object. Example: for a URL '
-                        . '{"externalurl":"https://…"}; for a Page {"content":"…"}. Only set what should change.',
+                        . '{"externalurl":"https://…"}; for a Page {"content":"…"}. Only set what should change. '
+                        . 'This is NOT for moving the activity — use "section" for that.',
+                    'required' => false,
+                ],
+                'section' => [
+                    'type' => 'integer',
+                    'description' => 'Move the activity to this section/topic number (0-based, e.g. 0 = top). Use for '
+                        . '"move it to section 2" or "one section down/up" (compute the target number). Omit to leave '
+                        . 'it where it is. On the site front page everything stays in section 1.',
                     'required' => false,
                 ],
                 'coursequery' => [
@@ -175,7 +187,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'settings'],
+                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'settings', 'section'],
                 'anchor_fields' => ['activityquery', 'coursequery'],
             ],
         ];
@@ -200,9 +212,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             [
                 'id' => 'course.update_activity_request',
                 'description' => 'User wants to change/edit an EXISTING activity or resource in a course: rename it, '
-                    . 'change its description, show/hide it, or change a module setting (e.g. "rename the page", '
-                    . '"hide the forum", "change the URL", "rename the quiz", "hide the page"). Not creating '
-                    . 'a new one.',
+                    . 'change its description, show/hide it, change a module setting, or MOVE it to another '
+                    . 'section/topic (e.g. "rename the page", "hide the forum", "change the URL", "move the label '
+                    . 'to section 2", "move the page one section down"). Not creating a new one.',
             ],
         ];
     }
@@ -220,12 +232,15 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                     'rename', 'hide', 'show', 'unhide',
                     'make visible', 'change the', 'edit the', 'update the activity',
                     'change the url', 'rename page', 'hide forum',
+                    'move', 'verschieben', 'section', 'one section down', 'one section up',
                 ],
                 'guidance' => [
                     '- course.update_activity edits an EXISTING activity; to create a new one use course.add_activity.',
                     '- Identify the activity via activityquery (its current name) or cmid; if unclear the system asks.',
                     '- Set only the fields that should change (name, intro, visible, or settings{}); omit the rest —',
                     '  they keep their current value. Do NOT invent values.',
+                    '- To MOVE the activity to another section/topic, set "section" to the target section number.',
+                    '  For "one section down/up" compute the number from the current one. Never use settings{} to move.',
                 ],
             ],
         ];
@@ -241,6 +256,11 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $errors = [];
         if (isset($input['settings']) && $input['settings'] !== '' && !is_array($input['settings'])) {
             $errors[] = 'settings must be an object of module-specific fields.';
+        }
+        if (isset($input['section']) && $input['section'] !== '' && $input['section'] !== null) {
+            if (!is_numeric($input['section']) || (int)$input['section'] < 0) {
+                $errors[] = 'section must be a non-negative section number.';
+            }
         }
         return ['valid' => empty($errors), 'errors' => $errors, 'ambiguities' => []];
     }
@@ -278,27 +298,37 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $cm = $cmresolution;
         $modname = (string)$cm->modname;
 
-        // Collect the requested changes (only provided fields).
+        // Collect the requested field changes (name / intro / visibility / module settings).
         $changes = $this->collect_changes($input);
-        if (empty($changes)) {
+
+        // A section move is a course-structure operation, resolved separately from the mod_form fields.
+        $sectionmove = $this->resolve_section_move($input, $course, $cm);
+        if (is_array($sectionmove)) {
+            return $sectionmove;
+        }
+
+        if (empty($changes) && $sectionmove === null) {
             return $this->clarify(
                 'What should I change about "' . format_string($cm->name) . '"? (name, description, visibility, '
-                    . 'or a module setting)',
+                    . 'a module setting, or move it to another section)',
                 'UPDATE_ACTIVITY_NO_CHANGES'
             );
         }
 
-        // Validate the change against the activity's real mod_form.
         $cmrecord = get_coursemodule_from_id('', (int)$cm->id, (int)$course->id, false, IGNORE_MISSING);
         if (!$cmrecord) {
             return $this->clarify('That activity could not be loaded.', 'UPDATE_ACTIVITY_CM_GONE');
         }
-        $validation = (new module_form_contract())->validate_update($course, $cmrecord, $changes);
-        if (!$validation['ok'] && !empty($validation['errors'])) {
-            return $this->clarify(
-                $this->format_field_errors($modname, $validation['errors']),
-                'UPDATE_ACTIVITY_FIELDS_INVALID'
-            );
+
+        // Validate the field changes against the activity's real mod_form (only when there are any).
+        if (!empty($changes)) {
+            $validation = (new module_form_contract())->validate_update($course, $cmrecord, $changes);
+            if (!$validation['ok'] && !empty($validation['errors'])) {
+                return $this->clarify(
+                    $this->format_field_errors($modname, $validation['errors']),
+                    'UPDATE_ACTIVITY_FIELDS_INVALID'
+                );
+            }
         }
 
         return $this->pass([
@@ -306,7 +336,12 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             'cmid' => (int)$cm->id,
             'modname' => $modname,
             'changes' => $changes,
-            'before' => ['name' => (string)$cm->name, 'visible' => (int)$cm->visible],
+            'section_move' => $sectionmove,
+            'before' => [
+                'name' => (string)$cm->name,
+                'visible' => (int)$cm->visible,
+                'section' => (int)$cm->sectionnum,
+            ],
         ]);
     }
 
@@ -322,7 +357,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $courseid = (int)($preparedinput['courseid'] ?? 0);
         $cmid = (int)($preparedinput['cmid'] ?? 0);
         $changes = (array)($preparedinput['changes'] ?? []);
-        if ($courseid <= 0 || $cmid <= 0 || empty($changes)) {
+        $sectionmove = $preparedinput['section_move'] ?? null;
+        $sectionmove = ($sectionmove === null) ? null : (int)$sectionmove;
+        if ($courseid <= 0 || $cmid <= 0 || (empty($changes) && $sectionmove === null)) {
             return $this->build_error_result('Missing prepared activity or changes for the update.');
         }
 
@@ -333,24 +370,116 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             return $this->build_error_result('The activity to edit could not be loaded.');
         }
 
-        $contract = new module_form_contract();
         $updater = new activity_creation_service();
 
-        $lasterror = '';
-        for ($attempt = 1; $attempt <= self::MAX_RETRIES; $attempt++) {
-            try {
-                $moduleinfo = $contract->build_prepared_update_moduleinfo($course, $cmrecord, $changes);
-                $updated = $updater->update($cmrecord, $moduleinfo, $course);
-                return $this->build_success_result($updated, $changes, (array)($preparedinput['before'] ?? []), $attempt);
-            } catch (\Throwable $e) {
-                $lasterror = $e->getMessage();
-                continue;
+        // 1) Field changes (name / intro / visibility / settings), retrying once on a transient failure.
+        $updated = null;
+        $attempts = 1;
+        if (!empty($changes)) {
+            $contract = new module_form_contract();
+            $lasterror = '';
+            for ($attempt = 1; $attempt <= self::MAX_RETRIES; $attempt++) {
+                try {
+                    $moduleinfo = $contract->build_prepared_update_moduleinfo($course, $cmrecord, $changes);
+                    $updated = $updater->update($cmrecord, $moduleinfo, $course);
+                    $attempts = $attempt;
+                    break;
+                } catch (\Throwable $e) {
+                    $lasterror = $e->getMessage();
+                    $updated = null;
+                }
+            }
+            if ($updated === null) {
+                return $this->build_error_result(
+                    'Could not update the activity after ' . self::MAX_RETRIES . ' attempt(s). Last error: ' . $lasterror
+                );
             }
         }
 
-        return $this->build_error_result(
-            'Could not update the activity after ' . self::MAX_RETRIES . ' attempt(s). Last error: ' . $lasterror
+        // 2) Section move (course-structure op) — re-read the cm so its current section id is fresh.
+        $movedto = null;
+        if ($sectionmove !== null) {
+            try {
+                $cmrecord = get_coursemodule_from_id('', $cmid, $courseid, false, MUST_EXIST);
+                $movedto = $updater->move_to_section($cmrecord, $sectionmove, $course);
+            } catch (\Throwable $e) {
+                return $this->build_error_result(
+                    'Could not move the activity to section ' . $sectionmove . '. ' . $e->getMessage()
+                );
+            }
+        }
+
+        // Move-only update: synthesize the descriptor from the (moved) module.
+        if ($updated === null) {
+            $updated = $this->describe_current_module($course, $cmid);
+        }
+
+        return $this->build_success_result(
+            $updated,
+            $changes,
+            (array)($preparedinput['before'] ?? []),
+            $attempts,
+            $movedto
         );
+    }
+
+    /**
+     * Resolve a requested section move to a concrete target section number.
+     *
+     * @param array $input
+     * @param \stdClass $course
+     * @param \cm_info $cm Target module (carries its current section number).
+     * @return int|array|null Target section number, a clarification array, or null when no move is needed.
+     */
+    private function resolve_section_move(array $input, \stdClass $course, \cm_info $cm) {
+        $raw = $input['section'] ?? null;
+        if ($raw === null || $raw === '' || !is_numeric($raw)) {
+            return null;
+        }
+        $target = (int)$raw;
+
+        // Site front page: everything lives in section 1 (section 0 is not rendered there).
+        if (section_resolver_service::is_site_front_page($course)) {
+            $target = section_resolver_service::SITE_FRONT_PAGE_SECTION;
+        }
+
+        if ($target === (int)$cm->sectionnum) {
+            // Already in the target section — nothing to move.
+            return null;
+        }
+        if (!(new section_resolver_service())->section_exists($course, $target)) {
+            return $this->clarify(
+                'Section ' . $target . ' does not exist in this course.',
+                'UPDATE_ACTIVITY_SECTION_INVALID'
+            );
+        }
+        return $target;
+    }
+
+    /**
+     * Build an update-result descriptor from the current state of a module (used for move-only updates).
+     *
+     * @param \stdClass $course
+     * @param int $cmid
+     * @return array
+     */
+    private function describe_current_module(\stdClass $course, int $cmid): array {
+        $coursecontextid = (int)\context_course::instance($course->id)->id;
+        try {
+            $cm = get_fast_modinfo($course)->get_cm($cmid);
+        } catch (\Throwable $e) {
+            return ['cmid' => $cmid, 'modname' => '', 'name' => '', 'url' => '', 'coursecontextid' => $coursecontextid];
+        }
+        $url = ($cm->url instanceof \moodle_url)
+            ? $cm->url->out(false)
+            : (new \moodle_url('/course/view.php', ['id' => (int)$course->id]))->out(false);
+        return [
+            'cmid' => $cmid,
+            'modname' => (string)$cm->modname,
+            'name' => (string)$cm->name,
+            'url' => $url,
+            'coursecontextid' => $coursecontextid,
+        ];
     }
 
     /**
@@ -549,9 +678,16 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * @param array $changes
      * @param array $before
      * @param int $attempts
+     * @param int|null $movedto Target section number when the activity was moved, else null.
      * @return array
      */
-    private function build_success_result(array $updated, array $changes, array $before, int $attempts): array {
+    private function build_success_result(
+        array $updated,
+        array $changes,
+        array $before,
+        int $attempts,
+        ?int $movedto = null
+    ): array {
         $cmid = (int)($updated['cmid'] ?? 0);
         $modname = (string)($updated['modname'] ?? '');
         $name = (string)($updated['name'] ?? '');
@@ -562,7 +698,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             $courseid = $cc ? (int)$cc->instanceid : 0;
         }
 
-        $changed = $this->describe_changes($changes, $before);
+        $changed = $this->describe_changes($changes, $before, $movedto);
         $message = 'Updated the activity "' . $name . '" (' . $modname . '). Changed: ' . $changed . '.';
 
         $observation = implode("\n", [
@@ -591,9 +727,10 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      *
      * @param array $changes
      * @param array $before
+     * @param int|null $movedto Target section number when the activity was moved, else null.
      * @return string
      */
-    private function describe_changes(array $changes, array $before): string {
+    private function describe_changes(array $changes, array $before, ?int $movedto = null): string {
         $parts = [];
         if (isset($changes['name'])) {
             $parts[] = 'name "' . (string)($before['name'] ?? '') . '" → "' . (string)$changes['name'] . '"';
@@ -609,6 +746,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         if (isset($changes['settings'])) {
             $keys = array_keys((array)$changes['settings']);
             $parts[] = 'settings (' . implode(', ', $keys) . ')';
+        }
+        if ($movedto !== null) {
+            $parts[] = 'moved from section ' . (int)($before['section'] ?? 0) . ' to section ' . $movedto;
         }
         return empty($parts) ? 'nothing' : implode('; ', $parts);
     }

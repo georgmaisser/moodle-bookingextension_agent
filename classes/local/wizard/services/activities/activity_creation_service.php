@@ -108,6 +108,41 @@ class activity_creation_service {
     }
 
     /**
+     * Move an existing course module to a different section, transactionally.
+     *
+     * Section placement is a course-structure operation, not a mod_form field — this uses the core
+     * moveto_module() so the section sequences, module visibility and course cache stay consistent.
+     *
+     * @param stdClass $cm Course module record (from get_coursemodule_from_id) carrying the CURRENT section id.
+     * @param int $sectionnum Target section number (0-based topic index) — must already exist in the course.
+     * @param stdClass $course
+     * @return int The section number the module now lives in.
+     * @throws \Throwable On move failure (the transaction is rolled back).
+     */
+    public function move_to_section(stdClass $cm, int $sectionnum, stdClass $course): int {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $section = $DB->get_record(
+            'course_sections',
+            ['course' => (int)$course->id, 'section' => $sectionnum],
+            '*',
+            MUST_EXIST
+        );
+
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            moveto_module($cm, $section);
+            $transaction->allow_commit();
+        } catch (\Throwable $e) {
+            $transaction->rollback($e);
+            throw $e;
+        }
+
+        return $sectionnum;
+    }
+
+    /**
      * Resolve a user-facing URL for the freshly created activity.
      *
      * Activities without their own view page (e.g. a label) link back to the course page.

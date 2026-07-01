@@ -35,6 +35,9 @@ class section_resolver_service {
     /** Resolution sentinel: the query named the last section (bottom). */
     public const PLACE_BOTTOM = 'bottom';
 
+    /** The only usable section on the site front page (section 0 is not rendered there). */
+    public const SITE_FRONT_PAGE_SECTION = 1;
+
     /** Language-agnostic-ish keyword sets for top/bottom placement. */
     private const TOP_WORDS = ['top', 'oben', 'ganz oben', 'anfang', 'beginning', 'start', 'first', 'erste'];
 
@@ -131,6 +134,20 @@ class section_resolver_service {
         }
 
         return null;
+    }
+
+    /**
+     * Whether the course is the site front page (course format 'site').
+     *
+     * The front page has no selectable topic sections: its section 0 is not rendered there, so every
+     * activity must live in section 1. Callers use this to hard-map any requested placement to
+     * {@see self::SITE_FRONT_PAGE_SECTION} instead of asking the user "which section?".
+     *
+     * @param stdClass $course
+     * @return bool
+     */
+    public static function is_site_front_page(stdClass $course): bool {
+        return (string)($course->format ?? '') === 'site' || (int)($course->id ?? 0) === (int)SITEID;
     }
 
     /**

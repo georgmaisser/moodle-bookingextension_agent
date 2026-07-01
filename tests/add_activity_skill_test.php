@@ -130,6 +130,36 @@ final class add_activity_skill_test extends advanced_testcase {
     }
 
     /**
+     * Regression (thread 66): on the site front page, section resolution ignores the requested
+     * placement and always yields section 1 — section 0 is not rendered there, so "top"/section 0
+     * would leave the activity invisible.
+     */
+    public function test_preflight_site_front_page_forces_section_1(): void {
+        global $CFG, $PAGE;
+        require_once($CFG->dirroot . '/course/lib.php');
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $site = get_site();
+        course_create_sections_if_missing($site, [0, 1]);
+        $ctxid = (int)context_course::instance(SITEID)->id;
+        $PAGE->set_context(context_course::instance(SITEID));
+
+        // The user asks for "top" (section 0); on the front page it must resolve to section 1.
+        $pf = (new add_activity_skill())->preflight(
+            ['modname' => 'label', 'intro' => 'hallo', 'section' => 'top'],
+            $ctxid,
+            (int)get_admin()->id
+        );
+        $this->assertSame('pass', $pf->status, implode(',', (array)$pf->issuecodes));
+        $this->assertSame(1, (int)$pf->preparedinput['sectionnum']);
+
+        $result = (new add_activity_skill())->execute($pf->preparedinput, $ctxid, (int)get_admin()->id);
+        $this->assertSame('executed', $result['status'], (string)($result['detail'] ?? ''));
+        $cm = get_fast_modinfo($site)->get_cm((int)$result['created_cmid']);
+        $this->assertSame(1, (int)$cm->sectionnum);
+    }
+
+    /**
      * No module type given → list the addable types as a clarification with options.
      */
     public function test_preflight_asks_for_module(): void {
