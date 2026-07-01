@@ -278,11 +278,17 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
         // Resolve the target course (eager, readonly).
         $courseid = $this->resolve_readonly_course_context_id($input, $contextid);
         if ($courseid <= 0) {
-            // No course named: for enrolment a named person gets a cross-course enrolment overview.
-            if ($aspect === 'enrolment' && $targetuserid > 0) {
+            // No course named. With a specific person already resolved, do NOT hard-fail: hand the
+            // planner the person's enrolled courses as a clarification (status 'executed', not an error
+            // row) so a "for each course" request can fan out one diagnosis per course. A hard error
+            // here would also wrongly mark an otherwise-successful multi-course turn as failed.
+            if ($targetuserid > 0) {
                 $overviewuser = \core_user::get_user($targetuserid, '*', IGNORE_MISSING);
                 if ($overviewuser && empty($overviewuser->deleted)) {
-                    return $this->enrolment_overview_result($overviewuser);
+                    // The enrolment aspect keeps its dedicated cross-course overview.
+                    return $aspect === 'enrolment'
+                        ? $this->enrolment_overview_result($overviewuser)
+                        : $this->missing_course_clarification_result($overviewuser, $aspect);
                 }
             }
             return $this->error_result(
@@ -481,6 +487,59 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 'courses' => $courses,
             ],
             'observation_full' => implode("\n", $lines),
+        ];
+    }
+
+    /**
+     * No-course clarification for a non-enrolment aspect: hand the planner the person's enrolled
+     * courses so a "for each course" request can fan out one diagnosis per course.
+     *
+     * Returns a NON-error observation (status 'executed'), deliberately not error_result(): a missing
+     * course when the person IS known is a clarification, not a failure — a hard error here would mark
+     * an otherwise-successful multi-course turn as failed and get its answer discarded.
+     *
+     * @param \stdClass $targetuser
+     * @param string $aspect
+     * @return array
+     */
+    private function missing_course_clarification_result(\stdClass $targetuser, string $aspect): array {
+        $targetuserid = (int)$targetuser->id;
+        $courses = $this->build_user_courses_payload($targetuserid);
+        $subject = fullname($targetuser);
+
+        if (empty($courses)) {
+            $usermessage = $subject . ' is not enrolled in any course.';
+            $lines = [
+                'No course was named for the ' . $aspect . ' diagnosis of ' . $subject
+                    . ' (id=' . $targetuserid . '), and they are not enrolled in any course.',
+                'Report that there is no course to check.',
+            ];
+        } else {
+            $usermessage = 'Picking which course to check for ' . $subject . '.';
+            $lines = [
+                'No single course was named for the ' . $aspect . ' diagnosis of ' . $subject
+                    . ' (id=' . $targetuserid . ').',
+                'Enrolled courses (with links): ' . $this->format_course_observation($courses),
+                'To check ' . $aspect . ' for ' . $subject . ' in each course, run one '
+                    . self::SKILL_NAME . ' per course passing that course\'s courseid; or name a single course.',
+            ];
+        }
+
+        return [
+            'status' => 'executed',
+            'detail' => $usermessage,
+            'usermessage' => $usermessage,
+            'resultid' => $targetuserid,
+            'course_clarification' => [
+                'targetuserid' => $targetuserid,
+                'aspect' => $aspect,
+                'courses' => $courses,
+            ],
+            // Instructional engine text built from enrolment facts — exempt from privacy anonymization
+            // (masking the instruction would corrupt it; the subject's own courses are shown to the actor
+            // who already sees them).
+            'observation_full' => implode("\n", $lines),
+            'observation_engine_static' => true,
         ];
     }
 

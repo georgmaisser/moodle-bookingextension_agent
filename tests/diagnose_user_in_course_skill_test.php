@@ -66,6 +66,52 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
     }
 
     /**
+     * At a course-less context (e.g. the dashboard / navbar) a non-enrolment aspect for a NAMED
+     * person must NOT hard-fail with "which course?": it returns a course clarification
+     * (status 'executed') listing the person's courses so a "for each course" request can fan out.
+     * Regression guard: a hard error here marked an otherwise-successful multi-course turn as failed
+     * and got its correct answer discarded.
+     */
+    public function test_missing_course_returns_clarification_not_error(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        [$course, , $student] = $this->build_course();
+        $systemctxid = (int)\context_system::instance()->id;
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'progress', 'userid' => (int)$student->id],
+            $systemctxid,
+            (int)get_admin()->id
+        );
+
+        $this->assertSame('executed', $res['status']);
+        $this->assertArrayHasKey('course_clarification', $res);
+        $this->assertStringContainsString($course->fullname, $res['observation_full']);
+        $this->assertStringContainsString('per course', $res['observation_full']);
+        $this->assertTrue(!empty($res['observation_engine_static']));
+    }
+
+    /**
+     * Course-less context, person with no enrolments: reports there is no course to check —
+     * still a plain observation, never a poisoning hard error.
+     */
+    public function test_missing_course_no_enrolments_reports_none(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $loner = $this->getDataGenerator()->create_user();
+        $systemctxid = (int)\context_system::instance()->id;
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'grades', 'userid' => (int)$loner->id],
+            $systemctxid,
+            (int)get_admin()->id
+        );
+
+        $this->assertSame('executed', $res['status']);
+        $this->assertStringContainsString('not enrolled in any course', $res['observation_full']);
+    }
+
+    /**
      * A unique activity name resolves and is diagnosed.
      */
     public function test_access_aspect_resolves_unique_activity(): void {
