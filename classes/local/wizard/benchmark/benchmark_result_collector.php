@@ -172,16 +172,12 @@ class benchmark_result_collector {
         // The lang / user_lang fields are optional at the selection phase: the live interpreter reads
         // them with a null-coalescing default and never rejects a response for their absence (the
         // construction phase and synchronizer settle language), so the benchmark must not require them.
-        $required = ['response_type', 'used_triggers', 'next_step_intent', 'planned_steps'];
+        $required = ['response_type', 'next_step_intent', 'planned_steps'];
         foreach ($required as $field) {
             if (!array_key_exists($field, $parsed)) {
                 $errors[] = "missing field: {$field}";
                 $ok = false;
             }
-        }
-        if (!is_array($parsed['used_triggers'] ?? null)) {
-            $errors[] = 'used_triggers not array';
-            $ok = false;
         }
         if (!is_array($parsed['planned_steps'] ?? null)) {
             $errors[] = 'planned_steps not array';

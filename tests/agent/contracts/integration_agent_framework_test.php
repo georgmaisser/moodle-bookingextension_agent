@@ -919,16 +919,8 @@ final class integration_agent_framework_test extends TestCase {
         $confirmpending = $method->invoke($service, [
             'response_type' => 'confirm_pending',
             'commands' => [],
-            'used_triggers' => [],
         ]);
         $this->assertFalse((bool)$confirmpending);
-
-        $confirmmessage = $method->invoke($service, [
-            'response_type' => 'skill_call',
-            'commands' => [['skill' => 'core.get_current_user', 'input' => []]],
-            'used_triggers' => ['core.is_confirmation_message'],
-        ]);
-        $this->assertFalse((bool)$confirmmessage);
     }
 
     /**
@@ -979,7 +971,7 @@ final class integration_agent_framework_test extends TestCase {
         $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
 
         $result = $interpreter->interpret_phase_output(
-            '{"response_type":"clarification","message":"Need more info","used_triggers":[]}',
+            '{"response_type":"clarification","message":"Need more info"}',
             'parameter_construction',
             [
                 'contextid' => 12,
@@ -999,7 +991,7 @@ final class integration_agent_framework_test extends TestCase {
     public function test_interpreter_phase_contract_accepts_single_selector_skill_in_selection(): void {
         $registry = skill_registry_factory::get_default();
         $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
-        $selectionpayload = '{"response_type":"skill_call","message":"Selecting skill","used_triggers":[],'
+        $selectionpayload = '{"response_type":"skill_call","message":"Selecting skill",'
             . '"commands":[{"skill":"mod_booking.create_option","version":1,"input":{}}]}';
 
         $result = $interpreter->interpret_phase_output(

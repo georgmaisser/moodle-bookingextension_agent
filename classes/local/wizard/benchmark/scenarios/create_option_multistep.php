@@ -105,7 +105,7 @@ class create_option_multistep extends abstract_benchmark_scenario {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.create_option","input":{}}],'
             . '"planned_steps":[{"intent":"Create TestB for Wednesday"},'
             . '{"intent":"Set trainer for TestA"},{"intent":"Book user for TestB"}],'
-            . '"next_step_intent":"Create TestA first","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"next_step_intent":"Create TestA first","lang":"de","user_lang":"de"}';
     }
 
     /**

@@ -94,6 +94,6 @@ class update_option_trainer extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.update_option_trainer","input":{}}],'
-            . '"planned_steps":[],"next_step_intent":"Assign trainer","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"planned_steps":[],"next_step_intent":"Assign trainer","lang":"de","user_lang":"de"}';
     }
 }

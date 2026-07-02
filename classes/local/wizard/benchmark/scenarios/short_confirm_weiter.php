@@ -120,6 +120,6 @@ class short_confirm_weiter extends abstract_benchmark_scenario {
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.book_users","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Book Anna Berger for EventA",'
-            . '"used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"lang":"de","user_lang":"de"}';
     }
 }

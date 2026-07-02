@@ -95,7 +95,7 @@ class get_current_user_readonly extends abstract_benchmark_scenario {
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"core.get_current_user","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Show user profile",'
-            . '"used_triggers":["core.get_current_user_request"],"lang":"de","user_lang":"de"}';
+            . '"lang":"de","user_lang":"de"}';
     }
     /**
      * Perform additional assertions.

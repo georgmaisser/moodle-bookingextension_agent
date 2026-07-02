@@ -94,7 +94,7 @@ class skill_not_in_catalog extends abstract_benchmark_scenario {
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","message":"Ich suche im Skill-Katalog nach einer passenden Aktion.",'
             . '"commands":[{"skill":"wizard.search_skills","version":1,"input":{"query":"Teilnehmer als Excel exportieren"}}],'
-            . '"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"planned_steps":[],"next_step_intent":"","lang":"de","user_lang":"de"}';
     }
 
     /**

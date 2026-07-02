@@ -121,6 +121,6 @@ class catalog_gap_bulk_cancel extends abstract_benchmark_scenario {
         return '{"response_type":"skill_call",'
             . '"commands":[{"skill":"wizard.search_skills","version":1,"input":{"query":"alle Buchungen stornieren"}}],'
             . '"planned_steps":[],"next_step_intent":"","message":"Ich suche im Skill-Katalog nach einer passenden Aktion.",'
-            . '"used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"lang":"de","user_lang":"de"}';
     }
 }

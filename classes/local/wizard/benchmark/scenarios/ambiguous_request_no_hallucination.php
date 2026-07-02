@@ -105,7 +105,7 @@ class ambiguous_request_no_hallucination extends abstract_benchmark_scenario {
     public function get_stub_selector_response(): string {
         return '{"response_type":"clarification","message":"Koennen Sie Ihre Anfrage genauer beschreiben?",'
             . '"commands":[],"planned_steps":[],"next_step_intent":"",'
-            . '"used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"lang":"de","user_lang":"de"}';
     }
     /**
      * Perform additional assertions.

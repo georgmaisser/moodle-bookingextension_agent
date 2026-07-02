@@ -190,7 +190,6 @@ foreach ($scenarios as $i => $scenario) {
                 'commands'         => [],
                 'planned_steps'    => [],
                 'next_step_intent' => '',
-                'used_triggers'    => [],
                 'lang'             => 'de',
                 'user_lang'        => 'de',
                 'message'          => 'stub',

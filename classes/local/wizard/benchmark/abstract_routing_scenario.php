@@ -110,7 +110,6 @@ abstract class abstract_routing_scenario extends abstract_benchmark_scenario {
             'commands' => [['skill' => $this->get_expected_skill(), 'input' => new \stdClass()]],
             'planned_steps' => [],
             'next_step_intent' => '',
-            'used_triggers' => [],
             'lang' => $lang,
             'user_lang' => $lang,
         ]);

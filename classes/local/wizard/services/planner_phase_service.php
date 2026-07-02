@@ -735,7 +735,6 @@ class planner_phase_service {
             'ambiguities' => [],
             'errors' => [],
             'issue_codes' => [],
-            'used_triggers' => [],
             'next_step_intent' => $query,
             'selected_skill' => $skillname,
             'lang' => (string)($selectionstate['lang'] ?? ''),

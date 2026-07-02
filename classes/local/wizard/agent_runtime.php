@@ -752,7 +752,6 @@ class agent_runtime {
                 ['BUDGET_EXCEEDED']
             ))),
             'pending_confirmation_code' => '',
-            'used_triggers' => (array)($result['used_triggers'] ?? []),
             'runid' => (int)($result['runid'] ?? 0),
             'results' => [],
             'lang' => $lang,
@@ -829,9 +828,6 @@ class agent_runtime {
         }
         if (!isset($result['issue_codes']) || !is_array($result['issue_codes'])) {
             $result['issue_codes'] = [];
-        }
-        if (!isset($result['used_triggers']) || !is_array($result['used_triggers'])) {
-            $result['used_triggers'] = [];
         }
         if (!isset($result['results']) || !is_array($result['results'])) {
             $result['results'] = [];
@@ -1072,7 +1068,6 @@ class agent_runtime {
         unset($result['_planner_raw_response']);
 
         $outputlang = $this->resolve_output_language($result);
-        $result['used_triggers'] = $triggerregistry->normalize_used_triggers($result['used_triggers'] ?? []);
 
         $rawresponsetype = trim((string)($result['response_type'] ?? ''));
         $result['response_type'] = $triggerregistry->normalize_response_type($rawresponsetype);
@@ -1082,8 +1077,7 @@ class agent_runtime {
             $threadid,
             $contextid,
             $userid,
-            $outputlang,
-            0
+            $outputlang
         );
         $result = $this->merge_planner_context($result, $plannercontext);
         $result['lang'] = $outputlang;

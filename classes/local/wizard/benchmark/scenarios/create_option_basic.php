@@ -94,7 +94,7 @@ class create_option_basic extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.create_option","input":{}}],'
-            . '"planned_steps":[],"next_step_intent":"Create Jahresmeeting","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"planned_steps":[],"next_step_intent":"Create Jahresmeeting","lang":"de","user_lang":"de"}';
     }
 
     /**

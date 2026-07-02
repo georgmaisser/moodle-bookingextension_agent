@@ -534,7 +534,6 @@ class discovery_phase_service {
             'ambiguities' => [],
             'errors' => [],
             'issue_codes' => [],
-            'used_triggers' => [],
             'next_step_intent' => '',
             'phase' => orchestrator::PHASE_DISCOVERY,
             'catalogselectionmode' => $catalogselectionmode,

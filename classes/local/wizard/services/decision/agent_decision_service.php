@@ -44,7 +44,6 @@ use bookingextension_agent\local\wizard\services\localized_string_service;
 use bookingextension_agent\local\wizard\services\preflight_pipeline;
 use bookingextension_agent\local\wizard\services\queue_transition_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
-use bookingextension_agent\local\wizard\services\trigger_result_util;
 use bookingextension_agent\local\wizard\services\pending_intent_service;
 use bookingextension_agent\local\wizard\services\pending_queue_command_service;
 
@@ -81,9 +80,6 @@ class agent_decision_service {
 
     /** Response type constant used in routing decisions. */
     private const RESPONSE_TYPE_CLARIFICATION = 'clarification';
-
-    /** Trigger id: user explicitly discards current pending confirmation intent. */
-    private const TRIGGER_DISCARD_PENDING_CONFIRMATION = 'core.discard_pending_confirmation';
 
     /** @var skill_registry */
     private skill_registry $registry;
@@ -159,7 +155,6 @@ class agent_decision_service {
      * @param  int    $contextid
      * @param  int    $userid
      * @param  string $outputlang
-     * @param  int    $previewoptionid Resolved preview option id (0 = none).
      * @return array  Normalized result ready for persistence or loop continuation.
      */
     public function process(
@@ -167,8 +162,7 @@ class agent_decision_service {
         int $threadid,
         int $contextid,
         int $userid,
-        string $outputlang,
-        int $previewoptionid
+        string $outputlang
     ): array {
         // Context id is provided directly by the caller (context-agnostic decision path).
         // Stale blocked_confirmation items are always expired (no admin toggle).
@@ -179,67 +173,16 @@ class agent_decision_service {
                 ['BLOCKED_CONFIRMATION_TIMEOUT']
             )));
         }
-        // 1. Preview shortcut: if the user asked for a preview and one is available.
-        if ($previewoptionid > 0 && trigger_result_util::has_trigger($result, 'core.is_preview_request')) {
-            return [
-                'response_type'             => 'clarification',
-                'message'                   => localized_string_service::get(
-                    'ai_preview_latest_option',
-                    'bookingextension_agent',
-                    null,
-                    $outputlang
-                ),
-                'used_triggers'             => $result['used_triggers'] ?? [],
-                'commands'                  => [],
-                'ambiguities'               => array_values(array_unique((array)($result['ambiguities'] ?? []))),
-                'ambiguity_options'         => [],
-                'errors'                    => array_values(array_unique((array)($result['errors'] ?? []))),
-                'attempted_skills'          => [],
-                'issue_codes'               => array_values(array_unique((array)($result['issue_codes'] ?? []))),
-                'pending_confirmation_code' => '',
-            ];
-        }
-
         // 1b. Step-8 guard: when a confirmation intent is pending, block unrelated
         // new intents until the user either confirms or explicitly discards.
         $pendingintent = $this->pendingintentsvc->get($threadid);
-        if ($pendingintent !== null) {
-            if (trigger_result_util::has_trigger($result, self::TRIGGER_DISCARD_PENDING_CONFIRMATION)) {
-                $this->pendingintentsvc->clear($threadid);
-                $result['used_triggers'] = array_values(array_filter(
-                    (array)($result['used_triggers'] ?? []),
-                    static fn(string $trigger): bool => $trigger !== self::TRIGGER_DISCARD_PENDING_CONFIRMATION
-                ));
-            } else if ($this->should_block_new_intent_while_pending($result)) {
-                return $this->build_pending_resolution_clarification($result, $pendingintent, $threadid, $outputlang);
-            }
+        if ($pendingintent !== null && $this->should_block_new_intent_while_pending($result)) {
+            return $this->build_pending_resolution_clarification($result, $pendingintent, $threadid, $outputlang);
         }
 
         // 2. Handle explicit user confirmation of pending intent.
         if ((string)($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRM_PENDING) {
             return $this->handle_confirm_pending($result, $threadid, $contextid, $userid, $outputlang);
-        }
-
-        // 3. Safety: block accidental mutation carry-over on lookup requests.
-        if (
-            trigger_result_util::has_trigger($result, 'core.is_lookup_request')
-            && (($result['response_type'] ?? '') === self::RESPONSE_TYPE_CONFIRMATION_REQUEST)
-            && $this->has_mutating_commands($result)
-        ) {
-            return [
-                'response_type'   => self::RESPONSE_TYPE_CLARIFICATION,
-                'message'         => localized_string_service::get(
-                    'ai_lookup_detected_blocked_mutation',
-                    'bookingextension_agent',
-                    null,
-                    $outputlang
-                ),
-                'commands'        => [],
-                'ambiguities'     => array_values(array_unique((array)($result['ambiguities'] ?? []))),
-                'errors'          => array_values(array_unique((array)($result['errors'] ?? []))),
-                'attempted_skills' => $result['attempted_skills'] ?? [],
-                'issue_codes'     => array_values(array_unique((array)($result['issue_codes'] ?? []))),
-            ];
         }
 
         // 4. Harden: if the LLM incorrectly used skill_call for a mutating command, promote.
@@ -295,10 +238,6 @@ class agent_decision_service {
      * @return bool
      */
     private function should_block_new_intent_while_pending(array $result): bool {
-        if (trigger_result_util::has_trigger($result, 'core.is_confirmation_message')) {
-            return false;
-        }
-
         $responsetype = (string)($result['response_type'] ?? '');
         if ($responsetype === self::RESPONSE_TYPE_CONFIRM_PENDING) {
             return false;
@@ -608,7 +547,6 @@ class agent_decision_service {
             'attempted_skills'          => [],
             'issue_codes'               => [],
             'pending_confirmation_code' => $confirmationcode,
-            'used_triggers'             => $result['used_triggers'] ?? [],
             'runid'                     => 0,
             'results'                   => [],
         ];
@@ -917,7 +855,6 @@ class agent_decision_service {
                     'errors'          => $blockingerrors,
                     'attempted_skills' => $attemptedskills,
                     'issue_codes'     => $allissuecodes,
-                    'used_triggers'   => $result['used_triggers'] ?? [],
                 ];
             }
 
@@ -953,7 +890,6 @@ class agent_decision_service {
                     'errors'          => $blockingerrors,
                     'attempted_skills' => $attemptedskills,
                     'issue_codes'     => $allissuecodes,
-                    'used_triggers'   => $result['used_triggers'] ?? [],
                 ];
             }
 
@@ -970,7 +906,6 @@ class agent_decision_service {
                 'errors'          => $blockingerrors,
                 'attempted_skills' => $attemptedskills,
                 'issue_codes'     => $allissuecodes,
-                'used_triggers'   => $result['used_triggers'] ?? [],
             ];
         }
 
@@ -1550,7 +1485,6 @@ class agent_decision_service {
             'attempted_skills'          => [],
             'issue_codes'               => [],
             'pending_confirmation_code' => '',
-            'used_triggers'             => [],
             'runid'                     => 0,
             'results'                   => [],
         ];
@@ -1572,7 +1506,6 @@ class agent_decision_service {
         $clarification = $this->clarification_result($message);
         $clarification['ambiguities'] = array_values(array_unique((array)($contextresult['ambiguities'] ?? [])));
         $clarification['errors'] = array_values(array_unique((array)($contextresult['errors'] ?? [])));
-        $clarification['used_triggers'] = (array)($contextresult['used_triggers'] ?? []);
 
         foreach ($overrides as $key => $value) {
             $clarification[$key] = $value;
@@ -1598,7 +1531,6 @@ class agent_decision_service {
     ): array {
         if ($modelmessage !== '' && !$isplaceholdermessage) {
             $fallback = $this->clarification_result($modelmessage);
-            $fallback['used_triggers'] = (array)($result['used_triggers'] ?? []);
             if (!empty($result['next_step_intent'])) {
                 $fallback['next_step_intent'] = trim((string)$result['next_step_intent']);
             }

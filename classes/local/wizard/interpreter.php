@@ -140,7 +140,6 @@ class interpreter implements agent_interpreter {
         if ($lang !== '') {
             $lang = strtolower(substr($lang, 0, 2));
         }
-        $usedtriggers = $this->extract_used_triggers($parsed);
 
         // Passthrough for sufficient: SR/SYN signals that observations are complete.
         if ($responsetype === 'sufficient') {
@@ -148,7 +147,6 @@ class interpreter implements agent_interpreter {
                 'response_type' => 'sufficient',
                 'lang'          => $lang,
                 'message'       => $this->strip_command_prefix($this->safe_string($parsed['message'] ?? '')),
-                'used_triggers' => $usedtriggers,
                 'commands'      => [],
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
@@ -169,7 +167,6 @@ class interpreter implements agent_interpreter {
                 'response_type' => 'clarification',
                 'lang'          => $lang,
                 'message'       => $clearmessage,
-                'used_triggers' => $usedtriggers,
                 'commands'      => [],
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
@@ -186,7 +183,6 @@ class interpreter implements agent_interpreter {
                 'response_type' => 'error',
                 'lang'          => $lang,
                 'message'       => $errormessage,
-                'used_triggers' => $usedtriggers,
                 'commands'      => [],
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
@@ -206,7 +202,6 @@ class interpreter implements agent_interpreter {
                 'response_type' => 'confirm_pending',
                 'lang'          => $lang,
                 'message'       => $confirmmessage,
-                'used_triggers' => $usedtriggers,
                 'commands'      => [],
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
@@ -237,7 +232,6 @@ class interpreter implements agent_interpreter {
                     'response_type' => 'confirmation_request',
                     'lang'          => $lang,
                     'message'       => $validationmessage,
-                    'used_triggers' => $usedtriggers,
                     'commands'      => $confirmablecommands,
                     'ambiguities'   => [],
                     'ambiguity_options' => $ambiguityoptions,
@@ -250,7 +244,6 @@ class interpreter implements agent_interpreter {
                 'response_type' => $recoverableinputerror ? 'clarification' : 'error',
                 'lang'          => $lang,
                 'message'       => $validationmessage,
-                'used_triggers' => $usedtriggers,
                 'commands'      => [],
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
@@ -268,7 +261,6 @@ class interpreter implements agent_interpreter {
                     // For backend-driven confirmable issues, prefer skill-validator wording
                     // over generic LLM confirmation text so the user sees the real reason.
                     'message'       => $this->confirmation_message_from_ambiguities($ambiguities),
-                    'used_triggers' => $usedtriggers,
                     'commands'      => $confirmablecommands,
                     'ambiguities'   => [],
                     'ambiguity_options' => $ambiguityoptions,
@@ -282,7 +274,6 @@ class interpreter implements agent_interpreter {
                 'response_type' => 'clarification',
                 'lang'          => $lang,
                 'message'       => $this->clarification_message($parsed, $ambiguities),
-                'used_triggers' => $usedtriggers,
                 'commands'      => [],
                 'ambiguities'   => $ambiguities,
                 'ambiguity_options' => $ambiguityoptions,
@@ -296,7 +287,6 @@ class interpreter implements agent_interpreter {
             'response_type' => $responsetype,
             'lang'          => $lang,
             'message'       => $this->safe_string($parsed['message'] ?? ''),
-            'used_triggers' => $usedtriggers,
             'commands'      => $validatedcommands,
             'ambiguities'   => [],
             'ambiguity_options' => [],
@@ -415,7 +405,6 @@ class interpreter implements agent_interpreter {
                 'lang' => $lang,
                 'user_lang' => $userlang,
                 'message' => $this->strip_command_prefix($message),
-                'used_triggers' => $this->extract_used_triggers($parsed),
                 'commands' => [],
                 'selected_skill' => '',
                 'ambiguities' => [],
@@ -458,7 +447,6 @@ class interpreter implements agent_interpreter {
             'lang' => $lang,
             'user_lang' => $userlang,
             'message' => $this->strip_command_prefix($this->safe_string($parsed['message'] ?? '')),
-            'used_triggers' => $this->extract_used_triggers($parsed),
             'commands' => $commands,
             'selected_skill' => $selectedskill,
             'planned_steps' => $plannedsteps,
@@ -798,7 +786,6 @@ class interpreter implements agent_interpreter {
                 return [
                     'response_type' => 'skill_call',
                     'lang' => $this->safe_string($parsed['lang'] ?? ''),
-                    'used_triggers' => $this->extract_used_triggers($parsed),
                     'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
                     'next_step_intent' => $nextstepintent,
                     'commands' => $normalizedcommands,
@@ -820,7 +807,6 @@ class interpreter implements agent_interpreter {
                 'lang'              => $modellang,
                 'user_lang'         => $modeluserlang,
                 'message'           => $this->strip_command_prefix($fallbackmessage),
-                'used_triggers'     => $this->extract_used_triggers($parsed),
                 'commands'          => [],
                 'ambiguities'       => [],
                 'ambiguity_options' => [],
@@ -878,7 +864,6 @@ class interpreter implements agent_interpreter {
             'response_type' => 'error',
             'lang' => '',
             'message' => $cleanmessage,
-            'used_triggers' => [],
             'commands' => [],
             'ambiguities' => [],
             'ambiguity_options' => [],
@@ -1032,17 +1017,6 @@ class interpreter implements agent_interpreter {
         }
 
         return $value;
-    }
-
-    /**
-     * Extract used trigger ids from raw payload and allow-list them.
-     *
-     * @param array $parsed
-     * @return array
-     */
-    private function extract_used_triggers(array $parsed): array {
-        $triggerregistry = new message_trigger_registry($this->registry);
-        return $triggerregistry->normalize_used_triggers($parsed['used_triggers'] ?? []);
     }
 
     /**

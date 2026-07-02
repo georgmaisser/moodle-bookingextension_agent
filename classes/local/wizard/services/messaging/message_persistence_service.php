@@ -56,7 +56,6 @@ class message_persistence_service {
         $structured = [
             'response_type'            => $result['response_type'],
             'runid'                    => $result['runid'] ?? 0,
-            'used_triggers'            => $result['used_triggers'] ?? [],
             'commands'                 => $result['commands'] ?? [],
             'ambiguities'              => $result['ambiguities'] ?? [],
             'ambiguity_options'        => $result['ambiguity_options'] ?? [],

@@ -103,7 +103,7 @@ class clarification_missing_date extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"clarification","message":"Bitte nenne Datum und Uhrzeit fuer die Veranstaltung.",'
-            . '"commands":[],"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"commands":[],"planned_steps":[],"next_step_intent":"","lang":"de","user_lang":"de"}';
     }
 
     /**

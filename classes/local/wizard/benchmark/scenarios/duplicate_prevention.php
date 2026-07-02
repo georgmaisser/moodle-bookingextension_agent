@@ -125,7 +125,7 @@ class duplicate_prevention extends abstract_benchmark_scenario {
      */
     public function get_stub_selector_response(): string {
         return '{"response_type":"sufficient","message":"Die Veranstaltung Jahresmeeting wurde bereits erstellt.",'
-            . '"commands":[],"planned_steps":[],"next_step_intent":"","used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"commands":[],"planned_steps":[],"next_step_intent":"","lang":"de","user_lang":"de"}';
     }
 
     /**

@@ -60,8 +60,6 @@ class prompt_policy_builder {
         // 1. RESPONSE CONTRACT POLICY (universal, always appended).
         $policies[] = self::build_response_contract_policy($normalizedphase);
 
-        // 2. TRIGGER POLICY (compact only; skill catalog now carries skill-specific examples and hints).
-        $policies[] = self::build_trigger_policy_compact();
         if ($normalizedphase === 'discovery') {
             $policies[] = self::build_routing_determinism_policy();
         }
@@ -98,7 +96,7 @@ class prompt_policy_builder {
         if ($phase === 'parameter_construction') {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
                 . "- Return valid JSON only (no markdown).\n"
-                . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
+                . "- Always include top-level keys: response_type, message, next_step_intent, lang, user_lang.\n"
                 . "- next_step_intent MUST always be a string (never null; use empty string if no follow-up planned).\n"
                 . "- Do NOT include planned_steps — this field belongs to the selector phase only.\n"
                 . "- message MUST be a non-empty user-facing sentence (never an empty string) "
@@ -119,7 +117,7 @@ class prompt_policy_builder {
         if ($phase === 'selection') {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
             . "- Return valid JSON only (no markdown).\n"
-            . "- Always include top-level keys: response_type, message, used_triggers, "
+            . "- Always include top-level keys: response_type, message, "
             . "next_step_intent, lang, user_lang, planned_steps.\n"
             . "- Allowed response_type values: skill_call, clarification, confirm_pending, sufficient, error.\n"
             . "- For skill_call, commands MUST contain exactly one command object that "
@@ -129,7 +127,6 @@ class prompt_policy_builder {
             . "- For response_type=sufficient, message may be omitted or empty.\n"
             . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
             . "- This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.\n"
-            . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
             . "- next_step_intent MUST always be a string (never null).\n"
             . "- planned_steps MUST always be a JSON array: [] for single-step, [{\"intent\":\"...\"},...] for multi-step.\n"
             . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
@@ -138,14 +135,13 @@ class prompt_policy_builder {
         if ($phase === 'discovery') {
             return "NON-OPTIONAL RESPONSE CONTRACT POLICY:\n"
                 . "- Return valid JSON only (no markdown).\n"
-                . "- Always include top-level keys: response_type, message, used_triggers, next_step_intent, lang, user_lang.\n"
+                . "- Always include top-level keys: response_type, message, next_step_intent, lang, user_lang.\n"
                 . "- Allowed response_type values: clarification, confirm_pending, sufficient, error.\n"
                 . "- For response_type=clarification, confirm_pending, or error, message MUST be a non-empty string.\n"
                 . "- For response_type=sufficient, message may be omitted or empty.\n"
                 . "- commands MUST always be [] in this phase.\n"
                 . "- For clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
                 . "- Never emit skill_call or confirmation_request in this phase.\n"
-                . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
                 . "- Keep JSON field types stable (arrays as arrays, numbers as numbers, strings as strings).";
         }
 
@@ -159,27 +155,13 @@ class prompt_policy_builder {
             . "the 'message' field MUST NOT be empty.\n"
             . "- Allowed response_type values: skill_call, confirmation_request, "
             . "confirm_pending, clarification, sufficient, error.\n"
-            . "- Every response MUST include: commands, used_triggers.\n"
+            . "- Every response MUST include: commands.\n"
             . "- For response_type=skill_call or confirmation_request, include a non-empty commands array.\n"
             . "- For response_type=clarification, confirm_pending, sufficient, or error, commands MUST be [].\n"
-            . "- used_triggers MUST always be a JSON array (may be empty if no triggers apply, but field MUST exist).\n"
             . "- Preserve JSON field types exactly: arrays must be arrays, numbers must be numbers, strings must be strings.\n"
             . "- Never serialize arrays as comma-separated strings.\n"
             . "- Omit optional input fields when you do not have a grounded value; "
             . "do not send empty placeholders such as doc_path=\"\".";
-    }
-
-    /**
-     * Build compact trigger policy for non-routing steps.
-     *
-     * @return string
-     */
-    private static function build_trigger_policy_compact(): string {
-        return "NON-OPTIONAL TRIGGER POLICY:\n"
-            . "- used_triggers carries only flow/state signals, not skill semantics.\n"
-            . "- Include a trigger only when it is explicitly grounded in the latest user turn.\n"
-            . "- Never include core.is_lookup_request (server-derived from readonly execution path).\n"
-            . "- Return used_triggers as a JSON array (empty array if none apply).";
     }
 
     /**
@@ -204,12 +186,7 @@ class prompt_policy_builder {
             . "- Ask clarification ONLY for a truly missing REQUIRED input field.\n"
             . "- NEVER ask the user about an OPTIONAL field: if an optional field is not grounded, omit it and let"
             . " the skill apply its default. Do not ask about difficulty, count, language, format or similar"
-            . " optional settings — proceed with sensible defaults instead.\n"
-            . "\nTRIGGER CONSISTENCY:\n"
-            . "- Never include core.is_lookup_request in used_triggers; it is always server-managed.\n"
-            . "- Add core.is_confirmation_message only for explicit confirmation intent.\n"
-            . "- Use used_triggers only for flow/state signals; do not encode skill semantics there.\n"
-            . "- Keep used_triggers as supporting structured evidence, never as decoration.";
+            . " optional settings — proceed with sensible defaults instead.";
     }
 
     /**

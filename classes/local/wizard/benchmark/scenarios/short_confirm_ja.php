@@ -134,7 +134,7 @@ class short_confirm_ja extends abstract_benchmark_scenario {
         return '{"response_type":"confirm_pending","commands":[],'
             . '"planned_steps":[],"next_step_intent":"Set trainer Max Mustermann for TestA",'
             . '"message":"Alles klar, ich fahre fort mit dem Trainer-Schritt.",'
-            . '"used_triggers":["core.is_confirmation_message"],"lang":"de","user_lang":"de"}';
+            . '"lang":"de","user_lang":"de"}';
     }
 
     /**

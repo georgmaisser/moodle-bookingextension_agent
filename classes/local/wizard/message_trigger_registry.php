@@ -51,31 +51,6 @@ class message_trigger_registry {
     /** @var skill_registry */
     private skill_registry $skillregistry;
 
-    /** Core flow triggers understood by the server runtime. */
-    private const CORE_TRIGGERS = [
-        [
-            'id' => 'core.is_confirmation_message',
-            'description' => 'Latest user message confirms or approves execution of the pending confirmation request.',
-        ],
-        [
-            'id' => 'core.discard_pending_confirmation',
-            'description' => 'Latest user message explicitly asks to discard/cancel '
-                . 'the currently pending confirmation intent before continuing.',
-        ],
-        [
-            'id' => 'core.is_lookup_request',
-            'description' => 'Latest user message asks to list/search/lookup information (read-only intent).',
-        ],
-        [
-            'id' => 'core.is_preview_request',
-            'description' => 'Latest user message asks to preview/show the latest worked booking option.',
-        ],
-        [
-            'id' => 'core.force_new_duplicate_option',
-            'description' => 'Latest user message explicitly asks to create a new option despite duplicate-title warning.',
-        ],
-    ];
-
     /**
      * Constructor.
      *
@@ -83,76 +58,6 @@ class message_trigger_registry {
      */
     public function __construct(skill_registry $skillregistry) {
         $this->skillregistry = $skillregistry;
-    }
-
-    /**
-     * Return all available message trigger definitions.
-     *
-     * @return array[]
-     */
-    public function get_available_triggers(): array {
-        $all = self::CORE_TRIGGERS;
-        $byid = [];
-
-        foreach ($all as $trigger) {
-            if (!is_array($trigger)) {
-                continue;
-            }
-
-            $id = trim((string)($trigger['id'] ?? ''));
-            $description = trim((string)($trigger['description'] ?? ''));
-            if ($id === '' || $description === '') {
-                continue;
-            }
-
-            $byid[$id] = [
-                'id' => $id,
-                'description' => $description,
-                'examples' => isset($trigger['examples']) && is_array($trigger['examples'])
-                    ? array_values(array_filter(array_map(static fn($v): string => trim((string)$v), $trigger['examples'])))
-                    : [],
-            ];
-        }
-
-        return array_values($byid);
-    }
-
-    /**
-     * Return the allowed trigger ids.
-     *
-     * @return array
-     */
-    public function get_available_trigger_ids(): array {
-        $triggers = $this->get_available_triggers();
-        return array_values(array_map(static fn(array $trigger): string => (string)$trigger['id'], $triggers));
-    }
-
-    /**
-     * Normalize and allow-list the trigger ids returned by the LLM.
-     *
-     * @param mixed $usedtriggers
-     * @return array
-     */
-    public function normalize_used_triggers($usedtriggers): array {
-        if (!is_array($usedtriggers)) {
-            return [];
-        }
-
-        $allowed = array_flip($this->get_available_trigger_ids());
-        $normalized = [];
-        foreach ($usedtriggers as $triggerid) {
-            if (!is_string($triggerid) && !is_int($triggerid)) {
-                // Skip nested arrays or objects the LLM may return in malformed responses.
-                continue;
-            }
-            $id = trim((string)$triggerid);
-            if ($id === '' || !isset($allowed[$id])) {
-                continue;
-            }
-            $normalized[$id] = true;
-        }
-
-        return array_keys($normalized);
     }
 
     /**

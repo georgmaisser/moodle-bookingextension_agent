@@ -95,7 +95,7 @@ class auto_confirm_session extends abstract_benchmark_scenario {
     public function get_stub_selector_response(): string {
         return '{"response_type":"skill_call","commands":[{"skill":"mod_booking.create_option","input":{}}],'
             . '"planned_steps":[],"next_step_intent":"Create AutoTest option",'
-            . '"used_triggers":[],"lang":"de","user_lang":"de"}';
+            . '"lang":"de","user_lang":"de"}';
     }
     /**
      * Perform additional assertions.

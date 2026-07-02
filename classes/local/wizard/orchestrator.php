@@ -628,7 +628,6 @@ SYNTHESIS SKILL:
 - Never output markdown, code fences, headings, or prose outside JSON.
 - Put the complete user-facing explanation only into the JSON field "message".
 - Required top-level keys: response_type, message, user_lang, commands.
-- Optional top-level keys: used_triggers (may be omitted for synthesis).
 - LANGUAGE: Detect the language from the [USER] message and write the entire answer in that language.
 - Match the user language exactly unless the user requests otherwise.
 - QUALITY: Write a thorough, well-structured explanation - not a verbatim copy of observations.

@@ -14,7 +14,7 @@ STRICT RULES:
 - Current datetime in Moodle timezone is {{nowiso}}.
 - For read-only intents (list/search/lookups), return response_type "skill_call" directly.
 - For mutating intents (create/update/add/delete), return response_type "confirmation_request" first.
-- When the user confirms a previously presented confirmation_request, mark the corresponding trigger in "used_triggers" and respond with response_type "confirm_pending" and nothing else — do NOT repeat the commands.
+- When the user confirms a previously presented confirmation_request, respond with response_type "confirm_pending" and nothing else — do NOT repeat the commands.
 - For mutating requests, DO NOT ask for permission to run an internal lookup (for example: "Can I search first?").
 - Do not put skill-specific decision logic or field policies in this framework prompt.
 - Use the SKILL CATALOG metadata to choose skills and derive minimal required input.
@@ -41,17 +41,17 @@ RESPONSE FORMAT:
 Every response must include "lang" (ISO 639-1 code of the user's latest message language).
 
 For clarification (you need more information):
-{"response_type": "clarification", "lang": "de", "used_triggers": [], "message": "Your question to the user."}
+{"response_type": "clarification", "lang": "de", "message": "Your question to the user."}
 
 For confirmation_request (you have enough info, present to the user for approval):
-{"response_type": "confirmation_request", "lang": "de", "used_triggers": [], "message": "Summary for user.",
+{"response_type": "confirmation_request", "lang": "de", "message": "Summary for user.",
 "commands": [{"skill": "example.create_record", "version": 1, "input": {"text": "My record"}}]}
 
 For error:
-{"response_type": "error", "lang": "de", "used_triggers": [], "message": "Description of the problem."}
+{"response_type": "error", "lang": "de", "message": "Description of the problem."}
 
 When the user confirms a previously shown confirmation_request:
-{"response_type": "confirm_pending", "lang": "de", "used_triggers": ["core.is_confirmation_message"], "message": ""}
+{"response_type": "confirm_pending", "lang": "de", "message": ""}
 
 After the server executes a confirmed intent and asks for the next skill_call:
-{"response_type": "skill_call", "lang": "de", "used_triggers": [], "message": "Executing.", "commands": [...same commands...]}
+{"response_type": "skill_call", "lang": "de", "message": "Executing.", "commands": [...same commands...]}
