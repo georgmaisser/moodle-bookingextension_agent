@@ -27,9 +27,11 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\lookup;
 
 use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
-use bookingextension_agent\local\wizard\embeddings_csv_repository_base;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\services\llm\llm_call_service;
+use bookingextension_agent\local\wizard\services\retrieval\docs_row_mapper;
+use bookingextension_agent\local\wizard\services\retrieval\embedding_row;
+use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
 use context_system;
 
 /**
@@ -106,26 +108,18 @@ class docs_embeddings_index_service {
             $scan = $resolvable;
         }
 
-        // Variant-scoped store: embeddings for the active model live in their own file, so a model
-        // switch never invalidates the others (F2). Respects the model/dimensions overrides above.
-        $variant = embeddings_csv_repository_base::normalize_variant_key($resolvedmodel . '__' . $resolveddimensions);
-        $repo = new docs_embeddings_csv_repository(null, $variant);
+        // Variant-scoped store (CSV or DB, selected by config): embeddings for the active model live
+        // under their own variant, so a model switch never invalidates the others (F2). Respects the
+        // model/dimensions overrides above.
+        $store = embeddings_store_factory::instance();
+        $area = docs_row_mapper::AREA;
 
-        // STREAMING rebuild (bounded memory): never hold the whole catalog in RAM. Build only a
-        // lightweight index of the existing rows (key => content_hash + byte offset), then write the
-        // new catalog row-by-row to a temp file — reused rows are copied straight from the old file by
-        // offset, only changed/new chunks are embedded — and finally publish it atomically. Peak
-        // memory stays at ~one row plus the offset index, independent of catalog size.
-        // Key by (corpus, path, start line) so each chunk of a multi-chunk file reuses independently.
-        $keyfn = static function (array $row): string {
-            $key = (string)($row['corpus_id'] ?? '') . '||'
-                . (string)($row['chunk_path'] ?? '') . '||'
-                . (string)($row['line_start'] ?? '');
-            return $key === '||||' ? '' : $key;
-        };
-        $existing = $repo->build_key_offset_index($keyfn);
-        $existingindex = $existing['index'];
-        $existingtotal = (int)$existing['total'];
+        // STREAMING rebuild (bounded memory): never hold the whole catalog in RAM. A fresh generation
+        // is written row-by-row — unchanged chunks are reused by identity + content hash (no re-embed),
+        // only changed/new chunks are embedded — then published atomically by the generation swap. Peak
+        // memory stays at ~one row, independent of catalog size. Identity = (corpus, path, start line)
+        // so each chunk of a multi-chunk file reuses independently.
+        $existingtotal = $store->count_rows($area, $resolvedmodel, $resolveddimensions);
 
         // Nothing to scan and nothing on disk yet → genuinely empty.
         if (empty($scan) && $existingtotal === 0) {
@@ -145,7 +139,7 @@ class docs_embeddings_index_service {
         $reused = 0;
         $kept = 0;
 
-        $repo->begin_stream_write();
+        $gen = $store->begin_generation($area, $resolvedmodel, $resolveddimensions);
         try {
             // Pass 1 — scanned corpora: rewrite every current chunk (reuse by offset, else embed).
             // A file that vanished from a scanned corpus simply is not re-emitted (naturally pruned).
@@ -163,17 +157,12 @@ class docs_embeddings_index_service {
                     foreach (markdown_chunker::chunk($content, self::MAX_CHUNK_CHARS) as $chunk) {
                         $chunktext = (string)$chunk['text'];
                         $contenthash = sha1($chunktext . '|m=' . $resolvedmodel . '|d=' . $resolveddimensions);
-                        $key = $scancorpusid . '||' . $relpath . '||' . (string)$chunk['line_start'];
-                        $existingmeta = $existingindex[$key] ?? null;
+                        $key = $scancorpusid . '|' . $relpath . '|' . (string)$chunk['line_start'];
 
-                        if (
-                            !$force
-                            && is_array($existingmeta)
-                            && (string)$existingmeta['content_hash'] === $contenthash
-                        ) {
-                            $oldrow = $repo->read_row_at((int)$existingmeta['offset']);
-                            if (is_array($oldrow) && trim((string)($oldrow['embedding_json'] ?? '')) !== '') {
-                                $repo->stream_write_row($oldrow);
+                        if (!$force) {
+                            $oldrow = $store->reuse_existing($area, $resolvedmodel, $resolveddimensions, $key);
+                            if ($oldrow !== null && $oldrow->contenthash === $contenthash && !empty($oldrow->embedding)) {
+                                $store->upsert($area, $gen, $oldrow);
                                 $reused++;
                                 continue;
                             }
@@ -198,17 +187,18 @@ class docs_embeddings_index_service {
                             continue;
                         }
 
-                        $repo->stream_write_row([
-                            'corpus_id' => $scancorpusid,
-                            'chunk_path' => $relpath,
-                            'chunk_title' => (string)$chunk['title'],
-                            'line_start' => (string)$chunk['line_start'],
-                            'line_end' => (string)$chunk['line_end'],
-                            'embedding_model' => $resolvedmodel,
-                            'embedding_dimensions' => (string)$resolveddimensions,
-                            'content_hash' => $contenthash,
-                            'embedding_json' => (string)json_encode($embeddingcall['embedding'], JSON_UNESCAPED_UNICODE),
-                        ]);
+                        $store->upsert($area, $gen, new embedding_row(
+                            $area,
+                            $scancorpusid,
+                            $relpath,
+                            (int)$chunk['line_start'],
+                            (string)$chunk['title'],
+                            $resolvedmodel,
+                            $resolveddimensions,
+                            $contenthash,
+                            (array)$embeddingcall['embedding'],
+                            (int)$chunk['line_end']
+                        ));
                         $embedded++;
                     }
                 }
@@ -216,28 +206,27 @@ class docs_embeddings_index_service {
 
             // Pass 2 — non-destructive merge: copy existing rows of declared corpora that were NOT
             // scanned this run (out-of-scope or momentarily unreadable). Scanned-corpus rows are
-            // already rewritten above; rows of no-longer-declared corpora are dropped (pruned).
-            foreach ($repo->stream_rows() as $row) {
-                $cid = trim((string)($row['corpus_id'] ?? ''));
+            // already rewritten above; rows of no-longer-declared corpora are dropped (pruned). The
+            // stream reads the still-committed old generation while the new one is being written.
+            foreach ($store->stream_rows($area, $resolvedmodel, $resolveddimensions) as $row) {
+                $cid = trim($row->owner);
                 if (isset($scan[$cid]) || !isset($declared[$cid])) {
                     continue;
                 }
-                $repo->stream_write_row($row);
+                $store->upsert($area, $gen, $row);
                 $kept++;
             }
 
-            $repo->close_random_reader();
-            $written = $repo->commit_stream_write();
+            $written = $store->commit_generation($area, $resolvedmodel, $resolveddimensions, $gen);
 
             // Only a full rebuild has just rewritten every corpus, so only it may stamp the source
             // fingerprint as "what the index now reflects". Readiness compares this against a freshly
             // computed live fingerprint, so any later add/edit/remove of a doc flips it back to stale.
             if ($isfullrebuild) {
-                $repo->write_fingerprint($this->compute_source_fingerprint());
+                $store->set_fingerprint($area, $resolvedmodel, $resolveddimensions, $this->compute_source_fingerprint());
             }
         } catch (\Throwable $e) {
-            $repo->discard_stream_write();
-            $repo->close_random_reader();
+            $store->discard_generation($area, $resolvedmodel, $resolveddimensions, $gen);
             throw $e;
         }
 

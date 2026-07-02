@@ -26,7 +26,10 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\lookup;
 
+use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_rebuild_scheduler;
+use bookingextension_agent\local\wizard\services\retrieval\docs_row_mapper;
+use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
 
 /**
  * Determines whether the docs embeddings index is ready and triggers async rebuilds.
@@ -45,7 +48,17 @@ class docs_embeddings_readiness_service {
     }
 
     /**
-     * Check if the docs embeddings index is present and has valid schema.
+     * The active embeddings variant (model, dimensions) the docs index is scoped to.
+     *
+     * @return array
+     */
+    private function active_variant(): array {
+        $resolved = (new embeddings_action_config_resolver())->resolve();
+        return [(string)$resolved['model'], (int)$resolved['dimensions']];
+    }
+
+    /**
+     * Check if the docs embeddings index is present (committed) for the active variant.
      *
      * Does NOT verify content hashes — for a fast runtime readiness check.
      *
@@ -56,12 +69,8 @@ class docs_embeddings_readiness_service {
             return false;
         }
 
-        $repo = docs_embeddings_csv_repository::for_active_variant();
-        if (!$repo->exists()) {
-            return false;
-        }
-
-        return $repo->stream_is_valid_schema();
+        [$model, $dims] = $this->active_variant();
+        return embeddings_store_factory::instance()->exists(docs_row_mapper::AREA, $model, $dims);
     }
 
     /**
@@ -87,32 +96,27 @@ class docs_embeddings_readiness_service {
             return ['ready' => false, 'status' => 'unavailable', 'reason' => 'embeddings_provider_missing'];
         }
 
-        $repo = docs_embeddings_csv_repository::for_active_variant();
-        if (!$repo->exists()) {
+        [$model, $dims] = $this->active_variant();
+        $store = embeddings_store_factory::instance();
+        if (!$store->exists(docs_row_mapper::AREA, $model, $dims)) {
             return ['ready' => false, 'status' => 'missing', 'reason' => 'index_csv_not_found'];
         }
 
-        // Single streaming pass: validate the schema (early-exit on the first invalid row) and tally
-        // which resolvable corpora are present — never holding the catalog in memory. Coverage is
-        // measured against the *resolvable* set (existing roots), not the full *declared* set: a
-        // declared-but-unreadable corpus can never be indexed, so requiring a row for it would
-        // reschedule the rebuild forever (pruning, by contrast, uses the declared set — see
+        // Single streaming pass: tally which resolvable corpora are present — never holding the catalog
+        // in memory. Each row's identity carries its corpus in `owner` and its path in `refkey`. Coverage
+        // is measured against the *resolvable* set (existing roots), not the full *declared* set: a
+        // declared-but-unreadable corpus can never be indexed, so requiring a row for it would reschedule
+        // the rebuild forever (pruning, by contrast, uses the declared set — see
         // docs_embeddings_index_service::rebuild()).
-        $required = $repo->get_required_nonempty_columns();
         $resolvable = array_keys((new docs_corpus_registry())->list());
         $present = [];
         $seen = 0;
-        foreach ($repo->stream_rows() as $row) {
-            foreach ($required as $key) {
-                if (trim((string)($row[$key] ?? '')) === '') {
-                    return ['ready' => false, 'status' => 'invalid', 'reason' => 'index_csv_invalid_schema'];
-                }
+        foreach ($store->stream_rows(docs_row_mapper::AREA, $model, $dims) as $row) {
+            if (trim($row->owner) === '' || trim($row->refkey) === '') {
+                return ['ready' => false, 'status' => 'invalid', 'reason' => 'index_csv_invalid_schema'];
             }
             $seen++;
-            $cid = trim((string)($row['corpus_id'] ?? ''));
-            if ($cid !== '') {
-                $present[$cid] = true;
-            }
+            $present[trim($row->owner)] = true;
         }
 
         if ($seen === 0) {
@@ -130,7 +134,7 @@ class docs_embeddings_readiness_service {
         // it, which coverage alone (rows-per-corpus) cannot see. An index built before fingerprints
         // existed reads '' here and is treated as stale once → it self-heals on the next rebuild.
         $live = (new docs_embeddings_index_service())->compute_source_fingerprint();
-        if ($live !== $repo->read_fingerprint()) {
+        if ($live !== $store->fingerprint(docs_row_mapper::AREA, $model, $dims)) {
             return ['ready' => false, 'status' => 'stale', 'reason' => 'source_changed'];
         }
 
@@ -161,39 +165,36 @@ class docs_embeddings_readiness_service {
         $declared = $registry->declared_corpus_ids(); // Every syntactically valid corpus_id.
 
         $provideravailable = $this->is_embeddings_provider_available();
-        $repo = docs_embeddings_csv_repository::for_active_variant();
+        [$model, $dims] = $this->active_variant();
+        $store = embeddings_store_factory::instance();
 
-        // Stream the index once, validating the schema inline and tallying chunks + distinct documents
-        // per corpus — never holding the catalog in memory. A missing or schema-invalid index yields
-        // zero counts (everything then shows as not-yet-indexed).
+        // Stream the index once, tallying chunks + distinct documents per corpus — never holding the
+        // catalog in memory. Each row's corpus is in `owner`, its path in `refkey`. A missing or
+        // malformed index yields zero counts (everything then shows as not-yet-indexed).
         $indexready = false;
         $chunksbycorpus = [];
         $docsbycorpus = [];
-        if ($provideravailable && $repo->exists()) {
-            $required = $repo->get_required_nonempty_columns();
+        if ($provideravailable && $store->exists(docs_row_mapper::AREA, $model, $dims)) {
             $seen = 0;
             $schemaok = true;
-            foreach ($repo->stream_rows() as $row) {
+            foreach ($store->stream_rows(docs_row_mapper::AREA, $model, $dims) as $row) {
                 $seen++;
-                foreach ($required as $key) {
-                    if (trim((string)($row[$key] ?? '')) === '') {
-                        $schemaok = false;
-                        break;
+                $cid = trim($row->owner);
+                $path = trim($row->refkey);
+                if ($cid === '' || $path === '') {
+                    $schemaok = false;
+                    if ($cid === '') {
+                        continue;
                     }
                 }
-                $cid = trim((string)($row['corpus_id'] ?? ''));
-                if ($cid === '') {
-                    continue;
-                }
                 $chunksbycorpus[$cid] = ($chunksbycorpus[$cid] ?? 0) + 1;
-                $path = trim((string)($row['chunk_path'] ?? ''));
                 if ($path !== '') {
                     $docsbycorpus[$cid][$path] = true;
                 }
             }
             $indexready = $seen > 0 && $schemaok;
             if (!$indexready) {
-                // An empty or invalid index counts as not-indexed (mirrors the previous behaviour).
+                // An empty or malformed index counts as not-indexed (mirrors the previous behaviour).
                 $chunksbycorpus = [];
                 $docsbycorpus = [];
             }

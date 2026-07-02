@@ -1,8 +1,9 @@
 # 17 · Retrieval foundation: the embeddings store
 
-> **Status.** Layer 0 (contract + CSV adapter) and Layer 1 (DB backend) are implemented; the CSV
-> backend is still the default. The call sites listed in [§6](#6-what-is-not-wired-yet-p2) are not
-> rewired yet, and site-content search is a later phase. This chapter documents the substrate that
+> **Status.** Layer 0 (contract + CSV adapter), Layer 1 (DB backend) and the docs call-site wiring
+> (P2) are implemented; the CSV backend is still the default. The **docs** index reads and rebuilds
+> through the store behind the `embeddingsstore` flag; **skills/family** embeddings and site-content
+> search are later phases (see [§6](#6-status-of-the-wiring)). This chapter documents the substrate
 > the discovery embeddings ([chapter 06 §8](06-discovery-families-embeddings.md#8-embeddings-infrastructure))
 > and the docs lookup sit on.
 
@@ -19,7 +20,7 @@ a server-side ANN index later) can change without touching a single caller.
 3. [Backends](#3-backends)
 4. [The DB backend in detail](#4-the-db-backend-in-detail)
 5. [Selecting a backend](#5-selecting-a-backend)
-6. [What is not wired yet (P2+)](#6-what-is-not-wired-yet-p2)
+6. [Status of the wiring](#6-status-of-the-wiring)
 
 ---
 
@@ -134,14 +135,19 @@ caller.
 
 ---
 
-## 6. What is not wired yet (P2+)
+## 6. Status of the wiring
 
-This chapter's substrate is in place and covered by tests, but the existing readers still call the
-CSV repositories directly. Rewiring them through `embeddings_store_factory` is the next phase:
+**Wired through the store (P2):** the whole **docs** path — `docs_lookup_service::search_semantic`
+(read), `docs_embeddings_index_service::rebuild` (generation-swap write) and
+`docs_embeddings_readiness_service` (exists / coverage / fingerprint) — resolves its backend via
+`embeddings_store_factory`. Flip `embeddingsstore` to `db` and the docs index reads and rebuilds
+against `bx_agent_embeddings`; the default stays CSV.
 
-- `docs_lookup_service`, `docs_embeddings_index_service`, `docs_embeddings_readiness_service`
-- `skill_selection_debug_service`, the skill-catalog rebuild task
-- the governance/status surfaces
+**Still on CSV (by design, for now):** the **skill-catalog** and **family** embeddings. Their
+retrieval is multi-vector (many anchors per skill, aggregated max-per-skill) / family-level, which
+does not map onto `search_top_k`; they are small (~41 skills) so per-node CSV is adequate. Migrating
+them needs a multi-vector store method and is a separate step — `skill_selection_debug_service`, the
+skill-catalog rebuild task and the discovery path are untouched by P2.
 
 Later phases add the CSV→DB migration (P3), deprecate the CSV backend (P4), and build the
 **site-content** area (its own mapper + an engine-free context lister + the authoritative

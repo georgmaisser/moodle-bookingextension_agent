@@ -305,6 +305,22 @@ if ($agentenabled) {
     );
     $aisettingspage->add($docscorpora);
 
+    // Retrieval-foundation backend for the embeddings store (docs index). CSV = per-node temp files
+    // (default); DB = the shared bx_agent_embeddings table. Both satisfy the same contract; the DB
+    // backend is cluster-safe. Skills/family embeddings are unaffected (they stay on CSV for now).
+    $aisettingspage->add(
+        new admin_setting_configselect(
+            'bookingextension_agent/embeddingsstore',
+            get_string('embeddingsstore', 'bookingextension_agent'),
+            get_string('embeddingsstore_desc', 'bookingextension_agent'),
+            'csv',
+            [
+                'csv' => get_string('embeddingsstore_csv', 'bookingextension_agent'),
+                'db' => get_string('embeddingsstore_db', 'bookingextension_agent'),
+            ]
+        )
+    );
+
     $aisettingspage->add(
         new admin_setting_configselect(
             'bookingextension_agent/aiprivacymode',

@@ -29,8 +29,9 @@ namespace bookingextension_agent\local\wizard\services\lookup;
 use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
 use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\conversation_store;
-use bookingextension_agent\local\wizard\services\embeddings\embeddings_retrieval_service;
 use bookingextension_agent\local\wizard\services\llm\llm_call_service;
+use bookingextension_agent\local\wizard\services\retrieval\docs_row_mapper;
+use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
 
 /**
  * Provides semantic and lexical search over registered documentation corpora.
@@ -101,13 +102,11 @@ class docs_lookup_service {
             return [];
         }
 
-        // Search across ALL corpora at once; each index row carries its own corpus_id. The store is
-        // scoped to the active embeddings variant so only same-model vectors are compared.
+        // Resolve the active embeddings variant (only same-model vectors are ever compared) and
+        // generate the query embedding first (single call); skip the catalog scan on failure.
         // is_index_ready() above already confirmed the index is present and non-empty.
-        $repo = docs_embeddings_csv_repository::for_active_variant();
-
-        // Generate the query embedding first (single call); skip the catalog scan entirely on failure.
         $settings = (new embeddings_action_config_resolver())->resolve();
+        $model = (string)($settings['model'] ?? orchestrator::EMBEDDINGS_DEFAULT_MODEL);
         $dimensions = (int)($settings['dimensions'] ?? orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS);
 
         $llm = new llm_call_service(new conversation_store());
@@ -126,22 +125,26 @@ class docs_lookup_service {
 
         $queryvec = (array)$embeddingcall['embedding'];
 
-        // Rank by cosine similarity, streaming the index one row at a time (bounded O(k) memory
-        // instead of loading the whole catalog + decoded vectors into RAM per query).
-        $retrieval = new embeddings_retrieval_service();
-        $toprows = $retrieval->search_top_k_streaming($queryvec, $repo->stream_rows(), max(1, $limit));
+        // Rank across ALL corpora via the embeddings store (CSV or DB backend, selected by config).
+        // search_top_k resolves the committed generation, streams + scores one row at a time (bounded
+        // O(k) memory) and applies the minimum score internally — returning typed hits, never vectors.
+        $store = embeddings_store_factory::instance();
+        $hits = $store->search_top_k(
+            docs_row_mapper::AREA,
+            $model,
+            $dimensions,
+            $queryvec,
+            max(1, $limit),
+            self::SEMANTIC_MIN_SCORE
+        );
 
         $results = [];
         $dangling = false;
-        foreach ($toprows as $hit) {
-            // Cosine similarity is stored under 'score' (0–1) by the retrieval service.
-            $score = (float)($hit['score'] ?? 0.0);
-            if ($score < self::SEMANTIC_MIN_SCORE) {
-                continue;
-            }
-
-            $corpusid = trim((string)($hit['corpus_id'] ?? ''));
-            $relpath = (string)($hit['chunk_path'] ?? '');
+        foreach ($hits as $hit) {
+            // Typed store hit: cosine score (0–1), corpus in owner, chunk path in refkey.
+            $score = $hit->score;
+            $corpusid = trim($hit->owner);
+            $relpath = $hit->refkey;
             $root = $this->registry->resolve_root($corpusid);
             if ($root === null) {
                 // The index references a corpus that no longer resolves — a stale row. Drop it AND
