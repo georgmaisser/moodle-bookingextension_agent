@@ -63,7 +63,7 @@ class benchmark_run_service {
             }
         };
 
-        $setname   = (string)($options['scenario-set'] ?? 'decision_core');
+        $setname   = (string)($options['scenario-set'] ?? 'agent_core_v1');
         $label     = (string)(($options['label'] ?? '') ?: date('Y-m-d H:i') . ' ' . $setname);
         $env       = (string)($options['env'] ?? 'local');
         $gitref    = (string)($options['git-ref'] ?? '');

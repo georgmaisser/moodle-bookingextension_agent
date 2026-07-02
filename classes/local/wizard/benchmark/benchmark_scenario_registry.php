@@ -84,7 +84,6 @@ class benchmark_scenario_registry {
     private const DECISION_CORE = [
         'book_users_single',
         'route_diagnose_access_de',
-        'route_diagnose_enrolment_de',
         'route_create_selflearning_de',
         'route_create_slotbooking_de',
         'route_search_options_de',
@@ -98,7 +97,9 @@ class benchmark_scenario_registry {
      * Get all scenario instances for a named set.
      *
      * Sets:
-     *  - 'decision_core' (default): the curated ~1-minute decision subset (see DECISION_CORE).
+     *  - 'agent_core_v1' (default): booking-free, agent-native scenarios only (core, course and wizard
+     *    skills) — the set that survives the standalone extraction (see build_agent_core_v1()).
+     *  - 'decision_core': the curated ~1-minute decision subset (see DECISION_CORE).
      *  - 'core_booking_v1' / anything else: the broad set — curated classes PLUS every confusable
      *    cluster (scenarios/route_*.php), for an occasional deep run.
      *

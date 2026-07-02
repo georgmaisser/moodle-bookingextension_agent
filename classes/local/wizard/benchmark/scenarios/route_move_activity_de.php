@@ -63,7 +63,7 @@ class route_move_activity_de extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Verschiebe die Seite "Kursinfo" eine Sektion nach unten.';
+        return 'Verschiebe im Kurs "Biologie 101" die Seite "Kursinfo" eine Sektion nach unten.';
     }
 
     /**

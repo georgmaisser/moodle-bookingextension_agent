@@ -22,11 +22,11 @@
  * scenario set so a real signal can be separated from model noise.
  *
  * Usage:
- *   php benchmark_aggregate.php --runs=5 [--set=core_booking_v1] [--label=prefix]
+ *   php benchmark_aggregate.php --runs=5 [--set=agent_core_v1] [--label=prefix]
  *
  * Options:
  *   --runs=N        Aggregate the last N runs (default 5).
- *   --set=NAME      Scenario set to filter on (default core_booking_v1).
+ *   --set=NAME      Scenario set to filter on (default agent_core_v1).
  *   --label=PREFIX  Only runs whose label starts with PREFIX (default: all).
  *
  * @package    bookingextension_agent
@@ -42,7 +42,7 @@ require_once($CFG->libdir . '/clilib.php');
 [$options] = cli_get_params(
     [
         'runs'  => 5,
-        'set'   => 'core_booking_v1',
+        'set'   => 'agent_core_v1',
         'label' => '',
         'help'  => false,
     ],

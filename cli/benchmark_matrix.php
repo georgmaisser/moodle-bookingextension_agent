@@ -24,7 +24,7 @@
  * single-run percentages when judging a discovery/selection change.
  *
  * Usage:
- *   php benchmark_matrix.php --runs=6 [--set=core_booking_v1] [--label=prefix]
+ *   php benchmark_matrix.php --runs=6 [--set=agent_core_v1] [--label=prefix]
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -39,7 +39,7 @@ require_once($CFG->libdir . '/clilib.php');
 [$options] = cli_get_params(
     [
         'runs'  => 6,
-        'set'   => 'core_booking_v1',
+        'set'   => 'agent_core_v1',
         'label' => '',
         'help'  => false,
     ],

@@ -21,7 +21,7 @@
  *   php benchmark_runner.php [options]
  *
  * Options:
- *   --scenario-set=core_booking_v1   Scenario set to run (default: core_booking_v1)
+ *   --scenario-set=agent_core_v1     Scenario set to run (default: agent_core_v1)
  *   --model=claude-sonnet-4-6        Model ID to record (default: from config)
  *   --label=release-x.y.z           Human-readable run label
  *   --env=local                      Environment tag (local, ci, staging)
@@ -54,7 +54,7 @@ use core_ai\manager as ai_manager;
 
 [$options, $unrecognized] = cli_get_params(
     [
-        'scenario-set'   => 'decision_core',
+        'scenario-set'   => 'agent_core_v1',
         'model'          => '',
         'label'          => '',
         'env'            => 'local',
@@ -77,8 +77,9 @@ if ($options['help']) {
         . "coverage lives in the PHPUnit suite; this set is the curated 'is the routing healthy /\n"
         . "did my change help' instrument.\n\n"
         . "Options:\n"
-        . "  --scenario-set=decision_core  (default; the curated ~1-min set)\n"
-        . "                Use --scenario-set=core_booking_v1 for the broad confusable-cluster set.\n"
+        . "  --scenario-set=agent_core_v1  (default; booking-free, agent-native scenarios)\n"
+        . "                Use --scenario-set=decision_core for the curated ~1-min set,\n"
+        . "                or --scenario-set=core_booking_v1 for the broad confusable-cluster set.\n"
         . "  --model=claude-sonnet-4-6\n"
         . "  --label=release-x.y.z\n"
         . "  --env=local|ci|staging\n"

@@ -79,6 +79,10 @@ class route_diagnose_access_de extends abstract_routing_scenario {
      * @return string[]
      */
     public function get_forbidden_siblings(): array {
-        return ['mod_booking.diagnose_booking_issue'];
+        return [
+            'mod_booking.diagnose_user_booking',
+            'mod_booking.diagnose_booking_issue',
+            'mod_booking.diagnose_cancellation_issue',
+        ];
     }
 }

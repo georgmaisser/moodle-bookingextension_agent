@@ -61,7 +61,7 @@ class route_add_quiz_de extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Erstelle ein Quiz mit 10 Fragen fuer diesen Kurs.';
+        return 'Erstelle ein Quiz mit 10 Fragen fuer den Kurs "Biologie 101".';
     }
 
     /**
