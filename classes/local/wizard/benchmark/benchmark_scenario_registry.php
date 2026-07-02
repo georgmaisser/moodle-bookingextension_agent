@@ -33,6 +33,8 @@ use bookingextension_agent\local\wizard\benchmark\scenarios\auto_confirm_session
 use bookingextension_agent\local\wizard\benchmark\scenarios\retry_preflight_recovery;
 use bookingextension_agent\local\wizard\benchmark\scenarios\ambiguous_request_no_hallucination;
 use bookingextension_agent\local\wizard\benchmark\scenarios\get_current_user_readonly;
+use bookingextension_agent\local\wizard\benchmark\scenarios\multistep_add_then_hide_de;
+use bookingextension_agent\local\wizard\benchmark\scenarios\negative_no_delete_skill_en;
 
 /**
  * Registry of available benchmark scenario sets.
@@ -105,6 +107,9 @@ class benchmark_scenario_registry {
      */
     public function get_scenarios(string $setname): array {
         $all = $this->build_full_universe();
+        if ($setname === 'agent_core_v1') {
+            return $this->build_agent_core_v1();
+        }
         if ($setname === 'decision_core') {
             $bykey = [];
             foreach ($all as $scenario) {
@@ -119,6 +124,37 @@ class benchmark_scenario_registry {
             return $out;
         }
         return $all;
+    }
+
+    /**
+     * Build the booking-agnostic set: only scenarios routing to agent-native skills (core.* / course.* /
+     * wizard.*), never the mod_booking provider. This is the set that survives extracting the agent into
+     * a standalone plugin — it measures the engine without a domain provider installed. It combines a
+     * curated behavioral list (readonly / no-skill / multi-step / negative) with every route_* cluster
+     * scenario whose expected skill is not a mod_booking.* skill (auto-discovered, sorted).
+     *
+     * @return benchmark_scenario_interface[]
+     */
+    private function build_agent_core_v1(): array {
+        $out = array_map(fn($class) => new $class(), [
+            get_current_user_readonly::class,
+            skill_not_in_catalog::class,
+            multistep_add_then_hide_de::class,
+            negative_no_delete_skill_en::class,
+        ]);
+        $routefiles = glob(__DIR__ . '/scenarios/route_*.php') ?: [];
+        sort($routefiles);
+        foreach ($routefiles as $file) {
+            $class = __NAMESPACE__ . '\\scenarios\\' . basename($file, '.php');
+            if (!class_exists($class)) {
+                continue;
+            }
+            $scenario = new $class();
+            if (strpos($scenario->get_expected_skill(), 'mod_booking.') !== 0) {
+                $out[] = $scenario;
+            }
+        }
+        return $out;
     }
 
     /**
