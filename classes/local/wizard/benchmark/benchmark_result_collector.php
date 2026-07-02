@@ -83,6 +83,13 @@ class benchmark_result_collector {
         $additional = $scenario->assert_additional($parsed ?? []);
         $addpassed  = empty(array_filter($additional, fn($a) => !$a['passed']));
 
+        // Routing scenarios name confusable sibling skills the selector must NOT pick; track whether the
+        // model chose one (a finer routing-quality signal than skill_hit alone). Report-only.
+        $forbiddensiblings = method_exists($scenario, 'get_forbidden_siblings')
+            ? array_values(array_filter(array_map('strval', (array)$scenario->get_forbidden_siblings())))
+            : [];
+        $forbiddensiblinghit = ($skillselected !== '' && in_array($skillselected, $forbiddensiblings, true)) ? 1 : 0;
+
         $passed = $jsonvalid && $contractcompliant && $rtmatch && $skillmatch && $planmatch && $addpassed;
 
         $errormessage = null;
@@ -121,6 +128,8 @@ class benchmark_result_collector {
             'response_type_actual'   => $responsetype,
             'skill_expected'          => $expectedskill,
             'skill_selected'          => $skillselected,
+            'forbidden_siblings_present' => empty($forbiddensiblings) ? 0 : 1,
+            'forbidden_sibling_hit'      => $forbiddensiblinghit,
             'json_valid'             => $jsonvalid ? 1 : 0,
             'contract_compliant'     => $contractcompliant ? 1 : 0,
             'planned_steps_present'  => $plannedstetspresent,

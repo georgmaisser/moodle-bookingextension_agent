@@ -54,6 +54,9 @@ class benchmark_metrics_calculator {
         $jsonvalid   = 0;
         $compliant   = 0;
         $rtaccurate  = 0;
+        $rtstrict    = 0;
+        $forbiddenbase     = 0;
+        $forbiddenavoided  = 0;
         $skillhit     = 0;
         $plannedhit  = 0;
         $multistep   = 0;
@@ -84,6 +87,18 @@ class benchmark_metrics_calculator {
             // Stay in sync with the verdict: accurate if it passed, or the strict expected matches.
             if ($exprt !== '' && ($exprt === $actrt || !empty($s['passed']))) {
                 $rtaccurate++;
+            }
+            // Strict variant: exact expected==actual only (no "|| passed" escape). The gap to the lenient
+            // response_type_accuracy above is the "acceptable-but-not-intended response_type" signal.
+            if ($exprt !== '' && $exprt === $actrt) {
+                $rtstrict++;
+            }
+            // Routing scenarios that name confusable siblings: did the model AVOID the forbidden skill?
+            if (!empty($s['forbidden_siblings_present'])) {
+                $forbiddenbase++;
+                if (empty($s['forbidden_sibling_hit'])) {
+                    $forbiddenavoided++;
+                }
             }
             $expskill = trim((string)($s['skill_expected'] ?? ''));
             $actskill = trim((string)($s['skill_selected'] ?? ''));
@@ -134,6 +149,17 @@ class benchmark_metrics_calculator {
             [
                 'metric_key' => 'response_type_accuracy',
                 'metric_value' => $this->pct($rtaccurate, max(1, $rtbase)),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'response_type_strict_accuracy',
+                'metric_value' => $this->pct($rtstrict, max(1, $rtbase)),
+                'metric_unit' => 'percent',
+            ],
+            [
+                'metric_key' => 'forbidden_sibling_avoidance_rate',
+                // N/A (100) when no scenario in the set declares confusable siblings.
+                'metric_value' => $forbiddenbase > 0 ? $this->pct($forbiddenavoided, $forbiddenbase) : 100.0,
                 'metric_unit' => 'percent',
             ],
             [
