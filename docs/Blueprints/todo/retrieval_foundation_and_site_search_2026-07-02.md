@@ -30,7 +30,7 @@ mit O(N)-PHP erschlagen.
 
 ---
 
-## 1. Die drei festgenagelten Entscheidungen
+## 1. Die festgenagelten Entscheidungen
 
 1. **`search_top_k()` ist die öffentliche Retrieval-Methode** (nicht `stream_rows`). `stream_rows` bleibt
    internes Detail der PHP-Cosine-Implementierung. So kann eine ANN-Implementierung (pgvector/MariaDB-VECTOR)
@@ -39,7 +39,13 @@ mit O(N)-PHP erschlagen.
    sprechen aber dieselbe API.
 3. **Access-Boundary generisch.** Retrieval trägt `contextid`/`owner` immer mit und akzeptiert einen
    optionalen `retrieval_filter`. Docs/Skills lassen ihn leer (global sichtbar); Site-Content verengt darüber
-   und filtert autoritativ per `check_access()` (§8).
+   und filtert autoritativ per `check_access()` (§7).
+4. **Unabhängig von der nativen Global Search → Option A** (§4). Die Search-Areas funktionieren ohne aktivierte
+   Solr/simpledb-Engine; wir fahren den Index-Loop selbst und rufen `check_access()` als Post-Filter.
+5. **Eigene Governance (§5b): Freischaltung + Recht + Seite.** Kein Auto-Index — ein Admin schaltet pro
+   Kurs/Plugin frei; die Seite zeigt **Aufwandschätzung (potenzielle Kosten)** + **Ampel** (Kosten/Query-Tempo);
+   gated durch die eigene Capability `bookingextension/agent:configuresitesearch` (default nur Admins,
+   vergebbar).
 
 ---
 
@@ -133,10 +139,18 @@ Bevor Site-Content-Indexing beginnt, muss die Architektur-Gabel entschieden sein
 | Access-Filter | selbst (`check_access` im Post-Filter) | **nativ**: `execute_query($filters, $accessinfo, $limit)` bekommt erlaubte Kontexte von `get_areas_user_accesses()` |
 | Code-Umfang | mehr | nur `add_document()` + Delete-Hooks |
 | Kopplung/Kosten | lose, aber Access-Risiko bei uns | an Engine-Contract; wird i.d.R. aktive Such-Engine der Site (oder koexistiert) |
+| **Unabhängig von nativer Global Search** | **JA** — Areas sind reine PHP-Klassen, funktionieren ohne aktivierte Solr/simpledb-Engine | NEIN — koppelt uns ans Global-Search-Framework |
 
-**Empfehlung:** **Option B** — erbt genau die Sicherheits-Maschinerie, die in A das Hauptrisiko ist. Aber es
-ist ein echter Fork (eigenes `search`-Subplugin `searchengine_wbvector`, Betriebsfrage „aktive Engine?"),
-daher expliziter Meilenstein mit Go/No-Go.
+**Unabhängigkeit (Georg-Anforderung, verifiziert):** Unsere Suche läuft **völlig unabhängig** von der nativen
+Global Search. Die Search-Areas (`get_document_recordset`/`get_document`/`check_access`) und
+`manager::get_areas_user_accesses()` sind reine PHP-/Capability-Logik — sie brauchen **keine** aktivierte
+Such-Engine. Das gilt für **Option A**; Option B würde uns an das Framework koppeln.
+
+**Revidierte Empfehlung → Option A.** Unabhängigkeit + eigene Freischaltung pro Kurs/Plugin (§5b) + eigenes
+Recht + eigene Governance-Seite sind genau A's Modell. **Access bleibt gewahrt:** wir rufen im
+Retrieval-Post-Filter `check_access()` der jeweiligen Area (Moodles eigene Logik, wir reimplementieren nichts)
+— Pflicht + Test (§7/§10). Option B bleibt offen, **falls** später auch die native Such-Box semantisch werden
+soll — dann als zusätzliche Engine hinter demselben `search_top_k`-Interface.
 
 ---
 
@@ -182,6 +196,74 @@ K Treffer nachgeladen (spart Bytes im Scan, hält BLOBs off-page-neutral).
 
 ---
 
+## 5b. Governance-Seite — Indizierung freischalten (pro Kurs/Plugin) + Aufwandschätzung + Ampel
+
+Kein Auto-Index. Ein Admin **schaltet frei**, was indiziert wird, und sieht dabei **sofort die (potenziellen)
+Kosten**. Eigene Seite im Muster von `skill_governance.php`, eigenes Recht.
+
+### 5b.1 Eigenes Recht (Capability)
+
+- **`bookingextension/agent:configuresitesearch`** — gated die Seite + jedes Freischalten/Umschalten.
+- `db/access.php`: **kein** Archetype-Grant → standardmäßig nur Site-Admins (via `moodle/site:config`), aber als
+  definierte Capability **frei an beliebige Rollen vergebbar** (genau deine Vorgabe: default Admin, umverteilbar).
+- Serverseitig hart geprüft: `require_capability('bookingextension/agent:configuresitesearch', context_system::instance())`
+  auf der Seite **und** an jedem Toggle-Webservice.
+
+### 5b.2 Eigene Seite (wie skill_governance)
+
+- `sitesearch_governance.php` (Struktur/Style von `skill_governance.php`), verlinkt aus den Agent-Admin-Settings
+  (analog zum Skill-Governance-Link). Rendert die Freischalt-Matrix + Schätzung + Ampel; Toggles via WS
+  (idempotent, capability-geprüft).
+
+### 5b.3 Freischaltung: pro Plugin (Area) UND pro Kurs
+
+- **Pro Plugin/Area:** Whitelist der content-tragenden Areas aus `manager::get_search_areas_list(true)` — je
+  Area ein Toggle (page, book, forum, glossary, course-summary, wiki …).
+- **Pro Kurs (Scope):** *alle Kurse* / *ausgewählte Kurse* / *Kategorie(n)* / *Ausschlussliste*. Auch der
+  Site-Kurs (Front page) ist ein gültiger Scope.
+- **Persistenz:** `{agent_search_scope}(id, area, scopetype ['site'|'course'|'category'], scopeid, enabled,
+  usermodified, timemodified)`. Der Index-Task (§5/§7) respektiert diese Freischaltung als harte Quelle der
+  Wahrheit (nur freigeschaltete Area×Scope werden indiziert; Deaktivieren → `delete_by_context` der betroffenen
+  Kontexte).
+
+### 5b.4 Aufwandschätzung im Interface (live, ohne zu embedden)
+
+Ein `index_scope_estimator`-Service liefert je Area×Scope ein **`index_estimate`**-DTO — **ohne** einen
+einzigen Embedding-Call:
+
+```
+index_estimate {
+  doccount     int     // billige Zählung: get_document_recordset()-Rowcount bzw. COUNT-SQL der Area
+  estchunks    int     // doccount × Ø-Chunks (aus Content-Längen-Sampling einiger Docs)
+  esttokens    int     // estchunks × Ø-Tokens/Chunk
+  estcostcents int     // esttokens × Preis/1k des AKTIVEN Embedding-Modells (embeddings_action_config_resolver)
+  buildseconds int     // grobe Bau-Dauer (Batch-Größe/Rate-Limit)
+  ampel        string  // 'green' | 'yellow' | 'red' (siehe 5b.5)
+}
+```
+
+- **Billig by design:** Zählen läuft über die Area-Recordsets/COUNT — kein `get_document()`/kein Embedding.
+  Content-Längen für die Chunk-Schätzung aus einem kleinen Sample (z. B. 20 Docs) hochgerechnet.
+- Kosten = geschätzte Tokens × Preis des **aktiven** Modells (aus `embeddings_action_config_resolver`), damit
+  die Zahl zum tatsächlichen Rebuild passt.
+- Anzeige: pro Zeile (Area×Scope) und als **Summe** der aktuellen Auswahl — „so viel kostet/dauert das jetzt".
+
+### 5b.5 Ampel-System (Kosten **und** Query-Tempo)
+
+Die Ampel bündelt zwei Dimensionen zu einem Blick-Signal, gespeist aus der geschätzten **Indexgröße**:
+
+- 🟢 **grün** — klein (z. B. `< N` Chunks): billig **und** PHP-Cosine bleibt schnell → sofort freischaltbar.
+- 🟡 **gelb** — mittel: spürbare Kosten/Latenz, mit Bedacht.
+- 🔴 **rot** — groß (z. B. `> M` Chunks): teuer **und** O(N)-PHP-Cosine wird pro Query langsam → erst
+  **ANN-Fast-Path** (Phase 3) aktivieren **oder** Scope enger ziehen.
+
+- Schwellen `N`/`M` als Admin-Settings.
+- **Kontextsensitiv:** ist ein ANN-Fast-Path verfügbar (`capability_detect()` pgvector/MariaDB-VECTOR),
+  entschärft sich die Query-Tempo-Dimension → rot kann zu gelb/grün werden (nur die Kostendimension bleibt).
+  So heißt „rot" konkret: *bei aktueller Retrieval-Engine würde dieser Scope die Suche langsam machen*.
+
+---
+
 ## 6. Phase 3 — Site-Search-Retrieval + Skill + ANN-Fast-Path *(braucht Phase 2)*
 
 - **Retrieval** über `search_top_k('site_content', …, $filter)`:
@@ -218,10 +300,13 @@ Der Index ist **global**, die **Sicht ist pro User** — dasselbe Prinzip wie Mo
 ```
 Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [auslieferbar, Betriebsgewinn]
         │
-        └──►  M1 (A/B-Engine-Entscheidung, Spike)  ──►  Phase 2 (Site-Indexing)  ──►  Phase 3 (Retrieval+Skill+ANN)
+        └──►  M1 (A/B-Entscheidung → A)  ──►  Phase 2 (Governance-Seite §5b + Site-Indexing)  ──►  Phase 3 (Retrieval+Skill+ANN)
 ```
 
 - **Layer 0 + Phase 1** hängen an nichts und liefern sofort Wert (csv→db).
+- **Phase 2** beginnt mit der **Governance-Seite (§5b: Recht + Freischaltung + Aufwandschätzung + Ampel)** —
+  ohne Freischaltung wird nichts indiziert, und die Schätzung/Ampel entscheidet, *ob* man einen Scope freischaltet.
+  Der Index-Task kommt danach und respektiert `{agent_search_scope}`.
 - **Phase 2–3** dürfen eigenes Tempo/Unsicherheit haben, ohne Phase 1 zu blockieren.
 - Einziger harter Kopplungspunkt: das `embeddings_store`-Interface (Layer 0) — deshalb zuerst.
 
@@ -259,12 +344,19 @@ Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [ausli
 
 ## 11. Offene Entscheidungen für Georg
 
-1. **M1: Option A oder B?** (Empfehlung B — Access nativ; braucht Spike + Betriebsentscheidung „eigene Engine".)
+1. **M1: Option A oder B?** → **Empfehlung jetzt A** (Unabhängigkeit von nativer Global Search, eigene
+   Freischaltung/Recht/Seite). B nur, falls später auch die native Such-Box semantisch werden soll. Bestätigen?
 2. **Layer 0 jetzt zusammen mit Phase 1 bauen** (empfohlen — sonst zementiert Phase 1 die Schnittstelle) oder
    Phase 1 mit `stream_rows` und Refactor später (Risiko)?
 3. **MUC-Cache** der dekodierten Vektoren (Docs/Skills) in Phase 1 mitnehmen oder als Follow-up?
 4. **Site-Content-Store** wirklich getrennte Tabellen (empfohlen) — bestätigt?
 5. **Whitelist v1** — welche Areas (Vorschlag: page, book, forum, glossary, course-summary; wiki optional)?
+6. **Capability-Name** — `bookingextension/agent:configuresitesearch`, default nur Admins (kein Archetype),
+   frei vergebbar. Name/Default ok?
+7. **Ampel-Schwellen** `N`/`M` (Chunks) — sinnvolle Defaults festlegen (z. B. grün `<2.000`, rot `>20.000`
+   ohne ANN)? Und: Kosten-Ampel getrennt von Tempo-Ampel anzeigen oder zu einem Signal bündeln?
+8. **Governance-Seite Teil von Phase 2** (empfohlen — Voraussetzung fürs Freischalten) oder vorgezogen als
+   eigener kleiner Meilenstein direkt nach Phase 1?
 
 ---
 
