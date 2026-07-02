@@ -52,17 +52,14 @@ deterministic messages come out in the user's language.
 
 ## 3. Message trigger registry
 
-`message_trigger_registry` holds the **server-side** trigger allow-list and
-`normalize_used_triggers()`. Two rules matter:
+`message_trigger_registry` now holds only the `response_type` allow-list and
+`normalize_response_type()` (unknown values → `UNKNOWN_TYPE`, later coerced to a clarification
+by the runtime contract).
 
-- the server **derives** triggers like `core.is_lookup_request` from the result — there is
-  **no trigger→skill routing** (the registry's `get_message_triggers()` and trigger→skill
-  map return `[]`);
-- the [decision service](08-decision-service.md) reads these normalized triggers (via
-  `trigger_result_util`) to drive its guards (preview / lookup), not to pick a skill.
-
-This is what keeps routing deterministic and language-agnostic: triggers are *signals about
-what the turn is*, never a lookup table that maps a phrase to an action.
+The former `used_triggers` LLM trigger channel — and all `core.*` flow triggers with it — has
+been **removed**. Routing is driven purely by `response_type` and the command/risk shape, never
+by a lexical trigger→skill map (the registry's `get_message_triggers()` returns `[]`). This is
+what keeps routing deterministic and language-agnostic.
 
 ---
 

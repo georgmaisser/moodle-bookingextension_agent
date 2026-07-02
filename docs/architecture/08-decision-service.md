@@ -29,16 +29,14 @@ It runs an **ordered, deterministic guard chain**, then routes by `response_type
 
 Evaluated in this exact order (each guard short-circuits to a clarification):
 
-| # | Guard | Trigger | Outcome |
-|---|-------|---------|---------|
-| 1 | **Preview** | `core.is_preview_request` trigger **and** `previewoptionid > 0` | clarification carrying the preview message |
-| 2 | **Pending block** | a pending intent exists **and** the new message is an unrelated intent (`should_block_new_intent_while_pending`) | clarification: resolve the pending confirmation first |
-| 3 | **Lookup guard** | `core.is_lookup_request` trigger **and** the result has mutating commands | clarification: a lookup must not mutate |
-| 4 | **Risk promotion** | mutating commands **and** `response_type == skill_call` | promote to `confirmation_request` |
+| # | Guard | Condition | Outcome |
+|---|-------|-----------|---------|
+| 1 | **Pending block** | a pending intent exists **and** the new message is an unrelated intent (`should_block_new_intent_while_pending`) | clarification: resolve the pending confirmation first |
+| 2 | **Risk promotion** | mutating commands **and** `response_type == skill_call` | promote to `confirmation_request` |
 
-Triggers come from the server-side `message_trigger_registry` (no trigger→skill routing —
-the server *derives* `core.is_lookup_request` etc.; see [ch. 16](16-support-services.md)).
-Each guard contributes to a `safety_context` (issue codes + route hints + pending policy).
+Routing is driven entirely by `response_type` (normalized via `message_trigger_registry`) and the
+command/risk shape — there is no LLM trigger channel. Each guard contributes to a `safety_context`
+(issue codes + route hints + pending policy).
 
 ---
 

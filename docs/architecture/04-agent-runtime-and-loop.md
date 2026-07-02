@@ -50,7 +50,7 @@ persistence**:
 ```
 run_internal()
   → orchestrator::process(threadid, cmid, userid, observations, state)   // plan
-  → trigger normalization (used_triggers, response_type)
+  → response_type normalization (message_trigger_registry)
   → agent_decision_service::process(result, …)                          // decide/route
   → re-attach planner context (phase_trace, planner_result)
 ```
@@ -198,7 +198,7 @@ persisted assistant message is well-formed regardless of what the model produced
 - **Message hygiene**: markdown fences stripped; empty message → a localized fallback
   (`build_contract_fallback_message()`).
 - **Array invariants**: `ambiguities`, `ambiguity_options`, `errors`, `attempted_skills`,
-  `issue_codes`, `used_triggers`, `results` are forced to arrays; `pending_confirmation_code`
+  `issue_codes`, `results` are forced to arrays; `pending_confirmation_code`
   to a string; `lang` resolved via `language_policy_service`.
 
 This is why downstream consumers (the UI, the store) can trust the shape of a persisted

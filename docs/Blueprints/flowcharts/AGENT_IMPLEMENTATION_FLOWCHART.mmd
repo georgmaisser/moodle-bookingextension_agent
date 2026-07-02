@@ -168,15 +168,11 @@ flowchart TD
     %% DECISION SERVICE
     %% =========================================================
     subgraph DECIDSVC["agent_decision_service::process() — Deterministic Routing"]
-        PROC_IN["process(result, threadid, contextid, userid,\n  outputlang, previewoptionid)"]
-        D_PREVIEW{"core.is_preview\n_request trigger?"}
-        D_PREVIEW_OUT["→ clarification with preview message"]
+        PROC_IN["process(result, threadid, contextid, userid,\n  outputlang)"]
         D_PENDING{"pending_intent exists\nand unrelated new intent?"}
         D_PENDING_OUT["→ clarification pending-resolution required"]
-        D_LOOKUP_GUARD{"core.is_lookup_request\n+ mutating commands?"}
-        D_LOOKUP_OUT["→ clarification lookup-blocked-mutation"]
         D_PROMOTE["mutating skill_call\n→ confirmation_request\nrisk_class via resolve_command_risk_class()\n  (unknown skill → R3, fail-safe default)\nrisk_class gating:\n  R1 → session-allow ok (TTL 900s)\n  R2 → session-allow ignored, always explicit\n  R3 → always manual, no session-allow"]
-        D_SAFE_CTX["safety_context DTO\ninput: parsed intent + trigger signals\noutput: issue_codes + route hints\n+ pending policy"]
+        D_SAFE_CTX["safety_context DTO\ninput: parsed intent\noutput: issue_codes + route hints\n+ pending policy"]
         D_ROUTE{"response_type"}
         D_CONFIRM_PENDING["confirm_pending →\nhandle_confirm_pending()\n(re-preflight pending mutation)"]
         D_CMD_ROUTE["handle_command_routing()\nR0 → readonly staged execute\nR1 → queue with session-allow\nR2 → queue, confirmation enforced\nR3 → queue, manual only, extra budget step"]
@@ -277,7 +273,7 @@ flowchart TD
         ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_message_for_display() (fail-closed: redact unresolved ANON_USER_* tokens)\nreanchor_value_for_thread() (cross-thread recall re-anchoring, token→token, no cleartext)\nhas_unresolved_anon_tokens() → command-input fail-closed gate (RECOVERABLE_INPUT_ERROR)"]
         EMBS["family_embeddings_retrieval_service\nused in discovery phase for family ranking\nnot for direct skill-level top-k selection"]
         LANG["language_policy_service\nsource priority: selector-emitted user_lang (from latest user message)\n→ model lang → current UI language → en (technical fallback)\nformats framework-generated replies (errors / confirmations / preflight);\nthe synchronizer composes its own reply directly in the user's language"]
-        MTRIG["message_trigger_registry\ncore trigger allow-list\nnormalize_used_triggers()\nserver derives core.is_lookup_request\n(no trigger→skill routing)"]
+        MTRIG["message_trigger_registry\nnormalize_response_type() (response_type allow-list)\ntrigger channel removed (used_triggers eliminated)"]
         DNORM["domain_normalizer_hook\nprovider-supplied normalization\n(no framework skill heuristics)"]
         AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
         ISCP["domain_issue_code_provider\nimplements issue_code_provider_interface\nprovider defines confirmable and domain-specific issue groups"]
@@ -386,17 +382,11 @@ flowchart TD
 
     %% interpreter output → decision service
     RESP_TYPE --> PROC_IN
-    PROC_IN --> D_PREVIEW
-    D_PREVIEW -->|yes| D_PREVIEW_OUT
-    D_PREVIEW -->|no| D_PENDING
+    PROC_IN --> D_PENDING
     D_PENDING -->|yes| D_PENDING_OUT
-    D_PENDING -->|no| D_LOOKUP_GUARD
-    D_LOOKUP_GUARD -->|yes| D_LOOKUP_OUT
-    D_LOOKUP_GUARD -->|no| D_PROMOTE
+    D_PENDING -->|no| D_PROMOTE
     PROC_IN -.->|build/update| D_SAFE_CTX
-    D_PREVIEW -.-> D_SAFE_CTX
     D_PENDING -.-> D_SAFE_CTX
-    D_LOOKUP_GUARD -.-> D_SAFE_CTX
     D_PROMOTE -.-> D_SAFE_CTX
     D_PROMOTE --> D_ROUTE
 
@@ -411,9 +401,7 @@ flowchart TD
     D_TARGET_NOTE --> D_STORE_PENDING
     D_PREFLIGHT --> D_STORE_PENDING
 
-    D_PREVIEW_OUT --> D_STORE_PENDING
     D_PENDING_OUT --> D_STORE_PENDING
-    D_LOOKUP_OUT --> D_STORE_PENDING
     D_STORE_PENDING --> EXEC_GATE
 
     %% Preflight pipeline
@@ -571,10 +559,9 @@ flowchart TD
     CINT -->|"provider normalization hook"| DNORM
     DNORM --> SINT
     DNORM --> CINT
-    PCOMP -->|"normalize used_triggers"| MTRIG
+    PCOMP -->|"normalize response_type"| MTRIG
     PCOMP -->|"persist next_step_intent"| CS15
     CS15 -->|"read at discovery start"| EMB_QUERY
-    MTRIG -.->|"core trigger signals"| PROC_IN
     OB_OUT --> ANON
     ANON --> OBS_ACCUM
     AIER --> SPLLM

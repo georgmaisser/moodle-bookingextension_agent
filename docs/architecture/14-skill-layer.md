@@ -84,8 +84,8 @@ otherwise checks the per-skill `aiskillenabled_<name>` config — newly discover
 [operations/governance.md](../operations/governance.md)).
 
 > Triggers are deliberately inert at this layer: `get_message_triggers()` and the
-> trigger→skill map return `[]`. The server *derives* triggers like `core.is_lookup_request`
-> instead of routing by them — the `MTRIG` / `LG_*` "no trigger→skill routing" rule (see
+> trigger→skill map return `[]`. Routing is semantic (embeddings), never lexical, and there is
+> no LLM trigger channel at all (the `used_triggers` field was removed — see
 > [ch. 16](16-support-services.md)).
 
 ---

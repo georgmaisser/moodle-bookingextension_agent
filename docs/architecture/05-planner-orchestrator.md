@@ -195,7 +195,7 @@ produces the unified planner result the runtime consumes. It:
 
 The orchestrator persists the trace via the store (`set_phase_trace`,
 `set_planner_trace_history`) and writes `next_step_intent` to thread metadata; the
-`message_trigger_registry` normalizes `used_triggers`. These persisted artifacts are what
+`message_trigger_registry` normalizes `response_type`. These persisted artifacts are what
 the next discovery turn and the synchronizer read back.
 
 ---
