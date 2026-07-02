@@ -1,11 +1,12 @@
 # 17 · Retrieval foundation: the embeddings store
 
-> **Status.** Layer 0 (contract + CSV adapter), Layer 1 (DB backend) and the docs call-site wiring
-> (P2) are implemented; the CSV backend is still the default. The **docs** index reads and rebuilds
-> through the store behind the `embeddingsstore` flag; **skills/family** embeddings and site-content
-> search are later phases (see [§6](#6-status-of-the-wiring)). This chapter documents the substrate
-> the discovery embeddings ([chapter 06 §8](06-discovery-families-embeddings.md#8-embeddings-infrastructure))
-> and the docs lookup sit on.
+> **Status.** Layer 0 (contract + CSV adapter), Layer 1 (DB backend), the docs call-site wiring (P2)
+> and the CSV→DB migration (P3) are implemented; the CSV backend is still the default. The **docs**
+> index reads and rebuilds through the store behind the `embeddingsstore` flag; **skills/family**
+> embeddings and site-content search are later phases (see [§6](#6-status-of-the-wiring)). This chapter
+> documents the substrate the discovery embeddings
+> ([chapter 06 §8](06-discovery-families-embeddings.md#8-embeddings-infrastructure)) and the docs
+> lookup sit on.
 
 The retrieval foundation is a single storage-agnostic contract for **all** embedding areas (docs,
 skills, and — later — site content) behind **one** interface, so the backend (CSV today, DB next,
@@ -149,7 +150,14 @@ does not map onto `search_top_k`; they are small (~41 skills) so per-node CSV is
 them needs a multi-vector store method and is a separate step — `skill_selection_debug_service`, the
 skill-catalog rebuild task and the discovery path are untouched by P2.
 
-Later phases add the CSV→DB migration (P3), deprecate the CSV backend (P4), and build the
-**site-content** area (its own mapper + an engine-free context lister + the authoritative
-`check_access()` per hit) on top of the same store — the point of freezing this contract first.
-See the joint blueprint `docs/Blueprints/todo/retrieval_foundation_and_site_search_2026-07-02.md`.
+**Migration (P3):** switching `embeddingsstore` to `db` imports the existing docs CSV index into the
+DB backend once — synchronously in the setting's updated-callback. No re-embedding: the CSV rows
+already carry their vectors, so it is a plain stream + upsert through the shared contract, with the
+source fingerprint carried across so readiness sees the DB index as in-sync. The same import is
+available for ops as `cli/migrate_embeddings_to_db.php` (`embeddings_store_migration_service`). If the
+import is ever skipped, the readiness rebuild fallback re-embeds instead.
+
+Later phases deprecate the CSV backend (P4) and build the **site-content** area (its own mapper + an
+engine-free context lister + the authoritative `check_access()` per hit) on top of the same store —
+the point of freezing this contract first. See the joint blueprint
+`docs/Blueprints/todo/retrieval_foundation_and_site_search_2026-07-02.md`.
