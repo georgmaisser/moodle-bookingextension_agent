@@ -140,14 +140,19 @@ class embeddings_retrieval_service {
         };
 
         foreach ($rows as $row) {
-            $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
+            // The DB backend supplies a pre-decoded float32 vector under 'embedding'/'_vec'; the CSV
+            // backend supplies it JSON-encoded under 'embedding_json'. Accept either, decode only if needed.
+            $embedding = $row['_vec'] ?? $row['embedding'] ?? null;
+            if (!is_array($embedding) || empty($embedding)) {
+                $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
+            }
             if (!is_array($embedding) || empty($embedding)) {
                 continue;
             }
             $score = vector_math::cosine_similarity($queryvector, $embedding);
 
             // Drop the vector immediately; only metadata + score are needed downstream.
-            unset($row['embedding_json'], $row['_vec']);
+            unset($row['embedding_json'], $row['_vec'], $row['embedding']);
 
             if ($heap->count() < $k) {
                 $heap->insert(['score' => $score, 'row' => $row]);

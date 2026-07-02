@@ -129,4 +129,18 @@ class skill_row_mapper implements embeddings_row_mapper {
         }
         return $skill . '|' . (int)($csvrow['anchor_index'] ?? 0);
     }
+
+    /**
+     * Identity key (skill | anchor_index) from an embedding_row.
+     *
+     * @param embedding_row $row
+     * @return string
+     */
+    public function identity_key_for_row(embedding_row $row): string {
+        $skill = trim($row->owner);
+        if ($skill === '') {
+            return '';
+        }
+        return $skill . '|' . $row->refindex;
+    }
 }

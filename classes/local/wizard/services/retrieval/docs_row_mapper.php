@@ -135,4 +135,19 @@ class docs_row_mapper implements embeddings_row_mapper {
         }
         return $corpus . '|' . $path . '|' . (int)($csvrow['line_start'] ?? 0);
     }
+
+    /**
+     * Identity key (corpus_id | chunk_path | line_start) from an embedding_row.
+     *
+     * @param embedding_row $row
+     * @return string
+     */
+    public function identity_key_for_row(embedding_row $row): string {
+        $corpus = trim($row->owner);
+        $path = trim($row->refkey);
+        if ($corpus === '' || $path === '') {
+            return '';
+        }
+        return $corpus . '|' . $path . '|' . $row->refindex;
+    }
 }

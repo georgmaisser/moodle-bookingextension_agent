@@ -29,9 +29,9 @@ namespace bookingextension_agent\local\wizard\services\retrieval;
 /**
  * Single entry point for obtaining an {@see embeddings_store}.
  *
- * The `embeddingsstore` admin setting selects the backend (csv | db). During the migration only the
- * CSV backend exists, so this always returns {@see csv_embeddings_store}; the DB backend (Phase 1)
- * plugs in here behind the flag without touching any caller.
+ * The `embeddingsstore` admin setting selects the backend (csv | db). It defaults to the CSV backend
+ * until the migration flips it; the DB backend implements the same {@see embeddings_store} contract, so
+ * switching it here changes no caller.
  */
 class embeddings_store_factory {
     /**
@@ -40,7 +40,9 @@ class embeddings_store_factory {
      * @return embeddings_store
      */
     public static function instance(): embeddings_store {
-        // Phase 1 will branch on get_config('bookingextension_agent', 'embeddingsstore') === 'db'.
+        if (get_config('bookingextension_agent', 'embeddingsstore') === 'db') {
+            return new db_embeddings_store(self::mappers());
+        }
         return new csv_embeddings_store(self::mappers());
     }
 

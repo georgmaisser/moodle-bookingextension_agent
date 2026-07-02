@@ -220,6 +220,12 @@ and each skill embedding, keeping the **best** score per family, and can re-boos
 by blending skill and family scores (default 0.7/0.3). See
 [operations/tasks-and-async.md](../operations/tasks-and-async.md).
 
+> **Storage is now abstracted.** As of the retrieval foundation, reads/writes go through the
+> storage-agnostic `embeddings_store` contract, with a CSV backend (today's default) and a DB
+> backend behind the `embeddingsstore` setting. The description above still reflects the CSV path
+> the readers in this chapter use; the substrate is documented in
+> [chapter 17](17-retrieval-foundation.md).
+
 ---
 
 ## 9. Flowchart notes

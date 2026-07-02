@@ -84,4 +84,16 @@ interface embeddings_row_mapper {
      * @return string Empty to skip the row.
      */
     public function identity_key(array $csvrow): string;
+
+    /**
+     * Stable identity key for an embedding_row — the same string {@see identity_key()} yields for the
+     * equivalent CSV row, but computed from the DTO.
+     *
+     * The DB store hashes this at write time to index a row for reuse, then matches it against the
+     * caller's key on rebuild; the two forms must agree exactly.
+     *
+     * @param embedding_row $row
+     * @return string Empty to skip the row.
+     */
+    public function identity_key_for_row(embedding_row $row): string;
 }
