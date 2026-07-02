@@ -480,7 +480,7 @@ Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [ausli
 
 ---
 
-## 11. Entscheidungen (getroffen) + Restbestätigungen für Georg
+## 11. Entscheidungen (alle getroffen)
 
 **Alle Entscheidungen getroffen (2026-07-02b) — nichts mehr offen:**
 1. **Architektur (§4):** alles im Agent, self-contained; optionale `searchengine_wbvector` später (search→agent). Keine A/B-Weiche.
