@@ -1,0 +1,272 @@
+# Blueprint · Retrieval-Foundation + Semantische Site-Suche (gemeinsamer Umbauplan)
+
+> **Status:** Planungsdokument (todo). Noch nicht committet.
+> **Datum:** 2026-07-02
+> **Scope:** `bookingextension_agent` — Embeddings-Persistenz + semantisches Retrieval für Docs-Korpus,
+> Skill-Katalog **und** (künftig) Site-Content.
+> **Entscheidung (Georg):** csv→db-Umstellung und semantische Site-Suche unter **ein** Dach, aber sauber
+> schneidbar: gemeinsamer Retrieval-Contract, danach in Phasen auslieferbar.
+
+Verbindet und ersetzt als Dach-Plan:
+- `embeddings_store_csv_to_db_2026-07-02.md` (Detail zur DB-Umstellung Docs/Skills) → wird **Phase 1**.
+- `semantische_site_suche_embeddings_adapter_2026-06-10.md` (Site-Suche-Analyse) → wird **Phase 2–3**.
+
+---
+
+## 0. Warum gemeinsam (und warum trotzdem getrennt)
+
+csv→db (klein, sicher, sofort nützlich) und Site-Suche (groß, unsicher, Roadmap) teilen **genau einen**
+kritischen Vertrag: **wie man semantisch abfragt**. Diesen Vertrag wollen wir **einmal richtig** festlegen,
+bevor die DB-Umstellung ihn zementiert — sonst backt der schnelle Umbau eine Schnittstelle ein, die die
+Site-Suche später sprengt (Millionen Zeilen kann man nicht pro Query nach PHP streamen).
+
+**Gemeinsam ist der Contract, NICHT die Tabelle:**
+- Docs/Skills (~1.250 Zeilen, O(N)-PHP-Cosine ok) → **ein** kleiner Table `{agent_embeddings}`.
+- Site-Content (10⁵–10⁷ Chunks, braucht Provenienz+Access+ANN) → **eigene** Tabellen mit eigenem Lifecycle.
+- Beide **hinter demselben `embeddings_store`-Interface** mit `search_top_k()` als Retrieval-Naht.
+
+Ein Table für alles würde entweder die kleine Tabelle mit nullbaren Access-Spalten aufblähen oder die große
+mit O(N)-PHP erschlagen.
+
+---
+
+## 1. Die drei festgenagelten Entscheidungen
+
+1. **`search_top_k()` ist die öffentliche Retrieval-Methode** (nicht `stream_rows`). `stream_rows` bleibt
+   internes Detail der PHP-Cosine-Implementierung. So kann eine ANN-Implementierung (pgvector/MariaDB-VECTOR)
+   pro Area später eingeschoben werden, ohne einen Aufrufer zu ändern.
+2. **Getrennte Tabellen, geteiltes Interface.** Kleine Korpora und Site-Content leben physisch getrennt,
+   sprechen aber dieselbe API.
+3. **Access-Boundary generisch.** Retrieval trägt `contextid`/`owner` immer mit und akzeptiert einen
+   optionalen `retrieval_filter`. Docs/Skills lassen ihn leer (global sichtbar); Site-Content verengt darüber
+   und filtert autoritativ per `check_access()` (§8).
+
+---
+
+## 2. Layer 0 — Gemeinsamer Contract (einmal, klein, engine-frei)
+
+Neuer Namespace `…\local\wizard\services\retrieval` (engine-agnostisch, kein Wissen über Areas/Domäne).
+
+### 2.1 Interface `embeddings_store`
+
+```php
+interface embeddings_store {
+    // --- Retrieval: die ANN-Swap-Naht ---
+    // Top-K einer Area/Variante, bereits gescored, über minscore. Default-Impl: stream_rows + PHP-Cosine.
+    // Eine ANN-gestützte Area überschreibt das mit serverseitigem Top-K.
+    public function search_top_k(
+        string $area, string $emodel, int $edims,
+        array $queryvector, int $k, float $minscore,
+        ?retrieval_filter $filter = null   // Access/Context-Verengung; null = keine (global)
+    ): array; // embedding_hit[]  (row-Metadaten + score, OHNE Vektor)
+
+    // --- Presence / Readiness ---
+    public function exists(string $area, string $emodel, int $edims): bool;
+    public function count_rows(string $area, string $emodel, int $edims): int;
+    public function fingerprint(string $area, string $emodel, int $edims): string;
+    public function set_fingerprint(string $area, string $emodel, int $edims, string $fp): void;
+
+    // --- Rebuild (Generation-Swap, §Phase-1) ---
+    public function begin_generation(string $area, string $emodel, int $edims): int;
+    public function upsert(string $area, int $generation, embedding_row $row): void;
+    public function reuse_existing(string $area, string $emodel, int $edims, string $key): ?embedding_row;
+    public function commit_generation(string $area, string $emodel, int $edims, int $generation): void;
+
+    // --- Invalidation (Site-Content: Kontext/Kurs gelöscht) ---
+    public function delete_by_context(string $area, int $contextid): void;
+}
+```
+
+- **`retrieval_filter`** — trägt erlaubte `contextids` (SQL-Vorverengung, effizient bei großen Korpora) und
+  optional den `owneruserid`-Scope. Ist **keine** endgültige Autorität; die autoritative Prüfung bleibt
+  `check_access()` beim Aufrufer (§8).
+- **`embedding_row`** (DTO) — generisch mit optionaler Provenienz:
+  `area, owner, refkey, refindex, endindex?, title, emodel, edims, contenthash, embedding(float[])`,
+  plus für Site-Content nullbar: `docid?, contextid?, courseid?, owneruserid?`.
+- **`embedding_hit`** (DTO) — was `search_top_k` zurückgibt: `owner, refkey, refindex, title, score` +
+  Provenienz (`docid/contextid/…`) — **ohne** den Vektor (der bleibt im Store).
+- Dünne **Mapper** (`docs_embedding_row_mapper`, `skill_embedding_row_mapper`, später
+  `site_content_row_mapper`) übersetzen zwischen `embedding_row` und Area-Semantik — Aufrufer-Code bleibt lesbar.
+
+### 2.2 Was `embeddings_retrieval_service` behält
+
+`embeddings_retrieval_service::search_top_k_streaming()` (Cosine, O(k)-Speicher) bleibt die **Default-Engine**
+hinter `db_embeddings_store::search_top_k()` — bekommt weiterhin einen Generator von `(vektor, metadaten)`.
+Nur die Zeilenquelle wechselt CSV→DB, und der Aufruf geht über `search_top_k()` statt direktem Streaming.
+
+---
+
+## 3. Phase 1 — DB-Store für Docs/Skills *(für sich auslieferbar)*
+
+Vollständiges Detail: `embeddings_store_csv_to_db_2026-07-02.md`. Delta gegenüber jenem Doc:
+**Aufrufer nutzen `search_top_k()`** (Layer 0), nicht `stream_rows()`.
+
+**Schema `{agent_embeddings}`** (klein, docs+skills, float32-BLOB, Generation-Swap):
+
+```
+id BIGINT PK · area VARCHAR(32) · owner VARCHAR(255) · refkey VARCHAR(255) · refkeyhash CHAR(40)
+refindex INT · endindex INT NULL · title TEXT · emodel VARCHAR(128) · edims INT
+contenthash VARCHAR(40) · generation BIGINT · embedding BLOB(float32 LE, edims*4) · timemodified BIGINT
+Scan-Index: (area, emodel, edims, generation)
+Unique:     (area, owner, refkeyhash, refindex, emodel, edims)   -- Hash statt langem chunk_path
++ {agent_embeddings_meta}: (area, emodel, edims) → committed_generation, fingerprint
+```
+
+**Schritte:** P0 Interface-Inversion (CSV hinter `embeddings_store`, Verhalten unverändert, grüne Tests) →
+P1 `db_embeddings_store` (float32 pack/unpack, Generation-Swap) → P2 Verdrahtung (Index/Readiness/Lookup +
+Feature-Flag `embeddingsstore=csv|db`) → P3 Migration (XMLDB-Upgrade, **Import der aktiven Variante** aus CSV
+statt teurem Re-Embed, Temp-Cleanup) → P4 Deprecate CSV nach 1–2 Releases.
+
+**Liefert:** persistenten, cluster-geteilten, gebackupten Store + float32 (~5× kleiner/schneller) für
+Docs/Skills — **ohne** auf die Site-Suche zu warten. De-riskt und finanziert Phase 2–3.
+
+---
+
+## 4. Meilenstein M1 — A/B-Engine-Entscheidung *(Gate zwischen Phase 1 und 2)*
+
+Bevor Site-Content-Indexing beginnt, muss die Architektur-Gabel entschieden sein (Spike):
+
+| | **Option A — Side-Adapter** | **Option B — eigene `\core_search\engine`** |
+|---|---|---|
+| Wer fährt den Index-Loop | wir (eigener Task) | `\core_search\manager::index()` (Core) |
+| Area-Iteration/Inkrement/Zeitlimit | selbst gebaut | geerbt |
+| Access-Filter | selbst (`check_access` im Post-Filter) | **nativ**: `execute_query($filters, $accessinfo, $limit)` bekommt erlaubte Kontexte von `get_areas_user_accesses()` |
+| Code-Umfang | mehr | nur `add_document()` + Delete-Hooks |
+| Kopplung/Kosten | lose, aber Access-Risiko bei uns | an Engine-Contract; wird i.d.R. aktive Such-Engine der Site (oder koexistiert) |
+
+**Empfehlung:** **Option B** — erbt genau die Sicherheits-Maschinerie, die in A das Hauptrisiko ist. Aber es
+ist ein echter Fork (eigenes `search`-Subplugin `searchengine_wbvector`, Betriebsfrage „aktive Engine?"),
+daher expliziter Meilenstein mit Go/No-Go.
+
+---
+
+## 5. Phase 2 — Site-Search-Indexing *(braucht M1)*
+
+Vollständige Analyse: `semantische_site_suche_embeddings_adapter_2026-06-10.md` (inkl. §11-Nachtrag zur
+verifizierten Volltext-Verfügbarkeit). Kern der Indexierung — die Search-API liefert **Was/Links/Wann/Wer**,
+wir machen Embeddings+Matching:
+
+1. **Areas aufzählen** — `manager::get_search_areas_list(true)`, gefiltert auf **kuratierte Whitelist**
+   (page, book/chapter, forum/post, glossary/entry, wiki, course-summary — die Areas mit Volltext-`content`).
+2. **Inkrementell** — `$area->get_document_recordset($lastindexed, $context)` (streamend).
+3. **Dokument bauen** — `$area->get_document($record)` → `get('title'|'content'|'description1/2')` +
+   Provenienz `get('contextid'|'courseid'|'owneruserid'|'modified')`; Files (v1) weglassen.
+4. **Change-Detection** — `contenthash` → unverändert = kein Re-Embed.
+5. **Chunking** — ~500-Token-Chunks mit Overlap; jeder Chunk erbt die Provenienz.
+6. **Embedden (gebatcht)** — Wunderbyte `generate_embeddings`-Action (dieselbe Infra wie Docs/Skills).
+7. **Upsert + Deletes** — Chunks/Vektoren pro `(areaid, docid)` ersetzen; gelöschte Docs
+   (`check_access()==ACCESS_DELETED`) und Kontexte (`delete_by_context`) prunen.
+8. **Cursor + Zeitlimit** — inkrementell fortsetzbar, hinter Admin-Toggle + Whitelist.
+
+Bei **Option B** übernimmt der Core Schritte 1, 2, 7-delete, 8; wir implementieren nur 4–7 **innerhalb**
+`engine::add_document($doc, $fileindexing)` + `delete_index_for_context/_course()`.
+
+**Schema (Site-Content, groß, Vektor von Content getrennt):**
+
+```
+{agent_search_chunk}
+  id BIGINT PK · areaid VARCHAR(64)  -- z.B. 'mod_forum-post'
+  docid BIGINT · contextid BIGINT · courseid BIGINT · owneruserid BIGINT
+  chunkno INT · content TEXT · contenthash VARCHAR(40)
+  emodel VARCHAR(128) · edims INT · generation BIGINT · modified BIGINT · timemodified BIGINT
+  Scan-Index: (emodel, edims, generation)
+  Access/Delete-Index: (contextid)      -- schnelle Kontext-Verengung + delete_by_context
+  Unique: (areaid, docid, chunkno, emodel, edims)
+
+{agent_search_vector}
+  chunkid BIGINT (FK, PK) · embedding BLOB(float32 LE) · emodel · edims
+```
+
+Vektor getrennt von `content`: der ANN/Scan liest nur Vektoren; der `content`-TEXT wird erst für die finalen
+K Treffer nachgeladen (spart Bytes im Scan, hält BLOBs off-page-neutral).
+
+---
+
+## 6. Phase 3 — Site-Search-Retrieval + Skill + ANN-Fast-Path *(braucht Phase 2)*
+
+- **Retrieval** über `search_top_k('site_content', …, $filter)`:
+  - `retrieval_filter` = erlaubte `contextids` aus `manager::get_areas_user_accesses()` (SQL-Vorverengung).
+  - **Over-fetch** (k' ≫ k), dann autoritativer `check_access($docid)`-Filter der zuständigen Area (Option A)
+    bzw. nativer `accessinfo`-Filter in `execute_query()` (Option B). Siehe §8.
+- **Skill** `core.find_content` (bzw. `search_site`) — reine Skill-Schicht: nimmt Query, ruft `search_top_k`,
+  baut Treffer (Titel, Snippet, Deep-Link via `$area->get_doc_url($doc)`). Engine bleibt clean (routet nur).
+- **ANN-Fast-Path** — `capability_detect()`: bei pgvector/MariaDB-VECTOR eine alternative
+  `site_content`-`search_top_k`-Implementierung (Cosine+Top-K serverseitig, nur K Zeilen zurück). Schmerzfrei
+  einschiebbar, weil das Interface (§2) von Tag 1 stimmt. Bis dahin: PHP-Cosine mit `contextid`-Vorverengung
+  (bei schmalem Zugriff tragbar; bei breitem Zugriff = Grund für den Fast-Path).
+
+---
+
+## 7. Access-Modell (Make-or-Break, End-to-End)
+
+Der Index ist **global**, die **Sicht ist pro User** — dasselbe Prinzip wie Moodle mit Solr:
+
+1. Index enthält alle Chunks mit `contextid`/`owneruserid` (Schritt 3/5 der Indexierung).
+2. Query: erlaubte Kontexte des Users via `manager::get_areas_user_accesses()` → als `retrieval_filter`
+   in `search_top_k` (SQL-Vorverengung, hält den Scan bei großen Korpora klein).
+3. **Autoritative Prüfung**: über die verengte Kandidatenmenge läuft `check_access($docid)` der Area
+   (`ACCESS_GRANTED|DENIED|DELETED`) — das ist die Domänen-Logik, die die Engine **nicht** kennen darf.
+   Bei Option B erledigt das der Core-Engine-Vertrag (`accessinfo`).
+4. Docs/Skills: `retrieval_filter=null` (global sichtbar), keine `check_access`-Runde nötig.
+
+**Nie** Top-K ohne diesen Filter zurückgeben → sonst Leak fremder Kurse/versteckter Aktivitäten.
+
+---
+
+## 8. Reihenfolge & Schneidbarkeit
+
+```
+Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [auslieferbar, Betriebsgewinn]
+        │
+        └──►  M1 (A/B-Engine-Entscheidung, Spike)  ──►  Phase 2 (Site-Indexing)  ──►  Phase 3 (Retrieval+Skill+ANN)
+```
+
+- **Layer 0 + Phase 1** hängen an nichts und liefern sofort Wert (csv→db).
+- **Phase 2–3** dürfen eigenes Tempo/Unsicherheit haben, ohne Phase 1 zu blockieren.
+- Einziger harter Kopplungspunkt: das `embeddings_store`-Interface (Layer 0) — deshalb zuerst.
+
+---
+
+## 9. Risiken
+
+1. **Interface zu eng geschnitten** (nur `stream_rows`) → Site-Suche später blockiert. → `search_top_k` ab
+   Layer 0 (die #1-Vorgabe).
+2. **Access-Leak** bei fehlendem/fehlerhaftem Post-Filter (höchstes Risiko) → Option B entschärft strukturell;
+   bei A: Pflicht-`check_access` + Tests, die einen unberechtigten User gegen einen Treffer prüfen.
+3. **DB-Last** — Docs/Skills unkritisch; Site-Content-Scan pro Query = echter Druck auf die geteilte DB →
+   MUC-Cache der dekodierten Vektoren gekeyt auf `generation` (Docs/Skills), `contextid`-Vorverengung +
+   ANN-Fast-Path (Site-Content). Metrik/Log mitlaufen lassen.
+4. **float32/Endianness** — fix little-endian (`pack/unpack('g*')`), Konstante + Roundtrip-Test.
+5. **Generation-Pruning idempotent** — abgebrochener Rebuild darf keine verwaisten Generationen lassen
+   (Prune-on-commit + „orphan generation"-Cleanup im Task).
+6. **Kosten** — Site-Content ganze Site embedden = echtes Geld → Whitelist + inkrementell + Content-Hash
+   zwingend; Docs/Skills-Migration per **Import der aktiven Variante** statt Re-Embed.
+7. **Option-B-Betriebsfrage** — eigene Such-Engine vs. Koexistenz mit Solr/simpledb; im Spike klären.
+
+---
+
+## 10. Testing
+
+- **Layer 0/Phase 1:** float32-Roundtrip; `db_embeddings_store` upsert/reuse/commit/prune; `search_top_k`
+  Parität gegen CSV-Fixture (identische Top-K); Korrupt-BLOB-Guard; Readiness `missing→ready`.
+- **Phase 2:** Indexing-Roundtrip pro Whitelist-Area (get_document→chunk→embed→upsert); inkrementeller
+  Re-Index (nur geänderte Docs); `delete_by_context` prunt korrekt.
+- **Phase 3 (Access, kritisch):** ein Treffer in Kurs X; User **ohne** Zugang zu X bekommt ihn **nicht**
+  (weder über `retrieval_filter` noch über `check_access`); berechtigter User bekommt ihn.
+- phpcs/phpdoc 0/0 durchgehend (auch local_moodlecheck: keine `array<…>`-Generics/`array{…}`-Shapes in @param).
+
+---
+
+## 11. Offene Entscheidungen für Georg
+
+1. **M1: Option A oder B?** (Empfehlung B — Access nativ; braucht Spike + Betriebsentscheidung „eigene Engine".)
+2. **Layer 0 jetzt zusammen mit Phase 1 bauen** (empfohlen — sonst zementiert Phase 1 die Schnittstelle) oder
+   Phase 1 mit `stream_rows` und Refactor später (Risiko)?
+3. **MUC-Cache** der dekodierten Vektoren (Docs/Skills) in Phase 1 mitnehmen oder als Follow-up?
+4. **Site-Content-Store** wirklich getrennte Tabellen (empfohlen) — bestätigt?
+5. **Whitelist v1** — welche Areas (Vorschlag: page, book, forum, glossary, course-summary; wiki optional)?
+
+---
+
+*Verwandt:* `embeddings_store_csv_to_db_2026-07-02.md`, `semantische_site_suche_embeddings_adapter_2026-06-10.md`,
+`project_agent_skill_discovery_visibility` (vorhandene Embeddings-/Retrieval-Infra), ROADMAP.md WS7.
