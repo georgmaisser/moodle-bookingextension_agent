@@ -145,6 +145,90 @@ final class ai_confirm_run_contract_test extends abstract_agent_testcase {
     }
 
     /**
+     * The session-wide allowance is capability-gated: without
+     * bookingextension/agent:confirmforsession (admin-only by default) the allow_session
+     * flag is silently ignored — the confirm still executes as a one-time confirmation
+     * and NO allowance is recorded. With the capability granted the allowance is stored.
+     */
+    public function test_allow_session_flag_requires_confirmforsession_capability(): void {
+        $this->setUser($this->teacher);
+
+        $registry = skill_registry::make_default();
+        $skill = $registry->get_skill('mod_booking.create_option');
+        if ($skill === null) {
+            $this->fail('mod_booking.create_option is not available in the current skill catalog.');
+        }
+
+        $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
+        $userid = (int)$this->teacher->id;
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread($userid, $contextid);
+        $threadid = (int)$thread->id;
+        $queuesvc = new queue_manager($store);
+
+        $confirmqueued = function (
+            string $title,
+            string $intentsalt
+        ) use (
+            $skill,
+            $queuesvc,
+            $store,
+            $contextid,
+            $userid,
+            $threadid
+        ): array {
+            $command = [
+                'skill' => 'mod_booking.create_option',
+                'version' => 1,
+                'input' => ['text' => $title],
+            ];
+            $preflight = $skill->preflight((array)$command['input'], $contextid, $userid);
+            $this->assertSame('pass', $preflight->status);
+
+            $queued = $queuesvc->enqueue_command($threadid, 0, 0, $command, 'mutating', 'blocked_confirmation');
+            $queueitemid = (string)$queued['queue_item_id'];
+            $queuesvc->set_prepared_input($threadid, $queueitemid, $contextid, $preflight->preparedinput);
+            $store->set_pending_intent(
+                $threadid,
+                hash('sha256', $userid . ':' . $threadid . ':' . $intentsalt),
+                $userid,
+                $contextid,
+                ['queue_item_ids' => [$queueitemid]]
+            );
+
+            $_POST['sesskey'] = sesskey();
+            return ai_confirm_run::execute($contextid, $threadid, $queueitemid, true);
+        };
+
+        // Without the capability: the confirm executes, but allow_session is ignored.
+        $result = $confirmqueued('Session gate contract option 1', 'nocap');
+        $this->assertTrue((bool)($result['success'] ?? false));
+        $this->assertFalse(
+            $store->is_confirmation_allowed_for_session($userid, $contextid),
+            'allow_session must be ignored for users without agent:confirmforsession.'
+        );
+
+        // Grant the capability to editingteacher and repeat: the allowance is recorded.
+        $roles = get_archetype_roles('editingteacher');
+        $roleid = (int)reset($roles)->id;
+        assign_capability(
+            'bookingextension/agent:confirmforsession',
+            CAP_ALLOW,
+            $roleid,
+            (int)\context_system::instance()->id,
+            true
+        );
+        accesslib_clear_all_caches_for_unit_testing();
+
+        $result = $confirmqueued('Session gate contract option 2', 'withcap');
+        $this->assertTrue((bool)($result['success'] ?? false));
+        $this->assertTrue(
+            $store->is_confirmation_allowed_for_session($userid, $contextid),
+            'allow_session must record the allowance once agent:confirmforsession is granted.'
+        );
+    }
+
+    /**
      * A follow-up pending intent for the next queued mutation must always
      * surface as confirmation_request so autoconfirm can continue.
      */

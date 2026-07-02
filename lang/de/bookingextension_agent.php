@@ -22,6 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['agent:confirmforsession'] = 'Agent-Aktionsbestätigungen für die aktuelle Sitzung aussetzen';
 $string['agent:debugskillselection'] = 'Skill-Selection-Debug-Tool verwenden';
 $string['agent:ignoreaiavailability'] = 'Kurs-/Modul-KI-Verfügbarkeitsschalter für den Booking Wizard ignorieren';
 $string['agent:manageaiproviders'] = 'KI-Provider-Zugangsdaten konfigurieren';

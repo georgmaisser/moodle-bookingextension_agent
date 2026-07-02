@@ -418,6 +418,14 @@ class aiready {
             'registered_js_modules_json' => json_encode($jsmodules),
             // Auto-confirm session-allowance lifetime, shown on the "confirm for session" button label.
             'session_confirm_minutes' => intdiv(conversation_store::CONFIRMATION_SESSION_ALLOWLIST_TTL, 60),
+            // Whether the "confirm for session" button is offered at all: suspending the per-action
+            // confirm gate is capability-gated (admin-only by default). Server-enforced again in
+            // ai_confirm_run, so hiding here is UX, not the security boundary.
+            'can_confirm_session' => has_capability(
+                'bookingextension/agent:confirmforsession',
+                $context,
+                $this->userid
+            ),
         ];
     }
 

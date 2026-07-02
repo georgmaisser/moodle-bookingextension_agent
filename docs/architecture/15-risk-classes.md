@@ -66,6 +66,11 @@ Notes:
   (15 min)** default TTL, keyed by `(userid, contextid)` — aligned with the R1 queue
   `blocked_expires_at` window. The "confirm for this session" button shows this value
   dynamically.
+- **Granting** a session allowance requires `bookingextension/agent:confirmforsession`
+  (admin-only by default — empty archetypes, admins pass via `moodle/site:doanything`).
+  `ai_confirm_run` ignores `allow_session` without it and the UI hides the button
+  (`aiready` → `can_confirm_session`); a user without the capability therefore always
+  confirms per action, even for R1.
 - "manual-only" for R3 is enforced in `queue_transition_service` (R3 can never become
   `retry_waiting`), not by the TTL value.
 

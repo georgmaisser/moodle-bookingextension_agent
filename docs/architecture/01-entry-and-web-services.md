@@ -161,6 +161,11 @@ as `blocked_confirmation`. The user (or an auto-confirm allowance) confirms it h
 
 **Behavior.** After the usual sesskey/validate/auth, it delegates everything to
 `confirm_run_service::confirm(contextid, cmid, threadid, userid, queue_item_id, allow_session)`.
+`allow_session` is **capability-gated at this entry point**: without
+`bookingextension/agent:confirmforsession` (admin-only by default — empty archetypes, site
+admins pass via `moodle/site:doanything`) the flag is silently forced to `false`, so the click
+degrades to a normal one-time confirmation. The UI mirrors this: `aiready` exports
+`can_confirm_session` and the template renders the session button only for holders.
 The service (not the external class) is what:
 
 - records a session allowance when `allow_session == true`;

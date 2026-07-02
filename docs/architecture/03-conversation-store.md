@@ -124,6 +124,11 @@ Key facts:
   load.
 - The `_thread` variants exist only for call-site compatibility; they delegate to the
   session-scoped logic.
+- **Granting an allowance is capability-gated upstream**: `ai_confirm_run` only passes
+  `allow_session=true` through when the caller holds
+  `bookingextension/agent:confirmforsession` (admin-only by default, empty archetypes), and
+  the UI hides the session button without it (`aiready` → `can_confirm_session`). The store
+  itself stays capability-agnostic — it just records what the gated entry point tells it.
 
 > The session-allowance TTL is **900 s (15 min)**, matching
 > the flowchart's `LG_AUTO` / `LG_RISK_CONF` value and the pending-intent / queue

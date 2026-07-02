@@ -160,9 +160,14 @@
                         <button id="booking-ai-btn-confirm" class="btn btn-primary mr-2">
                             {{#str}}ai_btn_confirm, bookingextension_agent{{/str}}
                         </button>
+                        {{! Capability-gated (agent:confirmforsession, admin-only by default):
+                            suspending the per-action confirm gate for the whole session is only
+                            offered to users who hold it; ai_confirm_run enforces it server-side. }}
+                        {{#can_confirm_session}}
                         <button id="booking-ai-btn-confirm-session" class="btn btn-outline-primary mr-2">
                             {{#str}}ai_btn_confirm_session, bookingextension_agent, {{session_confirm_minutes}}{{/str}}
                         </button>
+                        {{/can_confirm_session}}
                         <button id="booking-ai-btn-cancel" class="btn btn-secondary">
                             {{#str}}ai_btn_cancel, bookingextension_agent{{/str}}
                         </button>

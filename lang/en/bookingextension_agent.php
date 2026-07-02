@@ -22,6 +22,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['agent:confirmforsession'] = 'Suspend agent action confirmations for the current session';
 $string['agent:debugskillselection'] = 'Use skill selection debug tool';
 $string['agent:ignoreaiavailability'] = 'Ignore course/module AI availability toggles for the Booking Wizard';
 $string['agent:manageaiproviders'] = 'Configure AI provider credentials';

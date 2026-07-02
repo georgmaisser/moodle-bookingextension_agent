@@ -97,6 +97,7 @@ capabilities.
 | Capability | Type | Context | Default role |
 |------------|------|---------|--------------|
 | `bookingextension/agent:useaiinstructions` | write | `CONTEXT_MODULE` | `editingteacher` (allow) |
+| `bookingextension/agent:confirmforsession` | write | `CONTEXT_MODULE` | — (admin-only; delegable) |
 | `bookingextension/agent:ignoreaiavailability` | read | `CONTEXT_COURSE` | `manager` (allow); site admins implicitly | 
 | `bookingextension/agent:debugskillselection` | write | `CONTEXT_SYSTEM` | `manager` (allow) |
 | `bookingextension/agent:managegovernance` | write (`RISK_CONFIG`) | `CONTEXT_SYSTEM` | `manager` (allow) |
@@ -106,6 +107,10 @@ capabilities.
 
 `…:useaiinstructions` is **the** gate: without it `can_use()` is false and the chat panel
 is inert. `…:ignoreaiavailability` belongs to the availability layer (§3a below).
+`…:confirmforsession` gates the "confirm for this session" button (the session-wide
+auto-confirm allowance, ch. 03 §6 / ch. 15): enforced server-side in `ai_confirm_run`
+(the `allow_session` flag is ignored without it) and mirrored in the UI via `aiready`'s
+`can_confirm_session` export.
 
 The four `CONTEXT_SYSTEM` caps gate the admin-style pages and actions: `debugskillselection`
 the selection-debug page, `managegovernance` the skill-governance page (inspect contracts,

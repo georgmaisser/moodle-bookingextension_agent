@@ -10,7 +10,7 @@ flowchart TD
         ASM_FAIL["Return specific error JSON\n(e.g., error_ai_provider_inactive,\nerror_ai_course_disabled)"]
         ASM_ATTACH["attachment_processor::augment_message()\nPDF → text (pdftotext ▸ bundled smalot/pdfparser fallback)\nimage → token hint · 15k char cap · no OCR"]
         ASM_UPLOAD["ai_upload_attachment::execute()\nfinfo MIME whitelist · size cap\nattachment_token_service::create()"]
-        ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session"]
+        ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session\nallow_session is capability-gated: without bookingextension/agent:confirmforsession\n(admin-only by default, empty archetypes) the flag is silently ignored →\nclick degrades to a one-time confirm; aiready hides the session button (can_confirm_session)"]
         ACD["ai_discard_pending::execute()\ncontextid · threadid"]
         APO["ai_poll_thread::execute()\nde-anonymizes step-bubble content for display\n(deanonymize_message_for_display — fail-closed, same as the final message)"]
         APREVIEW["command preview (two skill-described, engine-agnostic sources)\nNO standalone web service · returned as previewjson on ai_send_message / ai_confirm_run\nA) EXECUTED results → preview_passthrough (forwards each skill's get_result_preview block)\nB) PROPOSED commands (confirmation_request, nothing executed yet) → proposed_action_preview\n   builds previewjson ONLY when A is empty + response_type==confirmation_request\n   asks each skill describe_proposed_action(input) → {title, summary, rows:[{label,value}]}\n   engine never inspects params (stays skill-agnostic); descriptor type 'proposed_action'\nSKILL CONTRACT (base_skill::describe_proposed_action — default for ALL skills):\n  tier1/2 GENERIC default: surfaces ONLY schema-declared fields, label = schema 'label'||humanized key,\n  value formatted by declared type, drops framework-internal (outputlang) / empty / falsy entries\n  tier3: a skill OVERRIDES the method to collapse/relabel fields + add a one-line summary\n  (framework is tier-3 capable; per-skill overrides not yet written)\nCLIENT: 'proposed_action' renderer lays out title/summary/rows; raw 'command_list' JSON dump\n  is now FALLBACK ONLY (used by showConfirmPanel when no server previewjson is present)"]
@@ -312,7 +312,7 @@ flowchart TD
     APO -->|"readiness gate (graceful)"| AZ_READY
     APO -.->|"fetch steps lock-free"| CS16
     APREVIEW -->|"readiness gate (graceful)"| AZ_READY
-    ACR -->|"allow_session=true"| CS11
+    ACR -->|"allow_session=true ∧ has_capability(agent:confirmforsession)"| CS11
     ACR -->|"consume pending intent"| CS13
     ACD -->|"consume pending intent (discard)"| CS13
     CS13 -->|"queue item resolved"| Q_READY

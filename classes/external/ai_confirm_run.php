@@ -156,7 +156,12 @@ class ai_confirm_run extends external_api {
             (int)$params['threadid'],
             (int)$USER->id,
             (string)$params['queue_item_id'],
+            // Session-wide allowances suspend the per-action confirm gate, so they are
+            // capability-gated (admin-only by default). Without the capability the flag is
+            // silently ignored and the click degrades to a normal one-time confirmation —
+            // matching the UI, which hides the session button for such users.
             (bool)$params['allow_session']
+                && has_capability('bookingextension/agent:confirmforsession', $context)
         );
 
         // A multi-step confirm chain can return a fresh confirmation request: when it does and the

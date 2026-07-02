@@ -256,6 +256,19 @@ $capabilities['bookingextension/agent:managegovernance'] = [
     ],
 ];
 
+// Offer the "confirm for this session" button on agent confirmations: it suspends the
+// per-action confirmation gate for ALL agent mutations in the context for a short period
+// (conversation_store::CONFIRMATION_SESSION_ALLOWLIST_TTL). Because that weakens the
+// risk-class confirm gate wholesale, it is admin-only by default (empty archetypes; site
+// admins pass via moodle/site:doanything) and must be granted explicitly to trusted roles.
+// Enforced server-side in ai_confirm_run (the flag is ignored without the capability) and
+// mirrored in the UI (aiready hides the button).
+$capabilities['bookingextension/agent:confirmforsession'] = [
+    'captype'      => 'write',
+    'contextlevel' => CONTEXT_MODULE,
+    'archetypes'   => [],
+];
+
 // Configure the site-wide AI provider credentials (store an API key, adopt an existing provider) used
 // by the agent. This writes site-global secrets, so it is admin-only by default (empty archetypes) and
 // must be granted explicitly to delegate it — there is deliberately no automatic role assignment.
