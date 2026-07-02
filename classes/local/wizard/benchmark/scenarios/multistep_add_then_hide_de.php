@@ -73,7 +73,7 @@ class multistep_add_then_hide_de extends abstract_benchmark_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Fuege dem Kurs eine Seite "Kursinfo" hinzu und blende sie danach aus.';
+        return 'Fuege dem Kurs "Biologie 101" eine Seite "Kursinfo" hinzu und blende sie danach aus.';
     }
 
     /**

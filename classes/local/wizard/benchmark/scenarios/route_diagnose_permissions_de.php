@@ -61,7 +61,7 @@ class route_diagnose_permissions_de extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Welche Rollen hat Tom Mueller im Kurs und darf er dort Buchungsoptionen anlegen?';
+        return 'Welche Rollen hat Tom Mueller im Kurs "Biologie 101" und darf er dort Aktivitaeten anlegen?';
     }
 
     /**

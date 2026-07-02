@@ -61,7 +61,7 @@ class route_add_activity_de extends abstract_routing_scenario {
      * @return string
      */
     public function get_user_message(): string {
-        return 'Fuege dem Kurs in Abschnitt 2 eine Seite mit Einfuehrungstext hinzu.';
+        return 'Fuege dem Kurs "Biologie 101" in Abschnitt 2 eine Seite mit Einfuehrungstext hinzu.';
     }
 
     /**
