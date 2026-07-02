@@ -113,6 +113,7 @@ $teacherskills = [
     'course_diagnose_user_in_course',
     'core_diagnose_permissions',
     'core_diagnose_notifications',
+    'core_find_content',
     'course_analyze_course_structure',
     'wizard_explain_docs',
     'booking_explain_skill_schema',
@@ -278,4 +279,16 @@ $capabilities['bookingextension/agent:manageaiproviders'] = [
     'captype'      => 'write',
     'contextlevel' => CONTEXT_SYSTEM,
     'archetypes'   => [],
+];
+
+// Configure the semantic site search: gates the governance page and every enable/disable toggle of
+// which search areas and course scopes get indexed. Each enabled scope triggers indexing work and
+// thereby embedding costs, so this is a site-wide, config-style action: admin-only by default
+// (empty archetypes, permissions cloned from moodle/site:config) but freely grantable to other roles.
+$capabilities['bookingextension/agent:configuresitesearch'] = [
+    'riskbitmask'  => RISK_CONFIG,
+    'captype'      => 'write',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes'   => [],
+    'clonepermissionsfrom' => 'moodle/site:config',
 ];

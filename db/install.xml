@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/booking/bookingextension/agent/db" VERSION="2026051900" COMMENT="XMLDB file for bookingextension_agent"
+<XMLDB PATH="mod/booking/bookingextension/agent/db" VERSION="2026070202" COMMENT="XMLDB file for bookingextension_agent"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../../../lib/xmldb/xmldb.xsd"
 >
@@ -210,7 +210,7 @@
         <FIELD NAME="title" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Human-readable title for display"/>
         <FIELD NAME="emodel" TYPE="char" LENGTH="128" NOTNULL="true" SEQUENCE="false" COMMENT="Embedding model"/>
         <FIELD NAME="edims" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Embedding dimensions"/>
-        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Change-detection hash (content + model + dims)"/>
+        <FIELD NAME="contenthash" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="Change-detection hash (content + model + dims); 64 fits the skills sha256, docs/site sha1 use 40"/>
         <FIELD NAME="identityhash" TYPE="char" LENGTH="40" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="sha1 of the area identity key, for reuse lookups on rebuild"/>
         <FIELD NAME="generation" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Generation number; readers only ever see the committed one"/>
         <FIELD NAME="embedding" TYPE="binary" NOTNULL="true" SEQUENCE="false" COMMENT="Little-endian float32 vector blob"/>
@@ -244,6 +244,40 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="variant_uix" UNIQUE="true" FIELDS="area, emodel, edims"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="bx_agent_sitesearch_state" COMMENT="Per area x variant incremental indexing cursor for the site search index (runtime state, task-written; deliberately separate from the admin-written governance config in bx_agent_search_scope)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="areakey" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="core_search area id (e.g. mod_forum-post); length 100 keeps the unique index with emodel under the 333-char composed-index limit"/>
+        <FIELD NAME="emodel" TYPE="char" LENGTH="128" NOTNULL="true" SEQUENCE="false" COMMENT="Embedding model"/>
+        <FIELD NAME="edims" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Embedding dimensions"/>
+        <FIELD NAME="indexcursor" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix timestamp (modified) of the last successfully processed document; named indexcursor because cursor is a MySQL reserved word"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="areavariant_uix" UNIQUE="true" FIELDS="areakey, emodel, edims"/>
+      </INDEXES>
+    </TABLE>
+    <TABLE NAME="bx_agent_search_scope" COMMENT="Site search governance: which search area x scope combinations are enabled for indexing (admin-written config, variant-independent; default = everything off)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="area" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="core_search area id (e.g. mod_forum-post)"/>
+        <FIELD NAME="scopetype" TYPE="char" LENGTH="16" NOTNULL="true" SEQUENCE="false" COMMENT="Scope kind: site | course | category"/>
+        <FIELD NAME="scopeid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Course/category id for the scope; 0 for site"/>
+        <FIELD NAME="enabled" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 = area x scope is enabled for indexing"/>
+        <FIELD NAME="includefiles" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 = also index attached files (PDF) for this area x scope; only effective while enabled"/>
+        <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="areascope_idx" UNIQUE="false" FIELDS="area, scopetype, scopeid"/>
       </INDEXES>
     </TABLE>
   </TABLES>

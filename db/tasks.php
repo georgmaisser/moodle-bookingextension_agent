@@ -55,4 +55,16 @@ $tasks = [
         'dayofweek' => '*',
         'disabled'  => 0,
     ],
+    [
+        // Incremental site-content index update (per-area cursor; prunes disabled areas).
+        // Self-guards on the DB backend + provider, so it is a no-op while site search is off.
+        'classname' => '\bookingextension_agent\task\rebuild_site_content_embeddings',
+        'blocking'  => 0,
+        'minute'    => '20',
+        'hour'      => '*',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+        'disabled'  => 0,
+    ],
 ];

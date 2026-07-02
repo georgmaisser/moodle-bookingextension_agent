@@ -268,6 +268,7 @@ class db_embeddings_store implements embeddings_store {
                 'contextid' => $rec->contextid !== null ? (int)$rec->contextid : null,
                 'courseid' => $rec->courseid !== null ? (int)$rec->courseid : null,
                 'owneruserid' => $rec->owneruserid !== null ? (int)$rec->owneruserid : null,
+                'contenthash' => $rec->contenthash !== null ? (string)$rec->contenthash : null,
             ];
         }
         $rs->close();
@@ -291,7 +292,8 @@ class db_embeddings_store implements embeddings_store {
             $row['docid'] ?? null,
             $row['contextid'] ?? null,
             $row['courseid'] ?? null,
-            $row['owneruserid'] ?? null
+            $row['owneruserid'] ?? null,
+            $row['contenthash'] ?? null
         );
     }
 
@@ -546,6 +548,228 @@ class db_embeddings_store implements embeddings_store {
     }
 
     /**
+     * The committed generation for a variant, bootstrapping the meta row when none is published yet.
+     *
+     * The incremental document operations write into the currently committed generation. On a fresh
+     * variant (no meta row, or a meta row left at committedgeneration = 0 e.g. by set_fingerprint)
+     * there is no committed generation — and {@see search_top_k()} scans WHERE generation = committed
+     * and returns [] while committed <= 0, so incrementally written rows would never become visible.
+     * Therefore the first incremental write publishes generation 1 up front; the initial build runs
+     * doc-wise over the same path (cursor 0), without a swap.
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @return int The committed generation (>= 1).
+     */
+    private function bootstrap_committed_generation(string $area, string $emodel, int $edims): int {
+        global $DB;
+        $params = $this->variant_params($area, $emodel, $edims);
+        $meta = $DB->get_record(self::META, $params);
+        if ($meta && (int)$meta->committedgeneration > 0) {
+            return (int)$meta->committedgeneration;
+        }
+        if ($meta) {
+            $meta->committedgeneration = 1;
+            $meta->timemodified = time();
+            $DB->update_record(self::META, $meta);
+        } else {
+            $rec = (object)$params;
+            $rec->committedgeneration = 1;
+            $rec->fingerprint = null;
+            $rec->timemodified = time();
+            $DB->insert_record(self::META, $rec);
+        }
+        return 1;
+    }
+
+    /**
+     * Load one document's committed rows, keyed by chunk number (refindex).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param int $generation
+     * @param string $owner
+     * @param string $docid
+     * @return \stdClass[] Raw records keyed by refindex.
+     */
+    private function load_document_records(
+        string $area,
+        string $emodel,
+        int $edims,
+        int $generation,
+        string $owner,
+        string $docid
+    ): array {
+        global $DB;
+        $select = 'area = :area AND emodel = :emodel AND edims = :edims AND generation = :generation'
+            . ' AND owner = :owner AND ' . $DB->sql_compare_text('refkey', 255) . ' = :refkey';
+        $params = $this->variant_params($area, $emodel, $edims);
+        $params['generation'] = $generation;
+        $params['owner'] = $owner;
+        $params['refkey'] = $docid;
+        $byindex = [];
+        foreach ($DB->get_records_select(self::TABLE, $select, $params) as $rec) {
+            $byindex[(int)$rec->refindex] = $rec;
+        }
+        return $byindex;
+    }
+
+    /**
+     * Replace one document's chunk set in the committed generation (doc-atomic, diff-based).
+     *
+     * Diffs the given complete chunk set against the stored one per (refindex, contenthash):
+     * identical chunks are left physically untouched (same DB id), changed chunks are updated in
+     * place (vector, hash, title, provenance), new chunk numbers are inserted and vanished chunk
+     * numbers are deleted. A read per changed document is cheap; a blind delete+reinsert would be
+     * pointless churn (strictly incremental site indexing forbids it).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @param string $docid
+     * @param embedding_row[] $rows The document's complete new chunk set (refindex = chunk number).
+     * @return array Write stats: ['inserted' => int, 'updated' => int, 'deleted' => int, 'kept' => int].
+     */
+    public function replace_document(
+        string $area,
+        string $emodel,
+        int $edims,
+        string $owner,
+        string $docid,
+        array $rows
+    ): array {
+        global $DB;
+        $this->mapper($area);
+        if ($owner === '' || $docid === '') {
+            throw new \coding_exception('db_embeddings_store: replace_document requires owner and docid.');
+        }
+        $stats = ['inserted' => 0, 'updated' => 0, 'deleted' => 0, 'kept' => 0];
+
+        $transaction = $DB->start_delegated_transaction();
+        $committed = $this->bootstrap_committed_generation($area, $emodel, $edims);
+        $existing = $this->load_document_records($area, $emodel, $edims, $committed, $owner, $docid);
+
+        $seen = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof embedding_row) {
+                throw new \coding_exception('db_embeddings_store: replace_document expects embedding_row[].');
+            }
+            if ($row->owner !== $owner || $row->refkey !== $docid) {
+                throw new \coding_exception(
+                    'db_embeddings_store: replace_document row identity must match the given owner/docid.'
+                );
+            }
+            if ($row->emodel !== $emodel || $row->edims !== $edims) {
+                throw new \coding_exception(
+                    'db_embeddings_store: replace_document row variant must match the given emodel/edims.'
+                );
+            }
+            if (isset($seen[$row->refindex])) {
+                throw new \coding_exception(
+                    'db_embeddings_store: replace_document received duplicate chunk number ' . $row->refindex . '.'
+                );
+            }
+            $seen[$row->refindex] = true;
+
+            $current = $existing[$row->refindex] ?? null;
+            if ($current === null) {
+                $this->upsert($area, $committed, $row);
+                $stats['inserted']++;
+            } else if ((string)$current->contenthash === $row->contenthash) {
+                // Identical chunk: leave the row physically untouched (same DB id, zero write cost).
+                $stats['kept']++;
+            } else {
+                $current->embedding = $this->pack_vector($row->embedding);
+                $current->contenthash = $row->contenthash;
+                $current->title = $row->title;
+                $current->endindex = $row->endindex;
+                $current->docid = $row->docid;
+                $current->contextid = $row->contextid;
+                $current->courseid = $row->courseid;
+                $current->owneruserid = $row->owneruserid;
+                $current->timemodified = time();
+                $DB->update_record(self::TABLE, $current);
+                $stats['updated']++;
+            }
+        }
+
+        // Chunk numbers no longer present in the new set are gone from the source: delete them.
+        foreach ($existing as $refindex => $rec) {
+            if (!isset($seen[$refindex])) {
+                $DB->delete_records(self::TABLE, ['id' => $rec->id]);
+                $stats['deleted']++;
+            }
+        }
+
+        $transaction->allow_commit();
+        return $stats;
+    }
+
+    /**
+     * Delete every chunk of one document (events path: the source item was deleted).
+     *
+     * Deletes across all generations of the variant, so stale remnants of an aborted rebuild are
+     * cleaned up alongside the committed rows.
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @param string $docid
+     * @return void
+     */
+    public function delete_document(string $area, string $emodel, int $edims, string $owner, string $docid): void {
+        global $DB;
+        $this->mapper($area);
+        $select = 'area = :area AND emodel = :emodel AND edims = :edims AND owner = :owner'
+            . ' AND ' . $DB->sql_compare_text('refkey', 255) . ' = :refkey';
+        $params = $this->variant_params($area, $emodel, $edims);
+        $params['owner'] = $owner;
+        $params['refkey'] = $docid;
+        $DB->delete_records_select(self::TABLE, $select, $params);
+    }
+
+    /**
+     * Delete every row of one owner (sub-area) — the "disable = prune" path, context-independent.
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @return void
+     */
+    public function delete_owner(string $area, string $emodel, int $edims, string $owner): void {
+        global $DB;
+        $this->mapper($area);
+        $params = $this->variant_params($area, $emodel, $edims);
+        $params['owner'] = $owner;
+        $DB->delete_records(self::TABLE, $params);
+    }
+
+    /**
+     * Delete the rows of one owner (sub-area) within one course — the scope-governance prune path
+     * (delta sync, context-governance blueprint §4.2).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @param int $courseid
+     * @return void
+     */
+    public function delete_owner_in_course(string $area, string $emodel, int $edims, string $owner, int $courseid): void {
+        global $DB;
+        $this->mapper($area);
+        $params = $this->variant_params($area, $emodel, $edims);
+        $params['owner'] = $owner;
+        $params['courseid'] = $courseid;
+        $DB->delete_records(self::TABLE, $params);
+    }
+
+    /**
      * Yield each committed row for this area/variant as an embedding_row (bounded memory).
      *
      * @param string $area
@@ -578,5 +802,22 @@ class db_embeddings_store implements embeddings_store {
     public function delete_by_context(int $contextid): void {
         global $DB;
         $DB->delete_records(self::TABLE, ['contextid' => $contextid]);
+    }
+
+    /**
+     * Delete all rows for a course (course deleted / course content reset).
+     *
+     * Mirror of {@see delete_by_context()}: embedding rows carry MODULE context ids, but a
+     * course_deleted event only provides the COURSE context — by the time it fires, the per-module
+     * contexts are no longer enumerable, so matching on contextid would miss every module row. Rows
+     * also carry a courseid column, which this matches instead. Docs/skills rows have a null course
+     * id and are never matched.
+     *
+     * @param int $courseid
+     * @return void
+     */
+    public function delete_by_course(int $courseid): void {
+        global $DB;
+        $DB->delete_records(self::TABLE, ['courseid' => $courseid]);
     }
 }

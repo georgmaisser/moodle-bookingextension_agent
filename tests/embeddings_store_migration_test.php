@@ -17,15 +17,18 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
+use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
+use bookingextension_agent\local\wizard\embeddings_csv_repository;
 use bookingextension_agent\local\wizard\services\retrieval\csv_embeddings_store;
 use bookingextension_agent\local\wizard\services\retrieval\db_embeddings_store;
 use bookingextension_agent\local\wizard\services\retrieval\docs_row_mapper;
 use bookingextension_agent\local\wizard\services\retrieval\embedding_row;
 use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
 use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_migration_service;
+use bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper;
 
 /**
- * P3: CSV → DB migration copies vectors without re-embedding.
+ * P3: CSV → DB migration copies vectors without re-embedding (docs AND skills areas).
  *
  * @package    bookingextension_agent
  * @covers     \bookingextension_agent\local\wizard\services\retrieval\embeddings_store_migration_service
@@ -150,5 +153,122 @@ final class embeddings_store_migration_test extends advanced_testcase {
         $result = (new embeddings_store_migration_service())->migrate_csv_to_db(self::AREA, self::MODEL, self::DIMS);
         $this->assertSame('skipped', $result['status']);
         $this->assertSame('no_csv_index', $result['reason']);
+    }
+
+    /**
+     * Migration copies the SKILLS area too: vectors, anchor identity, content hashes and the
+     * fingerprint reach the DB backend, and the migrated identity is reusable (§11.24).
+     */
+    public function test_migrate_copies_skills_csv_to_db(): void {
+        $this->resetAfterTest();
+
+        $model = 'mig-skills-model';
+        $dims = 4;
+        $area = skill_row_mapper::AREA;
+
+        try {
+            // Seed a committed two-anchor skills CSV (exactly-representable float32 vectors).
+            $csv = $this->csv_store();
+            $gen = $csv->begin_generation($area, $model, $dims);
+            $csv->upsert($area, $gen, new embedding_row(
+                $area,
+                'mod_booking.create_option',
+                'description',
+                0,
+                'create a booking option',
+                $model,
+                $dims,
+                'sh1',
+                [0.5, -0.25, 0.125, -1.0]
+            ));
+            $csv->upsert($area, $gen, new embedding_row(
+                $area,
+                'mod_booking.create_option',
+                'utterance',
+                1,
+                'add a course date',
+                $model,
+                $dims,
+                'sh2',
+                [0.0, 1.0, 0.0, 0.0]
+            ));
+            $csv->commit_generation($area, $model, $dims, $gen);
+            $csv->set_fingerprint($area, $model, $dims, 'fp-skills');
+
+            $svc = new embeddings_store_migration_service();
+            $result = $svc->migrate_csv_to_db($area, $model, $dims);
+            $this->assertSame('ok', $result['status']);
+            $this->assertSame(2, $result['migrated']);
+
+            $db = $this->db_store();
+            $this->assertTrue($db->exists($area, $model, $dims));
+            $this->assertSame(2, $db->count_rows($area, $model, $dims));
+            $this->assertSame('fp-skills', $db->fingerprint($area, $model, $dims));
+
+            $byanchor = [];
+            foreach ($db->stream_rows($area, $model, $dims) as $row) {
+                $byanchor[$row->owner . '|' . $row->refindex] = $row;
+            }
+            $this->assertSame([0.5, -0.25, 0.125, -1.0], $byanchor['mod_booking.create_option|0']->embedding);
+            $this->assertSame('description', $byanchor['mod_booking.create_option|0']->refkey);
+            $this->assertSame('sh1', $byanchor['mod_booking.create_option|0']->contenthash);
+
+            // The migrated identity is queryable for rebuild reuse (skills identity = skill|anchor_index).
+            $reused = $db->reuse_existing($area, $model, $dims, 'mod_booking.create_option|1');
+            $this->assertNotNull($reused);
+            $this->assertSame('sh2', $reused->contenthash);
+
+            // Idempotent: a second run never clobbers the populated DB index.
+            $again = $svc->migrate_csv_to_db_if_needed($area, $model, $dims);
+            $this->assertSame('skipped', $again['status']);
+            $this->assertSame('db_already_populated', $again['reason']);
+        } finally {
+            $this->cleanup_skills_csv($model, $dims);
+        }
+    }
+
+    /**
+     * The embeddingsstore settings callback migrates the skills area of the ACTIVE variant when the
+     * backend is switched to db (fail-open per area; the docs area simply skips without a CSV).
+     */
+    public function test_settings_callback_migrates_skills_area(): void {
+        $this->resetAfterTest();
+
+        $resolved = (new embeddings_action_config_resolver())->resolve();
+        $model = (string)$resolved['model'];
+        $dims = (int)$resolved['dimensions'];
+        if (!$this->csv_store()->exists(skill_row_mapper::AREA, $model, $dims)) {
+            $this->markTestSkipped('no skills CSV fixture for the active embeddings variant');
+        }
+
+        set_config('embeddingsstore', 'db', 'bookingextension_agent');
+        embeddings_store_migration_service::on_embeddingsstore_setting_updated(
+            'bookingextension_agent/embeddingsstore'
+        );
+
+        $db = $this->db_store();
+        $this->assertTrue($db->exists(skill_row_mapper::AREA, $model, $dims));
+        $this->assertSame(
+            $this->csv_store()->count_rows(skill_row_mapper::AREA, $model, $dims),
+            $db->count_rows(skill_row_mapper::AREA, $model, $dims)
+        );
+    }
+
+    /**
+     * Remove the variant-scoped skills CSV artefacts a test created (under PHPUNIT the skills CSV
+     * path points into the fixtures directory, which must stay clean).
+     *
+     * @param string $model
+     * @param int $dims
+     * @return void
+     */
+    private function cleanup_skills_csv(string $model, int $dims): void {
+        $repo = embeddings_csv_repository::for_variant($model, $dims);
+        if (file_exists($repo->get_csv_path())) {
+            unlink($repo->get_csv_path());
+        }
+        if (file_exists($repo->get_fingerprint_path())) {
+            unlink($repo->get_fingerprint_path());
+        }
     }
 }

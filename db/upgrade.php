@@ -100,5 +100,68 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026070200, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026070202) {
+        // Site search foundation: per area x variant incremental indexing cursor (runtime state,
+        // task-written) + governance scope table (admin-written config, default = everything off).
+        // Idempotent create, guarded by table_exists; mirrors db/install.xml exactly.
+        // The cursor column is named indexcursor because "cursor" is a MySQL reserved word.
+        $state = new xmldb_table('bx_agent_sitesearch_state');
+        if (!$dbman->table_exists($state)) {
+            $state->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            // Length 100 (not 255): the unique index areakey+emodel+edims must stay under Moodle's
+            // 333-char composed-index limit (255 + 128 chars would exceed it).
+            $state->add_field('areakey', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+            $state->add_field('emodel', XMLDB_TYPE_CHAR, '128', null, XMLDB_NOTNULL, null, null);
+            $state->add_field('edims', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $state->add_field('indexcursor', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $state->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $state->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $state->add_index('areavariant_uix', XMLDB_INDEX_UNIQUE, ['areakey', 'emodel', 'edims']);
+            $dbman->create_table($state);
+        }
+
+        $scope = new xmldb_table('bx_agent_search_scope');
+        if (!$dbman->table_exists($scope)) {
+            $scope->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $scope->add_field('area', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+            $scope->add_field('scopetype', XMLDB_TYPE_CHAR, '16', null, XMLDB_NOTNULL, null, null);
+            $scope->add_field('scopeid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $scope->add_field('enabled', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0');
+            $scope->add_field('usermodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $scope->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $scope->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $scope->add_index('areascope_idx', XMLDB_INDEX_NOTUNIQUE, ['area', 'scopetype', 'scopeid']);
+            $dbman->create_table($scope);
+        }
+
+        upgrade_plugin_savepoint(true, 2026070202, 'bookingextension', 'agent');
+    }
+
+    if ($oldversion < 2026070203) {
+        // The skills catalog computes sha256 content hashes (64 chars); the column was sized for
+        // the docs sha1 (40) and truncation would break change detection. The column is not part
+        // of any index, so widening is safe.
+        $table = new xmldb_table('bx_agent_embeddings');
+        $field = new xmldb_field('contenthash', XMLDB_TYPE_CHAR, '64', null, null, null, null, 'edims');
+        if ($dbman->table_exists($table) && $dbman->field_exists($table, $field)) {
+            $dbman->change_field_precision($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026070203, 'bookingextension', 'agent');
+    }
+
+    if ($oldversion < 2026070205) {
+        // Site-search file indexing (PDF, v1): per area x scope flag — file indexing is governed
+        // exactly like enablement itself, so it naturally extends to course/category scoping.
+        // Default 0 (off, cost-sensitive); only effective while the row is enabled.
+        $table = new xmldb_table('bx_agent_search_scope');
+        $field = new xmldb_field('includefiles', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, '0', 'enabled');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026070205, 'bookingextension', 'agent');
+    }
+
     return true;
 }

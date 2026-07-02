@@ -44,4 +44,13 @@ $definitions = [
         'staticacceleration' => false,
         'ttl' => 1800,
     ],
+    // Site-search governance effort estimates (index_scope_estimator, blueprint §5b.4), keyed by
+    // area + scope (+ red threshold, since the counting abort depends on it). Keys carry '|' and
+    // '-', so no simplekeys.
+    'sitesearchestimates' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => false,
+        'staticacceleration' => false,
+        'ttl' => 600,
+    ],
 ];

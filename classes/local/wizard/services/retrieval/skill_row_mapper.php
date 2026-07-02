@@ -112,7 +112,12 @@ class skill_row_mapper implements embeddings_row_mapper {
             (string)($csvrow['anchor_kind'] ?? ''),
             (int)($csvrow['anchor_index'] ?? 0),
             (string)($csvrow['anchor_text'] ?? ''),
-            $score
+            $score,
+            null,
+            null,
+            null,
+            null,
+            (string)($csvrow['content_hash'] ?? '')
         );
     }
 

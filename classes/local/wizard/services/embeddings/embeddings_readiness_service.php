@@ -26,8 +26,9 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\embeddings;
 
-use bookingextension_agent\local\wizard\embeddings_csv_repository;
 use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
+use bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper;
 
 /**
  * Determines embeddings readiness and queues rebuild tasks when needed.
@@ -54,17 +55,40 @@ class embeddings_readiness_service {
      * @return array
      */
     public function get_catalog_status(skill_registry $registry, string $model, int $dimensions): array {
-        // Variant-scoped store: only the active model's file is consulted, so a model switch never
-        // invalidates the others and no cross-model vectors are ever compared.
-        $repo = embeddings_csv_repository::for_variant($model, $dimensions);
+        // Variant-scoped store (CSV or DB backend, selected by the embeddingsstore flag): only the
+        // active model's index is consulted, so a model switch never invalidates the others and no
+        // cross-model vectors are ever compared.
+        $store = embeddings_store_factory::instance();
+        $area = skill_row_mapper::AREA;
         $builder = new embeddings_catalog_builder_service();
 
-        if (!$repo->exists()) {
+        if (!$store->exists($area, $model, $dimensions)) {
             return ['status' => 'missing', 'ready' => false];
         }
 
-        $rows = $repo->read_rows();
-        if (!$repo->is_valid_schema($rows)) {
+        // Materialise the committed rows in the catalog-row shape the retrieval consumers expect
+        // (search_top_k_skills / score_families). The vector arrives pre-decoded under 'embedding' —
+        // those consumers accept it alongside the legacy 'embedding_json', so no JSON round-trip
+        // happens here. Schema rule mirrors the CSV repository: skill + content_hash must be
+        // non-empty on every row, and an empty index is invalid.
+        $rows = [];
+        $schemavalid = true;
+        foreach ($store->stream_rows($area, $model, $dimensions) as $storedrow) {
+            if (trim($storedrow->owner) === '' || trim($storedrow->contenthash) === '') {
+                $schemavalid = false;
+            }
+            $rows[] = [
+                'skill' => $storedrow->owner,
+                'anchor_index' => (string)$storedrow->refindex,
+                'anchor_kind' => $storedrow->refkey,
+                'anchor_text' => $storedrow->title,
+                'embedding_model' => $storedrow->emodel,
+                'embedding_dimensions' => (string)$storedrow->edims,
+                'content_hash' => $storedrow->contenthash,
+                'embedding' => $storedrow->embedding,
+            ];
+        }
+        if (empty($rows) || !$schemavalid) {
             return ['status' => 'invalid', 'ready' => false];
         }
 
@@ -106,13 +130,12 @@ class embeddings_readiness_service {
             }
 
             // An anchor present with the right hash but carrying NO vector is useless for semantic
-            // retrieval: the rebuild silently skips a row whose embedding call failed or returned
-            // empty (family_embeddings_index_service continues past such rows, leaving embedding_json
-            // ''). Without this guard readiness reports "ready", the rebuild's post-sanity-check
-            // passes, and the planner can NEVER retrieve that skill. Treat an empty vector as not
-            // ready so the rebuild fails its sanity check and re-embeds (faildelay backoff).
-            $vector = trim((string)($current['embedding_json'] ?? ''));
-            if ($vector === '' || $vector === '[]') {
+            // retrieval: the rebuild writes a row with an empty vector when its embedding call failed
+            // or returned empty (family_embeddings_index_service). Without this guard readiness
+            // reports "ready", the rebuild's post-sanity-check passes, and the planner can NEVER
+            // retrieve that skill. Treat an empty vector as not ready so the rebuild fails its
+            // sanity check and re-embeds (faildelay backoff).
+            if (empty($current['embedding']) || !is_array($current['embedding'])) {
                 return ['status' => 'stale', 'ready' => false];
             }
         }

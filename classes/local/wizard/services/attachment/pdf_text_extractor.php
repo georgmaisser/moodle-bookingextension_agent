@@ -56,21 +56,27 @@ class pdf_text_extractor {
      * Extract text from a PDF file.
      *
      * @param string $filepath Absolute path to PDF file.
+     * @param int|null $maxchars Optional custom character cap. Null (default) keeps the existing
+     *              attachment behaviour: truncate at MAX_CHARS with a localized truncation note
+     *              appended. A custom cap truncates HARD at that many characters WITHOUT the
+     *              localized note — callers that need deterministic, language-independent output
+     *              (e.g. the site-search chunk pipeline, whose index-time and query-time text
+     *              must be byte-identical) use this mode.
      * @return string Extracted text (possibly truncated).
      * @throws \moodle_exception When no extraction method is available.
      */
-    public function extract(string $filepath): string {
+    public function extract(string $filepath, ?int $maxchars = null): string {
         if ($this->has_pdftotext()) {
             $text = $this->extract_via_shell($filepath);
             if ($text !== null) {
-                return $this->truncate($text);
+                return $this->truncate($text, $maxchars);
             }
         }
 
         if ($this->has_pdfparser()) {
             $text = $this->extract_via_pdfparser($filepath);
             if ($text !== null) {
-                return $this->truncate($text);
+                return $this->truncate($text, $maxchars);
             }
         }
 
@@ -78,13 +84,23 @@ class pdf_text_extractor {
     }
 
     /**
-     * Truncate text to MAX_CHARS and append a note if truncated.
+     * Truncate extracted text.
+     *
+     * Default mode ($maxchars null): cap at MAX_CHARS and append a localized note if truncated.
+     * Custom-cap mode: hard, note-free truncation (deterministic output, see extract()).
      *
      * @param string $text
+     * @param int|null $maxchars Custom character cap, or null for the MAX_CHARS + note default.
      * @return string
      */
-    private function truncate(string $text): string {
+    private function truncate(string $text, ?int $maxchars = null): string {
         $text = trim($text);
+        if ($maxchars !== null) {
+            if (mb_strlen($text) <= $maxchars) {
+                return $text;
+            }
+            return rtrim(mb_substr($text, 0, $maxchars));
+        }
         if (mb_strlen($text) <= self::MAX_CHARS) {
             return $text;
         }

@@ -124,11 +124,13 @@ if ($agentenabled) {
     // Admin pages that belong to the agent. Listed right below the enable
     // checkbox so it is clear they are only available while the agent is on.
     $skillgovurl = new moodle_url('/mod/booking/bookingextension/agent/skill_governance.php');
+    $sitesearchgovurl = new moodle_url('/mod/booking/bookingextension/agent/sitesearch_governance.php');
     $skillselectiondebugurl = new moodle_url('/mod/booking/bookingextension/agent/skill_selection_debug.php');
     $benchmarkreporturl = new moodle_url('/mod/booking/bookingextension/agent/benchmark_report.php');
     $benchmarksettingsurl = new moodle_url('/admin/settings.php', ['section' => 'bookingextension_agent_benchmark']);
     $agentpageslist = html_writer::alist([
         html_writer::link($skillgovurl, get_string('skillgovernance', 'bookingextension_agent')),
+        html_writer::link($sitesearchgovurl, get_string('sitesearchgovernance', 'bookingextension_agent')),
         html_writer::link($skillselectiondebugurl, get_string('skillselectiondebug', 'bookingextension_agent')),
         html_writer::link($benchmarkreporturl, get_string('benchmark_report_nav', 'bookingextension_agent')),
         html_writer::link($benchmarksettingsurl, get_string('benchmark_settings_nav', 'bookingextension_agent')),
@@ -325,6 +327,32 @@ if ($agentenabled) {
     );
     $aisettingspage->add($embeddingsstoresetting);
 
+    // Site-content semantic search: per-area enablement lives on the dedicated, capability-gated
+    // site-search governance page ({bx_agent_search_scope}) — the former raw 'sitesearchareas'
+    // multicheckbox was retired (blueprint decision §11.25: a raw admin setting is no substitute;
+    // any legacy value is migrated lazily by sitesearch_scope_repository). Only the effort
+    // estimator's traffic-light thresholds remain plain settings here (§5b.5 — chunk counts only,
+    // deliberately no price/€ dimension).
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'bookingextension_agent/sitesearchampelgreen',
+            get_string('sitesearchampelgreen', 'bookingextension_agent'),
+            get_string('sitesearchampelgreen_desc', 'bookingextension_agent'),
+            '2000',
+            PARAM_INT
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'bookingextension_agent/sitesearchampelred',
+            get_string('sitesearchampelred', 'bookingextension_agent'),
+            get_string('sitesearchampelred_desc', 'bookingextension_agent'),
+            '20000',
+            PARAM_INT
+        )
+    );
+
     $aisettingspage->add(
         new admin_setting_configselect(
             'bookingextension_agent/aiprivacymode',
@@ -421,6 +449,14 @@ if ($agentenabled) {
         get_string('skillgovernance', 'bookingextension_agent'),
         $skillgovurl,
         'bookingextension/agent:managegovernance',
+        true
+    ));
+
+    $adminroot->add('modbookingfolder', new admin_externalpage(
+        'bookingextension_agent_sitesearchgovernance',
+        get_string('sitesearchgovernance', 'bookingextension_agent'),
+        $sitesearchgovurl,
+        'bookingextension/agent:configuresitesearch',
         true
     ));
 

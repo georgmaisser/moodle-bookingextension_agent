@@ -23,6 +23,29 @@
 > (Estimator §5b.4 — es gibt keinen generischen `COUNT(*)`) + **Majors** (bx_agent-Naming, `insert_records`/PG,
 > `delete_by_context`-Arität, Migration, Sub-Doc-Divergenz). **Alle §11-Entscheidungen getroffen** (inkl.
 > Whitelist = **B** [course/section rein], **Default = alle Areas AUS / einzeln opt-in**). **Umsetzungsreif für Layer 0 P0.**
+>
+> **↻ 3. Korrektur (2026-07-02c, Snippet & `get_document()`):** `get_document()` ist — entgegen der §4-Annahme —
+> **NICHT engine-frei**: `document_factory::instance()` ruft `manager::instance()` und wirft ohne konfigurierte
+> Engine `engine_exception` (`search/classes/document_factory.php:59-63`). Dokumentbau läuft daher über einen
+> **eigenen engine-freien Extraktor** (§5.3), und das §5-Snippet-Nachladen per `get_document()` entfällt.
+> **Entscheidung (Georg): KEIN Content/Snippet im Store** — die „kein `content`-TEXT"-Regel bleibt bestätigt
+> (keine Content-Verdoppelung im Index); Snippets werden zur **Query-Zeit** für die finalen K re-extrahiert,
+> Staleness wird über **Indexierungs-Frische** gelöst (Trigger/Cursor), nicht über Content-Kopien. Details §5
+> (Storage-Note), Entscheidung §11.22.
+>
+> **↻ 4. Entscheidungen nach Implementierungs-Audit (2026-07-02d, Georg):** (a) **Site-Indexing STRENG
+> INKREMENTELL** — pro Lauf dürfen nur geänderte Chunks geschrieben werden; ein Full-Generation-Swap pro Lauf
+> (alle Zeilen neu schreiben, auch bei Vektor-Reuse) ist ein **absolutes No-Go** (§5.2, §11.23; Swap bleibt nur
+> Initial-Build/Repair + docs/skills). (b) **Skills-Area wird JETZT auf den Store verdrahtet** (§11.24 — der
+> bewusste P2-Scope-Cut wird nachgezogen). (c) **Entscheidung 19 bestätigt:** Governance-Seite + Capability +
+> Scope-Tabelle kommen **vor** dem Commit des Site-Search-Schnitts; ein rohes Admin-Setting ist kein Ersatz (§11.25).
+>
+> **↻ 5. Re-Korrektur Engine-Session (2026-07-02f, Georg):** Der Extraktor-Mechanismus aus ↻ 3 ist **überholt**:
+> Statt `get_document()` zu meiden, stellen wir ihm im Index-Task eine **Task-scoped Engine-Session** bereit
+> (Null-Engine + Manager-Singleton-Seeding nach Cores eigenem Fixture-Muster, rein im Prozess-Speicher, **kein
+> Config-/DB-Write**) — `get_document()` wird die **einzige Content-Quelle**, per-Plugin-Extraktor-Code entfällt,
+> Whitelist-Erweiterung = Governance-Config statt Agent-Code. Unverändert bleiben: „kein Content/Snippet im
+> Store" (↻ 3) und „streng inkrementell" (↻ 4). Details §5.3, Entscheidung §11.26.
 
 Verbindet und ersetzt als Dach-Plan:
 - `embeddings_store_csv_to_db_2026-07-02.md` (Detail zur DB-Umstellung Docs/Skills) → wird **Phase 1**.
@@ -130,6 +153,37 @@ interface embeddings_store {
 - Dünne **Mapper** (`docs_embedding_row_mapper`, `skill_embedding_row_mapper`, später
   `site_content_row_mapper`) übersetzen zwischen `embedding_row` und Area-Semantik — Aufrufer-Code bleibt lesbar.
 
+> **Nachtrag (2026-07-02d, §11.23; Form finalisiert 2026-07-02e):** Für das **streng inkrementelle**
+> Site-Indexing wird der Contract **additiv** um doc-granulare Write-Ops in der **committed** Generation
+> erweitert:
+> - `replace_document(string $area, string $emodel, int $edims, string $owner, string $docid, array $rows)` —
+>   **doc-atomar** (kleine Txn) und intern **diff-basiert** per `(refindex, contenthash)`: nur geänderte/neue
+>   Chunks schreiben, weggefallene Chunk-Nummern löschen, identische Zeilen **physisch unberührt** lassen
+>   (ein Read pro geändertem Doc ist billig; blindes delete+reinsert wäre unnötiger Churn, z. B. wenn nur das
+>   Intro geändert wurde).
+> - `delete_document(string $area, string $emodel, int $edims, string $owner, string $docid)` — ein Doc
+>   entfernen (Events-Pfad).
+> - `delete_owner(string $area, string $emodel, int $edims, string $owner)` — eine ganze Sub-Area entfernen;
+>   **das** ist der saubere „Deaktivieren = prunen"-Pfad (§5b.3), kontextunabhängig.
+>
+> **⚠️ `$owner` (= Area-ID) ist in allen dreien PFLICHT** — `docid` ist nur **pro Area** eindeutig
+> (mod_page-Doc 5 ≠ mod_book-Doc 5); eine Signatur ohne `$owner` wäre eine Cross-Area-Kollision.
+> **⚠️ Generation-Bootstrap:** die Ops schreiben in die aktuell **committete** Generation; existiert noch
+> keine Meta-Zeile für die Variante, wird sie mit `committedgeneration=1` angelegt — sonst sieht
+> `search_top_k` (scannt `WHERE generation=committed`, committed=0 → `[]`) die inkrementell geschriebenen
+> Zeilen **nie**. Der Initial-Build läuft doc-weise über denselben Pfad (Cursor 0), ohne Swap.
+> **CSV-Store wirft** auf allen drei Ops (inkrementell ist db-only, hart und fail-closed gegatet).
+> **Cursor:** eigene State-Tabelle `{bx_agent_sitesearch_state}(areakey, emodel, edims, indexcursor, timemodified)`
+> — Spalte heißt `indexcursor`, weil `cursor` ein MySQL/MariaDB-Reserved-Word ist und Moodle-DML Spaltennamen
+> unquoted emittiert —
+> — Laufzeit-State (Task-geschrieben, pro Area×Variante), bewusst **getrennt** von der Governance-Config
+> `{bx_agent_search_scope}` (Admin-geschrieben, variantenunabhängig): andere Writer, anderer Lebenszyklus.
+> Cursor-Fortschreibung nach Core-Muster: auf das `modified` des letzten **erfolgreich** verarbeiteten Docs
+> (nicht auf die Laufstartzeit), mit Überlapp gegen Sekundengrenzen (vgl. `manager.php:1262` „-1"-Trick);
+> `get_document_recordset` liefert nach `modified` aufsteigend — dadurch ist ein abgebrochener Lauf sauber
+> fortsetzbar. Der Generation-Swap (`begin/upsert/commit_generation`) bleibt die Einheit für docs/skills und
+> als Repair-Pfad (voller Neuaufbau).
+
 > **Verifiziert (§12):** `search_top_k()` **existiert heute nicht** — nur
 > `embeddings_retrieval_service::search_top_k_streaming(array $queryvector, iterable $rows, int $k)`
 > (`embeddings_retrieval_service.php:123`). Diese wird die **interne** Cosine-Engine hinter
@@ -192,13 +246,18 @@ Docs/Skills — **ohne** auf die Site-Suche zu warten. De-riskt und finanziert P
 Retrieval-Logik (Store, Indexing, `search_top_k`) lebt **im Agent**. Er benötigt **nie** ein separates
 Such-Plugin. Ein künftiges Plugin ist **optional** und hängt vom Agent ab (**search → agent**) — **nie umgekehrt**.
 
-**Warum „alles im Agent" sauber geht (verifiziert):** Wir nutzen die core_search **Areas**
-(`get_document`/`check_access`) — die sind **Moodle-Core, kein Plugin**. `manager::get_search_areas_list(true)`
-ist **static** (`manager.php:422`), `get_document_recordset` (`base.php:317`) und `check_access` (`base.php:423`)
-sind Area-Methoden — **keine** davon ruft `manager::instance()` oder eine Engine. Der Agent hängt also nur an
-Moodle-Core (immer vorhanden, auch bei deaktivierter Global Search), an **keinem** Such-Plugin.
-**Einzige Ausnahme (Korrektur, §7):** `manager::get_areas_user_accesses()` IST engine-gated → wir bauen die
-User-Kontext-Ermittlung engine-frei nach.
+**Warum „alles im Agent" sauber geht (verifiziert):** Wir nutzen die core_search **Areas** — die sind
+**Moodle-Core, kein Plugin**. `manager::get_search_areas_list(true)` ist **static** (`manager.php:422`),
+`get_document_recordset` (`base.php:317`) und `check_access` (`base.php:423`) sind Area-Methoden — **keine**
+davon ruft `manager::instance()` oder eine Engine. Der Agent hängt also nur an Moodle-Core (immer vorhanden,
+auch bei deaktivierter Global Search), an **keinem** Such-Plugin.
+**Zwei Ausnahmen (Korrekturen):** (a) `manager::get_areas_user_accesses()` IST engine-gated → wir bauen die
+User-Kontext-Ermittlung engine-frei nach (§7). (b) **`base::get_document()` IST engine-gated (Korrektur
+2026-07-02c)** — `document_factory::instance()` ruft `manager::instance()` und wirft ohne konfigurierte Engine
+`engine_exception` (`search/classes/document_factory.php:59-63`) → gelöst über die **Task-scoped
+Engine-Session** (Re-Korrektur 2026-07-02f, §11.26): Null-Engine + Manager-Singleton-Seeding für die Dauer des
+Index-Laufs, rein im Prozess-Speicher — `get_document()` bleibt damit die Content-Quelle, ohne Engine-,
+Server- oder Config-Abhängigkeit (§5.3).
 
 **Jetzt (Pflicht) — In-Agent-Indexing:** ein eigener Scheduled Task im Agent fährt den Loop (§5), schreibt in
 die Agent-Tabellen, Retrieval über `search_top_k`. Kein Fremd-Plugin, keine aktive Global Search nötig.
@@ -229,13 +288,32 @@ wir machen Embeddings+Matching:
 
 1. **Areas aufzählen** — `manager::get_search_areas_list(true)` (**static**, `manager.php:422`), gefiltert auf
    die **kuratierte Whitelist** (§12: die 7 Volltext-Area-IDs).
-2. **Inkrementell** — `$area->get_document_recordset(int $modifiedfrom=0, ?\context $context=null)`
-   (`base.php:317`, streamende `\moodle_recordset`); **Pflicht** `try { … } finally { $rs->close(); }`.
-3. **Dokument bauen** — `$area->get_document($record)` (`base.php:357`) → `document::get('title'|'content'|
-   'description1'|'description2'|'contextid'|'courseid'|'owneruserid'|'modified')` (`document.php:344`, Felder
-   `document.php:107-194`). **Volltext steht in `content`** (jede Area mappt ihr Body-Feld dorthin, §12).
-   Nicht-Core-Provenienz via `document::set_extra()` (`document.php:331`) — `set()` lehnt unbekannte Felder ab.
-   `description1` mitchunken wenn vorhanden; `description2` skippen. Files (v1) weglassen (§14.2 = Option später).
+2. **Inkrementell — VERBINDLICH (2026-07-02d, Georg): streng inkrementell, Full-Rewrite = No-Go.**
+   `$area->get_document_recordset(int $modifiedfrom=0, ?\context $context=null)` (`base.php:317`, streamende
+   `\moodle_recordset`); **Pflicht** `try { … } finally { $rs->close(); }`. Pro Lauf dürfen **nur geänderte
+   Chunks** geschrieben werden; ein Generation-Swap pro Lauf (alle Zeilen neu schreiben, auch wenn die
+   Vektoren wiederverwendet werden) ist **verboten** — der Swap bleibt Initial-Build/Repair (und docs/skills).
+   Grund: der Swap kann `$modifiedfrom` strukturell nicht konsumieren — die Suche liest
+   `WHERE generation = committed`, eine Teil-Generation nur aus geänderten Docs würde beim Commit-Prune alle
+   unveränderten Zeilen mitlöschen. Streng inkrementell braucht daher **Doc-Level-Write-Ops im Store**
+   (§2.1-Nachtrag). **Vorbild ist Core selbst:** der Core-Indexer persistiert pro Area einen Cursor
+   (`…_indexingstart`/`…_lastindexrun` in der Plugin-Config, `search/classes/manager.php:1255/1281/1342`)
+   und übergibt ihn als `$referencestarttime` an `get_document_recordset(…)` (`manager.php:1442`); Deletes
+   laufen über einen expliziten Hook im Löschpfad (`context::delete()` →
+   `\core_search\manager::context_deleted()`, `lib/classes/context.php:649`) — unser engine-freies Pendant:
+   eigener Per-Area-Cursor + `db/events.php`-Observer (§13.6), **nie** Rebuilds.
+3. **Dokument bauen — RE-KORRIGIERT (2026-07-02f, ersetzt die c-Fassung): via `get_document($record)` innerhalb
+   der Engine-Session (§11.26).** `get_document()` ist zwar engine-gated (der Factory-Aufruf ist in jeder Area
+   hartkodiert ohne `$engine`-Arg: `base_activity.php:108`, `mod/page/.../activity.php:65`,
+   `mod/forum/.../post.php:104` → `document_factory.php:59-63` → `manager::instance()`), aber die **Task-scoped
+   Engine-Session** macht ihn produktiv nutzbar. Damit ist das **area-eigene Feld-Mapping** —
+   `title`/`content`/`description1` inkl. korrekter Format-Behandlung `content_to_text($content, $format)` —
+   die **einzige Content-Quelle**: kein Extraktor-Mapping pro Plugin, kein Quellen-Fork, keine
+   Hash-Instabilität; eine neue Area whitelisten = Governance-Config, **null Agent-Code** (Kernanforderung
+   Georg — z. B. künftiges mod_booking-Area; auch überschriebene `get_document()`-Implementierungen liefern
+   per Definition das Richtige, weil wir ihren eigenen Vertrag aufrufen). Provenienz
+   (`contextid/courseid/owneruserid/modified`) direkt aus dem Document. `description1` mitchunken wenn
+   vorhanden; `description2` skippen. Files (v1) weglassen (§14.2 = Option später).
 4. **Change-Detection** — `contenthash` → unverändert = kein Re-Embed.
 5. **Chunking** — ~500-Token-Chunks (~2000 Zeichen, `strlen/4`) mit Overlap; jeder Chunk erbt die Provenienz.
    **Hinweis (verifiziert):** der vorhandene `markdown_chunker` ist char-basiert **ohne** Overlap + heading-orientiert
@@ -245,7 +323,9 @@ wir machen Embeddings+Matching:
    Bedarf im Index-Service, nie in der Action.
 7. **Upsert + Deletes** — Chunks pro `(areaid, docid)` ersetzen; gelöschte Docs
    (`check_access()==\core_search\manager::ACCESS_DELETED` = 2) und Kontexte (`delete_by_context`) prunen.
-8. **Cursor + Zeitlimit** — inkrementell fortsetzbar (via `$modifiedfrom`), hinter Admin-Toggle + Whitelist.
+8. **Cursor + Zeitlimit** — inkrementell fortsetzbar (via `$modifiedfrom`); der **Cursor wird pro Area
+   persistiert** (Muster Core `…_lastindexrun`, §5.2) und erst nach erfolgreichem Lauf fortgeschrieben;
+   hinter Admin-Toggle + Whitelist.
 
 **Jetzt (In-Agent, §4):** unser Task fährt alle 8 Schritte selbst. **Falls** später der optionale
 `searchengine_wbvector`-Adapter kommt, übernimmt der Core die Schritte 1, 2, 7-delete, 8, und wir
@@ -256,8 +336,24 @@ Mapping in die generische Identität:
 - `owner` = areaid (z. B. `'mod_forum-post'`) · `refkey` = docid · `refindex` = chunkno → Unique
   `(area,owner,refkeyhash,refindex,emodel,edims)` = ein Chunk pro `(areaid, docid, chunkno)`.
 - `docid/contextid/courseid/owneruserid` → die **nullbaren Provenienz-Spalten** (§3); `title` = Doc-Titel.
-- **Snippet** wird für die **finalen K** Treffer per `get_document()` nachgeladen (kein `content`-TEXT im Store) —
-  hält die Zeile schlank und uniform mit docs/skills. Access-/Delete via `(area, contextid)`-Index.
+- **Snippet — KORRIGIERT (2026-07-02c, Entscheidung Georg: kein Content im Store, bestätigt):** weiterhin
+  **KEIN `content`-TEXT im Store** — der Index speichert Verweise + Vektoren, nicht den Content (keine
+  Verdoppelung; hält die Zeile schlank und uniform mit docs/skills, und der Store bleibt bei abgeleiteten Daten →
+  minimale Privacy-Fläche). Die **finalen K** Treffer (nach `check_access`) werden zur **Query-Zeit via
+  `get_document()` in einer kurz geklammerten Engine-Session** (§11.26) re-extrahiert und `chunk[refindex]`
+  als Snippet gezeigt — **dieselbe Quelle wie beim Indexing, nur so stimmen die `contenthash`-Vergleiche**
+  (bounded: nur K Docs; Einzel-Doc-Fetch über den context-gescopten `get_document_recordset(0, $modulkontext)`).
+  Dazu verbindlich:
+  - **Fail-soft:** existiert `chunk[refindex]` nicht mehr (Content gekürzt/geändert) → Snippet weglassen bzw.
+    auf den ersten Chunk zurückfallen, **nie** Exception. Fehler-Richtung „kein Snippet", nie falscher Fehler.
+  - **Selbstheilung:** `sha1` des re-extrahierten Chunks gegen den gespeicherten `contenthash` prüfen —
+    gleich = Snippet ist beweisbar exakt der embeddete Chunk; ungleich = Doc als **stale** markieren und fürs
+    nächste Indexing vormerken (jede Suche wird nebenbei zum Freshness-Detektor).
+  - **Chunker-Version in den Area-Fingerprint** aufnehmen → ein Chunker-Wechsel erzwingt den Rebuild und hält
+    Query-Zeit-Chunking und Index aligned (schließt das Deploy-bis-Rebuild-Fenster).
+  - **Konsequenz:** Staleness wird über **Indexierungs-Frische** gelöst — `modifiedfrom`-Cursor (§5.8) +
+    `db/events.php`-Observer (§13.6) sind damit **tragend** für die Snippet-Korrektheit, nicht optional.
+  Access-/Delete via `(area, contextid)`-Index.
 
 > **Optionale Phase-3-ANN-Note (nur wenn ANN gebaut wird):** Erst wenn pgvector/MariaDB-VECTOR zum Einsatz kommt,
 > kann sich ein **separater** Site-Store lohnen — weil ein Vektor-Index global nächste Nachbarn liefert und
@@ -334,7 +430,8 @@ index_estimate {
 - **So billig wie möglich (nicht gratis):** `foreach` über das Recordset **ohne** `get_document()` pro Zeile (der
   teure Pfad), mit `finally { $rs->close(); }`; bei Erreichen der Rot-Schwelle abbrechen und „>N" zeigen. Kurs-/
   Kategorie-Scope über den `$context`-Parameter (CONTEXT_COURSE/COURSECAT liefern nur die scope-eigenen Rows).
-- **Ø-Chunks** aus einem kleinen Sample: `get_document()` auf `min(30, doccount)` Docs → Content-Länge / ~2000 Zeichen
+- **Ø-Chunks** aus einem kleinen Sample: `get_document()` in einer kurz geklammerten **Engine-Session**
+  (§11.26; admin-only Seite, `finally`-Restore) auf `min(30, doccount)` Docs → Content-Länge / ~2000 Zeichen
   (≈500 Token via `strlen/4`). Öffnet denselben Recordset bounded — kein Tokenizer, keine API-Calls (synchron).
 - **Kein `estcostcents`, kein `esttokens`, kein Preis-Setting** — bewusst weggelassen (Georg).
 - **Cache:** MUC `MODE_APPLICATION`, TTL 5–15 min, gekeyt Area+Scope (Cache-Definition neu in `db/caches.php`, §13).
@@ -469,7 +566,9 @@ Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [ausli
 
 - **Layer 0/Phase 1:** float32-Roundtrip (pack→unpack bit-exakt); `db_embeddings_store` upsert/reuse/commit/prune;
   `search_top_k` **Parität** gegen CSV-Fixture (identische Top-K); Korrupt-BLOB-Guard; Readiness `missing→ready`.
-- **Phase 2:** Indexing-Roundtrip pro Whitelist-Area (get_document→chunk→embed→upsert); inkrementeller
+- **Phase 2:** Indexing-Roundtrip pro Whitelist-Area (`get_document()` in Engine-Session →chunk→embed→upsert);
+  **Session-Hygiene-Tests:** `end()` räumt Singleton + `document_factory`-Statics auch im Exception-Fall
+  (`finally`), und die Session schreibt NIE Config (kein `set_config` — §11.26-Fallstrick); inkrementeller
   Re-Index (nur geänderte Docs); `delete_by_context` prunt korrekt; Kontext-Lister liefert erwartete contextids.
 - **Phase 3 (Access, kritisch — mehrere Fälle):** (a) Treffer in Kurs X, User **ohne** Zugang → bekommt ihn
   **nicht** (weder Vorfilter noch `check_access`); (b) **separate-groups**-Forentreffer eines Kurses, in dem der User
@@ -505,6 +604,84 @@ Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [ausli
 19. **Governance-Seite = Start von Phase 2** (kein vorgezogener Mini-Meilenstein).
 20. **`embeddings_retrieval_service`** konsumiert im DB-Pfad ein **dekodiertes** Array (nicht `embedding_json`, §2.2).
 21. **Neue Arch-Doku** `docs/architecture/17-retrieval-foundation.md`; `06-…embeddings.md §8` nach P1 als stale markieren (§15).
+22. **Snippet-Strategie (Nachtrag 2026-07-02c, Georg): KEIN Content/Snippet im Store.** Der Index speichert
+    Verweise + Vektoren, nicht den Content (keine Verdoppelung); zeigt die Suche stale Content, ist das ein
+    **Frische-Problem** (bessere Indexierungs-Trigger / öfter indizieren), kein Grund, Content zu kopieren.
+    Snippets zur Query-Zeit für die finalen K re-extrahiert *(Mechanismus per §11.26: `get_document()` in
+    kurzer Engine-Session statt eigenem Extraktor)* — fail-soft,
+    `contenthash`-Selbstheilungs-Check, Chunker-Version im Fingerprint (§5-Storage-Note). `get_document()` ist
+    engine-gated *(Mechanismus-Teil überholt durch §11.26: via Engine-Session doch produktiv nutzbar — die
+    Kernentscheidung „kein Content im Store" bleibt unverändert)*. Eine Store-Snippet-Spalte (Alternative A)
+    wurde erwogen und **verworfen**.
+23. **Site-Indexing STRENG INKREMENTELL (Nachtrag 2026-07-02d, Georg):** pro Lauf werden ausschließlich
+    geänderte Chunks geschrieben; regelmäßiges Neuschreiben aller Zeilen (Full-Generation-Swap pro Lauf) ist
+    ein **absolutes No-Go** — auch wenn die Vektoren dabei wiederverwendet werden (keine Embed-Kosten ≠ keine
+    Write-Kosten). Umsetzung: Doc-Level-Write-Ops im Contract (§2.1-Nachtrag), persistierter Per-Area-Cursor
+    (Core-Muster `…_lastindexrun`, §5.2), Deletes ausschließlich via `db/events.php` (§13.6). Der Swap bleibt
+    Initial-Build/Repair + docs/skills. *(Hintergrund: der erste Implementierungs-Slice hatte das
+    Docs-Swap-Modell übernommen, das `$modifiedfrom` strukturell nicht konsumieren kann → wird umgebaut.)*
+24. **Skills-Area JETZT auf den Store verdrahten (Nachtrag 2026-07-02d, Georg):** der bewusste P2-Scope-Cut
+    (`family_embeddings_index_service`, `embeddings_readiness_service`, `skill_selection_debug_service`,
+    `rebuild_skill_catalog_embeddings_adhoc` hängen direkt am CSV) wird nachgezogen; dafür bekommt der Store
+    eine Multi-Vector-taugliche Erweiterung (die Family-Aggregation `search_top_k_skills`/`score_families`
+    passt nicht auf die `search_top_k`-Naht). Bis dahin ist die Flag-Semantik `embeddingsstore=db`
+    unvollständig (wirkt nur auf docs/site_content) — dieser Zustand ist NICHT auslieferbar.
+25. **Entscheidung 19 BESTÄTIGT (Nachtrag 2026-07-02d, Georg):** Governance-Seite + Capability
+    `bookingextension/agent:configuresitesearch` + `{bx_agent_search_scope}` kommen **vor** dem Commit des
+    Site-Search-Schnitts. Ein rohes Admin-Setting (Multicheckbox) ist kein zulässiger Ersatz.
+26. **Engine-Session: `get_document()` wird die EINZIGE Content-Quelle (Nachtrag 2026-07-02f, Georg).**
+    Ersetzt den Mechanismus-Teil von ↻ 3/§11.22 (der eigene Extraktor wird zurückgebaut); „kein Content im
+    Store" (§11.22) und „streng inkrementell" (§11.23) bleiben unverändert.
+    **Umsetzung:** agent-eigene **Null-Engine** (`extends \core_search\engine`,
+    `get_document_classname()` → Basisklasse, alle Ops No-op, kein File-Indexing) + `task_search_session
+    extends \core_search\manager` mit `begin()`/`end()` — Seeding des protected-static Manager-Singletons nach
+    Cores eigenem Fixture-Muster (`search/tests/fixtures/testable_core_search.php:52`), direkt über den
+    Konstruktor (umgeht die Schema-Check-/`lastschemacheck`-Writes von `manager::instance()`). Immer geklammert:
+    `begin(); try { … } finally { end(); }` — `end()` nullt den Singleton und ruft
+    `document_factory::clean_static()` (so heißt die Core-Methode wirklich; der Docblock in
+    `document_factory.php:43` nennt sie fälschlich `clean_statics`).
+    **Gewinn:** kein per-Plugin-Mapping-Code (Area whitelisten = Governance-Config statt Agent-Code, inkl.
+    künftigem mod_booking-Area); kein Quellen-Fork, keine `contenthash`-Instabilität; die Override-Gefahr
+    fremder `get_document()`-Implementierungen entfällt, weil wir ihren eigenen Vertrag aufrufen.
+    **Isolations-Garantien:** reines Prozess-Speicher-Seeding — **kein einziger DB-/Config-/Cache-Write**;
+    parallele Web-Requests und andere Cron-Worker (eigene Prozesse) sehen nichts; ein Prozess-Crash hinterlässt
+    null Spuren; einziger Sharing-Punkt sind Folge-Tasks im selben Cron-Prozess → durch `finally { end(); }`
+    abgedeckt.
+    **⚠️ Fallstrick:** Cores Fixture ruft `set_config('enableglobalsearch', true)` (`testable_core_search.php:59`)
+    — in PHPUnit wird das zurückgerollt, in Produktion würde es **persistieren** (Suchbox + Core-Cron-Indexing
+    sitewide!). Die Produktions-Session darf **niemals** `set_config` aufrufen — nur Speicher-Seeding.
+    **Scope:** Index-Task; Query-Zeit-Re-Extraktion der finalen K fürs Snippet (kurz geklammert — dieselbe
+    Quelle wie beim Indexing ⇒ `contenthash`-Konsistenz); Estimator-Samples (§5b.4, admin-only). Deep-Links
+    weiterhin via direkt konstruiertem `\core_search\document` + `$area->get_doc_url($doc)` (Konstruktor public
+    + engine-frei, `document.php:216-222`).
+    **Tests:** Session-Hygiene (Cleanup auch bei Exception; keine Config-Writes) + Content-Erwartung mod_page;
+    der früher angedachte Extraktor-Parity-Test entfällt ersatzlos.
+    **Plan B** (falls Core das Fixture-Muster je bricht): in-memory `$CFG->searchengine = 'simpledb'` im Task +
+    Singleton-Purge — gleiche Wirkung, mehr bewegliche Teile (simpledb-Präsenz, `is_server_ready`, Schema-Check).
+27. **Dynamische Area-Enumeration statt fixer Whitelist (Nachtrag 2026-07-02g, Georg):** Ersetzt die
+    kuratierte Whitelist (§11.12/Variante B) — Konsequenz aus §11.26: ohne per-Area-Mapping-Code gibt es
+    keinen Grund mehr, Areas hart zu kodieren. Die Registry enumeriert **alle** core_search-Areas dynamisch
+    (`manager::get_search_areas_list()` — static, engine-frei, §12), inklusive Third-Party (künftiges
+    mod_booking-Area). Die **Governance-Seite ist das einzige Gate** (Default weiterhin ALLE aus, §11.13);
+    Cores Area-Enable-Flag wird bewusst ignoriert (gehört zur Global-Search-Konfiguration, nicht zu uns).
+    Labels via `$area->get_visible_name()` (löst zugleich die dynamische-Lang-Key-Falle). Damit SOFORT fällig:
+    (a) Kontext-Lister-§7-B-Erweiterung (Kurs-Kontexte: eingeschrieben + sichtbar-nicht-eingeschrieben +
+    Frontpage) für die course-/section-Areas; Areas auf anderen Kontext-Leveln bleiben fail-closed
+    (Prefilter liefert nichts — kein Leak) und werden auf der Seite entsprechend markiert;
+    (b) **Privacy-Provider** (§13.7, Entscheidung 17) — mit freischaltbaren User-Content-Areas
+    (Forum/Glossar/Wiki) ist das Gate scharf, der Provider wird JETZT gebaut.
+28. **Kontext-spezifische Governance: Kursbereich-/Kurs-Scopes (Nachtrag 2026-07-02h, Georg):**
+    Freischaltung UND `includefiles` werden pro Scope steuerbar (`{bx_agent_search_scope}` trägt das
+    Datenmodell bereits). Kaskade: Kurs-Zeile > tiefste Kategorie-Zeile am Pfad > Site-Zeile >
+    Default AUS — die spezifischste Zeile gewinnt KOMPLETT (enabled+includefiles als Paar);
+    Kategorie-Vererbung pfad-basiert. Indexer-Enforcement über zwei Lese-Strategien
+    (allowlist = context-gescopte Recordsets, blocklist = globaler Scan + courseid-Skip);
+    Regel-Änderungen = **Delta-Sync per sofortigem Adhoc-Task** (Backfill/Prune, neue Store-Op
+    `delete_owner_in_course`), NIE Site-Rebuild — damit wandert die `|files:`-Komponente wieder AUS
+    dem Fingerprint (der trägt nur noch Pipeline-Versionen). Estimator/Ampel pro Scope +
+    Gesamt-Ampel. UI = Regel-Liste mit Pickern (bevorzugt `\core_form\dynamic_form`), kein Baum.
+    **Maßgebliches Detail-Konzept: `sitesearch_context_governance_2026-07-02.md`** (alle vier
+    Einzel-Entscheidungen dort in §8).
 
 **Erster Cut:** **Layer 0 P0** — Interface-Inversion mit eingefrorener Signatur, CSV hinter `embeddings_store`, grüne Tests als Netz.
 **Nicht-blockierendes Phase-2-Detail:** konkreter Chunker mit Overlap für HTML→Text-Site-Content (`markdown_chunker` ist char-basiert ohne Overlap, §5.5).
@@ -519,7 +696,7 @@ Layer 0 (Contract)  ──►  Phase 1 (DB-Store Docs/Skills)  ──►  [ausli
 |---|---|---|
 | Area-Aufzählung | `manager::get_search_areas_list(bool $enabled=false): array` (**static**, keyed nach Area-ID) | `search/classes/manager.php:422` |
 | Recordset | `base::get_document_recordset(int $modifiedfrom=0, ?\context $context=null)` → `\moodle_recordset\|false`; `close()` Pflicht | `search/classes/base.php:317`; `moodle_recordset.php:76` |
-| Dokument | `base::get_document($record, $options=[])` → `\core_search\document`; `document::get('title'\|'content'\|'description1'\|'description2'\|'contextid'\|'courseid'\|'owneruserid'\|'modified')` | `base.php:357`; `document.php:344`, Felder `107-194` |
+| Dokument (engine-gated → via **Engine-Session** nutzbar, 2026-07-02f) | `base::get_document()` → `document_factory::instance()` → `manager::instance()` (wirft ohne Engine) → produktiv nutzbar **innerhalb der Task-scoped Engine-Session** (§11.26); Feld-Map: `document::get('title'\|'content'\|'description1'\|'description2'\|'contextid'\|'courseid'\|'owneruserid'\|'modified')` | `document_factory.php:59-63`; `document.php:344`, Felder `107-194` |
 | Extra-Provenienz | `document::set_extra()` (set() lehnt unbekannte Felder ab) | `document.php:331` / `276-281` |
 | Access | `base::check_access($id)` → `manager::ACCESS_DENIED=0/GRANTED=1/DELETED=2` | `base.php:423`; `manager.php:53-63` |
 | ⚠️ User-Access (engine-gated!) | `manager::get_areas_user_accesses()` **protected**; `instance()` wirft ohne `$CFG->searchengine` | `manager.php:704` / `217-219` → §7-Ersatz |
@@ -561,7 +738,8 @@ string $source,string $inputtext,?int $dimensions=null):array` (`llm_call_servic
 
 ## 13. Neue Pflicht-Artefakte (vom Plan nicht genannt — vor Umsetzung anlegen)
 
-1. **`db/install.xml` + `db/upgrade.php`** — `bx_agent_embeddings`, `bx_agent_embeddings_meta`, `bx_agent_search_scope` (XMLDB);
+1. **`db/install.xml` + `db/upgrade.php`** — `bx_agent_embeddings`, `bx_agent_embeddings_meta`, `bx_agent_search_scope`,
+   `bx_agent_sitesearch_state` (Cursor-State, §2.1-Nachtrag) (XMLDB);
    Upgrade-Savepoints mit `$dbman->table_exists()`-Guards; **`version.php` bumpen**; danach `admin/cli/upgrade.php`
    fahren (sonst pending-upgrade → irreführende „keine Berechtigung"-Fehler an WS-Eingängen). Aktuell `install.xml`
    VERSION `2026051900`, **9** Tabellen (alle `bx_agent_*`), keine Embeddings-Tabelle.
@@ -570,7 +748,10 @@ string $source,string $inputtext,?int $dimensions=null):array` (`llm_call_servic
 4. **`db/caches.php`** (existiert: `aiprivacynames`, `trialnonce`) — Cache für Estimator-Counts/Readiness (`MODE_APPLICATION`, kurze TTL).
 5. **`db/tasks.php`** (existiert) — neue scheduled task für Phase-2 Site-Indexing (Muster `rebuild_docs_embeddings_adhoc` + `embeddings_rebuild_scheduler::queue_if_due()`).
 6. **`db/events.php`** (**existiert NICHT** → neu) — Observer `\core\event\course_module_deleted`, `course_deleted`,
-   `course_content_deleted` → `embeddings_store::delete_by_context($contextid)`. Freshness zusätzlich via `modifiedfrom`-Cron.
+   `course_content_deleted` → `embeddings_store::delete_by_context($contextid)`. **PFLICHTBESTANDTEIL des streng
+   inkrementellen Modells (§5.2/§11.23):** ohne Generation-Swap räumt nichts mehr implizit auf — Deletes laufen
+   **nur** über diese Observer (Core-Pendant: `context::delete()` → `manager::context_deleted()`,
+   `lib/classes/context.php:649`). Freshness zusätzlich via `modifiedfrom`-Cron.
 7. **`classes/privacy/provider.php`** (existiert) — **ENTSCHIEDEN (Georg): Privacy-Provider wird gebaut.** In
    `get_metadata` die `{bx_agent_embeddings}`-**Site-Zeilen** (`area='site_content'`) deklarieren: `owneruserid` +
    indexierter user-verfasster Content (Forum/Glossar/Wiki) als abgeleiteter Datenspeicher. Export + Löschung

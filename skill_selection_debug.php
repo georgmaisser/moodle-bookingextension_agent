@@ -79,8 +79,16 @@ if ($action !== '' && confirm_sesskey()) {
             (bool)$includeunavailable
         );
     } else if ($action === 'collisions') {
-        $collisionresult = $service->analyze_collisions((int)$collisionlimit);
+        // Explicit recompute: runs the O(N²) analysis fresh and persists it (also feeds the
+        // governance page, which only ever reads the persisted result).
+        $collisionresult = $service->compute_and_cache_collisions((int)$collisionlimit);
     }
+}
+
+// Without an explicit recompute, show the persisted analysis (computed by the catalog rebuild task
+// or a previous button click) instead of recomputing on every page load.
+if ($collisionresult === null) {
+    $collisionresult = $service->get_cached_collisions();
 }
 
 $PAGE->set_url(new moodle_url('/mod/booking/bookingextension/agent/skill_selection_debug.php'));
@@ -222,6 +230,18 @@ echo html_writer::end_tag('form');
 
 if (is_array($collisionresult)) {
     echo $OUTPUT->heading(get_string('skillselectiondebug_collisionresult', 'bookingextension_agent'), 4);
+
+    if (!empty($collisionresult['computedat'])) {
+        echo html_writer::tag(
+            'p',
+            get_string(
+                'skillselectiondebug_collisions_computedat',
+                'bookingextension_agent',
+                userdate((int)$collisionresult['computedat'])
+            ),
+            ['class' => 'text-muted small']
+        );
+    }
 
     if (empty($collisionresult['has_embeddings'])) {
         echo $OUTPUT->notification(get_string('skillselectiondebug_embeddingsmissing', 'bookingextension_agent'), 'warning');

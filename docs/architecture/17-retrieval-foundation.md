@@ -157,7 +157,7 @@ source fingerprint carried across so readiness sees the DB index as in-sync. The
 available for ops as `cli/migrate_embeddings_to_db.php` (`embeddings_store_migration_service`). If the
 import is ever skipped, the readiness rebuild fallback re-embeds instead.
 
-Later phases deprecate the CSV backend (P4) and build the **site-content** area (its own mapper + an
-engine-free context lister + the authoritative `check_access()` per hit) on top of the same store —
-the point of freezing this contract first. See the joint blueprint
-`docs/Blueprints/todo/retrieval_foundation_and_site_search_2026-07-02.md`.
+The **site-content** area (its own mapper + an engine-free context lister + the authoritative
+`check_access()` per hit) is built on top of this same store — Stage 1 (mod_page) is live; see
+[chapter 18](18-site-content-search.md). A later phase deprecates the CSV backend (P4). See the joint
+blueprint `docs/Blueprints/todo/retrieval_foundation_and_site_search_2026-07-02.md`.

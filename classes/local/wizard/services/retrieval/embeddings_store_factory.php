@@ -55,6 +55,7 @@ class embeddings_store_factory {
         return [
             docs_row_mapper::AREA => new docs_row_mapper(),
             skill_row_mapper::AREA => new skill_row_mapper(),
+            site_content_row_mapper::AREA => new site_content_row_mapper(),
         ];
     }
 }

@@ -64,7 +64,12 @@ class family_embeddings_retrieval_service {
                 continue;
             }
 
-            $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
+            // Store-backed rows carry a pre-decoded float vector under 'embedding'; legacy CSV-shaped
+            // rows carry it JSON-encoded under 'embedding_json'. Accept either, decode only if needed.
+            $embedding = $row['embedding'] ?? null;
+            if (!is_array($embedding) || empty($embedding)) {
+                $embedding = json_decode((string)($row['embedding_json'] ?? '[]'), true);
+            }
             if (!is_array($embedding) || empty($embedding)) {
                 continue;
             }

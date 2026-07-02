@@ -291,7 +291,7 @@ Each diagram subgraph maps to a chapter:
 | `AUTHZ` | [02 Authorization & context](02-authorization-and-context.md) |
 | `CSTORE` (conversation_store) | [03 Conversation store](03-conversation-store.md) |
 | `RUNTIME` (agent_runtime) | [04 Runtime & loop](04-agent-runtime-and-loop.md) |
-| `ORCH` (planner orchestrator) | [05 Planner](05-planner-orchestrator.md), [06 Discovery](06-discovery-families-embeddings.md), [07 Selection & construction](07-selection-and-construction.md); embeddings sit on the [17 Retrieval foundation](17-retrieval-foundation.md) |
+| `ORCH` (planner orchestrator) | [05 Planner](05-planner-orchestrator.md), [06 Discovery](06-discovery-families-embeddings.md), [07 Selection & construction](07-selection-and-construction.md); embeddings sit on the [17 Retrieval foundation](17-retrieval-foundation.md), which also powers [18 Site-content search](18-site-content-search.md) |
 | `DECIDSVC` | [08 Decision service](08-decision-service.md) |
 | `PREFLIGHT` | [09 Preflight pipeline](09-preflight-pipeline.md) |
 | `QUEUE` (Shadow Queue) | [10 Shadow queue](10-shadow-queue.md) |

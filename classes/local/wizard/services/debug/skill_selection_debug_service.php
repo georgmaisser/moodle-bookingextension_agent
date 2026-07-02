@@ -19,10 +19,11 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\debug;
 
 use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
-use bookingextension_agent\local\wizard\embeddings_csv_repository;
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_retrieval_service;
 use bookingextension_agent\local\wizard\services\embeddings\vector_math;
+use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
+use bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\skill_executability_evaluator;
 use bookingextension_agent\local\wizard\skill_registry;
@@ -42,6 +43,9 @@ use core_ai\manager as ai_manager;
 class skill_selection_debug_service {
     /** Embeddings action class for wunderbyte provider. */
     private const WB_ACTION_GENERATE_EMBEDDINGS = wb_action_names::GENERATE_EMBEDDINGS;
+
+    /** Plugin config key persisting the collision analysis (JSON; survives cache purges). */
+    private const COLLISION_CACHE_CONFIG = 'skillcollisioncache';
 
     /** @var skill_registry */
     private skill_registry $registry;
@@ -204,21 +208,39 @@ class skill_selection_debug_service {
      */
     public function analyze_collisions(int $limit = 50): array {
         $limit = max(1, min(500, $limit));
-        $repo = embeddings_csv_repository::for_active_variant();
-        $rows = $repo->read_rows();
+        // Committed anchor rows of the active variant, via the store abstraction (CSV or DB backend,
+        // selected by the embeddingsstore flag). Vectors arrive pre-decoded; only the fields the
+        // pairwise loop needs are kept in memory.
+        $settings = (new embeddings_action_config_resolver())->resolve();
+        $store = embeddings_store_factory::instance();
+        $rows = [];
+        foreach (
+            $store->stream_rows(
+                skill_row_mapper::AREA,
+                (string)($settings['model'] ?? 'text-embedding-3-small'),
+                (int)($settings['dimensions'] ?? 1536)
+            ) as $storedrow
+        ) {
+            $rows[] = ['skill' => $storedrow->owner, 'embedding' => $storedrow->embedding];
+        }
         $pairs = [];
 
         for ($i = 0; $i < count($rows); $i++) {
             $a = $rows[$i];
-            $av = json_decode((string)($a['embedding_json'] ?? '[]'), true);
-            if (!is_array($av) || empty($av)) {
+            $av = $a['embedding'];
+            if (empty($av)) {
                 continue;
             }
 
             for ($j = $i + 1; $j < count($rows); $j++) {
                 $b = $rows[$j];
-                $bv = json_decode((string)($b['embedding_json'] ?? '[]'), true);
-                if (!is_array($bv) || empty($bv)) {
+                // Anchors of the SAME skill are expected to be similar — they say nothing about
+                // cross-skill collision risk and would flood the report with self-pairs.
+                if ((string)($a['skill'] ?? '') === (string)($b['skill'] ?? '')) {
+                    continue;
+                }
+                $bv = $b['embedding'];
+                if (empty($bv)) {
                     continue;
                 }
 
@@ -257,6 +279,41 @@ class skill_selection_debug_service {
             'skill_count' => count($rows),
             'pairs' => $slice,
         ];
+    }
+
+    /**
+     * Run the collision analysis and persist the result.
+     *
+     * The O(N²) pairwise cosine pass over every anchor pair is far too expensive to run on each
+     * governance page load, and it only changes when the embeddings catalog changes — so it runs
+     * once in the catalog rebuild task (and on the debug page's explicit recompute button) and is
+     * persisted in plugin config (survives cache purges, unlike MUC).
+     *
+     * @param int $limit
+     * @return array The persisted payload: has_embeddings/skill_count/pairs + computedat.
+     */
+    public function compute_and_cache_collisions(int $limit = 250): array {
+        $result = $this->analyze_collisions($limit);
+        $result['computedat'] = time();
+        set_config(self::COLLISION_CACHE_CONFIG, json_encode($result), 'bookingextension_agent');
+        return $result;
+    }
+
+    /**
+     * The persisted collision analysis, or null when never computed (or unreadable).
+     *
+     * @return array|null
+     */
+    public function get_cached_collisions(): ?array {
+        $raw = get_config('bookingextension_agent', self::COLLISION_CACHE_CONFIG);
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !array_key_exists('pairs', $decoded)) {
+            return null;
+        }
+        return $decoded;
     }
 
     /**

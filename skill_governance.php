@@ -112,9 +112,11 @@ if (data_submitted() && confirm_sesskey()) {
     }
 }
 
-// Fetch Collision analyzer results.
+// Collision analysis comes from the PERSISTED result (computed by the catalog rebuild task or the
+// debug page's recompute button) — the O(N²) pairwise cosine pass is far too expensive to run on
+// every page load and only changes when the embeddings change.
 $collisionanalyzer = new \bookingextension_agent\local\wizard\services\debug\skill_selection_debug_service();
-$collisionresult = $collisionanalyzer->analyze_collisions(250);
+$collisionresult = $collisionanalyzer->get_cached_collisions() ?? ['has_embeddings' => false, 'pairs' => []];
 $hasembeddings = !empty($collisionresult['has_embeddings']);
 $skillcollisions = [];
 $highcollisioncount = 0;
@@ -169,12 +171,21 @@ try {
     // Multi-vector catalog: a skill spans MANY anchor rows (the description #0 plus one per example
     // utterance), so aggregate ALL of a skill's rows instead of letting the last row win — otherwise
     // a single unembedded anchor (or row ordering) makes a fully-retrievable skill look "empty".
-    // Read the ACTIVE variant file (…__<model>__<dims>.csv) -- the same one the rebuild task and the
-    // runtime semantic discovery use. A bare `new embeddings_csv_repository()` would read the legacy
-    // un-suffixed file that is never written, making every skill look "missing" from the catalog.
+    // Rows come through the embeddings store abstraction (CSV or DB backend, per the embeddingsstore
+    // flag) for the ACTIVE variant — the same source the rebuild task and runtime discovery use.
     $catalogrowsbyskill = [];
-    foreach (\bookingextension_agent\local\wizard\embeddings_csv_repository::for_active_variant()->read_rows() as $catalogrow) {
-        $catalogrowsbyskill[(string)($catalogrow['skill'] ?? '')][] = $catalogrow;
+    $skillstore = \bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory::instance();
+    $skillrows = $skillstore->stream_rows(
+        \bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper::AREA,
+        (string)$embsettings['model'],
+        (int)$embsettings['dimensions']
+    );
+    foreach ($skillrows as $skillrow) {
+        $catalogrowsbyskill[(string)$skillrow->owner][] = [
+            'skill' => (string)$skillrow->owner,
+            'hasvector' => !empty($skillrow->embedding),
+            'content_hash' => (string)$skillrow->contenthash,
+        ];
     }
     // Expected per-skill anchor content-hash SET (drift detection over the whole anchor set, not a
     // single row): an added/removed/changed anchor flips the set and is surfaced as "stale".
@@ -192,8 +203,7 @@ try {
             $storedhashes = [];
             $embeddedanchors = 0;
             foreach ($rows as $r) {
-                $vector = trim((string)($r['embedding_json'] ?? ''));
-                if ($vector !== '' && $vector !== '[]') {
+                if (!empty($r['hasvector'])) {
                     $embeddedanchors++;
                 }
                 $storedhashes[(string)($r['content_hash'] ?? '')] = true;

@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Adhoc task to rebuild skill-catalog embeddings CSV.
+ * Adhoc task to rebuild the skill-catalog embeddings index.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\task;
 
 use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
+use bookingextension_agent\local\wizard\services\debug\skill_selection_debug_service;
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wizard\services\embeddings\family_embeddings_index_service;
 use bookingextension_agent\local\wizard\skill_registry_factory;
@@ -81,8 +82,8 @@ class rebuild_skill_catalog_embeddings_adhoc extends \core\task\adhoc_task {
             }
         }
 
-        // Sanity check: the rebuild must leave a complete, round-trip-valid catalog. The repository
-        // already rejects a corrupt serialization at write time, but we additionally re-evaluate the
+        // Sanity check: the rebuild must leave a complete, valid catalog. The embeddings store
+        // already publishes atomically (generation swap), but we additionally re-evaluate the
         // canonical readiness status here, which also catches missing skills and content-hash drift.
         // Failing the task on a not-ready result lets Moodle's scheduler apply faildelay backoff
         // instead of looping expensive embeddings rebuilds on a persistent defect.
@@ -102,5 +103,17 @@ class rebuild_skill_catalog_embeddings_adhoc extends \core\task\adhoc_task {
         }
 
         mtrace('bookingextension_agent embeddings rebuild: catalog verified ready.');
+
+        // Refresh the persisted collision analysis while the catalog is hot: the O(N²) pairwise
+        // cosine pass only changes when the embeddings change, so it runs here (and on the debug
+        // page's explicit recompute) instead of on every governance page load. Never fail the
+        // task over a diagnostics computation.
+        try {
+            $collisions = (new skill_selection_debug_service())->compute_and_cache_collisions(250);
+            mtrace('bookingextension_agent embeddings rebuild: collision analysis cached ('
+                . count((array)($collisions['pairs'] ?? [])) . ' pairs).');
+        } catch (\Throwable $e) {
+            mtrace('bookingextension_agent embeddings rebuild: collision analysis skipped: ' . $e->getMessage());
+        }
     }
 }

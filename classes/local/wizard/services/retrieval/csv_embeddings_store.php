@@ -273,6 +273,73 @@ class csv_embeddings_store implements embeddings_store {
     }
 
     /**
+     * Not supported: strictly incremental document writes are DB-only (fail-closed).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @param string $docid
+     * @param embedding_row[] $rows
+     * @return array
+     */
+    public function replace_document(
+        string $area,
+        string $emodel,
+        int $edims,
+        string $owner,
+        string $docid,
+        array $rows
+    ): array {
+        unset($area, $emodel, $edims, $owner, $docid, $rows);
+        throw new \coding_exception('Incremental document operations require the DB embeddings store.');
+    }
+
+    /**
+     * Not supported: strictly incremental document writes are DB-only (fail-closed).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @param string $docid
+     * @return void
+     */
+    public function delete_document(string $area, string $emodel, int $edims, string $owner, string $docid): void {
+        unset($area, $emodel, $edims, $owner, $docid);
+        throw new \coding_exception('Incremental document operations require the DB embeddings store.');
+    }
+
+    /**
+     * Not supported: strictly incremental document writes are DB-only (fail-closed).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @return void
+     */
+    public function delete_owner(string $area, string $emodel, int $edims, string $owner): void {
+        unset($area, $emodel, $edims, $owner);
+        throw new \coding_exception('Incremental document operations require the DB embeddings store.');
+    }
+
+    /**
+     * Not supported: strictly incremental document writes are DB-only (fail-closed).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @param string $owner
+     * @param int $courseid
+     * @return void
+     */
+    public function delete_owner_in_course(string $area, string $emodel, int $edims, string $owner, int $courseid): void {
+        unset($area, $emodel, $edims, $owner, $courseid);
+        throw new \coding_exception('Incremental document operations require the DB embeddings store.');
+    }
+
+    /**
      * Yield each committed row for this area/variant as an embedding_row (bounded memory).
      *
      * @param string $area
@@ -297,5 +364,17 @@ class csv_embeddings_store implements embeddings_store {
      */
     public function delete_by_context(int $contextid): void {
         unset($contextid);
+    }
+
+    /**
+     * Not supported: course-scoped invalidation belongs to the site-content rows, which are DB-only
+     * (fail-closed, matching the other incremental document operations).
+     *
+     * @param int $courseid
+     * @return void
+     */
+    public function delete_by_course(int $courseid): void {
+        unset($courseid);
+        throw new \coding_exception('Incremental document operations require the DB embeddings store.');
     }
 }

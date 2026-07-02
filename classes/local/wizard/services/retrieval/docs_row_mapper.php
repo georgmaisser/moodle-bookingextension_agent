@@ -117,7 +117,12 @@ class docs_row_mapper implements embeddings_row_mapper {
             (string)($csvrow['chunk_path'] ?? ''),
             (int)($csvrow['line_start'] ?? 0),
             (string)($csvrow['chunk_title'] ?? ''),
-            $score
+            $score,
+            null,
+            null,
+            null,
+            null,
+            (string)($csvrow['content_hash'] ?? '')
         );
     }
 

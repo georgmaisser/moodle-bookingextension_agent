@@ -27,10 +27,12 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\embeddings;
 
 use bookingextension_agent\local\wizard\embeddings_action_config_resolver;
-use bookingextension_agent\local\wizard\embeddings_csv_repository;
 use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\services\llm\llm_call_service;
+use bookingextension_agent\local\wizard\services\retrieval\embedding_row;
+use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory;
+use bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper;
 use context_system;
 
 /**
@@ -38,7 +40,12 @@ use context_system;
  */
 class family_embeddings_index_service {
     /**
-     * Rebuild the embeddings CSV from the current registry.
+     * Rebuild the skill-catalog embeddings index from the current registry.
+     *
+     * Writes through the {@see \bookingextension_agent\local\wizard\services\retrieval\embeddings_store}
+     * abstraction (CSV or DB backend, selected by the embeddingsstore flag) as an atomic generation
+     * swap: unchanged anchors are reused by identity + content hash (no re-embed), changed/new anchors
+     * are embedded, then the new generation is published atomically.
      *
      * @param skill_registry $registry
      * @param string|null $model
@@ -68,8 +75,6 @@ class family_embeddings_index_service {
         $resolveddimensions = $resolved['dimensions'];
 
         $builder = new embeddings_catalog_builder_service();
-        // Write into the active model's variant file (respects model/dimensions overrides above).
-        $repo = embeddings_csv_repository::for_variant($resolvedmodel, $resolveddimensions);
         $rows = $builder->build_full_catalog_rows($registry, $resolvedmodel, $resolveddimensions);
         if (empty($rows)) {
             return [
@@ -81,22 +86,29 @@ class family_embeddings_index_service {
             ];
         }
 
+        // Variant-scoped store (CSV or DB, selected by the embeddingsstore flag): the active model's
+        // index lives under its own variant, so a model switch never invalidates the others. Respects
+        // the model/dimensions overrides above.
+        $store = embeddings_store_factory::instance();
+        $mapper = new skill_row_mapper();
+        $area = skill_row_mapper::AREA;
+
         // Multi-vector store (SKILL_REWORK.md §5): a skill spans several anchor rows. Reuse and state
         // tracking are keyed per ANCHOR (skill#anchor_index); the per-skill state is then aggregated.
-        $existingrows = $repo->read_rows();
-        $existingbyanchor = [];
+        // One streaming pass over the committed index collects the per-anchor content hashes and the
+        // per-skill anchor counts driving the skill-state summary; the full old row (with its vector)
+        // is fetched lazily per anchor via reuse_existing() in the rebuild loop below.
+        $existinghashbyanchor = [];
         $existingskillset = [];
         $existinganchorcount = [];
-        if ($repo->is_valid_schema($existingrows)) {
-            foreach ($existingrows as $existingrow) {
-                $skillname = trim((string)($existingrow['skill'] ?? ''));
-                if ($skillname === '') {
-                    continue;
-                }
-                $existingbyanchor[$this->anchor_key($existingrow)] = $existingrow;
-                $existingskillset[$skillname] = true;
-                $existinganchorcount[$skillname] = ($existinganchorcount[$skillname] ?? 0) + 1;
+        foreach ($store->stream_rows($area, $resolvedmodel, $resolveddimensions) as $existing) {
+            $skillname = trim($existing->owner);
+            if ($skillname === '') {
+                continue;
             }
+            $existinghashbyanchor[$skillname . '#' . $existing->refindex] = $existing->contenthash;
+            $existingskillset[$skillname] = true;
+            $existinganchorcount[$skillname] = ($existinganchorcount[$skillname] ?? 0) + 1;
         }
 
         // A skill is 'untouched' only when EVERY current anchor matches a stored anchor by
@@ -114,10 +126,10 @@ class family_embeddings_index_service {
             if (!array_key_exists($skillname, $skillunchanged)) {
                 $skillunchanged[$skillname] = true;
             }
-            $existinganchor = $existingbyanchor[$this->anchor_key($row)] ?? null;
+            $existinghash = $existinghashbyanchor[$this->anchor_key($row)] ?? null;
             if (
-                $existinganchor === null
-                || trim((string)($existinganchor['content_hash'] ?? '')) !== trim((string)($row['content_hash'] ?? ''))
+                $existinghash === null
+                || trim($existinghash) !== trim((string)($row['content_hash'] ?? ''))
             ) {
                 $skillunchanged[$skillname] = false;
             }
@@ -154,61 +166,75 @@ class family_embeddings_index_service {
         $reusedcount = 0;
         $llm = new llm_call_service(new conversation_store());
 
-        foreach ($rows as $idx => $row) {
-            $contenthash = trim((string)($row['content_hash'] ?? ''));
-            $existingrow = $existingbyanchor[$this->anchor_key($row)] ?? null;
+        // Atomic generation swap (same pattern as the docs index): every current anchor row is written
+        // into a fresh, uncommitted generation — reused by identity + content hash where possible —
+        // then published in one step. Readers only ever see the committed generation; anchors of
+        // removed skills are simply not re-emitted (naturally pruned by the swap).
+        $gen = $store->begin_generation($area, $resolvedmodel, $resolveddimensions);
+        try {
+            foreach ($rows as $row) {
+                $contenthash = trim((string)($row['content_hash'] ?? ''));
 
-            if (
-                !$forcefullregen
-                && is_array($existingrow)
-                && trim((string)($existingrow['content_hash'] ?? '')) === $contenthash
-                && trim((string)($existingrow['embedding_json'] ?? '')) !== ''
-            ) {
-                $rows[$idx]['embedding_json'] = (string)$existingrow['embedding_json'];
-                $reusedcount++;
-                unset($rows[$idx]['_embedding_input']);
-                continue;
+                if (!$forcefullregen) {
+                    $oldrow = $store->reuse_existing(
+                        $area,
+                        $resolvedmodel,
+                        $resolveddimensions,
+                        $mapper->identity_key($row)
+                    );
+                    if ($oldrow !== null && $oldrow->contenthash === $contenthash && !empty($oldrow->embedding)) {
+                        $store->upsert($area, $gen, $oldrow);
+                        $reusedcount++;
+                        continue;
+                    }
+                }
+
+                $embedding = [];
+                $inputtext = (string)($row['_embedding_input'] ?? '');
+                if ($inputtext !== '') {
+                    $embeddingcall = $llm->invoke_embeddings_for_context(
+                        0,
+                        (int)$context->id,
+                        $userid,
+                        'idx|p=disc|st=emb|ac=emb|rt=wb',
+                        $inputtext,
+                        $resolveddimensions
+                    );
+                    if (!empty($embeddingcall['success'])) {
+                        $embedding = (array)($embeddingcall['embedding'] ?? []);
+                    }
+                }
+                if (!empty($embedding)) {
+                    $embeddedcount++;
+                }
+
+                // A failed/empty embedding call still writes the anchor row — with an empty vector —
+                // exactly like the previous CSV write path did: readiness treats the empty vector as
+                // not ready, so the rebuild task fails its sanity check and retries with backoff.
+                $store->upsert($area, $gen, new embedding_row(
+                    $area,
+                    trim((string)($row['skill'] ?? '')),
+                    (string)($row['anchor_kind'] ?? ''),
+                    (int)($row['anchor_index'] ?? 0),
+                    (string)($row['anchor_text'] ?? ''),
+                    $resolvedmodel,
+                    $resolveddimensions,
+                    $contenthash,
+                    $embedding
+                ));
             }
 
-            $inputtext = (string)($row['_embedding_input'] ?? '');
-            if ($inputtext === '') {
-                continue;
-            }
-
-            $embeddingcall = $llm->invoke_embeddings_for_context(
-                0,
-                (int)$context->id,
-                $userid,
-                'idx|p=disc|st=emb|ac=emb|rt=wb',
-                $inputtext,
-                $resolveddimensions
-            );
-
-            if (empty($embeddingcall['success'])) {
-                continue;
-            }
-
-            $embedding = (array)($embeddingcall['embedding'] ?? []);
-            if (empty($embedding)) {
-                continue;
-            }
-
-            $rows[$idx]['embedding_json'] = json_encode($embedding, JSON_UNESCAPED_UNICODE);
-            $embeddedcount++;
-            unset($rows[$idx]['_embedding_input']);
+            $written = $store->commit_generation($area, $resolvedmodel, $resolveddimensions, $gen);
+        } catch (\Throwable $e) {
+            $store->discard_generation($area, $resolvedmodel, $resolveddimensions, $gen);
+            throw $e;
         }
-
-        foreach ($rows as $idx => $row) {
-            unset($rows[$idx]['_embedding_input']);
-        }
-
-        $repo->write_rows($rows);
 
         return [
             'status' => 'written',
             'model' => $resolvedmodel,
             'dimensions' => $resolveddimensions,
-            'written' => count($rows),
+            'written' => $written,
             'embedded' => $embeddedcount,
             'reused' => $reusedcount,
             'deleted' => count($removedskills),

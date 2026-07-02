@@ -87,10 +87,12 @@ class embeddings_store_migration_service {
     }
 
     /**
-     * Settings updated-callback: on switching the backend to DB, import the docs CSV index once.
+     * Settings updated-callback: on switching the backend to DB, import the CSV indexes once.
      *
-     * Runs synchronously (the docs index is small and no embedding calls are made, only row copies)
-     * and fail-open — if the import errors, the readiness rebuild fallback still populates the DB.
+     * Covers every CSV-backed global area (docs AND skills). Runs synchronously (both indexes are
+     * small and no embedding calls are made, only row copies) and fail-open — per area, so a broken
+     * import of one area never blocks the other; the readiness rebuild fallback still populates
+     * whatever is missing in the DB.
      *
      * @param string $name The full setting name Moodle passes to updated-callbacks (unused).
      * @return void
@@ -102,13 +104,23 @@ class embeddings_store_migration_service {
         }
         try {
             $resolved = (new embeddings_action_config_resolver())->resolve();
-            (new self())->migrate_csv_to_db_if_needed(
-                docs_row_mapper::AREA,
-                (string)$resolved['model'],
-                (int)$resolved['dimensions']
-            );
         } catch (\Throwable $e) {
             debugging('embeddingsstore CSV→DB migration failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return;
+        }
+        foreach ([docs_row_mapper::AREA, skill_row_mapper::AREA] as $area) {
+            try {
+                (new self())->migrate_csv_to_db_if_needed(
+                    $area,
+                    (string)$resolved['model'],
+                    (int)$resolved['dimensions']
+                );
+            } catch (\Throwable $e) {
+                debugging(
+                    'embeddingsstore CSV→DB migration failed (' . $area . '): ' . $e->getMessage(),
+                    DEBUG_DEVELOPER
+                );
+            }
         }
     }
 }

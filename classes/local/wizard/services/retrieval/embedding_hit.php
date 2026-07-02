@@ -64,6 +64,12 @@ final class embedding_hit {
     public ?int $owneruserid;
 
     /**
+     * @var string|null Stored content hash of the embedded chunk (site content: input for the
+     * query-time snippet self-heal comparison); null when the backing row carries none.
+     */
+    public ?string $contenthash;
+
+    /**
      * Constructor.
      *
      * @param string $area
@@ -76,6 +82,7 @@ final class embedding_hit {
      * @param int|null $contextid Site provenance: context id; null for docs/skills.
      * @param int|null $courseid Site provenance: course id; null for docs/skills.
      * @param int|null $owneruserid Site provenance: authoring user id; null for docs/skills.
+     * @param string|null $contenthash Stored content hash of the embedded chunk; null if unknown.
      */
     public function __construct(
         string $area,
@@ -87,7 +94,8 @@ final class embedding_hit {
         ?int $docid = null,
         ?int $contextid = null,
         ?int $courseid = null,
-        ?int $owneruserid = null
+        ?int $owneruserid = null,
+        ?string $contenthash = null
     ) {
         $this->area = $area;
         $this->owner = $owner;
@@ -99,5 +107,6 @@ final class embedding_hit {
         $this->contextid = $contextid;
         $this->courseid = $courseid;
         $this->owneruserid = $owneruserid;
+        $this->contenthash = $contenthash;
     }
 }
