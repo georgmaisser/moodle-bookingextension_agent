@@ -36,6 +36,7 @@ use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\services\confirm_run_service;
+use bookingextension_agent\local\wizard\services\preview_passthrough;
 use bookingextension_agent\local\wizard\services\proposed_action_preview;
 
 /**
@@ -173,6 +174,16 @@ class ai_confirm_run extends external_api {
                 $registry
             );
         }
+        // Source C: a preflight clarification inside this confirm turn (e.g. an autoconfirmed
+        // follow-up whose preflight failed) may have stashed a skill-provided preview in thread
+        // metadata (see preview_passthrough). Always consumed (cleared); attached only when the
+        // turn ends as a clarification and nothing else produced a preview.
+        $previewjson = preview_passthrough::consume_clarification_preview_json(
+            $store,
+            (int)($payload['threadid'] ?? (int)$params['threadid']),
+            (string)($payload['response_type'] ?? ''),
+            $previewjson
+        );
 
         $message = (string)($payload['message'] ?? '');
         $displaymessage = $message;

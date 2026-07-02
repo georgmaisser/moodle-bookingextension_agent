@@ -299,6 +299,16 @@ class ai_send_message extends external_api {
         if (trim($previewjson) === '' && (string)($result['response_type'] ?? '') === 'confirmation_request') {
             $previewjson = proposed_action_preview::build_preview_json($responsecommands, $registry);
         }
+        // Source C: a preflight clarification may have stashed a skill-provided preview in thread
+        // metadata (see preview_passthrough) — a preflight fail never reaches the executor, so
+        // neither source above can carry it. Always consumed (cleared); attached only when this
+        // turn actually ends as a clarification and nothing else produced a preview.
+        $previewjson = preview_passthrough::consume_clarification_preview_json(
+            $store,
+            $threadid,
+            (string)($result['response_type'] ?? ''),
+            $previewjson
+        );
 
         return [
             'response_type'         => $result['response_type'] ?? 'error',

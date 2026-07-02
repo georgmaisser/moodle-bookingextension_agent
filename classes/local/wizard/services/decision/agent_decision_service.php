@@ -42,6 +42,7 @@ use bookingextension_agent\local\wizard\services\execution_observation_ledger;
 use bookingextension_agent\local\wizard\services\language_policy_service;
 use bookingextension_agent\local\wizard\services\localized_string_service;
 use bookingextension_agent\local\wizard\services\preflight_pipeline;
+use bookingextension_agent\local\wizard\services\preview_passthrough;
 use bookingextension_agent\local\wizard\services\queue_transition_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\pending_intent_service;
@@ -891,6 +892,16 @@ class agent_decision_service {
                     'attempted_skills' => $attemptedskills,
                     'issue_codes'     => $allissuecodes,
                 ];
+            }
+
+            // Source C of the preview channel: a needs_clarification issue may carry a
+            // skill-provided preview block (e.g. a form the user should fill instead of
+            // answering in chat). The result dict is rebuilt several times on its way to
+            // the endpoint, so the block travels via thread metadata and is consumed by
+            // ai_send_message / ai_confirm_run when the final response ships.
+            $clarificationpreview = preview_passthrough::extract_clarification_preview_from_issues($allissues);
+            if ($clarificationpreview !== null) {
+                preview_passthrough::stash_clarification_preview($this->store, $threadid, $clarificationpreview);
             }
 
             return [

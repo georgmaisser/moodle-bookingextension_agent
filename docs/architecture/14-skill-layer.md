@@ -36,6 +36,16 @@ The contract is precise about **who calls what**: `check_structure()` runs in th
 right after parsing; `preflight()` runs in the decision/preflight phase and must not write;
 `execute()` receives the *prepared* input and must not redo heavy resolution.
 
+Skills can additionally supply **preview data** (never rendered engine-side, see
+[ch. 01 §7](01-entry-and-web-services.md#7-attachments-docs--previews)):
+`get_result_preview()` on executed results (source A), `describe_proposed_action()` for the
+confirmation panel (source B), and — since the clarification preview channel — an optional
+`preview` block (same `{type, html?, js?, js_module?, payload?}` shape as source A) on a
+`needs_clarification` **preflight issue** (source C). Use source C when the right answer to
+a clarification is an interactive side-panel element (e.g. a form) rather than a chat
+reply; the engine hands the block through via thread metadata and the client renders it
+with the same generic dispatcher as every other preview.
+
 ---
 
 ## 2. Base classes

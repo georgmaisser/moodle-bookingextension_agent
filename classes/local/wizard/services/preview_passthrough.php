@@ -47,8 +47,132 @@ use bookingextension_agent\local\wizard\conversation_store;
  * 'preview' blocks from the results and, across a multi-step confirm chain, concatenates HTML of the
  * same type. Because the block is computed before result sanitization (in the executor), previews no
  * longer depend on any per-skill result field surviving the sanitizer's whitelist.
+ *
+ * Besides the executed-result path (source A; source B is proposed_action_preview) this service
+ * also carries the CLARIFICATION preview channel (source C): a skill's preflight issue may ship
+ * the same self-contained preview block, which travels via thread metadata
+ * (stash_clarification_preview / consume_clarification_preview_json) because a preflight
+ * clarification never reaches the executor and its result dict is rebuilt on the way out.
  */
 class preview_passthrough {
+    /**
+     * Thread-metadata key holding a preflight-clarification preview until the response ships.
+     *
+     * Why metadata and not a key on the result dict: between the decision service (where a
+     * preflight clarification is built) and the webservice response, the result array is
+     * rebuilt several times (interpreter, loop finalization, synchronizer message swap) —
+     * any extra key would have to survive every hop. The thread metadata handoff sidesteps
+     * that entirely and mirrors how executed-result previews already accumulate across a
+     * confirm chain ('_confirm_previews').
+     */
+    private const CLARIFICATION_PREVIEW_KEY = '_clarification_preview';
+
+    /**
+     * Seconds a stashed clarification preview stays usable.
+     *
+     * Normally the stash is written and consumed within the same request. The TTL only
+     * guards the corner case where a request errors out between the two points (the
+     * endpoint never reaches the consume), so a leftover cannot attach itself to an
+     * unrelated clarification turns later.
+     */
+    private const CLARIFICATION_PREVIEW_TTL = 300;
+
+    /**
+     * Extract the first usable preview block from preflight issues (source C).
+     *
+     * Skill contract: a 'needs_clarification' preflight issue MAY carry a self-contained
+     * 'preview' block — the same shape get_result_preview() returns
+     * ({type, html?, js?, js_module?, payload?}). The engine never inspects the block
+     * beyond requiring a non-empty 'type'; it stays a pure data passthrough.
+     *
+     * @param mixed[] $issues Structured preflight issues.
+     * @return array|null The first preview block carried by a clarification issue, or null.
+     */
+    public static function extract_clarification_preview_from_issues(array $issues): ?array {
+        foreach ($issues as $issue) {
+            if (!is_array($issue)) {
+                continue;
+            }
+            if (trim((string)($issue['severity'] ?? '')) !== 'needs_clarification') {
+                continue;
+            }
+            $preview = $issue['preview'] ?? null;
+            if (is_array($preview) && trim((string)($preview['type'] ?? '')) !== '') {
+                return $preview;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Stash a clarification preview for the same-turn response builder.
+     *
+     * Written by the decision service when a preflight clarification carries a preview;
+     * consumed (and always cleared) by ai_send_message / ai_confirm_run via
+     * consume_clarification_preview_json().
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param array $preview Self-contained preview block ({type, html?, js?, js_module?, payload?}).
+     * @return void
+     */
+    public static function stash_clarification_preview(
+        conversation_store $store,
+        int $threadid,
+        array $preview
+    ): void {
+        $store->set_thread_metadata_value($threadid, self::CLARIFICATION_PREVIEW_KEY, [
+            'preview' => $preview,
+            'stashedat' => time(),
+        ]);
+    }
+
+    /**
+     * Consume the stashed clarification preview for this response (read + ALWAYS clear).
+     *
+     * Precedence and semantics:
+     * - the stash is cleared on every call, whatever the response type — a stale preview
+     *   must never leak into a later turn;
+     * - an already-resolved preview (executed results / proposed actions) always wins:
+     *   a non-empty $previewjson is returned unchanged;
+     * - the stash is attached only when the turn actually ends as a 'clarification' and
+     *   the stash is fresh (see CLARIFICATION_PREVIEW_TTL).
+     *
+     * @param conversation_store $store
+     * @param int $threadid
+     * @param string $responsetype Final response_type of this turn.
+     * @param string $previewjson Preview JSON resolved so far ('' when none).
+     * @return string The preview JSON to ship ('' when none).
+     */
+    public static function consume_clarification_preview_json(
+        conversation_store $store,
+        int $threadid,
+        string $responsetype,
+        string $previewjson
+    ): string {
+        $stored = $store->get_thread_metadata_value($threadid, self::CLARIFICATION_PREVIEW_KEY);
+        if ($stored !== null) {
+            $store->set_thread_metadata_value($threadid, self::CLARIFICATION_PREVIEW_KEY, null);
+        }
+
+        if (trim($previewjson) !== '') {
+            return $previewjson;
+        }
+        if ($responsetype !== 'clarification' || !is_array($stored)) {
+            return '';
+        }
+
+        $preview = $stored['preview'] ?? null;
+        $stashedat = (int)($stored['stashedat'] ?? 0);
+        if (!is_array($preview) || $stashedat < time() - self::CLARIFICATION_PREVIEW_TTL) {
+            return '';
+        }
+
+        $encoded = json_encode($preview);
+        return is_string($encoded) ? $encoded : '';
+    }
+
     /**
      * Resolve the preview JSON for a webservice response from executed skill results.
      *

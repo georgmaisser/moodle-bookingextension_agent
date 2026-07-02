@@ -90,6 +90,14 @@ the preflight status + risk class to a queue transition:
 It also writes the **prepared input** and the **guard token** onto the queue item (see
 [ch. 11](11-executor.md)).
 
+When the preflight outcome is a **clarification**, `handle_preflight()` additionally checks
+the structured issues for a skill-provided `preview` block (preview **source C**, see
+[ch. 01 §7](01-entry-and-web-services.md#7-attachments-docs--previews)): the first
+`needs_clarification` issue carrying one is stashed in thread metadata via
+`preview_passthrough::stash_clarification_preview()`. The result dict itself stays
+unchanged — the endpoints consume the stash once when the response ships. The decision
+service never inspects the block; it is a pure data handoff.
+
 ---
 
 ## 6. Pending bookkeeping

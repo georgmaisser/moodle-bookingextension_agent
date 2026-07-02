@@ -145,6 +145,15 @@ that a webhook is reachable or a payment provider is ready, hard-blocking when i
 | `retryafterms` / `retrycount` / `durationms` | retry + timing |
 | `preparedinput` | the exact input the executor will run |
 
+Each entry of `issues` is a structured array (`code`, `severity`, `message`, optional
+`options`). A `needs_clarification` issue **may additionally carry a `preview` block** —
+the same self-contained shape as `get_result_preview()`
+(`{type, html?, js?, js_module?, payload?}`). The pipeline and the DTO pass issues through
+verbatim (no key whitelist); the decision service lifts the first such block into the
+clarification preview channel (source C, [ch. 08 §5](08-decision-service.md#5-preflight-handoff)),
+so a skill can open e.g. a form in the side panel *instead of* asking the user to answer
+in chat.
+
 > The guard token is **not** a field of the `preflight_result_v2` DTO; it is built from
 > the prepared input (`preflight_execution_gate::build_guard_token(skill, contextid,
 > prepared_input)`) and persisted on the **queue item**, then verified by the executor

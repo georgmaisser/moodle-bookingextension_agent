@@ -259,6 +259,22 @@ produced inside the loop by the `preview_passthrough` service and returned to th
 preview *data* via `get_result_preview()`; the engine passes it through generically). See
 the [⚠ flowchart note](#11-flowchart-notes) and the Preview data-contract design.
 
+Three sources feed `previewjson`, in order of precedence:
+
+- **A — executed results**: each skill's `get_result_preview()` block, forwarded by
+  `preview_passthrough` (also from read-skill loop steps);
+- **B — proposed commands**: `proposed_action_preview` when the turn ends as a
+  `confirmation_request` and A produced nothing;
+- **C — preflight clarifications**: a `needs_clarification` preflight issue may carry the
+  same self-contained `preview` block. Because a preflight fail never reaches the executor
+  and the result dict is rebuilt on its way out, the block travels via thread metadata
+  (`_clarification_preview`): the decision service stashes it
+  (`preview_passthrough::stash_clarification_preview()`), and **both** endpoints consume it
+  exactly once (`consume_clarification_preview_json()` — always cleared, attached only when
+  the turn actually ends as `clarification`, A/B stayed empty and the stash is fresh,
+  TTL 300 s). The client renders `previewjson` for every response type, so no frontend
+  change is involved.
+
 ---
 
 ## 8. Trial & privacy services
@@ -313,7 +329,8 @@ codes, is in [reference/issue-codes.md](../reference/issue-codes.md).
 
 > `APREVIEW` node: previews are generated in-loop by `preview_passthrough` and
 > returned as `previewjson` on the `ai_send_message` / `ai_confirm_run` responses; there is
-> no dedicated preview endpoint — previews flow as a generic data passthrough.
+> no dedicated preview endpoint — previews flow as a generic data passthrough
+> (three sources: executed results, proposed commands, preflight-clarification stash — §7).
 
 > Autoconfirm method name (`CS12`): `CS12` names the session-check
 > `is_confirmation_allowed_for_session(userid, contextid)`; `ai_send_message` reaches it via
