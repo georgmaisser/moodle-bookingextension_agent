@@ -18,6 +18,8 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_course;
+use context_module;
+use context_system;
 use context_user;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\orchestrator;
@@ -143,5 +145,101 @@ final class runtime_context_block_builder_test extends advanced_testcase {
         $this->assertStringContainsString('USER MEMORY', $block['volatile']);
         $this->assertStringContainsString('Always reply in German', $block['volatile']);
         $this->assertStringNotContainsString('USER MEMORY', $block['stable']);
+    }
+
+    /**
+     * A module (cm) context is the richest grounding: the structured block must carry the resolved
+     * course: AND module: sub-blocks (fullname, cmid, modname, instance_id) so construction can fill
+     * course/activity targets without a clarification round-trip. This is the most-used production path
+     * and was previously untested.
+     */
+    public function test_module_context_emits_course_and_module_subblocks(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course([
+            'fullname'  => 'Algebra 101',
+            'shortname' => 'ALG101',
+        ]);
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
+        $cm = $this->getDataGenerator()->create_module('booking', [
+            'course' => $course->id,
+            'name'   => 'Sprechstunde',
+        ]);
+        $ctxid = (int)context_module::instance((int)$cm->cmid)->id;
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+
+        $vol = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION)['volatile'];
+
+        $this->assertStringContainsString('moodle_context:', $vol);
+        $this->assertStringContainsString('context_level: "Module"', $vol);
+        // Course sub-block.
+        $this->assertStringContainsString('course:', $vol);
+        $this->assertStringContainsString('Algebra 101', $vol);
+        $this->assertStringContainsString('ALG101', $vol);
+        // Module sub-block.
+        $this->assertStringContainsString('module:', $vol);
+        $this->assertStringContainsString('cmid: ' . (int)$cm->cmid, $vol);
+        $this->assertStringContainsString('modname: "booking"', $vol);
+        $this->assertStringContainsString('instance_id: ' . (int)$cm->id, $vol);
+    }
+
+    /**
+     * The dashboard/admin (system) context has no course: the block must render gracefully — a
+     * System-level moodle_context with NO course/module sub-block — and never throw. Previously untested.
+     */
+    public function test_system_context_has_no_course_block_and_does_not_crash(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $ctxid = (int)context_system::instance()->id;
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+
+        $vol = $this->builder($store)->build($threadid, $ctxid, orchestrator::PHASE_SELECTION)['volatile'];
+
+        $this->assertStringContainsString('moodle_context:', $vol);
+        $this->assertStringContainsString('context_level: "System"', $vol);
+        // A system context resolves to no course, so neither sub-block is emitted.
+        $this->assertStringNotContainsString('course:', $vol);
+        $this->assertStringNotContainsString('module:', $vol);
+    }
+
+    /**
+     * Regression guard for the benchmark harness (benchmark_run_service): it once passed the raw cmid
+     * where the orchestrator expects a CONTEXT id (context::instance_by_id). The two are different
+     * integers, and only the resolved context id grounds the agent in its course — feeding the bare cmid
+     * lands the agent in an unrelated/absent context (that is how the "context_level: User" benchmark
+     * prompts arose). This pins the distinction so a re-introduction fails fast.
+     */
+    public function test_benchmark_cmid_must_be_resolved_to_a_context_id(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Algebra 101']);
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
+        $cm = $this->getDataGenerator()->create_module('booking', [
+            'course' => $course->id,
+            'name'   => 'Sprechstunde',
+        ]);
+        $cmid  = (int)$cm->cmid;
+        $ctxid = (int)context_module::instance($cmid)->id;
+
+        // The crux of the bug: a course_modules id and its context id are distinct integers.
+        $this->assertNotSame($cmid, $ctxid, 'cmid and its module context id must differ');
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+        $builder  = $this->builder($store);
+
+        // Correct wiring (resolved context id): Module level + real course grounding.
+        $correct = $builder->build($threadid, $ctxid, orchestrator::PHASE_SELECTION)['volatile'];
+        $this->assertStringContainsString('context_level: "Module"', $correct);
+        $this->assertStringContainsString('Algebra 101', $correct);
+
+        // The bug (bare cmid used as a context id): rendered gracefully (no throw) but WITHOUT the
+        // course grounding — the agent never sees "Algebra 101".
+        $buggy = $builder->build($threadid, $cmid, orchestrator::PHASE_SELECTION)['volatile'];
+        $this->assertStringNotContainsString('Algebra 101', $buggy);
     }
 }

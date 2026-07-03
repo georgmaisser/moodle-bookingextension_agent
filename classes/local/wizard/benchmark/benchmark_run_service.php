@@ -179,7 +179,10 @@ class benchmark_run_service {
                     }
                     $store->add_message($threadid, 'user', $scenario->get_user_message());
 
-                    $orc->process($threadid, $benchcmid, $benchuserid);
+                    // The orchestrator's 2nd param is a CONTEXT id (it does context::instance_by_id on
+                    // it), not a cmid — pass the module context id we resolved above, so scenarios run
+                    // with real course grounding (else the agent lands in an unrelated context id=cmid).
+                    $orc->process($threadid, $contextid, $benchuserid);
 
                     $logrow = $DB->get_record_sql(
                         "SELECT requesttext, responsetext FROM {bx_agent_ai_llm_debug}
