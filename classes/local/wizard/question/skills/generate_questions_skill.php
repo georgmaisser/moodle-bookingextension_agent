@@ -22,6 +22,8 @@ use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wizard\services\attachment\pdf_text_extractor;
+use bookingextension_agent\local\wizard\services\questions\course_pdf_resolver;
 use bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver;
 use bookingextension_agent\local\wizard\services\questions\question_generation_service;
 use bookingextension_agent\local\wizard\services\questions\question_import_service;
@@ -33,10 +35,12 @@ use moodle_url;
 /**
  * Core skill: generate Moodle questions (question.generate_questions).
  *
- * Takes its source text either from the `content` input the user provided directly in the chat, or
- * from the most recent uploaded document (injected into the conversation as a "--- DOCUMENT --" block);
- * a document upload is optional. Asks the model to write the questions as GIFT and imports them into the
- * course's question bank (a mod_qbank activity, created if needed). If an import fails, the import errors
+ * Takes its source text from the `content` input the user provided directly in the chat, from PDF
+ * files that live IN the target course as resource activities (`resourcecmid`/`usecoursepdfs`, read
+ * server-side via course_pdf_resolver — no re-upload needed), or from the most recent uploaded
+ * document (injected into the conversation as a "--- DOCUMENT --" block); a document upload is
+ * optional. Asks the model to write the questions as GIFT and imports them into the course's
+ * question bank (a mod_qbank activity, created if needed). If an import fails, the import errors
  * are fed back to the model and generation is retried.
  *
  * @package    bookingextension_agent
@@ -106,11 +110,43 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             preview_support::str('previewlabel_difficulty', $lang),
             preview_support::text($input['difficulty'] ?? null)
         );
+        preview_support::push(
+            $rows,
+            preview_support::str('previewlabel_sourcepdfs', $lang),
+            $this->describe_pdf_source($input, $lang)
+        );
         return [
             'title' => preview_support::str('previewtitle_generatequestions', $lang),
             'summary' => '',
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * Preview value for the course-PDF source, or null when the input does not use one.
+     *
+     * @param array $input Raw command input.
+     * @param string $lang Conversation language.
+     * @return string|null
+     */
+    private function describe_pdf_source(array $input, string $lang): ?string {
+        $resourcecmid = (int)($input['resourcecmid'] ?? 0);
+        if ($resourcecmid > 0) {
+            try {
+                $cm = get_coursemodule_from_id('resource', $resourcecmid);
+                if ($cm) {
+                    return format_string($cm->name);
+                }
+            } catch (\Throwable $e) {
+                // Fall through to the generic label; the preview must never throw.
+                $cm = null;
+            }
+            return 'cmid ' . $resourcecmid;
+        }
+        if (preview_support::truthy($input['usecoursepdfs'] ?? null)) {
+            return preview_support::str('ai_generatequestions_previewallcoursepdfs', $lang);
+        }
+        return null;
     }
 
     /**
@@ -151,16 +187,21 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         return [
             'version' => 1,
             'description' => 'Generate Moodle quiz/test questions (multiple choice, true/false, short answer) and '
-                . 'save them into the course question bank. The questions can be based EITHER on a document/PDF the '
-                . 'user uploaded OR on a topic, facts, or an explicit question and answer the user provides directly '
-                . 'in the chat — an upload is NOT required. Use this whenever the user wants a question, quiz or test '
-                . 'created or inserted into Moodle (e.g. "make me a question", "create a question", '
-                . '"create a quiz", "create questions from the document", "insert a question in Moodle").',
+                . 'save them into the course question bank. The questions can be based on a document/PDF the '
+                . 'user uploaded, on the PDF files already stored IN the target course as resource activities '
+                . '(set usecoursepdfs, or resourcecmid for one specific file — the system reads them itself, no '
+                . 're-upload needed), OR on a topic, facts, or an explicit question and answer the user provides '
+                . 'directly in the chat — an upload is NOT required. Use this whenever the user wants a question, '
+                . 'quiz or test created or inserted into Moodle (e.g. "make me a question", "create a question", '
+                . '"create a quiz", "create questions from the document", "create a quiz from the PDFs in the '
+                . 'course", "insert a question in Moodle").',
             'readonly' => false,
             'example_utterances' => [
                 'create quiz questions from this PDF',
                 'make me a multiple choice question about photosynthesis',
                 'generate 10 test questions from the document',
+                'create a quiz from the PDFs in the course',
+                'make questions from the handout file in course Biology 101',
                 'add some questions to the question bank',
                 'turn this material into a quiz',
             ],
@@ -223,6 +264,22 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                         . 'course; never guess an id.',
                     'required' => false,
                 ],
+                'resourcecmid' => [
+                    'type' => 'integer',
+                    'description' => 'Course-module id (cmid) of ONE specific file/resource activity in the target '
+                        . 'course whose PDF should be the source material, when the user points at one specific '
+                        . 'course file AND the id is already known (e.g. from a prior listing). Never guess an id; '
+                        . 'leave empty otherwise.',
+                    'required' => false,
+                ],
+                'usecoursepdfs' => [
+                    'type' => 'boolean',
+                    'description' => 'Set true when the questions should be based on the PDF files stored IN the '
+                        . 'target course (as file/resource activities), e.g. "create a quiz from the PDFs in this '
+                        . 'course". The system reads and extracts those files itself — do NOT ask the user to upload '
+                        . 'them again. Combine with courseid/coursequery when the user names another course.',
+                    'required' => false,
+                ],
             ],
             'prompt_meta' => [
                 'input_fields_for_prompt' => ['content', 'count', 'qtypes', 'difficulty'],
@@ -255,9 +312,10 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             [
                 'id' => 'question.generate_questions_request',
                 'description' => 'User wants a Moodle quiz/test question (a question, quiz or test) generated or '
-                    . 'inserted into Moodle — based on an uploaded document/PDF OR on content the user provides '
-                    . 'directly (e.g. "make me a question", "create a question", '
-                    . '"create 10 questions from this PDF", "insert a question into Moodle").',
+                    . 'inserted into Moodle — based on an uploaded document/PDF, on the PDF files stored in a '
+                    . 'course, OR on content the user provides directly (e.g. "make me a question", '
+                    . '"create a question", "create 10 questions from this PDF", '
+                    . '"create a quiz from the PDFs in the course", "insert a question into Moodle").',
             ],
         ];
     }
@@ -279,6 +337,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     'questions from pdf', 'questions from document', 'insert question in moodle',
                     'make me a question', 'create a question', 'generate question',
                     'create quiz', 'create test', 'questions from the document', 'insert question into moodle',
+                    'quiz from the pdfs in the course', 'questions from the files in the course',
+                    'quiz about the pdfs in course',
                 ],
                 'guidance' => [
                     '- question.generate_questions creates Moodle quiz questions and saves them into the course question'
@@ -286,7 +346,13 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     '- A document/PDF upload is OPTIONAL. If the user states the topic, facts, or an explicit question'
                         . ' and correct answer in the chat, pass that text verbatim as input.content and proceed; do'
                         . ' NOT ask the user to upload a document.',
-                    '- Only ask the user for a source if NEITHER a document was uploaded NOR any content was provided.',
+                    '- When the user wants the questions based on PDFs/files that are already IN the course (e.g. "a'
+                        . ' quiz about the PDFs in this course"), set input.usecoursepdfs=true (or input.resourcecmid'
+                        . ' for one specific file whose cmid is known). The system reads and extracts those course'
+                        . ' files itself — do NOT ask the user to upload them and do NOT paste file text into'
+                        . ' input.content.',
+                    '- Only ask the user for a source if NEITHER a document was uploaded NOR course PDFs were requested'
+                        . ' NOR any content was provided.',
                     '- Default to a single multiple-choice question unless the user asks otherwise; set input.count and'
                         . ' input.qtypes accordingly (allowed types: multichoice, truefalse, shortanswer).',
                     '- Do NOT ask the user which question bank or category to use, and never invent a category id. Leave'
@@ -338,16 +404,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @return array
      */
     protected function run_preflight(array $input, int $contextid, int $userid): array {
-        $sourcetext = $this->resolve_source_text($input, $contextid, $userid);
-        if ($sourcetext === null) {
-            return $this->invalid([[
-                'severity' => 'needs_clarification',
-                'message' => 'I need something to base the questions on. Either upload a document/PDF, or tell me '
-                    . 'the topic, the facts, or the exact question and its correct answer.',
-                'code' => 'GENERATE_QUESTIONS_NO_SOURCE',
-            ]]);
-        }
-
+        // The course context comes first: the course-PDF source paths need the target course id.
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
@@ -355,6 +412,20 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 'severity' => 'needs_clarification',
                 'message' => 'Questions can only be generated within a course.',
                 'code' => 'GENERATE_QUESTIONS_NO_COURSE',
+            ]]);
+        }
+
+        $source = $this->resolve_source($input, $contextid, $userid, (int)$coursecontext->instanceid);
+        if (!empty($source['issues'])) {
+            return $this->invalid($source['issues']);
+        }
+        $sourcetext = $source['text'];
+        if ($sourcetext === null) {
+            return $this->invalid([[
+                'severity' => 'needs_clarification',
+                'message' => 'I need something to base the questions on. Either upload a document/PDF, or tell me '
+                    . 'the topic, the facts, or the exact question and its correct answer.',
+                'code' => 'GENERATE_QUESTIONS_NO_SOURCE',
             ]]);
         }
 
@@ -379,6 +450,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
 
         return $this->pass([
             'sourcetext' => $sourcetext,
+            'sourcefiles' => $source['files'],
+            'sourcetruncated' => $source['truncated'],
             'count' => max(1, min(question_generation_service::MAX_COUNT, (int)($input['count'] ?? self::DEFAULT_COUNT))),
             'qtypes' => $qtypes,
             'difficulty' => (string)($input['difficulty'] ?? 'medium'),
@@ -600,7 +673,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     (int)$target['cm']->id,
                     (string)$target['cm']->get_formatted_name(),
                     (int)$target['context']->id,
-                    $attempt
+                    $attempt,
+                    (array)($preparedinput['sourcefiles'] ?? []),
+                    !empty($preparedinput['sourcetruncated'])
                 );
             }
 
@@ -615,20 +690,141 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     }
 
     /**
-     * Resolve the text the questions are generated from: the content the user passed directly takes
-     * precedence, otherwise the most recent uploaded-document block in the conversation is used.
+     * Resolve the text the questions are generated from.
+     *
+     * Priority: explicit `content` from the chat > PDFs stored in the target course
+     * (resourcecmid for one specific resource, usecoursepdfs for all visible ones) > the most
+     * recent uploaded-document block in the conversation.
      *
      * @param array $input
      * @param int   $contextid
      * @param int   $userid
-     * @return string|null
+     * @param int   $courseid Target course id (already resolved from the operating context).
+     * @return array text (string|null), files (array of cmid/name/filename per used course PDF),
+     *               truncated (bool), issues (array, non-empty when the course-PDF source failed).
      */
-    private function resolve_source_text(array $input, int $contextid, int $userid): ?string {
+    private function resolve_source(array $input, int $contextid, int $userid, int $courseid): array {
+        $none = ['text' => null, 'files' => [], 'truncated' => false, 'issues' => []];
+
         $content = trim((string)($input['content'] ?? ''));
         if ($content !== '') {
-            return $content;
+            return ['text' => $content] + $none;
         }
-        return $this->extract_document_text($contextid, $userid);
+
+        $resourcecmid = (int)($input['resourcecmid'] ?? 0);
+        if ($resourcecmid > 0 || preview_support::truthy($input['usecoursepdfs'] ?? null)) {
+            return $this->resolve_course_pdf_source($resourcecmid, $courseid, $userid, $this->get_output_language($input));
+        }
+
+        return ['text' => $this->extract_document_text($contextid, $userid)] + $none;
+    }
+
+    /**
+     * Source the text from PDFs that live in the target course as resource activities.
+     *
+     * The files are read server-side (never through the LLM) for the ACTING user only —
+     * course_pdf_resolver lists nothing the user cannot see. Every failure is returned as a
+     * localized needs_clarification issue, never as a raw exception.
+     *
+     * @param int    $resourcecmid One specific resource cm id, or 0 for all visible course PDFs.
+     * @param int    $courseid Target course id.
+     * @param int    $userid Acting user id.
+     * @param string $lang Conversation output language.
+     * @return array Same shape as resolve_source().
+     */
+    private function resolve_course_pdf_source(int $resourcecmid, int $courseid, int $userid, string $lang): array {
+        $issue = function (string $identifier, $a, string $code) use ($lang): array {
+            return ['text' => null, 'files' => [], 'truncated' => false, 'issues' => [[
+                'severity' => 'needs_clarification',
+                'message' => $this->localized_string($identifier, $a, $lang),
+                'code' => $code,
+            ]]];
+        };
+
+        if (!(new pdf_text_extractor())->is_available()) {
+            return $issue('ai_pdf_extraction_unavailable', null, 'GENERATE_QUESTIONS_EXTRACTOR_UNAVAILABLE');
+        }
+
+        $resolver = new course_pdf_resolver();
+        if ($resourcecmid > 0) {
+            $lookup = $resolver->get_resource_pdf($courseid, $resourcecmid, $userid);
+            switch ($lookup['status']) {
+                case course_pdf_resolver::STATUS_NOT_FOUND:
+                    return $issue(
+                        'ai_generatequestions_resourcenotfound',
+                        $resourcecmid,
+                        'GENERATE_QUESTIONS_RESOURCE_NOT_FOUND'
+                    );
+                case course_pdf_resolver::STATUS_NO_PDF:
+                    return $issue(
+                        'ai_generatequestions_resourcenopdf',
+                        $lookup['name'],
+                        'GENERATE_QUESTIONS_RESOURCE_NO_PDF'
+                    );
+                case course_pdf_resolver::STATUS_TOO_LARGE:
+                    return $issue(
+                        'ai_generatequestions_pdftoolarge',
+                        (object)[
+                            'name' => $lookup['name'],
+                            'limitmb' => (int)(course_pdf_resolver::MAX_FILE_BYTES / (1024 * 1024)),
+                        ],
+                        'GENERATE_QUESTIONS_PDF_TOO_LARGE'
+                    );
+            }
+            $pdfs = [$lookup['pdf']];
+        } else {
+            $pdfs = $resolver->list_course_pdfs($courseid, $userid);
+            if (empty($pdfs)) {
+                return $issue(
+                    'ai_generatequestions_nopdfsincourse',
+                    $this->course_display_name($courseid),
+                    'GENERATE_QUESTIONS_NO_COURSE_PDFS'
+                );
+            }
+        }
+
+        try {
+            $extracted = $resolver->extract_texts($pdfs, self::effective_pdf_budget());
+        } catch (\Throwable $e) {
+            return $issue('ai_pdf_extraction_unavailable', null, 'GENERATE_QUESTIONS_EXTRACTOR_UNAVAILABLE');
+        }
+        if (trim($extracted['text']) === '') {
+            return $issue('ai_generatequestions_extractionfailed', null, 'GENERATE_QUESTIONS_EXTRACTION_FAILED');
+        }
+
+        return [
+            'text' => $extracted['text'],
+            'files' => $extracted['used'],
+            'truncated' => (bool)$extracted['truncated'],
+            'issues' => [],
+        ];
+    }
+
+    /**
+     * The effective character cap for course-PDF source text before the LLM call.
+     *
+     * The chat-upload path already caps the injected document text at pdf_text_extractor::MAX_CHARS
+     * (applied by attachment_processor at upload time), so the course-PDF path reuses exactly that
+     * existing cap as its total extraction budget instead of inventing a new one.
+     *
+     * @return int
+     */
+    private static function effective_pdf_budget(): int {
+        return min(course_pdf_resolver::DEFAULT_TOTAL_BUDGET, pdf_text_extractor::MAX_CHARS);
+    }
+
+    /**
+     * The formatted course full name, or '#<id>' when the course cannot be read.
+     *
+     * @param int $courseid
+     * @return string
+     */
+    private function course_display_name(int $courseid): string {
+        try {
+            return format_string(get_course($courseid)->fullname);
+        } catch (\Throwable $e) {
+            return '#' . $courseid;
+        }
     }
 
     /**
@@ -682,6 +878,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @param string $bankname
      * @param int    $bankcontextid Context id of the question bank module (used by the inline preview).
      * @param int    $attempts
+     * @param array  $sourcefiles Course PDFs the source text came from (cmid/name/filename each).
+     * @param bool   $sourcetruncated Whether the assembled PDF text hit the extraction budget.
      * @return array
      */
     private function build_success_result(
@@ -690,16 +888,41 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         int $cmid,
         string $bankname,
         int $bankcontextid,
-        int $attempts
+        int $attempts,
+        array $sourcefiles = [],
+        bool $sourcetruncated = false
     ): array {
         $bankurl = (new moodle_url('/question/edit.php', ['cmid' => $cmid]))->out(false);
         $message = $imported . ' question(s) were created in the course question bank "' . $bankname . '".';
 
-        $observation = implode("\n", [
+        $lines = [
             'Created ' . $imported . ' question(s) in question bank "' . $bankname . '" (after ' . $attempts . ' attempt(s)).',
             'Question ids: ' . implode(', ', $questionids),
             'Question bank: ' . $bankurl,
-        ]);
+        ];
+
+        // Name the course PDFs the questions are based on — each with the real resource link, so
+        // the final answer can reference them as clickable entities.
+        if (!empty($sourcefiles)) {
+            $lines[] = get_string('ai_generatequestions_sourcepdfsheading', 'bookingextension_agent');
+            foreach ($sourcefiles as $sourcefile) {
+                $resourceurl = (new moodle_url(
+                    '/mod/resource/view.php',
+                    ['id' => (int)($sourcefile['cmid'] ?? 0)]
+                ))->out(false);
+                $lines[] = '- ' . (string)($sourcefile['filename'] ?? '')
+                    . ' ("' . (string)($sourcefile['name'] ?? '') . '"): ' . $resourceurl;
+            }
+            if ($sourcetruncated) {
+                $lines[] = get_string(
+                    'ai_generatequestions_sourcetruncated',
+                    'bookingextension_agent',
+                    number_format(self::effective_pdf_budget())
+                );
+            }
+        }
+
+        $observation = implode("\n", $lines);
 
         return [
             'status' => 'executed',

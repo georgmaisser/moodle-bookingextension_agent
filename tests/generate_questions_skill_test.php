@@ -20,6 +20,7 @@ use advanced_testcase;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\question\skills\generate_questions_skill;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\services\attachment\pdf_text_extractor;
 
 /**
  * Contract tests for the generate_questions core skill (deterministic parts).
@@ -345,5 +346,221 @@ final class generate_questions_skill_test extends advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
         $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
         return [(int)\context_module::instance($page->cmid)->id, (int)$USER->id];
+    }
+
+    /**
+     * Skip when no PDF extraction method (pdftotext or bundled parser) is available.
+     *
+     * @return void
+     */
+    private function require_extractor(): void {
+        if (!(new pdf_text_extractor())->is_available()) {
+            $this->markTestSkipped('no PDF extractor available');
+        }
+    }
+
+    /**
+     * Build a minimal, valid single-page PDF containing $text (plain ASCII, no ()\ characters);
+     * xref offsets computed dynamically so it parses with pdftotext AND the bundled parser.
+     *
+     * @param string $text
+     * @return string PDF bytes.
+     */
+    private function make_pdf(string $text): string {
+        $stream = 'BT /F1 12 Tf 72 720 Td (' . $text . ') Tj ET';
+        $objects = [
+            1 => "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+            2 => "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+            3 => "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R"
+                . " /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+            4 => "4 0 obj\n<< /Length " . strlen($stream) . " >>\nstream\n" . $stream . "\nendstream\nendobj\n",
+            5 => "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+        ];
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objects as $num => $body) {
+            $offsets[$num] = strlen($pdf);
+            $pdf .= $body;
+        }
+        $xrefpos = strlen($pdf);
+        $pdf .= "xref\n0 6\n0000000000 65535 f \n";
+        for ($i = 1; $i <= 5; $i++) {
+            $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
+        }
+        $pdf .= "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" . $xrefpos . "\n%%EOF";
+        return $pdf;
+    }
+
+    /**
+     * Create a File resource in the course whose content file has the given name and bytes.
+     *
+     * @param int $courseid
+     * @param string $name Activity name.
+     * @param string $filename E.g. 'handout.pdf'.
+     * @param string $filecontent Raw file bytes.
+     * @return \stdClass The resource instance record (with cmid).
+     */
+    private function create_resource_with_file(int $courseid, string $name, string $filename, string $filecontent): \stdClass {
+        global $USER;
+        $draftid = file_get_unused_draft_itemid();
+        get_file_storage()->create_file_from_string([
+            'component' => 'user',
+            'filearea' => 'draft',
+            'contextid' => \context_user::instance($USER->id)->id,
+            'itemid' => $draftid,
+            'filepath' => '/',
+            'filename' => $filename,
+        ], $filecontent);
+        return $this->getDataGenerator()->create_module('resource', [
+            'course' => $courseid,
+            'name' => $name,
+            'intro' => 'Intro.',
+            'introformat' => FORMAT_HTML,
+            'files' => $draftid,
+        ]);
+    }
+
+    /**
+     * usecoursepdfs sources the text from the course's PDF resources and WINS over an uploaded
+     * conversation document; the used files (with cmid) are threaded into the prepared input.
+     */
+    public function test_preflight_course_pdfs_beat_conversation_document(): void {
+        $this->resetAfterTest();
+        $this->require_extractor();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $resource = $this->create_resource_with_file(
+            (int)$course->id,
+            'Handout',
+            'handout.pdf',
+            $this->make_pdf('Quantum gearbox maintenance basics')
+        );
+
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $result = (new generate_questions_skill())->preflight(['usecoursepdfs' => true], $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status']);
+        $sourcetext = (string)$result->preparedinput['sourcetext'];
+        $this->assertStringContainsString('--- DOCUMENT: handout.pdf ---', $sourcetext);
+        $this->assertStringContainsString('Quantum gearbox maintenance basics', $sourcetext);
+        // The chat-uploaded document loses against the explicit course-PDF source.
+        $this->assertStringNotContainsString('Mitochondria', $sourcetext);
+        $this->assertSame([(int)$resource->cmid], array_column($result->preparedinput['sourcefiles'], 'cmid'));
+        $this->assertSame(['handout.pdf'], array_column($result->preparedinput['sourcefiles'], 'filename'));
+    }
+
+    /**
+     * Explicit inline content still WINS over the course-PDF source (highest priority).
+     */
+    public function test_preflight_content_beats_course_pdfs(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $this->create_resource_with_file((int)$course->id, 'Handout', 'handout.pdf', $this->make_pdf('Gearbox'));
+
+        $input = ['content' => 'The capital of France is Paris.', 'usecoursepdfs' => true];
+        $result = (new generate_questions_skill())->preflight($input, $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status']);
+        $this->assertSame('The capital of France is Paris.', (string)$result->preparedinput['sourcetext']);
+        $this->assertSame([], $result->preparedinput['sourcefiles']);
+    }
+
+    /**
+     * resourcecmid picks exactly ONE course PDF, even when others exist.
+     */
+    public function test_preflight_resourcecmid_selects_specific_pdf(): void {
+        $this->resetAfterTest();
+        $this->require_extractor();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $this->create_resource_with_file((int)$course->id, 'Alpha', 'alpha.pdf', $this->make_pdf('Alpha wolf pack basics'));
+        $beta = $this->create_resource_with_file((int)$course->id, 'Beta', 'beta.pdf', $this->make_pdf('Beta decay physics'));
+
+        $result = (new generate_questions_skill())
+            ->preflight(['resourcecmid' => (int)$beta->cmid], $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status']);
+        $sourcetext = (string)$result->preparedinput['sourcetext'];
+        $this->assertStringContainsString('Beta decay physics', $sourcetext);
+        $this->assertStringNotContainsString('Alpha wolf pack basics', $sourcetext);
+        $this->assertSame([(int)$beta->cmid], array_column($result->preparedinput['sourcefiles'], 'cmid'));
+    }
+
+    /**
+     * usecoursepdfs in a course without any (visible) PDF resource blocks with the localized
+     * "no PDFs found" message instead of a raw exception.
+     */
+    public function test_preflight_usecoursepdfs_without_pdfs_blocks(): void {
+        $this->resetAfterTest();
+        $this->require_extractor();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+
+        $result = (new generate_questions_skill())->preflight(['usecoursepdfs' => true], $contextid, (int)$USER->id);
+
+        $this->assertSame('hard_block', $result->to_array()['status']);
+        $this->assertContains('GENERATE_QUESTIONS_NO_COURSE_PDFS', $result->to_array()['issue_codes']);
+        $this->assertSame(
+            get_string('ai_generatequestions_nopdfsincourse', 'bookingextension_agent', format_string($course->fullname)),
+            $result->issues[0]['message']
+        );
+    }
+
+    /**
+     * A resourcecmid pointing at a non-PDF resource blocks with the localized "no PDF" message.
+     */
+    public function test_preflight_resource_without_pdf_blocks(): void {
+        $this->resetAfterTest();
+        $this->require_extractor();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $txt = $this->create_resource_with_file((int)$course->id, 'Notes', 'notes.txt', 'plain text, no pdf');
+
+        $result = (new generate_questions_skill())
+            ->preflight(['resourcecmid' => (int)$txt->cmid], $contextid, (int)$USER->id);
+
+        $this->assertSame('hard_block', $result->to_array()['status']);
+        $this->assertContains('GENERATE_QUESTIONS_RESOURCE_NO_PDF', $result->to_array()['issue_codes']);
+        $this->assertSame(
+            get_string('ai_generatequestions_resourcenopdf', 'bookingextension_agent', 'Notes'),
+            $result->issues[0]['message']
+        );
+    }
+
+    /**
+     * A resourcecmid that does not exist in the target course blocks with the localized
+     * "not found" message.
+     */
+    public function test_preflight_resourcecmid_not_found_blocks(): void {
+        $this->resetAfterTest();
+        $this->require_extractor();
+        $this->setAdminUser();
+        global $USER;
+
+        [$contextid] = $this->make_run_context_with_course();
+
+        $result = (new generate_questions_skill())
+            ->preflight(['resourcecmid' => 99999999], $contextid, (int)$USER->id);
+
+        $this->assertSame('hard_block', $result->to_array()['status']);
+        $this->assertContains('GENERATE_QUESTIONS_RESOURCE_NOT_FOUND', $result->to_array()['issue_codes']);
+        $this->assertSame(
+            get_string('ai_generatequestions_resourcenotfound', 'bookingextension_agent', 99999999),
+            $result->issues[0]['message']
+        );
     }
 }
