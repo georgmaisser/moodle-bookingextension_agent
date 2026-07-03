@@ -107,6 +107,19 @@ $aisettingspage->add(
     )
 );
 
+// Hard cap on the character length of a single user message. Messages longer than this are rejected
+// immediately at the entry point (before any provider/token spend). Keeps the agent public-facing but
+// bounded. Generous by default; can be lowered (e.g. 100) for very tight abuse control.
+$aisettingspage->add(
+    new admin_setting_configtext(
+        'bookingextension_agent/maxinputlength',
+        get_string('maxinputlength', 'bookingextension_agent'),
+        get_string('maxinputlength_desc', 'bookingextension_agent'),
+        2000,
+        PARAM_INT
+    )
+);
+
 // The trial/LiteLLM service base URL is hard-coded in trial_provisioner
 // (https://llm.wunderbyte.at) and intentionally NOT exposed as an admin setting.
 

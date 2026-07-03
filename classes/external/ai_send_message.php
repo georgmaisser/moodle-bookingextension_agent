@@ -178,6 +178,34 @@ class ai_send_message extends external_api {
             ];
         }
 
+        // Hard input-length guard: reject over-long messages immediately, before any provider/token spend
+        // or thread creation. Counts the raw message (multibyte-safe) prior to attachment augmentation.
+        $maxinputlength = (int)get_config('bookingextension_agent', 'maxinputlength');
+        if ($maxinputlength <= 0) {
+            $maxinputlength = 2000;
+        }
+        if (\core_text::strlen($message) > $maxinputlength) {
+            $toolongmsg = get_string('ai_input_too_long', 'bookingextension_agent');
+            return [
+                'response_type'         => 'error',
+                'message'               => $toolongmsg,
+                'displaymessage'        => $toolongmsg,
+                'privacyapplied'        => 0,
+                'autoconfirm'           => 0,
+                'commands'              => '[]',
+                'ambiguities'           => '[]',
+                'ambiguityoptionsjson'  => '[]',
+                'errorsjson'            => '[]',
+                'issuecodesjson'        => '[]',
+                'phasetracejson'        => '[]',
+                'queueitemid'           => '',
+                'threadid'              => 0,
+                'runid'                 => 0,
+                'resultsjson'           => '[]',
+                'previewjson'           => '',
+            ];
+        }
+
         $registry = skill_registry::make_default();
         $store = new conversation_store();
         $orchestrator = new orchestrator($registry, new interpreter($registry), $store);
