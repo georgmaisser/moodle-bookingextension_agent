@@ -1,10 +1,7 @@
 # Skills catalog
 
 > **Scope.** Every skill the agent ships with: what it does, its risk class, and its key
-> parameters. For *how to write* a skill see
-> [developer-guides/writing-a-skill.md](../developer-guides/writing-a-skill.md); for the
-> abstraction see [architecture/14-skill-layer.md](../architecture/14-skill-layer.md); for
-> what risk class means see [architecture/15-risk-classes.md](../architecture/15-risk-classes.md).
+> parameters.
 
 A **skill** is one capability the agent can invoke. The engine-provided skills are split by
 responsibility across four namespaces (all registered by
@@ -13,7 +10,7 @@ responsibility across four namespaces (all registered by
 
 - **`wizard.*`** — agent-specific engine skills (memory, doc-Q&A, skill discovery), in
   `classes/local/wizard/wizard/skills/`. This namespace is the engine's always-on discovery
-  baseline (see [discovery](../architecture/06-discovery-families-embeddings.md)).
+  baseline.
 - **`core.*`** — Moodle-core (user) skills, in `classes/local/wizard/core/skills/`. `core` is
   reserved here for genuine Moodle-core domain, matching its meaning in Moodle itself.
 - **`course.*`** — Moodle-course skills, in `classes/local/wizard/course/skills/`.
@@ -24,7 +21,7 @@ component, base class `booking_skill_base`).
 
 Every skill is gated at run time by its per-skill capability
 `bookingextension/agent:skill_<name>` and by the activation toggle
-`aiskillenabled_<name>` (see [governance](../operations/governance.md)).
+`aiskillenabled_<name>`.
 
 The abstract base class `core_skill_base` stays in `core/skills/` and is extended by all
 engine skills regardless of namespace.
@@ -111,8 +108,7 @@ Both are preview-capable (`get_result_preview`).
 | `mod_booking.book_users` | Book one or more users into an option via the standard bookit flow | `optionid`/`optionquery`, `bookusersquery`/`resolvedbookuserids`, `bookusersupdateexisting` |
 
 `book_users` is the only R3 booking skill: it changes other users' booking state, so it
-always requires manual confirmation and never auto-retries (see
-[architecture/15-risk-classes.md](../architecture/15-risk-classes.md)).
+always requires manual confirmation and never auto-retries.
 
 ---
 
@@ -123,13 +119,11 @@ always requires manual confirmation and never auto-retries (see
   `always_available` governance flag, `MANDATORY_SKILL_KEYWORDS` and `mandatory_on_trigger` /
   `intent_triggers` are all removed. If a skill is not retrieved, fix its anchors (utterances),
   never add a keyword. The single exception is `wizard.search_skills` (the RAG fallback), force-added
-  to the catalog by `discovery_phase_service::ensure_search_skills_fallback()` — see
-  [discovery](../architecture/06-discovery-families-embeddings.md).
+  to the catalog by `discovery_phase_service::ensure_search_skills_fallback()`.
 - **`override`** appears on most mutating booking skills: it is how the agent confirms past a
   soft block (e.g. a duplicate-title `DOMAIN_CONFLICT`).
 - **Option mutations** go through `mod_booking`'s `booking_option::update()` with form-style
-  params; the executor and skills stay free of option-write internals — see
-  [writing-a-skill.md](../developer-guides/writing-a-skill.md).
+  params; the executor and skills stay free of option-write internals.
 
 _(Skill names, risk classes, and inputs were read from the skill classes; verify a specific
 skill's full schema in its `get_schema()` before relying on an exact field name.)_

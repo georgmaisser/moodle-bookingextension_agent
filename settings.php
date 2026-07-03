@@ -120,6 +120,18 @@ $aisettingspage->add(
     )
 );
 
+// Optional on-topic guard: when enabled, the agent refuses requests unrelated to the tasks its
+// skills support, with a short polite message. Off by default (not every deployment wants it);
+// recommended for public-facing sites to bound abuse and cost.
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/restricttoscope',
+        get_string('restricttoscope', 'bookingextension_agent'),
+        get_string('restricttoscope_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
 // The trial/LiteLLM service base URL is hard-coded in trial_provisioner
 // (https://llm.wunderbyte.at) and intentionally NOT exposed as an admin setting.
 
