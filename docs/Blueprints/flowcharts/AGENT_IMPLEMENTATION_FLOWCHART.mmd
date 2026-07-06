@@ -1,0 +1,700 @@
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "12px"}}}%%
+flowchart TD
+
+    %% =========================================================
+    %% ENTRY LAYER
+    %% =========================================================
+    subgraph ENTRY["External API Layer (classes/external/)"]
+        ASM["ai_send_message::execute()\ncontextid · message · threadid · attachments[]"]
+        ASM_GATE{"Readiness Gate\n(Auth / Subsystem / Provider / Context)"}
+        ASM_FAIL["Return specific error JSON\n(e.g., error_ai_provider_inactive,\nerror_ai_course_disabled)"]
+        ASM_ATTACH["attachment_processor::augment_message()\nPDF → text (pdftotext ▸ bundled smalot/pdfparser fallback)\nimage → token hint · 15k char cap · no OCR"]
+        ASM_UPLOAD["ai_upload_attachment::execute()\nfinfo MIME whitelist · size cap\nattachment_token_service::create()"]
+        ACR["ai_confirm_run::execute()\ncontextid · threadid · queue_item_id · allow_session\nallow_session is capability-gated: without bookingextension/agent:confirmforsession\n(admin-only by default, empty archetypes) the flag is silently ignored →\nclick degrades to a one-time confirm; aiready hides the session button (can_confirm_session)"]
+        ACD["ai_discard_pending::execute()\ncontextid · threadid"]
+        APO["ai_poll_thread::execute()\nde-anonymizes step-bubble content for display\n(deanonymize_message_for_display — fail-closed, same as the final message)"]
+        APREVIEW["command preview (three skill-described, engine-agnostic sources)\nNO standalone web service · returned as previewjson on ai_send_message / ai_confirm_run\nA) EXECUTED results → preview_passthrough (forwards each skill's get_result_preview block)\nB) PROPOSED commands (confirmation_request, nothing executed yet) → proposed_action_preview\n   builds previewjson ONLY when A is empty + response_type==confirmation_request\n   asks each skill describe_proposed_action(input) → {title, summary, rows:[{label,value}]}\n   engine never inspects params (stays skill-agnostic); descriptor type 'proposed_action'\nC) PREFLIGHT CLARIFICATION → a needs_clarification issue may carry a skill 'preview' block\n   (same self-contained shape as A: {type, html?, js?, js_module?, payload?})\n   handoff via thread metadata '_clarification_preview' (stash in handle_preflight,\n   consume-once at BOTH endpoints: always cleared, attached only when the turn ends as\n   'clarification' + A/B empty + stash fresh ≤300s) — a preflight fail never reaches the\n   executor and the result dict is rebuilt downstream, hence metadata instead of a result key\nSKILL CONTRACT (base_skill::describe_proposed_action — default for ALL skills):\n  tier1/2 GENERIC default: surfaces ONLY schema-declared fields, label = schema 'label'||humanized key,\n  value formatted by declared type, drops framework-internal (outputlang) / empty / falsy entries\n  tier3: a skill OVERRIDES the method to collapse/relabel fields + add a one-line summary\n  (framework is tier-3 capable; per-skill overrides not yet written)\nCLIENT: 'proposed_action' renderer lays out title/summary/rows; raw 'command_list' JSON dump\n  is now FALLBACK ONLY (used by showConfirmPanel when no server previewjson is present)\nCLIENT renders previewjson for EVERY response_type incl. clarification (dispatchSkillPreview)"]
+    end
+
+    %% =========================================================
+    %% AUTH + STORE
+    %% =========================================================
+    subgraph AUTHZ["authorization_service"]
+        AZ_READY["check_use_readiness(userid, contextid) — GRACEFUL, never throws\nreturns null when ready, else {code, message}\ncodes: agent_unavailable | context_invalid | permission_denied\nagent_unavailable = plugin not installed / mid-upgrade\n(DISTINCT from no-permission; was previously a misleading\nrequired_capability_exception 'Use the AI agent')\nEVERY webservice entry point calls this FIRST and returns a\nstructured error in its own shape — never a raw exception\nuse capability: agent:useaiinstructions (editingteacher + manager)\nglobal navbar wand VISIBILITY gated separately by agent:seemagicwand\n(manager-only; checked in the page_injection hook, NOT this WS gate)"]
+        AZ1["require_use_capability(userid, contextid)\nTHROWS required_capability_exception\n(internal executor/worker use only — NOT the WS entry gate)"]
+        AZ2["require_valid_context(contextid)\nlevels: MODULE / COURSE / COURSECAT / USER / SYSTEM\n(USER = dashboard, navbar entry point)"]
+        AZ3["is_agent_extension_installed()\n= is_installed_and_upgraded(); false during a pending upgrade\n→ surfaced as agent_unavailable via check_use_readiness"]
+        AZ4["availability layer (no permission!)\ncourse/cm enableaitools toggles\nSKIPPED for holders of agent:ignoreaiavailability\n(admins implicit, manager default)\nenforced centrally in get_runtime_provider_status\n→ aiready + ai_send_message + activate_trial_context"]
+    end
+
+    subgraph CSTORE["conversation_store (DB-backed)"]
+        CS1["get_or_create_thread(userid, contextid)"]
+        CS2["add_message(threadid, role, text, meta)"]
+        CS3["get_recent_messages(threadid, limit)"]
+        CS4["get_run(runid) / create_run()"]
+        CS5["get_pending_intent(threadid)"]
+        CS6["set_pending_intent(threadid, intent)"]
+        CS7["get_thread_metadata_value(key)"]
+        CS8["set_thread_metadata_value(key, value)"]
+        CS9["clear_step_messages(threadid)"]
+        CS10["run_exists_other_than(idem_key, runid)"]
+        CS11["allow_confirmation_for_session(userid, contextid)\nscope: user + Moodle context"]
+        CS12["is_confirmation_allowed_for_session(userid, contextid)\n(entry caller uses the is_confirmation_allowed_for_thread\nwrapper, which ignores threadid and delegates here)"]
+        CS13["consume_pending_intent(threadid, userid, contextid)"]
+        CS14["(turn language is NOT persisted as store metadata)\nthe selector emits user_lang each turn (OR_LANG);\nlanguage_policy_service resolves it for framework replies (LANG);\nthe synchronizer reply follows the latest user message (SYNC_LANG)"]
+        CS15["set/get next_step_intent metadata\n(key: 'next_step_intent')\nwritten after each planner result\nread at discovery phase start\n+ phase_trace_loop_history (per-loop-step trace,\ncapped at MAX_LOOP_STEPS) written by agent_runtime\nalongside canonical phase_trace / planner_trace_history"]
+        CS16["add_step_message(threadid, stepnum, label, skill)"]
+    end
+
+    %% =========================================================
+    %% AGENT RUNTIME
+    %% =========================================================
+    subgraph RUNTIME["agent_runtime — Agent Loop Coordinator"]
+        RUN["run(threadid, contextid, userid)\ncontext entry"]
+        RUNLOOP["run_loop(threadid, contextid, userid, maxsteps=0)\nMAX_LOOP_STEPS = 6"]
+        LOOP_INIT["agent_state::make(limit)"]
+        LOOP_STEP["for step = 0..limit-1\nstate.currentstep = step+1\n(step messages: clear_step_messages() runs ONCE\nin ai_send_message before the loop;\nadd_step_message(next_step_intent) runs in\norchestrator::process per turn — NOT here)"]
+        RUNINT["run_internal(threadid, contextid, userid, observations, state)\n→ normalized result"]
+        EXEC_GATE{"response_type == execution_result?"}
+        OBS_ACCUM["observation_builder + result_payload_summarizer\nprivacy_anonymizer::anonymize_value_for_llm()\nbuild_preflight_retry_observation() on RECOVERABLE_INPUT_ERROR\nstate.add_observation(observation)"]
+        ATTB["attempt_budget (global view)\ntracks: loop_step + preflight_retry\n+ queue_retry + execution_retry"]
+        BUDG_CHECK{"budget_guard_allows\n_next_llm_call(step, limit)?"}
+        BUDGX["build_budget_exceeded_result()\nissue_codes: BUDGET_EXCEEDED"]
+        LOOP_STOP["Planner loop stop:\nterminal planner result available"]
+        LOOP_RETRYABLE{"retryable planner\ncontract issue?"}
+        LOOP_COLLIDE{"active non-planner retry\nsignal present?"}
+        FW_RETRY_OBS["build_framework_retry_observation()\nappend RETRY_HINT observation for:\n- CONTRACT_PARSE_ERROR (parameter_construction JSON)\n- CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED (selector command shape)"]
+        ABANDON_GUARD["reclassify_abandoned_run_as_error\n(finalize_and_persist_result, after attach_loop_results)\nterminal 'sufficient' BUT >=1 result row status=='error' AND no successful row\n→ rewrite response_type='error' + carry the real last error message\n+ issue_code RUN_ABANDONED_ALL_STEPS_FAILED\n(answered-from-context / any-success runs stay 'sufficient')\n→ makes the ERROR-FAITHFULNESS GUARD apply instead of free composition"]
+        FCLASS["finalization_classifier\ninputs: response_type + has_commands\n+ issue_codes + error_class\n+ structural_failure flag"]
+        CONF_TERM["confirm terminalization gate\n(successful confirmed execution\n+ no next mutating queue item\n+ no planned placeholder items)"]
+        CONF_FOLLOW["confirm follow-up gate\n(error/retry/next mutating item\nOR planned placeholder items present\n-> continue runtime loop)"]
+        DIRECT_FINAL["direct finalization\nstructured / risky / non-message paths\n(skill_call / confirmation_request / schema_error / dependency_cycle)"]
+        ENFORCE["enforce_final_response_contract(result, threadid)"]
+        MPS["message_persistence_service\n::persist_assistant_message(threadid, result)"]
+    end
+
+    %% =========================================================
+    %% ORCHESTRATOR
+    %% =========================================================
+    subgraph ORCH["planner orchestrator — Explicit Planner Contract"]
+        ORC["process(threadid, contextid, userid, observations)\nstrict phase pipeline: discovery -> selection -> parameter_construction\nno step_type shortcuts and no combined skill-choice + parameter-generation step"]
+        DISCO_RULE["### BINDING RULE — SKILL DISCOVERY IS SEMANTIC ONLY ###\nEvery skill = description + 3-6 English example_utterances, EACH embedded as a SEPARATE anchor vector.\nRetrieval = cosine(query, all anchors) -> MAX per skill -> top-12 DISTINCT skills (SKILL_REWORK.md §5).\nMetadata is ENGLISH-ONLY; cross-language is handled by QUERY->ENGLISH normalisation BEFORE embedding\n(SKILL_REWORK.md §5.7 = Weg B) — NEVER by per-language anchor text.\nFORBIDDEN as a discovery/routing fix (repeatedly done wrong in this project = NO-GO, rejected in review):\nsubstring/keyword matching, intent_triggers, mandatory_on_trigger, always_available 'always-include',\nMANDATORY_SKILL_KEYWORDS, any language-specific phrase list.\nA skill that is not found is an EMBEDDING problem -> fix its ANCHORS (utterances) or the embedding model.\nNEVER lexical.\nSOLE SANCTIONED EXCEPTION: wizard.search_skills (the RAG fallback meta-skill) is force-added to the\nselector catalog IN ADDITION to the semantic top-k (discovery_phase_service::ensure_search_skills_fallback,\ndeduplicated). Its anchors can never match task queries, so it would otherwise be unreachable; it is the\nplanner's last-resort full-registry search (own discover() with a wider k).\nGATED TO embed_topk ONLY (thread 565): the discovery meta-skills (search_skills force-add AND wizard.list_skills)\nare only meaningful while the catalog is a SEMANTIC SUBSET. In the STATIC catalog (slim_all / slim_family —\nno embeddings) the planner already sees every skill, so BOTH are EXCLUDED\n(planner_catalog_service::exclude_discovery_meta_skills) — advertising 'list/search skills' there would only\nimply non-existent hidden skills. wizard.list_skills, when selected, returns the SAME compact slim catalog\n(skill_introspection_service::render_full_skill_catalog, meta-skills removed), never a verbose full dump that\nbloated the next selection prompt into a gateway timeout.\nThis is the ONLY allowed\nalways-include — every other always-include mechanism is REMOVED: the always_available governance flag\n(was on book_users/update_option_trainer), MANDATORY_SKILL_KEYWORDS and get_mandatory_skills are gone."]
+        PPB["phase_prompt_bundle_builder::build()\nseparate prompts/profiles:\nselector.md | constructor.md\nhistory windowing: orchestrator_prompt_profile_service::select_history_messages(phase)\n= first user message (original request) + last N (HISTORY_TAIL_LIMIT = 14)\nobservations + planner traces appended separately (NOT windowed)"]
+        OR_LANG["planner language contract\nall phase JSON follows latest user message\n(no de/en token lists in routing)"]
+        DISC_CTX["context_prior_builder\nsignals: current cm/course/page type/user state\nused as ranking prior, never hard filter"]
+        FREG["family_registry_service\nDomain/Context -> Skill Family map\ncandidate universe = ALL families (no hard namespace filter);\nnamespace_hint only marks the Stage A prior subset\nthird-party extensible contracts"]
+        CORESET["core_family_set\nalways-on family baseline\n(core.* including core.search_skills\n+ platform safety families)"]
+        EMB_AVAIL{"aiprovider_wunderbyte +\nfamily embeddings\navailable? (dual path gate)"}
+        EMB_QUERY["embedding_query_builder\nquery = latest user message\n  + next_step_intent (from thread metadata, if set)\nalways appended when present\n→ prevents wrong clarification on short confirmations (\"ja\", \"ok\")\nTARGET (SKILL_REWORK.md §5): query is embedded and matched against MULTI-VECTOR anchors\n(description + example_utterances) per skill; MAX per skill → top-12 distinct skills. Semantic only.\nREMOVED (lexical, NO-GO per DISCO_RULE): the old generic 'always-include' tier —\nMANDATORY_SKILL_KEYWORDS, adaptive_skill_catalog_service::get_mandatory_skills,\nplanner_catalog_service::ensure_trigger_mandatory_skills + intent_triggers/mandatory_on_trigger — are GONE\n(always_available survives only as a vestigial, unconsumed contract field). The ONLY always-include now is\nwizard.search_skills via discovery_phase_service::ensure_search_skills_fallback (the DISCO_RULE exception).\nDo NOT reintroduce the others."]
+        FEMB["family_embeddings_retrieval_service\nsemantic retrieval on Family-level embeddings\nreturns candidate families (not concrete skills)\nonly on wunderbyte+embeddings-ready path"]
+        EMB_CATALOG["embeddings_csv_repository — skill-catalog embeddings store\nRFC-4180 CSV, escape='' on BOTH read and write\n(fixes legacy fputcsv/fgetcsv backslash-escape that silently dropped rows\nwhose JSON payloads contained \\/, \\\" or \\uXXXX — regression: embeddings_csv_repository_test)\nwrite_rows = atomic temp → round-trip validate → swap; corrupt serialization\nis never published (throws embeddingscatalogwritecorrupt)\nread_rows surfaces malformed rows via debugging(), never silently skips"]
+        EMB_READY["embeddings_readiness_service (skills) + docs_embeddings_readiness_service (docs)\nIMPLEMENTED 2026-06-26 (commit 36664b5, v2026062406 — blueprint embeddings_trigger_consolidation_2026-06-26).\nReadiness = exists && valid schema && drift/removal-free, for BOTH indexes:\n• SKILLS: get_catalog_status compares per-skill content_hash+model+dims (added/changed) PLUS an\n  orphan check = set-membership over the live expected catalog → now catches REMOVED skills too.\n  No stored fingerprint (the expected set is rebuilt live, cheap for ~41 skills).\n• DOCS: get_status = provider + exists + valid schema + coverage + stored SOURCE FINGERPRINT == live\n  (compute_source_fingerprint = hash of sorted (corpus_id,relpath,size,mtime)+declared corpora)\n  → flips on add/EDIT/REMOVE of a doc or corpus.\nScheduling unified via embeddings_rebuild_scheduler::queue_if_due (config-marker debounce +\ndeduped queue_adhoc_task) — shared helper, not a full readiness base class (pragmatic delta vs target:\nreadiness mechanics legitimately differ, so only the scheduling was consolidated)."]
+        EMB_REBUILD["rebuild_skill_catalog_embeddings_adhoc (+ docs: rebuild_docs_embeddings_adhoc)\nIMPLEMENTED 2026-06-26 (commit 36664b5, v2026062406).\nfull catalog rebuild; reuses valid embeddings by content_hash (re-embeds only empty/changed);\nprunes removed skills/docs + undeclared corpora.\nDOCS rebuild writes the SOURCE FINGERPRINT after a successful FULL publish (corpus_id===null) via\nembeddings_csv_repository_base read/write_fingerprint sidecar (atomic <csv>.fingerprint).\nSANITY CHECK now on BOTH tasks (docs parity achieved): readiness must be ready afterwards on a full\nrun, else throws → faildelay backoff (lang embeddingsdocsrebuildfailed).\nScheduled additionally on plugin UPGRADE (db/upgrade.php savepoint 2026062406, deploy-time reconcile\nof both indexes — no-op when nothing changed) and on a dangling docs_lookup hit (query-time self-heal)\n— so removed/edited docs+skills self-correct, latest at the next deploy."]
+        FEMB -.->|"reads catalog rows"| EMB_CATALOG
+        EMB_CATALOG -.-> EMB_READY
+        EMB_READY -.->|"not ready"| EMB_REBUILD
+        EMB_REBUILD -.->|"writes (validated)"| EMB_CATALOG
+        FSIG["family_signal_ranker\nlanguage-agnostic signals:\nnamespace_hint(0.35) + recency_namespace(0.20)\n+ core_bonus(0.10) + base(0.20)\n(context_prior + recency folded in here;\nintent is carried by the semantic path, not a discrete signal;\nno lexical keyword dependency)"]
+        DISC_A["discovery stage A (default)\nPRIOR subset: context families + core families\n(candidate universe stays FULL — context is a prior, not a filter)\nslim family cards with hard budget"]
+        DISC_A_OK{"coverage/confidence sufficient\nAND top-semantic (intent) family inside Stage A?\n(else escalate — escalation_reason=stage_a_intent_outside;\nintent guard inert when no embeddings)"}
+        DISC_B["discovery stage B\nadd adjacent domain families\nkeep bounded expansion budget"]
+        DISC_B_OK{"coverage/confidence\nsufficient?"}
+        DISC_C["discovery stage C (last resort)\nglobal slim family fallback\nstrict hard budget, never full skill dump"]
+        FRANK["family_ranker\nscore = 0.7·signal + 0.3·semantic\n(signal alone when no embeddings)\ncontext_prior + recency already folded into signal\nweighted blend, clamped [0,1]\nkeeps low-score tail (max 2, min 0.15) for recall safety"]
+        SKILLLOAD["lazy_skill_loader\nload concrete skills only for ranked families\nload minimal skill contracts first\nload full schema only on demand"]
+        TSEL["skill_selector\nselect concrete skill inside selected family\nhandles semantic overlaps (booking vs calendar etc)\nplanned_steps[] REQUIRED in every selector output:\n  → [] for single-step or when [PENDING PLANNED STEPS] in context\n  → [{intent:...},...] for multi-step first turn (future steps only)\nnext_step_intent REQUIRED: always string, never null"]
+        PCON["parameter_constructor\nbuild parameters only after concrete skill selection\nsingle-skill schema focus (50+ properties supported)"]
+        PVAL["parameter_contract_validator\ncheck structure + schema + ambiguity rules\nemit clarification / recoverable_input_error when needed"]
+        ORCSVC["orchestrator_routing_service\nresolve model/action per phase\nselection(selector) -> construction(constructor-only)\nphase fallback chain applies independently"]
+        SPLLM["llm_call_service::invoke(..., source=planner_selection, action_class=selector_pick_skill)\nPhase 1 call"]
+        SINT["interpreter::interpret_phase_output(raw, selection, context)\nparse + contract + normalization"]
+        SELSKILL["selected_skill handoff\nexactly one skill\nfrom selector to constructor"]
+        CPLLM["llm_call_service::invoke(..., source=planner_construction, action_class=constructor_build_params)\nPhase 2 call"]
+        CINT["interpreter::interpret_phase_output(raw, parameter_construction, context)\nparse + contract + normalization\ncommand envelope: use only skill/version/input|parameters\nignore unknown command-level keys\nunwrap_redundant_input_envelope(): collapse a nested input/parameters\nwrapper (e.g. parameters:{input:{...}}) so skill gets flat fields"]
+        PCOMP["planner_result_composer\ncompose unified planner result\npersist planner_trace_history + phase_trace"]
+        RESP_TYPE{"parsed\nresponse_type"}
+    end
+
+    %% =========================================================
+    %% MULTI-VECTOR SEMANTIC DISCOVERY (SKILL_REWORK.md §5) — the ONE correct discovery mechanism
+    %% This is the detailed, canonical skill-discovery path. It SUPERSEDES the old single-vector
+    %% skill top-k (one embedding per skill). It is governed by DISCO_RULE: 100% semantic, never lexical.
+    %% =========================================================
+    subgraph MV["Multi-Vector Semantic Discovery — canonical skill-discovery path (SKILL_REWORK.md §5)"]
+        MV_ANCHORS["1) PER-SKILL ANCHORS — source of the vectors\nskill_contract_validator + skill_registry::build_prompt_contract carry:\n  • anchor #0 = description (English, also the compact catalog line)\n  • anchors #1..N = example_utterances[] (3-6 English, DISCRIMINATIVE phrases a user would say)\nEnglish-only; these are SEMANTIC anchors, NOT lexical triggers.\nSTATUS: IMPLEMENTED (increment 2a) — utterances authored on all skills + plumbed into the contract."]
+        MV_BUILD["2) INDEX BUILD — embeddings_catalog_builder_service::build_full_catalog_rows\nemit ONE ROW PER ANCHOR (not one per skill). The row holds ONLY hashed data + the vector:\n  (skill, anchor_index, anchor_kind=description|utterance, anchor_text, model, dims, content_hash, embedding)\nto_embedding_input = the anchor text ALONE → a clean vector that matches a real intent\n(no 'skill:/intent:/json' blob, no message_triggers, no contextual_prompt_packs).\nembed EACH anchor separately. content_hash is per-anchor (reuse unchanged on rebuild).\nCARD METADATA (intent/readonly/description/minimal_input/example_input/message_triggers) is\nDELIBERATELY NOT stored — it is re-joined LIVE from the registry per skill (see MV_SUBSET), so a\nskill schema change reaches the planner without a rebuild (fix Y). content_hash therefore covers\nthe anchor text only — by design, since only an anchor-text change invalidates a vector.\nSTATUS: IMPLEMENTED (increment 2b) — builder/readiness/rebuild emit + track per-anchor rows;\nthe LIVE index becomes multi-vector only after the next embeddings rebuild (gated on Georg's go)."]
+        MV_STORE["3) STORE — embeddings_csv_repository (skill-catalog index, per model+dims)\nrows keyed by (skill, anchor_index); MANY anchor rows share one skill.\nHEADERS = HASHED DATA + VECTOR ONLY:\n  skill, anchor_index, anchor_kind, anchor_text, embedding_model, embedding_dimensions, content_hash, embedding_json.\nThe card-metadata columns (intent/readonly/description/minimal_input_json/example_input_json/\nmessage_triggers_json) were REMOVED (fix Y, thread 561) — they are re-joined live, never trusted from the CSV.\nThe docs index (docs_embeddings_*) is SEPARATE and stays single-vector.\nSTATUS: IMPLEMENTED (increment 2b + fix Y) — HEADERS carry only hashed columns + the vector."]
+        MV_RETRIEVE["4) RETRIEVAL — embeddings_retrieval_service (multi-vector aggregation)\na. normalise the query to English (query_english_normalizer, §5.7 Weg B) THEN embed it\nb. cosine(query, EVERY anchor row)\nc. group by skill → take the MAX anchor score per skill (best-matching anchor wins)\nd. sort skills by that max → keep top-12 DISTINCT skills (EMBEDDINGS_DEFAULT_TOP_K = 12)\ne. SEMANTIC_MIN_SCORE gate on each skill's best anchor\nNB: distinct-skill aggregation is REQUIRED — without it several anchors of one skill would crowd the top-k.\nSTATUS: IMPLEMENTED (increment 2b) — search_top_k_skills() wired into discovery_phase_service,\nskill_discovery_service and skill_selection_debug_service. SEMANTIC_MIN_SCORE present (0 = off, tuned in step 5)."]
+        MV_SUBSET["5) PLANNER CANDIDATES — retrieved top-k rows shaped for the planner by\nplanner_catalog_service::sanitize_runtime_catalog_for_prompt (the live production path;\nbuild_planner_catalog_subset is the equivalent helper, currently unused).\nThe CSV row only IDENTIFIES the matched skill (+ which anchor/score for debugging).\nThe card metadata (minimal_input / example_input / intent / readonly / description /\nmessage_triggers) is RE-JOINED LIVE from the skill registry per skill — NEVER trusted from the\nfrozen CSV snapshot. So a skill SCHEMA change (e.g. a new cross-context targeting field like\nactivityquery) reaches the selector + constructor WITHOUT an embeddings rebuild (fix Y, thread 561).\nOnly the embedding ANCHOR text (description/utterances → the vectors) still needs a rebuild;\nthat is also why content_hash covers anchor text only — card metadata is deliberately NOT hashed,\nbecause it is live-joined, not served from the CSV."]
+        MV_DEBUG["6) DEBUG — skill_selection_debug_service\nlog per candidate: matched anchor_kind + anchor_text + score (debug token 'mv').\nA discovery MISS is therefore diagnosed as an ANCHOR/MODEL gap → fix utterances or the model,\nNEVER add a lexical trigger (DISCO_RULE).\nSTATUS: IMPLEMENTED (increment 2b) — matched_anchor_kind/text + score surfaced in skill_selection_debug."]
+        QNORM["0) QUERY -> ENGLISH NORMALISATION (cross-language bridge — SKILL_REWORK.md §5.7 = Weg B)\nBefore embedding, the user query is normalised to English by a small chat-model call\n(query_english_normalizer) using the configured planner chat model. Anchors are English-only, so a\nnon-English query must be translated first or it mis-matches (the German 'Kurs' was pulled to\ncourse.search_courses). ONLY the embedding query is normalised — the conversation + planner prompts\nstay in the user's language (the synchronizer still answers in it). Fail-open: on any normaliser error,\nfall back to the raw query. NOT lexical routing — a pre-embedding normalisation step.\nSTATUS: DECIDED 2026-06-27 (Weg B over Weg A multilingual model); wiring into the discovery /\nsearch_skills / debug embedding calls."]
+        MV_ANCHORS --> MV_BUILD
+        MV_BUILD --> MV_STORE
+        MV_STORE -.->|"query time"| MV_RETRIEVE
+        MV_RETRIEVE --> MV_SUBSET
+        MV_RETRIEVE -.->|"trace"| MV_DEBUG
+    end
+
+    %% =========================================================
+    %% USER MEMORY (user-stated facts/preferences)
+    %% =========================================================
+    subgraph USERMEM["User Memory — user-stated facts/preferences (global per user)"]
+        UM_TABLE["local_wizard_user_memory\n(userid, memory, scopes, timecreated, timemodified)\nglobal per user — no contextid\nscopes = LLM-tagged channels (selection,construction,synchronization); empty = all\ninstall.xml + upgrade.php (matches benchmark tables)"]
+        UM_SVC["user_memory_service\nadd / get_all / delete / find\nlimits: 15 facts · 500 chars/fact · 4096 total\nnormalize + case-insensitive dedupe\nskills never touch DB directly"]
+        UM_REMEMBER["wizard.remember (R0, readonly-treated → executes directly, no confirm)\nstore a fact the user told the agent to remember\n(write only to the user's OWN preference store; forget stays R2)\nLLM tags relevant_for[]: selection | construction | synchronization\nNOT past conversation (= wizard.recall_memory)"]
+        UM_FORGET["wizard.forget (R2, broad_write → always explicit confirm)\nquery → find() candidates → confirm → delete-by-id\nzero match: inform · multi match: list ids, never silent multi-delete"]
+        UM_LIST["wizard.list_memories (R0, read_only)\nnumbered list + ids in observation_full\n(for a follow-up forget by id)"]
+        UM_INJECT["orchestrator::build_runtime_context_block\nper-channel injection via get_for_scope(userid, channel):\n  selection → planner selection call (PHASE_SELECTION)\n  construction → planner param call (PHASE_PARAMETER_CONSTRUCTION)\n  synchronization → synchronizer (explicit $memorychannel; it also uses PHASE_SELECTION)\nuntagged memory (empty scopes) = all channels · discovery has no channel\nresolves thread owner via store->get_thread(threadid)\nNOT in static SYSTEM prompt · budget-capped 4096 · empty when none"]
+        UM_PRIVACY["bookingextension_agent\\privacy\\provider\nmetadata + plugin\\provider @ CONTEXT_USER\nexport_user_data / delete_data_for_*"]
+    end
+
+    %% =========================================================
+    %% SYNCHRONIZER
+    %% =========================================================
+    subgraph SYNC["synchronizer — Final User-Facing Contract"]
+        SYNC_RUN["synchronize(threadid, contextid, userid,\nplanner_result, observations, state)\nLLM polish only for humanizable states\n(sufficient / clarification / safe domain error)\nNEVER suggest manual steps when next_step_intent\nor planned_steps indicate pending agent actions"]
+        SYNC_TEMPLATE["synchronize_template_only(threadid, contextid, userid,\nterminal_result, state)\nno LLM call\nfor budget_exceeded / hard_block_with_user_message"]
+        SYNC_CTX["synchronizer_input_builder\nplanner_result + assistant_state + observations\n+ planner_trace_history\n+ confirm path: execution feedback as observation context\n→ no skill discovery / no command mutation"]
+        SYNC_PPB["synchronizer_prompt_builder::build()\nseparate synchronizer prompt/profile\n(synchronizer_profile.md)"]
+        SYNC_LANG["synchronizer language contract\nfinal reply follows latest user message\nmessage quality > routing detail"]
+        SYNC_GATE["message-bearing terminal state?\n  R0 sufficient    → SYNC_RUN (optional, no LLM needed)\n  R1/R2 sufficient → SYNC_RUN (LLM polish)\n  R3 sufficient    → SYNC_RUN (LLM + irreversibility notice)\n  clarification    → DIRECT_FINAL (structure protection)\n  confirmation_request → DIRECT_FINAL or SYNC_RUN with rollback-guard\n  error / budget_exceeded → SYNC_RUN (humanize, template-only for hard errors)\n  structural failures → DIRECT_FINAL"]
+        SYNC_ROUTE["synchronizer_routing_service\nprefer generate_agent_reply (wpr, large model)\nfallback: generate_text"]
+        SLLM["llm_call_service::invoke(threadid, contextid, userid,\n  source, prompt, action_class)\naction: generate_agent_reply (wpr)\n  | generate_text fallback"]
+        SINTERP["shared interpreter / final-response parser\nvalidate final JSON only\n→ message-bearing user-facing contract\n→ preserve response_type + command semantics\n→ reject structural drift"]
+        SCONTRACT["synchronizer_output_contract\nmay refine message / lang / presentation\nmust NOT invent commands\nmust NOT mutate execution semantics\nR3: must include irreversibility_notice\nR2: must include affected_scope_summary\ncommand-semantics drift → Synchronizer-Output verworfen\nPlanner-Output direkt verwenden (rollback)\nERROR-FAITHFULNESS GUARD (source_conflict_reason):\n  free message replacement REJECTED when source response_type=='error'\n  OR latest source result row status=='error' — UNLESS error_presentation_requested.\n  error_presentation_requested set by apply_synchronizer_message_polish for response_type=='error';\n  the real cause is FED via synchronizer_input_builder ([ERROR] honest-reply line).\n  → the synchronizer presents the real error, never confabulates a cause."]
+    end
+
+    %% =========================================================
+    %% DECISION SERVICE
+    %% =========================================================
+    subgraph DECIDSVC["agent_decision_service::process() — Deterministic Routing"]
+        PROC_IN["process(result, threadid, contextid, userid,\n  outputlang)"]
+        D_PENDING{"pending_intent exists\nand unrelated new intent?"}
+        D_PENDING_OUT["→ clarification pending-resolution required"]
+        D_PROMOTE["mutating skill_call\n→ confirmation_request\nrisk_class via resolve_command_risk_class()\n  (unknown skill → R3, fail-safe default)\nrisk_class gating:\n  R1 → session-allow ok (TTL 900s)\n  R2 → session-allow ignored, always explicit\n  R3 → always manual, no session-allow"]
+        D_SAFE_CTX["safety_context DTO\ninput: parsed intent\noutput: issue_codes + route hints\n+ pending policy"]
+        D_ROUTE{"response_type"}
+        D_CONFIRM_PENDING["confirm_pending →\nhandle_confirm_pending()\n(re-preflight pending mutation)"]
+        D_CMD_ROUTE["handle_command_routing()\nR0 → readonly staged execute\nR1 → queue with session-allow\nR2 → queue, confirmation enforced\nR3 → queue, manual only, extra budget step"]
+        D_PREFLIGHT["handle_preflight()\nrisk_class forwarded to queue transition\nR0 no queue entry\nR1 L1 + L2\nR2 L1 + L2 + L3\nR3 L1 + L2 + L3 + external_dependency_check\nCLARIFICATION PREVIEW (source C): a needs_clarification issue may carry a skill 'preview'\nblock (same shape as get_result_preview) → stashed in thread metadata\n(preview_passthrough::stash_clarification_preview) because the result dict is rebuilt\ndownstream; consumed once by ai_send_message / ai_confirm_run (see APREVIEW)"]
+        D_TARGET_NOTE["build_operating_context_note(PREPARED commands)\nappended to EVERY mutating confirmation_request message\n(pass + soft_block), after preflight resolves operating_contextid\nnames target course + activity (module instance) + id via describe_target_context()\n(agent_confirm_target_course); ALWAYS shown — incl. ambient course/instance\n(no longer cross-context-only) → mis-resolved course OR module instance visible before write\nNOTE: NOT built pre-preflight in handle_command_routing\n(raw commands lack operating_contextid → would mislabel cross-context)"]
+        D_STORE_PENDING["set/clear pending_intent\npending_confirmation_code"]
+    end
+
+    %% =========================================================
+    %% PREFLIGHT PIPELINE
+    %% =========================================================
+    subgraph PREFLIGHT["Preflight Pipeline v2 (services/preflight_pipeline.php)"]
+        direction TB
+        PP_RUN["preflight_pipeline::run(next executable slice, threadid, contextid, userid)\n→ returns preflight_result_v2 only\nrisk_class determines active layers:\n  R0 → no preflight / no queue entry\n     (readonly skill self-resolves its operating context EAGERLY inside execute():\n      a named course/module target that cannot be uniquely resolved site-wide FALLS BACK to the\n      ambient/operating context — readonly NEVER blocks on resolution; clarify only\n      when genuinely ambiguous. Module instances use the same scope cascade (module_target_resolver).\n      See LG_OPCTX 'readonly eager resolution'.)\n  R1 → L1 + L2\n  R2 → L1 + L2 + L3\n  R3 → L1 + L2 + L3 + PF_L3_EXT"]
+
+        subgraph L1["Layer 1 — Schema + Version Validation"]
+            PF_L1["preflight_schema_validator::validate(command)\n+ command_schema.json\n+ preflight_version_validator::validate_version()"]
+        end
+        L1_OK{"schema + version\nvalid?"}
+        L1_FAIL["hard_block\nblockinglayer: schema\nISSUE: SCHEMA_ERROR\n/ SCHEMA_UNAVAILABLE"]
+
+        subgraph L2["Layer 2 — Domain Prepare"]
+            PF_L2P["skill_operating_context_resolver: resolve operating context\n(ambient by default; cross-context/module target if the skill opts in via\nsupports_target_context/get_target_selector → context_resolver\n→ operating_context_target_registry: COURSE core-resolved,\nMODULE via generic module_target_resolver — scope cascade keyed by modname)\n— Gate 2 (native capability) enforced CENTRALLY by native_capability_guard\n  at the OPERATING context (engine, not per-skill): user must hold the skill's\n  get_required_native_capabilities() there → else NO_NATIVE_CAPABILITY (no token)\nthen skill::preflight(input, OPERATING contextid, userid)\n— DB-dependent prepare + validation → preflight_result_v2\n— unresolvable OR ambiguous target → CONTEXT_TARGET_UNRESOLVED\n  (clarification WITH candidate list from context_target_resolution)\n  [R1+ mutating/preflight path only; R0 readonly resolves EAGERLY — see PP_RUN]"]
+            PF_L2D["preflight_domain_check_runner::run(\n  issue_codes, startmicrotime)\nhard block: PERMISSION_ERROR, VALIDATION_ERROR, SCHEMA_ERROR, MISSING_*\nsoft block: DOMAIN_CONFLICT (engine-generic)\n  + provider confirmable codes via issue_code_provider\n  (e.g. DUPLICATE_TITLE_* from booking_issue_code_provider)"]
+        end
+        L2_STATUS{"preflight\nstatus?"}
+
+        subgraph L3["Layer 3 — Execution Gate Hint"]
+            PF_L3["preflight_execution_gate::evaluate(\n  error_class, retry_count, issue_codes)\nbase: 500ms · jitter: 200ms\nmax_retries: 4 · max_backoff: 4000ms"]
+            PF_L3P["retry_policy_service\ncategory: TECHNICAL | DOMAIN | EXTERNAL_DEPENDENCY\nretryable: TECHNICAL + EXTERNAL_DEPENDENCY\nundefined category -> hard_block"]
+            PF_L3CB["Provider circuit-breaker\nauth/quota -> hard_block\ntimeout/transient -> retry_hint"]
+            PF_L3_EXT["PF_L3_EXT [R3 only]\nexternal_dependency_check\n→ webhook reachable?\n→ payment provider ready?\n→ hard_block when unavailable"]
+        end
+
+        PRV2["preflight_result_v2 (single DTO)\nstatus: pass | soft_block | hard_block | retry_hint\nblockinglayer: schema | domain | execution_gate\nretryafterms · retrycount · durationms\npreparedinput · issues\n(guard_token NOT on DTO — built from preparedinput,\nstored on the queue item)"]
+    end
+
+    %% =========================================================
+    %% QUEUE MANAGER
+    %% =========================================================
+    subgraph QUEUE["Shadow Queue (queue/queue_manager.php)"]
+        Q_ENQUEUE["enqueue_command(\n  threadid, runid, stepid, contextid,\n  command, mutability, status, depends_on)\n→ validate_depends_on_is_dag()\n→ build_input_signature()\n→ idempotency: return existing if same signature + non-terminal"]
+        Q_IDEM{"existing non-terminal\nsame signature?"}
+        Q_IDEM_HIT["queue idempotency hit\nreuse existing queue item"]
+        Q_DAG{"DAG\nvalid?"}
+        Q_DAGFAIL["status: failed\nISSUE: DEPENDENCY_CYCLE"]
+        Q_DEPCHECK{"dependencies\n_succeeded()?"}
+        Q_BIND["bind dependency artifacts\nproducer outputs → child input\nthen late preflight"]
+        Q_SKIP["status: skipped\nlogical dependency skip"]
+        Q_SKIP_USER["status: skipped\nuser-discarded active thread queue"]
+        Q_RUNNING["try_mark_running(threadid, queueitemid)\n[Atomic: SELECT FOR UPDATE + check + set\nmax 1 running per thread]"]
+        Q_CANPICK["can_pickup_now(item, now, items)\n→ next_retry_at ≤ now\n→ blocked_expires_at not expired"]
+        Q_READY["status: ready"]
+        Q_BLOCKED["status: blocked_confirmation\nR1: blocked_expires_at = now + 900s\nR2: blocked_expires_at = now + 300s\nR3: blocked_expires_at = now + 900s\nmanually only, no auto-consume"]
+        Q_PLANNED["status: planned (placeholder)\nintent string only — no skill name, no parameters yet\ncreated by selector on first turn of multi-step request\nconsumed (→ succeeded) when real skill is enqueued\ntriggers CONF_FOLLOW while present\nchecked via has_planned_placeholders()"]
+        Q_RETRY["status: retry_waiting\nnext_retry_at = now + retry_after_ms\nbackoff_ms persisted\nR3: no execution retry, direct FAIL_OUT on transient error"]
+        Q_RTRACE["retry metadata on queue item\nretry_layer + retry_origin + retry_reason\nretry_attempt + retry_hint_category\nretry_layers (max 2 distinct layers per error_class)"]
+        Q_FAIL_TTL["fail_expired_blocked_items(threadid)\nstatus: failed (BLOCKED_CONFIRMATION_TIMEOUT)"]
+        Q_UPDST["update_status(threadid, queue_item_id,\n  status, issue_codes, error_class, msg)"]
+        Q_SPAWN["spawn_commands[]\nplanned child commands with depends_on\n+ artifact reference bindings"]
+    end
+
+    %% =========================================================
+    %% EXECUTOR
+    %% =========================================================
+    subgraph EXEC["Execution Layer (executor.php)"]
+        EXC["executor::execute_commands(\n  commands, contextid, userid,\n  idempotency_key, runid)"]
+        EXC_IDEM["run_exists_other_than(idem_key, runid)\n→ status: skipped (already executed)"]
+        EXC_EVAL["skill_executability_evaluator\n::evaluate_skill(skillname, userid, contextid)\ndeny reasons:\n  not_registered · inactive\n  missing_capability · context_invalid\n  runtime_disabled · skill_version_unsupported\nGate 1 capability = name-derived <component>:skill_<normalized_name>\nDERIVED BY THE ENGINE at gate time (has_required_capabilities), not trusted from\ndeclared metadata — a (3rd-party) skill can never bypass it. EVERY skill MUST have\nthis capability defined (get_capability_info) in a db/access.php, else it is\nalways-denied (registry emits a loud diagnostic); checked at the AMBIENT context\n(get_required_native_capabilities is an ADDITIONAL Gate-2 layer, not a replacement)"]
+        EXC_GUARD["preflight_execution_gate::verify_guard_token(\n  guard_token, skillname, OPERATING contextid, prepared_input)\nhash_equals vs sha256(skill:operating_context:prepared_input)\noperating_contextid carried on the command = the RESOLVED context (persisted on the queue item\nat set_prepared_input, NOT the creation-time ambient); a mutating module target not resolved to a\nCONTEXT_MODULE is refused here (fail-closed)\nno second full preflight"]
+        EXC_GUARD_OK{"guard\npass?"}
+        EXC_RUN["Gate 2 BACKSTOP: native_capability_guard re-checks the skill's\nget_required_native_capabilities() at the OPERATING context immediately before\nexecute() (authoritative; engine never trusts the skill to guard itself)\n→ skill::execute(prepared_input, OPERATING contextid, userid)\n→ result payload\n(Gate 1 governance evaluate_skill stays at the ambient context)"]
+        EXC_SUCC["status: succeeded\n→ result / produced_outputs / follow-up suggestions"]
+        EXC_TRANSIENT["transient error\n→ retry_waiting\nbackoff + jitter"]
+        EXC_SPAWN["spawn_handler (contract path)\nspawn_commands schema/normalization present\nruntime enqueue path currently optional"]
+        EXC_DOMAIN["domain error\n→ failed + observation with error_detail"]
+    end
+
+    %% =========================================================
+    %% SKILL LAYER
+    %% =========================================================
+    subgraph SKILLS["Skill Layer"]
+        TR["skill_registry\nregister(provider)\nget_skill(name)\nis_read_only_skill()\nis_skill_active()\nget_skill_contract()\nget_all_schemas()\nget_all_prompt_contracts()\nget_prompt_contracts_for_context()\nactivation default: read-only skills ON out of the box,\nmutating skills OFF until explicitly enabled\n(per-skill toggle / aiskillenableall override;\ncapabilities still gate every execution — fail-closed)"]
+        TRFAC["skill_registry_factory\n→ provider-first wiring of skill_provider_interface\n  implementations (auto-discovery)\n→ if no provider exists: direct skill discovery\n  under classes/local/wizard/*/skills\n→ if provider exists: no additional fallback scan"]
+        TI["skill_interface\nget_name() · get_schema()\nget_prompt_contract()\nget_risk_class(): skill_risk_class\ncheck_structure(input)\npreflight(input,contextid,userid): preflight_result_v2\nexecute(prepared_input,contextid,userid): array\nis_read_only(): bool"]
+        TPC["skill_prompt_contract DTO\nintent · anchors · minimal_input · example_input\nnamespace · version · capabilities · context scopes\nrisk_class: skill_risk_class\nvalidated by skill_contract_validator"]
+        TRC["skill_risk_class (enum/DTO)\nR0: read_only\nR1: scoped_write\nR2: broad_write\nR3: irreversible_or_external"]
+        BT["base_skill (abstract)\ncheck_structure() → pass\nrun_preflight(input,ctx,uid): array → DTO-FREE template; concrete skills override THIS\n  via pass()/invalid()/confirmable() helpers (NO engine DTO type in skill signatures)\n  default reproduces the structure-check behaviour\npreflight(): preflight_result_v2 → wrapper mapping run_preflight() onto the DTO\n  (single place the skill's primitive result becomes preflight_result_v2)\n  [Phase 0: non-final during skill-by-skill migration; becomes final at A.3]\nexecute() → abstract\nget_risk_class() → default/override contract\nrequires_explicit_activation() → false\n(override true for read-only skills that need admin-provisioned\ninfrastructure first, e.g. explain_docs needs a docs corpus)"]
+        BSKILL["booking_skill_base\n→ focused skill set only\nnew skills must declare explicit prompt contract"]
+        CSKILL["core_skill_base\n→ focused skill set only\nnew skills must declare explicit prompt contract"]
+        TCV["skill_contract_validator\n::build_skill_metadata(skill, component)\nnamespace · version · capabilities · active flag\nrisk_class included in metadata\n+ verify_risk_class_declaration()\n  R0 must match is_read_only()\n  R2/R3 require explicit scope declaration\n  mismatch → deny / not activatable"]
+    end
+
+    %% =========================================================
+    %% SUPPORT SERVICES
+    %% =========================================================
+    subgraph SUPPORT["Support Services"]
+        ANON["privacy_anonymizer\nanonymize_value_for_llm()\ndeanonymize_message_for_display() (fail-closed: redact unresolved ANON_USER_* tokens)\nreanchor_value_for_thread() (cross-thread recall re-anchoring, token→token, no cleartext)\nhas_unresolved_anon_tokens() → command-input fail-closed gate (RECOVERABLE_INPUT_ERROR)"]
+        EMBS["family_embeddings_retrieval_service\nused in discovery phase for family ranking\nnot for direct skill-level top-k selection"]
+        LANG["language_policy_service\nsource priority: selector-emitted user_lang (from latest user message)\n→ model lang → current UI language → en (technical fallback)\nformats framework-generated replies (errors / confirmations / preflight);\nthe synchronizer composes its own reply directly in the user's language"]
+        MTRIG["message_trigger_registry\nnormalize_response_type() (response_type allow-list)\ntrigger channel removed (used_triggers eliminated)"]
+        DNORM["domain_normalizer_hook\nprovider-supplied normalization\n(no framework skill heuristics)"]
+        AIER["ai_error_classifier\n→ provider_timeout · transient_io\n· auth_failed · quota_exceeded"]
+        ISCP["domain_issue_code_provider\nimplements issue_code_provider_interface\nprovider defines confirmable and domain-specific issue groups"]
+        BIRS["domain_issue_code_resolver\n(provider-side helper/module)"]
+    end
+
+    %% =========================================================
+    %% TERMINAL STATES
+    %% =========================================================
+    subgraph OUTCOMES["Observation Builder Outputs → Loop Continuation"]
+        OB_OUT["observation_builder::build_observation()\n+ result_payload_summarizer::for_observation()\n→ compact observation string"]
+        REPLAN["Next loop step with accumulated observations\n(next planner turn restarts at discovery phase)"]
+        FINAL_OUT["final normalized response persisted\n(clarification / confirmation_request / sufficient / error / skill_call)"]
+        SKIP_OUT["logical_skip observation\n(non-failure dependency skip)"]
+        IDEM_OUT["idempotent_skip terminal\n(already executed)"]
+        FAIL_OUT["failed — terminal\n(hard_block / budget_exceeded\n/ retry_exhausted / dep_cycle)"]
+    end
+
+    %% =========================================================
+    %% ========== CONNECTIONS =================================
+    %% =========================================================
+
+    %% Entry → Auth → Store → Runtime
+    ASM -->|"0. require_sesskey() + validate_parameters()"| AZ2
+    ASM -->|"1. readiness gate (graceful)"| AZ_READY
+    AZ_READY -->|"problem → structured error, no raw exception"| ASM_FAIL
+    ASM --> ASM_GATE
+    ASM_GATE -->|"fail"| ASM_FAIL
+    ASM_GATE -->|"pass: privacy precheck + attachments[]"| ASM_ATTACH
+    ASM_UPLOAD -.->|"token (reused in attachments[])"| ASM_ATTACH
+    ASM_ATTACH -->|"add_message(user, augmented)"| CS2
+    CS2 -->|"run_loop()"| RUNLOOP
+    ASM -->|"response autoconfirm?"| CS12
+    ACR -->|"readiness gate (graceful)"| AZ_READY
+    ACD -->|"readiness gate (graceful)"| AZ_READY
+    APO -->|"readiness gate (graceful)"| AZ_READY
+    APO -.->|"fetch steps lock-free"| CS16
+    APREVIEW -->|"readiness gate (graceful)"| AZ_READY
+    ACR -->|"allow_session=true ∧ has_capability(agent:confirmforsession)"| CS11
+    ACR -->|"consume pending intent"| CS13
+    ACD -->|"consume pending intent (discard)"| CS13
+    CS13 -->|"queue item resolved"| Q_READY
+    CS13 -->|"discard all actionable mutating queue items (thread)"| Q_SKIP_USER
+
+    AZ1 --> CS1
+    AZ2 --> CS1
+    RUN --> RUNLOOP
+    CS1 --> RUNLOOP
+
+    %% Runtime loop setup
+    RUNLOOP --> LOOP_INIT
+    LOOP_INIT --> LOOP_STEP
+    LOOP_STEP --> CS9
+    LOOP_STEP --> RUNINT
+    RUNINT -->|contains next_step_intent| DB_WRITE_STEP["store->add_step_message(next_step_intent)"]
+    DB_WRITE_STEP -.->|read lock-free via poll| APO
+    APO -.->|"de-anon step content for display (deanonymize_message_for_display, fail-closed)"| ANON
+
+    %% run_internal → orchestrator staged pipeline
+    RUNINT --> ORC
+    ORC --> PPB
+    ORC --> OR_LANG
+    ORC --> DISC_CTX
+    ORC --> FREG
+    ORC --> CORESET
+    ORC --> EMB_AVAIL
+    EMB_AVAIL -->|yes: semantic family retrieval| EMB_QUERY
+    DISCO_RULE -.->|"BINDING: semantic only — never lexical"| EMB_QUERY
+    DISCO_RULE -.->|"governs"| MV_ANCHORS
+    EMB_QUERY -->|"raw query"| QNORM
+    QNORM -->|"English query -> embed -> semantic skill discovery"| MV_RETRIEVE
+    MV_SUBSET -->|"top-12 candidate skills"| SKILLLOAD
+    EMB_QUERY --> FEMB
+    EMB_AVAIL -->|no: deterministic context/signal path| FSIG
+    DISC_CTX --> FSIG
+    FREG --> DISC_A
+    CORESET --> DISC_A
+    FSIG --> DISC_A
+    FEMB --> DISC_A
+    DISC_A --> DISC_A_OK
+    DISC_A_OK -->|yes| FRANK
+    DISC_A_OK -->|no| DISC_B
+    DISC_B --> DISC_B_OK
+    DISC_B_OK -->|yes| FRANK
+    DISC_B_OK -->|no| DISC_C
+    DISC_C --> FRANK
+    FRANK --> SKILLLOAD
+    SKILLLOAD --> TSEL
+    OR_LANG --> LANG
+    ORC --> ORCSVC
+    PPB --> SPLLM
+    ORCSVC --> SPLLM
+    TSEL --> SPLLM
+    SPLLM -->|raw selection output| SINT
+    SINT --> SELSKILL
+    SELSKILL --> PCON
+    PPB --> CPLLM
+    ORCSVC --> CPLLM
+    PCON --> CPLLM
+    CPLLM -->|raw construction output| CINT
+    CINT --> PCOMP
+    PCOMP --> PVAL
+    PVAL --> RESP_TYPE
+    FREG --> TR
+    FEMB --> EMBS
+
+    %% interpreter output → decision service
+    RESP_TYPE --> PROC_IN
+    PROC_IN --> D_PENDING
+    D_PENDING -->|yes| D_PENDING_OUT
+    D_PENDING -->|no| D_PROMOTE
+    PROC_IN -.->|build/update| D_SAFE_CTX
+    D_PENDING -.-> D_SAFE_CTX
+    D_PROMOTE -.-> D_SAFE_CTX
+    D_PROMOTE --> D_ROUTE
+
+    D_ROUTE -->|confirm_pending| D_CONFIRM_PENDING
+    D_ROUTE -->|skill_call / confirmation_request| D_CMD_ROUTE
+    D_ROUTE -->|clarification / sufficient / error| D_STORE_PENDING
+
+    D_CONFIRM_PENDING --> D_STORE_PENDING
+    D_CMD_ROUTE -->|confirmation_request + commands| D_PREFLIGHT
+    D_CMD_ROUTE -->|execution_result / clarification| D_STORE_PENDING
+    D_PREFLIGHT -->|"confirmation_request (pass / soft_block)"| D_TARGET_NOTE
+    D_TARGET_NOTE --> D_STORE_PENDING
+    D_PREFLIGHT --> D_STORE_PENDING
+    D_PREFLIGHT -.->|"clarification + issue.preview → stash '_clarification_preview' (source C)"| APREVIEW
+
+    D_PENDING_OUT --> D_STORE_PENDING
+    D_STORE_PENDING --> EXEC_GATE
+
+    %% Preflight pipeline
+    D_PREFLIGHT --> PP_RUN
+    PP_RUN --> PF_L1
+    PF_L1 --> L1_OK
+    L1_OK -->|no| L1_FAIL
+    L1_OK -->|yes| PF_L2P
+    PF_L2P --> PF_L2D
+    PF_L2D --> L2_STATUS
+
+    L2_STATUS -->|hard_block| PRV2
+    L2_STATUS -->|soft_block| PRV2
+    L2_STATUS -->|retry_hint| PF_L3
+    L2_STATUS -->|pass| PRV2
+    PF_L3 --> PRV2
+
+    %% Preflight result → Queue
+    PRV2 -->|"pass + session allow => ready"| Q_READY
+    PRV2 -->|"pass + no session allow => confirmation required"| Q_BLOCKED
+    PRV2 -->|"soft_block: confirmation required"| Q_BLOCKED
+    PRV2 -->|"retry_hint"| Q_RETRY
+    L1_FAIL -->|"hard_block: terminal"| FAIL_OUT
+    PRV2 -->|"hard_block: terminal"| FAIL_OUT
+
+    %% Queue ingestion (done before preflight in command routing)
+    D_CMD_ROUTE -->|"planned_steps[] from selector\n(first multi-step turn only,\nguarded: no enqueue if placeholders exist)"| Q_PLANNED
+    D_CMD_ROUTE --> Q_ENQUEUE
+    Q_ENQUEUE --> Q_IDEM
+    Q_IDEM -->|yes| Q_IDEM_HIT
+    Q_IDEM_HIT --> Q_READY
+    Q_IDEM -->|no| Q_DAG
+    Q_DAG -->|cycle| Q_DAGFAIL
+    Q_DAGFAIL --> FAIL_OUT
+    Q_DAG -->|valid| Q_DEPCHECK
+    Q_DEPCHECK -->|deps failed| Q_SKIP
+    Q_SKIP --> SKIP_OUT
+    SKIP_OUT --> OB_OUT
+    Q_DEPCHECK -->|deps ok + prepared| Q_RUNNING
+    Q_DEPCHECK -->|deps ok + needs binding| Q_BIND
+    Q_BIND --> PP_RUN
+    Q_RUNNING -->|slot occupied| Q_READY
+    Q_READY -->|"try_pickup_now"| Q_RUNNING
+    Q_READY -.->|"next run_loop() turn"| RUNLOOP
+    Q_RUNNING -->|slot free| EXC
+
+    %% Blocked confirmation TTL
+    Q_PLANNED -->|"real skill enqueued → consume_next_placeholder()"| Q_UPDST
+    Q_PLANNED -.->|"has_planned_placeholders() → true"| CONF_FOLLOW
+    Q_BLOCKED -->|"TTL check: fail_expired_blocked_items()"| Q_FAIL_TTL
+    Q_FAIL_TTL --> FAIL_OUT
+    Q_BLOCKED -->|"user confirms via ai_confirm_run"| CS13
+    CS13 -->|"update_status(ready)"| Q_UPDST
+    Q_UPDST --> Q_READY
+    Q_RETRY -->|"retry window elapsed"| Q_CANPICK
+    Q_CANPICK -->|"can_pickup_now() = true"| EXC
+
+    %% Read-only immediate execute path
+    D_CMD_ROUTE -->|readonly staged execute| EXC
+
+    %% Executor flow
+    EXC --> EXC_IDEM
+    EXC_IDEM -->|"already executed → skipped"| IDEM_OUT
+    EXC_IDEM -->|"first run"| EXC_EVAL
+    EXC_EVAL --> TCV
+    TCV -->|allow| EXC_GUARD
+    EXC_GUARD --> EXC_GUARD_OK
+    EXC_GUARD_OK -->|"pass"| EXC_RUN
+    EXC_GUARD_OK -->|"fail"| FAIL_OUT
+    TCV -->|deny| FAIL_OUT
+    EXC_RUN --> EXC_SUCC
+    EXC_RUN --> EXC_TRANSIENT
+    EXC_RUN --> EXC_DOMAIN
+    EXC_SUCC -->|"ai_confirm_run: terminal success\n(no next mutating item)"| EXECFEEDB
+    EXECFEEDB -->|"observation input"| CONF_TERM
+    EXECFEEDB -.->|"feeds as observation context"| SYNC_CTX
+    EXC_SUCC -->|"ai_confirm_run: follow-up required\n(error/retry/next mutating\nOR planned placeholders present)"| CONF_FOLLOW
+    EXC_SUCC -.->|"optional: spawn contract path"| EXC_SPAWN
+    EXC_SPAWN -.->|"optional enqueue of child commands"| Q_SPAWN
+    Q_SPAWN -.->|"optional: enqueue planned child"| Q_ENQUEUE
+    EXC_TRANSIENT -->|"retry count < max_retries"| Q_RETRY
+    EXC_TRANSIENT -->|"max retries exceeded"| FAIL_OUT
+    EXC_DOMAIN --> FAIL_OUT
+    CONF_TERM --> FCLASS
+    CONF_FOLLOW --> RUNLOOP
+
+    %% Runtime continuation / stop
+    EXEC_GATE -->|yes: execution_result| OB_OUT
+    EXEC_GATE -->|no| LOOP_STOP
+
+    %% Planner stop → Retry gate / Synchronizer
+    LOOP_STOP --> LOOP_RETRYABLE
+    LOOP_RETRYABLE -->|yes: candidate retry| LOOP_COLLIDE
+    LOOP_COLLIDE -->|no collision| FW_RETRY_OBS
+    LOOP_COLLIDE -->|collision: active queue/execution retry| FCLASS
+    FW_RETRY_OBS --> REPLAN
+    LOOP_RETRYABLE -->|no: terminal planner result| ABANDON_GUARD
+    ABANDON_GUARD --> FCLASS
+    FCLASS -->|LLM polish: sufficient / clarification / safe domain error| SYNC_RUN
+    FCLASS -->|template only: budget_exceeded / safe hard-blocks / provider-facing technical errors| SYNC_TEMPLATE
+    FCLASS -->|direct final: has_commands / confirmation_request / confirm_pending / structural failures| DIRECT_FINAL
+    SYNC_RUN --> SYNC_CTX
+    SYNC_RUN --> SYNC_PPB
+    SYNC_CTX --> SLLM
+    SYNC_PPB --> SYNC_LANG
+    SYNC_LANG --> SYNC_GATE
+    SYNC_GATE --> SYNC_ROUTE
+    SYNC_ROUTE --> SLLM
+    SLLM -->|raw final-reply output| SINTERP
+    SYNC_TEMPLATE --> SCONTRACT
+    SINTERP --> SCONTRACT
+
+    %% Outcomes → Observation Builder
+    OB_OUT --> REPLAN
+    REPLAN -->|"observations → agent_state"| OBS_ACCUM
+
+    PF_L3 --> PF_L3P
+    PF_L3P --> PF_L3CB
+    PF_L3CB -.->|retry signals| ATTB
+    Q_RETRY -.->|queue retry state| ATTB
+    Q_RETRY --> Q_RTRACE
+    Q_RTRACE -.->|retry trace metadata| ATTB
+    EXC_TRANSIENT -.->|execution retry state| ATTB
+    BUDG_CHECK -.->|loop budget state| ATTB
+    ATTB -->|global budget exhausted| BUDGX
+
+    OBS_ACCUM --> BUDG_CHECK
+    BUDG_CHECK -->|"ok (step+1 < limit)"| LOOP_STEP
+    BUDG_CHECK -->|"exhausted"| BUDGX
+
+    %% Final steps
+    SCONTRACT --> FINAL_OUT
+    DIRECT_FINAL --> FINAL_OUT
+    BUDGX --> FCLASS
+    FAIL_OUT --> FCLASS
+    FINAL_OUT --> ENFORCE
+    ENFORCE --> MPS
+    MPS -->|"add_message(assistant)"| CS2
+
+    %% Skill layer wiring
+    TRFAC --> TR
+    TR --> TI
+    TI --> TPC
+    TI --> TRC
+    TPC --> TRC
+    TR --> BT
+    BT --> BSKILL
+    BT --> CSKILL
+    TCV --> TR
+    TRC --> TCV
+    EXC_EVAL --> TR
+
+    %% Support services
+    SINT -->|"provider normalization hook"| DNORM
+    CINT -->|"provider normalization hook"| DNORM
+    DNORM --> SINT
+    DNORM --> CINT
+    PCOMP -->|"normalize response_type"| MTRIG
+    PCOMP -->|"persist next_step_intent"| CS15
+    CS15 -->|"read at discovery start"| EMB_QUERY
+    OB_OUT --> ANON
+    ANON --> OBS_ACCUM
+    AIER --> SPLLM
+    AIER --> CPLLM
+    AIER --> SLLM
+    ISCP -.-> BIRS
+    BIRS -.-> D_PREFLIGHT
+
+    %% User memory wiring
+    CSKILL --> UM_REMEMBER
+    CSKILL --> UM_FORGET
+    CSKILL --> UM_LIST
+    UM_REMEMBER --> UM_SVC
+    UM_FORGET --> UM_SVC
+    UM_LIST --> UM_SVC
+    UM_SVC --> UM_TABLE
+    UM_PRIVACY --> UM_TABLE
+    UM_LIST -.->|"ids in observation → forget by id"| UM_FORGET
+    UM_FORGET -.->|"R2: promoted to confirmation_request"| D_PROMOTE
+    ORC -->|"inject USER MEMORY at selection"| UM_INJECT
+    UM_SVC -.->|"get_all(userid) memory lines"| UM_INJECT
+    UM_INJECT -.->|"USER MEMORY lines into SYSTEM_RUNTIME (selection)"| PPB
+    UM_INJECT -.->|"same block in synchronizer runtime → final reply honors memory"| SYNC_CTX
+
+    %% =========================================================
+    %% LEGEND
+    %% =========================================================
+    subgraph LEGEND["Legend"]
+        direction TB
+        LG_DB["DB rollout policy\nnew schema via install.xml + matching upgrade.php step\n(guarded create_table; see benchmark + user_memory tables)"]
+        LG_MEM["User memory contract\nuser-stated facts/preferences, global per user\n(local_wizard_user_memory, no contextid)\nwizard.remember (R0, direct, no confirm; LLM tags relevant_for[]) · wizard.forget (R2, explicit confirm, all=true mode)\n· wizard.list_memories (R0, shows relevant_for)\ndistinct from wizard.recall_memory (= past conversation)\nchannel-filtered injection: selection / construction / synchronization\n(untagged = all channels); budget-capped 4096 chars\nlimits: 15 facts · 500/fact · 4096 total · dedupe\nprivacy provider @ CONTEXT_USER mandatory"]
+        LG_CTX["Context authority\nRuntime uses Moodle contextid\nas the scope key\ncontext-level-agnostic: module / course /\ncoursecat / user / system (navbar wand)"]
+        LG_RCTX["Rich context awareness (SYSTEM_RUNTIME)\nbase lines every phase: booking_name / timezone /\nnow_iso (minute-granular = cache-friendly)\nmoodle_context YAML (ids, course, module) ONLY in\nparameter construction + synchronizer —\nselection stays slim (token economy)\nsources cache-backed: agent_context + get_fast_modinfo\n(no DB load); defensive: failure drops the block"]
+        LG_AVAIL["Availability ≠ permission\ncourse/cm enableaitools = availability layer\nfor non-privileged users (teachers, students)\nagent:ignoreaiavailability bypasses both toggles\n(admins implicit via doanything, manager default)\nGate 1 (use + skill caps) and Gate 2 (native caps\nin preflight) stay untouched by the bypass"]
+        LG_AUTO["Auto-confirm\nconfirmation_request + session allowlist\nkeyed by user + contextid\n→ ai_confirm_run without manual click"]
+        LG_MANUAL["Manual confirm\nblocked_confirmation\n→ user confirms via ai_confirm_run"]
+        LG_LANG["Language fidelity\nreply language follows latest user input\n(no language-specific routing heuristics)"]
+        LG_3P["Third-party onboarding\nprovider + skill contract only\nno framework rewiring"]
+        LG_AGN["Framework agnostic by contract\nno provider-specific routing heuristics\nprovider behavior enters via interfaces/hooks"]
+        LG_OPCTX["Operating context (cross-context + generic module target)\nambient context (thread) MAY differ from operating context (per command)\nskill opts in (duck-typed): supports_target_context/get_target_selector\n  + get_target_context_level (CONTEXT_COURSE or CONTEXT_MODULE)\ncontext_resolver → operating_context_target_registry resolves the target;\npreflight/Gate 2/guard/execute use the OPERATING context\nGate 1 (governance) stays at ambient; Gate 2 (native cap) re-checked at operating context\nCOURSE target: core-resolved in the registry (id / numeric / visible-search → resolved | ambiguous | not_found)\nMODULE target (generic, keyed by modname — modules are core, NO domain dependency):\n  module_target_resolver picks the unique instance via a SCOPE CASCADE —\n  explicit cmid → resolve · named (activityquery) → name-match in scope ·\n  EMPTY → ambient course FIRST (1 visible instance → use; >1 → ambiguous course list);\n  course has 0 / no course ambient → site-wide fallback (1 → use; >1 → ambiguous site list; 0 → not_found)\n  visibility-aware: get_fast_modinfo/uservisible + can_access_course\nfamilies opt in via the module_targeted_skill trait + get_target_modname() — NO per-family resolution code\n(replaces the old per-skill resolve_cmid_from_context_or_cmid; first adopters:\nbooking create_option / create_slotbooking_option, modname=booking)\nreadonly eager resolution: R0/readonly skills skip preflight and self-resolve in execute();\na NAMED target not uniquely resolvable site-wide FALLS BACK to the ambient context\n(instead of erroring) — readonly never blocks (thread 515 fix).\nMutations (R1+): unresolved OR ambiguous → CONTEXT_TARGET_UNRESOLVED clarification\n  WITH the candidate list surfaced to the user (not a generic error), plus confirmation_request\n  + target note (D_TARGET_NOTE); R3 always manual.\nSTATUS: implemented 2026-06-29 (threads 534/562)\nqueue persistence: the RESOLVED operating_contextid is written back onto the queue item\n(queue_manager::set_prepared_input) before the guard token is bound, so confirmed/async execution\ntargets the resolved instance — NOT the creation-time ambient context\nfail-closed: a MUTATING module target whose operating context is not CONTEXT_MODULE is refused in the\nexecutor (CONTEXT_TARGET_UNRESOLVED) instead of running against ambient; readonly keeps eager fallback;\nbooking create backstop: cmid 0 → 'which booking activity?'"]
+        LG_PLAN["Planner contract\nstrict split: deterministic discovery -> selection -> parameter_construction\nexactly two planner LLM calls and two planner phase outputs\nDiscovery defaults to context + core families as the Stage A PRIOR (candidate universe stays full)\nStage A escalates on low confidence OR when the strongest semantic (intent) family lies outside Stage A\n(intent coverage, not just score; guard inert without embeddings) -> Stage B adjacent -> Stage C global slim fallback\nDual discovery path is mandatory:\n- with aiprovider_wunderbyte + embeddings ready: semantic family retrieval is active, weighted by context_prior + signals\n- without embeddings/provider: deterministic family derivation from Moodle context + core families + signals remains active\nSelector always receives deterministic, budgeted family-scoped skill candidates in both paths\nFamily-level retrieval first, concrete skill later (lazy loading)\nMoodle context acts as ranking prior, not hard filter\nno joint skill-choice + parameter generation in one step\n(no domain-specific or option-id heuristics)\nplanner decides, but does not polish the final reply"]
+        LG_SYNC["Synchronizer contract\nclassifier basis: response_type + has_commands + issue_codes + error_class + structural_failure\nLLM path: sufficient / clarification / safe domain error\ntemplate-only path: budget_exceeded / safe hard-blocks / technical provider errors\ndirect-final path: confirmation_request / confirm_pending / skill_call / structural failures\nR3 sufficient requires irreversibility_notice\nR2 sufficient requires affected_scope_summary\nsemantic drift → rollback to planner output\nSynchronizer output may refine message only; must not mutate execution semantics"]
+        LG_RISK["Risk class contract\nskill declares R0–R3 in skill_interface\nvalidated by skill_contract_validator\nenforced in preflight, queue, decision service, synchronizer"]
+        LG_RISK_CONF["Confirmation gating by risk class\nR0: never\nR1: session-allow ok (900s TTL)\nR2: always explicit (300s TTL)\nR3: always manual, no session-allow"]
+        LG_RISK_RETRY["Retry policy by risk class\nR0/R1/R2: retry allowed per backoff\nR3: no execution retry (idempotency critical)"]
+        LG_RISK_SYNC["Synchronizer contract by risk class\nR3: irreversibility_notice required\nR2: affected_scope_summary required\nrollback to planner output on semantic drift"]
+        LG_CLASS["Deterministic finalization classifier\nno LLM routing by intuition\nclassification must be testable from normalized result metadata only"]
+        LG_MATRIX["Classifier matrix (authoritative intent)\n1) direct_final if has_commands=true\n2) direct_final if response_type in {confirmation_request, confirm_pending, skill_call}\n3) direct_final if issue_codes contains {SCHEMA_ERROR, SCHEMA_UNAVAILABLE, DEPENDENCY_CYCLE, CONTRACT_INVALID_RESPONSE_TYPE, CONTRACT_COMMANDS_REQUIRED}\n4) template_only if issue_codes contains {BUDGET_EXCEEDED, BLOCKED_TIMEOUT, RETRY_EXHAUSTED, PERMISSION_ERROR, VALIDATION_ERROR, CONTEXT_INVALID}\n5) template_only if error_class in {provider_timeout, transient_io, auth_failed, quota_exceeded, runtime_disabled}\n6) llm_polish if response_type in {sufficient, clarification}\n7) llm_polish if response_type=error and NOT structural_failure and no direct/template rule matched\n8) precedence: direct_final > template_only > llm_polish"]
+        LG_SPAWN_RULE["Spawn contract available\ncurrently mainly schema/normalization path\nfull runtime enqueue path optional"]
+        LG_CAP["Skill release gates\nruntime + active + context + capability"]
+        LG_RETRY["Retry lifecycle + global budget view\npreflight retry_hint + queue retry_waiting\n+ execution retry + loop budget\n+ planner contract retry hints inside loop\n  (CONTRACT_PARSE_ERROR, CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED)\ncategory policy: TECHNICAL/DOMAIN/EXTERNAL_DEPENDENCY\nlayer collision guard + provider circuit-breaker"]
+        LG_IDEM["Idempotency split\nqueue: signature reuse\nexecutor: already executed skip"]
+        LG_COMPLEX["Complex workflow capable\nspawn/dependency chains, artifact refs, late preflight\nacross domains"]
+        LG_TERMINAL["Terminal outcomes\nfailed / budget_exceeded / success\n(non-failure skip shown separately)"]
+        LG_DET["Deterministic staged routing only\nno direct skill-level top-k as single strategy\nno full skill dump to planner (budgeted staged expansion only)\nno shadow-only discovery decisions in final target path\nno removal of no-embeddings fallback path"]
+    end
+
+    %% =========================================================
+    %% STYLES
+    %% =========================================================
+    style FINAL_OUT fill:#2d6a4f,color:#fff
+    style EXC_SUCC fill:#2d6a4f,color:#fff
+    style SKIP_OUT fill:#e9c46a,color:#000
+    style IDEM_OUT fill:#e9c46a,color:#000
+    style FAIL_OUT fill:#9b2226,color:#fff
+    style Q_DAGFAIL fill:#9b2226,color:#fff
+    style Q_SKIP fill:#e9c46a,color:#000
+    style BUDGX fill:#9b2226,color:#fff
+    style Q_FAIL_TTL fill:#9b2226,color:#fff
+    style Q_BLOCKED fill:#e9c46a,color:#000
+    style LOOP_STOP fill:#e9c46a,color:#000
+    style FCLASS fill:#264653,color:#fff
+    style CONF_TERM fill:#264653,color:#fff
+    style CONF_FOLLOW fill:#264653,color:#fff
+    style DIRECT_FINAL fill:#e9c46a,color:#000
+    style D_PREFLIGHT fill:#e9c46a,color:#000
+    style D_TARGET_NOTE fill:#e9c46a,color:#000
+    style D_CMD_ROUTE fill:#e9c46a,color:#000
+    style SYNC_RUN fill:#1d3557,color:#fff
+    style SYNC_TEMPLATE fill:#264653,color:#fff
+    style SYNC_PPB fill:#1d3557,color:#fff
+    style SYNC_LANG fill:#1d3557,color:#fff
+    style SYNC_GATE fill:#264653,color:#fff
+    style SYNC_ROUTE fill:#1d3557,color:#fff
+    style SLLM fill:#457b9d,color:#fff
+    style SINTERP fill:#264653,color:#fff
+    style SCONTRACT fill:#2d6a4f,color:#fff
+    style Q_RETRY fill:#457b9d,color:#fff
+    style EXC_TRANSIENT fill:#457b9d,color:#fff
+    style Q_SPAWN fill:#457b9d,color:#fff
+    style EXC_GUARD fill:#264653,color:#fff
+    style EXC_GUARD_OK fill:#264653,color:#fff
+    style Q_RUNNING fill:#264653,color:#fff
+    style BUDG_CHECK fill:#264653,color:#fff
+    style ATTB fill:#457b9d,color:#fff
+    style LOOP_RETRYABLE fill:#264653,color:#fff
+    style LOOP_COLLIDE fill:#264653,color:#fff
+    style FW_RETRY_OBS fill:#457b9d,color:#fff
+    style PF_L3P fill:#457b9d,color:#fff
+    style PF_L3CB fill:#264653,color:#fff
+    style Q_RTRACE fill:#457b9d,color:#fff
+    style EXEC_GATE fill:#264653,color:#fff
+    style LG_DB fill:#264653,color:#fff
+    style LG_CTX fill:#264653,color:#fff
+    style LG_OPCTX fill:#264653,color:#fff
+    style LG_AUTO fill:#264653,color:#fff
+    style LG_MANUAL fill:#e9c46a,color:#000
+    style LG_LANG fill:#1d3557,color:#fff
+    style LG_3P fill:#1d3557,color:#fff
+    style LG_AGN fill:#1d3557,color:#fff
+    style LG_PLAN fill:#1d3557,color:#fff
+    style LG_SYNC fill:#1d3557,color:#fff
+    style LG_RISK fill:#264653,color:#fff
+    style LG_RISK_CONF fill:#e9c46a,color:#000
+    style LG_RISK_RETRY fill:#457b9d,color:#fff
+    style LG_RISK_SYNC fill:#264653,color:#fff
+    style LG_CLASS fill:#264653,color:#fff
+    style LG_MATRIX fill:#264653,color:#fff
+    style LG_SPAWN_RULE fill:#264653,color:#fff
+    style LG_CAP fill:#264653,color:#fff
+    style LG_RETRY fill:#457b9d,color:#fff
+    style LG_IDEM fill:#264653,color:#fff
+    style LG_COMPLEX fill:#2d6a4f,color:#fff
+    style LG_TERMINAL fill:#9b2226,color:#fff
+    style LG_DET fill:#1d3557,color:#fff
+    style EMB_QUERY fill:#457b9d,color:#fff
+    style Q_PLANNED fill:#e9c46a,color:#000
+    style UM_TABLE fill:#264653,color:#fff
+    style UM_SVC fill:#1d3557,color:#fff
+    style UM_REMEMBER fill:#2d6a4f,color:#fff
+    style UM_FORGET fill:#e9c46a,color:#000
+    style UM_LIST fill:#457b9d,color:#fff
+    style UM_INJECT fill:#1d3557,color:#fff
+    style UM_PRIVACY fill:#264653,color:#fff
+    style LG_MEM fill:#1d3557,color:#fff
