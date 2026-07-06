@@ -42,7 +42,7 @@ use context_system;
  * re-embedding on unchanged files.
  *
  * Corpus registry is driven by docs_corpus_registry, which parses the admin "documentation
- * corpora" textarea (aidocsroot) into the resolvable corpus_id → root map.
+ * corpora" textarea (docscorpora) into the resolvable corpus_id → root map.
  */
 class docs_embeddings_index_service {
     /** Maximum characters per chunk before an oversized section is split on a size budget. */

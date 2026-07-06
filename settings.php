@@ -260,7 +260,7 @@ if ($agentenabled) {
     // keeps internal docs out of user-facing answers). Re-seed when unset, on the original bare
     // default, OR on the previous half-scoped value (agent scoped, mod_booking still bare); a
     // deliberately-emptied ('') or admin-customised value is preserved.
-    $aidocsrootcurrent = get_config('bookingextension_agent', 'aidocsroot');
+    $aidocsrootcurrent = get_config('bookingextension_agent', 'docscorpora');
     $aidocsrootscoped = "bookingextension_agent = mod/booking/bookingextension/agent/docs/user\n"
         . "mod_booking = mod/booking/docs/user";
     if (
@@ -268,7 +268,7 @@ if ($agentenabled) {
         || $aidocsrootcurrent === "bookingextension_agent\nmod_booking"
         || $aidocsrootcurrent === "bookingextension_agent = mod/booking/bookingextension/agent/docs/user\nmod_booking"
     ) {
-        set_config('aidocsroot', $aidocsrootscoped, 'bookingextension_agent');
+        set_config('docscorpora', $aidocsrootscoped, 'bookingextension_agent');
     }
 
     // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a
@@ -320,7 +320,7 @@ if ($agentenabled) {
         . html_writer::div($docsskillindicator, 'alert alert-info mt-2');
 
     $docscorpora = new \bookingextension_agent\admin\setting_docs_corpora(
-        'bookingextension_agent/aidocsroot',
+        'bookingextension_agent/docscorpora',
         get_string('aidocsroot', 'bookingextension_agent'),
         $docscorporadesc,
         $aidocsrootscoped,

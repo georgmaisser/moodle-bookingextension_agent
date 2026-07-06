@@ -34,7 +34,7 @@ namespace bookingextension_agent\local\wizard\services\lookup;
  * absolute root exclusively through this registry, and every file read is confined to the
  * resolved root of that corpus_id.
  *
- * Corpora come exclusively from the admin "documentation corpora" textarea (the aidocsroot
+ * Corpora come exclusively from the admin "documentation corpora" textarea (the docscorpora
  * setting), parsed by {@see corpus_source_parser}. There is no component provider scan: the two
  * defaults (the agent's own docs and mod_booking) are seeded as component lines in the setting's
  * default value, so they are available out of the box without absolute paths.
@@ -140,7 +140,7 @@ class docs_corpus_registry {
      */
     private function parsed(): array {
         if ($this->parsed === null) {
-            $textarea = (string)get_config('bookingextension_agent', 'aidocsroot');
+            $textarea = (string)get_config('bookingextension_agent', 'docscorpora');
             $this->parsed = corpus_source_parser::parse($textarea);
         }
         return $this->parsed;

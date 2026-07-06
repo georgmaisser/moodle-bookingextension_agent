@@ -34,7 +34,7 @@ final class docs_corpus_registry_test extends advanced_testcase {
     public function test_resolves_from_setting(): void {
         global $CFG;
         $this->resetAfterTest();
-        set_config('aidocsroot', "bookingextension_agent\nmod_booking", 'bookingextension_agent');
+        set_config('docscorpora', "bookingextension_agent\nmod_booking", 'bookingextension_agent');
 
         $registry = new docs_corpus_registry();
 
@@ -53,7 +53,7 @@ final class docs_corpus_registry_test extends advanced_testcase {
      */
     public function test_declared_but_unreadable_is_kept_declared(): void {
         $this->resetAfterTest();
-        set_config('aidocsroot', "mod_booking\nghost = mod/booking/this_does_not_exist", 'bookingextension_agent');
+        set_config('docscorpora', "mod_booking\nghost = mod/booking/this_does_not_exist", 'bookingextension_agent');
 
         $registry = new docs_corpus_registry();
 
