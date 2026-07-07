@@ -45,6 +45,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class phase1_discovery_foundation_contract_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Family contract must derive deterministic fallback families from skill names.
      */
     public function test_skill_family_contract_derives_family_from_skill_name(): void {

@@ -39,6 +39,13 @@ use context_course;
  */
 final class module_target_pipeline_clarification_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Two booking instances in the ambient course → CONTEXT_TARGET_UNRESOLVED with both names listed.
      */
     public function test_ambiguous_module_target_lists_candidates(): void {

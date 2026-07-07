@@ -34,6 +34,13 @@ use bookingextension_agent\local\wizard\skill_registry;
  */
 final class proposed_action_preview_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Build a stub skill whose schema declares the given properties.
      *
      * @param array $properties

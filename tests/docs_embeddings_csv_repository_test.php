@@ -34,6 +34,13 @@ use bookingextension_agent\local\wizard\services\lookup\docs_embeddings_csv_repo
  */
 final class docs_embeddings_csv_repository_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Build one chunk row whose payloads exercise CSV-hostile characters.
      *
      * @param string $corpusid

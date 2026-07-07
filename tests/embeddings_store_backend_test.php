@@ -44,6 +44,13 @@ use bookingextension_agent\local\wizard\skill_registry_factory;
  */
 final class embeddings_store_backend_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * The default and the explicit csv flag resolve to the CSV backend; db resolves to the DB backend.
      */
     public function test_factory_selects_backend_by_flag(): void {

@@ -39,6 +39,13 @@ use bookingextension_agent\local\wizard\privacy_anonymizer;
  */
 final class privacy_anonymizer_code_token_test extends \advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Skill names and trigger ids stay intact while prose names are anonymized.
      */
     public function test_code_tokens_survive_name_anonymization(): void {

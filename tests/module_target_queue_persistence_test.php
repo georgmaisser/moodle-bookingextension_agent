@@ -46,6 +46,13 @@ use context_module;
  */
 final class module_target_queue_persistence_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * set_prepared_input writes the resolved operating context back onto the item and binds the
      * guard token to it (not to the stale ambient context the item was created with).
      */

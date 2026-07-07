@@ -34,6 +34,13 @@ use bookingextension_agent\local\wizard\services\discard_pending_service;
  */
 final class discard_pending_service_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Create a booking module and return [contextid, userid, threadid].
      *
      * @return array{0:int,1:int,2:int}

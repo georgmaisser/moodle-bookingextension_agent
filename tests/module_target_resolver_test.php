@@ -36,6 +36,13 @@ use context_module;
  */
 final class module_target_resolver_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Create a booking instance in a course and return its cmid.
      *
      * @param int|string $courseid

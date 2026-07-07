@@ -21,6 +21,15 @@ use context_module;
 use mod_booking\local\testing\booking_advanced_testcase;
 use mod_booking\singleton_service;
 
+// Conditional parent: booking's advanced testcase when mod_booking is installed,
+// plain advanced_testcase otherwise (generated local_wizard plugin without booking);
+// the setUp() guard then skips every booking-coupled test cleanly.
+if (class_exists(booking_advanced_testcase::class)) {
+    class_alias(booking_advanced_testcase::class, option_skills_contract_parent::class);
+} else {
+    class_alias(\advanced_testcase::class, option_skills_contract_parent::class);
+}
+
 /**
  * Contracts for canonical mod_booking option skill discovery and behavior.
  *
@@ -36,7 +45,15 @@ use mod_booking\singleton_service;
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-final class mod_booking_option_skills_contract_test extends booking_advanced_testcase {
+final class mod_booking_option_skills_contract_test extends option_skills_contract_parent {
+    /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+
     /**
      * Ensure canonical mod_booking option skills are discoverable.
      */

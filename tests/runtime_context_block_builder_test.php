@@ -42,6 +42,13 @@ use bookingextension_agent\local\wizard\services\user_memory_service;
  */
 final class runtime_context_block_builder_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Build the service with its (simple) dependency chain.
      *
      * @param conversation_store $store

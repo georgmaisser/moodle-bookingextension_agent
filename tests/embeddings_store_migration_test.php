@@ -36,6 +36,13 @@ use bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class embeddings_store_migration_test extends advanced_testcase {
+    /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
     /** Test embedding model. */
     private const MODEL = 'test-model';
 

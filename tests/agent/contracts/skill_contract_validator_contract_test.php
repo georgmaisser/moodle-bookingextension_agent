@@ -36,6 +36,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class skill_contract_validator_contract_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Validate namespaced skill-name format helper.
      */
     public function test_namespaced_skill_name_format(): void {

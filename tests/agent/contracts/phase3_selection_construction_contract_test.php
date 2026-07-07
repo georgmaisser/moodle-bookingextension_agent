@@ -40,6 +40,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class phase3_selection_construction_contract_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Lazy loader must reject skills outside the phase allow-list.
      */
     public function test_lazy_skill_loader_respects_allowed_skills(): void {

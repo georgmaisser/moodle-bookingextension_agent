@@ -35,6 +35,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class integration_agent_framework_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Test that skill_registry discovers skills from the booking plugin provider.
      */
     public function test_skill_registry_discovers_booking_skills(): void {

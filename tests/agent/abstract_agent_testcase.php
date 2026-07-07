@@ -43,6 +43,15 @@ use bookingextension_agent\local\wizard\skill_registry;
 use mod_booking\singleton_service;
 use stdClass;
 
+// Conditional parent: booking's advanced testcase when mod_booking is installed,
+// plain advanced_testcase otherwise (generated local_wizard plugin without booking);
+// the setUp() guard then skips every booking-coupled test cleanly.
+if (class_exists(booking_advanced_testcase::class)) {
+    class_alias(booking_advanced_testcase::class, agent_testcase_parent::class);
+} else {
+    class_alias(\advanced_testcase::class, agent_testcase_parent::class);
+}
+
 /**
  * Abstract base for AI agent PHPUnit tests.
  *
@@ -55,7 +64,7 @@ use stdClass;
  * @copyright  2025 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-abstract class abstract_agent_testcase extends booking_advanced_testcase {
+abstract class abstract_agent_testcase extends agent_testcase_parent {
     /** @var stdClass Course record. */
     protected stdClass $course;
 
@@ -97,6 +106,7 @@ abstract class abstract_agent_testcase extends booking_advanced_testcase {
       * BOOKING_TEST_AI_ENDPOINT are set.
       */
     protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
         parent::setUp();
         $this->resetAfterTest();
 

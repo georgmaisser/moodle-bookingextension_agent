@@ -44,6 +44,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class phase2_discovery_staging_contract_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Budget policy must enforce monotonic stage budgets.
      */
     public function test_budget_policy_stage_caps_are_monotonic(): void {

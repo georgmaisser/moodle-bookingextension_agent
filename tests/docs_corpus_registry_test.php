@@ -29,6 +29,13 @@ use bookingextension_agent\local\wizard\services\lookup\docs_corpus_registry;
  */
 final class docs_corpus_registry_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * The registry resolves corpora from the aidocsroot textarea setting.
      */
     public function test_resolves_from_setting(): void {

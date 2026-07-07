@@ -37,6 +37,13 @@ use context_course;
  */
 final class discovery_meta_skills_visibility_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * exclude_discovery_meta_skills drops list_skills + search_skills, keeps the rest.
      */
     public function test_exclude_discovery_meta_skills_drops_only_meta(): void {

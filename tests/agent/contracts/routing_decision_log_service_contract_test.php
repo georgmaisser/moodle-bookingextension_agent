@@ -33,6 +33,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class routing_decision_log_service_contract_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Telemetry fields must be normalized with stable fallback values.
      */
     public function test_normalize_telemetry_stable_defaults(): void {

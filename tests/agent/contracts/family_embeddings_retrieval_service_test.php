@@ -30,6 +30,13 @@ use advanced_testcase;
  */
 final class family_embeddings_retrieval_service_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Verifies that family scores can re-rank skill rows.
      *
      * @covers \bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service::boost_skill_rows

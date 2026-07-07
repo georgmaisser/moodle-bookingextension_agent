@@ -29,6 +29,13 @@ use bookingextension_agent\local\wizard\services\lookup\corpus_source_parser;
  */
 final class corpus_source_parser_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * A bare component resolves to its docs folder with the component name as the corpus id.
      */
     public function test_bare_component(): void {

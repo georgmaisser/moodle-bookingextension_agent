@@ -32,6 +32,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class synchronizer_input_contract_test extends TestCase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * PHASE_TRACE should keep only minimal telemetry and exclude discovery payloads.
      */
     public function test_phase_trace_excludes_skill_discovery_payload(): void {

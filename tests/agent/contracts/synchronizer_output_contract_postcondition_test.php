@@ -36,6 +36,13 @@ use PHPUnit\Framework\TestCase;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class synchronizer_output_contract_postcondition_test extends TestCase {
+    /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
     // -----------------------------------------------------------------------
     // Postcondition enforcement
     // Separator.

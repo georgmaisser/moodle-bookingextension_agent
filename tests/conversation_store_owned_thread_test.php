@@ -32,6 +32,13 @@ use bookingextension_agent\local\wizard\conversation_store;
  */
 final class conversation_store_owned_thread_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * A thread is returned only for its owning user in its own context; everyone else gets null.
      */
     public function test_ownership_scoping(): void {

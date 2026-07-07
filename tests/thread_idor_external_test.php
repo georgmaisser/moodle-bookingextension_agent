@@ -41,6 +41,13 @@ use bookingextension_agent\local\wizard\llm_debug_logger;
  */
 final class thread_idor_external_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * Two editing teachers (both hold useaiinstructions, so readiness passes) in one course.
      *
      * @return array{0:\stdClass,1:\stdClass,2:int}  [owner, attacker, course context id]

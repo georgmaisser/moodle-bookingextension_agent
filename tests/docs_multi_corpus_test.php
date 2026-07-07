@@ -49,6 +49,7 @@ final class docs_multi_corpus_test extends advanced_testcase {
      * Set up two temp-dir corpora and register them.
      */
     public function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
         parent::setUp();
         $this->resetAfterTest(true);
 

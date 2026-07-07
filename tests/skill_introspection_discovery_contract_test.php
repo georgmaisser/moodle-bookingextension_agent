@@ -38,6 +38,13 @@ use bookingextension_agent\local\wizard\wizard\skills\search_skills_skill;
  */
 final class skill_introspection_discovery_contract_test extends advanced_testcase {
     /**
+     * Skip when mod_booking is not installed (generated local_wizard plugin).
+     */
+    protected function setUp(): void {
+        \bookingextension_agent\local\wizard\testing\mod_booking_dependency::require_installed();
+        parent::setUp();
+    }
+    /**
      * list_skills renders the injected introspection provider's rows (no registry/evaluator), and
      * enriches unavailable rows with the localized deny-reason label (the presentation it kept).
      */
