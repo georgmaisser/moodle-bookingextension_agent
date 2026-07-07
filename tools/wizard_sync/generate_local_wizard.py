@@ -122,6 +122,17 @@ def transform_version_php(text: str) -> str:
     )
 
 
+def transform_lang_file(text: str) -> str:
+    """Rewrite plugin-name-derived capability string keys.
+
+    Moodle resolves the display string of capability local/wizard:x under the
+    key 'wizard:x' (derived from the plugin NAME, not the component), so the
+    agent's 'agent:x' keys must become 'wizard:x'. The short form exists only
+    in lang files; verify() rejects any survivor.
+    """
+    return text.replace("$string['agent:", "$string['wizard:")
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -165,6 +176,8 @@ def generate_content(rel: Path) -> tuple[Path, bytes]:
     text = fix_config_require_depth(text, target_rel)
     if rel_str == "version.php":
         text = transform_version_php(text)
+    if rel.parts and rel.parts[0] == "lang":
+        text = transform_lang_file(text)
     return target_rel, text.encode("utf-8")
 
 
@@ -187,6 +200,8 @@ def verify(outputs: dict) -> list:
                     f"config.php require in {rel} climbs {actual} levels, "
                     f"expected {expected}"
                 )
+        if Path(rel).parts and Path(rel).parts[0] == "lang" and "$string['agent:" in text:
+            errors.append(f"unmapped capability string key ($string['agent:...]) in {rel}")
         if str(rel) == "db/install.xml":
             for name in TABLE_NAME_RE.findall(text):
                 if len(name) > TABLE_NAME_LIMIT:

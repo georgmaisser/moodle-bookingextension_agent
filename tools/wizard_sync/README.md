@@ -24,7 +24,12 @@ deterministic: same source tree in, byte-identical artifact out.
    `mod/booking/bookingextension/agent` → `local/wizard`, admin parent
    `modbookingfolder` → `localplugins`. File and directory names are mapped
    with the same rules (`lang/en/bookingextension_agent.php` →
-   `lang/en/local_wizard.php`).
+   `lang/en/local_wizard.php`). In lang files the plugin-name-derived
+   capability keys `$string['agent:…']` become `$string['wizard:…']` (Moodle
+   resolves capability display strings under the plugin NAME, not the
+   component). Known cosmetic consequence: key renames unsort the generated
+   lang files; irrelevant at runtime, but a future artifact CI needs the
+   sorting sniff relaxed (or a re-sort step here).
 2. **config.php require depth**: the plugin moves from 4 to 2 directory levels
    below the webroot; every `__DIR__ . '/../../ … /config.php'` climb is
    rewritten to the correct depth for its file.
