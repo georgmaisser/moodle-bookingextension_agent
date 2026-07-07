@@ -185,5 +185,33 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026070701, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026070703) {
+        // XMLDB forbids CHAR NOT NULL columns with '' as default (debugging noise on every
+        // structure load, e.g. plugin uninstall). Both columns are always set explicitly on
+        // insert, so the default is dropped entirely instead of inventing a meaningful one.
+        $table = new xmldb_table('bx_agent_embeddings');
+        if ($dbman->table_exists($table)) {
+            $owner = new xmldb_field('owner', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'area');
+            if ($dbman->field_exists($table, $owner)) {
+                $dbman->change_field_default($table, $owner);
+            }
+            $identityhash = new xmldb_field(
+                'identityhash',
+                XMLDB_TYPE_CHAR,
+                '40',
+                null,
+                XMLDB_NOTNULL,
+                null,
+                null,
+                'contenthash'
+            );
+            if ($dbman->field_exists($table, $identityhash)) {
+                $dbman->change_field_default($table, $identityhash);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026070703, 'bookingextension', 'agent');
+    }
+
     return true;
 }

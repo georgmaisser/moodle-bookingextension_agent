@@ -203,7 +203,7 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="area" TYPE="char" LENGTH="32" NOTNULL="true" SEQUENCE="false" COMMENT="Area discriminator (docs|skills|site_content)"/>
-        <FIELD NAME="owner" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="Identity part 1 (corpus/skill/search-area-id)"/>
+        <FIELD NAME="owner" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Identity part 1 (corpus/skill/search-area-id)"/>
         <FIELD NAME="refkey" TYPE="text" NOTNULL="true" SEQUENCE="false" COMMENT="Identity part 2 (chunk path/anchor kind/doc id); may be long"/>
         <FIELD NAME="refindex" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Identity part 3 (start line/anchor index/chunk number)"/>
         <FIELD NAME="endindex" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Optional end index (docs: end line)"/>
@@ -211,7 +211,7 @@
         <FIELD NAME="emodel" TYPE="char" LENGTH="128" NOTNULL="true" SEQUENCE="false" COMMENT="Embedding model"/>
         <FIELD NAME="edims" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Embedding dimensions"/>
         <FIELD NAME="contenthash" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="Change-detection hash (content + model + dims); 64 fits the skills sha256, docs/site sha1 use 40"/>
-        <FIELD NAME="identityhash" TYPE="char" LENGTH="40" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="sha1 of the area identity key, for reuse lookups on rebuild"/>
+        <FIELD NAME="identityhash" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false" COMMENT="sha1 of the area identity key, for reuse lookups on rebuild"/>
         <FIELD NAME="generation" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Generation number; readers only ever see the committed one"/>
         <FIELD NAME="embedding" TYPE="binary" NOTNULL="true" SEQUENCE="false" COMMENT="Little-endian float32 vector blob"/>
         <FIELD NAME="docid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Site provenance: source document id (null for docs/skills)"/>
