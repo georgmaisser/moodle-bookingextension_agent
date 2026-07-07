@@ -63,6 +63,11 @@ class agent_runtime {
     private const LOOP_RETRYABLE_ISSUE_CODES = [
         'CONTRACT_PARSE_ERROR',
         'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED',
+        // Command-bearing response_type with empty commands[] (interpreter's single
+        // error_result() site). A transient planner flake — observed on the guest-claim
+        // auto-continuation turn — that a manual "try again" reliably fixed, so the
+        // framework retries it once itself instead of telling the user to retry.
+        'CONTRACT_VALIDATION_ERROR',
     ];
 
     /** Maximum number of loop-level framework retries per issue code. */
@@ -716,6 +721,13 @@ class agent_runtime {
             return 'RETRY_HINT: Selection must emit exactly one direct command object in commands[]. '
                 . 'Do not wrap skill inside helper keys like current/next/action. '
                 . 'Use canonical selector shape only, for example commands=[{"skill":"<skill>","input":{}}].';
+        }
+
+        if ($issuecode === 'CONTRACT_VALIDATION_ERROR') {
+            return 'RETRY_HINT: The previous planner output used a command-bearing response_type but '
+                . 'commands[] was empty. Emit the intended command, for example '
+                . 'commands=[{"skill":"<skill>","input":{...}}] — or, if no new command is needed, use '
+                . 'response_type=clarification, confirm_pending or sufficient instead.';
         }
 
         return 'RETRY_HINT: Previous planner output violated the contract. Retry once with strict JSON contract compliance.';

@@ -715,6 +715,35 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * The empty-commands contract violation (CONTRACT_VALIDATION_ERROR) gets one framework
+     * retry instead of surfacing as a terminal "please try again" error to the user.
+     */
+    public function test_agent_runtime_retry_resolver_allows_retry_for_empty_commands_contract_error(): void {
+        $reflection = new \ReflectionClass(\bookingextension_agent\local\wizard\agent_runtime::class);
+        $runtime = $reflection->newInstanceWithoutConstructor();
+        $method = $reflection->getMethod('resolve_framework_retry_issue_code');
+        $method->setAccessible(true);
+
+        $result = [
+            'response_type' => 'error',
+            'issue_codes' => ['CONTRACT_VALIDATION_ERROR'],
+            'commands' => [],
+        ];
+
+        $this->assertSame('CONTRACT_VALIDATION_ERROR', $method->invoke($runtime, $result, []));
+
+        // Retry budget is one: a second occurrence of the same issue code is no longer retryable.
+        $this->assertNull($method->invoke($runtime, $result, ['CONTRACT_VALIDATION_ERROR' => 1]));
+
+        // The retry hint names the violation so the next planner turn can self-correct.
+        $hintmethod = $reflection->getMethod('build_framework_retry_observation');
+        $hintmethod->setAccessible(true);
+        $hint = $hintmethod->invoke($runtime, 'CONTRACT_VALIDATION_ERROR');
+        $this->assertStringStartsWith('RETRY_HINT:', $hint);
+        $this->assertStringContainsString('commands[] was empty', $hint);
+    }
+
+    /**
      * Guardrail: same error class may not open retry in a third distinct layer.
      */
     public function test_queue_transition_retry_layer_guard_blocks_third_distinct_layer(): void {
