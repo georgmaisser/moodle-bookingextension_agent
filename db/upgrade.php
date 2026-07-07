@@ -206,7 +206,21 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
                 'contenthash'
             );
             if ($dbman->field_exists($table, $identityhash)) {
+                // The identityhash column is part of the reuse index, and Moodle's DDL refuses to
+                // modify a field a key depends on. Drop the index, change the default, restore it.
+                $reuseindex = new xmldb_index(
+                    'reuse_idx',
+                    XMLDB_INDEX_NOTUNIQUE,
+                    ['area', 'emodel', 'edims', 'generation', 'identityhash']
+                );
+                $hadreuseindex = $dbman->index_exists($table, $reuseindex);
+                if ($hadreuseindex) {
+                    $dbman->drop_index($table, $reuseindex);
+                }
                 $dbman->change_field_default($table, $identityhash);
+                if ($hadreuseindex) {
+                    $dbman->add_index($table, $reuseindex);
+                }
             }
         }
 
