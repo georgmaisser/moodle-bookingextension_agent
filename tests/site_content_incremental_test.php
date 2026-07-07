@@ -196,7 +196,7 @@ final class site_content_incremental_test extends advanced_testcase {
         // The cursor advanced to the edited doc's modified time — and is persisted in the DB.
         $this->assertSame($newmodified, $state->get_cursor(self::AREAKEY, $model, $dims));
         $staterow = $DB->get_record(
-            'bx_agent_sitesearch_state',
+            'bx_agent_search_state',
             ['areakey' => self::AREAKEY, 'emodel' => $model, 'edims' => $dims],
             '*',
             MUST_EXIST
@@ -221,14 +221,14 @@ final class site_content_incremental_test extends advanced_testcase {
         $indexer = new site_content_index_service($this->counting_embedder($calls));
         $indexer->update();
         $this->assertNotEmpty($this->stored_rows());
-        $this->assertGreaterThan(0, $DB->count_records('bx_agent_sitesearch_state', ['areakey' => self::AREAKEY]));
+        $this->assertGreaterThan(0, $DB->count_records('bx_agent_search_state', ['areakey' => self::AREAKEY]));
 
         (new sitesearch_scope_repository())->set_enabled(self::AREAKEY, false);
         $result = $indexer->update();
         $this->assertSame('ok', $result['status']);
         $this->assertSame('disabled_pruned', $result['areas'][self::AREAKEY]['status']);
         $this->assertSame([], $this->stored_rows());
-        $this->assertSame(0, $DB->count_records('bx_agent_sitesearch_state', ['areakey' => self::AREAKEY]));
+        $this->assertSame(0, $DB->count_records('bx_agent_search_state', ['areakey' => self::AREAKEY]));
     }
 
     /**

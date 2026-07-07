@@ -163,5 +163,27 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026070205, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026070701) {
+        // Shorten table suffixes so the local_wizard sync generator can map tables by pure
+        // prefix swap: every suffix after bx_agent_ must stay <= 15 chars, or the generated
+        // local_wizard_* name would exceed Moodle's 28-char table name limit. Data-preserving
+        // rename (benchmark history matters in dev).
+        $renames = [
+            'bx_agent_benchmark_runs' => 'bx_agent_bm_runs',
+            'bx_agent_benchmark_scenarios' => 'bx_agent_bm_scenarios',
+            'bx_agent_benchmark_baselines' => 'bx_agent_bm_baselines',
+            'bx_agent_benchmark_metrics' => 'bx_agent_bm_metrics',
+            'bx_agent_sitesearch_state' => 'bx_agent_search_state',
+        ];
+        foreach ($renames as $oldname => $newname) {
+            $table = new xmldb_table($oldname);
+            if ($dbman->table_exists($table) && !$dbman->table_exists(new xmldb_table($newname))) {
+                $dbman->rename_table($table, $newname);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026070701, 'bookingextension', 'agent');
+    }
+
     return true;
 }

@@ -41,10 +41,10 @@ if ($options['help'] || !$options['run-id']) {
 }
 
 $runid = (int)$options['run-id'];
-$run   = $DB->get_record('bx_agent_benchmark_runs', ['id' => $runid], '*', MUST_EXIST);
-$scenarios = $DB->get_records('bx_agent_benchmark_scenarios', ['run_id' => $runid], 'scenario_key ASC');
-$metrics   = $DB->get_records('bx_agent_benchmark_metrics', ['run_id' => $runid], 'metric_key ASC');
-$baselines = $DB->get_records('bx_agent_benchmark_baselines', ['run_id' => $runid]);
+$run   = $DB->get_record('bx_agent_bm_runs', ['id' => $runid], '*', MUST_EXIST);
+$scenarios = $DB->get_records('bx_agent_bm_scenarios', ['run_id' => $runid], 'scenario_key ASC');
+$metrics   = $DB->get_records('bx_agent_bm_metrics', ['run_id' => $runid], 'metric_key ASC');
+$baselines = $DB->get_records('bx_agent_bm_baselines', ['run_id' => $runid]);
 
 $export = [
     '_export_version' => 1,

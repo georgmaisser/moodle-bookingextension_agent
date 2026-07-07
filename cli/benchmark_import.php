@@ -66,7 +66,7 @@ $rundata = (array)$data['run'];
 $uuid    = trim((string)($rundata['run_uuid'] ?? ''));
 
 // Idempotency check.
-if ($uuid !== '' && $DB->record_exists('bx_agent_benchmark_runs', ['run_uuid' => $uuid])) {
+if ($uuid !== '' && $DB->record_exists('bx_agent_bm_runs', ['run_uuid' => $uuid])) {
     cli_writeln("Run with UUID {$uuid} already exists — skipping import.");
     exit(0);
 }
@@ -81,14 +81,14 @@ unset($rundata['id']);
 $rundata['timecreated'] = $rundata['timecreated'] ?? time();
 
 $now = time();
-$newrunid = $DB->insert_record('bx_agent_benchmark_runs', (object)$rundata);
+$newrunid = $DB->insert_record('bx_agent_bm_runs', (object)$rundata);
 
 foreach ((array)$data['scenarios'] as $scenario) {
     $s = (array)$scenario;
     unset($s['id']);
     $s['run_id']     = $newrunid;
     $s['timecreated'] = $s['timecreated'] ?? $now;
-    $DB->insert_record('bx_agent_benchmark_scenarios', (object)$s);
+    $DB->insert_record('bx_agent_bm_scenarios', (object)$s);
 }
 
 foreach ((array)$data['metrics'] as $metric) {
@@ -96,7 +96,7 @@ foreach ((array)$data['metrics'] as $metric) {
     unset($m['id']);
     $m['run_id']     = $newrunid;
     $m['timecreated'] = $m['timecreated'] ?? $now;
-    $DB->insert_record('bx_agent_benchmark_metrics', (object)$m);
+    $DB->insert_record('bx_agent_bm_metrics', (object)$m);
 }
 
 // Restore baseline entries if present.
@@ -105,7 +105,7 @@ foreach ((array)($data['baselines'] ?? []) as $baseline) {
     unset($b['id']);
     $b['run_id']     = $newrunid;
     $b['timecreated'] = $b['timecreated'] ?? $now;
-    $DB->insert_record('bx_agent_benchmark_baselines', (object)$b);
+    $DB->insert_record('bx_agent_bm_baselines', (object)$b);
 }
 
 cli_writeln("Imported run as ID={$newrunid} (UUID={$uuid}, label=" . ($rundata['label'] ?? '') . ")");

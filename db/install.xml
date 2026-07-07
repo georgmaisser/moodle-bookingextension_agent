@@ -86,7 +86,7 @@
         <INDEX NAME="contextidtimeidx" UNIQUE="false" FIELDS="contextid, timecreated"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="bx_agent_benchmark_runs" COMMENT="One row per benchmark run (full scenario set execution)">
+    <TABLE NAME="bx_agent_bm_runs" COMMENT="One row per benchmark run (full scenario set execution)">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_uuid" TYPE="char" LENGTH="36" NOTNULL="true" SEQUENCE="false" COMMENT="UUID v4"/>
@@ -121,7 +121,7 @@
         <INDEX NAME="is_baseline_idx" UNIQUE="false" FIELDS="is_baseline"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="bx_agent_benchmark_scenarios" COMMENT="Individual scenario results within a benchmark run">
+    <TABLE NAME="bx_agent_bm_scenarios" COMMENT="Individual scenario results within a benchmark run">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -145,13 +145,13 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_benchmark_runs" REFFIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_bm_runs" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="run_scenario_idx" UNIQUE="false" FIELDS="run_id, scenario_key"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="bx_agent_benchmark_baselines" COMMENT="Pinned benchmark baselines for regression comparison">
+    <TABLE NAME="bx_agent_bm_baselines" COMMENT="Pinned benchmark baselines for regression comparison">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -163,10 +163,10 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_benchmark_runs" REFFIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_bm_runs" REFFIELDS="id"/>
       </KEYS>
     </TABLE>
-    <TABLE NAME="bx_agent_benchmark_metrics" COMMENT="Aggregated metric snapshots per benchmark run for trend queries">
+    <TABLE NAME="bx_agent_bm_metrics" COMMENT="Aggregated metric snapshots per benchmark run for trend queries">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="run_id" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -178,7 +178,7 @@
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_benchmark_runs" REFFIELDS="id"/>
+        <KEY NAME="run_id" TYPE="foreign" FIELDS="run_id" REFTABLE="bx_agent_bm_runs" REFFIELDS="id"/>
       </KEYS>
       <INDEXES>
         <INDEX NAME="run_metric_idx" UNIQUE="false" FIELDS="run_id, metric_key"/>
@@ -246,7 +246,7 @@
         <INDEX NAME="variant_uix" UNIQUE="true" FIELDS="area, emodel, edims"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="bx_agent_sitesearch_state" COMMENT="Per area x variant incremental indexing cursor for the site search index (runtime state, task-written; deliberately separate from the admin-written governance config in bx_agent_search_scope)">
+    <TABLE NAME="bx_agent_search_state" COMMENT="Per area x variant incremental indexing cursor for the site search index (runtime state, task-written; deliberately separate from the admin-written governance config in bx_agent_search_scope)">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="areakey" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="core_search area id (e.g. mod_forum-post); length 100 keeps the unique index with emodel under the 333-char composed-index limit"/>

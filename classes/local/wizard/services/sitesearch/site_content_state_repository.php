@@ -27,7 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\sitesearch;
 
 /**
- * Reads/writes `{bx_agent_sitesearch_state}` — one cursor row per (areakey, emodel, edims).
+ * Reads/writes `{bx_agent_search_state}` — one cursor row per (areakey, emodel, edims).
  *
  * The cursor is the `modified` timestamp of the last successfully indexed document of an area
  * (Core's `…_lastindexrun` pattern, `search/classes/manager.php:1281`). It is runtime state written
@@ -36,7 +36,7 @@ namespace bookingextension_agent\local\wizard\services\sitesearch;
  */
 class site_content_state_repository {
     /** State table (UNIQUE areakey, emodel, edims). */
-    private const TABLE = 'bx_agent_sitesearch_state';
+    private const TABLE = 'bx_agent_search_state';
 
     /**
      * Cursor column. Named `indexcursor` because `cursor` is a MySQL/MariaDB reserved word and

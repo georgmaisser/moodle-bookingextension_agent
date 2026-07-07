@@ -34,7 +34,7 @@ $runaid  = required_param('run_a', PARAM_INT);
 $runbid  = optional_param('run_b', 0, PARAM_INT);
 
 // If run_b not given, compare against latest baseline.
-$runa = $DB->get_record('bx_agent_benchmark_runs', ['id' => $runaid], '*', MUST_EXIST);
+$runa = $DB->get_record('bx_agent_bm_runs', ['id' => $runaid], '*', MUST_EXIST);
 
 $writer = new benchmark_db_writer();
 if ($runbid <= 0) {
@@ -42,13 +42,13 @@ if ($runbid <= 0) {
     if (!$runb) {
         // Fall back to second most recent run.
         $rows = $DB->get_records_sql(
-            'SELECT * FROM {bx_agent_benchmark_runs} WHERE id != :id ORDER BY timecreated DESC LIMIT 1',
+            'SELECT * FROM {bx_agent_bm_runs} WHERE id != :id ORDER BY timecreated DESC LIMIT 1',
             ['id' => $runaid]
         );
         $runb = $rows ? reset($rows) : null;
     }
 } else {
-    $runb = $DB->get_record('bx_agent_benchmark_runs', ['id' => $runbid], '*', MUST_EXIST);
+    $runb = $DB->get_record('bx_agent_bm_runs', ['id' => $runbid], '*', MUST_EXIST);
 }
 
 $PAGE->set_context(context_system::instance());
@@ -69,7 +69,7 @@ $calc = new benchmark_metrics_calculator();
 
 // Run selector dropdown (using Moodle's single_select component).
 $allruns = $DB->get_records_sql(
-    'SELECT id, label, timecreated FROM {bx_agent_benchmark_runs} ORDER BY timecreated DESC LIMIT 50'
+    'SELECT id, label, timecreated FROM {bx_agent_bm_runs} ORDER BY timecreated DESC LIMIT 50'
 );
 $options = [];
 foreach ($allruns as $r) {
@@ -88,8 +88,8 @@ if (!$runb) {
 }
 
 // Load metrics.
-$metaa = $DB->get_records('bx_agent_benchmark_metrics', ['run_id' => $runa->id]);
-$metab = $DB->get_records('bx_agent_benchmark_metrics', ['run_id' => $runb->id]);
+$metaa = $DB->get_records('bx_agent_bm_metrics', ['run_id' => $runa->id]);
+$metab = $DB->get_records('bx_agent_bm_metrics', ['run_id' => $runb->id]);
 
 $mapa  = [];
 $units = [];
@@ -213,8 +213,8 @@ foreach ($allkeys as $key) {
 echo html_writer::table($table);
 
 // Scenario diff.
-$scenaa = $DB->get_records('bx_agent_benchmark_scenarios', ['run_id' => $runa->id]);
-$scenab = $DB->get_records('bx_agent_benchmark_scenarios', ['run_id' => $runb->id]);
+$scenaa = $DB->get_records('bx_agent_bm_scenarios', ['run_id' => $runa->id]);
+$scenab = $DB->get_records('bx_agent_bm_scenarios', ['run_id' => $runb->id]);
 $bykeya = array_combine(array_column((array)$scenaa, 'scenario_key'), (array)$scenaa);
 $bykeyb = array_combine(array_column((array)$scenab, 'scenario_key'), (array)$scenab);
 $allscenkeys = array_unique(array_merge(array_keys($bykeya), array_keys($bykeyb)));

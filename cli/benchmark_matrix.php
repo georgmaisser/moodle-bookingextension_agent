@@ -64,7 +64,7 @@ if ($labelprefix !== '') {
     $where .= ' AND ' . $DB->sql_like('label', ':label');
     $params['label'] = $labelprefix . '%';
 }
-$runs = $DB->get_records_select('bx_agent_benchmark_runs', $where, $params, 'timecreated DESC', '*', 0, $n);
+$runs = $DB->get_records_select('bx_agent_bm_runs', $where, $params, 'timecreated DESC', '*', 0, $n);
 if (empty($runs)) {
     cli_error("No runs found for set '{$set}'" . ($labelprefix !== '' ? " with label '{$labelprefix}*'" : '') . '.');
 }
@@ -98,7 +98,7 @@ cli_writeln(sprintf(
 cli_writeln(str_repeat('-', 78));
 
 [$insql, $inparams] = $DB->get_in_or_equal($runids, SQL_PARAMS_NAMED);
-$rows = $DB->get_records_select('bx_agent_benchmark_scenarios', "run_id {$insql}", $inparams);
+$rows = $DB->get_records_select('bx_agent_bm_scenarios', "run_id {$insql}", $inparams);
 
 $matrix = [];
 $selbyscen = [];
