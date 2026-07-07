@@ -24,6 +24,12 @@
 
 defined('MOODLE_INTERNAL') || die();
 
+// This file registers its pages itself via $adminroot. Under core's local-plugin loader (the
+// generated local_wizard plugin) a pre-created $settings page would otherwise be added empty to
+// the admin tree; under mod_booking's subplugin settings loader $settings is unset, so this is
+// a no-op there.
+$settings = null;
+
 use bookingextension_agent\local\wizard\orchestrator;
 use core_ai\aiactions\summarise_text;
 
