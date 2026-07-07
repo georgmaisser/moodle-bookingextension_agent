@@ -33,7 +33,7 @@ use bookingextension_agent\local\wizard\skill_registry_factory;
 final class llm_skill_matrix_scenario_provider {
     /**
      * Components whose skills the real-LLM smoke matrix exercises. Third-party skills (e.g. from
-     * bookingextension/oneclick or local/entities) are intentionally out of scope: they must not
+     * the oneclick subplugin or local/entities) are intentionally out of scope: they must not
      * produce smoke failures here, only our own mod/booking + agent skills do.
      *
      * @var string[]

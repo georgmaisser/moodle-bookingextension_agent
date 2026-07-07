@@ -61,7 +61,7 @@ final class clarification_preview_channel_test extends advanced_testcase {
     private function preview_block(): array {
         return [
             'type' => 'test_claim_form',
-            'js_module' => 'bookingextension_test/preview',
+            'js_module' => 'fakeextension_test/preview',
             'payload' => ['sitename' => 'My Club'],
         ];
     }

@@ -176,7 +176,7 @@ final class native_capability_guard_test extends advanced_testcase {
 
     // Note: there is deliberately NO "every mutating skill must declare a native capability" invariant
     // test. The mandatory authorization for every skill is its name-derived capability
-    // (bookingextension/<component>:skill_<name>), enforced by skill_executability_evaluator + the
+    // (<plugintype>/<pluginname>:skill_<name>), enforced by skill_executability_evaluator + the
     // executor backstop. Self-declared native (Gate-2) capabilities are an ADDITIVE, opt-in
     // defence-in-depth layer — useful where a skill maps to a native Moodle action / cross-context
     // target, but not required (e.g. external-action skills like oneclick.* or the wizard.* meta
