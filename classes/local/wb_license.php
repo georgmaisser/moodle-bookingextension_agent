@@ -24,8 +24,6 @@
 
 namespace bookingextension_agent\local;
 
-use mod_booking\utils\wb_payment;
-
 /**
  * License check for the agent, mirroring mod_booking's PRO mechanism.
  *
@@ -34,13 +32,28 @@ use mod_booking\utils\wb_payment;
  * product token is either 'wbagent' (agent-only) or 'bookingagent' (combined
  * Booking + Agent license). The key is read from the agent's own licensekey setting
  * first; a combined key pasted into Booking's licensekey field also counts.
+ *
+ * mod_booking is probed at runtime, never imported: the engine also ships as the
+ * standalone local_wizard plugin where mod_booking may be absent — without the
+ * booking crypto no key can validate, so the engine stays in its unlicensed tier.
  */
 class wb_license {
+    /** @var string Fully qualified booking class carrying the license crypto (runtime-probed). */
+    private const PAYMENT_UTIL = '\\mod_booking\\utils\\wb_payment';
+
     /** @var string Product token for an agent-only license. */
     public const PRODUCT_AGENT = 'wbagent';
 
-    /** @var string Product token for a combined Booking + Agent license. */
-    public const PRODUCT_BOOKING_AGENT = wb_payment::PRODUCT_BOOKING_AGENT;
+    /**
+     * Product token for a combined Booking + Agent license.
+     *
+     * Mirrors wb_payment::PRODUCT_BOOKING_AGENT as a literal: initializing the constant from the
+     * booking class would fatal on class load when mod_booking is not installed. Guarded by a
+     * unit test against drift.
+     *
+     * @var string
+     */
+    public const PRODUCT_BOOKING_AGENT = 'bookingagent';
 
     /**
      * Helper function to determine if a valid, unexpired agent license is set.
@@ -70,7 +83,15 @@ class wb_license {
      * @return array{expirationdate: string, product: string, validforagent: bool}
      */
     public static function parse_licensekey_for_agent(string $licensekey): array {
-        $license = wb_payment::parse_license_content(wb_payment::decryptlicensekey($licensekey));
+        $payment = self::PAYMENT_UTIL;
+        if (!class_exists($payment)) {
+            return [
+                'expirationdate' => '',
+                'product' => '',
+                'validforagent' => false,
+            ];
+        }
+        $license = $payment::parse_license_content($payment::decryptlicensekey($licensekey));
         $validproduct = in_array(
             $license['product'],
             [self::PRODUCT_AGENT, self::PRODUCT_BOOKING_AGENT],
