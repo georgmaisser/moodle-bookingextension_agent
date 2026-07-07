@@ -84,6 +84,15 @@ OVERLAY_FILES = {
     "db/upgrade.php",
 }
 
+# Engine-universal files copied verbatim: they intentionally name BOTH engine
+# components (e.g. the scaffold's engine-alias-layer templates, whose emitted
+# resolver must prefer local_wizard and fall back to bookingextension_agent on
+# every site). Token-transforming them would break that semantics; the
+# residual-token check skips them for the same reason.
+VERBATIM_PREFIXES = (
+    "classes/local/wizard/services/scaffold/templates/engine_layer/",
+)
+
 # Source plugin sits 4 directory levels below the webroot, the artifact only 2.
 SOURCE_DEPTH_TO_WEBROOT = 4
 TARGET_DEPTH_TO_WEBROOT = 2
@@ -161,6 +170,9 @@ def generate_content(rel: Path) -> tuple[Path, bytes]:
         overlay = OVERLAY_ROOT / rel_str
         return target_rel, overlay.read_bytes()
 
+    if rel_str.startswith(VERBATIM_PREFIXES):
+        return target_rel, (PLUGIN_ROOT / rel).read_bytes()
+
     raw = (PLUGIN_ROOT / rel).read_bytes()
     try:
         text = raw.decode("utf-8")
@@ -185,6 +197,8 @@ def verify(outputs: dict) -> list:
     """Run built-in checks over the generated outputs; return error strings."""
     errors = []
     for rel, data in outputs.items():
+        if str(rel).startswith(VERBATIM_PREFIXES):
+            continue
         try:
             text = data.decode("utf-8")
         except UnicodeDecodeError:

@@ -43,6 +43,37 @@ class skill_template_generator {
         'This skill has not implemented its actual task yet.';
 
     /**
+     * Canonical engine contract surface exposed through the per-component alias layer.
+     *
+     * Alias leaf name => class path below the engine's local\wizard namespace. Every
+     * skill-providing component ships an identical alias set (this is the single
+     * source for scaffolded plugins; mod_booking and the oneclick extension carry the
+     * same files). Skill code references engine types ONLY through these aliases.
+     *
+     * @var array<string,string>
+     */
+    public const ENGINE_ALIASES = [
+        'base_skill' => 'base_skill',
+        'module_targeted_skill' => 'module_targeted_skill',
+        'course_targeted_skill' => 'course_targeted_skill',
+        'skill_interface' => 'interfaces\\skill_interface',
+        'skill_provider_interface' => 'interfaces\\skill_provider_interface',
+        'skill_input_normalizer_interface' => 'interfaces\\skill_input_normalizer_interface',
+        'skill_input_normalizer_provider_interface' => 'interfaces\\skill_input_normalizer_provider_interface',
+        'skill_trigger_provider_interface' => 'interfaces\\skill_trigger_provider_interface',
+        'queue_identity_provider_interface' => 'interfaces\\queue_identity_provider_interface',
+        'issue_code_provider_interface' => 'interfaces\\issue_code_provider_interface',
+        'attachment_resolver' => 'interfaces\\attachment_resolver',
+        'thread_memory' => 'interfaces\\thread_memory',
+        'skill_catalog' => 'interfaces\\skill_catalog',
+        'skill_risk_class' => 'dto\\skill_risk_class',
+        'target_selector' => 'dto\\target_selector',
+        'observation_time' => 'services\\observation_time',
+        'skill_catalog_discovery' => 'services\\skill_catalog_discovery',
+        'localized_string_service' => 'services\\localized_string_service',
+    ];
+
+    /**
      * Generate the template bundle for a structured skill spec.
      *
      * @param array $spec see {@see self::normalize_spec()} for accepted keys
@@ -69,7 +100,7 @@ class skill_template_generator {
             'README.md' => self::build_readme($spec, $relativepath),
             'snippets/db_access.php.txt' => self::build_access_snippet($spec),
             'snippets/lang_strings.php.txt' => self::build_lang_snippet($spec),
-        ];
+        ] + self::build_engine_layer_files($spec);
 
         [$zipbase64, $zipfilename] = self::build_zip($spec, $files);
 
@@ -192,19 +223,22 @@ class skill_template_generator {
      */
     private static function build_skill_php(array $spec): string {
         $namespace = $spec['namespaceroot'] . '\\local\\wizard\\' . $spec['domain'] . '\\skills';
-        $useprefix = 'bookingextension_agent\\local\\wizard';
+        // Engine types are referenced ONLY through the component's own alias layer
+        // (classes/local/wizard/engine/, shipped in this bundle) so the same skill runs
+        // unchanged under either engine plugin.
+        $engineprefix = $spec['namespaceroot'] . '\\local\\wizard\\engine';
         $mutating = empty($spec['readonly']);
 
         // Risk-dependent use list + implemented interfaces. Mutating skills additionally provide a
         // confirm-queue identity (queue_identity_provider_interface).
         $uses = [
-            "use {$useprefix}\\base_skill;",
-            "use {$useprefix}\\dto\\skill_risk_class;",
-            "use {$useprefix}\\interfaces\\skill_trigger_provider_interface;",
+            "use {$engineprefix}\\base_skill;",
+            "use {$engineprefix}\\skill_risk_class;",
+            "use {$engineprefix}\\skill_trigger_provider_interface;",
         ];
         $interfaces = ['skill_trigger_provider_interface'];
         if ($mutating) {
-            $uses[] = "use {$useprefix}\\interfaces\\queue_identity_provider_interface;";
+            $uses[] = "use {$engineprefix}\\queue_identity_provider_interface;";
             $interfaces[] = 'queue_identity_provider_interface';
         }
 
@@ -224,7 +258,6 @@ class skill_template_generator {
             '{{NAMESPACE}}' => $namespace,
             '{{USES}}' => implode("\n", $uses),
             '{{INTERFACES}}' => implode(', ', $interfaces),
-            '{{USEPREFIX}}' => $useprefix,
             '{{NAMESPACEROOT}}' => $spec['namespaceroot'],
             '{{CLASSNAME}}' => $spec['classname'],
             '{{SKILLNAME}}' => $spec['skillname'],
@@ -242,6 +275,41 @@ class skill_template_generator {
             '{{TRIGGERDESC}}' => self::php_single_quote($spec['triggers'][0]['description']),
             '{{TRIGGEREXAMPLES}}' => self::render_quoted_list($spec['triggers'][0]['examples']),
         ]);
+    }
+
+    /**
+     * Build the component's engine alias layer from the universal templates.
+     *
+     * The templates (templates/engine_layer/) are engine-universal by design - they name
+     * both engine plugins - and are therefore shipped verbatim by the wizard sync
+     * generator. The emitted files are identical across every skill-providing component
+     * except for the namespace root and @package tag.
+     *
+     * @param array $spec normalized spec (namespaceroot, component)
+     * @return array<string,string> bundle-relative path => file content
+     */
+    private static function build_engine_layer_files(array $spec): array {
+        $templatedir = __DIR__ . '/templates/engine_layer';
+        $map = [
+            '{{NAMESPACEROOT}}' => $spec['namespaceroot'],
+            '{{PACKAGE}}' => $spec['namespaceroot'],
+        ];
+
+        $files = [];
+        $files['classes/local/wizard/engine/engine_resolver.php'] =
+            strtr((string)file_get_contents($templatedir . '/engine_resolver.php.txt'), $map);
+
+        $aliastemplate = (string)file_get_contents($templatedir . '/alias.php.txt');
+        foreach (self::ENGINE_ALIASES as $leaf => $relclass) {
+            $files['classes/local/wizard/engine/' . $leaf . '.php'] = strtr(
+                $aliastemplate,
+                $map + [
+                    '{{LEAF}}' => $leaf,
+                    '{{RELCLASS}}' => str_replace('\\', '\\\\', $relclass),
+                ]
+            );
+        }
+        return $files;
     }
 
     /**
@@ -275,8 +343,9 @@ namespace {{NAMESPACE}};
  * Drop this file at: {{RELATIVEPATH}} and it is picked up automatically. (A skill_provider class is
  * only needed for advanced cases: contextual prompt packs, issue-code providers, input normalizers.)
  *
- * NOTE: the engine classes live in the bookingextension_agent component; the `use` lines above point
- * there. If the agent engine is ever extracted into a standalone plugin, update that prefix.
+ * NOTE: engine contract types are referenced through this component's own engine alias layer
+ * (classes/local/wizard/engine/, included in this bundle). Never import an engine component's
+ * classes directly - the aliases bind to whichever engine plugin is active on the site.
  *
  * @package {{NAMESPACEROOT}}
  */
@@ -351,7 +420,7 @@ PHP;
     // public function get_target_context_level(): int {
     //     return CONTEXT_COURSE;
     // }
-    // public function get_target_selector(array $input): ?\bookingextension_agent\local\wizard\dto\target_selector {
+    // public function get_target_selector(array $input): ?\{{NAMESPACEROOT}}\local\wizard\engine\target_selector {
     //     // Build a target_selector from $input (e.g. a course/module query). Null = ambient context.
     //     return null;
     // }

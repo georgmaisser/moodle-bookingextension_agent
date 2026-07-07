@@ -38,6 +38,11 @@ deterministic: same source tree in, byte-identical artifact out.
 4. **Overlays** (`tools/wizard_sync/overlays/…` ships verbatim instead of a
    transformed copy): `db/upgrade.php` (agent upgrade history does not apply;
    documented no-op while pre-production).
+4b. **Verbatim files** (copied untransformed, exempt from the residual-token
+   check): the scaffold's engine-alias-layer templates
+   (`classes/local/wizard/services/scaffold/templates/engine_layer/`) — they
+   are engine-universal by design and must keep naming both engine components
+   in either plugin.
 5. **Excluded**: `.git`, `.github` (CI is agent-specific), `.claude`,
    `node_modules`, `tools/`, and `classes/agent.php` (mod_booking subplugin
    registration, load-fatal standalone).

@@ -92,6 +92,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
 
         $skillfile = make_request_directory() . '/archive_item_skill.php';
         file_put_contents($skillfile, $skillsource);
+        $this->load_bundle_engine_layer($bundle);
         require($skillfile);
 
         $fqcn = 'mod_scaffolddemo\\local\\wizard\\scaffolddemo\\skills\\archive_item_skill';
@@ -134,6 +135,7 @@ final class scaffold_skill_template_test extends \advanced_testcase {
 
         $skillfile = make_request_directory() . '/peek_item_skill.php';
         file_put_contents($skillfile, $bundle['files'][$relative]);
+        $this->load_bundle_engine_layer($bundle);
         require($skillfile);
 
         $fqcn = 'mod_scaffolddemo\\local\\wizard\\scaffolddemo\\skills\\peek_item_skill';
@@ -211,5 +213,40 @@ final class scaffold_skill_template_test extends \advanced_testcase {
             'risk_class' => 'broad_write',
             // No context_scopes -> must throw.
         ]);
+    }
+
+    /**
+     * Require the bundle's engine alias layer so the generated skill class can load.
+     *
+     * The fake mod_scaffolddemo component has no autoloader, and both loadability tests
+     * share one PHP process, so every engine file is required at most once.
+     *
+     * @param array $bundle generator result with the files map
+     */
+    private function load_bundle_engine_layer(array $bundle): void {
+        $enginefiles = array_filter(
+            $bundle['files'],
+            fn ($path) => str_starts_with($path, 'classes/local/wizard/engine/'),
+            ARRAY_FILTER_USE_KEY
+        );
+        // The resolver first: alias files call it while being required.
+        uksort($enginefiles, fn ($a, $b) => strcmp(
+            str_contains($a, 'engine_resolver') ? '0' : $a,
+            str_contains($b, 'engine_resolver') ? '0' : $b
+        ));
+
+        $dir = make_request_directory();
+        foreach ($enginefiles as $path => $content) {
+            $fqcn = 'mod_scaffolddemo\\local\\wizard\\engine\\' . basename($path, '.php');
+            if (
+                class_exists($fqcn, false) || interface_exists($fqcn, false)
+                || trait_exists($fqcn, false) || enum_exists($fqcn, false)
+            ) {
+                continue;
+            }
+            $file = $dir . '/' . basename($path);
+            file_put_contents($file, $content);
+            require($file);
+        }
     }
 }
