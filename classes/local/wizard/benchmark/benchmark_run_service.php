@@ -55,7 +55,7 @@ class benchmark_run_service {
      * @return array Summary: runid, total, passed, failed, success_rate, duration_ms, regression, label.
      */
     public function run(array $options = [], ?callable $progress = null): array {
-        global $DB;
+        global $CFG, $DB;
 
         $emit = static function (string $line) use ($progress): void {
             if ($progress !== null) {
@@ -95,10 +95,22 @@ class benchmark_run_service {
         // keeps the restore further down reliable.
         $store = null;
         $orc   = null;
+        $prevforceddebug = null;
+        $haddebugforced  = false;
         if (!$usestub) {
             $skillregistry = skill_registry_factory::get_default();
             $store         = new conversation_store();
             $orc           = new orchestrator($skillregistry, new interpreter($skillregistry), $store);
+
+            // The harness scores a scenario by reading the selection response back from
+            // {bx_agent_ai_llm_debug} — and that table is only written while aidebugmode is on
+            // (llm_debug_logger::is_enabled()). With debug off (the production default) every
+            // scenario would "fail" with an empty response. Force it ON process-locally via
+            // forced_plugin_settings: no DB write, restored below, so a disabled production
+            // debug mode stays disabled outside this run.
+            $haddebugforced  = isset($CFG->forced_plugin_settings['bookingextension_agent']['aidebugmode']);
+            $prevforceddebug = $CFG->forced_plugin_settings['bookingextension_agent']['aidebugmode'] ?? null;
+            $CFG->forced_plugin_settings['bookingextension_agent']['aidebugmode'] = '1';
         }
 
         // Provider override for this run (process-local, no DB writes): a chosen provider INSTANCE has
@@ -190,9 +202,18 @@ class benchmark_run_service {
                           ORDER BY id DESC LIMIT 1",
                         ['tid' => $threadid]
                     );
-                    $rawresponse      = $logrow ? trim((string)$logrow->responsetext) : '{}';
-                    $tokensprompt     = $logrow ? (int)round(strlen($logrow->requesttext ?? '') / 4) : 0;
-                    $tokenscompletion = $logrow ? (int)round(strlen($logrow->responsetext ?? '') / 4) : 0;
+                    if (!$logrow) {
+                        // Without a captured selection response the scenario cannot be scored; a '{}'
+                        // fallback would masquerade as a model contract failure (all fields "missing").
+                        // Surface it as the harness error it is (run 34: aidebugmode off => 0/19).
+                        throw new \RuntimeException(
+                            'harness: no selection response captured in bx_agent_ai_llm_debug for thread '
+                            . $threadid . ' (is LLM debug logging active?)'
+                        );
+                    }
+                    $rawresponse      = trim((string)$logrow->responsetext);
+                    $tokensprompt     = (int)round(strlen($logrow->requesttext ?? '') / 4);
+                    $tokenscompletion = (int)round(strlen($logrow->responsetext ?? '') / 4);
 
                     $DB->set_field('bx_agent_ai_threads', 'status', 'archived', ['id' => $threadid]);
                 } catch (\Throwable $ex) {
@@ -237,6 +258,15 @@ class benchmark_run_service {
         }
         foreach ($envunset as $var) {
             putenv($var);
+        }
+        // Drop the process-local aidebugmode force again (a later task in the same cron process
+        // must see the real admin setting).
+        if (!$usestub) {
+            if ($haddebugforced) {
+                $CFG->forced_plugin_settings['bookingextension_agent']['aidebugmode'] = $prevforceddebug;
+            } else {
+                unset($CFG->forced_plugin_settings['bookingextension_agent']['aidebugmode']);
+            }
         }
 
         $rundurationms = (int)round((microtime(true) - $runstart) * 1000);

@@ -132,6 +132,11 @@ if (!$usestub) {
     $skillregistry = skill_registry_factory::get_default();
     $store        = new conversation_store();
     $orc          = new orchestrator($skillregistry, new interpreter($skillregistry), $store);
+
+    // Scoring reads the selection response back from {bx_agent_ai_llm_debug}, which is only
+    // written while aidebugmode is on. Force it ON process-locally (no DB write; this CLI
+    // process ends after the run), so a production "debug off" cannot zero out the benchmark.
+    $CFG->forced_plugin_settings['bookingextension_agent']['aidebugmode'] = '1';
 }
 
 $tier      = (string)$options['tier'];
@@ -219,8 +224,10 @@ foreach ($scenarios as $i => $scenario) {
             // Add the scenario's user message.
             $store->add_message($threadid, 'user', $scenario->get_user_message());
 
-            // Run the full planner pipeline (discovery → selection → construction).
-            $plannerresult = $orc->process($threadid, $benchcmid, $benchuserid);
+            // Run the full planner pipeline (discovery → selection → construction). The 2nd param
+            // is a CONTEXT id (context::instance_by_id), not a cmid — pass the resolved module
+            // context so scenarios run with real course grounding (same fix as run_service).
+            $plannerresult = $orc->process($threadid, $contextid, $benchuserid);
 
             // Get the raw selector LLM response directly from the debug log —
             // this is the actual JSON the model emitted, before any parsing.
@@ -230,9 +237,17 @@ foreach ($scenarios as $i => $scenario) {
                   ORDER BY id DESC LIMIT 1",
                 ['tid' => $threadid]
             );
-            $rawresponse      = $logrow ? trim((string)$logrow->responsetext) : '{}';
-            $tokensprompt     = $logrow ? (int)round(strlen($logrow->requesttext ?? '') / 4) : 0;
-            $tokenscompletion = $logrow ? (int)round(strlen($logrow->responsetext ?? '') / 4) : 0;
+            if (!$logrow) {
+                // A '{}' fallback would score as a model contract failure; report the harness
+                // problem (no captured selection response) honestly instead.
+                throw new \RuntimeException(
+                    'harness: no selection response captured in bx_agent_ai_llm_debug for thread '
+                    . $threadid . ' (is LLM debug logging active?)'
+                );
+            }
+            $rawresponse      = trim((string)$logrow->responsetext);
+            $tokensprompt     = (int)round(strlen($logrow->requesttext ?? '') / 4);
+            $tokenscompletion = (int)round(strlen($logrow->responsetext ?? '') / 4);
 
             // Archive the temporary thread to avoid polluting the user's history.
             $DB->set_field('bx_agent_ai_threads', 'status', 'archived', ['id' => $threadid]);
