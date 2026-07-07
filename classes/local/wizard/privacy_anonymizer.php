@@ -69,6 +69,9 @@ class privacy_anonymizer {
     /** @var string Regex parsing a standalone token, capturing the stable id part (group 1). */
     private const ANON_TOKEN_PARSE_PATTERN = '/^(ANON_USER_\d+)(?:_[a-z]+)?$/';
 
+    /** @var string Visual marker appended to a de-masked identity so an authorized viewer sees it was privacy-masked. */
+    private const DEMASK_MARKER = '👤';
+
     /**
      * @var string Shared email-address subpattern (no delimiters/flags) — the single address grammar
      * used by every email matcher, so they cannot drift apart.
@@ -330,11 +333,8 @@ class privacy_anonymizer {
                 $value = (string)($entry['value'] ?? '');
                 $replacement = $original !== '' ? $original : ($value !== '' ? $value : $token);
                 $matchtype = (string)($entry['type'] ?? '');
-                if (in_array($matchtype, ['firstname', 'lastname', 'name', 'both'], true)) {
-                    return $replacement . ' 👤';
-                }
-                if ($matchtype === 'email') {
-                    return $replacement . '👤';
+                if (in_array($matchtype, ['firstname', 'lastname', 'name', 'both', 'email'], true)) {
+                    return $replacement . ' ' . self::DEMASK_MARKER;
                 }
 
                 return $replacement;
@@ -344,7 +344,7 @@ class privacy_anonymizer {
 
         // For full names split across multiple anonymized tokens, keep only one trailing marker.
         $displaymessage = preg_replace(
-            '/\s+👤(?=\s+\p{Lu}[\p{L}\p{M}\-]+\s+👤)/u',
+            '/\s+' . self::DEMASK_MARKER . '(?=\s+\p{Lu}[\p{L}\p{M}\-]+\s+' . self::DEMASK_MARKER . ')/u',
             '',
             (string)$displaymessage
         );

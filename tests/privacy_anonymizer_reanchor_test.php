@@ -197,6 +197,51 @@ final class privacy_anonymizer_reanchor_test extends \advanced_testcase {
     }
 
     /**
+     * Thread-440 regression: the de-mask marker must be separated from the resolved value by a
+     * space for every identity type. The email branch previously glued the marker directly onto
+     * the address (e.g. "billy.teachy@example.com👤 pf2432"); no de-masked value may sit flush
+     * against the marker.
+     *
+     * @covers \bookingextension_agent\local\wizard\privacy_anonymizer::deanonymize_message_for_display
+     */
+    public function test_display_marker_is_space_separated_for_email(): void {
+        global $USER;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $this->getDataGenerator()->create_user([
+            'firstname' => 'Billy',
+            'lastname' => 'Teachy',
+            'email' => 'billy.teachy@example.com',
+        ]);
+        set_config('aiprivacymode', 'strict', 'bookingextension_agent');
+
+        $store = new conversation_store();
+        $anonymizer = new privacy_anonymizer($store);
+        $threadid = (int)$this->fresh_thread($store, (int)$USER->id)->id;
+
+        // Obtain a real email token from this thread's map.
+        $sanitized = (string)$anonymizer->anonymize_value_for_llm($threadid, 'billy.teachy@example.com');
+        $this->assertSame(
+            1,
+            preg_match('/\bANON_USER_\d+_email\b/', $sanitized, $m),
+            'The email address must map to an _email token.'
+        );
+        $emailtoken = $m[0];
+
+        // Reproduce the thread-440 shape: "Der Benutzer <emailtoken> pf2432 ...".
+        $display = $anonymizer->deanonymize_message_for_display(
+            $threadid,
+            'Der Benutzer ' . $emailtoken . ' pf2432 wurde nicht gefunden.'
+        )['message'];
+
+        // The real value is shown, space-separated from the marker, and never glued to any character.
+        $this->assertStringContainsString('billy.teachy@example.com 👤', $display);
+        $this->assertStringNotContainsString('ANON_USER', $display);
+        $this->assertDoesNotMatchRegularExpression('/\S👤/u', $display);
+    }
+
+    /**
      * Create a fresh active thread (own course context) so source/target maps are distinct.
      *
      * @param conversation_store $store
