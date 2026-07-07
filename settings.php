@@ -61,11 +61,12 @@ $aisettingspage->add(
     )
 );
 
-// Coexistence: when the standalone local_wizard plugin owns the engine, every knob on this page is
-// inert (local_wizard carries its own settings). Rather than offer admins controls that do nothing,
-// replace the page body with a single notice and stop building it here. This is a permanent no-op
-// until local_wizard exists, and reverts automatically if local_wizard is removed.
-if (\bookingextension_agent\local\wizard\services\security\authorization_service::local_wizard_is_active()) {
+// Coexistence: when a higher-ranked engine plugin owns the agent, every knob on this page is
+// inert (the primary engine carries its own settings). Rather than offer admins controls that do
+// nothing, replace the page body with a single notice and stop building it here. Inside the
+// primary engine this never triggers; in the bundled engine it reverts automatically when the
+// primary engine is removed.
+if (\bookingextension_agent\local\wizard\services\security\authorization_service::primary_engine_takes_over()) {
     $aisettingspage->add(
         new admin_setting_heading(
             'bookingextension_agent_handedover_notice',

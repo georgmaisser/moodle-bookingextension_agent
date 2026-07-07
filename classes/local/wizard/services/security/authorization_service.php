@@ -39,60 +39,86 @@ use required_capability_exception;
  */
 class authorization_service implements agent_authorization_service {
     /**
-     * Return true when bookingextension_agent is installed and upgraded.
+     * Frankenstyle component of THIS engine plugin.
+     *
+     * The wizard generator rewrites this literal together with every other component token, which
+     * is what makes the coexistence logic below symmetric: compare against PRIMARY_ENGINE instead
+     * of hardcoding one side of the relationship.
+     *
+     * @var string
+     */
+    private const ENGINE_COMPONENT = 'bookingextension_agent';
+
+    /**
+     * Engine component that takes precedence when both engine plugins are installed.
+     *
+     * This literal is the SAME in both engines on purpose (the generator maps component tokens,
+     * and local_wizard maps onto itself): the standalone plugin always outranks the bundled
+     * subplugin, so the generated copy never defers while the bundled engine steps aside.
+     *
+     * @var string
+     */
+    private const PRIMARY_ENGINE = 'local_wizard';
+
+    /**
+     * Return true when this engine plugin is installed and upgraded.
      *
      * @return bool
      */
     public static function is_agent_extension_installed(): bool {
-        if (!class_exists('\\core_plugin_manager')) {
-            return false;
-        }
-
-        try {
-            $plugininfo = \core_plugin_manager::instance()->get_plugin_info('bookingextension_agent');
-            return ($plugininfo !== null) && (bool)$plugininfo->is_installed_and_upgraded();
-        } catch (\Throwable $e) {
-            return false;
-        }
+        return self::plugin_is_installed(self::ENGINE_COMPONENT);
     }
 
     /**
-     * Return true when the standalone local_wizard plugin is installed and upgraded.
+     * Return true when a higher-ranked engine plugin owns the agent on this site.
      *
-     * local_wizard is the extracted, standalone home of this AI engine. When it is present it
-     * OWNS the agent and this bundled bookingextension_agent subplugin deliberately steps aside
-     * (single source of truth, no double UI / double webservice handling). The check is dynamic
-     * (presence + upgraded), so the cutover is fully reversible: remove/disable local_wizard and
-     * the bundled engine resumes. Until local_wizard exists this is a permanent no-op (returns
-     * false), so wiring it now is inert coexistence prep.
+     * The primary engine (see PRIMARY_ENGINE) is the extracted, standalone home of this AI
+     * engine. When this code runs inside a lower-ranked engine and the primary one is present,
+     * the lower-ranked engine deliberately steps aside (single source of truth, no double UI /
+     * double webservice handling). The check is dynamic (presence + upgraded), so the cutover is
+     * fully reversible: remove/disable the primary engine and the bundled engine resumes. Inside
+     * the primary engine itself this is a compile-time false — it never defers to anyone.
      *
      * @return bool
      */
-    public static function local_wizard_is_active(): bool {
-        if (!class_exists('\\core_plugin_manager')) {
+    public static function primary_engine_takes_over(): bool {
+        if (self::ENGINE_COMPONENT === self::PRIMARY_ENGINE) {
             return false;
         }
-        try {
-            $plugininfo = \core_plugin_manager::instance()->get_plugin_info('local_wizard');
-            return ($plugininfo !== null) && (bool)$plugininfo->is_installed_and_upgraded();
-        } catch (\Throwable $e) {
-            return false;
-        }
+        return self::plugin_is_installed(self::PRIMARY_ENGINE);
     }
 
     /**
-     * Return true when THIS bundled engine is the active agent for the site.
+     * Return true when THIS engine is the active agent for the site.
      *
-     * The single coexistence chokepoint: the bundled engine is active only when it is installed
-     * AND the standalone local_wizard has not taken over. Routing every entry point (panel
-     * readiness, all webservice gates, the navbar head-hook) through here means the engine yields
-     * everywhere with one switch when local_wizard is installed — and resumes everywhere when it
-     * is removed (reversible cutover).
+     * The single coexistence chokepoint: this engine is active only when it is installed AND no
+     * higher-ranked engine has taken over. Routing every entry point (panel readiness, all
+     * webservice gates, the navbar head-hook) through here means the engine yields everywhere
+     * with one switch when the primary engine is installed — and resumes everywhere when it is
+     * removed (reversible cutover).
      *
      * @return bool
      */
     public static function is_agent_engine_active(): bool {
-        return self::is_agent_extension_installed() && !self::local_wizard_is_active();
+        return self::is_agent_extension_installed() && !self::primary_engine_takes_over();
+    }
+
+    /**
+     * Return true when the given plugin is installed and upgraded.
+     *
+     * @param string $component Frankenstyle component name.
+     * @return bool
+     */
+    private static function plugin_is_installed(string $component): bool {
+        if (!class_exists('\\core_plugin_manager')) {
+            return false;
+        }
+        try {
+            $plugininfo = \core_plugin_manager::instance()->get_plugin_info($component);
+            return ($plugininfo !== null) && (bool)$plugininfo->is_installed_and_upgraded();
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**

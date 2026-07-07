@@ -83,27 +83,30 @@ final class authorization_readiness_test extends advanced_testcase {
     }
 
     /**
-     * Coexistence opt-out is a no-op while the standalone local_wizard plugin is absent.
+     * Coexistence opt-out is a no-op while no higher-ranked engine plugin is present.
      *
-     * This is the whole behaviour of Phase-1 coexistence prep until local_wizard ships: the
-     * extra switch must not change anything. local_wizard is not active, so the bundled engine
-     * is the active engine and is_agent_engine_active() collapses to is_agent_extension_installed().
+     * This is the whole behaviour of Phase-1 coexistence prep until the primary engine ships:
+     * the extra switch must not change anything. In the bundled engine the primary engine is not
+     * installed in the test environment; in the generated primary engine the switch is a
+     * compile-time false. Either way is_agent_engine_active() collapses to
+     * is_agent_extension_installed().
      */
-    public function test_optout_switch_is_noop_without_local_wizard(): void {
+    public function test_optout_switch_is_noop_without_primary_engine(): void {
         $this->assertFalse(
-            authorization_service::local_wizard_is_active(),
-            'local_wizard is not installed in the test environment, so it must not be reported active.'
+            authorization_service::primary_engine_takes_over(),
+            'No higher-ranked engine is present, so this engine must not defer.'
         );
         $this->assertSame(
             authorization_service::is_agent_extension_installed(),
             authorization_service::is_agent_engine_active(),
-            'With local_wizard absent the engine-active gate must equal the installed check (pure no-op).'
+            'With no primary engine taking over, the engine-active gate must equal the installed check.'
         );
     }
 
     /**
-     * The active-engine gate genuinely controls readiness: with the bundled engine active a permitted
-     * user is ready. (When local_wizard takes over, the same gate flips and every entry point yields.)
+     * The active-engine gate genuinely controls readiness: with this engine active a permitted
+     * user is ready. (When a primary engine takes over, the same gate flips and every entry point
+     * of the bundled engine yields.)
      */
     public function test_readiness_follows_active_engine_gate(): void {
         $this->resetAfterTest();
