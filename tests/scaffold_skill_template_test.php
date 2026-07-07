@@ -179,17 +179,21 @@ final class scaffold_skill_template_test extends \advanced_testcase {
     /**
      * When the namespace derived from the component is reserved (booking/core/wizard), the
      * generator falls back to the full component name instead of rejecting it.
+     *
+     * The example component must never coincide with an engine component in either engine
+     * (the engine itself MAY register reserved namespaces, which would skip the fallback):
+     * "local/core" derives the reserved "core" and is not a real plugin anywhere.
      */
     public function test_generator_falls_back_for_reserved_namespace(): void {
         $this->resetAfterTest();
 
         $bundle = skill_template_generator::generate([
-            'component' => 'local/wizard',
+            'component' => 'local/core',
             'description' => 'Do a custom thing.',
-            // No skillname: derived namespace would be the reserved "wizard" -> falls back.
+            // No skillname: derived namespace would be the reserved "core" -> falls back.
         ]);
 
-        $this->assertStringStartsWith('local_wizard.', $bundle['skillname']);
+        $this->assertStringStartsWith('local_core.', $bundle['skillname']);
         $this->assertSame($bundle['skillname'] . '.zip', $bundle['zip_filename']);
     }
 
