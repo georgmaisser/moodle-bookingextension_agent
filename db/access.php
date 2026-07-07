@@ -88,91 +88,37 @@ $capabilities = [
 // The level governs where the capability shows up in the roles UI and where it can be overridden;
 // the runtime gate (skill_executability_evaluator) checks in the thread context and inherits upwards,
 // so higher-level declarations keep working for module-context threads.
+// Only skills this component actually registers get a capability here. The booking skills
+// moved to mod_booking (their capabilities are mod/booking:skill_mod_booking_* in that
+// plugin's access.php), and the example skills were removed; dropping the definitions makes
+// capabilities_cleanup() delete the stale capabilities from upgraded sites automatically.
 $teacherskills = [
-    'examples_multistep_example' => CONTEXT_MODULE,
-    'examples_readonly_example' => CONTEXT_MODULE,
-    'examples_spawn_child_example' => CONTEXT_MODULE,
-    'examples_spawn_parent_example' => CONTEXT_MODULE,
-    // Price categories are site-global mod_booking data.
-    'booking_add_price_category' => CONTEXT_SYSTEM,
-    'booking_book_users' => CONTEXT_MODULE,
-    'booking_bulk_update_options' => CONTEXT_MODULE,
-    'booking_core_get_activity_completion_status' => CONTEXT_COURSE,
-    'booking_core_get_course_overview' => CONTEXT_COURSE,
-    'booking_core_get_current_user' => CONTEXT_SYSTEM,
-    'booking_core_get_group_members' => CONTEXT_COURSE,
-    'booking_core_get_module_details' => CONTEXT_COURSE,
-    'booking_core_list_course_calendar_events' => CONTEXT_COURSE,
-    'booking_core_list_course_groups' => CONTEXT_COURSE,
-    'booking_core_list_course_modules' => CONTEXT_COURSE,
-    'booking_core_list_course_participants' => CONTEXT_COURSE,
-    'booking_core_list_course_sections' => CONTEXT_COURSE,
-    'booking_core_list_grade_items' => CONTEXT_COURSE,
-    'booking_core_list_user_calendar_events' => CONTEXT_SYSTEM,
-    'booking_create_option' => CONTEXT_MODULE,
-    'booking_create_selflearning_option' => CONTEXT_MODULE,
-    'booking_create_slotbooking_option' => CONTEXT_MODULE,
-    'booking_diagnose_booking_issue' => CONTEXT_MODULE,
-    'booking_diagnose_cancellation_issue' => CONTEXT_MODULE,
-    'booking_diagnose_user_booking' => CONTEXT_MODULE,
-    'course_add_activity' => CONTEXT_COURSE,
-    'course_update_activity' => CONTEXT_COURSE,
-    'course_add_quiz' => CONTEXT_COURSE,
-    'course_update_quiz' => CONTEXT_COURSE,
-    'course_diagnose_user_in_course' => CONTEXT_COURSE,
-    'core_diagnose_permissions' => CONTEXT_SYSTEM,
     'core_diagnose_notifications' => CONTEXT_SYSTEM,
+    'core_diagnose_permissions' => CONTEXT_SYSTEM,
     'core_find_content' => CONTEXT_SYSTEM,
-    'course_analyze_course_structure' => CONTEXT_COURSE,
-    'wizard_explain_docs' => CONTEXT_SYSTEM,
-    'booking_explain_skill_schema' => CONTEXT_SYSTEM,
     'core_get_current_user' => CONTEXT_SYSTEM,
-    'booking_get_option_details' => CONTEXT_MODULE,
-    'wizard_list_skills' => CONTEXT_SYSTEM,
-    'booking_list_option_properties' => CONTEXT_MODULE,
-    'wizard_recall_memory' => CONTEXT_SYSTEM,
-    'wizard_scaffold_skill' => CONTEXT_SYSTEM,
+    'core_search_users' => CONTEXT_SYSTEM,
+    'course_add_activity' => CONTEXT_COURSE,
+    'course_add_quiz' => CONTEXT_COURSE,
+    'course_analyze_course_structure' => CONTEXT_COURSE,
+    'course_diagnose_user_in_course' => CONTEXT_COURSE,
     // Searches across all courses on the site.
     'course_search_courses' => CONTEXT_SYSTEM,
-    'booking_search_options' => CONTEXT_MODULE,
-    'core_search_users' => CONTEXT_SYSTEM,
-    'booking_update_option' => CONTEXT_MODULE,
-    'wizard_search_skills' => CONTEXT_SYSTEM,
+    'course_update_activity' => CONTEXT_COURSE,
+    'course_update_quiz' => CONTEXT_COURSE,
     'question_generate_questions' => CONTEXT_COURSE,
+    'wizard_explain_docs' => CONTEXT_SYSTEM,
+    'wizard_list_skills' => CONTEXT_SYSTEM,
+    'wizard_recall_memory' => CONTEXT_SYSTEM,
+    'wizard_scaffold_skill' => CONTEXT_SYSTEM,
+    'wizard_search_skills' => CONTEXT_SYSTEM,
 ];
 
 $managerskills = [
-    // Booking rules live site-wide (mod/booking/edit_rules.php), not per instance.
-    'booking_analyze_rules' => CONTEXT_SYSTEM,
-    'booking_configure_booking_instance' => CONTEXT_MODULE,
-    'booking_core_create_calendar_event' => CONTEXT_COURSE,
-    'booking_core_create_group' => CONTEXT_COURSE,
-    'booking_core_delete_calendar_event' => CONTEXT_COURSE,
-    'booking_core_delete_group' => CONTEXT_COURSE,
-    'booking_core_enrol_user_manual' => CONTEXT_COURSE,
-    'booking_core_get_site_summary' => CONTEXT_SYSTEM,
-    'booking_core_get_user_completion_report' => CONTEXT_COURSE,
-    'booking_core_get_user_enrolments' => CONTEXT_SYSTEM,
-    'booking_core_get_user_grades_for_course' => CONTEXT_COURSE,
-    'booking_core_get_user_preferences' => CONTEXT_SYSTEM,
-    'booking_core_get_user_profile' => CONTEXT_SYSTEM,
-    'booking_core_get_user_roles_in_course' => CONTEXT_COURSE,
-    'booking_core_search_course_enrolments' => CONTEXT_COURSE,
-    'booking_core_send_user_message' => CONTEXT_SYSTEM,
-    'booking_core_set_user_preference' => CONTEXT_SYSTEM,
-    'booking_core_unenrol_user_manual' => CONTEXT_COURSE,
-    'booking_core_update_calendar_event' => CONTEXT_COURSE,
-    'booking_core_update_group' => CONTEXT_COURSE,
-    'booking_create_rule_from_template' => CONTEXT_SYSTEM,
-    'booking_update_rule_from_template' => CONTEXT_SYSTEM,
     // Rebuilds the site-global skill-catalog embeddings (cost-bearing) — manager/admin only,
     // not teacher-grantable (audit CAP-03). Execution additionally requires moodle/site:config
     // via the skill's native capability (Gate 2).
     'wizard_recreate_skill_catalog' => CONTEXT_SYSTEM,
-];
-
-$adminonlyskills = [
-    'booking_create_user' => CONTEXT_SYSTEM,
 ];
 
 // Authorized-user skills: act only on the acting user's own data (e.g. their stored agent
@@ -217,10 +163,6 @@ foreach ($teacherskills as $skillsuffix => $contextlevel) {
 
 foreach ($managerskills as $skillsuffix => $contextlevel) {
     $capabilities += $buildskillcapability($skillsuffix, 'manager', $contextlevel);
-}
-
-foreach ($adminonlyskills as $skillsuffix => $contextlevel) {
-    $capabilities += $buildskillcapability($skillsuffix, 'admin', $contextlevel);
 }
 
 foreach ($authorizeduserskills as $skillsuffix => $contextlevel) {
