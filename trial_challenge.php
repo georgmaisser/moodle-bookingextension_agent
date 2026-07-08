@@ -44,5 +44,10 @@ if ($stored !== $token) {
     die('Forbidden');
 }
 
+// Single-use: the trial service performs exactly one back-channel challenge per nonce, so
+// consume it immediately on the first valid echo. This closes the replay window (the nonce
+// otherwise stayed valid for its full cache TTL and could be echoed repeatedly).
+$cache->delete('nonce_' . $token);
+
 header('Content-Type: text/plain; charset=utf-8');
 echo $token;
