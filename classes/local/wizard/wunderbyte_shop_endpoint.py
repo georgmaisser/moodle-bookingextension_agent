@@ -232,6 +232,55 @@ def _alias(order_id: str, email: str | None = None) -> str:
     return "-".join(p for p in parts if p)
 
 
+# LiteLLM keys always carry this prefix; validating the shape before any upstream call keeps
+# malformed / enumeration noise from ever reaching the master-key /key/info lookup.
+LLM_KEY_PREFIX = "sk-"
+
+# The /usage endpoint is intentionally unauthenticated (the key itself is the credential), so
+# it must only ever reveal usage for keys WE issued through the trial/shop flows — never act as
+# a generic usage oracle for arbitrary keys living on the shared proxy (production keys, other
+# teams). Trial keys use the "wunderbyte-privat-" alias, shop keys the "wb-shop-" alias.
+OWN_KEY_ALIAS_PREFIXES = ("wb-shop-", "wunderbyte-privat-")
+
+# Lightweight in-process rate limit for the unauthenticated /usage endpoint, to blunt the
+# enumeration / DoS amplification of turning each public call into a master-key /key/info.
+# Per-process only: behind several workers or replicas the real backstop must be the
+# ingress / proxy — this is defense-in-depth, not the sole control.
+USAGE_RATE_MAX: int = int(os.environ.get("SHOP_USAGE_RATE_MAX", "30"))
+USAGE_RATE_WINDOW: int = int(os.environ.get("SHOP_USAGE_RATE_WINDOW", "60"))
+_usage_hits: dict[str, list[float]] = {}
+
+
+def _looks_like_llm_key(value: str) -> bool:
+    """Cheap shape gate: a plausible LiteLLM key, checked before we spend a master-key lookup."""
+    return value.startswith(LLM_KEY_PREFIX) and 20 <= len(value) <= 200
+
+
+def _client_ip(request: Request) -> str:
+    """First hop of X-Forwarded-For (the proxy must set and strip it), else the socket peer."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _usage_rate_ok(client_ip: str) -> bool:
+    """Sliding-window limiter keyed by client IP; memory bounded via an opportunistic sweep."""
+    now = time.time()
+    window_start = now - USAGE_RATE_WINDOW
+    hits = [t for t in _usage_hits.get(client_ip, ()) if t >= window_start]
+    if len(hits) >= USAGE_RATE_MAX:
+        _usage_hits[client_ip] = hits
+        return False
+    hits.append(now)
+    _usage_hits[client_ip] = hits
+    if len(_usage_hits) > 10000:
+        stale = [ip for ip, ts in _usage_hits.items() if not any(t >= window_start for t in ts)]
+        for ip in stale:
+            _usage_hits.pop(ip, None)
+    return True
+
+
 async def _litellm_headers() -> dict:
     return {
         "Authorization": f"Bearer {LITELLM_TRIALCREATE_KEY}",
@@ -485,8 +534,14 @@ async def usage(request: Request) -> UsageResponse:
 
     Auth is the key itself (knowing a key entitles you to its own usage %); no shop
     secret required, so a customer's Moodle (which holds the key, not the secret)
-    can call it.
+    can call it. Because it is unauthenticated, it is deliberately narrow: it is
+    rate-limited per client IP, rejects anything that is not a well-formed key before
+    spending a master-key lookup, and only ever returns usage for keys WE issued
+    (trial/shop alias prefixes) — never usage of unrelated keys on the shared proxy.
     """
+    if not _usage_rate_ok(_client_ip(request)):
+        raise HTTPException(status_code=429, detail="Too many usage requests. Please retry shortly.")
+
     raw_body = await request.body()
     try:
         body = UsageRequest(**json.loads(raw_body or b"{}"))
@@ -494,8 +549,10 @@ async def usage(request: Request) -> UsageResponse:
         raise HTTPException(status_code=400, detail=f"Invalid request body: {exc}")
 
     key = body.apikey.strip()
-    if not key:
-        raise HTTPException(status_code=400, detail="apikey is required.")
+    if not _looks_like_llm_key(key):
+        # Don't spend a master-key lookup on an empty/malformed/guessed value, and don't
+        # signal the difference — behave exactly like an unknown key.
+        return UsageResponse(state="unavailable")
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
@@ -515,6 +572,13 @@ async def usage(request: Request) -> UsageResponse:
     info = data.get("info") if isinstance(data, dict) else None
     if not isinstance(info, dict):
         info = data if isinstance(data, dict) else {}
+
+    # Only reveal usage for keys we issued (trial/shop). Anything else on the shared proxy
+    # (production keys, other teams' keys) is treated as unknown, so a leaked/guessed key
+    # string cannot turn this endpoint into a generic usage oracle for the whole proxy.
+    alias = str(info.get("key_alias") or "")
+    if not alias.startswith(OWN_KEY_ALIAS_PREFIXES):
+        return UsageResponse(state="unavailable")
 
     max_budget = info.get("max_budget")
     spend = info.get("spend") or 0
