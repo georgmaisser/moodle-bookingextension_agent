@@ -138,13 +138,15 @@ def transform_version_php(text: str) -> str:
 
 
 def transform_services_php(text: str) -> str:
-    """Rename the external service: its display name must be site-unique.
+    """Rename the external services: display names must be site-unique.
 
     Both engines install side by side; a shared service name violates the unique
-    index on external_services (found by the coexistence test). The shortname is
-    component-derived and already covered by the token map.
+    index on external_services (found by the coexistence test). Covers every
+    'Booking AI Agent…' service key (e.g. the restricted MCP service) so newly
+    added services stay safe; the shortnames are component-derived and already
+    covered by the token map. verify() rejects any survivor.
     """
-    return text.replace("'Booking AI Agent' =>", "'Booking Wizard' =>")
+    return re.sub(r"'Booking AI Agent( [^']*)?' =>", r"'Booking Wizard\1' =>", text)
 
 
 def transform_lang_file(text: str) -> str:
@@ -234,6 +236,11 @@ def verify(outputs: dict) -> list:
                 )
         if Path(rel).parts and Path(rel).parts[0] == "lang" and "$string['agent:" in text:
             errors.append(f"unmapped capability string key ($string['agent:...]) in {rel}")
+        if str(rel) == "db/services.php" and "'Booking AI Agent" in text:
+            errors.append(
+                "unrenamed external service display name in db/services.php "
+                "(collides with the agent's service on coexistence installs)"
+            )
         if str(rel) == "db/install.xml":
             for name in TABLE_NAME_RE.findall(text):
                 if len(name) > TABLE_NAME_LIMIT:
