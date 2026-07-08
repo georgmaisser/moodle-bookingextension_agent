@@ -101,8 +101,10 @@ function xmldb_local_wizard_install(): bool {
     }
 
     // Role capability assignments: same capability set under the new prefix.
-    // (local_wizard's capabilities are registered right after this hook runs;
-    // assign_capability writes the role rows independently of that.)
+    // Written as raw rows: this hook runs BEFORE Moodle registers local_wizard's
+    // capabilities, so assign_capability() would die on the unknown names. The
+    // rows become effective the moment the capabilities are registered (directly
+    // after this hook), and the upgrade's final cache purge covers accesslib.
     $assignments = $DB->get_records_select(
         'role_capabilities',
         $DB->sql_like('capability', '?'),
@@ -116,7 +118,14 @@ function xmldb_local_wizard_install(): bool {
             'contextid' => $assignment->contextid,
         ]);
         if (!$exists) {
-            assign_capability($capability, (int)$assignment->permission, $assignment->roleid, $assignment->contextid);
+            $row = new stdClass();
+            $row->contextid = $assignment->contextid;
+            $row->roleid = $assignment->roleid;
+            $row->capability = $capability;
+            $row->permission = $assignment->permission;
+            $row->timemodified = time();
+            $row->modifierid = 0;
+            $DB->insert_record('role_capabilities', $row);
         }
     }
 
