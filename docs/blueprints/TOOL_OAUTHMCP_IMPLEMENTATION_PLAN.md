@@ -822,10 +822,9 @@ immediately; R2 once facade phase 2 lands); fixture-provider suite green.
   webroot `.well-known` requirement either), and a free moodle.org
   adoption-play plugin should not exclude 4.5 LTS sites for zero
   architectural gain.
-- **D2 — WS-token mode after phase B**: recommend keeping `authmode = both`
-  as default (header-capable clients and CI smoke tests stay cheap; OAuth is
-  the claude.ai path). Alternative: flip default to `oauth`, keep `wstoken`
-  opt-in.
+- **D2 — WS-token mode after phase B**: **resolved by George 2026-07-08** —
+  `authmode = both` stays the default (header-capable clients and CI smoke
+  tests stay cheap; OAuth is the claude.ai path).
 - **D3 — where phase-C agent commits land**: `SOFABOOKING` (current MCP
   facade branch) assumed; confirm against the branch state at that time.
 
