@@ -15,6 +15,23 @@ Options: `--dry-run` (report only), `--force` (discard hand-edits in the target)
 The script needs only Python 3 (stdlib), no Moodle bootstrap, and is fully
 deterministic: same source tree in, byte-identical artifact out.
 
+**Rebuild semantics:** logically a full rebuild on every run (every source file
+is re-transformed; there is no cache that can go stale), physically incremental
+at write time: files are hash-compared and only written when they differ
+(mtimes of unchanged files survive), files no longer generated are removed via
+the manifest (`… 1 stale removed`), foreign files in the target are left alone
+and reported. A run without source changes is a guaranteed no-op.
+
+**Exit codes:** `0` OK · `1` verification failed (nothing half-written is
+trusted — fix the source) · `2` hand-edited target detected (port the change to
+the agent and regenerate, or `--force` to discard it).
+
+**The output is a ready-to-install plugin.** Generate into (or copy to)
+`<webroot>/local/wizard` and run the normal Moodle install
+(`admin/cli/upgrade.php`). Verified both standalone (Moodle without
+mod_booking) and in coexistence next to mod_booking, where local_wizard takes
+over the engine and the bundled agent stands down.
+
 ## What it does
 
 1. **Token map** (single pass, longest match first): frankenstyle
@@ -35,6 +52,10 @@ deterministic: same source tree in, byte-identical artifact out.
    rewritten to the correct depth for its file.
 3. **version.php**: the `mod_booking` dependency block is removed — the
    artifact must install without mod_booking.
+3b. **db/services.php**: the external service display name becomes
+   `'Booking Wizard'` — both engines install side by side and service names
+   sit under a unique index (the shortname is component-derived and handled by
+   the token map).
 4. **Overlays** (`tools/wizard_sync/overlays/…` ships verbatim instead of a
    transformed copy): `db/upgrade.php` (agent upgrade history does not apply;
    documented no-op while pre-production).
@@ -68,5 +89,26 @@ deterministic: same source tree in, byte-identical artifact out.
 - mod_booking classes are referenced at runtime only (string FQCN +
   `class_exists`), never via `use` + static call (see `wb_license`,
   `aiready`).
+- mod_booking FILES are never addressed by a relative path that assumes the
+  engine sits inside mod_booking — resolve the directory via
+  `core_component::get_component_directory('mod_booking')` (see
+  `abstract_agent_testcase`).
 - New PHP entry scripts must build their config.php require as
   `__DIR__ . '/../…/config.php'` (the depth fixer only rewrites that shape).
+- Anything site-unique a plugin registers (external service names, admin page
+  ids, …) must either carry a component token (the map renames it) or get an
+  explicit transform here — two engines install side by side.
+
+## The engine alias layer (consumer side)
+
+Skill-providing components (mod_booking, the oneclick extension, every
+scaffolded plugin) never import an engine component directly. Each carries an
+identical `classes/local/wizard/engine/` directory: `engine_resolver` picks the
+active engine (local_wizard when installed and upgraded, the bundled agent
+otherwise) and one `class_alias` file per engine contract type binds stable
+names in the component's own namespace. The canonical source of that layer is
+`classes/local/wizard/services/scaffold/templates/engine_layer/`; mod_booking's
+`engine_alias_layer_test` pins all copies byte-identical — do not fork the
+pattern. Two hard-won rules encoded there: PHP checks typed signatures WITHOUT
+autoloading (hence the resolver's eager preload), and alias files must be
+idempotent (re-entrant loads during preload).
