@@ -27,18 +27,27 @@ pricing currency):
 
 Requirements
 ------------
-    pip install fastapi httpx
+    pip install fastapi httpx pyjwt[crypto]
 
 Environment variables expected
 ------------------------------
     LITELLM_BASE_URL          – base URL of your LiteLLM instance, e.g. https://llm.wunderbyte.at
     LITELLM_TRIALCREATE_KEY   – LiteLLM admin/management key (Bearer for the management API)
-    SHOP_API_SECRET           – REQUIRED shared secret; the shop sends it as "Authorization: Bearer <secret>"
-    SHOP_HMAC_SECRET          – REQUIRED by default (SHOP_REQUIRE_HMAC=1): requests to the mutating
-                                routes must carry a valid HMAC signature (see "Shop authentication").
-    SHOP_REQUIRE_HMAC         – optional, default 1 (on). Set 0 ONLY for a deliberate, temporary
-                                bearer-only rollout — issue/revoke then accept the bearer alone.
-    SHOP_HMAC_MAX_AGE         – optional, default 300 (seconds) — max age of the signed timestamp
+    SHOP_API_SECRET           – shared secret for the legacy bearer fallback (Authorization: Bearer
+                                <secret>). Used only when JWT is NOT configured (see below).
+    SHOP_JWT_SECRET           – HS256 shared secret the caller signs its JWT with (mod_booking's
+                                REST after-booking action, "Sign the request with a JWT"). Set this
+                                OR SHOP_JWT_PUBLIC_KEY to require JWT auth on issue/revoke.
+    SHOP_JWT_PUBLIC_KEY       – RS256 PEM public key (alternative to the HS256 secret): the caller
+                                signs with its private key, we verify with this public key — no
+                                shared secret. Provide the PEM inline or via SHOP_JWT_PUBLIC_KEY_FILE.
+    SHOP_JWT_PUBLIC_KEY_FILE  – optional path to read the RS256 PEM public key from.
+    SHOP_JWT_ISSUER           – optional; if set, the token's "iss" claim must equal it (e.g. the
+                                calling Moodle's wwwroot).
+    SHOP_JWT_AUDIENCE         – optional; if set, the token's "aud" claim must equal it.
+    SHOP_JWT_LEEWAY           – optional, default 60 (seconds) exp/nbf clock-skew tolerance.
+    SHOP_JWT_REQUIRE_BODY_HASH – optional, default 1: require a body_sha256 claim matching the raw
+                                body, so a captured token cannot be replayed with a different body.
     SHOP_TRUSTED_PROXY_HOPS   – optional, default 1 — reverse proxies in front of this app; used to
                                 read the real client IP from X-Forwarded-For without spoofing
     SHOP_MODELS               – optional, comma-separated model aliases the keys may use; default
@@ -52,14 +61,18 @@ Environment variables expected
 
 Shop authentication
 -------------------
-    1. Bearer (required):   Authorization: Bearer <SHOP_API_SECRET>
-    2. HMAC (required by default; disable only via SHOP_REQUIRE_HMAC=0). Binds the request to
-       the exact body — so a leaked bearer alone cannot mint tiers or revoke orders — and
-       stops replay:
-         X-Shop-Timestamp: <unix seconds>
-         X-Shop-Signature: hex( HMAC_SHA256(SHOP_HMAC_SECRET, f"{timestamp}.{raw_body}") )
-       The server rejects a timestamp older than SHOP_HMAC_MAX_AGE. NOTE: /usage is exempt
-       (it is unauthenticated by design and independently rate-limited / own-keys-scoped).
+    Preferred — JWT (RFC 7519), the standards-based, receiver-agnostic scheme mod_booking's REST
+    action emits. Configure SHOP_JWT_SECRET (HS256) or SHOP_JWT_PUBLIC_KEY (RS256); the caller
+    then sends:
+         Authorization: Bearer <jwt>
+    We verify the signature, exp/nbf (± SHOP_JWT_LEEWAY), optional iss/aud, and — by default — a
+    body_sha256 claim against the raw body, so the bearer/tier cannot be forged or replayed with a
+    different body. When JWT is configured the static SHOP_API_SECRET bearer is not accepted.
+
+    Legacy fallback — if no JWT is configured, issue/revoke fall back to a static bearer:
+         Authorization: Bearer <SHOP_API_SECRET>
+    This has no body binding; prefer JWT. NOTE: /usage is exempt from all of this (unauthenticated
+    by design, independently rate-limited and own-keys-scoped).
 
 Deployment
 ----------
@@ -87,6 +100,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+try:
+    import jwt as pyjwt  # PyJWT; required only when JWT auth is configured.
+except ImportError:  # pragma: no cover - import guard
+    pyjwt = None
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -103,20 +121,35 @@ LITELLM_TRIALCREATE_KEY: str = os.environ.get("LITELLM_TRIALCREATE_KEY", "")
 SHOP_PUBLIC_ENDPOINT: str = os.environ.get("SHOP_PUBLIC_ENDPOINT", LITELLM_BASE_URL).rstrip("/")
 
 SHOP_API_SECRET: str = os.environ.get("SHOP_API_SECRET", "")
-SHOP_HMAC_SECRET: str = os.environ.get("SHOP_HMAC_SECRET", "")
-SHOP_HMAC_MAX_AGE: int = int(os.environ.get("SHOP_HMAC_MAX_AGE", "300"))
 
 
 def _env_flag(name: str, default: str = "1") -> bool:
     return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
 
 
-# HMAC is now REQUIRED by default on the mutating shop routes (issue-key / revoke-key): the
-# bearer alone is a long-lived shared secret, and without a body signature a leaked bearer
-# lets anyone mint any tier (product/size are request-chosen) or revoke arbitrary orders.
-# With HMAC the signature covers the raw body, so the tier cannot be forged without the HMAC
-# secret too. Set SHOP_REQUIRE_HMAC=0 only for a deliberate, temporary bearer-only rollout.
-SHOP_REQUIRE_HMAC: bool = _env_flag("SHOP_REQUIRE_HMAC", "1")
+# JWT auth for the mutating routes (issue-key / revoke-key), the standards-based scheme
+# mod_booking's REST after-booking action emits. Configure an HS256 secret OR an RS256 public
+# key to require it; the token then binds the exact body (body_sha256) so a leaked bearer or a
+# forged tier is impossible. When neither is set we fall back to the legacy static bearer.
+SHOP_JWT_SECRET: str = os.environ.get("SHOP_JWT_SECRET", "")
+SHOP_JWT_PUBLIC_KEY: str = os.environ.get("SHOP_JWT_PUBLIC_KEY", "")
+_jwt_public_key_file: str = os.environ.get("SHOP_JWT_PUBLIC_KEY_FILE", "").strip()
+if _jwt_public_key_file and not SHOP_JWT_PUBLIC_KEY:
+    try:
+        with open(_jwt_public_key_file, encoding="utf-8") as _fh:
+            SHOP_JWT_PUBLIC_KEY = _fh.read()
+    except OSError as _exc:
+        logger.error("Could not read SHOP_JWT_PUBLIC_KEY_FILE %s: %s", _jwt_public_key_file, _exc)
+SHOP_JWT_ISSUER: str = os.environ.get("SHOP_JWT_ISSUER", "").strip()
+SHOP_JWT_AUDIENCE: str = os.environ.get("SHOP_JWT_AUDIENCE", "").strip()
+SHOP_JWT_LEEWAY: int = int(os.environ.get("SHOP_JWT_LEEWAY", "60"))
+SHOP_JWT_REQUIRE_BODY_HASH: bool = _env_flag("SHOP_JWT_REQUIRE_BODY_HASH", "1")
+
+
+def _jwt_configured() -> bool:
+    """True when JWT verification is set up (HS256 secret or RS256 public key present)."""
+    return bool(SHOP_JWT_SECRET or SHOP_JWT_PUBLIC_KEY)
+
 
 # Number of trusted reverse proxies in front of this app. X-Forwarded-For is client-
 # appendable, so we trust only the entries our own proxies added (counted from the right).
@@ -319,46 +352,77 @@ async def _litellm_headers() -> dict:
     }
 
 
+def _bearer_token(request: Request) -> str:
+    """Extract the token from an 'Authorization: Bearer <token>' header, or ''."""
+    authorization = request.headers.get("authorization", "")
+    prefix = "Bearer "
+    return authorization[len(prefix):].strip() if authorization.startswith(prefix) else ""
+
+
+def _verify_jwt(request: Request, raw_body: bytes) -> None:
+    """
+    Verify the JWT on a mutating shop call (RFC 7519): signature (HS256 secret or RS256 public
+    key), exp/nbf, optional iss/aud, and — by default — a body_sha256 claim binding the exact
+    body so a captured token cannot be replayed with a different body. Raises on failure.
+    """
+    if pyjwt is None:
+        logger.error("JWT auth is configured but PyJWT is not installed.")
+        raise HTTPException(status_code=500, detail="Shop endpoint is not fully configured.")
+
+    token = _bearer_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing bearer JWT.")
+
+    if SHOP_JWT_PUBLIC_KEY:
+        algorithms, key = ["RS256"], SHOP_JWT_PUBLIC_KEY
+    else:
+        algorithms, key = ["HS256"], SHOP_JWT_SECRET
+
+    options = {"require": ["exp", "iat"]}
+    decode_kwargs: dict = {
+        "algorithms": algorithms,
+        "leeway": SHOP_JWT_LEEWAY,
+        "options": options,
+    }
+    # PyJWT validates aud/iss itself when we pass them (and raises on mismatch/absence).
+    if SHOP_JWT_AUDIENCE:
+        decode_kwargs["audience"] = SHOP_JWT_AUDIENCE
+    else:
+        options["verify_aud"] = False
+    if SHOP_JWT_ISSUER:
+        decode_kwargs["issuer"] = SHOP_JWT_ISSUER
+
+    try:
+        claims = pyjwt.decode(token, key, **decode_kwargs)
+    except pyjwt.InvalidTokenError as exc:
+        # One uniform message; details go to the log, not the caller.
+        logger.warning("Rejected shop JWT: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+
+    if SHOP_JWT_REQUIRE_BODY_HASH:
+        expected = hashlib.sha256(raw_body).hexdigest()
+        provided = str(claims.get("body_sha256") or "")
+        if not provided or not hmac.compare_digest(provided, expected):
+            raise HTTPException(status_code=401, detail="Request body does not match the signed token.")
+
+
 def _require_shop_auth(request: Request, raw_body: bytes) -> None:
     """
-    Authenticate a shop call: mandatory bearer secret, plus optional HMAC over
-    timestamp + raw body (replay-protected). Raises HTTPException on failure.
+    Authenticate a mutating shop call. Preferred: a JWT (signature + exp + body binding) — see
+    _verify_jwt. Legacy fallback when no JWT is configured: a static bearer secret (no body
+    binding). Raises HTTPException on failure.
     """
+    if _jwt_configured():
+        _verify_jwt(request, raw_body)
+        return
+
     if not SHOP_API_SECRET:
-        logger.error("SHOP_API_SECRET is not configured; refusing all shop calls.")
+        logger.error("Neither JWT nor SHOP_API_SECRET is configured; refusing all shop calls.")
         raise HTTPException(status_code=500, detail="Shop endpoint is not configured.")
 
     authorization = request.headers.get("authorization", "")
     if not hmac.compare_digest(authorization, f"Bearer {SHOP_API_SECRET}"):
         raise HTTPException(status_code=401, detail="Invalid or missing shop authorization.")
-
-    if not SHOP_HMAC_SECRET:
-        # Fail closed by default: a bearer-only mutating endpoint is a single leaked secret
-        # away from arbitrary key minting/revocation, so refuse unless HMAC is explicitly
-        # disabled via SHOP_REQUIRE_HMAC=0.
-        if SHOP_REQUIRE_HMAC:
-            logger.error("SHOP_HMAC_SECRET is not configured but SHOP_REQUIRE_HMAC is on; refusing.")
-            raise HTTPException(status_code=500, detail="Shop endpoint is not fully configured.")
-        return
-
-    timestamp = request.headers.get("x-shop-timestamp", "")
-    signature = request.headers.get("x-shop-signature", "")
-    if not timestamp or not signature:
-        raise HTTPException(status_code=401, detail="Missing request signature.")
-    try:
-        ts = int(timestamp)
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid signature timestamp.")
-    if abs(time.time() - ts) > SHOP_HMAC_MAX_AGE:
-        raise HTTPException(status_code=401, detail="Request signature expired.")
-
-    expected = hmac.new(
-        SHOP_HMAC_SECRET.encode(),
-        f"{timestamp}.".encode() + raw_body,
-        hashlib.sha256,
-    ).hexdigest()
-    if not hmac.compare_digest(expected, signature):
-        raise HTTPException(status_code=401, detail="Bad request signature.")
 
 
 def _resolve_config(product: str, size: str) -> dict:
