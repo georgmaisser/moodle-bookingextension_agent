@@ -20,6 +20,12 @@ Environment variables expected
     TRIAL_TEAM_ID        – optional; LiteLLM team id every trial key is created into,
                            so trial keys are isolated from production keys and capped by
                            the team's max_budget. The team must permit the trial models.
+    TRIAL_FAIL_CLOSED    – optional, default 1 (on). If the existing-key listing used for the
+                           abuse caps cannot be fetched, refuse the trial (503) instead of
+                           issuing uncapped. Set 0 to restore the old fail-open behaviour.
+    TRIAL_TRUSTED_PROXY_HOPS – optional, default 1 — reverse proxies in front of this app;
+                           used to read the real client IP from X-Forwarded-For (per-IP cap)
+                           without it being spoofable via a forged header.
 
 Deployment
 ----------
@@ -82,6 +88,20 @@ MAX_KEYS_PER_IP: int = int(os.environ.get("TRIAL_MAX_KEYS_PER_IP", "3"))
 MAX_ACTIVE_KEYS: int = int(os.environ.get("TRIAL_MAX_ACTIVE_KEYS", "500"))
 ACTIVE_WINDOW_DAYS: int = int(os.environ.get("TRIAL_ACTIVE_WINDOW_DAYS", "30"))
 TRIAL_ALIAS_PREFIX: str = "wunderbyte-privat-"
+
+
+def _env_flag(name: str, default: str = "1") -> bool:
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+# When the existing-keys listing needed for the abuse caps cannot be fetched, fail CLOSED by
+# default (refuse the trial, 503) instead of open: failing open let anyone bypass the per-IP
+# and global caps by inducing a list error. Set TRIAL_FAIL_CLOSED=0 to restore fail-open.
+TRIAL_FAIL_CLOSED: bool = _env_flag("TRIAL_FAIL_CLOSED", "1")
+
+# Number of trusted reverse proxies in front of this app, used to read the real client IP
+# from the (client-appendable) X-Forwarded-For for the per-IP cap without it being spoofable.
+TRIAL_TRUSTED_PROXY_HOPS: int = int(os.environ.get("TRIAL_TRUSTED_PROXY_HOPS", "1"))
 
 # Optional LiteLLM team every trial key is created into, so trial keys are isolated
 # from production keys and bounded by the team's own max_budget (a hard spend backstop
@@ -215,14 +235,19 @@ async def _find_existing_key(site_id: str) -> str | None:
 
 def _client_ip(request: Request) -> str:
     """
-    Real source IP. The service sits behind a reverse proxy, so request.client.host
-    is the proxy; prefer the first hop in X-Forwarded-For. Ensure your proxy SETS a
-    trustworthy XFF (and strips any client-supplied one), otherwise the per-IP cap
-    can be spoofed via a forged header.
+    Real source IP for the per-IP cap, resistant to a forged X-Forwarded-For.
+
+    XFF is client-appendable, so its LEFTMOST entry is spoofable (the earlier behaviour). Each
+    trusted proxy instead APPENDS the address it actually saw (nginx default
+    `$proxy_add_x_forwarded_for`), so the entry TRIAL_TRUSTED_PROXY_HOPS from the RIGHT is the
+    one our own infrastructure added. Set TRIAL_TRUSTED_PROXY_HOPS to your proxy depth.
     """
+    hops = TRIAL_TRUSTED_PROXY_HOPS
     xff = request.headers.get("x-forwarded-for", "")
-    if xff:
-        return xff.split(",")[0].strip()
+    if xff and hops >= 1:
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if len(parts) >= hops:
+            return parts[-hops]
     return request.client.host if request.client else "unknown"
 
 
@@ -370,10 +395,23 @@ async def request_moodle_trial(body: TrialRequest, request: Request) -> TrialRes
             ),
         )
 
-    # -- 3. Abuse caps. List failure -> fail open (logged) so a LiteLLM hiccup
-    # cannot lock everyone out; the budget/expiry scoping still bounds the damage.
+    # -- 3. Abuse caps. On a list failure we fail CLOSED by default (TRIAL_FAIL_CLOSED):
+    # failing open would let anyone bypass the per-IP and global caps by inducing a list
+    # error. The trial is non-critical, so a brief 503 during a LiteLLM hiccup is preferable
+    # to an unbounded key-minting window; set TRIAL_FAIL_CLOSED=0 to restore fail-open.
     trial_keys = await _list_trial_keys()
-    if trial_keys is not None:
+    if trial_keys is None:
+        if TRIAL_FAIL_CLOSED:
+            logger.error("Trial key list unavailable; refusing new trial (fail-closed).")
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "The trial service is temporarily unavailable. Please try again later "
+                    "or contact info@wunderbyte.at."
+                ),
+            )
+        logger.error("Trial key list unavailable; issuing anyway (fail-open, caps skipped).")
+    else:
         if _count_keys_for_ip(trial_keys, client_ip) >= MAX_KEYS_PER_IP:
             logger.warning("Per-IP trial cap hit for %s", client_ip)
             raise HTTPException(
