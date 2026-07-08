@@ -62,11 +62,44 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     /** Supported question types (MVP). */
     private const ALLOWED_QTYPES = ['multichoice', 'truefalse', 'shortanswer'];
 
+    /** @var int Runtime thread id injected by the executor (0 = resolve the ambient chat thread). */
+    private int $runtimethreadid = 0;
+
     /**
      * Constructor. Mutating skill (writes questions) — broad write, requires confirmation.
      */
     public function __construct() {
         parent::__construct(false, skill_risk_class::R2);
+    }
+
+    /**
+     * Receive the executing thread id from the engine (duck-typed executor injection).
+     *
+     * Chat executions resolve the ambient chat thread themselves, but channel-bound
+     * executions (e.g. the MCP facade) run on a thread get_active_thread() cannot see.
+     * The executor hands the actual thread id to skills that declare this setter.
+     *
+     * @param int $threadid
+     * @return void
+     */
+    public function set_runtime_threadid(int $threadid): void {
+        $this->runtimethreadid = $threadid;
+    }
+
+    /**
+     * Resolve the thread this execution belongs to (injected id first, chat thread fallback).
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @return int Thread id, or 0 when none exists.
+     */
+    private function resolve_thread_id(int $userid, int $contextid): int {
+        if ($this->runtimethreadid > 0) {
+            return $this->runtimethreadid;
+        }
+        $store = new conversation_store();
+        $thread = $store->get_active_thread($userid, $contextid);
+        return $thread ? (int)$thread->id : 0;
     }
 
     /**
@@ -631,8 +664,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         ];
 
         $store = new conversation_store();
-        $thread = $store->get_active_thread($userid, $contextid);
-        $threadid = $thread ? (int)$thread->id : 0;
+        $threadid = $this->resolve_thread_id($userid, $contextid);
 
         // Resolve the target question bank. This is the confirmed mutation point. When the user picked
         // a specific category in the clarification, honour it; otherwise get-or-create the course default.
@@ -835,13 +867,13 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @return string|null
      */
     private function extract_document_text(int $contextid, int $userid): ?string {
-        $store = new conversation_store();
-        $thread = $store->get_active_thread($userid, $contextid);
-        if (!$thread) {
+        $threadid = $this->resolve_thread_id($userid, $contextid);
+        if ($threadid <= 0) {
             return null;
         }
 
-        $messages = $store->get_recent_messages((int)$thread->id, 20);
+        $store = new conversation_store();
+        $messages = $store->get_recent_messages($threadid, 20);
         foreach (array_reverse($messages) as $message) {
             if ((string)($message->role ?? '') !== 'user') {
                 continue;
