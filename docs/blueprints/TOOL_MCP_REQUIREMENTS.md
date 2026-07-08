@@ -1,4 +1,4 @@
-# Requirements: `tool_mcp` — Moodle MCP server with full OAuth 2.1
+# Requirements: `tool_oauthmcp` — Moodle MCP server with full OAuth 2.1
 
 Status: requirements specification (2026-07-08). Companion to
 `MCP_SKILL_EXPOSURE.md` (phases 1–2, the facade this plugin will transport)
@@ -8,7 +8,7 @@ custom connectors — without any external gateway or IdP.
 
 ## 1. Purpose and positioning
 
-A generic Moodle **admin tool plugin `tool_mcp`** that turns any Moodle site
+A generic Moodle **admin tool plugin `tool_oauthmcp`** that turns any Moodle site
 into a remote MCP server:
 
 - **MCP transport**: streamable-HTTP endpoint speaking JSON-RPC 2.0.
@@ -29,7 +29,7 @@ mod_booking or the agent; the agent integrates *optionally* via the hook.
 
 ### 2.1 MCP protocol (FR-MCP)
 
-- FR-MCP-1: Streamable-HTTP endpoint (`/admin/tool/mcp/server.php` or a
+- FR-MCP-1: Streamable-HTTP endpoint (`/admin/tool/oauthmcp/server.php` or a
   routed pretty URL) accepting JSON-RPC 2.0 POST; implements `initialize`,
   `notifications/initialized`, `ping`, `tools/list`, `tools/call`.
 - FR-MCP-2: Protocol version negotiation for at least `2025-03-26` and
@@ -54,7 +54,7 @@ mod_booking or the agent; the agent integrates *optionally* via the hook.
   `external_function_parameters` (external_value / single / multiple
   structure) to JSON Schema (feature parity with `webservice_mcp`, which
   serves as prior art).
-- FR-TOOL-2: **Dynamic tool-provider hook** — a Moodle hook (`\tool_mcp\hook\
+- FR-TOOL-2: **Dynamic tool-provider hook** — a Moodle hook (`\tool_oauthmcp\hook\
   collect_tools` + `execute_tool`) any plugin can listen to, contributing
   tools as data (`name`, `description`, `inputSchema`, `annotations`) plus a
   dispatcher callback. Tool listing MUST be per-user: the hook receives the
@@ -108,9 +108,9 @@ mod_booking or the agent; the agent integrates *optionally* via the hook.
 
 - FR-ADMIN-1: Master switch (default off) + settings: token TTLs, DCR
   on/off + quota, allowed tool sources, rate limits, require-consent policy.
-- FR-ADMIN-2: Capability `tool/mcp:connect` gates who may complete the OAuth
+- FR-ADMIN-2: Capability `tool/oauthmcp:connect` gates who may complete the OAuth
   flow (default: not granted by archetype — explicit admin decision), plus
-  `tool/mcp:manageclients` for the client admin UI.
+  `tool/oauthmcp:manageclients` for the client admin UI.
 - FR-ADMIN-3: Rate limiting: per-user tool-call limit (default 60/min) and
   per-IP limits on `/token` + `/register`; violations logged.
 - FR-ADMIN-4: Audit events (Moodle events): client registered, consent given,
@@ -178,12 +178,12 @@ unlocks claude.ai. The agent-side work in M3 is small because the facade
 (phases 1–2 of `MCP_SKILL_EXPOSURE_IMPLEMENTATION_PLAN.md`) already exposes
 catalog + dispatch + confirm as services.
 
-## 7. Open questions for George
+## 7. Decisions (resolved by George, 2026-07-08)
 
-1. Plugin name/branding: `tool_mcp` (generic, moodle.org-friendly) vs. a
-   Wunderbyte-branded `tool_wbmcp`? A generic name maximises adoption; the
-   directory does not yet have an OAuth-capable MCP server.
-2. Publish free on moodle.org (adoption play, agent as the paid layer) vs.
-   keep as part of the PRO offering?
-3. Should M1 reuse/credit `webservice_mcp` (GPL) for the schema-conversion
-   code instead of re-implementing?
+1. **Name: `tool_oauthmcp`** — both headline features (OAuth + MCP) visible
+   in the plugin name. Frankenstyle-safe; used throughout this document.
+2. **Free offering** on moodle.org — adoption play; the agent stays the paid
+   layer on top.
+3. **Schema conversion re-implemented** (no code reuse from
+   `webservice_mcp`), keeping references/credits to it as prior art where
+   sensible.
