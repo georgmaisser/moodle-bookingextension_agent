@@ -112,6 +112,8 @@ excludes the thread-coupled and PII-sensitive skills —
 `wizard.forget`, `wizard.search_skills`, `wizard.list_skills`,
 `wizard.recreate_skill_catalog`, `core.search_users`,
 `question.generate_questions`. Defaults expose the 10 remaining R0 skills.
+(`question.generate_questions` joins the surface in phase 2 via WP2.4 —
+decision 4; `core.search_users` stays an explicit admin opt-in.)
 
 ### WP1.3 Headless execution service
 
@@ -136,8 +138,8 @@ R0 call path (mutating path added in phase 2):
    user's *chat* thread — so this WP adds one small store method
    `get_or_create_channel_thread(int $userid, int $contextid, string $channel)`
    that filters active threads on the metadata marker.
-   ⚠️ This is the plan's only engine-file touch (additive, one method) —
-   flagged for explicit approval before implementation.
+   This is the plan's only engine-file touch (additive, one method) —
+   **approved by George 2026-07-08** (decision 1).
 5. `preflight_pipeline::run($commands, $threadid, $contextid, $userid)`
    (`preflight_pipeline.php:91`) with a single command
    `['skill' => $name, 'input' => $args]`. Non-`pass` → structured error from
@@ -194,7 +196,8 @@ New: `tools/mcp-bridge/` (Node ≥ 18, `@modelcontextprotocol/sdk`, ~200 lines,
 own `package.json`, listed in `thirdpartylibs.xml` if vendored).
 
 - Env: `MOODLE_URL`, `MOODLE_WSTOKEN`, optional `MOODLE_CONTEXTID` (default:
-  system context), optional `MOODLE_WS_PREFIX` (skip auto-discovery).
+  **system context** — decision 2), optional `MOODLE_WS_PREFIX` (skip
+  auto-discovery).
 - Startup: `core_webservice_get_site_info` → pick function prefix
   (`local_wizard_mcp_*` if present, else `bookingextension_agent_mcp_*`) —
   the dual-track answer.
@@ -297,7 +300,23 @@ over MCP (no session-wide confirm suppression).
   out of the default allowlist; enabling it is an explicit admin act on the
   governance page.
 
-### WP2.3 Tests
+### WP2.3 Make `question.generate_questions` MCP-capable (decision 4)
+
+The skill instantiates `conversation_store` directly (attachment/thread
+lookups) instead of receiving a thread id — the only R2 skill with a hidden
+thread dependency. Deliberate exception to constraint §0.3 (one approved
+skill change): give the skill the same duck-typed
+`set_runtime_threadid(int $threadid)` setter the executor already injects
+into skills that declare it (`executor.php:249`), and route its internal
+`conversation_store` reads through that thread id. Over MCP this resolves to
+the `_channel: 'mcp'` thread, in chat to the chat thread — no behaviour
+change for the existing path. Attachment handling over MCP (PDF input for
+question generation) needs `mcp_call_tool` to accept an optional
+`draftitemid`/file payload — scoped as part of this WP, mirroring what
+`ai_upload_attachment` does for chat. Then remove the skill from the default
+exclusion list once `mcpallowmutations` is on.
+
+### WP2.4 Tests
 
 Contract test mirroring `tests/agent/contracts/ai_confirm_run_contract_test.php`:
 full two-call cycle for `course.update_activity` (preview → confirm →
@@ -305,11 +324,13 @@ mutation verified in DB + `observation_full` read-back); guard-token mismatch
 (tampered prepared input → `EXECUTION_GUARD_MISMATCH`); wrong/expired
 `confirmationcode`; TTL expiry (`fail_expired_blocked_items`); ownership
 violation (other user confirms → deny); `mcpallowmutations=0` → deny;
-no-PRO licence → `requires_pro` deny.
+no-PRO licence → `requires_pro` deny. Plus a `generate_questions` cycle over
+the MCP thread (WP2.3) with attached PDF fixture.
 
 **Phase 2 estimate:** 1 new shim, ~150 lines in `mcp_execution_service`,
-settings + governance column, 2 events, 1 contract test file. Again no
-engine-core changes — everything goes through existing queue/confirm services.
+settings + governance column, 2 events, the `generate_questions` runtime
+thread-id refactor, 1 contract test file. Beyond that, no engine-core
+changes — everything goes through existing queue/confirm services.
 
 ---
 
@@ -332,14 +353,14 @@ done — the endpoint should be born in the surviving engine.
 All commits English, path-limited, trailer
 `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
-## Open decisions before WP1.3 starts
+## Decisions (resolved by George, 2026-07-08)
 
-1. **Engine touch approval**: the one additive `conversation_store` method
-   (`get_or_create_channel_thread`) — OK, or should MCP threads be created
-   through a facade-owned helper that writes the thread row itself?
-2. Default context for tools when the client passes none: system context vs.
-   a configured landing course.
-3. Bridge placement: in-repo `tools/mcp-bridge/` vs. separate repo.
-4. Should `question.generate_questions` be made MCP-capable in phase 2 (needs
-   its direct `conversation_store` use pointed at the MCP thread) or stay
-   chat-only?
+1. **Engine touch**: the additive `conversation_store` method
+   (`get_or_create_channel_thread`) is approved — no facade-owned thread
+   writer needed.
+2. **Default context** when the client passes none: **system context**.
+3. **Bridge placement**: in-repo, `tools/mcp-bridge/`.
+4. **`question.generate_questions`**: made MCP-capable in phase 2 → WP2.3.
+
+The plan is unblocked; implementation can start with WP1.1.
+
