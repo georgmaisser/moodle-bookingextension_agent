@@ -68,6 +68,7 @@ function xmldb_local_wizard_install(): bool {
 
     $transaction = $DB->start_delegated_transaction();
 
+    $copiedrows = 0;
     foreach ($suffixes as $suffix) {
         $source = 'bx_agent_' . $suffix;
         $target = 'local_wizard_' . $suffix;
@@ -86,10 +87,12 @@ function xmldb_local_wizard_install(): bool {
         );
         $collist = implode(', ', $cols);
         $DB->execute("INSERT INTO {{$target}} ({$collist}) SELECT {$collist} FROM {{$source}}");
+        $copiedrows += $DB->count_records($target);
     }
 
     // Plugin settings: everything except the version marker, never overwriting
     // a wizard setting that already exists.
+    $copiedsettings = 0;
     $settings = $DB->get_records('config_plugins', ['plugin' => 'bookingextension_agent']);
     foreach ($settings as $setting) {
         if ($setting->name === 'version') {
@@ -97,6 +100,7 @@ function xmldb_local_wizard_install(): bool {
         }
         if (get_config('local_wizard', $setting->name) === false) {
             set_config($setting->name, $setting->value, 'local_wizard');
+            $copiedsettings++;
         }
     }
 
@@ -105,6 +109,7 @@ function xmldb_local_wizard_install(): bool {
     // capabilities, so assign_capability() would die on the unknown names. The
     // rows become effective the moment the capabilities are registered (directly
     // after this hook), and the upgrade's final cache purge covers accesslib.
+    $mappedcaps = 0;
     $assignments = $DB->get_records_select(
         'role_capabilities',
         $DB->sql_like('capability', '?'),
@@ -126,9 +131,16 @@ function xmldb_local_wizard_install(): bool {
             $row->timemodified = time();
             $row->modifierid = 0;
             $DB->insert_record('role_capabilities', $row);
+            $mappedcaps++;
         }
     }
 
     $transaction->allow_commit();
+
+    // Surface the takeover in the install/upgrade log so admins see exactly
+    // what was adopted from the bundled agent.
+    mtrace("local_wizard takeover: adopted {$copiedrows} table rows, "
+        . "{$copiedsettings} settings and {$mappedcaps} role capability "
+        . "assignments from bookingextension_agent.");
     return true;
 }
