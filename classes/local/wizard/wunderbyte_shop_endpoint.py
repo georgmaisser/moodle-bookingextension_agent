@@ -34,9 +34,13 @@ Environment variables expected
     LITELLM_BASE_URL          – base URL of your LiteLLM instance, e.g. https://llm.wunderbyte.at
     LITELLM_TRIALCREATE_KEY   – LiteLLM admin/management key (Bearer for the management API)
     SHOP_API_SECRET           – REQUIRED shared secret; the shop sends it as "Authorization: Bearer <secret>"
-    SHOP_HMAC_SECRET          – optional; if set, requests must also carry a valid HMAC signature
-                                (see "Shop authentication" below). Strongly recommended.
+    SHOP_HMAC_SECRET          – REQUIRED by default (SHOP_REQUIRE_HMAC=1): requests to the mutating
+                                routes must carry a valid HMAC signature (see "Shop authentication").
+    SHOP_REQUIRE_HMAC         – optional, default 1 (on). Set 0 ONLY for a deliberate, temporary
+                                bearer-only rollout — issue/revoke then accept the bearer alone.
     SHOP_HMAC_MAX_AGE         – optional, default 300 (seconds) — max age of the signed timestamp
+    SHOP_TRUSTED_PROXY_HOPS   – optional, default 1 — reverse proxies in front of this app; used to
+                                read the real client IP from X-Forwarded-For without spoofing
     SHOP_MODELS               – optional, comma-separated model aliases the keys may use; default
                                 "wunderbyte-privat,wunderbyte-privat-mini,wunderbyte-embeddings"
                                 (must match the Moodle agent actionconfig and exist on the proxy)
@@ -49,10 +53,13 @@ Environment variables expected
 Shop authentication
 -------------------
     1. Bearer (required):   Authorization: Bearer <SHOP_API_SECRET>
-    2. HMAC (optional, recommended), to stop replay if the bearer ever leaks:
+    2. HMAC (required by default; disable only via SHOP_REQUIRE_HMAC=0). Binds the request to
+       the exact body — so a leaked bearer alone cannot mint tiers or revoke orders — and
+       stops replay:
          X-Shop-Timestamp: <unix seconds>
          X-Shop-Signature: hex( HMAC_SHA256(SHOP_HMAC_SECRET, f"{timestamp}.{raw_body}") )
-       The server rejects a timestamp older than SHOP_HMAC_MAX_AGE.
+       The server rejects a timestamp older than SHOP_HMAC_MAX_AGE. NOTE: /usage is exempt
+       (it is unauthenticated by design and independently rate-limited / own-keys-scoped).
 
 Deployment
 ----------
@@ -98,6 +105,22 @@ SHOP_PUBLIC_ENDPOINT: str = os.environ.get("SHOP_PUBLIC_ENDPOINT", LITELLM_BASE_
 SHOP_API_SECRET: str = os.environ.get("SHOP_API_SECRET", "")
 SHOP_HMAC_SECRET: str = os.environ.get("SHOP_HMAC_SECRET", "")
 SHOP_HMAC_MAX_AGE: int = int(os.environ.get("SHOP_HMAC_MAX_AGE", "300"))
+
+
+def _env_flag(name: str, default: str = "1") -> bool:
+    return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
+
+
+# HMAC is now REQUIRED by default on the mutating shop routes (issue-key / revoke-key): the
+# bearer alone is a long-lived shared secret, and without a body signature a leaked bearer
+# lets anyone mint any tier (product/size are request-chosen) or revoke arbitrary orders.
+# With HMAC the signature covers the raw body, so the tier cannot be forged without the HMAC
+# secret too. Set SHOP_REQUIRE_HMAC=0 only for a deliberate, temporary bearer-only rollout.
+SHOP_REQUIRE_HMAC: bool = _env_flag("SHOP_REQUIRE_HMAC", "1")
+
+# Number of trusted reverse proxies in front of this app. X-Forwarded-For is client-
+# appendable, so we trust only the entries our own proxies added (counted from the right).
+SHOP_TRUSTED_PROXY_HOPS: int = int(os.environ.get("SHOP_TRUSTED_PROXY_HOPS", "1"))
 
 # Model aliases every shop key may use (same three the trial grants). The Moodle
 # agent maps its actions onto these EXACT names; all must exist on the proxy.
@@ -257,10 +280,18 @@ def _looks_like_llm_key(value: str) -> bool:
 
 
 def _client_ip(request: Request) -> str:
-    """First hop of X-Forwarded-For (the proxy must set and strip it), else the socket peer."""
+    """Best-effort real client IP for rate limiting, resistant to a forged X-Forwarded-For.
+
+    XFF is client-appendable, so its LEFTMOST entry is spoofable. Each trusted proxy instead
+    APPENDS the address it actually saw (nginx default `$proxy_add_x_forwarded_for`), so the
+    entry SHOP_TRUSTED_PROXY_HOPS from the RIGHT is the one our own infrastructure added.
+    """
+    hops = SHOP_TRUSTED_PROXY_HOPS
     xff = request.headers.get("x-forwarded-for", "")
-    if xff:
-        return xff.split(",")[0].strip()
+    if xff and hops >= 1:
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if len(parts) >= hops:
+            return parts[-hops]
     return request.client.host if request.client else "unknown"
 
 
@@ -302,6 +333,12 @@ def _require_shop_auth(request: Request, raw_body: bytes) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing shop authorization.")
 
     if not SHOP_HMAC_SECRET:
+        # Fail closed by default: a bearer-only mutating endpoint is a single leaked secret
+        # away from arbitrary key minting/revocation, so refuse unless HMAC is explicitly
+        # disabled via SHOP_REQUIRE_HMAC=0.
+        if SHOP_REQUIRE_HMAC:
+            logger.error("SHOP_HMAC_SECRET is not configured but SHOP_REQUIRE_HMAC is on; refusing.")
+            raise HTTPException(status_code=500, detail="Shop endpoint is not fully configured.")
         return
 
     timestamp = request.headers.get("x-shop-timestamp", "")
