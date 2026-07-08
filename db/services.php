@@ -130,6 +130,25 @@ $functions = [
         'capabilities' => 'moodle/site:config',
         'ajax'        => 1,
     ],
+    // MCP facade: token-capable endpoints (NO sesskey) for external MCP clients such as
+    // Claude. They live in their own restricted service below so chat tokens and MCP
+    // tokens never unlock each other's surface.
+    'bookingextension_agent_mcp_list_tools' => [
+        'classname'   => '\\bookingextension_agent\\external\\mcp_list_tools',
+        'methodname'  => 'execute',
+        'description' => 'List agent skills executable by the current user as MCP tool definitions.',
+        'type'        => 'read',
+        'capabilities' => 'bookingextension/agent:mcpaccess',
+        'ajax'        => 1,
+    ],
+    'bookingextension_agent_mcp_call_tool' => [
+        'classname'   => '\\bookingextension_agent\\external\\mcp_call_tool',
+        'methodname'  => 'execute',
+        'description' => 'Execute an agent skill as an MCP tool call (mutating skills return a confirmation preview).',
+        'type'        => 'write',
+        'capabilities' => 'bookingextension/agent:mcpaccess',
+        'ajax'        => 1,
+    ],
 ];
 
 $services = [
@@ -155,5 +174,18 @@ $services = [
         // shortname carries the component (the wizard generator maps it) and the display
         // name is rewritten by the generator as well.
         'shortname' => 'bookingextension_agent',
+    ],
+    // Separate, restricted service for the MCP facade: disabled by default (opt-in),
+    // and the admin must explicitly authorise each user before a token works. Kept
+    // apart from the chat service so a chat token never reaches the MCP surface and
+    // an MCP token never reaches the chat/provider-config functions.
+    'Booking AI Agent MCP' => [
+        'functions' => [
+            'bookingextension_agent_mcp_list_tools',
+            'bookingextension_agent_mcp_call_tool',
+        ],
+        'restrictedusers' => 1,
+        'enabled' => 0,
+        'shortname' => 'bookingextension_agent_mcp',
     ],
 ];

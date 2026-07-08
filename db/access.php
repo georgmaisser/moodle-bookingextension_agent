@@ -78,6 +78,17 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    // Call agent skills through the MCP web service facade (external MCP clients such as
+    // Claude). Deliberately NO archetype defaults: connecting an external AI client is an
+    // explicit per-user admin decision (grant the capability + authorise the user on the
+    // restricted MCP service + mint a token). Skill execution itself is additionally gated
+    // by useaiinstructions and the per-skill capabilities, exactly like the chat entry.
+    'bookingextension/agent:mcpaccess' => [
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [],
+    ],
 ];
 
 // Each skill capability is declared at the context level the skill actually operates on:
