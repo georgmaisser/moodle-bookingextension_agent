@@ -151,5 +151,9 @@ $services = [
         ],
         'restrictedusers' => 0,
         'enabled' => 1,
+        // Site-unique: both engine plugins register their service side by side, so the
+        // shortname carries the component (the wizard generator maps it) and the display
+        // name is rewritten by the generator as well.
+        'shortname' => 'bookingextension_agent',
     ],
 ];

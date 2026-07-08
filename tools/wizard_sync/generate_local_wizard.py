@@ -131,6 +131,16 @@ def transform_version_php(text: str) -> str:
     )
 
 
+def transform_services_php(text: str) -> str:
+    """Rename the external service: its display name must be site-unique.
+
+    Both engines install side by side; a shared service name violates the unique
+    index on external_services (found by the coexistence test). The shortname is
+    component-derived and already covered by the token map.
+    """
+    return text.replace("'Booking AI Agent' =>", "'Booking Wizard' =>")
+
+
 def transform_lang_file(text: str) -> str:
     """Rewrite plugin-name-derived capability string keys.
 
@@ -188,6 +198,8 @@ def generate_content(rel: Path) -> tuple[Path, bytes]:
     text = fix_config_require_depth(text, target_rel)
     if rel_str == "version.php":
         text = transform_version_php(text)
+    if rel_str == "db/services.php":
+        text = transform_services_php(text)
     if rel.parts and rel.parts[0] == "lang":
         text = transform_lang_file(text)
     return target_rel, text.encode("utf-8")
