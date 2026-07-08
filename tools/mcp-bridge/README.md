@@ -72,5 +72,9 @@ Optional environment:
 
 - The bridge generates a fresh idempotency key per call; Moodle refuses
   accidental double execution when a request is retried with the same key.
-- Mutating skills return a confirmation preview instead of executing
-  directly; the confirm step is part of the phase-2 facade.
+- Mutating skills never execute directly: the first call returns a preview
+  with a `queueitemid` and a `confirmationcode`, and the server-injected
+  `confirm_pending_action` tool executes the action once the human agreed.
+  Both steps are ordinary tool calls, so the bridge needs no special code.
+  Mutations additionally require the site setting *Allow mutating tools over
+  MCP* — without it only read-only tools are served.

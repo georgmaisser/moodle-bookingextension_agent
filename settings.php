@@ -127,6 +127,30 @@ $aisettingspage->add(
     )
 );
 
+// MCP facade: whether external MCP clients (e.g. Claude) may run MUTATING skills through the
+// two-call confirm flow. Off by default — read-only tools are available as soon as the MCP
+// service is enabled; mutations are a separate, explicit opt-in.
+$aisettingspage->add(
+    new admin_setting_configcheckbox(
+        'bookingextension_agent/mcpallowmutations',
+        get_string('mcpallowmutations', 'bookingextension_agent'),
+        get_string('mcpallowmutations_desc', 'bookingextension_agent'),
+        0
+    )
+);
+
+// MCP facade: per-user tool calls per minute. The programmatic surface gets a real rate limit
+// (the chat UI is naturally throttled by the conversation). 0 disables the limit.
+$aisettingspage->add(
+    new admin_setting_configtext(
+        'bookingextension_agent/mcpratelimit',
+        get_string('mcpratelimit', 'bookingextension_agent'),
+        get_string('mcpratelimit_desc', 'bookingextension_agent'),
+        30,
+        PARAM_INT
+    )
+);
+
 // Optional on-topic guard: when enabled, the agent refuses requests unrelated to the tasks its
 // skills support, with a short polite message. Off by default (not every deployment wants it);
 // recommended for public-facing sites to bound abuse and cost.

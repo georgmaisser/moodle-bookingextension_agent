@@ -44,6 +44,14 @@ $definitions = [
         'staticacceleration' => false,
         'ttl' => 1800,
     ],
+    // Per-user MCP tool-call counters (mcp_execution_service rate limit), keyed by
+    // user + minute window. Short TTL — entries are only relevant within their window.
+    'mcpratelimit' => [
+        'mode' => cache_store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'staticacceleration' => false,
+        'ttl' => 120,
+    ],
     // Site-search governance effort estimates (index_scope_estimator, blueprint §5b.4), keyed by
     // area + scope (+ red threshold, since the counting abort depends on it). Keys carry '|' and
     // '-', so no simplekeys.

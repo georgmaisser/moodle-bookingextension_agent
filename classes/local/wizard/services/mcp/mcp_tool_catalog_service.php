@@ -52,7 +52,6 @@ class mcp_tool_catalog_service {
      */
     private const DEFAULT_EXCLUDED_SKILLS = [
         'core.search_users',
-        'question.generate_questions',
         'wizard.forget',
         'wizard.list_memories',
         'wizard.list_skills',
@@ -61,6 +60,9 @@ class mcp_tool_catalog_service {
         'wizard.remember',
         'wizard.search_skills',
     ];
+
+    /** @var string Name of the synthetic confirm tool (step 2 of the mutation flow). */
+    public const CONFIRM_TOOL_NAME = 'confirm_pending_action';
 
     /** @var string[] JSON Schema types we pass through verbatim. */
     private const JSON_SCHEMA_TYPES = ['string', 'integer', 'number', 'boolean', 'object', 'array'];
@@ -118,7 +120,49 @@ class mcp_tool_catalog_service {
             $tools[] = $this->build_tool_definition($skillname, $toolname);
         }
 
+        if (get_config('bookingextension_agent', 'mcpallowmutations')) {
+            // Synthetic step-2 tool of the mutation flow, injected server-side so every
+            // transport (stdio bridge, future HTTP endpoint) gets it without own logic.
+            $tools[] = $this->build_confirm_tool_definition();
+        }
+
         return $tools;
+    }
+
+    /**
+     * Build the synthetic confirm tool definition (no backing skill).
+     *
+     * @return array
+     */
+    private function build_confirm_tool_definition(): array {
+        $properties = new \stdClass();
+        $properties->queueitemid = [
+            'type' => 'string',
+            'description' => 'The queueitemid from the pending tool result.',
+        ];
+        $properties->confirmationcode = [
+            'type' => 'string',
+            'description' => 'The confirmationcode from the pending tool result.',
+        ];
+
+        return [
+            'name' => self::CONFIRM_TOOL_NAME,
+            'description' => 'Execute a previously previewed mutating action. Mutating tools do not execute '
+                . 'directly: they return a preview with a queueitemid and a confirmationcode. Show the preview '
+                . 'to the user, and ONLY after the user explicitly agrees call this tool with both values. '
+                . 'The pending action expires after a few minutes.',
+            'inputSchema' => [
+                'type' => 'object',
+                'properties' => $properties,
+                'additionalProperties' => false,
+                'required' => ['queueitemid', 'confirmationcode'],
+            ],
+            'annotations' => [
+                'title' => 'Confirm pending action',
+                'readOnlyHint' => false,
+                'destructiveHint' => true,
+            ],
+        ];
     }
 
     /**
@@ -134,7 +178,9 @@ class mcp_tool_catalog_service {
      */
     public function is_exposed(string $skillname): bool {
         $configured = get_config('bookingextension_agent', 'mcpexposedskills');
-        if ($configured !== false && trim((string)$configured) !== '') {
+        if ($configured !== false) {
+            // Set = authoritative, including the explicitly empty list (nothing exposed).
+            // Only an UNSET config falls back to the default policy below.
             $allowlist = array_filter(array_map('trim', explode(',', (string)$configured)));
             return in_array($skillname, $allowlist, true);
         }

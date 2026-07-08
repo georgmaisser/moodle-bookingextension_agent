@@ -27,9 +27,13 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\mcp;
 
 use bookingextension_agent\event\mcp_tool_called;
+use bookingextension_agent\event\mcp_tool_confirmed;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\executor;
+use bookingextension_agent\local\wizard\queue\queue_manager;
+use bookingextension_agent\local\wizard\services\pending_intent_service;
 use bookingextension_agent\local\wizard\services\preflight_pipeline;
+use bookingextension_agent\local\wizard\services\queue_transition_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\skill_executability_evaluator;
 use bookingextension_agent\local\wizard\skill_registry;
@@ -114,6 +118,25 @@ class mcp_execution_service {
      * @return array
      */
     public function call_tool(string $toolname, array $args, int $contextid, int $userid, string $idempotencykey): array {
+        if ($this->rate_limit_exceeded($userid)) {
+            return $this->error_result(
+                get_string('mcp_error_rate_limited', 'bookingextension_agent'),
+                ['MCP_RATE_LIMITED']
+            );
+        }
+
+        if (trim($toolname) === mcp_tool_catalog_service::CONFIRM_TOOL_NAME) {
+            // Step 2 of the mutation flow, routed through the generic tool call so every
+            // transport can confirm without a dedicated code path. Rate limit already counted.
+            return $this->confirm_tool(
+                (string)($args['queueitemid'] ?? ''),
+                (string)($args['confirmationcode'] ?? ''),
+                $contextid,
+                $userid,
+                false
+            );
+        }
+
         $skillname = $this->catalog->skill_for_tool_name($toolname);
         if ($skillname === null) {
             return $this->error_result(
@@ -152,7 +175,14 @@ class mcp_execution_service {
     }
 
     /**
-     * Entry point for mutating skills — completed by the phase-2 confirm flow.
+     * Two-call confirm flow for mutating skills, step 1: preview + pending intent.
+     *
+     * Mirrors the chat path mechanics: preflight resolves the prepared input, the
+     * command is parked as a queue item (set_prepared_input binds the guard token
+     * to skill + operating context + input), and a pending intent with a
+     * confirmation code is stored on the MCP thread. Nothing is executed here —
+     * the client must show the preview to the human and then call confirm_tool()
+     * with the code, which proves the confirming call has seen this response.
      *
      * @param object $skill
      * @param string $skillname
@@ -170,10 +200,246 @@ class mcp_execution_service {
         int $userid,
         string $idempotencykey
     ): array {
-        return $this->error_result(
-            get_string('mcp_error_mutations_not_available', 'bookingextension_agent'),
-            ['MCP_MUTATIONS_NOT_AVAILABLE']
-        );
+        if (!get_config('bookingextension_agent', 'mcpallowmutations')) {
+            return $this->error_result(
+                get_string('mcp_error_mutations_not_available', 'bookingextension_agent'),
+                ['MCP_MUTATIONS_NOT_AVAILABLE']
+            );
+        }
+
+        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, self::CHANNEL);
+        $threadid = (int)$thread->id;
+
+        $schema = (array)$skill->get_schema();
+        $command = [
+            'skill' => $skillname,
+            'version' => (int)($schema['version'] ?? 1),
+            'input' => $args,
+            'risk_class' => (string)$skill->get_risk_class(),
+        ];
+
+        $pipeline = new preflight_pipeline($this->registry, $this->store);
+        $preflight = $pipeline->run([$command], $threadid, $contextid, $userid);
+        $preparedcommands = (array)($preflight['prepared_commands'] ?? []);
+        if ((string)($preflight['status'] ?? '') !== 'pass' || empty($preparedcommands)) {
+            return $this->error_result(
+                get_string(
+                    'mcp_error_preflight_blocked',
+                    'bookingextension_agent',
+                    implode(' ', (array)($preflight['errors'] ?? []))
+                ),
+                array_merge(['MCP_PREFLIGHT_BLOCKED'], (array)($preflight['issue_codes'] ?? []))
+            );
+        }
+        $prepared = (array)$preparedcommands[0];
+        $preparedinput = (array)($prepared['input'] ?? []);
+        $operatingcontextid = (int)($prepared['operating_contextid'] ?? $contextid);
+
+        $queuesvc = new queue_manager($this->store);
+        $queued = $queuesvc->enqueue_command($threadid, 0, 0, $command, 'mutating', 'queued');
+        $queueitemid = (string)($queued['queue_item_id'] ?? '');
+        if ($queueitemid === '') {
+            return $this->error_result(
+                get_string('mcp_error_preflight_blocked', 'bookingextension_agent', 'queueing failed'),
+                ['MCP_PREFLIGHT_BLOCKED']
+            );
+        }
+        $queuesvc->set_prepared_input($threadid, $queueitemid, $contextid, $preparedinput, $operatingcontextid);
+
+        $intentsvc = new pending_intent_service($this->store);
+        $confirmationcode = $intentsvc->set($threadid, $userid, $contextid, [
+            'queue_item_ids' => [$queueitemid],
+        ]);
+        // The store owns the TTL; read the actual expiry back instead of duplicating the constant.
+        $intent = (array)($intentsvc->get($threadid) ?? []);
+        $expiresin = max(0, (int)($intent['expiresat'] ?? 0) - time());
+
+        $preview = $skill->describe_proposed_action($preparedinput);
+        $lines = [get_string('mcp_pending_confirmation', 'bookingextension_agent')];
+        if (is_array($preview)) {
+            foreach ([trim((string)($preview['title'] ?? '')), trim((string)($preview['summary'] ?? ''))] as $line) {
+                if ($line !== '') {
+                    $lines[] = $line;
+                }
+            }
+            foreach ((array)($preview['rows'] ?? []) as $row) {
+                $label = trim((string)($row['label'] ?? ''));
+                $value = trim((string)($row['value'] ?? ''));
+                if ($label !== '' || $value !== '') {
+                    $lines[] = '- ' . ($label !== '' ? $label . ': ' : '') . $value;
+                }
+            }
+        }
+
+        return [
+            'content' => [['type' => 'text', 'text' => implode("\n", $lines)]],
+            'structuredContent' => [
+                'pending' => true,
+                'skill' => $skillname,
+                'queueitemid' => $queueitemid,
+                'confirmationcode' => $confirmationcode,
+                'expiresin' => $expiresin,
+                'preview' => $preview,
+            ],
+            'isError' => false,
+        ];
+    }
+
+    /**
+     * Two-call confirm flow, step 2: execute a previously previewed mutation.
+     *
+     * Stricter than the chat UI: the confirmation code issued with the preview is
+     * verified (hash_equals) before the pending intent is consumed — over MCP the
+     * code is the proof that the confirming call has seen the preview response.
+     * Execution then runs the same executor tail as everywhere else, including
+     * guard-token verification against the queue item's prepared input.
+     *
+     * @param string $queueitemid
+     * @param string $confirmationcode
+     * @param int $contextid
+     * @param int $userid
+     * @param bool $checkratelimit False when the caller (call_tool routing) already counted this request.
+     * @return array
+     */
+    public function confirm_tool(
+        string $queueitemid,
+        string $confirmationcode,
+        int $contextid,
+        int $userid,
+        bool $checkratelimit = true
+    ): array {
+        if ($checkratelimit && $this->rate_limit_exceeded($userid)) {
+            return $this->error_result(
+                get_string('mcp_error_rate_limited', 'bookingextension_agent'),
+                ['MCP_RATE_LIMITED']
+            );
+        }
+        if (!get_config('bookingextension_agent', 'mcpallowmutations')) {
+            return $this->error_result(
+                get_string('mcp_error_mutations_not_available', 'bookingextension_agent'),
+                ['MCP_MUTATIONS_NOT_AVAILABLE']
+            );
+        }
+
+        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, self::CHANNEL);
+        $threadid = (int)$thread->id;
+
+        $intentsvc = new pending_intent_service($this->store);
+        $intent = $intentsvc->get($threadid);
+        if ($intent === null) {
+            return $this->error_result(
+                get_string('mcp_error_no_pending_confirmation', 'bookingextension_agent'),
+                ['MCP_NO_PENDING_CONFIRMATION']
+            );
+        }
+
+        $queueitemid = trim($queueitemid);
+        $knownitems = array_map('strval', (array)($intent['queue_item_ids'] ?? []));
+        if (
+            !hash_equals((string)($intent['confirmationcode'] ?? ''), trim($confirmationcode))
+            || !in_array($queueitemid, $knownitems, true)
+        ) {
+            return $this->error_result(
+                get_string('mcp_error_confirmation_mismatch', 'bookingextension_agent'),
+                ['MCP_CONFIRMATION_MISMATCH']
+            );
+        }
+
+        if ($intentsvc->consume($threadid, $userid, $contextid) === null) {
+            // Expired or owned by someone else — consume() is the authoritative check.
+            return $this->error_result(
+                get_string('mcp_error_no_pending_confirmation', 'bookingextension_agent'),
+                ['MCP_NO_PENDING_CONFIRMATION']
+            );
+        }
+
+        $queuesvc = new queue_manager($this->store);
+        $item = $queuesvc->get_queue_item($threadid, $queueitemid);
+        if ($item === null || empty($item['prepared_input']) || empty($item['guard_token'])) {
+            return $this->error_result(
+                get_string('mcp_error_no_pending_confirmation', 'bookingextension_agent'),
+                ['MCP_QUEUE_ITEM_MISSING']
+            );
+        }
+
+        $transitions = new queue_transition_service();
+        $transitions->to_ready($queuesvc, $threadid, $queueitemid, 'CONFIRMATION_ACCEPTED');
+
+        $command = [
+            'skill' => (string)$item['skill'],
+            'version' => (int)($item['version'] ?? 1),
+            'input' => (array)$item['prepared_input'],
+            'operating_contextid' => (int)($item['operating_contextid'] ?? $contextid),
+            'guard_token' => (string)$item['guard_token'],
+        ];
+
+        $idempotencykey = hash('sha256', $userid . ':' . $contextid . ':' . $threadid . ':'
+            . $queueitemid . ':' . microtime(true));
+        $runid = $this->store->create_run($threadid, $userid, $contextid, $idempotencykey, [$command]);
+        $this->store->update_run_status($runid, 'running');
+        // Best-effort slot acquisition (parity with the chat confirm path, which
+        // also proceeds when the slot is contested).
+        $queuesvc->try_mark_running($threadid, $queueitemid);
+
+        $exec = new executor($this->registry, $this->store, $this->authz);
+        $results = $exec->execute_commands([$command], $contextid, $userid, $idempotencykey, $runid);
+        $this->store->update_run_status($runid, 'completed', $results);
+
+        $result = is_array($results[0] ?? null) ? (array)$results[0] : [];
+        $status = trim((string)($result['status'] ?? ''));
+        $issuecodes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
+        if ($status === 'error' || $status === 'failed') {
+            // No retry machinery over MCP: the client simply issues a fresh call.
+            $transitions->to_failed(
+                $queuesvc,
+                $threadid,
+                $queueitemid,
+                'EXECUTION_DOMAIN_FAILED',
+                $issuecodes,
+                'domain_error',
+                trim((string)($result['detail'] ?? ''))
+            );
+        } else {
+            $transitions->to_succeeded($queuesvc, $threadid, $queueitemid, 'EXECUTION_SUCCEEDED', $issuecodes);
+        }
+
+        $event = mcp_tool_confirmed::create([
+            'context' => context::instance_by_id($contextid),
+            'userid' => $userid,
+            'other' => [
+                'skill' => (string)$item['skill'],
+                'status' => $status,
+                'runid' => $runid,
+                'queueitemid' => $queueitemid,
+            ],
+        ]);
+        $event->trigger();
+
+        return $this->build_mcp_result($result);
+    }
+
+    /**
+     * Whether the per-user tool-call rate limit is exhausted for the current minute.
+     *
+     * @param int $userid
+     * @return bool
+     */
+    private function rate_limit_exceeded(int $userid): bool {
+        $configured = get_config('bookingextension_agent', 'mcpratelimit');
+        $limit = ($configured === false) ? 30 : (int)$configured;
+        if ($limit <= 0) {
+            // 0 = unlimited (explicit admin decision).
+            return false;
+        }
+
+        $cache = \cache::make('bookingextension_agent', 'mcpratelimit');
+        $key = 'u' . $userid . '_' . (int)floor(time() / 60);
+        $count = (int)$cache->get($key);
+        if ($count >= $limit) {
+            return true;
+        }
+        $cache->set($key, $count + 1);
+        return false;
     }
 
     /**

@@ -149,6 +149,14 @@ $functions = [
         'capabilities' => 'bookingextension/agent:mcpaccess',
         'ajax'        => 1,
     ],
+    'bookingextension_agent_mcp_confirm_tool' => [
+        'classname'   => '\\bookingextension_agent\\external\\mcp_confirm_tool',
+        'methodname'  => 'execute',
+        'description' => 'Confirm and execute a pending MCP mutation using the confirmation code from the preview.',
+        'type'        => 'write',
+        'capabilities' => 'bookingextension/agent:mcpaccess',
+        'ajax'        => 1,
+    ],
 ];
 
 $services = [
@@ -183,6 +191,7 @@ $services = [
         'functions' => [
             'bookingextension_agent_mcp_list_tools',
             'bookingextension_agent_mcp_call_tool',
+            'bookingextension_agent_mcp_confirm_tool',
         ],
         'restrictedusers' => 1,
         'enabled' => 0,

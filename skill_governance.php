@@ -104,6 +104,18 @@ if (data_submitted() && confirm_sesskey()) {
             $value = isset($enabledset[(string)$skillname]) ? '1' : '0';
             set_config($settingname, $value, 'bookingextension_agent');
         }
+        // MCP exposure allowlist (same checkbox-value pattern as enabledskills, because skill
+        // names contain dots). Saving here makes the explicit list authoritative — including
+        // the empty list, which exposes nothing over MCP.
+        $mcpposted = optional_param_array('mcpskills', [], PARAM_RAW);
+        $mcpset = array_flip(array_map('strval', $mcpposted));
+        $mcpexposed = [];
+        foreach ($contracts as $skillname => $meta) {
+            if (isset($mcpset[(string)$skillname])) {
+                $mcpexposed[] = (string)$skillname;
+            }
+        }
+        set_config('mcpexposedskills', implode(',', $mcpexposed), 'bookingextension_agent');
         // These per-skill toggles are now authoritative. Clearing the global "enable all"
         // override is essential: otherwise is_skill_active() short-circuits to true for every
         // skill and a box unticked here would reappear active on reload.
@@ -154,6 +166,7 @@ $evaluator = new \bookingextension_agent\local\wizard\skill_executability_evalua
     $registry,
     new \bookingextension_agent\local\wizard\services\security\authorization_service()
 );
+$mcpcatalog = new \bookingextension_agent\local\wizard\services\mcp\mcp_tool_catalog_service($registry, $evaluator);
 
 $evaluations = [];
 foreach ($contracts as $skillname => $meta) {
@@ -404,6 +417,10 @@ echo html_writer::start_tag('table', ['class' => 'table table-hover align-middle
 echo html_writer::start_tag('thead');
 echo html_writer::start_tag('tr');
 echo html_writer::tag('th', 'Active', ['style' => 'width: 80px; text-align: center;']);
+echo html_writer::tag('th', get_string('skillgovernance_mcp_column', 'bookingextension_agent'), [
+    'style' => 'width: 80px; text-align: center;',
+    'title' => get_string('skillgovernance_mcp_column_title', 'bookingextension_agent'),
+]);
 echo html_writer::tag('th', get_string('skillgovernance_gate_status', 'bookingextension_agent'), ['style' => 'width: 220px;']);
 echo html_writer::tag('th', 'Skill Name / Component');
 echo html_writer::tag('th', 'Required Capabilities');
@@ -469,6 +486,16 @@ foreach ($contracts as $skillname => $meta) {
         'name' => 'enabledskills[]',
         'value' => (string)$skillname,
         'checked' => $isactive ? 'checked' : null,
+    ]);
+    echo html_writer::end_tag('td');
+
+    // MCP exposure checkbox (same value-carries-the-name pattern as enabledskills).
+    echo html_writer::start_tag('td', ['style' => 'text-align: center;']);
+    echo html_writer::empty_tag('input', [
+        'type' => 'checkbox',
+        'name' => 'mcpskills[]',
+        'value' => (string)$skillname,
+        'checked' => $mcpcatalog->is_exposed((string)$skillname) ? 'checked' : null,
     ]);
     echo html_writer::end_tag('td');
 
@@ -540,7 +567,7 @@ foreach ($contracts as $skillname => $meta) {
 
     // Collapsible Row.
     echo html_writer::start_tag('tr', ['class' => 'skill-detail-row', 'id' => 'detail-row-' . $rowindex]);
-    echo html_writer::start_tag('td', ['colspan' => 6, 'style' => 'padding: 0; border-top: none;']);
+    echo html_writer::start_tag('td', ['colspan' => 7, 'style' => 'padding: 0; border-top: none;']);
 
     // Build the collapsible inner content.
     $bodycontent = '';
