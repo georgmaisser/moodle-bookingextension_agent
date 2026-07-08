@@ -121,3 +121,48 @@ RFC 7009 (Revocation), RFC 8414 (AS Metadata), RFC 8707 (Resource Indicators), R
 - [ ] Audit logging of all security-relevant events (token issued/revoked, consent, client registered, **failed auth**), tamper-evident
 - [ ] Admin controls: block client, revoke token/family, global kill switch (`enabled`)
 - [ ] Coverage documented against RFC 9700 and RFC 7591/7009/8414/8707/9728 + the MCP auth spec
+
+---
+
+## 14. Test-method coverage — what we can do in-house
+
+Which checklist items are reachable by our own PHPUnit vs. what genuinely needs Behat,
+external pentest or tooling. Mapped 2026-07-08 against the plugin's existing suite
+(64 tests: `oauth_flow_test`, `oauth_performance_test`, `mcp_handler_test`,
+`tool_registry_test`, `privacy_provider_test`).
+
+### Already unit-tested (strong core coverage)
+- §1/§2 authorize + token: `full_flow_public_client`, `pkce_verifier_mismatch`,
+  `code_replay_revokes_tokens`, `redirect_uri_mismatch`, `resource_indicator`,
+  `scope_ceiling`, `token_endpoint_guards`, `confidential_client`, `token_liveness`
+- §3 DCR metadata: `dcr_validation` — §4 revocation: `revocation_endpoint`,
+  `selfservice_revocation` — §5 discovery: `discovery_metadata`
+- §6 cache coherence: `revocation_invalidates_cache`, `token_lookup_read_budget`
+- §7 MCP transport: `origin_match/mismatch`, `session_user_binding`, `unknown_session`,
+  `batching_per_version`, `protocol_version_header_mismatch`, `rate_limit`, `parse_error`,
+  `method_not_found`, `unsupported_http_method`, `tools_list_and_call`
+- §8 seam: `capability_required`, `foreign_service_token` (WS service binding)
+- §13: 5 privacy-provider tests, `audit_events`, `master_switch_off`
+
+### Unit-testable gaps worth adding (cheap, in-house PHPUnit)
+1. **DCR rate-limit / quota** (§3) — anonymous registration abuse, not just metadata validation
+2. **DCR privilege escalation** (§3) — registering with elevated `scope`/`grant_types` must be rejected
+3. **Cross-user IDOR** (§4/§9) — user B revoking/reading user A's token/client/consent (only the owner path is tested today)
+4. **Refresh replay explicit** (§2) — distinct from code replay: redeeming a rotated refresh twice revokes the family
+5. **PKCE `plain` / downgrade** (§1) — explicitly rejected (only verifier mismatch tested today)
+6. **Token hash-at-rest** (§6) — assert the DB row stores a hash, not plaintext
+7. **`purge_expired` task** (§6/§11) — run the task, assert expired records gone and live ones kept
+8. **Security headers + `WWW-Authenticate resource_metadata`** (§5/§7/§11) — response-header assertions
+9. **Low-privilege denial** (§8) — a user lacking a per-tool capability is refused a write tool
+
+### Not reachable by unit tests
+- **Behat only** (NFR-3): consent-screen click-through, self-service + client-admin UI, full
+  browser OAuth login flow, XSS rendering on the consent screen (attacker-controlled
+  `client_name`/`redirect_uri`)
+- **External pentest only** (NFR-4 — justifies the audit spend): timing side channels,
+  mix-up (multiple ASes), consent phishing, real SSRF/DNS-rebinding, DoS under load, and the
+  adversarial "try to break it" perspective across §12
+- **Tooling, not PHPUnit**: dependency CVE scan (`composer audit`), SQL-injection/XSS static
+  checks (`phpcs --standard=moodle` + code review), TLS configuration
+- **Deployment/infra, verified live not unit**: Authorization-header passing (Apache/php-fpm
+  `SetEnvIf`), HTTPS termination
