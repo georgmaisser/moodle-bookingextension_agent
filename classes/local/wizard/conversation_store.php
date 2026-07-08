@@ -145,6 +145,51 @@ class conversation_store implements agent_conversation_store {
     }
 
     /**
+     * Get or create the channel-bound thread for a user and context (e.g. the MCP facade).
+     *
+     * Channel threads carry their channel name as status so they are invisible to every
+     * chat-path query (all of which filter on status = 'active'): the chat UI must never
+     * adopt a facade thread — queue items and pending intents live in thread metadata, so
+     * sharing a thread would corrupt the chat queue. The channel is additionally stored
+     * in the metadata (_channel) for diagnostics and future multi-channel filtering.
+     *
+     * @param int $userid
+     * @param int $contextid
+     * @param string $channel Channel name, e.g. 'mcp'. Must not be 'active' or 'archived'.
+     * @return stdClass Thread record.
+     */
+    public function get_or_create_channel_thread(int $userid, int $contextid, string $channel): stdClass {
+        global $DB;
+
+        $channel = trim($channel);
+        if ($channel === '' || in_array($channel, ['active', 'archived'], true)) {
+            throw new \coding_exception('Invalid channel name for channel thread: ' . $channel);
+        }
+
+        $thread = $DB->get_record('bx_agent_ai_threads', [
+            'userid' => $userid,
+            'contextid' => $contextid,
+            'status' => $channel,
+        ]);
+
+        if ($thread) {
+            return $thread;
+        }
+
+        $now = time();
+        $record = new stdClass();
+        $record->userid = $userid;
+        $record->contextid = $contextid;
+        $record->status = $channel;
+        $record->metadatajson = json_encode(['_channel' => $channel]);
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+        $record->id = $DB->insert_record('bx_agent_ai_threads', $record);
+
+        return $record;
+    }
+
+    /**
      * Append a message to the thread.
      *
      * @param int    $threadid
