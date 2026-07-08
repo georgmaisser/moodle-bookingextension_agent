@@ -125,6 +125,28 @@ final class mcp_tool_catalog_test extends advanced_testcase {
     }
 
     /**
+     * Mutating tools are hidden from the list while mcpallowmutations is off.
+     */
+    public function test_mutating_tools_hidden_without_mutations_optin(): void {
+        $this->resetAfterTest();
+        [$userid, $contextid] = $this->create_teacher_in_course();
+        set_config('aiskillenableall', '1', 'bookingextension_agent');
+        $catalog = $this->make_catalog();
+
+        // Default: mutations off -> only read-only tools, no confirm tool.
+        $names = array_column($catalog->get_tools($userid, $contextid), 'name');
+        $this->assertNotContains('course_update_activity', $names);
+        $this->assertNotContains('confirm_pending_action', $names);
+        $this->assertContains('course_search_courses', $names);
+
+        // Opt-in: mutating tools and the synthetic confirm tool appear.
+        set_config('mcpallowmutations', '1', 'bookingextension_agent');
+        $names = array_column($catalog->get_tools($userid, $contextid), 'name');
+        $this->assertContains('course_update_activity', $names);
+        $this->assertContains('confirm_pending_action', $names);
+    }
+
+    /**
      * An explicit mcpexposedskills allowlist overrides the default policy.
      */
     public function test_explicit_allowlist_is_authoritative(): void {

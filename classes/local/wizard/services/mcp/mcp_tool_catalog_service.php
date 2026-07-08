@@ -97,9 +97,16 @@ class mcp_tool_catalog_service {
     public function get_tools(int $userid, int $contextid): array {
         $tools = [];
         $seennames = [];
+        $allowmutations = (bool)get_config('bookingextension_agent', 'mcpallowmutations');
 
         foreach ($this->registry->get_skill_names() as $skillname) {
             if (!$this->is_exposed($skillname)) {
+                continue;
+            }
+
+            // While mutations are disabled, mutating tools are not just refused on call —
+            // they are hidden from the list, so the client never sees tools it cannot run.
+            if (!$allowmutations && !$this->registry->is_read_only_skill($skillname)) {
                 continue;
             }
 
@@ -120,7 +127,7 @@ class mcp_tool_catalog_service {
             $tools[] = $this->build_tool_definition($skillname, $toolname);
         }
 
-        if (get_config('bookingextension_agent', 'mcpallowmutations')) {
+        if ($allowmutations) {
             // Synthetic step-2 tool of the mutation flow, injected server-side so every
             // transport (stdio bridge, future HTTP endpoint) gets it without own logic.
             $tools[] = $this->build_confirm_tool_definition();
