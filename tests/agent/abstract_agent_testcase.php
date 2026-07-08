@@ -172,7 +172,10 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
         require(__DIR__ . '/../../db/access.php');
 
         $modbookingcapabilities = [];
-        require(__DIR__ . '/../../../../db/access.php');
+        // Resolve mod_booking through core_component: as bundled subplugin this file sits
+        // inside mod_booking, but the generated local_wizard plugin does not (guarded
+        // booking-coupled path, so the component always exists here).
+        require(\core_component::get_component_directory('mod_booking') . '/db/access.php');
 
         foreach (array_keys($agentcapabilities) as $capability) {
             if (!str_starts_with((string)$capability, 'bookingextension/agent:')) {
