@@ -336,11 +336,35 @@ changes — everything goes through existing queue/confirm services.
 
 ## Phase 3 — remote connector (outline only, separate plan when due)
 
-Streamable-HTTP MCP endpoint (`mcp.php`, JSON-RPC 2.0, official PHP MCP SDK)
-delegating to the same `services/mcp/` classes; auth via bearer→WS-token
-mapping or an external IdP/gateway (Moodle is no OAuth 2.1 AS). Only worth
-planning in detail once phases 1–2 are deployed and the `local_wizard` cut is
-done — the endpoint should be born in the surviving engine.
+Primary candidate: **`webservice_mcp`** (moodle.org /
+github.com/onbirdev/moodle-webservice_mcp) instead of writing our own
+`mcp.php`. It is a webservice *protocol* plugin: HTTP JSON-RPC 2.0 endpoint
+(`server.php`) implementing `initialize`/`tools/list`/`tools/call`, auth via
+Moodle WS tokens (`Authorization: Bearer` or `wstoken` param), Moodle 4.5+.
+Verified against its `tool_provider` source (v0.5.0, 2026-06):
+
+- Tool enumeration is **token-service-scoped** (`external_services_functions`
+  by the token's `externalserviceid`) — combined with our dedicated
+  `bookingextension_agent_mcp` service (`restrictedusers`), a token exposes
+  exactly our three facade functions and nothing else. Good fit.
+- It auto-converts `external_function_parameters` → JSON Schema. Our facade
+  functions would therefore appear as **three generic meta-tools**
+  (`…_mcp_call_tool(contextid, toolname, argsjson)`), not as 22 per-skill
+  tools with individual schemas — workable (Claude calls `mcp_list_tools`
+  first), but weaker tool UX than the stdio bridge.
+- **No extension point for dynamic tool definitions** in the current version.
+  To get per-skill tools over HTTP, contribute a small upstream hook (plugins
+  inject additional MCP tool defs + a call dispatcher) or fork.
+- It does not solve claude.ai custom-connector auth either (bearer token, no
+  OAuth 2.1 AS) — fine for Claude Code / API MCP connector with headers.
+- Young third-party plugin (v0.5.x): needs a security review before
+  production use; it bypasses nothing on our side, since all calls still land
+  in the same facade gates.
+
+Decision when due: adopt `webservice_mcp` as transport (possibly with an
+upstream dynamic-tools contribution) vs. own endpoint born in the surviving
+engine after the `local_wizard` cut. Phases 1–2 are unaffected either way —
+the facade is the stable part, the transport is swappable.
 
 ## Commit sequence
 
