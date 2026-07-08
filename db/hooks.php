@@ -34,4 +34,11 @@ $callbacks = [
         'hook' => \core\hook\output\before_standard_head_html_generation::class,
         'callback' => \bookingextension_agent\local\hooks\page_injection::class . '::extend_head',
     ],
+    [
+        // Publish the skill catalog as native MCP tools when tool_oauthmcp is present.
+        // The hook is only ever dispatched by tool_oauthmcp, so the callback stays inert
+        // (and its tool_oauthmcp type references stay unloaded) without that plugin.
+        'hook' => \tool_oauthmcp\hook\collect_tool_providers::class,
+        'callback' => \bookingextension_agent\hook\tool_provider_listener::class . '::collect',
+    ],
 ];

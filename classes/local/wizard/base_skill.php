@@ -98,6 +98,22 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
+     * Whether this skill may be exposed to external MCP clients (e.g. Claude).
+     *
+     * Default true: a skill reachable in chat is reachable over MCP too, and the same
+     * governance/licence/capability gates apply. A skill overrides this to false to stay
+     * chat-only — e.g. one whose value depends on the interactive conversation, or that a
+     * third-party author deliberately wants to keep off the programmatic surface. This only
+     * governs visibility/callability over MCP; it never widens any permission. Admins can
+     * still narrow exposure further per skill via the mcpexposedskills allowlist.
+     *
+     * @return bool
+     */
+    public function is_mcp_exposable(): bool {
+        return true;
+    }
+
+    /**
      * Minimum Moodle context level this skill needs to operate (runtime context switch).
      *
      * Default CONTEXT_MODULE = behaves exactly as today. A skill that must act on a broader

@@ -184,6 +184,13 @@ class mcp_tool_catalog_service {
      * @return bool
      */
     public function is_exposed(string $skillname): bool {
+        // The skill's own opt-out wins over every admin policy: a skill that declares itself
+        // chat-only is never exposed, allowlist or not.
+        $skill = $this->registry->get_skill($skillname);
+        if ($skill !== null && method_exists($skill, 'is_mcp_exposable') && !$skill->is_mcp_exposable()) {
+            return false;
+        }
+
         $configured = get_config('bookingextension_agent', 'mcpexposedskills');
         if ($configured !== false) {
             // Set = authoritative, including the explicitly empty list (nothing exposed).
