@@ -813,12 +813,15 @@ immediately; R2 once facade phase 2 lands); fixture-provider suite green.
 
 ## Open decisions (recommendations attached)
 
-- **D1 — library line vs PHP floor**: if `league/oauth2-server ^9` requires
-  PHP ≥ 8.2 (verify at WP-B1), recommend **raising the plugin floor to PHP
-  8.2** (Moodle 4.5 supports 8.1–8.3; 8.1 was EOL 2025-12; a
-  fresh security-critical plugin should not pin a maintenance-line library
-  for an EOL PHP) — deviates from NFR-1's "8.1+", needs George's sign-off.
-  Fallback: `8.5.x` line, same repositories.
+- **D1 — library line vs PHP floor**: **resolved by George 2026-07-08** —
+  higher PHP/Moodle floors are acceptable when they simplify the
+  implementation. Pin `league/oauth2-server ^9` and set the plugin's PHP
+  floor to whatever that line requires (≥ 8.2, verify exact floor at
+  WP-B1); NFR-1 is amended accordingly. The **Moodle floor stays at 4.5**:
+  the plan uses no 5.x-only feature (the router would not remove the
+  webroot `.well-known` requirement either), and a free moodle.org
+  adoption-play plugin should not exclude 4.5 LTS sites for zero
+  architectural gain.
 - **D2 — WS-token mode after phase B**: recommend keeping `authmode = both`
   as default (header-capable clients and CI smoke tests stay cheap; OAuth is
   the claude.ai path). Alternative: flip default to `oauth`, keep `wstoken`
