@@ -76,12 +76,18 @@ EXCLUDE_FILES = {
     "classes/agent.php",
 }
 
-# Plugin-relative paths replaced by a wizard-specific overlay file instead of
-# a token-transformed copy (overlay content lives in tools/wizard_sync/overlays/).
+# Plugin-relative paths shipped from tools/wizard_sync/overlays/ instead of a
+# token-transformed copy. A path missing in the source tree is ADDED to the
+# artifact (additive overlay). Overlays are wizard-final, may name the agent
+# deliberately, and are exempt from the residual-token check.
 OVERLAY_FILES = {
     # Agent-specific upgrade history (renames of pre-release table names) is
     # wrong for a freshly installed artifact; ships as a documented no-op.
     "db/upgrade.php",
+    # Takeover migration: adopt the bundled agent's table data, settings and
+    # role assignments when the wizard is installed next to it. Exists ONLY in
+    # the artifact — the agent never migrates from anyone.
+    "db/install.php",
 }
 
 # Engine-universal files copied verbatim: they intentionally name BOTH engine
@@ -209,7 +215,7 @@ def verify(outputs: dict) -> list:
     """Run built-in checks over the generated outputs; return error strings."""
     errors = []
     for rel, data in outputs.items():
-        if str(rel).startswith(VERBATIM_PREFIXES):
+        if str(rel).startswith(VERBATIM_PREFIXES) or str(rel) in OVERLAY_FILES:
             continue
         try:
             text = data.decode("utf-8")
@@ -268,6 +274,11 @@ def main() -> int:
     for rel in iter_source_files():
         target_rel, data = generate_content(rel)
         outputs[str(target_rel)] = data
+
+    # Additive overlays: ship overlay files that have no source counterpart.
+    for rel in sorted(OVERLAY_FILES):
+        if rel not in outputs:
+            outputs[rel] = (OVERLAY_ROOT / rel).read_bytes()
 
     errors = verify(outputs)
     if errors:

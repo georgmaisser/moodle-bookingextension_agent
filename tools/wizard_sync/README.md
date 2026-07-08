@@ -57,8 +57,16 @@ over the engine and the bundled agent stands down.
    sit under a unique index (the shortname is component-derived and handled by
    the token map).
 4. **Overlays** (`tools/wizard_sync/overlays/…` ships verbatim instead of a
-   transformed copy): `db/upgrade.php` (agent upgrade history does not apply;
-   documented no-op while pre-production).
+   transformed copy; a path without source counterpart is ADDED to the
+   artifact; overlays may name the agent deliberately and are exempt from the
+   residual-token check): `db/upgrade.php` (agent upgrade history does not
+   apply; documented no-op while pre-production) and `db/install.php` (the
+   takeover migration: on installation next to an active agent the wizard
+   COPIES the agent's bx_agent_* table rows, plugin settings and role
+   capability assignments into its own component — agent originals stay
+   untouched, so uninstalling the wizard later reactivates the agent exactly
+   where it stood; this functionality exists only in the artifact, never in
+   the installed agent).
 4b. **Verbatim files** (copied untransformed, exempt from the residual-token
    check): the scaffold's engine-alias-layer templates
    (`classes/local/wizard/services/scaffold/templates/engine_layer/`) — they
