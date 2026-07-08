@@ -68,7 +68,7 @@ TOKEN_MAP = {
 }
 
 # Never synced into the artifact.
-EXCLUDE_DIRS = {".git", ".github", ".claude", "node_modules", "tools"}
+EXCLUDE_DIRS = {".git", ".github", ".claude", "node_modules", "tools", "__pycache__"}
 EXCLUDE_FILE_NAMES = {".DS_Store", MANIFEST_NAME}
 EXCLUDE_FILES = {
     # Subplugin registration class: implements mod_booking's bookingextension
