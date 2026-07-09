@@ -404,26 +404,44 @@ PHP;
     private static function skill_template_targeting_block(): string {
         return <<<'PHP'
     // ---------------------------------------------------------------------------------------------
-    // OPTIONAL: context level + cross-context targeting. Uncomment/adjust only if your skill must
-    // act on something other than the current module (the default operating context).
+    // TARGET CONTEXT — read this if your skill MUTATES an activity instance or an object inside one
+    // (an option, a rule, a price, ...). For those skills it is REQUIRED, not optional.
     //
-    // // Operate at course / system scope instead of the current activity module:
-    // public function get_required_context_level(): int {
-    //     return CONTEXT_COURSE; // or CONTEXT_SYSTEM
-    // }
+    // WHY: a skill runs at an "operating context" (a Moodle context id). In chat that defaults to
+    // the activity the user has open, but over MCP it is ALWAYS the system context, and from the
+    // dashboard it is the site context. A skill that resolves its target activity from the ambient
+    // context alone works inside an open activity and silently fails everywhere else ("this action
+    // needs a target activity"). So NEVER derive the cmid from the ambient context as the only
+    // source. Resolve the target from your OWN input parameters instead and let the engine set the
+    // operating context; your native capability (Gate 2) is then re-checked there automatically.
     //
-    // // Let the user name a DIFFERENT target than the ambient one (resolved by the engine, then
-    // // your native capability is re-checked there). Return true AND implement get_target_selector().
-    // public function supports_target_context(): bool {
-    //     return true;
-    // }
-    // public function get_target_context_level(): int {
-    //     return CONTEXT_COURSE;
-    // }
-    // public function get_target_selector(array $input): ?\{{NAMESPACEROOT}}\local\wizard\engine\target_selector {
-    //     // Build a target_selector from $input (e.g. a course/module query). Null = ambient context.
-    //     return null;
-    // }
+    // HOW — pick one:
+    //
+    // (a) Activity-scoped skill (the user names an activity, or there is a single one in scope):
+    //     use the generic engine trait and only declare which module type you target:
+    //
+    //         use \{{NAMESPACEROOT}}\local\wizard\engine\module_targeted_skill;
+    //         public function get_target_modname(): string { return 'yourmodname'; }
+    //         // ...and add 'cmid' / 'activityquery' to your get_schema() properties.
+    //
+    // (b) Object-scoped skill (the user names an object whose id already implies its activity, e.g.
+    //     an option id): write a small plugin-side trait that turns the object reference into a
+    //     module target_selector. See mod_booking's option_targeted_skill for a worked example
+    //     (optionid -> owning cmid). Such a trait implements:
+    //
+    //         public function supports_target_context(): bool { return true; }
+    //         public function get_target_context_level(): int { return CONTEXT_MODULE; }
+    //         public function get_target_selector(array $input): ?target_selector {
+    //             // resolve $input's object to its cmid, then:
+    //             // return target_selector::for_module($cmid, null, 'yourmodname');
+    //         }
+    //
+    // SAFETY: only opt in if Gate 2 binds to the PASSED operating context — declare your native
+    // capabilities via get_required_native_capabilities() (the engine enforces them at the resolved
+    // context). Never check a hardwired ambient cmid or $USER.
+    //
+    // A genuinely site-wide skill instead overrides get_required_context_level(): CONTEXT_SYSTEM and
+    // needs no activity target — it already works over MCP.
     // ---------------------------------------------------------------------------------------------
 
 PHP;
