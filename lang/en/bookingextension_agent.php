@@ -57,6 +57,7 @@ $string['agent:skill_wizard_scaffold_skill'] = 'Generate a starter template for 
 $string['agent:skill_wizard_search_skills'] = 'Search available Booking Wizard skills';
 $string['agent:useaiinstructions'] = 'Use the Booking Wizard';
 $string['agent:viewbenchmarks'] = 'View AI benchmark reports';
+$string['agent:viewdebug'] = 'View the Booking Wizard debug information';
 $string['agent_adminpages'] = 'Booking Wizard admin pages';
 $string['agent_adminpages_desc'] = 'These pages belong to the Booking Wizard and are only available while the Booking Wizard is enabled:';
 $string['agent_booking_core_calendar_event_created'] = 'Calendar event created successfully.';

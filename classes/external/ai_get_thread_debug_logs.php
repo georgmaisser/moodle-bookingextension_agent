@@ -79,6 +79,12 @@ class ai_get_thread_debug_logs extends external_api {
         $context = context::instance_by_id((int)$params['contextid'], MUST_EXIST);
         self::validate_context($context);
 
+        // Seeing the raw LLM debug logs is gated by a capability (managers by default), not just the
+        // site-wide debug setting, so enabling debug logging does not expose them to every user.
+        if (!has_capability('bookingextension/agent:viewdebug', $context)) {
+            return ['debuglogsjson' => '[]', 'error' => ''];
+        }
+
         // Only accessible in debug mode.
         if (!llm_debug_logger::is_enabled()) {
             return [

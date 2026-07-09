@@ -55,6 +55,18 @@ $capabilities = [
             'manager' => CAP_ALLOW,
         ],
     ],
+    // Visibility of the agent's debug information (the per-thread LLM debug logs and the compact
+    // per-message runtime meta shown in the chat panel). The site-wide "aidebugmode" setting only
+    // controls whether debug logging happens; whether a user actually SEES that information is gated
+    // separately by this capability, so turning debug logging on does not expose it to every user.
+    // Managers see it by default; admins pass via moodle/site:doanything.
+    'bookingextension/agent:viewdebug' => [
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
+        ],
+    ],
     // Availability bypass: holders ignore the course/module "enableaitools" toggles.
     // The toggles are an AVAILABILITY layer aimed at non-privileged users (teachers,
     // later students) — site admins pass implicitly via moodle/site:doanything, and

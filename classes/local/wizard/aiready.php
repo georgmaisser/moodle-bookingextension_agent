@@ -93,8 +93,12 @@ class aiready {
         $wbinstanceactive = false;
         $courseenabled = false;
         $contextenabled = false;
-        $debugmode = !empty(get_config('bookingextension_agent', 'aidebugmode'));
-        $llmdebugenabled = llm_debug_logger::is_enabled();
+        // Debug information (the per-thread LLM logs and the per-message runtime meta) is gated by a
+        // capability, not just the site-wide aidebugmode setting, so enabling debug logging does not
+        // reveal it to every user. Managers see it by default (bookingextension/agent:viewdebug).
+        $canviewdebug = has_capability('bookingextension/agent:viewdebug', $context, $this->userid);
+        $debugmode = !empty(get_config('bookingextension_agent', 'aidebugmode')) && $canviewdebug;
+        $llmdebugenabled = llm_debug_logger::is_enabled() && $canviewdebug;
 
         $isbookingmodule = $this->ctx->is_module('booking');
         $cmid = $this->ctx->cmid();

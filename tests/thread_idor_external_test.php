@@ -62,6 +62,19 @@ final class thread_idor_external_test extends advanced_testcase {
     }
 
     /**
+     * Grant the viewdebug capability to the current user at a context via a throwaway role.
+     *
+     * @param int $contextid
+     */
+    private function grant_viewdebug(int $contextid): void {
+        global $USER;
+        $roleid = $this->getDataGenerator()->create_role();
+        assign_capability('bookingextension/agent:viewdebug', CAP_ALLOW, $roleid, $contextid, true);
+        role_assign($roleid, (int)$USER->id, $contextid);
+        accesslib_clear_all_caches_for_unit_testing();
+    }
+
+    /**
      * ai_poll_thread: the owner reads their own thread; an authorised attacker guessing the id gets
      * the fail-closed empty result (threadid 0, no messages), never the owner's messages.
      */
@@ -111,16 +124,59 @@ final class thread_idor_external_test extends advanced_testcase {
             true
         );
 
-        // Owner: their raw log is returned.
+        // Owner: their raw log is returned. Viewing debug logs requires the viewdebug capability
+        // (manager by default), so grant it here to exercise the authorised path.
         $this->setUser($owner);
+        $this->grant_viewdebug($ctxid);
         $ownerview = ai_get_thread_debug_logs::execute($ctxid, $ownerthread, 100);
         $this->assertSame('', (string)$ownerview['error']);
         $this->assertStringContainsString('the-response', (string)$ownerview['debuglogsjson']);
 
-        // Attacker: fail-closed empty payload, the owner's raw logs never leak.
+        // Attacker: also holds viewdebug, so the empty payload proves the thread-ownership check
+        // (not the capability gate) is what fail-closes; the owner's raw logs never leak.
         $this->setUser($attacker);
+        $this->grant_viewdebug($ctxid);
         $attackerview = ai_get_thread_debug_logs::execute($ctxid, $ownerthread, 100);
         $this->assertSame('[]', (string)$attackerview['debuglogsjson'], 'No raw logs of another user may leak.');
         $this->assertStringNotContainsString('the-response', (string)$attackerview['debuglogsjson']);
+    }
+
+    /**
+     * ai_get_thread_debug_logs: with debug mode on and a log in the user's OWN thread, a user without
+     * the viewdebug capability still gets an empty payload — enabling site-wide debug logging does not
+     * expose the raw logs to every user. Granting the capability reveals them.
+     */
+    public function test_debug_logs_require_viewdebug_capability(): void {
+        $this->resetAfterTest();
+        [$owner, , $ctxid] = $this->two_agent_users();
+        set_config('aidebugmode', 1, 'bookingextension_agent');
+
+        $store = new conversation_store();
+        $ownerthread = (int)$store->get_or_create_thread((int)$owner->id, $ctxid)->id;
+        llm_debug_logger::log_exchange(
+            $store,
+            $ownerthread,
+            0,
+            (int)$owner->id,
+            'unit-test',
+            'the-request',
+            'the-response',
+            true
+        );
+
+        // Owner, debug on, their own thread — but no viewdebug capability, so no raw logs.
+        $this->setUser($owner);
+        $withoutcap = ai_get_thread_debug_logs::execute($ctxid, $ownerthread, 100);
+        $this->assertSame(
+            '[]',
+            (string)$withoutcap['debuglogsjson'],
+            'Debug logs must stay hidden without the viewdebug capability.'
+        );
+        $this->assertStringNotContainsString('the-response', (string)$withoutcap['debuglogsjson']);
+
+        // Same user, now granted viewdebug: the raw log becomes visible.
+        $this->grant_viewdebug($ctxid);
+        $withcap = ai_get_thread_debug_logs::execute($ctxid, $ownerthread, 100);
+        $this->assertStringContainsString('the-response', (string)$withcap['debuglogsjson']);
     }
 }
