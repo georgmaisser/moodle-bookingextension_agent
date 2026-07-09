@@ -62,7 +62,9 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
     }
 
     /**
-     * Capability mode: teacher HAS manageactivities, student does NOT (self checks).
+     * Capability mode: teacher HAS manageactivities, student does NOT — with person-correct
+     * verbs: second person for self checks ("You HAVE / do NOT have"), third person for
+     * cross-user checks ("<Name> HAS / does NOT have").
      */
     public function test_capability_mode(): void {
         $this->resetAfterTest();
@@ -81,7 +83,10 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
             (int)$teacher->id
         );
         $this->assertSame('capability', $teacherresult['diagnosis']['mode']);
-        $this->assertStringContainsString('HAS moodle/course:manageactivities', $teacherresult['observation_full']);
+        $this->assertStringContainsString(
+            'You HAVE moodle/course:manageactivities',
+            $teacherresult['observation_full']
+        );
 
         $this->setUser($student);
         $studentresult = $skill->execute(
@@ -89,7 +94,27 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
             $coursecontextid,
             (int)$student->id
         );
-        $this->assertStringContainsString('does NOT have moodle/course:manageactivities', $studentresult['observation_full']);
+        $this->assertStringContainsString(
+            'You do NOT have moodle/course:manageactivities',
+            $studentresult['observation_full']
+        );
+
+        // Cross-user check (third person) — as admin, holding moodle/role:review everywhere.
+        $this->setAdminUser();
+        global $USER;
+        $adminresult = $skill->execute(
+            [
+                'courseid' => (int)$course->id,
+                'userid' => (int)$student->id,
+                'capability' => 'moodle/course:manageactivities',
+            ],
+            $coursecontextid,
+            (int)$USER->id
+        );
+        $this->assertStringContainsString(
+            fullname($student) . ' does NOT have moodle/course:manageactivities',
+            $adminresult['observation_full']
+        );
     }
 
     /**

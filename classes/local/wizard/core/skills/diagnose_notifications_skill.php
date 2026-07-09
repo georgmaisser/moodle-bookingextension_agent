@@ -104,7 +104,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
                 'userquery' => [
                     'type' => 'string',
                     'description' => 'Name, e-mail or id of the person. "me" or empty = the current user. '
-                        . 'Resolve ambiguous names via core.search_users.',
+                        . 'If the name is ambiguous, provide a more specific name or the e-mail address.',
                     'required' => false,
                 ],
                 'userid' => [
@@ -204,7 +204,7 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
         }
         if ($targetuserid <= 0) {
             return $this->error_result(
-                'I could not identify the person. Give a name, e-mail or id — or resolve via core.search_users.',
+                'I could not identify the person. Give a full name, e-mail address or numeric user id.',
                 'user_unresolved'
             );
         }

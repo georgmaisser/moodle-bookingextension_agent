@@ -107,7 +107,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                 'userquery' => [
                     'type' => 'string',
                     'description' => 'Name, e-mail or id of the person. "me" or empty = the current user. '
-                        . 'Resolve ambiguous names via core.search_users.',
+                        . 'If the name is ambiguous, provide a more specific name or the e-mail address.',
                     'required' => false,
                 ],
                 'userid' => [
@@ -240,7 +240,7 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
         }
         if ($targetuserid <= 0) {
             return $this->error_result(
-                'I could not identify the person. Give a name, e-mail or id — or resolve via core.search_users.',
+                'I could not identify the person. Give a full name, e-mail address or numeric user id.',
                 'user_unresolved'
             );
         }
@@ -306,9 +306,14 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
 
         $rows = [];
         $can = has_capability($capability, $targetcontext, $targetuser->id);
+        // Person-correct verb: "You HAVE / do NOT have", "<Name> HAS / does NOT have".
+        $subject = $isself ? 'You' : fullname($targetuser);
+        $verb = $can
+            ? ($isself ? 'HAVE' : 'HAS')
+            : ($isself ? 'do NOT have' : 'does NOT have');
         $rows[] = diagnostic_result_builder::row(
             $can ? 'ok' : 'fail',
-            ($isself ? 'You' : fullname($targetuser)) . ($can ? ' HAS ' : ' does NOT have ') . $capability,
+            $subject . ' ' . $verb . ' ' . $capability,
             'Checked at ' . $targetcontext->get_context_name(),
             $links->if_capable(
                 $links->check_permissions((int)$targetcontext->id),
