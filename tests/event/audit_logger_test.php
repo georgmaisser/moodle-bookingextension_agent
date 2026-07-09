@@ -20,6 +20,7 @@ use advanced_testcase;
 use context_system;
 use bookingextension_agent\event\action_denied;
 use bookingextension_agent\event\skill_executed;
+use bookingextension_agent\event\skill_write_executed;
 use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
 
 /**
@@ -31,6 +32,7 @@ use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
  * @group      bookingextension_agent
  * @covers     \bookingextension_agent\local\wizard\services\telemetry\audit_logger
  * @covers     \bookingextension_agent\event\skill_executed
+ * @covers     \bookingextension_agent\event\skill_write_executed
  * @covers     \bookingextension_agent\event\action_denied
  */
 final class audit_logger_test extends advanced_testcase {
@@ -112,28 +114,32 @@ final class audit_logger_test extends advanced_testcase {
     }
 
     /**
-     * Trigger a skill_executed and return only those events.
+     * Trigger an execution and return the resulting audit events (read or write class).
      *
      * @param object $skill
      * @param array  $input
      * @param mixed  $result
-     * @return skill_executed[]
+     * @return \core\event\base[]
      */
     private function capture_executed(object $skill, array $input, $result): array {
         $ctxid = (int)context_system::instance()->id;
         $sink = $this->redirectEvents();
         audit_logger::skill_executed($skill, 'x.skill', $input, $result, $ctxid, 2, 0, 0, 'chat', 12.7);
         $sink->close();
-        return array_values(array_filter($sink->get_events(), static fn($e) => $e instanceof skill_executed));
+        return array_values(array_filter(
+            $sink->get_events(),
+            static fn($e) => $e instanceof skill_executed || $e instanceof skill_write_executed
+        ));
     }
 
     /**
-     * A read-only skill logs with CRUD 'r' and success outcome.
+     * A read-only skill raises skill_executed with CRUD 'r' and success outcome.
      */
     public function test_readonly_skill_logs_crud_r(): void {
         $this->resetAfterTest();
         $events = $this->capture_executed($this->fake_skill(['readonly' => true]), ['a' => 'b'], ['status' => 'ok']);
         $this->assertCount(1, $events);
+        $this->assertInstanceOf(skill_executed::class, $events[0]);
         $this->assertSame('r', $events[0]->other['crud']);
         $this->assertTrue($events[0]->other['readonly']);
         $this->assertSame('chat', $events[0]->other['channel']);
@@ -141,13 +147,14 @@ final class audit_logger_test extends advanced_testcase {
     }
 
     /**
-     * A writing skill carries its declared CRUD and an error outcome is derived from the result.
+     * A writing skill raises skill_write_executed, carrying its precise CRUD and derived outcome.
      */
     public function test_write_skill_crud_and_error_outcome(): void {
         $this->resetAfterTest();
         $skill = $this->fake_skill(['readonly' => false, 'crud' => 'c', 'risk' => 'scoped_write']);
         $events = $this->capture_executed($skill, [], ['status' => 'error']);
         $this->assertCount(1, $events);
+        $this->assertInstanceOf(skill_write_executed::class, $events[0]);
         $this->assertSame('c', $events[0]->other['crud']);
         $this->assertFalse($events[0]->other['readonly']);
         $this->assertSame('scoped_write', $events[0]->other['riskclass']);

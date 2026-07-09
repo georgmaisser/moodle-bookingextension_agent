@@ -18,6 +18,7 @@ namespace bookingextension_agent;
 
 use bookingextension_agent\event\action_denied;
 use bookingextension_agent\event\skill_executed;
+use bookingextension_agent\event\skill_write_executed;
 
 /**
  * Executor-chokepoint audit events, exercised end-to-end through real skills.
@@ -28,20 +29,22 @@ use bookingextension_agent\event\skill_executed;
  * @group      bookingextension_agent
  * @covers     \bookingextension_agent\local\wizard\executor
  * @covers     \bookingextension_agent\event\skill_executed
+ * @covers     \bookingextension_agent\event\skill_write_executed
  * @covers     \bookingextension_agent\event\action_denied
  */
 final class skill_executed_integration_test extends abstract_agent_testcase {
     /**
-     * Return only the skill_executed events for a given skill from a sink.
+     * Return the execution audit events (read or write class) for a given skill from a sink.
      *
      * @param \core\event\base[] $events
      * @param string             $skillname
-     * @return skill_executed[]
+     * @return \core\event\base[]
      */
     private function executed_for(array $events, string $skillname): array {
         return array_values(array_filter(
             $events,
-            static fn($e) => $e instanceof skill_executed && ($e->other['skill'] ?? '') === $skillname
+            static fn($e) => ($e instanceof skill_executed || $e instanceof skill_write_executed)
+                && ($e->other['skill'] ?? '') === $skillname
         ));
     }
 
@@ -56,6 +59,7 @@ final class skill_executed_integration_test extends abstract_agent_testcase {
         $this->assertNotSame('error', $result['status'] ?? '');
         $events = $this->executed_for($sink->get_events(), 'core.get_current_user');
         $this->assertCount(1, $events);
+        $this->assertInstanceOf(skill_executed::class, $events[0]);
         $this->assertSame('r', $events[0]->other['crud']);
         $this->assertTrue($events[0]->other['readonly']);
         $this->assertSame('chat', $events[0]->other['channel']);
@@ -72,6 +76,7 @@ final class skill_executed_integration_test extends abstract_agent_testcase {
 
         $events = $this->executed_for($sink->get_events(), 'mod_booking.create_option');
         $this->assertCount(1, $events);
+        $this->assertInstanceOf(skill_write_executed::class, $events[0]);
         $this->assertFalse($events[0]->other['readonly']);
         $this->assertContains($events[0]->other['crud'], ['c', 'u']);
         $this->assertSame('success', $events[0]->other['outcome']);

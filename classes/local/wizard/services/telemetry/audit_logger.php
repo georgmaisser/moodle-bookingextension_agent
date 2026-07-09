@@ -29,6 +29,7 @@ namespace bookingextension_agent\local\wizard\services\telemetry;
 use core\context;
 use bookingextension_agent\event\action_denied;
 use bookingextension_agent\event\skill_executed;
+use bookingextension_agent\event\skill_write_executed;
 
 /**
  * Builds and triggers the agent's audit events from the executor chokepoint.
@@ -113,7 +114,9 @@ class audit_logger {
                 // Core carries a single relateduserid; the full list stays in other.
                 $data['relateduserid'] = (int)reset($related);
             }
-            skill_executed::create($data)->trigger();
+            // Reads and writes are distinct event classes so the log CRUD column separates them.
+            $eventclass = $readonly ? skill_executed::class : skill_write_executed::class;
+            $eventclass::create($data)->trigger();
         } catch (\Throwable $e) {
             debugging('bookingextension_agent audit_logger::skill_executed failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
