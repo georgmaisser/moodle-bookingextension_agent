@@ -325,23 +325,6 @@ const parseCommandPayload = (raw) => {
 };
 
 /**
- * Force error bubble colors as runtime fallback when theme/CSS cache overrides occur.
- *
- * @param {HTMLElement|null} bubble
- */
-const enforceErrorBubbleStyleFallback = (bubble) => {
-    if (!bubble) {
-        return;
-    }
-
-    bubble.style.backgroundColor = '#f8d7da';
-    bubble.style.color = '#721c24';
-    bubble.style.borderColor = '#f5c6cb';
-    bubble.style.borderStyle = 'solid';
-    bubble.style.borderWidth = '1px';
-};
-
-/**
  * Detect whether an AI error indicates an invalid/expired trial token.
  *
  * @param {Object|null} response
@@ -2205,10 +2188,10 @@ const sendMessage = (message) => {
                 return resp;
             }
 
-            // A pure governance availability denial (skill not enabled on this system, or the user
-            // lacks the capability) is NOT a malfunction. response_type stays 'error' so the
-            // backend/flowchart contract is unchanged, but it is presented as a normal neutral
-            // reply instead of a red error bubble.
+            // Errors are rendered as normal, neutral assistant bubbles — never red (same
+            // principle as showRunStatus): a failed run reads as a calm notice, not an alarm.
+            // response_type stays 'error' so the backend/flowchart contract is unchanged, and
+            // the debug meta line below the bubble still carries it for diagnosis.
             const isAvailabilityDenial = resp.response_type === 'error'
                 && issueCodes.length > 0
                 && issueCodes.every((code) => String(code).trim() === 'SKILL_DENIED');
@@ -2223,24 +2206,11 @@ const sendMessage = (message) => {
                 source: 'ai_send_message',
                 time: (new Date()).toISOString(),
             };
-            const list = document.getElementById('booking-ai-messages');
-            if (isError && list) {
-                const div = document.createElement('div');
-                div.classList.add('booking-ai-msg', 'assistant', 'error');
-                div.innerHTML = `<div class="bubble">${renderAssistantMessageHtml(resp.displaymessage || resp.message)}</div>`
-                    + `${renderMessageDebugMeta(meta)}${renderMessageDebugJson(meta)}`;
-                list.appendChild(div);
-                list.scrollTop = list.scrollHeight;
-
-                const bubble = div.querySelector('.bubble');
-                enforceErrorBubbleStyleFallback(bubble);
-            } else {
-                appendMessageHtml(
-                    'assistant',
-                    renderAssistantMessageHtml(String(resp.displaymessage || resp.message || '')),
-                    meta
-                );
-            }
+            appendMessageHtml(
+                'assistant',
+                renderAssistantMessageHtml(String(resp.displaymessage || resp.message || '')),
+                meta
+            );
 
             const debugHtml = buildDebugRunHtml(
                 isError ? 'failed' : 'completed',
