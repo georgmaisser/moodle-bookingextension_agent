@@ -172,7 +172,11 @@ class get_current_user_skill extends core_skill_base implements
             'email' => $email,
             'fullname' => $fullname,
             'user' => $userdata,
-            'users' => [$userdata],
+            // The single complete payload lives in 'user'; 'users' deliberately carries only a
+            // compact identity entry. Both used to hold the FULL payload (enrolledcourses, roles,
+            // custom fields), duplicating an already large result — the consumers of 'users'
+            // (result summarizer, preview fallback) only read identity fields.
+            'users' => [$this->compact_user_identity($userdata)],
             'observation_full' => $this->build_user_observation_full([$userdata]),
             'usermessage' => $usermessage,
             'debugmessage' => $this->build_skill_debug_message(
@@ -181,6 +185,22 @@ class get_current_user_skill extends core_skill_base implements
                 ['Resolved user: ' . $fullname . ' (id=' . $user->id . ')']
             ),
         ];
+    }
+
+    /**
+     * Reduce a full user payload to the compact identity fields the 'users' consumers read.
+     *
+     * @param array $userdata Full payload from build_user_payload().
+     * @return array
+     */
+    private function compact_user_identity(array $userdata): array {
+        $identity = [];
+        foreach (['userid', 'fullname', 'firstname', 'lastname', 'email', 'profileurl'] as $key) {
+            if (array_key_exists($key, $userdata)) {
+                $identity[$key] = $userdata[$key];
+            }
+        }
+        return $identity;
     }
 
     /**
