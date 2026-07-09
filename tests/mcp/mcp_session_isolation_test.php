@@ -175,16 +175,28 @@ final class mcp_session_isolation_test extends advanced_testcase {
     }
 
     /**
-     * Contrast: without a session id both previews share one thread, so the second overwrites the
-     * first's pending intent and the first can no longer confirm — the collision this feature fixes.
+     * Contrast: without a session id both previews share one thread. The second preview no longer
+     * silently overwrites the first's pending intent (the historic clobber): it is refused with
+     * MCP_PENDING_ACTION_EXISTS, and the first confirmation still succeeds.
      */
-    public function test_shared_thread_clobbers_confirmation_without_session(): void {
+    public function test_shared_thread_second_preview_refused_without_session(): void {
         $this->resetAfterTest();
         [$teacher, , $contextid] = $this->create_mutation_fixture();
         $this->setUser($teacher);
 
         $a = $this->preview_hide($contextid, '');
-        $this->preview_hide($contextid, ''); // Overwrites the shared pending intent.
+
+        // Same shared thread -> the collision gate refuses instead of clobbering.
+        $second = $this->decode_result(mcp_call_tool::execute(
+            $contextid,
+            'course_update_activity',
+            json_encode(['activityquery' => 'MCP Target Forum', 'visible' => false]),
+            '',
+            ''
+        ));
+        $this->assertTrue($second['isError']);
+        $this->assertContains('MCP_PENDING_ACTION_EXISTS', $second['structuredContent']['issue_codes']);
+        $this->assertSame((string)$a['queueitemid'], (string)$second['structuredContent']['queueitemid']);
 
         $confirmed = $this->decode_result(mcp_confirm_tool::execute(
             $contextid,
@@ -192,8 +204,7 @@ final class mcp_session_isolation_test extends advanced_testcase {
             (string)$a['confirmationcode'],
             ''
         ));
-        $this->assertTrue($confirmed['isError']);
-        $this->assertContains('MCP_CONFIRMATION_MISMATCH', $confirmed['structuredContent']['issue_codes']);
+        $this->assertFalse($confirmed['isError'], 'Unexpected MCP error: ' . json_encode($confirmed));
     }
 
     /**

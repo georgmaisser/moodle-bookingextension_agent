@@ -37,6 +37,7 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\skill_executability_evaluator;
 use bookingextension_agent\local\wizard\skill_registry;
 use core\context;
+use core_text;
 
 /**
  * Executes agent skills for an external MCP client (Claude) without the LLM engine.
@@ -59,8 +60,21 @@ class mcp_execution_service {
     /** @var string Channel name for MCP-owned threads. */
     public const CHANNEL = 'mcp';
 
-    /** @var string[] Result keys never echoed into structuredContent (already in content / internal). */
-    private const STRUCTURED_CONTENT_DROPPED_KEYS = ['observation_full', 'usermessage', 'preview'];
+    /**
+     * Result keys never echoed into structuredContent (already in content / internal).
+     *
+     * 'scaffold_zip_base64' is the scaffold skill's ZIP payload: it is delivered to the human via
+     * the user-facing result preview only (which is itself dropped here), so no agent — chat LLM
+     * or MCP client — ever sees the base64 blob. The chat path is already safe because
+     * result_payload_summarizer only feeds known text channels (observation_full / usermessage /
+     * detail) to the LLM; this entry closes the MCP structuredContent channel the same way.
+     *
+     * @var string[]
+     */
+    private const STRUCTURED_CONTENT_DROPPED_KEYS = ['usermessage', 'preview', 'scaffold_zip_base64'];
+
+    /** @var int Maximum observation_full characters shipped over MCP (text and structuredContent). */
+    public const MCP_OBSERVATION_FULL_MAX = 16000;
 
     /** @var skill_registry */
     private skill_registry $registry;
@@ -233,6 +247,11 @@ class mcp_execution_service {
             );
         }
 
+        // Facade-level flag consumed by the pending-collision gate in call_mutating_tool().
+        // Stripped before structural validation and preflight so skills never see it.
+        $replacepending = !empty($args['replace_pending']);
+        unset($args['replace_pending']);
+
         $skillname = $this->catalog->skill_for_tool_name($toolname);
         if ($skillname === null) {
             return $this->error_result(
@@ -264,7 +283,16 @@ class mcp_execution_service {
         }
 
         if (!$skill->is_read_only()) {
-            return $this->call_mutating_tool($skill, $skillname, $args, $contextid, $userid, $idempotencykey, $sessionid);
+            return $this->call_mutating_tool(
+                $skill,
+                $skillname,
+                $args,
+                $contextid,
+                $userid,
+                $idempotencykey,
+                $sessionid,
+                $replacepending
+            );
         }
 
         return $this->execute_now($skillname, $args, $contextid, $userid, $idempotencykey, $sessionid);
@@ -280,12 +308,20 @@ class mcp_execution_service {
      * the client must show the preview to the human and then call confirm_tool()
      * with the code, which proves the confirming call has seen this response.
      *
+     * A thread holds exactly one pending confirmation: a second preview would silently
+     * overwrite the first, whose confirm then fails with MCP_CONFIRMATION_MISMATCH. A
+     * fresh mutating call while a non-expired pending action exists is therefore refused
+     * with MCP_PENDING_ACTION_EXISTS unless the caller opted into replacement via the
+     * facade-level replace_pending flag (stripped in call_tool(); skills never see it).
+     *
      * @param object $skill
      * @param string $skillname
      * @param array $args
      * @param int $contextid
      * @param int $userid
      * @param string $idempotencykey
+     * @param string $sessionid
+     * @param bool $replacepending Caller explicitly allows replacing a pending action.
      * @return array
      */
     private function call_mutating_tool(
@@ -295,7 +331,8 @@ class mcp_execution_service {
         int $contextid,
         int $userid,
         string $idempotencykey,
-        string $sessionid = ''
+        string $sessionid = '',
+        bool $replacepending = false
     ): array {
         if (!get_config('bookingextension_agent', 'mcpallowmutations')) {
             return $this->denied(
@@ -311,6 +348,29 @@ class mcp_execution_service {
 
         $thread = $this->store->get_or_create_channel_thread($userid, $contextid, $this->channel_for_session($sessionid));
         $threadid = (int)$thread->id;
+
+        // Intra-session collision gate: get() treats an expired intent as absent (the store
+        // clears it), so only a live pending action can block or be replaced here.
+        $intentsvc = new pending_intent_service($this->store);
+        $existing = $intentsvc->get($threadid);
+        $replacedpending = '';
+        if ($existing !== null) {
+            $existingitems = array_values(array_filter(array_map('strval', (array)($existing['queue_item_ids'] ?? []))));
+            $existingitemid = (string)($existingitems[0] ?? '');
+            if (!$replacepending) {
+                $extra = ['queueitemid' => $existingitemid];
+                $existingtitle = trim((string)($existing['title'] ?? ''));
+                if ($existingtitle !== '') {
+                    $extra['title'] = $existingtitle;
+                }
+                return $this->error_result(
+                    get_string('mcp_error_pending_action_exists', 'bookingextension_agent'),
+                    ['MCP_PENDING_ACTION_EXISTS'],
+                    $extra
+                );
+            }
+            $replacedpending = $existingitemid;
+        }
 
         $schema = (array)$skill->get_schema();
         $command = [
@@ -348,15 +408,17 @@ class mcp_execution_service {
         }
         $queuesvc->set_prepared_input($threadid, $queueitemid, $contextid, $preparedinput, $operatingcontextid);
 
-        $intentsvc = new pending_intent_service($this->store);
+        $preview = $skill->describe_proposed_action($preparedinput);
+
         $confirmationcode = $intentsvc->set($threadid, $userid, $contextid, [
             'queue_item_ids' => [$queueitemid],
+            // Kept so a later colliding call can report WHAT is pending without re-deriving it.
+            'title' => is_array($preview) ? trim((string)($preview['title'] ?? '')) : '',
         ]);
         // The store owns the TTL; read the actual expiry back instead of duplicating the constant.
         $intent = (array)($intentsvc->get($threadid) ?? []);
         $expiresin = max(0, (int)($intent['expiresat'] ?? 0) - time());
 
-        $preview = $skill->describe_proposed_action($preparedinput);
         $lines = [get_string('mcp_pending_confirmation', 'bookingextension_agent')];
         if (is_array($preview)) {
             foreach ([trim((string)($preview['title'] ?? '')), trim((string)($preview['summary'] ?? ''))] as $line) {
@@ -373,16 +435,21 @@ class mcp_execution_service {
             }
         }
 
+        $structured = [
+            'pending' => true,
+            'skill' => $skillname,
+            'queueitemid' => $queueitemid,
+            'confirmationcode' => $confirmationcode,
+            'expiresin' => $expiresin,
+            'preview' => $preview,
+        ];
+        if ($replacedpending !== '') {
+            $structured['replaced_pending'] = $replacedpending;
+        }
+
         return [
             'content' => [['type' => 'text', 'text' => implode("\n", $lines)]],
-            'structuredContent' => [
-                'pending' => true,
-                'skill' => $skillname,
-                'queueitemid' => $queueitemid,
-                'confirmationcode' => $confirmationcode,
-                'expiresin' => $expiresin,
-                'preview' => $preview,
-            ],
+            'structuredContent' => $structured,
             'isError' => false,
         ];
     }
@@ -630,19 +697,29 @@ class mcp_execution_service {
      * Map one executor result entry to the MCP tool-result shape.
      *
      * The human/model-facing text goes into content; the structured payload
-     * (minus the text channels) into structuredContent.
+     * (minus the text channels) into structuredContent. observation_full is the
+     * skill's rich verbatim result channel: it ships over MCP (capped) both in
+     * the text — appended to the usermessage when both exist — and in
+     * structuredContent, instead of being lost whenever a one-line usermessage
+     * is present.
      *
      * @param array $result
      * @return array
      */
     private function build_mcp_result(array $result): array {
         $status = trim((string)($result['status'] ?? ''));
-        $text = trim((string)($result['usermessage'] ?? ''));
-        if ($text === '') {
-            $text = trim((string)($result['observation_full'] ?? ''));
+
+        $observation = trim((string)($result['observation_full'] ?? ''));
+        if ($observation !== '') {
+            $observation = $this->cap_observation_full($observation);
+            $result['observation_full'] = $observation;
         }
-        if ($text === '') {
-            $text = trim((string)($result['detail'] ?? ''));
+
+        $text = trim((string)($result['usermessage'] ?? ''));
+        if ($text !== '' && $observation !== '') {
+            $text .= "\n\n" . $observation;
+        } else if ($text === '') {
+            $text = ($observation !== '') ? $observation : trim((string)($result['detail'] ?? ''));
         }
 
         $structured = array_diff_key($result, array_fill_keys(self::STRUCTURED_CONTENT_DROPPED_KEYS, true));
@@ -652,6 +729,21 @@ class mcp_execution_service {
             'structuredContent' => $structured,
             'isError' => !in_array($status, ['executed', 'skipped'], true),
         ];
+    }
+
+    /**
+     * Cap observation_full for the MCP transport, marking any truncation explicitly.
+     *
+     * @param string $observation
+     * @return string
+     */
+    private function cap_observation_full(string $observation): string {
+        $total = core_text::strlen($observation);
+        if ($total <= self::MCP_OBSERVATION_FULL_MAX) {
+            return $observation;
+        }
+        return rtrim(core_text::substr($observation, 0, self::MCP_OBSERVATION_FULL_MAX))
+            . " …[truncated, {$total} chars total]";
     }
 
     /**
