@@ -31,8 +31,10 @@ use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\services\discovery\skill_discovery_service;
 use bookingextension_agent\local\wizard\services\introspection\skill_introspection_service;
 use bookingextension_agent\local\wizard\services\preflight_execution_gate;
+use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\security\native_capability_guard;
+use bookingextension_agent\local\wizard\services\security\skill_operating_context_resolver;
 use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
 
 /**
@@ -204,11 +206,18 @@ class executor implements agent_executor {
                 continue;
             }
 
-            // Operating context for this command: the cross-context target resolved during
-            // decision-service preflight, or the ambient context when none (today's default).
-            // Gate 1 (governance, above) stays at the ambient context; Gate 2 (the skill's own
-            // native capability check) and execution run at the operating context.
-            $operatingcontextid = (int)($cmd['operating_contextid'] ?? $contextid);
+            // Operating context for this command — THE single resolution chokepoint every command
+            // passes: resolved EARLY by the preflight pipeline when the command went through it
+            // (previews, Gate 2, queue persistence carry the id), or resolved LATE right here when
+            // it did not (the chat read-only path executes without the pipeline, thread 542). With
+            // this, the target-contract traits work identically for chat read-only, chat mutating,
+            // confirm and MCP commands. Gate 1 (governance, above) stays at the ambient context;
+            // Gate 2 (the skill's own native capability check) and execution run at the operating
+            // context.
+            $operatingcontextid = (int)($cmd['operating_contextid'] ?? 0);
+            if ($operatingcontextid <= 0) {
+                $operatingcontextid = $this->resolve_late_operating_contextid($skill, $input, $contextid, $userid);
+            }
 
             // Fail-closed for cross-context module targets (skill-agnostic): a skill that targets a
             // module INSTANCE (get_target_context_level() === CONTEXT_MODULE) must execute at a
@@ -216,8 +225,10 @@ class executor implements agent_executor {
             // stale ambient course/site context slipped through because resolution did not persist —
             // refuse rather than execute against the wrong scope (which surfaces as a raw
             // "Invalid course module"). Surface a clarification so the planner names the activity.
-            // Mutating only: readonly module-targeted skills resolve eagerly inside execute() and may
-            // legitimately fall back to the ambient context — they must never be blocked (thread 515).
+            // Mutating only: read-only module-targeted skills may legitimately fall back to the
+            // ambient context when their target does not resolve — they must never be blocked
+            // (thread 515). Their targets are resolved by the late resolution above (or, in the
+            // course family's legacy pattern, eagerly inside execute()).
             if (!$skill->is_read_only() && $this->skill_requires_module_target($skill)) {
                 $opcontext = context::instance_by_id($operatingcontextid, IGNORE_MISSING);
                 if (!($opcontext instanceof context_module)) {
@@ -433,6 +444,52 @@ class executor implements agent_executor {
         }
 
         return $safe;
+    }
+
+    /**
+     * Late operating-context resolution for commands that did not pass the preflight pipeline.
+     *
+     * The chat read-only path executes commands directly (agent_decision_service::
+     * execute_readonly_commands — no pipeline), so a cross-context target named in the input
+     * (optionid/optionquery/activityquery/cmid) would silently fall back to the ambient context
+     * and the target-contract traits would be inert in exactly the modality most users are in
+     * (threads 542/539). This chokepoint resolves it with the same
+     * skill_operating_context_resolver the pipeline uses, so early (pipeline) and late (here)
+     * resolution cannot diverge. Thread-515 semantics are preserved: an unresolvable or
+     * ambiguous target falls back to the ambient context and never blocks a read-only skill;
+     * a module-targeted MUTATION whose context did not resolve to a module is still refused by
+     * the fail-closed check at the call site.
+     *
+     * @param object $skill The skill instance (duck-typed opt-in contract).
+     * @param array $input The command input.
+     * @param int $contextid The ambient context id.
+     * @param int $userid Acting user id.
+     * @return int Operating context id; the ambient context id when resolution does not apply.
+     */
+    private function resolve_late_operating_contextid($skill, array $input, int $contextid, int $userid): int {
+        if (
+            !method_exists($skill, 'supports_target_context')
+            || !method_exists($skill, 'get_target_selector')
+            || !(bool)$skill->supports_target_context()
+        ) {
+            return $contextid;
+        }
+
+        try {
+            $resolver = new skill_operating_context_resolver();
+            $operating = $resolver->resolve(
+                $skill,
+                $input,
+                agent_context::from_contextid($contextid),
+                $userid
+            );
+            return (int)$operating->id();
+        } catch (\Throwable $e) {
+            // Unresolvable or ambiguous target: stay ambient. Read-only skills execute there
+            // (their no-instance guard clarifies instead of crashing); module-targeted mutations
+            // are refused by the fail-closed check at the call site.
+            return $contextid;
+        }
     }
 
     /**
