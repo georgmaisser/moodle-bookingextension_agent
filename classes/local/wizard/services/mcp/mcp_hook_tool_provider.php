@@ -119,11 +119,19 @@ class mcp_hook_tool_provider implements tool_source_interface {
      * @param int $userid Acting user id.
      * @param int $contextid Ambient context id.
      * @param string $idempotencykey Per-request key for replay protection.
+     * @param string $sessionid MCP session id; isolates per-session pending confirmations.
      * @return array MCP-shaped result (content / structuredContent / isError).
      */
-    public function call_tool(string $toolname, array $args, int $userid, int $contextid, string $idempotencykey): array {
+    public function call_tool(
+        string $toolname,
+        array $args,
+        int $userid,
+        int $contextid,
+        string $idempotencykey,
+        string $sessionid = ''
+    ): array {
         // Note the argument order: the facade takes (contextid, userid).
-        return $this->execution->call_tool($toolname, $args, $contextid, $userid, $idempotencykey);
+        return $this->execution->call_tool($toolname, $args, $contextid, $userid, $idempotencykey, $sessionid);
     }
 
     /**

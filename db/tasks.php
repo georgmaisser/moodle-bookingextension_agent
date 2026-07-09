@@ -56,6 +56,16 @@ $tasks = [
         'disabled'  => 0,
     ],
     [
+        'classname' => '\bookingextension_agent\task\cleanup_mcp_session_threads_task',
+        'blocking'  => 0,
+        'minute'    => '50',
+        'hour'      => '3',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+        'disabled'  => 0,
+    ],
+    [
         // Incremental site-content index update (per-area cursor; prunes disabled areas).
         // Self-guards on the DB backend + provider, so it is a no-op while site search is off.
         'classname' => '\bookingextension_agent\task\rebuild_site_content_embeddings',

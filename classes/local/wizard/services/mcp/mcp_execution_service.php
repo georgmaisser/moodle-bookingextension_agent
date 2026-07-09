@@ -157,6 +157,26 @@ class mcp_execution_service {
     }
 
     /**
+     * Resolve the channel-thread key for an MCP session.
+     *
+     * Each MCP session (Mcp-Session-Id over HTTP, or a per-process id from the stdio bridge) gets
+     * its own channel thread, so two concurrent clients on the same token never share a pending
+     * confirmation slot — the MCP analogue of a chat page reload starting a fresh thread. With no
+     * session id we fall back to the single shared 'mcp' thread (backward compatible). The key must
+     * fit the threads.status char(20) column, so the session id is hashed to a fixed 16-char token.
+     *
+     * @param string $sessionid
+     * @return string
+     */
+    private function channel_for_session(string $sessionid): string {
+        $sessionid = trim($sessionid);
+        if ($sessionid === '') {
+            return self::CHANNEL;
+        }
+        return self::CHANNEL . ':' . substr(hash('sha256', $sessionid), 0, 16);
+    }
+
+    /**
      * Execute one MCP tool call and return an MCP-shaped result.
      *
      * The returned array uses the MCP tool-result field names verbatim
@@ -169,7 +189,14 @@ class mcp_execution_service {
      * @param string $idempotencykey Client-supplied per-request key; retries reuse it.
      * @return array
      */
-    public function call_tool(string $toolname, array $args, int $contextid, int $userid, string $idempotencykey): array {
+    public function call_tool(
+        string $toolname,
+        array $args,
+        int $contextid,
+        int $userid,
+        string $idempotencykey,
+        string $sessionid = ''
+    ): array {
         if (!$this->has_mcp_access($contextid, $userid)) {
             return $this->denied(
                 trim($toolname) !== '' ? trim($toolname) : '*',
@@ -201,7 +228,8 @@ class mcp_execution_service {
                 (string)($args['confirmationcode'] ?? ''),
                 $contextid,
                 $userid,
-                false
+                false,
+                $sessionid
             );
         }
 
@@ -236,10 +264,10 @@ class mcp_execution_service {
         }
 
         if (!$skill->is_read_only()) {
-            return $this->call_mutating_tool($skill, $skillname, $args, $contextid, $userid, $idempotencykey);
+            return $this->call_mutating_tool($skill, $skillname, $args, $contextid, $userid, $idempotencykey, $sessionid);
         }
 
-        return $this->execute_now($skillname, $args, $contextid, $userid, $idempotencykey);
+        return $this->execute_now($skillname, $args, $contextid, $userid, $idempotencykey, $sessionid);
     }
 
     /**
@@ -266,7 +294,8 @@ class mcp_execution_service {
         array $args,
         int $contextid,
         int $userid,
-        string $idempotencykey
+        string $idempotencykey,
+        string $sessionid = ''
     ): array {
         if (!get_config('bookingextension_agent', 'mcpallowmutations')) {
             return $this->denied(
@@ -280,7 +309,7 @@ class mcp_execution_service {
             );
         }
 
-        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, self::CHANNEL);
+        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, $this->channel_for_session($sessionid));
         $threadid = (int)$thread->id;
 
         $schema = (array)$skill->get_schema();
@@ -379,7 +408,8 @@ class mcp_execution_service {
         string $confirmationcode,
         int $contextid,
         int $userid,
-        bool $checkratelimit = true
+        bool $checkratelimit = true,
+        string $sessionid = ''
     ): array {
         if (!$this->has_mcp_access($contextid, $userid)) {
             return $this->denied(
@@ -415,7 +445,7 @@ class mcp_execution_service {
             );
         }
 
-        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, self::CHANNEL);
+        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, $this->channel_for_session($sessionid));
         $threadid = (int)$thread->id;
 
         $intentsvc = new pending_intent_service($this->store);
@@ -539,7 +569,14 @@ class mcp_execution_service {
      * @param string $idempotencykey
      * @return array
      */
-    private function execute_now(string $skillname, array $args, int $contextid, int $userid, string $idempotencykey): array {
+    private function execute_now(
+        string $skillname,
+        array $args,
+        int $contextid,
+        int $userid,
+        string $idempotencykey,
+        string $sessionid = ''
+    ): array {
         if ($idempotencykey !== '' && $this->store->run_exists($idempotencykey)) {
             // A retry of a request that already ran: acknowledge instead of re-executing.
             // The runs table has a unique index on the key, so this also guards the insert.
@@ -552,7 +589,7 @@ class mcp_execution_service {
             $idempotencykey = bin2hex(random_bytes(32));
         }
 
-        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, self::CHANNEL);
+        $thread = $this->store->get_or_create_channel_thread($userid, $contextid, $this->channel_for_session($sessionid));
         $threadid = (int)$thread->id;
 
         $schema = (array)$this->registry->get_skill($skillname)->get_schema();

@@ -173,6 +173,10 @@ class conversation_store implements agent_conversation_store {
         ]);
 
         if ($thread) {
+            // Touch on reuse so idle-based cleanup (per-session MCP threads) reflects last activity.
+            $now = time();
+            $DB->set_field('bx_agent_ai_threads', 'timemodified', $now, ['id' => $thread->id]);
+            $thread->timemodified = $now;
             return $thread;
         }
 
@@ -187,6 +191,40 @@ class conversation_store implements agent_conversation_store {
         $record->id = $DB->insert_record('bx_agent_ai_threads', $record);
 
         return $record;
+    }
+
+    /**
+     * Delete idle per-session MCP threads (and their messages and runs).
+     *
+     * Per-session MCP threads carry a colon-suffixed channel key ('mcp:<hash>'); unlike a chat
+     * thread there is no page reload to reclaim them, so they are purged once untouched for
+     * $idleseconds. The shared 'mcp' singleton and chat threads never match (only the colon-suffixed
+     * session keys do), so this is safe to run unconditionally.
+     *
+     * @param int $idleseconds Delete session threads whose timemodified is older than this.
+     * @return int Number of threads deleted.
+     */
+    public function delete_idle_mcp_session_threads(int $idleseconds): int {
+        global $DB;
+
+        $cutoff = time() - max(0, $idleseconds);
+        $like = $DB->sql_like('status', ':pfx');
+        $threadids = $DB->get_fieldset_select(
+            'bx_agent_ai_threads',
+            'id',
+            "$like AND timemodified < :cutoff",
+            ['pfx' => 'mcp:%', 'cutoff' => $cutoff]
+        );
+        if (empty($threadids)) {
+            return 0;
+        }
+
+        [$insql, $inparams] = $DB->get_in_or_equal($threadids, SQL_PARAMS_NAMED);
+        $DB->delete_records_select('bx_agent_ai_messages', "threadid $insql", $inparams);
+        $DB->delete_records_select('bx_agent_ai_runs', "threadid $insql", $inparams);
+        $DB->delete_records_select('bx_agent_ai_threads', "id $insql", $inparams);
+
+        return count($threadids);
     }
 
     /**

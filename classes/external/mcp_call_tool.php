@@ -68,6 +68,13 @@ class mcp_call_tool extends external_api {
                 VALUE_DEFAULT,
                 ''
             ),
+            'sessionid' => new external_value(
+                PARAM_RAW_TRIMMED,
+                'MCP session id; resend the same value across a session to keep its own pending '
+                    . 'confirmation isolated from other clients on the same token. Empty = shared MCP thread.',
+                VALUE_DEFAULT,
+                ''
+            ),
         ]);
     }
 
@@ -84,7 +91,8 @@ class mcp_call_tool extends external_api {
         int $contextid,
         string $toolname,
         string $argsjson = '{}',
-        string $idempotencykey = ''
+        string $idempotencykey = '',
+        string $sessionid = ''
     ): array {
         global $USER;
 
@@ -95,6 +103,7 @@ class mcp_call_tool extends external_api {
             'toolname' => $toolname,
             'argsjson' => $argsjson,
             'idempotencykey' => $idempotencykey,
+            'sessionid' => $sessionid,
         ]);
 
         $authz = new authorization_service();
@@ -132,7 +141,8 @@ class mcp_call_tool extends external_api {
             $args,
             (int)$params['contextid'],
             (int)$USER->id,
-            (string)$params['idempotencykey']
+            (string)$params['idempotencykey'],
+            (string)$params['sessionid']
         );
 
         return ['resultjson' => json_encode($result)];

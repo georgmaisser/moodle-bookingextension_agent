@@ -105,6 +105,11 @@ function toMcpResult(resultjson) {
   };
 }
 
+// One bridge process is one MCP session (one stdio connection = one client). A stable per-process
+// id keeps this session's pending confirmations isolated from other clients on the same token.
+// Two Claude instances start two bridge processes, hence two sessions and two server-side threads.
+const SESSION_ID = randomUUID().replaceAll("-", "");
+
 const server = new Server(
   { name: "wizard-mcp-bridge", version: "0.1.0" },
   { capabilities: { tools: {} } }
@@ -122,6 +127,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       toolname: name,
       argsjson: JSON.stringify(args ?? {}),
       idempotencykey: randomUUID().replaceAll("-", ""),
+      sessionid: SESSION_ID,
     });
     return toMcpResult(result.resultjson);
   } catch (error) {

@@ -151,6 +151,19 @@ $aisettingspage->add(
     )
 );
 
+// Each MCP session gets its own thread (so concurrent clients on one token do not share a pending
+// confirmation). These have no page reload to reclaim them; the cleanup task purges a session thread
+// once idle for this many days. Kept short because sessions are ephemeral.
+$aisettingspage->add(
+    new admin_setting_configtext(
+        'bookingextension_agent/mcp_session_retention_days',
+        get_string('mcp_session_retention_days', 'bookingextension_agent'),
+        get_string('mcp_session_retention_days_desc', 'bookingextension_agent'),
+        2,
+        PARAM_INT
+    )
+);
+
 // Optional on-topic guard: when enabled, the agent refuses requests unrelated to the tasks its
 // skills support, with a short polite message. Off by default (not every deployment wants it);
 // recommended for public-facing sites to bound abuse and cost.

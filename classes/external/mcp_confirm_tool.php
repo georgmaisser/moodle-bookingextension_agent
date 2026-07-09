@@ -60,6 +60,13 @@ class mcp_confirm_tool extends external_api {
             'contextid' => new external_value(PARAM_INT, 'Ambient context id used for the original tool call.'),
             'queueitemid' => new external_value(PARAM_ALPHANUMEXT, 'Queue item id from the preview response.'),
             'confirmationcode' => new external_value(PARAM_ALPHANUMEXT, 'Confirmation code from the preview response.'),
+            'sessionid' => new external_value(
+                PARAM_RAW_TRIMMED,
+                'MCP session id; must match the value used for the originating tool call so the '
+                    . 'confirmation resolves against this session\'s pending intent. Empty = shared MCP thread.',
+                VALUE_DEFAULT,
+                ''
+            ),
         ]);
     }
 
@@ -69,9 +76,15 @@ class mcp_confirm_tool extends external_api {
      * @param int $contextid
      * @param string $queueitemid
      * @param string $confirmationcode
+     * @param string $sessionid
      * @return array
      */
-    public static function execute(int $contextid, string $queueitemid, string $confirmationcode): array {
+    public static function execute(
+        int $contextid,
+        string $queueitemid,
+        string $confirmationcode,
+        string $sessionid = ''
+    ): array {
         global $USER;
 
         // No require_sesskey() by design: token-capable MCP entry point (see class docs).
@@ -80,6 +93,7 @@ class mcp_confirm_tool extends external_api {
             'contextid' => $contextid,
             'queueitemid' => $queueitemid,
             'confirmationcode' => $confirmationcode,
+            'sessionid' => $sessionid,
         ]);
 
         $authz = new authorization_service();
@@ -104,7 +118,9 @@ class mcp_confirm_tool extends external_api {
             (string)$params['queueitemid'],
             (string)$params['confirmationcode'],
             (int)$params['contextid'],
-            (int)$USER->id
+            (int)$USER->id,
+            true,
+            (string)$params['sessionid']
         );
 
         return ['resultjson' => json_encode($result)];
