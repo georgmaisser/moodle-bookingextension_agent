@@ -417,6 +417,7 @@ class mcp_execution_service {
         $queuesvc->try_mark_running($threadid, $queueitemid);
 
         $exec = new executor($this->registry, $this->store, $this->authz);
+        $exec->set_channel('mcp');
         $results = $exec->execute_commands([$command], $contextid, $userid, $idempotencykey, $runid);
         $this->store->update_run_status($runid, 'completed', $results);
 
@@ -528,6 +529,7 @@ class mcp_execution_service {
         $this->store->update_run_status($runid, 'running');
 
         $exec = new executor($this->registry, $this->store, $this->authz);
+        $exec->set_channel('mcp');
         $results = $exec->execute_commands($preparedcommands, $contextid, $userid, $idempotencykey, $runid);
         $this->store->update_run_status($runid, 'completed', $results);
 

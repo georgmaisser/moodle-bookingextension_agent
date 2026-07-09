@@ -84,6 +84,35 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
+     * CRUD letter recorded for this skill in the audit log (r|c|u|d).
+     *
+     * Drives the precise `other['crud']` on the {@see \bookingextension_agent\event\skill_executed}
+     * audit event (the log-report CRUD column is fixed per event class; see that class). Default:
+     * read-only skills report 'r', writers report 'u'. Skills that create ('c') or delete/cancel
+     * ('d') override this so reports and SIEM rules can classify the operation precisely.
+     *
+     * @return string
+     */
+    public function get_log_crud(): string {
+        return $this->is_read_only() ? 'r' : 'u';
+    }
+
+    /**
+     * User ids this skill's action concerns, beyond the acting user.
+     *
+     * When a skill reads or changes data about *other* users (e.g. booking a participant,
+     * diagnosing another user's enrolment), it returns those ids here so the audit event carries
+     * a `relateduserid` — surfacing the action in the target user's privacy export and letting
+     * admins query "everything the agent did affecting user X". Default: none.
+     *
+     * @param array $input the skill input
+     * @return int[]
+     */
+    public function get_related_userids(array $input): array {
+        return [];
+    }
+
+    /**
      * Whether this skill must be enabled explicitly by an admin, even though it is read-only.
      *
      * Read-only skills are active out of the box (see skill_registry::is_skill_active). A skill

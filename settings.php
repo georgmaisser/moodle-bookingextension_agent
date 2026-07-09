@@ -492,6 +492,29 @@ if ($agentenabled) {
         )
     );
 
+    // Audit trail: fire the skill_executed / action_denied events from the executor chokepoint into
+    // the standard Moodle log store (Site admin > Reports > Logs). Master switch, default on.
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'bookingextension_agent/logskillexecution',
+            get_string('logskillexecution', 'bookingextension_agent'),
+            get_string('logskillexecution_desc', 'bookingextension_agent'),
+            1
+        )
+    );
+
+    // Read-only skills dominate the catalogue and can dominate the log volume; this suppresses the
+    // skill_executed event for read-only skills only. Writes and denials are always logged while the
+    // master switch above is on. Default on.
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'bookingextension_agent/logreadskills',
+            get_string('logreadskills', 'bookingextension_agent'),
+            get_string('logreadskills_desc', 'bookingextension_agent'),
+            1
+        )
+    );
+
     // Queue depends_on DAG validation and blocked-confirmation TTL expiry are always on (no admin
     // toggle). Governance strict mode (fail registry init on contract diagnostics) is a CI/dev tool,
     // not an admin setting — it stays off by default and can be forced via set_config in CI.

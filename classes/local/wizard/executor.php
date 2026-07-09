@@ -33,6 +33,7 @@ use bookingextension_agent\local\wizard\services\introspection\skill_introspecti
 use bookingextension_agent\local\wizard\services\preflight_execution_gate;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\security\native_capability_guard;
+use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
 
 /**
  * Dispatches interpreter-validated commands to the appropriate skill.
@@ -58,6 +59,24 @@ class executor implements agent_executor {
 
     /** @var authorization_service */
     private authorization_service $authz;
+
+    /** @var string Entrypoint channel for audit events: chat | mcp | api. */
+    private string $channel = 'chat';
+
+    /**
+     * Set the entrypoint channel recorded on audit events (default 'chat').
+     *
+     * The executor is the shared execution tail for every entrypoint; callers that are not the
+     * chat runtime (e.g. the MCP facade) label their channel so the audit trail is accurate.
+     *
+     * @param string $channel chat | mcp | api
+     */
+    public function set_channel(string $channel): void {
+        $channel = trim($channel);
+        if ($channel !== '') {
+            $this->channel = $channel;
+        }
+    }
 
     /**
      * Constructor.
@@ -171,6 +190,17 @@ class executor implements agent_executor {
                     ],
                     'diagnostics' => (array)($evaluation['diagnostics'] ?? []),
                 ];
+                audit_logger::action_denied(
+                    (string)$skillname,
+                    'governance',
+                    $denyreason,
+                    $contextid,
+                    $userid,
+                    $threadid,
+                    $runid,
+                    $this->channel,
+                    $skill
+                );
                 continue;
             }
 
@@ -229,6 +259,17 @@ class executor implements agent_executor {
                         'resultid' => null,
                         'skill' => $skillname,
                     ];
+                    audit_logger::action_denied(
+                        (string)$skillname,
+                        'guard',
+                        'EXECUTION_GUARD_MISSING',
+                        $operatingcontextid,
+                        $userid,
+                        $threadid,
+                        $runid,
+                        $this->channel,
+                        $skill
+                    );
                     continue;
                 }
 
@@ -240,6 +281,17 @@ class executor implements agent_executor {
                         'resultid' => null,
                         'skill' => $skillname,
                     ];
+                    audit_logger::action_denied(
+                        (string)$skillname,
+                        'guard',
+                        'EXECUTION_GUARD_MISMATCH',
+                        $operatingcontextid,
+                        $userid,
+                        $threadid,
+                        $runid,
+                        $this->channel,
+                        $skill
+                    );
                     continue;
                 }
             }
@@ -272,10 +324,23 @@ class executor implements agent_executor {
                     'resultid' => null,
                     'skill' => $skillname,
                 ];
+                audit_logger::action_denied(
+                    (string)$skillname,
+                    'native_capability',
+                    'NO_NATIVE_CAPABILITY',
+                    $operatingcontextid,
+                    $userid,
+                    $threadid,
+                    $runid,
+                    $this->channel,
+                    $skill
+                );
                 continue;
             }
 
+            $executionstartedat = microtime(true);
             $result = $skill->execute($input, $operatingcontextid, $userid);
+            $executiondurationms = (microtime(true) - $executionstartedat) * 1000;
             if (is_array($result) && !isset($result['skill'])) {
                 $result['skill'] = $skillname;
             }
@@ -316,6 +381,21 @@ class executor implements agent_executor {
                 }
             }
             $results[] = $result;
+
+            // Audit the execution (any outcome) from the single chokepoint every entrypoint
+            // funnels through. Fail-safe: audit_logger never lets a logging error break execution.
+            audit_logger::skill_executed(
+                $skill,
+                (string)$skillname,
+                is_array($input) ? $input : [],
+                $result,
+                $operatingcontextid,
+                $userid,
+                $threadid,
+                $runid,
+                $this->channel,
+                $executiondurationms
+            );
         }
 
         return $results;
