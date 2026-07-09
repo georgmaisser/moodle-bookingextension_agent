@@ -347,7 +347,7 @@ class confirm_run_service {
             }
 
             $pendingintent = $this->pendingintentsvc->get($threadid);
-            if (!is_array($pendingintent)) {
+            if ($this->should_restage_next_queue_item($pendingintent, $finalresult)) {
                 $nextqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid);
                 if (is_array($nextqueueitem)) {
                     $nextqueueitemid = (string)($nextqueueitem['queue_item_id'] ?? '');
@@ -911,6 +911,32 @@ class confirm_run_service {
         }
 
         return false;
+    }
+
+    /**
+     * Whether the confirm path may re-stage the next actionable queue item (Driver B) after run_loop.
+     *
+     * PLANNER-TERMINAL AUTHORITY (thread 554). When run_loop's re-evaluation returned a terminal
+     * decision (sufficient/clarification), the planner is the single source of truth that the goal
+     * is met, so the queue drain must NOT re-animate a stale or over-planned mutating item into a
+     * fresh confirmation and auto-confirm it. Re-staging after the planner said "done" is what
+     * double-executed the later steps of a multi-step series (Jour 3/4/5 created twice with drifted
+     * dates) — each duplicate coincided with a selector 'sufficient' turn. Driver B may advance the
+     * chain only while the planner still has open work: it did not already stage a pending intent
+     * AND it did not terminate. It may never override the planner's completion verdict.
+     *
+     * @param mixed $pendingintent Pending intent already set by run_loop, or a non-array when none.
+     * @param array $finalresult The result run_loop returned for this confirm turn.
+     * @return bool
+     */
+    private function should_restage_next_queue_item($pendingintent, array $finalresult): bool {
+        if (is_array($pendingintent)) {
+            // The run_loop call already staged the next step; nothing for Driver B to do.
+            return false;
+        }
+
+        $responsetype = (string)($finalresult['response_type'] ?? '');
+        return !in_array($responsetype, ['sufficient', 'clarification'], true);
     }
 
     /**
