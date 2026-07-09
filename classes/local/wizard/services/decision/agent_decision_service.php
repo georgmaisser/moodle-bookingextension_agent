@@ -841,6 +841,12 @@ class agent_decision_service {
         if ($status !== 'pass') {
             $validationmessage = trim(implode(' ', $blockingerrors));
             if ($status === 'retry_hint') {
+                // Nothing was executed and nothing is awaiting confirmation (the queue items sit
+                // in retry_waiting, no pending intent exists) — so this must NOT be a
+                // confirmation_request: the UI would draw a confirm button that can only ever
+                // answer "invalid or stale queue item id" (threads 544/549). The user gets the
+                // localized retry message; the raw engine error text stays in 'errors' for the
+                // debug meta only.
                 $retrymessage = localized_string_service::get(
                     $this->languagepolicy->preflight_retry_hint_string_id(),
                     'bookingextension_agent',
@@ -848,8 +854,8 @@ class agent_decision_service {
                     $outputlang
                 );
                 return [
-                    'response_type'   => 'confirmation_request',
-                    'message'         => $validationmessage !== '' ? $validationmessage : $retrymessage,
+                    'response_type'   => 'clarification',
+                    'message'         => $retrymessage,
                     'commands'        => !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'],
                     'queue_item_ids'  => $queueitemids,
                     'ambiguities'     => [],

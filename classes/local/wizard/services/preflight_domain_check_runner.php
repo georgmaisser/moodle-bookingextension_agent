@@ -30,8 +30,20 @@ use bookingextension_agent\local\wizard\interfaces\issue_code_provider_interface
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class preflight_domain_check_runner {
-    /** @var int Shared timeout in milliseconds. */
-    private const SHARED_TIMEOUT_MS = 500;
+    /**
+     * Per-command preflight time budget in milliseconds.
+     *
+     * The elapsed check receives the preflight START time, so it measures everything the
+     * pipeline did before this layer (schema validation, target resolution, Gate 2, the
+     * skills' own preflights) — not the domain classification below. The budget therefore
+     * scales with the number of commands in the batch: a five-option series is allowed five
+     * budgets. The per-command value is sized for slow dev hardware; a single mform-backed
+     * create preflight can legitimately take several hundred ms (threads 544/549: the old
+     * flat 500 ms batch budget made every series creation time out deterministically).
+     *
+     * @var int
+     */
+    private const PER_COMMAND_TIMEOUT_MS = 2000;
 
     /** @var issue_code_provider_interface Supplies the domain-specific confirmable issue codes. */
     private issue_code_provider_interface $issuecodeprovider;
@@ -51,12 +63,14 @@ class preflight_domain_check_runner {
      * Evaluate domain-level issue codes and classify the result.
      *
      * @param string[] $issuecodes
-     * @param float $startmicrotime
+     * @param float $startmicrotime Preflight batch start (microtime), for the time budget.
+     * @param int $commandcount Number of commands in the batch; scales the time budget.
      * @return preflight_result_v2
      */
-    public function run(array $issuecodes, float $startmicrotime): preflight_result_v2 {
+    public function run(array $issuecodes, float $startmicrotime, int $commandcount = 1): preflight_result_v2 {
         $elapsedms = (int)max(0, (microtime(true) - $startmicrotime) * 1000);
-        if ($elapsedms > self::SHARED_TIMEOUT_MS) {
+        $budgetms = self::PER_COMMAND_TIMEOUT_MS * max(1, $commandcount);
+        if ($elapsedms > $budgetms) {
             return new preflight_result_v2(
                 'retry_hint',
                 ['DOMAIN_CHECK_TIMEOUT'],

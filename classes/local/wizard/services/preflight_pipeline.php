@@ -259,7 +259,7 @@ class preflight_pipeline {
         $issuecodes = array_values(array_unique(array_filter(array_map('strval', $issuecodes))));
         $combinedissuecodes = array_values(array_unique(array_merge($issuecodes, $layer1issuecodes)));
         $legacyvalid = empty($errors);
-        $domainresult = $this->domainrunner->run($combinedissuecodes, $startedat);
+        $domainresult = $this->domainrunner->run($combinedissuecodes, $startedat, count($commands));
 
         if (!$legacyvalid && $domainresult->status === 'pass') {
             $domainresult = new preflight_result_v2(
