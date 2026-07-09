@@ -285,10 +285,12 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
             if ($targetuserid > 0) {
                 $overviewuser = \core_user::get_user($targetuserid, '*', IGNORE_MISSING);
                 if ($overviewuser && empty($overviewuser->deleted)) {
-                    // The enrolment aspect keeps its dedicated cross-course overview.
+                    // The enrolment aspect keeps its dedicated cross-course overview. The acting user
+                    // is passed so the overview is scoped to the courses that actor may access — a
+                    // no-course overview must not expose an arbitrary user's unrelated enrolments.
                     return $aspect === 'enrolment'
-                        ? $this->enrolment_overview_result($overviewuser)
-                        : $this->missing_course_clarification_result($overviewuser, $aspect);
+                        ? $this->enrolment_overview_result($overviewuser, $userid)
+                        : $this->missing_course_clarification_result($overviewuser, $aspect, $userid);
                 }
             }
             return $this->error_result(
@@ -459,11 +461,12 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      * the course list/links stay identical to core.search_users.
      *
      * @param \stdClass $targetuser
+     * @param int $actinguserid Acting user, so the overview is scoped to courses they may access.
      * @return array
      */
-    private function enrolment_overview_result(\stdClass $targetuser): array {
+    private function enrolment_overview_result(\stdClass $targetuser, int $actinguserid): array {
         $targetuserid = (int)$targetuser->id;
-        $courses = $this->build_user_courses_payload($targetuserid);
+        $courses = $this->build_user_courses_payload($targetuserid, $actinguserid);
         $subject = fullname($targetuser);
 
         $usermessage = !empty($courses)
@@ -500,11 +503,12 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
      *
      * @param \stdClass $targetuser
      * @param string $aspect
+     * @param int $actinguserid Acting user, so the course list is scoped to courses they may access.
      * @return array
      */
-    private function missing_course_clarification_result(\stdClass $targetuser, string $aspect): array {
+    private function missing_course_clarification_result(\stdClass $targetuser, string $aspect, int $actinguserid): array {
         $targetuserid = (int)$targetuser->id;
-        $courses = $this->build_user_courses_payload($targetuserid);
+        $courses = $this->build_user_courses_payload($targetuserid, $actinguserid);
         $subject = fullname($targetuser);
 
         if (empty($courses)) {

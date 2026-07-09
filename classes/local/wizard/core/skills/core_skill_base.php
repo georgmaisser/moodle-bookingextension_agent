@@ -397,13 +397,36 @@ abstract class core_skill_base extends base_skill {
     /**
      * Build course enrolment payload for a user.
      *
-     * @param int $userid
+     * @param int $userid User whose enrolments are listed.
+     * @param int $vieweruserid Acting user to scope the list to (0 = no scoping, self observation).
      * @return array[]
      */
-    protected function build_user_courses_payload(int $userid): array {
+    protected function build_user_courses_payload(int $userid, int $vieweruserid = 0): array {
         global $DB;
 
         $courses = enrol_get_users_courses($userid, true, 'id, fullname, shortname, visible, category, sortorder');
+
+        // Cross-user scoping: when a viewer other than the subject is given, restrict this cross-course
+        // overview to the courses that viewer may actually access — otherwise it would expose a
+        // subject's unrelated enrolments (and their roles) to an actor who cannot see them. The subject
+        // viewing themselves, a site admin, or a holder of the site-wide moodle/user:viewalldetails see
+        // the full list. Called without a viewer (self observation) the behaviour is unchanged.
+        $restrict = false;
+        $vieweruser = null;
+        if ($vieweruserid > 0 && $vieweruserid !== $userid) {
+            $syscontext = \context_system::instance();
+            if (
+                !is_siteadmin($vieweruserid)
+                && !has_capability('moodle/user:viewalldetails', $syscontext, $vieweruserid)
+            ) {
+                $vieweruser = \core_user::get_user($vieweruserid, '*', IGNORE_MISSING);
+                if (!$vieweruser) {
+                    return []; // Unknown viewer → fail closed.
+                }
+                $restrict = true;
+            }
+        }
+
         $payload = [];
 
         // One cheap lookup of the per-course last access for all the user's courses.
@@ -412,6 +435,9 @@ abstract class core_skill_base extends base_skill {
         foreach ($courses as $course) {
             $courseid = (int)($course->id ?? 0);
             if ($courseid <= 0) {
+                continue;
+            }
+            if ($restrict && !can_access_course($course, $vieweruser)) {
                 continue;
             }
 

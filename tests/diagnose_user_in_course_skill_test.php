@@ -112,6 +112,74 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
     }
 
     /**
+     * The no-course enrolment overview scopes to the courses the actor may access:
+     * a teacher must not learn a target user's unrelated enrolments.
+     */
+    public function test_no_course_overview_scopes_to_actor_visible_courses(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $shared = $gen->create_course(['fullname' => 'Shared Course']);
+        $unshared = $gen->create_course(['fullname' => 'Unshared Course XYZZY']);
+        $teacher = $gen->create_user();
+        $target = $gen->create_user();
+        $gen->enrol_user($teacher->id, $shared->id, 'editingteacher');
+        $gen->enrol_user($target->id, $shared->id, 'student');
+        $gen->enrol_user($target->id, $unshared->id, 'student');
+
+        $this->setUser($teacher);
+        // No course named + a specific user → the no-course enrolment overview path.
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'enrolment', 'userid' => (int)$target->id],
+            (int)\context_system::instance()->id,
+            (int)$teacher->id
+        );
+
+        $this->assertSame('executed', $res['status']);
+        $courseids = array_map(
+            static fn($c): int => (int)$c['courseid'],
+            (array)($res['enrolment_overview']['courses'] ?? [])
+        );
+        $this->assertContains((int)$shared->id, $courseids, 'The teacher must see the course they share.');
+        $this->assertNotContains(
+            (int)$unshared->id,
+            $courseids,
+            'The teacher must NOT see the target user\'s unrelated course.'
+        );
+        $this->assertStringNotContainsString(
+            'XYZZY',
+            (string)$res['observation_full'],
+            'The unrelated course name must not leak into the observation.'
+        );
+    }
+
+    /**
+     * A site admin (site-wide viewer) still sees the target user's full enrolment list.
+     */
+    public function test_no_course_overview_full_for_admin(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $c1 = $gen->create_course();
+        $c2 = $gen->create_course();
+        $target = $gen->create_user();
+        $gen->enrol_user($target->id, $c1->id, 'student');
+        $gen->enrol_user($target->id, $c2->id, 'student');
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['aspect' => 'enrolment', 'userid' => (int)$target->id],
+            (int)\context_system::instance()->id,
+            (int)get_admin()->id
+        );
+
+        $courseids = array_map(
+            static fn($c): int => (int)$c['courseid'],
+            (array)($res['enrolment_overview']['courses'] ?? [])
+        );
+        $this->assertContains((int)$c1->id, $courseids);
+        $this->assertContains((int)$c2->id, $courseids);
+    }
+
+    /**
      * A unique activity name resolves and is diagnosed.
      */
     public function test_access_aspect_resolves_unique_activity(): void {
