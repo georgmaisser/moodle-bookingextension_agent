@@ -91,6 +91,66 @@ final class activity_preview_builder_test extends advanced_testcase {
     }
 
     /**
+     * The confirmation preview receives the PREPARED input (preflight pass payload) where the field
+     * changes are nested under 'changes' and a move under 'section_move': the rename row must not be
+     * dropped when a section move is also requested, and the target course row is shown.
+     */
+    public function test_update_activity_descriptor_prepared_input(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Chemistry 1']);
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id, 'name' => 'Old name']);
+
+        $descriptor = activity_preview_builder::update_activity_descriptor([
+            'courseid' => (int)$course->id,
+            'cmid' => (int)$page->cmid,
+            'modname' => 'page',
+            'changes' => ['name' => 'New name'],
+            'section_move' => 1,
+            'before' => ['name' => 'Old name', 'visible' => 1, 'section' => 0],
+        ]);
+
+        $rows = $this->rows_map($descriptor);
+        $this->assertSame('New name', $rows['Name']);
+        $this->assertSame('1', $rows['Section']);
+        $this->assertSame('Chemistry 1', $rows['Course']);
+    }
+
+    /**
+     * update_quiz preview from PREPARED input: name change (nested in 'changes'), a questions row
+     * derived from the question 'plan' (count + source type), and the target course row.
+     */
+    public function test_update_quiz_descriptor_prepared_input(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course(['fullname' => 'Biology 2']);
+        $quiz = $this->getDataGenerator()->create_module('quiz', ['course' => $course->id, 'name' => 'Quiz 3']);
+
+        // Rename + generate questions.
+        $rows = $this->rows_map(activity_preview_builder::update_quiz_descriptor([
+            'courseid' => (int)$course->id,
+            'cmid' => (int)$quiz->cmid,
+            'instance' => (int)$quiz->id,
+            'changes' => ['name' => 'Final exam'],
+            'plan' => ['mode' => 'generate', 'content' => 'Photosynthesis', 'count' => 5],
+            'ambientcontextid' => 1,
+        ]));
+        $this->assertSame('Final exam', $rows['Name']);
+        $this->assertStringContainsString('5', $rows['Questions']);
+        $this->assertSame('Biology 2', $rows['Course']);
+
+        // Random questions from a category, no settings changes: rows must not come back empty.
+        $rows = $this->rows_map(activity_preview_builder::update_quiz_descriptor([
+            'courseid' => (int)$course->id,
+            'cmid' => (int)$quiz->cmid,
+            'instance' => (int)$quiz->id,
+            'changes' => [],
+            'plan' => ['mode' => 'category', 'category' => 'Algebra', 'count' => 3],
+        ]));
+        $this->assertStringContainsString('3', $rows['Questions']);
+        $this->assertStringContainsString('Algebra', $rows['Questions']);
+        $this->assertSame('Biology 2', $rows['Course']);
+    }
+
+    /**
      * The quiz question summary combines generate / random / selected / category clauses.
      */
     public function test_quiz_questions_summary(): void {

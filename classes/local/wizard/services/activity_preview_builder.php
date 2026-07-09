@@ -62,7 +62,10 @@ class activity_preview_builder {
      */
     public static function update_activity_descriptor(array $input): ?array {
         $lang = self::lang($input);
-        $rows = self::changed_basic_rows($input, $lang);
+        $input = self::flatten_prepared_changes($input);
+        $rows = [];
+        self::push($rows, self::str('previewlabel_course', $lang), self::course_name($input));
+        $rows = array_merge($rows, self::changed_basic_rows($input, $lang));
 
         return [
             'title' => self::target_title('previewtitle_updateactivity', $input, $lang),
@@ -100,7 +103,11 @@ class activity_preview_builder {
      */
     public static function update_quiz_descriptor(array $input): ?array {
         $lang = self::lang($input);
-        $rows = self::changed_basic_rows($input, $lang);
+        $input = self::flatten_prepared_changes($input);
+        $input = self::flatten_prepared_plan($input);
+        $rows = [];
+        self::push($rows, self::str('previewlabel_course', $lang), self::course_name($input));
+        $rows = array_merge($rows, self::changed_basic_rows($input, $lang));
         self::push($rows, self::str('previewlabel_questions', $lang), self::questions_summary($input, $lang));
 
         return [
@@ -108,6 +115,63 @@ class activity_preview_builder {
             'summary' => '',
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * Lift a prepared update input's nested field changes to the flat keys the row builders read.
+     *
+     * The confirmation preview receives the PREPARED input (the preflight pass payload), which nests
+     * the requested field changes under 'changes'; the raw LLM input carries them flat. Flat keys win.
+     *
+     * @param array $input
+     * @return array
+     */
+    private static function flatten_prepared_changes(array $input): array {
+        $changes = $input['changes'] ?? null;
+        if (!is_array($changes)) {
+            return $input;
+        }
+        foreach (['name', 'intro', 'visible', 'settings'] as $key) {
+            if (!isset($input[$key]) && array_key_exists($key, $changes)) {
+                $input[$key] = $changes[$key];
+            }
+        }
+        return $input;
+    }
+
+    /**
+     * Lift a prepared quiz update's question 'plan' to the flat question keys the summary reads.
+     *
+     * @param array $input
+     * @return array
+     */
+    private static function flatten_prepared_plan(array $input): array {
+        $plan = $input['plan'] ?? null;
+        if (!is_array($plan)) {
+            return $input;
+        }
+        switch ((string)($plan['mode'] ?? '')) {
+            case 'generate':
+                $input['addquestions'] = true;
+                if (!isset($input['count'])) {
+                    $input['count'] = $plan['count'] ?? null;
+                }
+                break;
+            case 'ids':
+                if (empty($input['questionids'])) {
+                    $input['questionids'] = (array)($plan['questionids'] ?? []);
+                }
+                break;
+            case 'category':
+                if (trim((string)($input['category'] ?? '')) === '') {
+                    $input['category'] = $plan['category'] ?? null;
+                }
+                if (!isset($input['randomcount'])) {
+                    $input['randomcount'] = $plan['count'] ?? null;
+                }
+                break;
+        }
+        return $input;
     }
 
     /**
