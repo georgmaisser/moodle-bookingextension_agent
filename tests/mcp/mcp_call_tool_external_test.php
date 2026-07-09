@@ -186,6 +186,25 @@ final class mcp_call_tool_external_test extends advanced_testcase {
     }
 
     /**
+     * A teacher cannot escape their course by passing a foreign course's contextid:
+     * every gate is evaluated at the passed context, and the teacher holds nothing there.
+     */
+    public function test_denied_in_foreign_course_context(): void {
+        $this->resetAfterTest();
+        [$teacher] = $this->create_mcp_teacher();
+        $foreign = $this->getDataGenerator()->create_course();
+        $foreignctxid = (int)context_course::instance($foreign->id)->id;
+        $this->setUser($teacher);
+
+        $result = $this->decode_result(
+            mcp_call_tool::execute($foreignctxid, 'course_search_courses', '{}', '')
+        );
+        $this->assertTrue($result['isError']);
+        // The useaiinstructions capability is absent in the foreign context, so readiness fires first.
+        $this->assertContains('MCP_NOT_READY', $result['structuredContent']['issue_codes']);
+    }
+
+    /**
      * A user failing the readiness gate gets a quiet structured error, and a user
      * without the mcpaccess capability is rejected hard.
      */

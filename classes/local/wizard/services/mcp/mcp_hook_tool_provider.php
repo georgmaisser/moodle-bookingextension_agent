@@ -55,21 +55,16 @@ class mcp_hook_tool_provider implements tool_source_interface {
     /** @var string Source id used in tool_oauthmcp governance rows and audit events. */
     public const SOURCE_ID = 'wizard';
 
-    /** @var mcp_tool_catalog_service */
-    private mcp_tool_catalog_service $catalog;
-
     /** @var mcp_execution_service */
     private mcp_execution_service $execution;
 
     /**
-     * Constructor. Builds the shared facade services once for this request.
+     * Constructor. Builds the shared facade service once for this request.
      */
     public function __construct() {
         $registry = skill_registry::make_default();
         $store = new conversation_store();
         $authz = new authorization_service();
-        $evaluator = new \bookingextension_agent\local\wizard\skill_executability_evaluator($registry, $authz);
-        $this->catalog = new mcp_tool_catalog_service($registry, $evaluator);
         $this->execution = new mcp_execution_service($registry, $store, $authz);
     }
 
@@ -90,8 +85,10 @@ class mcp_hook_tool_provider implements tool_source_interface {
      * @return array
      */
     public function list_tools(int $userid, int $contextid): array {
+        // Go through the execution service (not the catalog directly) so the mcpaccess gate
+        // applies on this path too — the catalog only maps, it does not authorize.
         $tools = [];
-        foreach ($this->catalog->get_tools($userid, $contextid) as $tool) {
+        foreach ($this->execution->list_tools($contextid, $userid) as $tool) {
             $tools[] = $this->attach_scope($tool);
         }
         return $tools;

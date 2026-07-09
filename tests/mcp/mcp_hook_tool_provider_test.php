@@ -52,7 +52,23 @@ final class mcp_hook_tool_provider_test extends advanced_testcase {
         $course = $gen->create_course(['fullname' => 'Hook Provider Course']);
         $teacher = $gen->create_user();
         $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $this->grant_mcpaccess($teacher);
         return [$teacher, (int)context_course::instance($course->id)->id];
+    }
+
+    /**
+     * Grant the MCP entry capability to a user via a dedicated system role.
+     *
+     * @param \stdClass $user
+     * @return void
+     */
+    private function grant_mcpaccess(\stdClass $user): void {
+        $systemcontext = context_system::instance();
+        $roleid = create_role('MCP client', 'mcpclient' . $user->id, '');
+        set_role_contextlevels($roleid, [CONTEXT_SYSTEM]);
+        assign_capability('bookingextension/agent:mcpaccess', CAP_ALLOW, $roleid, $systemcontext->id, true);
+        role_assign($roleid, $user->id, $systemcontext->id);
+        accesslib_clear_all_caches_for_unit_testing();
     }
 
     /**
@@ -74,7 +90,7 @@ final class mcp_hook_tool_provider_test extends advanced_testcase {
         $this->assertSame('mcp:read', $byname['course_search_courses']['scope']);
         $this->assertTrue($byname['course_search_courses']['annotations']['readOnlyHint']);
 
-        // get_tool resolves the same definition.
+        // The get_tool() call resolves the same definition.
         $one = $provider->get_tool('course_search_courses', (int)$teacher->id, $contextid);
         $this->assertSame('course_search_courses', $one['name']);
         $this->assertNull($provider->get_tool('no_such_tool', (int)$teacher->id, $contextid));
@@ -93,7 +109,7 @@ final class mcp_hook_tool_provider_test extends advanced_testcase {
 
         $this->assertFalse($result['isError']);
         $this->assertNotEmpty($result['content'][0]['text']);
-        // structuredContent is the flat skill payload, not a nested resultjson string.
+        // The structuredContent is the flat skill payload, not a nested resultjson string.
         $this->assertArrayHasKey('courses', $result['structuredContent']);
     }
 
@@ -114,6 +130,32 @@ final class mcp_hook_tool_provider_test extends advanced_testcase {
         $this->assertSame('mcp:write', $byname['course_update_activity']['scope']);
         $this->assertArrayHasKey('confirm_pending_action', $byname);
         $this->assertSame('mcp:write', $byname['confirm_pending_action']['scope']);
+    }
+
+    /**
+     * Without the mcpaccess capability the hook path exposes and executes nothing —
+     * the gate that the REST shims enforce now also applies to the tool_oauthmcp path.
+     */
+    public function test_mcpaccess_required_on_hook_path(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $course = $gen->create_course();
+        $teacher = $gen->create_user();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        // Deliberately NO mcpaccess granted.
+        $this->setUser($teacher);
+        $contextid = (int)context_course::instance($course->id)->id;
+
+        $provider = new mcp_hook_tool_provider();
+        $this->assertSame(
+            [],
+            $provider->list_tools((int)$teacher->id, $contextid),
+            'Without mcpaccess the hook provider must expose no tools.'
+        );
+
+        $result = $provider->call_tool('course_search_courses', [], (int)$teacher->id, $contextid, 'nomcpkey');
+        $this->assertTrue($result['isError']);
+        $this->assertContains('MCP_ACCESS_DENIED', $result['structuredContent']['issue_codes']);
     }
 
     /**

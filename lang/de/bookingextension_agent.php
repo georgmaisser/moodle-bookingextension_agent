@@ -687,6 +687,7 @@ $string['licensekeydesc'] = 'Gültigen Lizenzschlüssel für das Produkt "wbagen
 $string['licensenotrequiredviaendpoint'] = 'Eine Pro-Lizenz ist aktuell nicht erforderlich: Der Booking Wizard läuft über den llm.wunderbyte.at-Endpoint (aktiver Trial oder Abo). Die Nutzung wird am Wunderbyte-Gateway durchgesetzt.';
 $string['maxinputlength'] = 'Maximale Eingabelänge';
 $string['maxinputlength_desc'] = 'Die maximale Zeichenzahl einer einzelnen Nutzernachricht. Längere Nachrichten werden sofort abgewiesen, noch bevor ein KI-Anbieter oder Token verbraucht wird. Hält den Agenten öffentlich, aber begrenzt; für strengere Missbrauchskontrolle reduzieren (z. B. 100).';
+$string['mcp_error_access_denied'] = 'Sie haben hier keine Berechtigung, die MCP-Tools zu nutzen.';
 $string['mcp_error_confirmation_mismatch'] = 'Bestätigungscode oder Queue-Item passen nicht zur ausstehenden Aktion.';
 $string['mcp_error_duplicate_request'] = 'Diese Anfrage wurde bereits ausgeführt (der Idempotenz-Schlüssel entspricht einem früheren Lauf).';
 $string['mcp_error_invalid_input'] = 'Ungültige Tool-Eingabe: {$a}';

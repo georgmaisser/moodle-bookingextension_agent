@@ -711,6 +711,7 @@ $string['llm_debug_retention_days'] = 'LLM debug log retention (days)';
 $string['llm_debug_retention_days_desc'] = 'When AI debug mode is on, raw LLM exchanges are stored for diagnostics. Entries older than this number of days are deleted automatically by a scheduled task. Set to 0 to keep them indefinitely.';
 $string['maxinputlength'] = 'Maximum input length';
 $string['maxinputlength_desc'] = 'The maximum number of characters a single user message may contain. Longer messages are rejected immediately, before any AI provider or token is used. Keeps the agent public-facing but bounded; lower it (e.g. 100) for tighter abuse control.';
+$string['mcp_error_access_denied'] = 'You do not have permission to use the MCP tools here.';
 $string['mcp_error_confirmation_mismatch'] = 'The confirmation code or queue item does not match the pending action.';
 $string['mcp_error_duplicate_request'] = 'This request was already executed (its idempotency key matched an earlier run).';
 $string['mcp_error_invalid_input'] = 'Invalid tool input: {$a}';

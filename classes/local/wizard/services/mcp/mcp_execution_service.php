@@ -101,7 +101,30 @@ class mcp_execution_service {
      * @return array
      */
     public function list_tools(int $contextid, int $userid): array {
+        if (!$this->has_mcp_access($contextid, $userid)) {
+            return [];
+        }
         return $this->catalog->get_tools($userid, $contextid);
+    }
+
+    /**
+     * Whether the user holds the MCP entry capability at this context.
+     *
+     * Enforced centrally here so every transport is gated the same way: the REST shims
+     * additionally require it (defense in depth), but the tool_oauthmcp hook path reaches
+     * this service directly and would otherwise bypass mcpaccess. Fail-closed on an
+     * unresolvable context.
+     *
+     * @param int $contextid
+     * @param int $userid
+     * @return bool
+     */
+    private function has_mcp_access(int $contextid, int $userid): bool {
+        $context = context::instance_by_id($contextid, IGNORE_MISSING);
+        if (!$context) {
+            return false;
+        }
+        return has_capability('bookingextension/agent:mcpaccess', $context, $userid);
     }
 
     /**
@@ -118,6 +141,12 @@ class mcp_execution_service {
      * @return array
      */
     public function call_tool(string $toolname, array $args, int $contextid, int $userid, string $idempotencykey): array {
+        if (!$this->has_mcp_access($contextid, $userid)) {
+            return $this->error_result(
+                get_string('mcp_error_access_denied', 'bookingextension_agent'),
+                ['MCP_ACCESS_DENIED']
+            );
+        }
         if ($this->rate_limit_exceeded($userid)) {
             return $this->error_result(
                 get_string('mcp_error_rate_limited', 'bookingextension_agent'),
@@ -308,6 +337,12 @@ class mcp_execution_service {
         int $userid,
         bool $checkratelimit = true
     ): array {
+        if (!$this->has_mcp_access($contextid, $userid)) {
+            return $this->error_result(
+                get_string('mcp_error_access_denied', 'bookingextension_agent'),
+                ['MCP_ACCESS_DENIED']
+            );
+        }
         if ($checkratelimit && $this->rate_limit_exceeded($userid)) {
             return $this->error_result(
                 get_string('mcp_error_rate_limited', 'bookingextension_agent'),
