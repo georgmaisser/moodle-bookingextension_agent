@@ -1138,6 +1138,52 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * A confirmation_request without commands is a question to the user: it must be relayed
+     * as a clarification (message preserved) instead of erroring into the framework retry,
+     * which pushes the planner to emit commands it was not ready to build.
+     */
+    public function test_interpreter_downgrades_empty_confirmation_request_to_clarification(): void {
+        $registry = skill_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
+
+        $question = 'Soll ich 5 Buchungsoptionen für nächste Woche erstellen? Bitte bestätige den Beginn.';
+        $result = $interpreter->interpret(
+            json_encode([
+                'response_type' => 'confirmation_request',
+                'message' => $question,
+                'commands' => [],
+            ]),
+            0,
+            0,
+            ''
+        );
+
+        $this->assertSame('clarification', $result['response_type']);
+        $this->assertSame($question, $result['message']);
+        $this->assertSame([], $result['commands']);
+        $this->assertContains('CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION', (array)($result['issue_codes'] ?? []));
+    }
+
+    /**
+     * The downgrade is confirmation_request-only: a skill_call without commands stays a
+     * contract error (CONTRACT_VALIDATION_ERROR) and keeps its one framework retry.
+     */
+    public function test_interpreter_keeps_contract_error_for_empty_skill_call(): void {
+        $registry = skill_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
+
+        $result = $interpreter->interpret(
+            '{"response_type":"skill_call","message":"Ich lege die Option an.","commands":[]}',
+            0,
+            0,
+            ''
+        );
+
+        $this->assertSame('error', $result['response_type']);
+        $this->assertContains('CONTRACT_VALIDATION_ERROR', (array)($result['issue_codes'] ?? []));
+    }
+
+    /**
      * Test that orchestrator executes two planner invoke calls (selection + construction).
      */
     public function test_orchestrator_process_uses_two_phase_invokes(): void {

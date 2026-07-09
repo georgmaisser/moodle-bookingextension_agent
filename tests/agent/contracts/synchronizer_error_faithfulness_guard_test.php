@@ -160,6 +160,59 @@ final class synchronizer_error_faithfulness_guard_test extends TestCase {
     }
 
     /**
+     * Error presentation may re-word the failure but must not announce upcoming agent actions:
+     * the turn ends with this reply, so "I will now create it" promises work that never runs
+     * (thread 548). The future-promise guard rejects and falls back to the source message.
+     */
+    public function test_error_presentation_future_promise_is_rejected(): void {
+        $contract = new synchronizer_output_contract();
+        $source = [
+            'response_type' => 'error',
+            'error_presentation_requested' => true,
+            'message'       => 'Create option schema mismatch. Unknown properties: coursequery.',
+            'commands'      => [],
+            'issue_codes'   => [],
+            'results'       => [['status' => 'error', 'detail' => 'schema mismatch']],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Die Anfrage schlug fehl. Mit den korrekten kanonischen Schlüsseln '
+                . 'erstelle ich nun die 5 Buchungsoptionen für die kommende Woche.',
+        ];
+
+        $result = $contract->merge($source, $sync);
+
+        $this->assertContains('SYNC_ERROR_FUTURE_PROMISE_REJECTED', (array)($result['issue_codes'] ?? []));
+        $this->assertSame('failed', $result['sync_gate_status'] ?? '');
+        $this->assertNotSame($sync['message'], $result['message'] ?? '');
+    }
+
+    /**
+     * The guard is narrow: an honest error reply whose next step is addressed to the USER
+     * ("you can retry with …") passes error presentation unchanged.
+     */
+    public function test_error_presentation_user_directed_next_step_is_accepted(): void {
+        $contract = new synchronizer_output_contract();
+        $source = [
+            'response_type' => 'error',
+            'error_presentation_requested' => true,
+            'commands'      => [],
+            'issue_codes'   => [],
+            'results'       => [['status' => 'error', 'detail' => 'schema mismatch']],
+        ];
+        $sync = [
+            'response_type' => 'sufficient',
+            'message' => 'Die Optionen konnten nicht erstellt werden, weil die Anfrage ungültige '
+                . 'Felder enthielt. Du kannst es erneut versuchen oder die Zielaktivität nennen.',
+        ];
+
+        $result = $contract->merge($source, $sync);
+
+        $this->assertSame($sync['message'], $result['message'] ?? '');
+        $this->assertNotContains('SYNC_ERROR_FUTURE_PROMISE_REJECTED', (array)($result['issue_codes'] ?? []));
+    }
+
+    /**
      * A real parse failure stays rejected regardless of source shape — unrelated to the source-side
      * error-faithfulness branch, but pinned here so the two rejection families are not conflated.
      */

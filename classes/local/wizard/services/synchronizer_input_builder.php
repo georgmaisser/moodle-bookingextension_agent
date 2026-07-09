@@ -157,7 +157,9 @@ class synchronizer_input_builder {
         }
 
         $lines[] = 'Rules: explain the cause above and a sensible next step. Do NOT blame the AI provider '
-            . 'unless error_class names it. Do NOT invent other causes. Do NOT claim the request succeeded.';
+            . 'unless error_class names it. Do NOT invent other causes. Do NOT claim the request succeeded. '
+            . 'Do NOT announce that you will now perform, retry or continue the action — nothing more runs '
+            . 'after this reply. Speak only about what already happened and what the USER can do next.';
 
         return implode("\n", $lines);
     }
