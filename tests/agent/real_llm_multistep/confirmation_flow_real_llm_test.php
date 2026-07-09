@@ -127,7 +127,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $teachercommand = $this->extract_command($result2, 'booking.update_option');
+        $teachercommand = $this->extract_teacher_assignment_command($result2);
         if (
             $teachercommand === null
             || empty($teachercommand['input'])
@@ -141,22 +141,25 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $store,
                 $runtime
             );
-            $teachercommand = $this->extract_command($result2, 'booking.update_option');
+            $teachercommand = $this->extract_teacher_assignment_command($result2);
         }
         // The whole point of step 2 is that the agent CAN assign a teacher: after the retries it must
         // have produced the command. Failing (instead of silently skipping) surfaces a real regression
         // where the agent stops handling teacher assignment.
-        $this->assertNotNull($teachercommand, 'The agent must produce an update_option command to assign the teacher.');
+        $this->assertNotNull(
+            $teachercommand,
+            'The agent must produce an update_option or update_option_trainer command to assign the teacher.'
+        );
         $teacherconfirm = $this->confirm_pending_result($result2, (int)$threadid, $store, false);
         $this->assertTrue((bool)($teacherconfirm['success'] ?? false), (string)($teacherconfirm['message'] ?? ''));
 
-        $details = $this->exec_command('booking.get_option_details', [
+        $details = $this->exec_command('mod_booking.get_option_details', [
             'optionquery' => $title,
             'requested_fields' => ['title', 'teachers'],
             'includesessions' => false,
         ]);
         if ((string)($details['status'] ?? '') !== 'executed') {
-            $details = $this->exec_command('booking.get_option_details', [
+            $details = $this->exec_command('mod_booking.get_option_details', [
                 'optionid' => (int)$option->id,
                 'requested_fields' => ['title', 'teachers'],
                 'includesessions' => false,
@@ -183,7 +186,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $visiblecommand = $this->extract_command($result3, 'booking.update_option');
+        $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option') ?? $this->extract_command($result3, 'booking.update_option');
         if (
             $visiblecommand === null
             || empty($visiblecommand['input'])
@@ -196,7 +199,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $store,
                 $runtime
             );
-            $visiblecommand = $this->extract_command($result3, 'booking.update_option');
+            $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option') ?? $this->extract_command($result3, 'booking.update_option');
         }
 
         // Step 3 must go through the AGENT confirmation flow (no direct-exec fallback, which would mask
@@ -219,5 +222,33 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
     private function is_skill_available(string $skillname): bool {
         $registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_default();
         return $registry->get_skill($skillname) !== null;
+    }
+
+    /**
+     * Extract the teacher-assignment command, whichever legitimate skill the planner chose.
+     *
+     * The specialized mod_booking.update_option_trainer is the preferred (and observed) routing
+     * for "make X responsible / assign X as teacher"; the generic update_option with a
+     * teacherquery/teacheremail field is equally correct. Commands may carry canonical
+     * (mod_booking.*) or alias (booking.*) names depending on the normalization layer.
+     *
+     * @param array $result AgentRuntime result.
+     * @return array|null The first matching command.
+     */
+    private function extract_teacher_assignment_command(array $result): ?array {
+        foreach (
+            [
+                'mod_booking.update_option_trainer',
+                'booking.update_option_trainer',
+                'mod_booking.update_option',
+                'booking.update_option',
+            ] as $skillname
+        ) {
+            $command = $this->extract_command($result, $skillname);
+            if ($command !== null) {
+                return $command;
+            }
+        }
+        return null;
     }
 }

@@ -138,6 +138,10 @@ final class llm_skill_matrix_scenario_provider {
             ],
             'wizard.list_skills' => [
                 'prompt' => 'Welche Aktionen stehen mir hier im Buchungskontext zur Verfuegung? Bitte nenne sie mir geordnet.',
+                // In the STATIC catalog (slim_all) the planner already sees every skill and answers
+                // the catalog question directly with sufficient — list_skills is excluded there by
+                // design (thread 565), so a direct answer is the correct outcome, not a miss.
+                'allow_direct_answer' => true,
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -326,6 +330,19 @@ final class llm_skill_matrix_scenario_provider {
                         'field' => 'status',
                         'value' => 'executed',
                     ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'core.find_content' => [
+                'prompt' => 'Find content about data privacy anywhere on this site.',
+                // The phpunit site has no indexed content: an executed empty result and a direct
+                // "nothing found" answer are both correct outcomes for the smoke scenario.
+                'allow_direct_answer' => true,
+                'assertions' => [
                     [
                         'target' => 'chat',
                         'type' => 'step_count_gte',
@@ -525,6 +542,25 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'mod_booking.configure_booking_instance' => [
+                // Write-only since the list/configure split: a read question would now route to
+                // mod_booking.list_instance_settings, so this scenario must be a real mutation.
+                // eventtype is a whitelisted configure field; "organizer name" is not.
+                'prompt' => 'Set the event type of this booking activity to "Seminar {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'mod_booking.list_instance_settings' => [
                 'prompt' => 'Which booking settings can I configure in this activity? ' .
                     'Please list the available fields and current values.',
                 'assertions' => [
