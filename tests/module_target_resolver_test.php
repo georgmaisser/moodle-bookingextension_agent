@@ -107,9 +107,14 @@ final class module_target_resolver_test extends advanced_testcase {
         $this->assertSame(context_target_resolution::STATUS_AMBIGUOUS, $resolution->status());
         $ids = array_map(static fn(array $c): int => (int)$c['id'], $resolution->candidates());
         $this->assertEqualsCanonicalizing([$cmid1, $cmid2], $ids);
-        // Candidates carry display metadata for the clarification.
-        $this->assertArrayHasKey('coursename', $resolution->candidates()[0]);
-        $this->assertArrayHasKey('name', $resolution->candidates()[0]);
+        // Candidates carry display metadata for the clarification — including the course
+        // shortname, so identically named courses stay distinguishable in candidate lists.
+        $first = $resolution->candidates()[0];
+        $this->assertArrayHasKey('coursename', $first);
+        $this->assertArrayHasKey('name', $first);
+        $this->assertArrayHasKey('courseshortname', $first);
+        $this->assertSame($course->shortname, $first['courseshortname']);
+        $this->assertSame((int)$course->id, (int)$first['courseid']);
     }
 
     /**

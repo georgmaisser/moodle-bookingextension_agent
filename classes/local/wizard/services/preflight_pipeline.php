@@ -178,12 +178,7 @@ class preflight_pipeline {
                 if ($resolution->status() === context_target_resolution::STATUS_AMBIGUOUS && !empty($candidates)) {
                     $lines = [];
                     foreach (array_slice($candidates, 0, 10) as $candidate) {
-                        $name = trim((string)($candidate['name'] ?? ''));
-                        if ($name === '') {
-                            $name = '#' . (int)($candidate['id'] ?? 0);
-                        }
-                        $coursename = trim((string)($candidate['coursename'] ?? ''));
-                        $lines[] = '- ' . $name . ($coursename !== '' ? ' (' . $coursename . ')' : '');
+                        $lines[] = '- ' . $this->format_ambiguous_candidate((array)$candidate);
                     }
                     $message = get_string('agent_target_ambiguous_choose', 'bookingextension_agent')
                         . "\n" . implode("\n", $lines);
@@ -315,6 +310,47 @@ class preflight_pipeline {
             $issues,
             $result
         );
+    }
+
+    /**
+     * Format one ambiguity candidate so a follow-up call can target it uniquely.
+     *
+     * Listing bare names is not enough: two candidates may share the same display name
+     * (e.g. two courses both called "Agent Smoke Course"), leaving the list unresolvable.
+     * Every line therefore carries the unique id. Module-level candidates (they carry a
+     * 'coursename') render as "name (coursename, cmid <id>)"; course-level candidates
+     * render as "fullname (shortname, id <id>)".
+     *
+     * @param array $candidate One candidate payload from the target resolution.
+     * @return string
+     */
+    private function format_ambiguous_candidate(array $candidate): string {
+        $id = (int)($candidate['id'] ?? 0);
+        $name = trim((string)($candidate['name'] ?? ''));
+        if ($name === '') {
+            $name = '#' . $id;
+        }
+
+        $coursename = trim((string)($candidate['coursename'] ?? ''));
+        if ($coursename !== '') {
+            // Module-level candidate: the id is the course-module id.
+            $details = [$coursename];
+            if ($id > 0) {
+                $details[] = 'cmid ' . $id;
+            }
+            return $name . ' (' . implode(', ', $details) . ')';
+        }
+
+        // Course-level candidate: the id is the course id.
+        $details = [];
+        $shortname = trim((string)($candidate['shortname'] ?? ''));
+        if ($shortname !== '') {
+            $details[] = $shortname;
+        }
+        if ($id > 0) {
+            $details[] = 'id ' . $id;
+        }
+        return $name . ($details !== [] ? ' (' . implode(', ', $details) . ')' : '');
     }
 
     /**

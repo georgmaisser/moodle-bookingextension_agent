@@ -54,8 +54,14 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
         $this->setAdminUser();
 
         $course = $this->getDataGenerator()->create_course();
-        $this->getDataGenerator()->create_module('booking', ['course' => $course->id, 'name' => 'Sprechstunde Alpha']);
-        $this->getDataGenerator()->create_module('booking', ['course' => $course->id, 'name' => 'Sprechstunde Beta']);
+        $alpha = $this->getDataGenerator()->create_module(
+            'booking',
+            ['course' => $course->id, 'name' => 'Sprechstunde Alpha']
+        );
+        $beta = $this->getDataGenerator()->create_module(
+            'booking',
+            ['course' => $course->id, 'name' => 'Sprechstunde Beta']
+        );
         $contextid = (int)context_course::instance($course->id)->id;
 
         $pipeline = new preflight_pipeline($this->build_registry(), $this->build_store());
@@ -69,8 +75,16 @@ final class module_target_pipeline_clarification_test extends advanced_testcase 
 
         $this->assertContains('CONTEXT_TARGET_UNRESOLVED', $result['issue_codes']);
         $joinederrors = implode("\n", $result['errors']);
-        $this->assertStringContainsString('Sprechstunde Alpha', $joinederrors);
-        $this->assertStringContainsString('Sprechstunde Beta', $joinederrors);
+        // Each candidate line carries the unique cmid so a follow-up call can target it even
+        // when names (or the containing course names) collide.
+        $this->assertStringContainsString(
+            'Sprechstunde Alpha (' . $course->fullname . ', cmid ' . (int)$alpha->cmid . ')',
+            $joinederrors
+        );
+        $this->assertStringContainsString(
+            'Sprechstunde Beta (' . $course->fullname . ', cmid ' . (int)$beta->cmid . ')',
+            $joinederrors
+        );
         // A needs_clarification issue is emitted so the run resolves to a clarification, not a raw error.
         $severities = array_map(static fn(array $i): string => (string)($i['severity'] ?? ''), $result['issues']);
         $this->assertContains('needs_clarification', $severities);

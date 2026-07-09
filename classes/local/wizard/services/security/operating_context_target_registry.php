@@ -147,11 +147,24 @@ class operating_context_target_registry {
             $candidates[] = [
                 'id' => $courseid,
                 'name' => (string)($course->fullname ?? $course->shortname ?? ('#' . $courseid)),
+                'shortname' => (string)($course->shortname ?? ''),
             ];
         }
 
         if (empty($candidates)) {
             return context_target_resolution::not_found();
+        }
+
+        // Exact (case-insensitive) matches on fullname or shortname win over substring
+        // siblings — mirroring the module path's filter_by_name(): "booking" resolves the
+        // course literally named "booking" instead of going ambiguous against "slotbooking".
+        $needle = core_text::strtolower(trim($query));
+        $exact = array_values(array_filter($candidates, static function (array $candidate) use ($needle): bool {
+            return core_text::strtolower((string)$candidate['name']) === $needle
+                || core_text::strtolower((string)$candidate['shortname']) === $needle;
+        }));
+        if (!empty($exact)) {
+            $candidates = $exact;
         }
 
         if (count($candidates) === 1) {

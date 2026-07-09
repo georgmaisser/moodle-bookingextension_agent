@@ -144,6 +144,64 @@ final class context_resolver_operating_context_test extends advanced_testcase {
     }
 
     /**
+     * An exact (case-insensitive) fullname match wins over substring siblings: "booking"
+     * resolves the course literally named "booking" instead of going ambiguous against
+     * "slotbooking" — mirroring the module path's exact-match preference.
+     */
+    public function test_exact_course_fullname_beats_substring_siblings(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $exact = $this->getDataGenerator()->create_course(['fullname' => 'booking', 'shortname' => 'bk-exact']);
+        $this->getDataGenerator()->create_course(['fullname' => 'slotbooking', 'shortname' => 'bk-slot']);
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::for_course(null, 'Booking'));
+
+        $this->assertSame(context_target_resolution::STATUS_RESOLVED, $resolution->status());
+        $this->assertSame((int)context_course::instance($exact->id)->id, (int)$resolution->context()->id);
+    }
+
+    /**
+     * An exact shortname match resolves too, even when the fullname is only a substring match.
+     */
+    public function test_exact_course_shortname_beats_substring_siblings(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $exact = $this->getDataGenerator()->create_course(['fullname' => 'Course smoke', 'shortname' => 'smoke']);
+        $this->getDataGenerator()->create_course(['fullname' => 'smoke advanced training', 'shortname' => 'sat101']);
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::for_course(null, 'smoke'));
+
+        $this->assertSame(context_target_resolution::STATUS_RESOLVED, $resolution->status());
+        $this->assertSame((int)context_course::instance($exact->id)->id, (int)$resolution->context()->id);
+    }
+
+    /**
+     * Two courses sharing the SAME fullname stay ambiguous — but the candidates now carry the
+     * course id and shortname, so the clarification list is resolvable by a unique identifier.
+     */
+    public function test_identically_named_courses_stay_ambiguous_with_identifiers(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $a = $this->getDataGenerator()->create_course(['fullname' => 'Agent Smoke Course', 'shortname' => 'smokeA']);
+        $b = $this->getDataGenerator()->create_course(['fullname' => 'Agent Smoke Course', 'shortname' => 'smokeB']);
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::for_course(null, 'Agent Smoke Course'));
+
+        $this->assertSame(context_target_resolution::STATUS_AMBIGUOUS, $resolution->status());
+        $candidates = $resolution->candidates();
+        $ids = array_map(static fn(array $c): int => (int)$c['id'], $candidates);
+        $this->assertEqualsCanonicalizing([(int)$a->id, (int)$b->id], $ids);
+        $shortnames = array_map(static fn(array $c): string => (string)$c['shortname'], $candidates);
+        $this->assertEqualsCanonicalizing(['smokeA', 'smokeB'], $shortnames);
+    }
+
+    /**
      * The site course (front page, id 1) is a legitimate target: it resolves by its full/short name,
      * by its context name (what the front page shows as the current context, e.g. "Site home") and by
      * explicit id — even though the course catalog search never returns it. Resolving is not a grant;

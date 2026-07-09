@@ -114,11 +114,12 @@ class module_target_resolver {
         $payload = [];
         foreach ($candidates as $candidate) {
             $payload[] = [
-                'id'         => $candidate['cmid'],
-                'name'       => $candidate['name'],
-                'courseid'   => $candidate['courseid'],
-                'coursename' => $candidate['coursename'],
-                'url'        => $candidate['url'],
+                'id'              => $candidate['cmid'],
+                'name'            => $candidate['name'],
+                'courseid'        => $candidate['courseid'],
+                'coursename'      => $candidate['coursename'],
+                'courseshortname' => $candidate['courseshortname'],
+                'url'             => $candidate['url'],
             ];
         }
         return context_target_resolution::ambiguous($payload);
@@ -245,11 +246,12 @@ class module_target_resolver {
             }
 
             $instances[] = [
-                'cmid'       => (int)$row->cmid,
-                'name'       => format_string($row->instname),
-                'courseid'   => $cid,
-                'coursename' => format_string($row->coursefullname),
-                'url'        => (new \moodle_url('/mod/' . $modname . '/view.php', ['id' => (int)$row->cmid]))->out(false),
+                'cmid'            => (int)$row->cmid,
+                'name'            => format_string($row->instname),
+                'courseid'        => $cid,
+                'coursename'      => format_string($row->coursefullname),
+                'courseshortname' => format_string($row->shortname),
+                'url'             => (new \moodle_url('/mod/' . $modname . '/view.php', ['id' => (int)$row->cmid]))->out(false),
             ];
         }
 
