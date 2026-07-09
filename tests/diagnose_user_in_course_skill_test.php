@@ -66,6 +66,27 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
     }
 
     /**
+     * userquery="me" resolves to the ACTING user instead of failing with "could not identify"
+     * (regression: the current-user fallback was hardcoded to 0).
+     */
+    public function test_userquery_me_resolves_to_acting_user(): void {
+        $this->resetAfterTest();
+        [$course, $teacher] = $this->build_course();
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        $res = (new diagnose_user_in_course_skill())->execute(
+            ['userquery' => 'me'],
+            $ctxid,
+            (int)$teacher->id
+        );
+
+        $this->assertSame('executed', $res['status']);
+        $this->assertNotEmpty($res['checklist_rows']);
+        $this->assertStringContainsString('Access diagnosis', $res['observation_full']);
+        $this->assertStringNotContainsString('could not identify', (string)($res['detail'] ?? ''));
+    }
+
+    /**
      * At a course-less context (e.g. the dashboard / navbar) a non-enrolment aspect for a NAMED
      * person must NOT hard-fail with "which course?": it returns a course clarification
      * (status 'executed') listing the person's courses so a "for each course" request can fan out.

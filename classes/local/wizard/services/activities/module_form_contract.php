@@ -139,7 +139,7 @@ class module_form_contract {
         $restoreglobals = $this->push_build_globals($course);
         try {
             try {
-                [$mform, $data] = $this->build_update_form($course, $cm, $changes);
+                [$mform, $data, $touched] = $this->build_update_form($course, $cm, $changes);
             } catch (\Throwable $e) {
                 return ['ok' => false, 'errors' => [], 'built' => false];
             }
@@ -147,7 +147,7 @@ class module_form_contract {
             if ($quickform === null) {
                 return ['ok' => false, 'errors' => [], 'built' => false];
             }
-            $errors = $this->collect_form_errors($quickform, $mform, $data);
+            $errors = $this->collect_form_errors($quickform, $mform, $data, $touched);
             return ['ok' => empty($errors), 'errors' => $errors, 'built' => true];
         } finally {
             $this->pop_build_globals($restoreglobals);
@@ -200,10 +200,17 @@ class module_form_contract {
     /**
      * Build a module's mod_form headless for an EXISTING instance (edit), seeded with current data + changes.
      *
+     * Seeding order matters: the form is first filled with the UNCHANGED instance state so that
+     * moodleform_mod::set_data() runs the module's own data_preprocessing() (the modedit.php path) —
+     * that is what fills module-specific editor fields (e.g. mod_page's required 'page' editor) from
+     * the stored content; get_moduleinfo_data() only prepares the generic introeditor. Only THEN are
+     * the requested changes overlaid, and pushed into the form without a second set_data() — a second
+     * data_preprocessing() run would clobber a candidate editor value with the stored content again.
+     *
      * @param stdClass $course
      * @param stdClass $cm
      * @param array $changes
-     * @return array{0:moodleform,1:stdClass}
+     * @return array{0:moodleform,1:stdClass,2:array} Form, merged candidate data, touched field names.
      * @throws \Throwable When the form cannot be built headless.
      */
     private function build_update_form(stdClass $course, stdClass $cm, array $changes): array {
@@ -216,17 +223,6 @@ class module_form_contract {
         unset($context, $module);
         $modname = (string)$data->modulename;
 
-        $this->apply_inputs(
-            $data,
-            $modname,
-            (string)($changes['name'] ?? ''),
-            (string)($changes['intro'] ?? ''),
-            (array)($changes['settings'] ?? [])
-        );
-        if (array_key_exists('visible', $changes) && $changes['visible'] !== null) {
-            $data->visible = (int)$changes['visible'];
-        }
-
         $modform = $CFG->dirroot . '/mod/' . $modname . '/mod_form.php';
         if (!file_exists($modform)) {
             throw new \coding_exception('No mod_form for module ' . $modname);
@@ -236,9 +232,46 @@ class module_form_contract {
         if (!class_exists($classname)) {
             throw new \coding_exception('No mod_form class for module ' . $modname);
         }
+
+        // 1) Seed with the stored state; set_data() runs the module's data_preprocessing().
         $mform = new $classname($data, $cw->section, $cmrec, $course);
         $mform->set_data($data);
-        return [$mform, $data];
+
+        // 2) Pull the preprocessed element values back onto the seed so it carries every module
+        // editor in its real {text, format, itemid} shape (with the prepared draft itemid).
+        $quickform = $this->quickform($mform);
+        if ($quickform !== null) {
+            $this->merge_exported($data, $quickform, false);
+        }
+
+        // 3) Overlay the requested changes — the candidate wins over the stored state.
+        $touched = $this->apply_inputs(
+            $data,
+            $modname,
+            (string)($changes['name'] ?? ''),
+            (string)($changes['intro'] ?? ''),
+            (array)($changes['settings'] ?? [])
+        );
+        if (array_key_exists('visible', $changes) && $changes['visible'] !== null) {
+            $data->visible = (int)$changes['visible'];
+            $touched[] = 'visible';
+        }
+
+        // 4) Push the candidate values into the form via setDefaults() (NOT set_data(), see above)
+        // so exportValues()/validation() evaluate the proposed state, not the stored one.
+        if ($quickform !== null && !empty($touched)) {
+            $overlay = [];
+            foreach ($touched as $field) {
+                if (property_exists($data, $field)) {
+                    $overlay[$field] = $data->{$field};
+                }
+            }
+            if (!empty($overlay)) {
+                $quickform->setDefaults($overlay);
+            }
+        }
+
+        return [$mform, $data, $touched];
     }
 
     /**
@@ -247,13 +280,24 @@ class module_form_contract {
      * @param \MoodleQuickForm $quickform
      * @param moodleform $mform
      * @param stdClass $data
+     * @param array|null $changedfields On a partial UPDATE: the form fields this change touches. Only
+     *        those can introduce a required-field violation — an already-empty stored field the user is
+     *        not editing must not block an unrelated change (e.g. a rename). Null = check all (create).
      * @return array
      */
-    private function collect_form_errors(\MoodleQuickForm $quickform, moodleform $mform, stdClass $data): array {
+    private function collect_form_errors(
+        \MoodleQuickForm $quickform,
+        moodleform $mform,
+        stdClass $data,
+        ?array $changedfields = null
+    ): array {
         $exported = (array)$quickform->exportValues();
         $errors = [];
         foreach (array_unique(array_map('strval', (array)$quickform->_required)) as $element) {
             if ($element === '') {
+                continue;
+            }
+            if ($changedfields !== null && !in_array($element, $changedfields, true)) {
                 continue;
             }
             if ($this->value_is_empty($exported[$element] ?? ($data->{$element} ?? null))) {
@@ -446,27 +490,32 @@ class module_form_contract {
      * @param string $name
      * @param string $intro
      * @param array $settings
-     * @return void
+     * @return array Names of the form fields the inputs actually set (touched fields).
      */
-    private function apply_inputs(stdClass $data, string $modname, string $name, string $intro, array $settings): void {
+    private function apply_inputs(stdClass $data, string $modname, string $name, string $intro, array $settings): array {
         $name = trim($name);
         $intro = trim($intro);
+        $touched = [];
 
         // A label has no separate name field; its intro editor is the content. Fall back to the name as text.
         if ($modname === 'label') {
             $text = $intro !== '' ? $intro : $name;
             if ($text !== '') {
                 $this->set_editor($data, 'introeditor', $text);
+                $touched[] = 'introeditor';
             }
             if ($name !== '') {
                 $data->name = $name;
+                $touched[] = 'name';
             }
         } else {
             if ($name !== '') {
                 $data->name = $name;
+                $touched[] = 'name';
             }
             if ($intro !== '') {
                 $this->set_editor($data, 'introeditor', $intro);
+                $touched[] = 'introeditor';
             }
         }
 
@@ -479,13 +528,17 @@ class module_form_contract {
             if ($key === 'page') {
                 // The mod_page content editor.
                 $this->set_editor($data, 'page', (string)$value);
+                $touched[] = 'page';
                 continue;
             }
             // Generic scalar passthrough (externalurl, display, type, …). Editors/arrays handled above.
             if (is_scalar($value) || $value === null) {
                 $data->{$key} = $value;
+                $touched[] = $key;
             }
         }
+
+        return array_values(array_unique($touched));
     }
 
     /**

@@ -128,7 +128,7 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 'userquery' => [
                     'type' => 'string',
                     'description' => 'Name, e-mail or id of the person. "me" = current user. Leave empty to diagnose '
-                        . 'yourself. Resolve ambiguous names via core.search_users and pass userid.',
+                        . 'yourself. If the name is ambiguous, provide a more specific name or the e-mail address.',
                     'required' => false,
                 ],
                 'userid' => [
@@ -266,10 +266,10 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
         // Resolve target user: explicit id > userquery > (self for user-centric aspects).
         $targetuserid = (int)($input['userid'] ?? 0);
         if ($targetuserid <= 0 && trim((string)($input['userquery'] ?? '')) !== '') {
-            $targetuserid = $this->resolve_userid($input, 0);
+            $targetuserid = $this->resolve_userid($input, $userid);
             if ($targetuserid <= 0) {
                 return $this->error_result(
-                    'I could not identify that person. Give a name, e-mail or id — or resolve via core.search_users.',
+                    'I could not identify that person. Give a full name, e-mail address or numeric user id.',
                     'user_unresolved'
                 );
             }
