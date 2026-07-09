@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Event fired when a mutating agent skill is confirmed and executed via MCP.
+ * Event fired when a user confirms a pending mutating agent action.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -29,17 +29,21 @@ namespace bookingextension_agent\event;
 use core\event\base;
 
 /**
- * Audit-trail event: an external MCP client confirmed and executed a mutating skill.
+ * Audit-trail event: a user approved a pending mutating action at the confirm gate.
  *
- * The counterpart of {@see mcp_tool_called} for the two-call confirm flow: this is
- * the moment the actual mutation ran, after the client echoed the confirmation code
- * from the preview response.
+ * Records the human *consent* to a change, distinct from the change itself (which raises
+ * {@see skill_write_executed} when it runs). Emitted from both confirm paths — the chat
+ * {@see \bookingextension_agent\local\wizard\services\confirm_run_service} and the MCP
+ * {@see \bookingextension_agent\local\wizard\services\mcp\mcp_execution_service::confirm_tool()} —
+ * via {@see \bookingextension_agent\local\wizard\services\telemetry\audit_logger}, so "who
+ * authorised this change?" is answerable independently of whether execution then succeeded.
  */
-class mcp_tool_confirmed extends base {
+class action_confirmed extends base {
     /**
-     * Initialise the event metadata.
+     * Initialise static event metadata.
      */
     protected function init(): void {
+        // A confirmation authorises a change; group it with writes in the log CRUD column.
         $this->data['crud'] = 'u';
         $this->data['edulevel'] = self::LEVEL_OTHER;
     }
@@ -50,7 +54,7 @@ class mcp_tool_confirmed extends base {
      * @return string
      */
     public static function get_name(): string {
-        return get_string('mcp_event_tool_confirmed', 'bookingextension_agent');
+        return get_string('event_action_confirmed', 'bookingextension_agent');
     }
 
     /**
@@ -60,8 +64,8 @@ class mcp_tool_confirmed extends base {
      */
     public function get_description(): string {
         $skill = (string)($this->other['skill'] ?? '');
-        $status = (string)($this->other['status'] ?? '');
-        return "The user with id '{$this->userid}' confirmed and executed the mutating agent skill "
-            . "'{$skill}' via MCP in the context with id '{$this->contextid}' (status: '{$status}').";
+        $channel = (string)($this->other['channel'] ?? 'chat');
+        return "The user with id '{$this->userid}' confirmed the pending agent action '{$skill}' "
+            . "(channel: '{$channel}') in the context with id '{$this->contextid}'.";
     }
 }

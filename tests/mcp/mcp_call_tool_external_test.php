@@ -19,6 +19,11 @@ namespace bookingextension_agent;
 use advanced_testcase;
 use bookingextension_agent\external\mcp_call_tool;
 use bookingextension_agent\external\mcp_list_tools;
+use bookingextension_agent\event\action_denied;
+use bookingextension_agent\local\wizard\skill_registry;
+use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\services\mcp\mcp_execution_service;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
 use context_course;
 use context_system;
 
@@ -120,13 +125,15 @@ final class mcp_call_tool_external_test extends advanced_testcase {
         $courseids = array_map(static fn($c) => (int)($c['courseid'] ?? 0), $courses);
         $this->assertContains((int)$course->id, $courseids);
 
-        // The audit event fired with the canonical skill name.
+        // The unified audit event fired with the canonical skill name and the MCP channel.
         $mcpevents = array_values(array_filter(
             $events,
-            static fn($e) => $e instanceof \bookingextension_agent\event\mcp_tool_called
+            static fn($e) => $e instanceof \bookingextension_agent\event\skill_executed
         ));
         $this->assertCount(1, $mcpevents);
         $this->assertSame('course.search_courses', $mcpevents[0]->other['skill']);
+        $this->assertSame('mcp', $mcpevents[0]->other['channel']);
+        $this->assertSame('r', $mcpevents[0]->other['crud']);
     }
 
     /**
@@ -227,5 +234,39 @@ final class mcp_call_tool_external_test extends advanced_testcase {
         $this->setUser($teacher2);
         $this->expectException(\required_capability_exception::class);
         mcp_call_tool::execute((int)context_course::instance($course2->id)->id, 'course_search_courses', '{}', '');
+    }
+
+    /**
+     * The service-level mcpaccess gate (the path the tool_oauthmcp hook takes, bypassing the REST
+     * shim's require_capability) emits an action_denied audit event and returns an empty list.
+     */
+    public function test_service_access_denial_emits_action_denied(): void {
+        $this->resetAfterTest();
+        [, $course, $contextid] = $this->create_mcp_teacher();
+
+        // A user enrolled in the course but WITHOUT the mcpaccess capability.
+        $gen = $this->getDataGenerator();
+        $noaccess = $gen->create_user();
+        $gen->enrol_user($noaccess->id, $course->id, 'editingteacher');
+        $this->setUser($noaccess);
+
+        $service = new mcp_execution_service(
+            skill_registry::make_default(),
+            new conversation_store(),
+            new authorization_service()
+        );
+
+        $sink = $this->redirectEvents();
+        $tools = $service->list_tools($contextid, (int)$noaccess->id);
+        $sink->close();
+
+        $this->assertSame([], $tools);
+        $denials = array_values(array_filter(
+            $sink->get_events(),
+            static fn($e) => $e instanceof action_denied && ($e->other['gate'] ?? '') === 'mcp_access'
+        ));
+        $this->assertCount(1, $denials);
+        $this->assertSame('MCP_ACCESS_DENIED', $denials[0]->other['reason']);
+        $this->assertSame('mcp', $denials[0]->other['channel']);
     }
 }

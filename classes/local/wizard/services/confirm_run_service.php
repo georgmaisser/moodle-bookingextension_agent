@@ -33,6 +33,7 @@ use bookingextension_agent\local\wizard\services\attempt_budget_dto;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\services\execution\execution_feedback_service;
+use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
 use bookingextension_agent\local\wizard\executor;
 use bookingextension_agent\local\wizard\result_payload_summarizer;
 use bookingextension_agent\local\wizard\skill_registry;
@@ -165,6 +166,19 @@ class confirm_run_service {
             $idempotencykey,
             $commandsforrun
         );
+
+        // Record the user's consent to each pending action, distinct from its execution
+        // (which the executor logs as skill_write_executed). Fires whatever the outcome.
+        foreach ($commandsforrun as $confirmedcommand) {
+            audit_logger::action_confirmed(
+                (string)($confirmedcommand['skill'] ?? ''),
+                $contextid,
+                $userid,
+                $threadid,
+                $runid,
+                'chat'
+            );
+        }
 
         // Release session lock before long-running execution.
         \core\session\manager::write_close();

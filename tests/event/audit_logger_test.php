@@ -18,6 +18,7 @@ namespace bookingextension_agent;
 
 use advanced_testcase;
 use context_system;
+use bookingextension_agent\event\action_confirmed;
 use bookingextension_agent\event\action_denied;
 use bookingextension_agent\event\skill_executed;
 use bookingextension_agent\event\skill_write_executed;
@@ -34,6 +35,7 @@ use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
  * @covers     \bookingextension_agent\event\skill_executed
  * @covers     \bookingextension_agent\event\skill_write_executed
  * @covers     \bookingextension_agent\event\action_denied
+ * @covers     \bookingextension_agent\event\action_confirmed
  */
 final class audit_logger_test extends advanced_testcase {
     /**
@@ -209,6 +211,22 @@ final class audit_logger_test extends advanced_testcase {
         $events = $this->capture_executed($this->fake_skill(['related' => [7, 9]]), [], ['status' => 'ok']);
         $this->assertSame(7, (int)$events[0]->relateduserid);
         $this->assertSame([7, 9], $events[0]->other['relateduserids']);
+    }
+
+    /**
+     * action_confirmed records the confirmed skill and channel.
+     */
+    public function test_action_confirmed_event(): void {
+        $this->resetAfterTest();
+        $ctxid = (int)context_system::instance()->id;
+        $sink = $this->redirectEvents();
+        audit_logger::action_confirmed('course.update_activity', $ctxid, 2, 5, 9, 'mcp');
+        $sink->close();
+        $events = array_values(array_filter($sink->get_events(), static fn($e) => $e instanceof action_confirmed));
+        $this->assertCount(1, $events);
+        $this->assertSame('course.update_activity', $events[0]->other['skill']);
+        $this->assertSame('mcp', $events[0]->other['channel']);
+        $this->assertSame('u', $events[0]->get_data()['crud']);
     }
 
     /**

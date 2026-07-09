@@ -26,8 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\mcp;
 
-use bookingextension_agent\event\mcp_tool_called;
-use bookingextension_agent\event\mcp_tool_confirmed;
+use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\executor;
 use bookingextension_agent\local\wizard\queue\queue_manager;
@@ -102,6 +101,7 @@ class mcp_execution_service {
      */
     public function list_tools(int $contextid, int $userid): array {
         if (!$this->has_mcp_access($contextid, $userid)) {
+            audit_logger::action_denied('*', 'mcp_access', 'MCP_ACCESS_DENIED', $contextid, $userid, 0, 0, 'mcp');
             return [];
         }
         return $this->catalog->get_tools($userid, $contextid);
@@ -128,6 +128,35 @@ class mcp_execution_service {
     }
 
     /**
+     * Emit an action_denied audit event for an MCP entry gate and return the MCP error result.
+     *
+     * The MCP entrypoint has gates of its own (mcpaccess, mutations-disabled, rate limit) that
+     * sit before the executor, so their refusals would otherwise be invisible; this records them
+     * on the same audit trail as executor-level denials.
+     *
+     * @param string $skillname requested tool/skill, or '*' when not yet resolved
+     * @param string $gate       gate identifier (mcp_access | mcp_mutations_disabled | rate_limit)
+     * @param string $reason     machine reason code
+     * @param string $message    user-facing message for the transport
+     * @param array  $issuecodes issue codes for the transport
+     * @param int    $contextid
+     * @param int    $userid
+     * @return array
+     */
+    private function denied(
+        string $skillname,
+        string $gate,
+        string $reason,
+        string $message,
+        array $issuecodes,
+        int $contextid,
+        int $userid
+    ): array {
+        audit_logger::action_denied($skillname, $gate, $reason, $contextid, $userid, 0, 0, 'mcp');
+        return $this->error_result($message, $issuecodes);
+    }
+
+    /**
      * Execute one MCP tool call and return an MCP-shaped result.
      *
      * The returned array uses the MCP tool-result field names verbatim
@@ -142,15 +171,25 @@ class mcp_execution_service {
      */
     public function call_tool(string $toolname, array $args, int $contextid, int $userid, string $idempotencykey): array {
         if (!$this->has_mcp_access($contextid, $userid)) {
-            return $this->error_result(
+            return $this->denied(
+                trim($toolname) !== '' ? trim($toolname) : '*',
+                'mcp_access',
+                'MCP_ACCESS_DENIED',
                 get_string('mcp_error_access_denied', 'bookingextension_agent'),
-                ['MCP_ACCESS_DENIED']
+                ['MCP_ACCESS_DENIED'],
+                $contextid,
+                $userid
             );
         }
         if ($this->rate_limit_exceeded($userid)) {
-            return $this->error_result(
+            return $this->denied(
+                trim($toolname) !== '' ? trim($toolname) : '*',
+                'rate_limit',
+                'MCP_RATE_LIMITED',
                 get_string('mcp_error_rate_limited', 'bookingextension_agent'),
-                ['MCP_RATE_LIMITED']
+                ['MCP_RATE_LIMITED'],
+                $contextid,
+                $userid
             );
         }
 
@@ -230,9 +269,14 @@ class mcp_execution_service {
         string $idempotencykey
     ): array {
         if (!get_config('bookingextension_agent', 'mcpallowmutations')) {
-            return $this->error_result(
+            return $this->denied(
+                $skillname,
+                'mcp_mutations_disabled',
+                'MCP_MUTATIONS_NOT_AVAILABLE',
                 get_string('mcp_error_mutations_not_available', 'bookingextension_agent'),
-                ['MCP_MUTATIONS_NOT_AVAILABLE']
+                ['MCP_MUTATIONS_NOT_AVAILABLE'],
+                $contextid,
+                $userid
             );
         }
 
@@ -338,21 +382,36 @@ class mcp_execution_service {
         bool $checkratelimit = true
     ): array {
         if (!$this->has_mcp_access($contextid, $userid)) {
-            return $this->error_result(
+            return $this->denied(
+                '*',
+                'mcp_access',
+                'MCP_ACCESS_DENIED',
                 get_string('mcp_error_access_denied', 'bookingextension_agent'),
-                ['MCP_ACCESS_DENIED']
+                ['MCP_ACCESS_DENIED'],
+                $contextid,
+                $userid
             );
         }
         if ($checkratelimit && $this->rate_limit_exceeded($userid)) {
-            return $this->error_result(
+            return $this->denied(
+                '*',
+                'rate_limit',
+                'MCP_RATE_LIMITED',
                 get_string('mcp_error_rate_limited', 'bookingextension_agent'),
-                ['MCP_RATE_LIMITED']
+                ['MCP_RATE_LIMITED'],
+                $contextid,
+                $userid
             );
         }
         if (!get_config('bookingextension_agent', 'mcpallowmutations')) {
-            return $this->error_result(
+            return $this->denied(
+                '*',
+                'mcp_mutations_disabled',
+                'MCP_MUTATIONS_NOT_AVAILABLE',
                 get_string('mcp_error_mutations_not_available', 'bookingextension_agent'),
-                ['MCP_MUTATIONS_NOT_AVAILABLE']
+                ['MCP_MUTATIONS_NOT_AVAILABLE'],
+                $contextid,
+                $userid
             );
         }
 
@@ -439,17 +498,9 @@ class mcp_execution_service {
             $transitions->to_succeeded($queuesvc, $threadid, $queueitemid, 'EXECUTION_SUCCEEDED', $issuecodes);
         }
 
-        $event = mcp_tool_confirmed::create([
-            'context' => context::instance_by_id($contextid),
-            'userid' => $userid,
-            'other' => [
-                'skill' => (string)$item['skill'],
-                'status' => $status,
-                'runid' => $runid,
-                'queueitemid' => $queueitemid,
-            ],
-        ]);
-        $event->trigger();
+        // The user approved this pending action; the execution itself is recorded by the
+        // executor's skill_write_executed event.
+        audit_logger::action_confirmed((string)$item['skill'], $contextid, $userid, $threadid, $runid, 'mcp');
 
         return $this->build_mcp_result($result);
     }
@@ -534,7 +585,6 @@ class mcp_execution_service {
         $this->store->update_run_status($runid, 'completed', $results);
 
         $result = is_array($results[0] ?? null) ? (array)$results[0] : [];
-        $this->trigger_tool_event($skillname, (string)($result['status'] ?? ''), $contextid, $userid, $runid);
 
         return $this->build_mcp_result($result);
     }
@@ -583,28 +633,5 @@ class mcp_execution_service {
             ], $extra),
             'isError' => true,
         ];
-    }
-
-    /**
-     * Trigger the audit event for an MCP tool call.
-     *
-     * @param string $skillname
-     * @param string $status
-     * @param int $contextid
-     * @param int $userid
-     * @param int $runid
-     * @return void
-     */
-    private function trigger_tool_event(string $skillname, string $status, int $contextid, int $userid, int $runid): void {
-        $event = mcp_tool_called::create([
-            'context' => context::instance_by_id($contextid),
-            'userid' => $userid,
-            'other' => [
-                'skill' => $skillname,
-                'status' => $status,
-                'runid' => $runid,
-            ],
-        ]);
-        $event->trigger();
     }
 }

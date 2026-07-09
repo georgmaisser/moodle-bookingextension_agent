@@ -131,10 +131,11 @@ final class mcp_confirm_flow_test extends advanced_testcase {
 
         $confirmevents = array_values(array_filter(
             $events,
-            static fn($e) => $e instanceof \bookingextension_agent\event\mcp_tool_confirmed
+            static fn($e) => $e instanceof \bookingextension_agent\event\action_confirmed
         ));
         $this->assertCount(1, $confirmevents);
         $this->assertSame('course.update_activity', $confirmevents[0]->other['skill']);
+        $this->assertSame('mcp', $confirmevents[0]->other['channel']);
     }
 
     /**

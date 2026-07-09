@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\telemetry;
 
 use core\context;
+use bookingextension_agent\event\action_confirmed;
 use bookingextension_agent\event\action_denied;
 use bookingextension_agent\event\skill_executed;
 use bookingextension_agent\event\skill_write_executed;
@@ -119,6 +120,47 @@ class audit_logger {
             $eventclass::create($data)->trigger();
         } catch (\Throwable $e) {
             debugging('bookingextension_agent audit_logger::skill_executed failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Record that a user confirmed a pending mutating action at the confirm gate.
+     *
+     * @param string $skillname registry name of the confirmed skill
+     * @param int    $contextid context the confirmation was given at
+     * @param int    $userid    acting (confirming) user
+     * @param int    $threadid  conversation/channel thread id (0 when none)
+     * @param int    $runid     run bookkeeping id
+     * @param string $channel   entrypoint: chat | mcp | api
+     */
+    public static function action_confirmed(
+        string $skillname,
+        int $contextid,
+        int $userid,
+        int $threadid,
+        int $runid,
+        string $channel
+    ): void {
+        try {
+            if (!self::master_enabled()) {
+                return;
+            }
+            $context = context::instance_by_id($contextid, IGNORE_MISSING);
+            if (!$context) {
+                return;
+            }
+            action_confirmed::create([
+                'context' => $context,
+                'userid' => $userid,
+                'other' => [
+                    'skill' => $skillname,
+                    'channel' => $channel,
+                    'threadid' => $threadid,
+                    'runid' => $runid,
+                ],
+            ])->trigger();
+        } catch (\Throwable $e) {
+            debugging('bookingextension_agent audit_logger::action_confirmed failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
     }
 
