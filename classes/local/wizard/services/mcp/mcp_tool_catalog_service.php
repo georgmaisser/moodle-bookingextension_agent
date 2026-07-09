@@ -110,6 +110,15 @@ class mcp_tool_catalog_service {
                 continue;
             }
 
+            // A skill may declare itself unavailable on this instance (e.g. its remote backend
+            // is not configured) via an optional is_available(). Duck-typed like
+            // get_result_preview so this service keeps no per-skill knowledge: unavailable
+            // skills are hidden from the list instead of preflight-blocking on every call.
+            $skill = $this->registry->get_skill($skillname);
+            if ($skill !== null && method_exists($skill, 'is_available') && !$skill->is_available()) {
+                continue;
+            }
+
             $evaluation = $this->evaluator->evaluate_skill($skillname, $userid, $contextid);
             if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
                 continue;

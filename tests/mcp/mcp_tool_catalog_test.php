@@ -17,6 +17,10 @@
 namespace bookingextension_agent;
 
 use advanced_testcase;
+use bookingextension_agent\local\wizard\dto\preflight_result_v2;
+use bookingextension_agent\local\wizard\dto\skill_prompt_contract;
+use bookingextension_agent\local\wizard\dto\skill_risk_class;
+use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\services\mcp\mcp_tool_catalog_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\skill_executability_evaluator;
@@ -144,6 +148,179 @@ final class mcp_tool_catalog_test extends advanced_testcase {
         $names = array_column($catalog->get_tools($userid, $contextid), 'name');
         $this->assertContains('course_update_activity', $names);
         $this->assertContains('confirm_pending_action', $names);
+    }
+
+    /**
+     * A skill declaring itself unavailable via the optional is_available() is hidden from
+     * the tool list, while an available sibling with the same shape stays listed.
+     */
+    public function test_unavailable_skill_is_skipped(): void {
+        $this->resetAfterTest();
+
+        $available = $this->make_stub_skill('demo.available', true);
+        $unavailable = $this->make_stub_skill('demo.unavailable', false);
+
+        $registry = $this->getMockBuilder(skill_registry::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_skill_names', 'get_skill', 'is_read_only_skill'])
+            ->getMock();
+        $registry->method('get_skill_names')->willReturn(['demo.available', 'demo.unavailable']);
+        $registry->method('is_read_only_skill')->willReturn(true);
+        $registry->method('get_skill')->willReturnCallback(
+            static function (string $name) use ($available, $unavailable): ?skill_interface {
+                if ($name === 'demo.available') {
+                    return $available;
+                }
+                return $name === 'demo.unavailable' ? $unavailable : null;
+            }
+        );
+
+        $evaluator = $this->getMockBuilder(skill_executability_evaluator::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['evaluate_skill'])
+            ->getMock();
+        $evaluator->method('evaluate_skill')->willReturn(['executable_state' => 'allow']);
+
+        $catalog = new mcp_tool_catalog_service($registry, $evaluator);
+        $names = array_column($catalog->get_tools(2, 1), 'name');
+
+        $this->assertContains('demo_available', $names);
+        $this->assertNotContains('demo_unavailable', $names);
+    }
+
+    /**
+     * Build a minimal read-only stub skill with an is_available() self-declaration.
+     *
+     * @param string $name Canonical skill name.
+     * @param bool $isavailable What is_available() reports.
+     * @return skill_interface
+     */
+    private function make_stub_skill(string $name, bool $isavailable): skill_interface {
+        return new class ($name, $isavailable) implements skill_interface {
+            /** @var string Canonical skill name. */
+            private string $name;
+
+            /** @var bool What is_available() reports. */
+            private bool $isavailable;
+
+            /**
+             * Constructor.
+             *
+             * @param string $name Canonical skill name.
+             * @param bool $isavailable What is_available() reports.
+             */
+            public function __construct(string $name, bool $isavailable) {
+                $this->name = $name;
+                $this->isavailable = $isavailable;
+            }
+
+            /**
+             * Return the unique skill name.
+             *
+             * @return string
+             */
+            public function get_name(): string {
+                return $this->name;
+            }
+
+            /**
+             * Return the input schema.
+             *
+             * @return array
+             */
+            public function get_schema(): array {
+                return ['version' => 1, 'description' => 'Stub skill.', 'properties' => []];
+            }
+
+            /**
+             * Return an example input payload.
+             *
+             * @return array
+             */
+            public function get_example_input(): array {
+                return [];
+            }
+
+            /**
+             * Return the prompt contract describing this skill.
+             *
+             * @return skill_prompt_contract
+             */
+            public function get_prompt_contract(): skill_prompt_contract {
+                return new skill_prompt_contract([
+                    'intent' => 'stub',
+                    'anchors' => [],
+                    'minimal_input' => [],
+                    'example_input' => [],
+                    'namespace' => 'demo',
+                    'version' => 1,
+                    'capabilities' => [],
+                    'context_scopes' => [],
+                    'risk_class' => skill_risk_class::R0,
+                ]);
+            }
+
+            /**
+             * Return the risk class of this skill.
+             *
+             * @return string
+             */
+            public function get_risk_class(): string {
+                return skill_risk_class::R0;
+            }
+
+            /**
+             * Validate the raw input structure.
+             *
+             * @param array $input
+             * @return array
+             */
+            public function check_structure(array $input): array {
+                return ['valid' => true, 'errors' => []];
+            }
+
+            /**
+             * Run the preflight check and return the result.
+             *
+             * @param array $input
+             * @param int $contextid
+             * @param int $userid
+             * @return preflight_result_v2
+             */
+            public function preflight(array $input, int $contextid, int $userid): preflight_result_v2 {
+                return preflight_result_v2::ok($input);
+            }
+
+            /**
+             * Execute the skill against the prepared input.
+             *
+             * @param array $preparedinput
+             * @param int $contextid
+             * @param int $userid
+             * @return array
+             */
+            public function execute(array $preparedinput, int $contextid, int $userid): array {
+                return [];
+            }
+
+            /**
+             * Report whether the skill is read-only.
+             *
+             * @return bool
+             */
+            public function is_read_only(): bool {
+                return true;
+            }
+
+            /**
+             * Self-declared availability on this instance (duck-typed by the catalog).
+             *
+             * @return bool
+             */
+            public function is_available(): bool {
+                return $this->isavailable;
+            }
+        };
     }
 
     /**
