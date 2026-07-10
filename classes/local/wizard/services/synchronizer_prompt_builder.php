@@ -174,7 +174,8 @@ class synchronizer_prompt_builder {
             . "Do NOT answer or decide it yourself (never pick an option for the user), do NOT add, drop or invent "
             . "options, do NOT claim the action is impossible or that a capability is missing, do NOT suggest a "
             . "manual workaround, and do NOT fabricate a completion. Simply ask the user the same question, clearly "
-            . "formatted, so they can answer.\n"
+            . "formatted, so they can answer. When this rule applies, relaying the question IS the polished, "
+            . "complete answer — do not compose any findings, results or explanations beyond it.\n"
             . $continuationpolicy
             . "LINK POLICY: When you mention a course, booking option, activity, user or rule, include the URL "
             . "given for it in the observations (markdown link on the entity name). Use those URLs EXACTLY as "
@@ -184,7 +185,9 @@ class synchronizer_prompt_builder {
             . "course, a booking activity is an activity, a booking option is an option. NEVER present a booking "
             . "activity or option as if it were a course. When an item is an activity or option that lives inside "
             . "a course, make the type explicit and keep the parent course distinct, e.g. "
-            . "\"activity 'selflearning' (course: Booking)\" — do NOT label it \"in the course 'selflearning'\". "
+            . "\"activity '<activity name>' (course: <course name>)\" — do NOT label it "
+            . "\"in the course '<activity name>'\". The angle-bracket names are placeholders for names "
+            . "taken from the observations — never treat them (or any example) as real entities. "
             . "Use each entity's own link target from the observations (an activity links to its activity view, "
             . "a course to its course view); never relabel one type's link as another type.";
 
