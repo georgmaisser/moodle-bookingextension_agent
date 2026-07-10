@@ -231,7 +231,16 @@ class executor implements agent_executor {
             // course family's legacy pattern, eagerly inside execute()).
             if (!$skill->is_read_only() && $this->skill_requires_module_target($skill)) {
                 $opcontext = context::instance_by_id($operatingcontextid, IGNORE_MISSING);
-                if (!($opcontext instanceof context_module)) {
+                // Selector-aware refinement: a CONDITIONAL module target (e.g. rule_targeted_skill,
+                // whose rule may live at the SYSTEM context) only demands a module operating context
+                // when its selector actually named a module for THIS input. Unconditional module
+                // targets (module_targeted_skill always returns a module selector, even empty) keep
+                // the strict fail-closed behaviour.
+                $inputselector = $skill->get_target_selector($input);
+                $demandsmodule = $inputselector !== null
+                    && method_exists($inputselector, 'is_module_target')
+                    && $inputselector->is_module_target();
+                if (!($opcontext instanceof context_module) && $demandsmodule) {
                     $results[] = [
                         'status' => 'error',
                         'detail' => get_string('agent_target_not_resolved_to_module', 'bookingextension_agent'),
