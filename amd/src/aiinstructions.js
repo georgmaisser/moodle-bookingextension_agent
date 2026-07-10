@@ -564,6 +564,12 @@ const appendMessageHtml = (role, html, meta = null) => {
     return div;
 };
 
+// Opens the initially collapsed side preview pane. Rebound by initResizableLayout();
+// the default is a no-op so preview writes stay safe before layout init.
+let expandPreviewPane = () => {
+    // No-op until the resizable layout is initialized.
+};
+
 /**
  * Replace content of the dedicated side preview panel.
  *
@@ -580,6 +586,9 @@ const setSidePreviewHtml = async (html, js) => {
     const preview = document.getElementById('booking-ai-side-preview');
     if (!preview) {
         return;
+    }
+    if (String(html || '').trim() !== '') {
+        expandPreviewPane();
     }
     const jsSource = String(js || '').trim();
     if (jsSource === '') {
@@ -725,18 +734,41 @@ const initResizableLayout = () => {
         splitter.setAttribute('aria-valuenow', String(Math.round(safePreview)));
     };
 
+    // Keep the collapsed track list structurally identical to applyColumns() output
+    // (minmax/…/minmax) so the CSS grid-template-columns transition can interpolate.
+    const applyCollapsedColumns = () => {
+        layout.style.gridTemplateColumns = 'minmax(0, 100%) 10px minmax(0, 0%)';
+        splitter.setAttribute('aria-valuenow', '0');
+    };
+
     const restoreOrDefault = () => {
         if (!desktopMedia.matches) {
             layout.style.gridTemplateColumns = '';
+            return;
+        }
+        if (layout.classList.contains('preview-collapsed')) {
+            applyCollapsedColumns();
             return;
         }
         const stored = Number(window.localStorage.getItem(storageKey) || 42);
         applyColumns(stored);
     };
 
+    expandPreviewPane = () => {
+        if (!layout.classList.contains('preview-collapsed')) {
+            return;
+        }
+        layout.classList.remove('preview-collapsed');
+        restoreOrDefault();
+    };
+
     restoreOrDefault();
 
     let dragging = false;
+
+    // Below this width the drag snaps to the fully collapsed state: the pane must be
+    // completely closable, not stuck at the resize minimum of applyColumns().
+    const collapseSnapPercent = 10;
 
     const onPointerMove = (clientX) => {
         if (!dragging || !desktopMedia.matches) {
@@ -747,6 +779,12 @@ const initResizableLayout = () => {
             return;
         }
         const previewPercent = ((rect.right - clientX) / rect.width) * 100;
+        if (previewPercent < collapseSnapPercent) {
+            layout.classList.add('preview-collapsed');
+            applyCollapsedColumns();
+            return;
+        }
+        layout.classList.remove('preview-collapsed');
         applyColumns(previewPercent);
         window.localStorage.setItem(storageKey, String(Math.min(90, Math.max(20, previewPercent))));
     };
@@ -777,6 +815,8 @@ const initResizableLayout = () => {
             return;
         }
         dragging = true;
+        // Manual drag opens a still-collapsed pane (transition is suppressed while resizing).
+        layout.classList.remove('preview-collapsed');
         document.body.classList.add('booking-ai-resizing');
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', stopDragging);

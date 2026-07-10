@@ -77,6 +77,18 @@
     display: grid;
     grid-template-columns: minmax(0, 58%) 10px minmax(0, 42%);
     align-items: stretch;
+    transition: grid-template-columns 0.35s ease;
+}
+
+/* Preview pane starts collapsed (splitter at the far right) until the first
+   preview arrives; browsers without grid-template-columns interpolation
+   simply snap open instead of animating. */
+#booking-ai-wrapper .booking-ai-body-layout.preview-collapsed {
+    grid-template-columns: minmax(0, 100%) 10px minmax(0, 0%);
+}
+
+body.booking-ai-resizing #booking-ai-wrapper .booking-ai-body-layout {
+    transition: none;
 }
 
 #booking-ai-wrapper .booking-ai-main-pane {
@@ -105,6 +117,7 @@
 #booking-ai-wrapper .booking-ai-preview-pane {
     min-width: 0;
     background: #fcfcfc;
+    overflow: hidden;
 }
 
 #booking-ai-wrapper .booking-ai-preview-header {
