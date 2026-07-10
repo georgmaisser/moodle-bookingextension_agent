@@ -717,6 +717,7 @@ $string['claudeconnect_oauth_step_open'] = 'In Claude (claude.ai), open Settings
 $string['claudeconnect_oauth_step_paste'] = 'Paste the MCP server URL shown above.';
 $string['claudeconnect_server_url_hint'] = 'This is the address you add to Claude. Both connection methods use it.';
 $string['claudeconnect_server_url_label'] = 'MCP server URL (the same for both methods)';
+$string['claudeconnect_skills_note'] = 'Good to know: the Booking Wizard\'s own skills are exposed to Claude automatically — you do not configure anything for them (they are delivered through a plugin hook, not through a web service). The dedicated "MCP server" web service is only for optionally publishing additional, generic Moodle web-service functions as tools; leaving it empty is fine.';
 $string['claudeconnect_title'] = 'Connect with Claude';
 $string['claudeconnect_token_note'] = 'Treat the token like a password: it grants access under your account. You can delete it at any time to revoke access.';
 $string['claudeconnect_token_notready'] = 'Token authentication is not available yet (red cross above). Enable it, then reload this page.';
