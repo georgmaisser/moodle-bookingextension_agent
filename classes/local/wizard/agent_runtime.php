@@ -46,8 +46,15 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
  * Owns only high-level runtime orchestration.
  */
 class agent_runtime {
-    /** Maximum agent loop steps before bailing out. */
-    public const MAX_LOOP_STEPS = 6;
+    /**
+     * Maximum agent loop steps per run_loop frame before bailing out.
+     *
+     * Sized so a 5-step series (thread 558) or the 3-mutation course-authoring chain
+     * (create_course → scaffold_content → create_selflearning_option) still has headroom
+     * for one framework retry + the terminal step; the turn-global cap below is what
+     * bounds runaway recursion.
+     */
+    public const MAX_LOOP_STEPS = 8;
 
     /**
      * Maximum planner loop steps per USER TURN, across all nested frames.
