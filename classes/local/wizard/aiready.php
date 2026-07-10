@@ -400,6 +400,15 @@ class aiready {
             'can_store_key' => $canrequesttrial && ($wunderbyteprovinstalled || $standardprovinstalled),
             'can_toggle_debug' => $isplatformadmin,
             'provider_manage_available' => ($canrequesttrial && $wunderbyteprovinstalled) || $isplatformadmin,
+            // Gear entry "Connect with Claude": shown to users who may connect an external AI client
+            // over MCP (mcpaccess; admins pass implicitly). The linked page checks the tool_oauthmcp
+            // prerequisites and explains the OAuth 2.1 handshake, so it is useful even before the
+            // plugin is installed/configured.
+            'can_connect_claude' => has_capability(
+                'bookingextension/agent:mcpaccess',
+                context_system::instance(),
+                $this->userid
+            ),
             'provider_configured' => $wbinstanceactive,
             // Active Wunderbyte provider but no full access (not on the Wunderbyte LLM and no PRO
             // licence) → show the green "active" pill plus a "Get Pro" upgrade link to the store.

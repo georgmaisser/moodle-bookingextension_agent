@@ -97,6 +97,11 @@
                         <button type="button" id="booking-ai-debug-refresh" class="btn btn-outline-secondary btn-sm btn-block mb-2 {{^debug_mode}}d-none{{/debug_mode}}">
                             <i class="fa fa-search mr-1" aria-hidden="true"></i>{{#str}}agent_debug_logs, bookingextension_agent{{/str}}
                         </button>
+                        {{#can_connect_claude}}
+                        <a class="btn btn-outline-primary btn-sm btn-block mb-2" href="{{wwwroot}}/mod/booking/bookingextension/agent/connect_claude.php">
+                            <i class="fa fa-plug mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_menu, bookingextension_agent{{/str}}
+                        </a>
+                        {{/can_connect_claude}}
                         <a class="small" href="{{wwwroot}}/admin/settings.php?section=bookingextension_agent_aisettings">{{#str}}agent_manage_settings_link, bookingextension_agent{{/str}}</a>
                     </div>
                 </div>
@@ -138,7 +143,7 @@
         {{/provider_configure_available}}
 
         <div class="card-body p-0">
-            <div class="booking-ai-body-layout" id="booking-ai-body-layout">
+            <div class="booking-ai-body-layout preview-collapsed" id="booking-ai-body-layout">
                 <div class="booking-ai-main-pane" id="booking-ai-main-pane">
                     {{! Message history }}
                     <div id="booking-ai-messages" class="booking-ai-messages p-3" style="min-height:300px; max-height:500px; overflow-y:auto;">
