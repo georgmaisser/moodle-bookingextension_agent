@@ -398,6 +398,15 @@ class create_course_skill extends core_skill_base implements
         }
 
         if ($categoryquery !== '') {
+            // Numeric queries are category ids — the clarification lists them as "Name (id N)",
+            // so "2" or "id 2" must resolve (thread 585: "Id 2" bounced although the reply
+            // itself offered answering by id).
+            if (preg_match('/^(?:id\s*)?(\d+)$/i', $categoryquery, $idmatch)) {
+                $categoryid = (int)$idmatch[1];
+                if (isset($writable[$categoryid])) {
+                    return ['id' => $categoryid, 'name' => (string)$writable[$categoryid]];
+                }
+            }
             $matches = [];
             $needle = \core_text::strtolower($categoryquery);
             foreach ($writable as $id => $name) {
@@ -437,10 +446,13 @@ class create_course_skill extends core_skill_base implements
      * @return string
      */
     private function format_category_candidates(array $categories): string {
-        $names = array_values(array_map('strval', $categories));
-        $shown = array_slice($names, 0, self::MAX_CATEGORY_CANDIDATES);
-        $suffix = count($names) > self::MAX_CATEGORY_CANDIDATES
-            ? ' (and ' . (count($names) - self::MAX_CATEGORY_CANDIDATES) . ' more)'
+        $entries = [];
+        foreach ($categories as $id => $name) {
+            $entries[] = (string)$name . ' (id ' . (int)$id . ')';
+        }
+        $shown = array_slice($entries, 0, self::MAX_CATEGORY_CANDIDATES);
+        $suffix = count($entries) > self::MAX_CATEGORY_CANDIDATES
+            ? ' (and ' . (count($entries) - self::MAX_CATEGORY_CANDIDATES) . ' more)'
             : '';
         return 'Available: ' . implode('; ', $shown) . $suffix . '.';
     }

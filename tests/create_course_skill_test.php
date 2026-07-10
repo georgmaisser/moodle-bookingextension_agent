@@ -110,6 +110,28 @@ final class create_course_skill_test extends advanced_testcase {
     }
 
     /**
+     * The clarification offers "Name (id N)" answers, so a bare or prefixed numeric
+     * categoryquery must resolve by id (thread 585: "Id 2" bounced).
+     */
+    public function test_numeric_categoryquery_resolves_by_id(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        $gen = $this->getDataGenerator();
+        $gen->create_category(['name' => 'Wikingerkategorie']);
+        $target = $gen->create_category(['name' => 'Segelkategorie']);
+
+        $dto = (new create_course_skill())->preflight([
+            'fullname' => 'Das Leben der Wikinger',
+            'categoryquery' => 'Id ' . (int)$target->id,
+        ], (int)context_system::instance()->id, (int)$USER->id);
+
+        $this->assertSame('pass', $dto->to_array()['status'], json_encode($dto->issues));
+        $this->assertSame((int)$target->id, (int)$dto->preparedinput['categoryid']);
+    }
+
+    /**
      * A duplicate full name soft-blocks once and passes with the override token — the
      * create_option duplicate-title convention.
      */
