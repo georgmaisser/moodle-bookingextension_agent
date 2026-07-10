@@ -267,6 +267,9 @@ class prompt_policy_builder {
             . " missing required fields -> clarification, mutating -> confirmation_request, read-only -> skill_call.\n"
             . "- Treat completed_commands and completed_observations as authoritative execution evidence.\n"
             . "- Do not re-emit a command when the same outcome is already completed.\n"
+            . "- A completed command does NOT cover a request adding a NEW scope or target (a named"
+            . " activity, course, option or person the completed input did not contain):"
+            . " that is a NEW action — emit the command again including the new scope.\n"
             . "- Prefer finishing with sufficient instead of repeating equivalent tool calls.";
 
         // CRITICAL: Apply re-call prevention ONLY to later planner phases, not to final synthesis.
