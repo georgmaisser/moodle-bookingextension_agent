@@ -624,6 +624,38 @@ class agent_decision_service {
             $readonlyqueueids[] = (string)($queued['queue_item_id'] ?? '');
         }
 
+        // Exactly-once cursor for confirm CONTINUATION frames (audit 554): a nested planner
+        // frame spawned by confirm_run_service exists solely to advance the already-confirmed
+        // plan. A mutating command in such a frame is legitimate only while un-consumed
+        // placeholders back it (or the frame declares a NEW plan via planned_steps). Without
+        // either, it is a re-derive of an already-executed step — thread 554 enqueued Jour 3-5
+        // a second time exactly this way — and is refused instead of enqueued.
+        $iscontinuation = !empty($this->store->get_thread_metadata_value($threadid, '_confirm_continuation'));
+        if (
+            $iscontinuation
+            && !empty($mutatingcommands)
+            && !$hadplaceholders
+            && empty($plannedsteps)
+        ) {
+            return [
+                'response_type' => 'clarification',
+                'message' => localized_string_service::get(
+                    'ai_plan_completed_mutation_blocked',
+                    'bookingextension_agent',
+                    null,
+                    $outputlang
+                ),
+                'commands' => [],
+                'queue_item_ids' => [],
+                'ambiguities' => [],
+                'errors' => [],
+                'issue_codes' => array_values(array_unique(array_merge(
+                    (array)($result['issue_codes'] ?? []),
+                    ['PLAN_COMPLETED_MUTATION_BLOCKED']
+                ))),
+            ];
+        }
+
         $firstmutatingenqueued = false;
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
             // Consume one planned placeholder when a real mutating skill is enqueued for a

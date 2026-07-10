@@ -365,6 +365,7 @@ $string['ai_optiontype_help_next_step_intent'] = 'I am waiting for your type sel
 $string['ai_pdf_extraction_unavailable'] = 'PDF text extraction is not available on this server.';
 $string['ai_pdf_truncated'] = 'Document was truncated to the first ~{$a} characters.';
 $string['ai_pending_intent_resolution_required'] = 'You still have a pending action ({$a->action}, code {$a->code}). Please confirm it first, or explicitly discard it before starting a new request.';
+$string['ai_plan_completed_mutation_blocked'] = 'The planned steps of this request are already completed, so no additional change was made. If you want something else done, please say so explicitly.';
 $string['ai_please_clarify'] = 'Please clarify your request so I can continue.';
 $string['ai_preflight_retry_hint'] = 'The safety checks for this step could not be completed in time, so nothing was executed. Please send your request again.';
 $string['ai_preview_latest_option'] = 'Here is the most recently created or updated booking option.';

@@ -568,9 +568,17 @@ class mcp_execution_service {
             . $queueitemid . ':' . microtime(true));
         $runid = $this->store->create_run($threadid, $userid, $contextid, $idempotencykey, [$command]);
         $this->store->update_run_status($runid, 'running');
-        // Best-effort slot acquisition (parity with the chat confirm path, which
-        // also proceeds when the slot is contested).
-        $queuesvc->try_mark_running($threadid, $queueitemid);
+        // ENFORCED slot acquisition (exactly-once, parity with the chat confirm path):
+        // reap crash corpses first, then hard-skip when another frame holds the slot —
+        // executing on a contested claim is how thread 554 double-created options.
+        $queuesvc->fail_stale_running_items($threadid);
+        if (!$queuesvc->try_mark_running($threadid, $queueitemid)) {
+            $this->store->update_run_status($runid, 'failed');
+            return $this->error_result(
+                'This action is already being executed. Please wait for it to finish, then check the result.',
+                ['MCP_RUNNING_SLOT_OCCUPIED']
+            );
+        }
 
         $exec = new executor($this->registry, $this->store, $this->authz);
         $exec->set_channel('mcp');

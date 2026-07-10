@@ -129,6 +129,9 @@ class confirm_run_service {
         $queuesvc = new queue_manager($this->store);
         // Stale blocked_confirmation items are always expired (no admin toggle).
         $queuesvc->fail_expired_blocked_items($threadid);
+        // Reap crash corpses BEFORE the enforced running claim below — a stranded 'running'
+        // item would otherwise block every further confirm on this thread forever.
+        $queuesvc->fail_stale_running_items($threadid);
 
         $target = $this->resolve_run_target(
             $queuesvc,
@@ -186,11 +189,20 @@ class confirm_run_service {
         $this->store->update_run_status($runid, 'running');
         try {
             if (!$queuesvc->try_mark_running($threadid, $activequeueitemid)) {
-                $this->queuetransitionsvc->to_ready(
-                    $queuesvc,
+                // ENFORCED claim (exactly-once, audit 554 fix 2): losing the atomic running
+                // claim means another frame holds the slot — hard skip, never execute. The
+                // previous behaviour (reset to_ready and execute anyway) both double-executed
+                // the item AND re-armed it for the other driver.
+                $this->store->update_run_status($runid, 'failed');
+                return $this->build_error_payload(
                     $threadid,
-                    $activequeueitemid,
-                    'RUNNING_SLOT_OCCUPIED'
+                    $contextid,
+                    $cmid,
+                    $userid,
+                    'This action is already being executed. Please wait for it to finish.',
+                    ['RUNNING_SLOT_OCCUPIED'],
+                    ['running claim lost: another frame holds the execution slot for this thread.'],
+                    $activequeueitemid
                 );
             }
 
@@ -326,7 +338,16 @@ class confirm_run_service {
                     );
                 }
 
-                $finalresult = $runtime->run_loop($threadid, $contextid, $userid);
+                // Mark the nested planner frame as a confirm CONTINUATION: it exists solely to
+                // advance the already-confirmed plan. The decision service uses this flag to
+                // refuse NEW mutating enqueues once the plan's placeholders are exhausted —
+                // the re-derived duplicate enqueues of thread 554 all happened in such frames.
+                $this->store->set_thread_metadata_value($threadid, '_confirm_continuation', 1);
+                try {
+                    $finalresult = $runtime->run_loop($threadid, $contextid, $userid);
+                } finally {
+                    $this->store->set_thread_metadata_value($threadid, '_confirm_continuation', null);
+                }
             } else {
                 $finalresult = [
                     'response_type' => 'sufficient',

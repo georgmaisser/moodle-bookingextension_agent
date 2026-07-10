@@ -347,6 +347,7 @@ $string['ai_optiontype_help_next_step_intent'] = 'Ich warte jetzt auf Ihre Typ-A
 $string['ai_pdf_extraction_unavailable'] = 'PDF-Textextraktion ist auf diesem Server nicht verfügbar.';
 $string['ai_pdf_truncated'] = 'Dokument wurde auf die ersten ~{$a} Zeichen gekürzt.';
 $string['ai_pending_intent_resolution_required'] = 'Es gibt noch eine ausstehende Aktion ({$a->action}, Code {$a->code}). Bitte bestätigen Sie diese zuerst oder verwerfen Sie sie explizit, bevor wir mit einer neuen Anfrage fortfahren.';
+$string['ai_plan_completed_mutation_blocked'] = 'Die geplanten Schritte dieser Anfrage sind bereits abgeschlossen; es wurde keine zusätzliche Änderung vorgenommen. Wenn Sie etwas Weiteres möchten, sagen Sie es bitte explizit.';
 $string['ai_please_clarify'] = 'Bitte präzisieren Sie Ihre Anfrage, damit ich fortfahren kann.';
 $string['ai_preflight_retry_hint'] = 'Die Vorprüfungen für diesen Schritt konnten nicht rechtzeitig abgeschlossen werden; es wurde nichts ausgeführt. Bitte senden Sie Ihre Anfrage noch einmal.';
 $string['ai_preview_latest_option'] = 'Hier ist die zuletzt erstellte oder aktualisierte Buchungsoption.';

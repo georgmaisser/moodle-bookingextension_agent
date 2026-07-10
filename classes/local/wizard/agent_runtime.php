@@ -49,6 +49,18 @@ class agent_runtime {
     /** Maximum agent loop steps before bailing out. */
     public const MAX_LOOP_STEPS = 6;
 
+    /**
+     * Maximum planner loop steps per USER TURN, across all nested frames.
+     *
+     * MAX_LOOP_STEPS bounds one run_loop frame — but confirm_run_service re-enters run_loop
+     * per confirmed step, and each nested frame used to get a fresh budget: thread 554 ran 8
+     * selector turns for one user message. This budget is shared by every frame of the same
+     * user turn (tracked in thread metadata, reset when a new user message arrives), so a
+     * runaway confirm recursion is bounded turn-globally. Sized for a legitimate 5-step
+     * series (≈2 steps per confirm frame) with headroom.
+     */
+    public const TURN_LOOP_BUDGET = 18;
+
     /** Allowed final response_type values for persisted assistant messages. */
     private const ALLOWED_FINAL_RESPONSE_TYPES = [
         'skill_call',
@@ -188,10 +200,59 @@ class agent_runtime {
      */
     public function run_loop(int $threadid, int $contextid, int $userid, int $maxsteps = 0): array {
         $limit = ($maxsteps > 0) ? $maxsteps : self::MAX_LOOP_STEPS;
+
+        // Turn-global budget: every frame of the same user turn (including confirm-nested
+        // re-entries) draws from ONE shared pool, so the per-frame bound cannot be defeated
+        // by recursion (thread 554: 8 selector turns despite MAX_LOOP_STEPS = 6).
+        $turnremaining = $this->acquire_turn_loop_budget($threadid);
+        if ($turnremaining <= 0) {
+            $exhausted = [
+                'response_type' => 'error',
+                'message' => '',
+                'commands' => [],
+                'issue_codes' => ['BUDGET_EXCEEDED'],
+                'loop_step' => 0,
+                'loop_max_steps' => 0,
+            ];
+            return $this->finalize_terminal_result($threadid, $exhausted);
+        }
+        $limit = max(1, min($limit, $turnremaining));
+
         $state = agent_state::make($limit);
         $frameworkretrycounts = [];
+        $stepsused = 0;
 
+        try {
+            return $this->run_loop_frame($threadid, $contextid, $userid, $limit, $state, $frameworkretrycounts, $stepsused);
+        } finally {
+            $this->consume_turn_loop_budget($threadid, $stepsused);
+        }
+    }
+
+    /**
+     * The actual planner loop of one frame (extracted so the turn-budget bookkeeping in
+     * run_loop() can wrap every exit path in one finally).
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param int $limit Steps this frame may use.
+     * @param agent_state $state
+     * @param array $frameworkretrycounts
+     * @param int $stepsused Out: steps actually consumed by this frame.
+     * @return array
+     */
+    private function run_loop_frame(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        int $limit,
+        agent_state $state,
+        array $frameworkretrycounts,
+        int &$stepsused
+    ): array {
         for ($step = 0; $step < $limit; $step++) {
+            $stepsused = $step + 1;
             $result = $this->run_internal($threadid, $contextid, $userid, $state->get_observations(), $state);
             $result['loop_step'] = $step + 1;
             $result['loop_max_steps'] = $limit;
@@ -268,6 +329,55 @@ class agent_runtime {
         }
 
         return $this->finalize_and_persist_budget_exceeded($threadid, [], $state, $limit);
+    }
+
+    /**
+     * Remaining turn-global loop budget, resetting when a new user message opened a new turn.
+     *
+     * @param int $threadid
+     * @return int
+     */
+    private function acquire_turn_loop_budget(int $threadid): int {
+        $latestusermsgid = $this->latest_user_message_id($threadid);
+        $stateraw = $this->store->get_thread_metadata_value($threadid, '_turn_loop_budget');
+        $state = is_array($stateraw) ? $stateraw : [];
+        if ((int)($state['msgid'] ?? -1) !== $latestusermsgid) {
+            $state = ['msgid' => $latestusermsgid, 'remaining' => self::TURN_LOOP_BUDGET];
+            $this->store->set_thread_metadata_value($threadid, '_turn_loop_budget', $state);
+        }
+        return (int)($state['remaining'] ?? self::TURN_LOOP_BUDGET);
+    }
+
+    /**
+     * Deduct the steps a frame consumed from the shared turn budget.
+     *
+     * @param int $threadid
+     * @param int $steps
+     */
+    private function consume_turn_loop_budget(int $threadid, int $steps): void {
+        if ($steps <= 0) {
+            return;
+        }
+        $stateraw = $this->store->get_thread_metadata_value($threadid, '_turn_loop_budget');
+        if (!is_array($stateraw)) {
+            return;
+        }
+        $stateraw['remaining'] = max(0, (int)($stateraw['remaining'] ?? 0) - $steps);
+        $this->store->set_thread_metadata_value($threadid, '_turn_loop_budget', $stateraw);
+    }
+
+    /**
+     * Id of the thread's latest user message — the marker of the current user turn.
+     *
+     * @param int $threadid
+     * @return int
+     */
+    private function latest_user_message_id(int $threadid): int {
+        global $DB;
+        return (int)$DB->get_field_sql(
+            "SELECT MAX(id) FROM {bx_agent_ai_messages} WHERE threadid = :threadid AND role = 'user'",
+            ['threadid' => $threadid]
+        );
     }
 
     /**

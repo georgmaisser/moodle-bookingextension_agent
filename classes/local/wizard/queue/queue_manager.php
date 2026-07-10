@@ -610,6 +610,47 @@ class queue_manager {
         return $changed;
     }
 
+    /** @var int Seconds after which a 'running' queue item counts as a crash corpse. */
+    private const STALE_RUNNING_MAX_AGE_SECONDS = 600;
+
+    /**
+     * Fail 'running' queue items whose claim is older than the stale threshold.
+     *
+     * A Throwable between the running claim and the terminal transition strands a 'running'
+     * corpse. Once the claim is ENFORCED (a lost try_mark_running claim hard-skips execution),
+     * such a corpse would block every further confirm on the thread — reaping stale corpses
+     * first is therefore the precondition for claim enforcement (audit 554 addendum, fix 2).
+     *
+     * @param int $threadid
+     * @return int Number of reaped items.
+     */
+    public function fail_stale_running_items(int $threadid): int {
+        $changed = 0;
+        $now = time();
+        $items = $this->get_queue_items($threadid);
+        foreach ($items as &$item) {
+            if (!is_array($item) || (string)($item['status'] ?? '') !== 'running') {
+                continue;
+            }
+            $updatedat = (int)($item['updated_at'] ?? 0);
+            if ($updatedat > 0 && ($now - $updatedat) < self::STALE_RUNNING_MAX_AGE_SECONDS) {
+                continue;
+            }
+            $item['status'] = queue_status_policy::failed_status();
+            $item['issue_codes'] = ['RUNNING_REAPED'];
+            $item['error_class'] = 'stale_running';
+            $item['last_error_message'] = 'running claim exceeded the stale threshold (crash corpse reaped).';
+            $item['updated_at'] = $now;
+            $changed++;
+        }
+        unset($item);
+
+        if ($changed > 0) {
+            $this->save_queue_items($threadid, $items);
+        }
+        return $changed;
+    }
+
     /**
      * Enqueue a planned placeholder for a future multi-step skill.
      *
