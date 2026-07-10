@@ -52,6 +52,12 @@ class llm_call_service {
     /** @var conversation_store */
     private conversation_store $store;
 
+    /** @var callable|null TEST-ONLY scripted responder for text actions; null (real core_ai path) in production. */
+    private static $testresponder = null;
+
+    /** @var array|null TEST-ONLY fixed embedding vector for the discovery phase; null in production. */
+    private static ?array $testembedding = null;
+
     /**
      * Constructor.
      *
@@ -59,6 +65,38 @@ class llm_call_service {
      */
     public function __construct(conversation_store $store) {
         $this->store = $store;
+    }
+
+    /**
+     * Install a scripted responder so run_loop (selector/constructor/synchronizer) runs
+     * deterministically without a live LLM.
+     *
+     * TEST-ONLY. Production never calls this, so the static stays null and invoke_for_context()
+     * always takes the real core_ai path. Installing it outside a test run is a coding error.
+     * The responder receives ($actionclass, $prompt) and returns the raw generated content the
+     * phase would otherwise receive from the provider.
+     *
+     * @param callable|null $responder
+     * @return void
+     */
+    public static function set_test_responder(?callable $responder): void {
+        if ($responder !== null && !defined('PHPUNIT_TEST') && !defined('BEHAT_SITE_RUNNING')) {
+            throw new \coding_exception('llm_call_service test responder may only be installed in tests.');
+        }
+        self::$testresponder = $responder;
+    }
+
+    /**
+     * Install a fixed embedding vector for the discovery phase in tests (see set_test_responder).
+     *
+     * @param array|null $vector
+     * @return void
+     */
+    public static function set_test_embedding(?array $vector): void {
+        if ($vector !== null && !defined('PHPUNIT_TEST') && !defined('BEHAT_SITE_RUNNING')) {
+            throw new \coding_exception('llm_call_service test embedding may only be installed in tests.');
+        }
+        self::$testembedding = $vector;
     }
 
     /**
@@ -84,6 +122,30 @@ class llm_call_service {
         string $prompt,
         string $actionclass = generate_text::class
     ): array {
+        // TEST-ONLY deterministic path: return scripted content instead of calling the provider,
+        // so run_loop (selector/constructor/synchronizer) can be driven without a live LLM.
+        if (self::$testresponder !== null) {
+            $scripted = (string)(self::$testresponder)($actionclass, $prompt);
+            llm_debug_logger::log_exchange(
+                $this->store,
+                $threadid,
+                (int)$contextid,
+                $userid,
+                $source,
+                $prompt,
+                $scripted,
+                true,
+                ''
+            );
+            return [
+                'success' => true,
+                'rawcontent' => $scripted,
+                'errormessage' => '',
+                'errorcode' => 0,
+                'errorname' => '',
+            ];
+        }
+
         $rawcontent = '';
         $errormessage = '';
         $errorcode = 0;
@@ -153,6 +215,20 @@ class llm_call_service {
         string $inputtext,
         ?int $dimensions = null
     ): array {
+        // TEST-ONLY deterministic path: a fixed embedding so the discovery phase runs without a
+        // live provider (the selector output is scripted separately, so the exact vector is inert).
+        if (self::$testembedding !== null) {
+            return [
+                'success' => true,
+                'embedding' => self::$testembedding,
+                'model' => 'test-embedding',
+                'dimensions' => count(self::$testembedding),
+                'errormessage' => '',
+                'errorcode' => 0,
+                'errorname' => '',
+            ];
+        }
+
         $embedding = [];
         $model = '';
         $useddimensions = 0;
