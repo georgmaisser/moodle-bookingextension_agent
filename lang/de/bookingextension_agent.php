@@ -40,6 +40,7 @@ $string['agent:skill_core_search_users'] = 'Benutzer durchsuchen';
 $string['agent:skill_course_add_activity'] = 'Aktivität oder Material zu einem Kurs hinzufügen';
 $string['agent:skill_course_add_quiz'] = 'Test erstellen und Fragen hinzufügen';
 $string['agent:skill_course_analyze_course_structure'] = 'Kursstruktur analysieren (Abschnitte und Aktivitäten)';
+$string['agent:skill_course_create_course'] = 'Neuen Moodle-Kurs erstellen';
 $string['agent:skill_course_diagnose_user_in_course'] = 'Situation eines Users in einem Kurs diagnostizieren';
 $string['agent:skill_course_search_courses'] = 'Kurse durchsuchen';
 $string['agent:skill_course_update_activity'] = 'Aktivität oder Material in einem Kurs bearbeiten';

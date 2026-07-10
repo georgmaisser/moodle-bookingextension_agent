@@ -138,6 +138,11 @@ $teacherskills = [
 ];
 
 $managerskills = [
+    // Creates whole Moodle courses — classic manager/coursecreator territory, so the skill
+    // capability is manager-only (fail-closed; Gate 2 additionally requires
+    // moodle/course:create at the resolved category). Declared at CONTEXT_SYSTEM because the
+    // category is resolved in preflight, not from the thread context.
+    'course_create_course' => CONTEXT_SYSTEM,
     // Rebuilds the site-global skill-catalog embeddings (cost-bearing) — manager/admin only,
     // not teacher-grantable (audit CAP-03). Execution additionally requires moodle/site:config
     // via the skill's native capability (Gate 2).

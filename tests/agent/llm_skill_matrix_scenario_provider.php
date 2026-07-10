@@ -953,6 +953,24 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'course.create_course' => [
+                // The default test site has exactly one writable category (Miscellaneous), so
+                // the category resolves silently and the create executes without a clarification.
+                'prompt' => 'Create a new Moodle course named "Vikings {{batch_label}}".',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
         ];
     }
 }
