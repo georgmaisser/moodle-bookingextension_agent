@@ -85,6 +85,7 @@ class mcp_call_tool extends external_api {
      * @param string $toolname
      * @param string $argsjson
      * @param string $idempotencykey
+     * @param string $sessionid MCP session id; scopes the confirm thread (empty = shared thread).
      * @return array
      */
     public static function execute(

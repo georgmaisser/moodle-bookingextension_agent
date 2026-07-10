@@ -139,7 +139,7 @@ class search_users_skill extends core_skill_base implements
                     '- This skill already returns the matched user\'s enrolled courses and assigned roles,',
                     '  so use it before asking for course participation or permission context about a user.',
                     '- Execute this skill and wait for the observation before proceeding to the next step.',
-                    '- Return a short preview list of matching users including userid, fullname, profile URL,',
+                    '- Return a short preview list of matching users including user id, full name, profile URL,',
                     '  enrolled courses, and roles when available.',
                     '- If more than one user matches, ask the user to clarify which one they mean.',
                 ],

@@ -135,11 +135,11 @@ class skill_selection_debug_service {
      *
      * Pure (no DB/provider) so it is unit-testable without a live embedding provider.
      *
-     * @param array<int,array<string,mixed>> $embedding      Embedding top-k rows (skill, score, anchor...).
-     * @param array<string,array<string,mixed>> $lexicalbyskill Lexical info keyed by skill.
-     * @param array<string,bool> $poolskills                  Skill names the live planner ranks over.
+     * @param array $embedding Embedding top-k rows (skill, score, anchor...).
+     * @param array $lexicalbyskill Lexical info keyed by skill.
+     * @param array $poolskills Skill names the live planner ranks over.
      * @param int $topk
-     * @return array<int,array<string,mixed>>
+     * @return array
      */
     public function rank_simulation_candidates(
         array $embedding,

@@ -201,6 +201,7 @@ class mcp_execution_service {
      * @param int $contextid Ambient context id.
      * @param int $userid Acting user id.
      * @param string $idempotencykey Client-supplied per-request key; retries reuse it.
+     * @param string $sessionid MCP session id; scopes the confirm thread (empty = default session).
      * @return array
      */
     public function call_tool(
@@ -468,6 +469,7 @@ class mcp_execution_service {
      * @param int $contextid
      * @param int $userid
      * @param bool $checkratelimit False when the caller (call_tool routing) already counted this request.
+     * @param string $sessionid MCP session id; scopes the confirm thread (empty = default session).
      * @return array
      */
     public function confirm_tool(
@@ -642,6 +644,7 @@ class mcp_execution_service {
      * @param int $contextid
      * @param int $userid
      * @param string $idempotencykey
+     * @param string $sessionid MCP session id; scopes the confirm thread (empty = default session).
      * @return array
      */
     private function execute_now(

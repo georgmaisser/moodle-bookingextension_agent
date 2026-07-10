@@ -186,7 +186,8 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option') ?? $this->extract_command($result3, 'booking.update_option');
+        $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option')
+            ?? $this->extract_command($result3, 'booking.update_option');
         if (
             $visiblecommand === null
             || empty($visiblecommand['input'])
@@ -199,7 +200,8 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $store,
                 $runtime
             );
-            $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option') ?? $this->extract_command($result3, 'booking.update_option');
+            $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option')
+                ?? $this->extract_command($result3, 'booking.update_option');
         }
 
         // Step 3 must go through the AGENT confirmation flow (no direct-exec fallback, which would mask

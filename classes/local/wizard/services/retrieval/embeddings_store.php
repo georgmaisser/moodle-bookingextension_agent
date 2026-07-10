@@ -33,7 +33,7 @@ namespace bookingextension_agent\local\wizard\services\retrieval;
  * Design rules this contract encodes (see the retrieval-foundation blueprint):
  *  - {@see search_top_k()} is THE public retrieval method; the cosine-vs-ANN choice lives behind it
  *    per area, so a server-side ANN implementation can be swapped in without touching any caller.
- *  - Every row/query carries an {@see \...\retrieval_filter}: docs/skills pass null (global); site
+ *  - Every row/query carries a retrieval_filter: docs/skills pass null (global); site
  *    content narrows by allowed context ids. Resolving the filter is NOT a permission grant — the
  *    caller still applies the authoritative per-document access check.
  *  - Rebuilds are atomic via a generation swap: write a new generation, then commit it; readers only

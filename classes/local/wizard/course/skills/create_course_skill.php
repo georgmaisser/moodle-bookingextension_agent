@@ -233,7 +233,7 @@ class create_course_skill extends core_skill_base implements
                 'guidance' => [
                     '- course.create_course creates the EMPTY course container only. Plan content'
                         . ' (course.scaffold_course_content / add_activity / add_quiz) and bookability'
-                        . ' (mod_booking create skill with linkedcoursequery) as separate planned steps.',
+                        . ' (via mod_booking.create_option with linkedcoursequery) as separate planned steps.',
                     '- Pass categoryquery ONLY when the user named a category; the system otherwise'
                         . ' resolves or asks. Never invent category names.',
                     '- Compose a 1-3 sentence summary from the user\'s topic when none was given.',
@@ -433,7 +433,7 @@ class create_course_skill extends core_skill_base implements
     /**
      * Format up to MAX_CATEGORY_CANDIDATES category names for a clarification question.
      *
-     * @param array<int,string> $categories id => hierarchical name
+     * @param array $categories id => hierarchical name
      * @return string
      */
     private function format_category_candidates(array $categories): string {

@@ -36,6 +36,7 @@ class synchronizer_routing_service {
      * @param int $contextid
      * @param int $userid
      * @param array $observations
+     * @param string $continuation Continuation marker (synchronizer_prompt_builder::CONTINUATION_*); default none.
      * @return array
      */
     public function call_synchronizer_step(

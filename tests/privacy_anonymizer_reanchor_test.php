@@ -199,7 +199,7 @@ final class privacy_anonymizer_reanchor_test extends \advanced_testcase {
     /**
      * Thread-440 regression: the de-mask marker must be separated from the resolved value by a
      * space for every identity type. The email branch previously glued the marker directly onto
-     * the address (e.g. "billy.teachy@example.com👤 pf2432"); no de-masked value may sit flush
+     * the address (e.g. "billy.teachy(at)example.com👤 pf2432"); no de-masked value may sit flush
      * against the marker.
      *
      * @covers \bookingextension_agent\local\wizard\privacy_anonymizer::deanonymize_message_for_display

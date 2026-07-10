@@ -1572,6 +1572,7 @@ class agent_decision_service {
      * @param string $modelmessage
      * @param bool $isplaceholdermessage
      * @param string $outputlang
+     * @param int $threadid
      * @return array
      */
     private function build_confirm_pending_no_intent_fallback(

@@ -283,7 +283,7 @@ class skill_template_generator {
      * The templates (templates/engine_layer/) are engine-universal by design - they name
      * both engine plugins - and are therefore shipped verbatim by the wizard sync
      * generator. The emitted files are identical across every skill-providing component
-     * except for the namespace root and @package tag.
+     * except for the namespace root and package tag.
      *
      * @param array $spec normalized spec (namespaceroot, component)
      * @return array<string,string> bundle-relative path => file content

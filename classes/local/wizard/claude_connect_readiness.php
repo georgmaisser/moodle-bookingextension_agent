@@ -205,7 +205,7 @@ class claude_connect_readiness {
     /**
      * Whether every row in a group passed.
      *
-     * @param array<int,array<string,mixed>> $checks
+     * @param array $checks
      * @return bool
      */
     private function all_done(array $checks): bool {
