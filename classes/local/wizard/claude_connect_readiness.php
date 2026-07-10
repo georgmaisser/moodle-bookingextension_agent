@@ -20,23 +20,33 @@ use context_system;
 use moodle_url;
 
 /**
- * Readiness checks for connecting an external AI client (Claude) to this site over MCP + OAuth 2.1.
+ * Readiness checks for connecting an external AI client (Claude) to this site over the MCP server
+ * provided by the separate tool_oauthmcp plugin.
  *
- * The connection is provided by the separate tool_oauthmcp plugin (an OAuth 2.1 authorization server
- * plus a streamable MCP endpoint). This class probes every prerequisite Claude needs — the plugin's
- * presence and configuration, HTTPS, the live OAuth discovery documents and the MCP challenge — and
- * returns one green-tick / red-cross row per check, mirroring {@see aiready}'s readiness rows so the
- * UI renders them identically.
+ * The same MCP endpoint (/admin/tool/oauthmcp/server.php) can be reached two DIFFERENT ways, and
+ * this class reports each separately so the UI can explain both clearly:
  *
- * It is dependency-free with respect to tool_oauthmcp: it never autoloads a tool_oauthmcp class (the
- * plugin may be absent), building the endpoint URLs from $CFG->wwwroot itself.
+ *  - OAuth 2.1 (browser login): the client is given the server URL, a browser window opens the
+ *    Moodle login, the user consents and the client stores the grant. Used by claude.ai custom
+ *    connectors and hosted Claude. Needs authmode oauth|both plus a working OAuth discovery chain.
+ *  - Web-service token (Bearer): the client is configured with the server URL and a Moodle web
+ *    service token. Used by Claude Code / Claude Desktop. Needs authmode wstoken|both.
+ *
+ * The MCP tools Claude sees come from tool_oauthmcp's tool_registry — the exposed web-service
+ * functions AND the tools plugins contribute through the collect_tool_providers hook (the Booking
+ * Wizard contributes its skills that way), so the tool count is read from the registry, not from
+ * the exposedservices setting alone.
+ *
+ * The class never hard-depends on tool_oauthmcp: it only touches its classes behind class_exists,
+ * building the endpoint URLs from $CFG->wwwroot itself, so the page is useful before the plugin is
+ * even installed.
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class claude_connect_readiness {
-    /** @var int Acting user id (for the per-user connect capability check). */
+    /** @var int Acting user id. */
     private int $userid;
 
     /**
@@ -49,26 +59,29 @@ class claude_connect_readiness {
     }
 
     /**
-     * Build the full ordered list of readiness checks.
+     * Build the full readiness report: common prerequisites plus the per-method check groups.
      *
-     * @return array<int,array<string,mixed>> Check rows (done, label, detail, configureurl, ...).
+     * @return array<string,mixed> ['common', 'oauth', 'token' => check rows; 'oauth_ready',
+     *                             'token_ready' => bool; 'server_url' => string].
      */
-    public function get_checks(): array {
+    public function get_report(): array {
         global $CFG;
 
         $installed = \core_component::get_plugin_directory('tool', 'oauthmcp') !== null;
         $enabled = $installed && (bool)get_config('tool_oauthmcp', 'enabled');
         $authmode = (string)get_config('tool_oauthmcp', 'authmode');
-        $allowsoauth = $installed && in_array($authmode, ['oauth', 'both'], true);
-        $exposed = $this->has_exposed_services();
+        $oauthon = $installed && in_array($authmode, ['oauth', 'both'], true);
+        $tokenon = $installed && in_array($authmode, ['wstoken', 'both'], true);
         $https = is_https();
+        $toolcount = $this->count_tools();
+        $canconnect = has_capability('tool/oauthmcp:connect', context_system::instance(), $this->userid);
 
         $settingsurl = (new moodle_url('/admin/settings.php', ['section' => 'tool_oauthmcp_settings']))->out(false);
+        $canprobe = $enabled && $https;
 
-        $checks = [];
-
-        // 1. The MCP/OAuth plugin must be installed at all.
-        $checks[] = $this->build_check(
+        // Common prerequisites (needed for either connection method).
+        $common = [];
+        $common[] = $this->build_check(
             $installed,
             get_string('claudeconnect_check_installed', 'bookingextension_agent'),
             $installed
@@ -76,9 +89,7 @@ class claude_connect_readiness {
                 : get_string('claudeconnect_check_installed_todo', 'bookingextension_agent'),
             $installed ? null : 'https://moodle.org/plugins/tool_oauthmcp'
         );
-
-        // 2. The MCP server must be switched on.
-        $checks[] = $this->build_check(
+        $common[] = $this->build_check(
             $enabled,
             get_string('claudeconnect_check_enabled', 'bookingextension_agent'),
             $enabled
@@ -86,64 +97,22 @@ class claude_connect_readiness {
                 : get_string('claudeconnect_check_enabled_todo', 'bookingextension_agent'),
             $installed && !$enabled ? $settingsurl : null
         );
-
-        // 3. OAuth 2.1 must be an accepted authentication mode (Claude authenticates via OAuth).
-        $checks[] = $this->build_check(
-            $allowsoauth,
-            get_string('claudeconnect_check_oauthmode', 'bookingextension_agent'),
-            $allowsoauth
-                ? get_string('claudeconnect_check_oauthmode_done', 'bookingextension_agent')
-                : get_string('claudeconnect_check_oauthmode_todo', 'bookingextension_agent'),
-            $installed && !$allowsoauth ? $settingsurl : null
-        );
-
-        // 4. At least one web service must be exposed, otherwise Claude connects but sees no tools.
-        $checks[] = $this->build_check(
-            $exposed,
-            get_string('claudeconnect_check_services', 'bookingextension_agent'),
-            $exposed
-                ? get_string('claudeconnect_check_services_done', 'bookingextension_agent')
-                : get_string('claudeconnect_check_services_todo', 'bookingextension_agent'),
-            $installed && !$exposed ? $settingsurl : null
-        );
-
-        // 5. HTTPS is mandatory for remote OAuth clients such as Claude.
-        $checks[] = $this->build_check(
+        $common[] = $this->build_check(
             $https,
             get_string('claudeconnect_check_https', 'bookingextension_agent'),
             $https
                 ? get_string('claudeconnect_check_https_done', 'bookingextension_agent', $CFG->wwwroot)
                 : get_string('claudeconnect_check_https_todo', 'bookingextension_agent', $CFG->wwwroot)
         );
-
-        // 6-8. Live discovery probes — only meaningful once the plugin is enabled over HTTPS. When the
-        // prerequisites above are unmet we skip the network calls and report them as blocked, so the
-        // page never hangs on curl against a half-configured or plain-HTTP endpoint.
-        $canprobe = $enabled && $https;
-        [$asok, $asdetail] = $this->probe_wellknown('oauth-authorization-server', 'issuer', $canprobe);
-        $checks[] = $this->build_check(
-            $asok,
-            get_string('claudeconnect_check_asmeta', 'bookingextension_agent'),
-            $asdetail
+        $common[] = $this->build_check(
+            $toolcount > 0,
+            get_string('claudeconnect_check_tools', 'bookingextension_agent'),
+            $toolcount > 0
+                ? get_string('claudeconnect_check_tools_done', 'bookingextension_agent', $toolcount)
+                : get_string('claudeconnect_check_tools_todo', 'bookingextension_agent'),
+            $installed && $toolcount === 0 ? $settingsurl : null
         );
-
-        [$prmok, $prmdetail] = $this->probe_wellknown('oauth-protected-resource', 'resource', $canprobe);
-        $checks[] = $this->build_check(
-            $prmok,
-            get_string('claudeconnect_check_prm', 'bookingextension_agent'),
-            $prmdetail
-        );
-
-        [$serverok, $serverdetail] = $this->probe_mcp_server($canprobe);
-        $checks[] = $this->build_check(
-            $serverok,
-            get_string('claudeconnect_check_server', 'bookingextension_agent'),
-            $serverdetail
-        );
-
-        // 9. The acting user must be allowed to connect an external client at all.
-        $canconnect = has_capability('tool/oauthmcp:connect', context_system::instance(), $this->userid);
-        $checks[] = $this->build_check(
+        $common[] = $this->build_check(
             $canconnect,
             get_string('claudeconnect_check_capability', 'bookingextension_agent'),
             $canconnect
@@ -152,22 +121,54 @@ class claude_connect_readiness {
             !$canconnect ? (new moodle_url('/admin/roles/manage.php'))->out(false) : null
         );
 
-        return $checks;
-    }
+        // Method 1: OAuth 2.1 (browser login).
+        $oauth = [];
+        $oauth[] = $this->build_check(
+            $oauthon,
+            get_string('claudeconnect_check_oauthmode', 'bookingextension_agent'),
+            $oauthon
+                ? get_string('claudeconnect_check_oauthmode_done', 'bookingextension_agent')
+                : get_string('claudeconnect_check_oauthmode_todo', 'bookingextension_agent'),
+            $installed && !$oauthon ? $settingsurl : null
+        );
+        [$asok, $asdetail] = $this->probe_wellknown('oauth-authorization-server', 'issuer', $canprobe);
+        $oauth[] = $this->build_check(
+            $asok,
+            get_string('claudeconnect_check_asmeta', 'bookingextension_agent'),
+            $asdetail
+        );
+        [$prmok, $prmdetail] = $this->probe_wellknown('oauth-protected-resource', 'resource', $canprobe);
+        $oauth[] = $this->build_check(
+            $prmok,
+            get_string('claudeconnect_check_prm', 'bookingextension_agent'),
+            $prmdetail
+        );
+        [$serverok, $serverdetail] = $this->probe_mcp_server($canprobe);
+        $oauth[] = $this->build_check(
+            $serverok,
+            get_string('claudeconnect_check_server', 'bookingextension_agent'),
+            $serverdetail
+        );
 
-    /**
-     * Whether every check has passed (used to reveal the how-to block).
-     *
-     * @param array<int,array<string,mixed>> $checks
-     * @return bool
-     */
-    public function all_passed(array $checks): bool {
-        foreach ($checks as $check) {
-            if (empty($check['done'])) {
-                return false;
-            }
-        }
-        return true;
+        // Method 2: web-service token (Bearer).
+        $token = [];
+        $token[] = $this->build_check(
+            $tokenon,
+            get_string('claudeconnect_check_tokenmode', 'bookingextension_agent'),
+            $tokenon
+                ? get_string('claudeconnect_check_tokenmode_done', 'bookingextension_agent')
+                : get_string('claudeconnect_check_tokenmode_todo', 'bookingextension_agent'),
+            $installed && !$tokenon ? $settingsurl : null
+        );
+
+        return [
+            'common' => $common,
+            'oauth' => $oauth,
+            'token' => $token,
+            'oauth_ready' => $this->all_done($common) && $this->all_done($oauth),
+            'token_ready' => $this->all_done($common) && $this->all_done($token),
+            'server_url' => $this->server_url(),
+        ];
     }
 
     /**
@@ -181,22 +182,38 @@ class claude_connect_readiness {
     }
 
     /**
-     * Whether at least one web service is exposed over MCP.
+     * Count the MCP tools that would actually be exposed, across every source (exposed web-service
+     * functions AND hook-contributed tools such as the Booking Wizard skills).
      *
+     * @return int
+     */
+    private function count_tools(): int {
+        if (!class_exists('\\tool_oauthmcp\\local\\registry\\tool_registry')) {
+            return 0;
+        }
+        try {
+            $inventory = \tool_oauthmcp\local\registry\tool_registry::create()
+                ->get_inventory($this->userid, context_system::instance()->id);
+            return count($inventory);
+        } catch (\Throwable $e) {
+            debugging('claude_connect_readiness: tool inventory failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return 0;
+        }
+    }
+
+    /**
+     * Whether every row in a group passed.
+     *
+     * @param array<int,array<string,mixed>> $checks
      * @return bool
      */
-    private function has_exposed_services(): bool {
-        $raw = trim((string)get_config('tool_oauthmcp', 'exposedservices'));
-        if ($raw === '') {
-            return false;
-        }
-        // The multicheckbox admin setting stores a comma-separated list of external_services ids.
-        foreach (explode(',', $raw) as $id) {
-            if (trim($id) !== '') {
-                return true;
+    private function all_done(array $checks): bool {
+        foreach ($checks as $check) {
+            if (empty($check['done'])) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     /**
@@ -275,7 +292,7 @@ class claude_connect_readiness {
 
     /**
      * Build a single readiness row (identical shape to {@see aiready::build_check()} so the same
-     * template renders both).
+     * template idiom renders both). A failed row shows a red cross.
      *
      * @param bool $done
      * @param string $label

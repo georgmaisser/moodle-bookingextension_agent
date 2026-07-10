@@ -37,14 +37,7 @@ $PAGE->set_title(get_string('claudeconnect_title', 'bookingextension_agent'));
 $PAGE->set_heading(get_string('claudeconnect_title', 'bookingextension_agent'));
 
 $readiness = new \bookingextension_agent\local\wizard\claude_connect_readiness((int)$USER->id);
-$checks = $readiness->get_checks();
-$allpassed = $readiness->all_passed($checks);
-
-$templatecontext = [
-    'checks' => $checks,
-    'all_passed' => $allpassed,
-    'server_url' => $readiness->server_url(),
-];
+$templatecontext = $readiness->get_report();
 
 echo $OUTPUT->header();
 echo $OUTPUT->render_from_template('bookingextension_agent/connect_claude', $templatecontext);
