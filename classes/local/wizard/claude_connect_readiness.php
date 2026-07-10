@@ -62,7 +62,7 @@ class claude_connect_readiness {
      * Build the full readiness report: common prerequisites plus the per-method check groups.
      *
      * @return array<string,mixed> ['common', 'oauth', 'token' => check rows; 'oauth_ready',
-     *                             'token_ready' => bool; 'server_url' => string].
+     *                             'token_ready' => bool; 'server_url', 'token_manage_url' => string].
      */
     public function get_report(): array {
         global $CFG;
@@ -168,6 +168,7 @@ class claude_connect_readiness {
             'oauth_ready' => $this->all_done($common) && $this->all_done($oauth),
             'token_ready' => $this->all_done($common) && $this->all_done($token),
             'server_url' => $this->server_url(),
+            'token_manage_url' => (new \moodle_url('/admin/webservice/tokens.php'))->out(false),
         ];
     }
 

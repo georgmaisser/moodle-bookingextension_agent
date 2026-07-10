@@ -108,7 +108,7 @@
     <ol>
         <li class="mb-2">{{#str}}claudeconnect_oauth_step_open, bookingextension_agent{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_oauth_step_add, bookingextension_agent{{/str}}</li>
-        <li class="mb-2">{{#str}}claudeconnect_oauth_step_paste, bookingextension_agent{{/str}}</li>
+        <li class="mb-2">{{#str}}claudeconnect_oauth_step_paste, bookingextension_agent, {"serverurl": "{{server_url}}"}{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_oauth_step_login, bookingextension_agent{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_oauth_step_consent, bookingextension_agent{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_oauth_step_done, bookingextension_agent{{/str}}</li>
@@ -145,9 +145,9 @@
     {{/token_ready}}
     <p class="font-weight-bold mt-3 mb-1">{{#str}}claudeconnect_howto, bookingextension_agent{{/str}}</p>
     <ol>
-        <li class="mb-2">{{#str}}claudeconnect_token_step_create, bookingextension_agent{{/str}}</li>
+        <li class="mb-2">{{#str}}claudeconnect_token_step_create, bookingextension_agent, {"tokensurl": "{{token_manage_url}}"}{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_token_step_config, bookingextension_agent{{/str}}</li>
-        <li class="mb-2">{{#str}}claudeconnect_token_step_url, bookingextension_agent{{/str}}</li>
+        <li class="mb-2">{{#str}}claudeconnect_token_step_url, bookingextension_agent, {"serverurl": "{{server_url}}"}{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_token_step_bearer, bookingextension_agent{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_token_step_done, bookingextension_agent{{/str}}</li>
     </ol>
