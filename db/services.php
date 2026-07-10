@@ -132,28 +132,18 @@ $functions = [
     ],
 ];
 
-$services = [
-    'Booking AI Agent' => [
-        'functions' => [
-            'bookingextension_agent_ai_send_message',
-            'bookingextension_agent_ai_upload_attachment',
-            'bookingextension_agent_ai_privacy_precheck',
-            'bookingextension_agent_ai_confirm_run',
-            'bookingextension_agent_ai_discard_pending',
-            'bookingextension_agent_ai_poll_thread',
-            'bookingextension_agent_ai_get_thread_debug_logs',
-            'bookingextension_agent_ai_get_doc_content',
-            'bookingextension_agent_request_trial_key',
-            'bookingextension_agent_activate_trial_context',
-            'bookingextension_agent_configure_provider_from_existing',
-            'bookingextension_agent_store_provider_apikey',
-            'bookingextension_agent_set_debug_mode',
-        ],
-        'restrictedusers' => 0,
-        'enabled' => 1,
-        // Site-unique: both engine plugins register their service side by side, so the
-        // shortname carries the component (the wizard generator maps it) and the display
-        // name is rewritten by the generator as well.
-        'shortname' => 'bookingextension_agent',
-    ],
-];
+// No plugin-defined web service.
+//
+// The functions above are the agent's own in-page plumbing (chat, polling, trial
+// onboarding). They are invoked from the browser through core/ajax, which resolves
+// each function by name via external_api::call_external_function() and does not
+// require service membership -- so they need no named service to work.
+//
+// External MCP clients (Claude) reach the agent's skills through the
+// collect_tool_providers hook (mcp_hook_tool_provider), which is independent of any
+// web service. The single service used to publish additional Moodle functions as MCP
+// tools is the dedicated "MCP server (tool_oauthmcp)" service, managed in that plugin's
+// settings. The former fixed "Booking AI Agent" / "Booking AI Agent MCP" services are
+// therefore no longer declared; external_update_descriptions() removes the stale rows
+// on upgrade.
+$services = [];
