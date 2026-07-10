@@ -27,7 +27,12 @@ namespace bookingextension_agent;
 use bookingextension_agent\local\wizard\services\issue_code_taxonomy;
 
 /**
- * Locks the two issue-code views, including their DIFFERENT match precedence.
+ * Locks the SINGLE classification walk both issue-code views project from.
+ *
+ * The two views (display error_class, retry category) previously used opposite substring
+ * precedence, which made DOMAIN_CHECK_TIMEOUT "a timeout" for the user but a terminal DOMAIN
+ * error for the retry engine (thread 549 defect 2). Consolidated per George 2026-07-10:
+ * one ordered rule table, retryable families first.
  *
  * @covers \bookingextension_agent\local\wizard\services\issue_code_taxonomy
  */
@@ -47,14 +52,22 @@ final class issue_code_taxonomy_test extends \advanced_testcase {
     }
 
     /**
-     * retry_category_for: DOMAIN-set is checked before TECHNICAL — the OPPOSITE precedence to
-     * error_class_for, which is exactly why the two views can't share one ordered table.
+     * Both views agree on every code — one precedence, one deciding rule (the 549 fix).
      */
-    public function test_retry_category_precedence_differs(): void {
+    public function test_both_views_share_one_precedence(): void {
+        // The thread-549 trap: DOMAIN_CHECK_TIMEOUT is a timeout (retryable) in BOTH views.
+        $this->assertSame('provider_timeout', issue_code_taxonomy::error_class_for(['DOMAIN_CHECK_TIMEOUT']));
         $this->assertSame(
-            issue_code_taxonomy::CATEGORY_DOMAIN,
+            issue_code_taxonomy::CATEGORY_TECHNICAL,
+            issue_code_taxonomy::retry_category_for('', ['DOMAIN_CHECK_TIMEOUT'], '')
+        );
+
+        // Ambiguity doctrine: retryable interpretation wins for composite codes.
+        $this->assertSame(
+            issue_code_taxonomy::CATEGORY_TECHNICAL,
             issue_code_taxonomy::retry_category_for('', ['PERMISSION_TIMEOUT'], '')
         );
+
         $this->assertSame(
             issue_code_taxonomy::CATEGORY_TECHNICAL,
             issue_code_taxonomy::retry_category_for('', ['SOME_TIMEOUT'], '')
@@ -62,6 +75,25 @@ final class issue_code_taxonomy_test extends \advanced_testcase {
         $this->assertSame(
             issue_code_taxonomy::CATEGORY_EXTERNAL_DEPENDENCY,
             issue_code_taxonomy::retry_category_for('', ['RATE_LIMIT'], '')
+        );
+        $this->assertSame(
+            issue_code_taxonomy::CATEGORY_DOMAIN,
+            issue_code_taxonomy::retry_category_for('', ['DOMAIN_CONFLICT'], '')
+        );
+        $this->assertSame(
+            issue_code_taxonomy::CATEGORY_DOMAIN,
+            issue_code_taxonomy::retry_category_for('', ['VALIDATION_ERROR'], '')
+        );
+        $this->assertSame(
+            issue_code_taxonomy::CATEGORY_DOMAIN,
+            issue_code_taxonomy::retry_category_for('', ['PERMISSION_DENIED'], '')
+        );
+
+        // The FIRST code in the list decides — for both views identically.
+        $this->assertSame('', issue_code_taxonomy::error_class_for(['AUTH_FAILED', 'MISSING_FIELD']));
+        $this->assertSame(
+            issue_code_taxonomy::CATEGORY_EXTERNAL_DEPENDENCY,
+            issue_code_taxonomy::retry_category_for('', ['AUTH_FAILED', 'MISSING_FIELD'], '')
         );
     }
 

@@ -29,14 +29,18 @@ use core_text;
 /**
  * The single place that maps issue codes to meaning.
  *
- * Two views over the same vocabulary previously lived in two files that could drift (audit
- * C3-F02): `preflight_error_classifier` derives a display **error_class**, and
- * `retry_policy_service` derives a **retry category** (retry vs terminal). They are NOT the
- * same function — different outputs AND a deliberately different match precedence (e.g. a code
- * containing both PERMISSION and TIMEOUT classifies as `provider_timeout` for the error_class
- * but as DOMAIN for the retry category). So both rule sets are kept here verbatim, each as its
- * own method, so adding/changing an issue code touches exactly one file without forcing a
- * single precedence onto both consumers. Behaviour is identical to the original methods.
+ * Both views over the vocabulary — the display **error_class** (preflight_error_classifier)
+ * and the **retry category** (retry_policy_service) — are projections of ONE ordered rule
+ * walk ({@see self::RULES} via {@see self::first_match()}). One precedence, one source of
+ * truth: the same code can never be "a timeout" for the user and "a terminal domain error"
+ * for the retry engine again. That exact disagreement made DOMAIN_CHECK_TIMEOUT non-retryable
+ * (thread 549 defect 2: the old retry view matched the DOMAIN substring first, the display
+ * view matched TIMEOUT first).
+ *
+ * Ambiguity doctrine (George, 2026-07-10): when a composite code matches several families,
+ * the RETRYABLE interpretation wins — the rules are ordered TECHNICAL → EXTERNAL_DEPENDENCY →
+ * DOMAIN. A wrongly-terminal classification silently loses finished work; a wrongly-retryable
+ * one costs at most one futile retry.
  */
 class issue_code_taxonomy {
     /** @var string Retryable technical failure (timeout, transient IO, parse, guard, …). */
@@ -52,39 +56,65 @@ class issue_code_taxonomy {
     public const CATEGORY_UNDEFINED = 'UNDEFINED';
 
     /**
-     * Derive the display error_class from issue codes (first match wins, in this order).
+     * THE ordered classification table — the single source of truth for both views.
+     *
+     * Each rule: [substring needles, display error_class ('' = none), retry category].
+     * First (code, rule) hit wins: codes are scanned in the order given, and for each code
+     * the rules top-to-bottom. Retryable families come first (see class doc), so composite
+     * codes like DOMAIN_CHECK_TIMEOUT or PERMISSION_TIMEOUT classify as retryable timeouts
+     * in BOTH views instead of terminal domain errors in one of them.
+     *
+     * @var array<int,array{0:string[],1:string,2:string}>
+     */
+    private const RULES = [
+        [['TIMEOUT'], 'provider_timeout', self::CATEGORY_TECHNICAL],
+        [['TRANSIENT_IO', 'IO_TRANSIENT'], 'transient_io', self::CATEGORY_TECHNICAL],
+        [['TRANSIENT', 'CONTRACT_', 'PARSE', 'SELECTION', 'RETRY_WAITING', 'EXECUTION_GUARD'],
+            '', self::CATEGORY_TECHNICAL],
+        [['AUTH', 'QUOTA', 'RATE_LIMIT', 'PROVIDER', 'EXTERNAL'], '', self::CATEGORY_EXTERNAL_DEPENDENCY],
+        [['PERMISSION'], 'permission_error', self::CATEGORY_DOMAIN],
+        [['CONFLICT'], 'domain_conflict', self::CATEGORY_DOMAIN],
+        [['VALIDATION', 'MISSING_'], 'validation_error', self::CATEGORY_DOMAIN],
+        [['DOMAIN'], '', self::CATEGORY_DOMAIN],
+    ];
+
+    /**
+     * The single rule walk both views project from.
      *
      * @param array $issuecodes
-     * @return string The error class, or '' when nothing matches.
+     * @return array{0:string,1:string}|null [error_class, category] of the first hit, or null.
      */
-    public static function error_class_for(array $issuecodes): string {
+    private static function first_match(array $issuecodes): ?array {
         foreach ($issuecodes as $code) {
             $upper = core_text::strtoupper(trim((string)$code));
             if ($upper === '') {
                 continue;
             }
-            if (str_contains($upper, 'TIMEOUT')) {
-                return 'provider_timeout';
-            }
-            if (str_contains($upper, 'TRANSIENT_IO') || str_contains($upper, 'IO_TRANSIENT')) {
-                return 'transient_io';
-            }
-            if (str_contains($upper, 'PERMISSION')) {
-                return 'permission_error';
-            }
-            if (str_contains($upper, 'CONFLICT')) {
-                return 'domain_conflict';
-            }
-            if (str_contains($upper, 'VALIDATION') || str_contains($upper, 'MISSING_')) {
-                return 'validation_error';
+            foreach (self::RULES as [$needles, $errorclass, $category]) {
+                foreach ($needles as $needle) {
+                    if (str_contains($upper, $needle)) {
+                        return [$errorclass, $category];
+                    }
+                }
             }
         }
 
-        return '';
+        return null;
     }
 
     /**
-     * Derive the retry category from issue codes, with an error-class and layer fallback.
+     * Derive the display error_class from issue codes — a projection of {@see self::first_match()}.
+     *
+     * @param array $issuecodes
+     * @return string The error class, or '' when nothing matches (or the deciding rule has none).
+     */
+    public static function error_class_for(array $issuecodes): string {
+        return self::first_match($issuecodes)[0] ?? '';
+    }
+
+    /**
+     * Derive the retry category from issue codes — the same projection, plus the error-class and
+     * layer fallbacks for callers that only carry a pre-computed error class.
      *
      * @param string $errorclass
      * @param array $issuecodes
@@ -92,44 +122,12 @@ class issue_code_taxonomy {
      * @return string One of the CATEGORY_* constants.
      */
     public static function retry_category_for(string $errorclass, array $issuecodes, string $layer = ''): string {
-        $normalizederrorclass = trim(strtolower($errorclass));
-        $upperissuecodes = array_map(
-            static fn(string $code): string => strtoupper(trim($code)),
-            array_values(array_unique(array_filter(array_map('strval', $issuecodes))))
-        );
-
-        foreach ($upperissuecodes as $code) {
-            if (
-                str_contains($code, 'VALIDATION')
-                || str_contains($code, 'CONFLICT')
-                || str_contains($code, 'DOMAIN')
-                || str_contains($code, 'MISSING_')
-                || str_contains($code, 'PERMISSION')
-            ) {
-                return self::CATEGORY_DOMAIN;
-            }
-            if (
-                str_contains($code, 'TIMEOUT')
-                || str_contains($code, 'TRANSIENT')
-                || str_contains($code, 'CONTRACT_')
-                || str_contains($code, 'PARSE')
-                || str_contains($code, 'SELECTION')
-                || str_contains($code, 'RETRY_WAITING')
-                || str_contains($code, 'EXECUTION_GUARD')
-            ) {
-                return self::CATEGORY_TECHNICAL;
-            }
-            if (
-                str_contains($code, 'AUTH')
-                || str_contains($code, 'QUOTA')
-                || str_contains($code, 'RATE_LIMIT')
-                || str_contains($code, 'PROVIDER')
-                || str_contains($code, 'EXTERNAL')
-            ) {
-                return self::CATEGORY_EXTERNAL_DEPENDENCY;
-            }
+        $match = self::first_match(array_values(array_unique(array_filter(array_map('strval', $issuecodes)))));
+        if ($match !== null) {
+            return $match[1];
         }
 
+        $normalizederrorclass = trim(strtolower($errorclass));
         if (in_array($normalizederrorclass, ['preflight_retry', 'provider_timeout', 'transient_io'], true)) {
             return self::CATEGORY_TECHNICAL;
         }
