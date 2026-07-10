@@ -465,7 +465,13 @@ class planner_catalog_service {
                 continue;
             }
 
-            if (!empty($contract['readonly'])) {
+            // Only the write skills of Wunderbyte's own gated components move to the locked list.
+            // Read-only skills and all third-party write skills stay selectable for the planner.
+            $requiresfullaccess = agent_access_service::skill_requires_full_access(
+                !empty($contract['readonly']),
+                (string)($contract['component'] ?? '')
+            );
+            if (!$requiresfullaccess) {
                 $available[] = $contract;
                 continue;
             }

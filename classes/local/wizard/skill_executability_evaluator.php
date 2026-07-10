@@ -80,10 +80,14 @@ class skill_executability_evaluator {
             ]);
         }
 
-        // Full-access gate: without a PRO license or the Wunderbyte LLM
-        // subscription only readonly skills are executable.
+        // Full-access gate: the PRO lock applies ONLY to the write skills of Wunderbyte's own
+        // gated components. Read-only skills (any component) and every third-party write skill
+        // stay executable without a PRO license or the Wunderbyte LLM subscription.
         if (
-            empty($meta['readonly'])
+            services\agent_access_service::skill_requires_full_access(
+                !empty($meta['readonly']),
+                (string)($meta['component'] ?? '')
+            )
             && !services\agent_access_service::has_full_access()
         ) {
             return $this->deny_result($skillname, skill_contract_validator::DENY_REQUIRES_PRO, [

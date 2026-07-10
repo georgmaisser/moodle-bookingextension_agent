@@ -132,7 +132,8 @@ class skill_introspection_service implements skill_introspection_provider_interf
 
         $catalogsvc = new planner_catalog_service(new assistant_state_guidance_service());
 
-        // Mirror the discovery slim_all path: without full access, mutating skills are not selectable.
+        // Mirror the discovery slim_all path: without full access, only Wunderbyte's own gated
+        // write skills are non-selectable; read-only and third-party write skills stay available.
         if (!agent_access_service::has_full_access()) {
             [$contracts] = $catalogsvc->split_prompt_contracts_by_full_access($contracts);
         }

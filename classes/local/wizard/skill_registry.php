@@ -523,6 +523,9 @@ class skill_registry {
             'skill' => $skillname,
             'description' => trim((string)($schema['description'] ?? '')),
             'readonly' => (bool)($schema['readonly'] ?? $skill->is_read_only()),
+            // Owning component (path form, e.g. 'mod/booking'). Carried so the full-access gate can
+            // restrict the PRO lock to Wunderbyte's own write skills; see agent_access_service.
+            'component' => trim((string)($skillmeta['component'] ?? '')),
             'risk_class' => trim((string)($promptcontract['risk_class'] ?? ($skillmeta['risk_class'] ?? $skill->get_risk_class()))),
             'intent' => trim((string)($promptcontract['intent'] ?? '')) !== ''
                 ? trim((string)$promptcontract['intent'])

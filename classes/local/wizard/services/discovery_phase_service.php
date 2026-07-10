@@ -191,10 +191,11 @@ class discovery_phase_service {
 
         if ($shouldincludeskillcatalog) {
             $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
-            // Full-access gate: without a PRO license or the Wunderbyte LLM
-            // subscription, mutating skills move from the selectable catalog to
-            // UNAVAILABLE SKILLS — the planner still sees them and the reply can
-            // point at the upgrade path instead of failing late in governance.
+            // Full-access gate: without a PRO license or the Wunderbyte LLM subscription, only the
+            // write skills of Wunderbyte's own gated components move from the selectable catalog to
+            // UNAVAILABLE SKILLS (read-only and third-party write skills stay selectable) — the
+            // planner still sees the locked ones and the reply can point at the upgrade path
+            // instead of failing late in governance.
             if (!agent_access_service::has_full_access()) {
                 [$allpromptcontracts, $unavailableskillcatalog] =
                     $this->catalogsvc->split_prompt_contracts_by_full_access($allpromptcontracts);

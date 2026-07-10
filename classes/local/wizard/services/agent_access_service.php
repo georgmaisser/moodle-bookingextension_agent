@@ -57,6 +57,20 @@ class agent_access_service {
     /** Wunderbyte final reply action class name (optional plugin, referenced by name). */
     private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
+    /**
+     * Frankenstyle components whose WRITE skills sit behind the full-access (PRO / Wunderbyte LLM)
+     * gate. This allow-list is the ONLY thing that turns a mutating skill into a paid feature: it
+     * names exactly Wunderbyte's own commercial write skills. Every other component's write skills
+     * — i.e. all third-party skills — stay ungated, and read-only skills are never gated regardless
+     * of component. Compared in normalised frankenstyle form, so path form ('mod/booking') and
+     * frankenstyle ('mod_booking') are equivalent. See {@see self::skill_requires_full_access()}.
+     */
+    private const PRO_GATED_COMPONENTS = [
+        'mod_booking',
+        'local_shopping_cart',
+        'local_entities',
+    ];
+
     /** @var bool|null Request-scoped memoization (evaluator runs once per skill). */
     private static ?bool $fullaccess = null;
 
@@ -75,6 +89,31 @@ class agent_access_service {
         self::$fullaccess = wb_license::agent_license_is_activated() || self::runs_on_wunderbyte_llm();
 
         return self::$fullaccess;
+    }
+
+    /**
+     * Whether a single skill needs full access (PRO license or Wunderbyte LLM subscription) to run.
+     *
+     * The PRO gate is deliberately NARROW: it applies ONLY to the WRITE skills of Wunderbyte's own
+     * commercial components ({@see self::PRO_GATED_COMPONENTS}). It never applies to
+     *  - read-only skills of any component, nor
+     *  - third-party write skills (any component outside the allow-list).
+     * A third-party plugin that ships a mutating skill therefore stays fully usable without any
+     * Wunderbyte license. This is a STRUCTURAL component-identity check (an exact frankenstyle
+     * match against a fixed allow-list), never a lexical/language match on names or descriptions.
+     *
+     * @param bool $readonly Whether the skill is read-only (from its contract/metadata).
+     * @param string $component The skill's owning component, path form or frankenstyle.
+     * @return bool True iff the skill is gated behind full access.
+     */
+    public static function skill_requires_full_access(bool $readonly, string $component): bool {
+        if ($readonly) {
+            return false;
+        }
+
+        $normalized = str_replace('/', '_', trim(core_text::strtolower($component)));
+
+        return in_array($normalized, self::PRO_GATED_COMPONENTS, true);
     }
 
     /**
