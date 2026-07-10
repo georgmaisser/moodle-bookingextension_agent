@@ -31,6 +31,18 @@ use bookingextension_agent\local\wizard\orchestrator;
  */
 class synchronizer_prompt_builder {
     /**
+     * Turn continuation state: nothing runs after this reply (sufficient / clarification /
+     * error). The reply contract forbids announcing any automatic follow-up action.
+     */
+    public const CONTINUATION_NONE = 'none';
+
+    /**
+     * Turn continuation state: the turn ends as a confirmation_request — queued steps run
+     * after (and only after) the user confirms.
+     */
+    public const CONTINUATION_AWAITING_CONFIRMATION = 'awaiting_confirmation';
+
+    /**
      * Build synchronizer system prompt.
      *
      * @param string $actionclass
@@ -88,6 +100,7 @@ class synchronizer_prompt_builder {
      * @param string[] $observations
      * @param string $runtimecontext Per-thread-stable runtime facts.
      * @param string $runtimestate Per-request volatile runtime state.
+     * @param string $continuation One of the CONTINUATION_* states, computed by the engine.
      * @return string
      */
     public function build_prompt(
@@ -95,7 +108,8 @@ class synchronizer_prompt_builder {
         array $messages,
         array $observations,
         string $runtimecontext = '',
-        string $runtimestate = ''
+        string $runtimestate = '',
+        string $continuation = self::CONTINUATION_NONE
     ): string {
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -126,6 +140,24 @@ class synchronizer_prompt_builder {
             $observationnumber++;
         }
 
+        // The continuation policy is computed from ENGINE STATE (final response_type), never
+        // guessed by the model: with no continuation, the contract forbids announcing any
+        // automatic follow-up; awaiting confirmation, it binds follow-up to the user's confirm.
+        if ($continuation === self::CONTINUATION_AWAITING_CONFIRMATION) {
+            $continuationpolicy =
+                "PENDING STEPS POLICY: This turn ends awaiting the user's confirmation. Queued steps run "
+                . "ONLY after the user confirms — report what was completed and that the remaining steps "
+                . "run after confirmation. Do NOT tell the user to perform those steps manually, and never "
+                . "suggest manual workarounds for actions the agent is capable of executing.\n";
+        } else {
+            $continuationpolicy =
+                "TURN END POLICY: This reply ends the turn — NOTHING runs automatically after it. "
+                . "NEVER state or imply that the agent will create, update, delete, retry or continue "
+                . "anything after this reply. If parts of the request were NOT completed (see the "
+                . "observations and any UNEXECUTED PLANNED STEPS list), name them explicitly as not done "
+                . "and either relay the pending question or ask the user how to proceed.\n";
+        }
+
         $parts[] = "[OUTPUT_CONTRACT]\n"
             . "Return exactly one valid JSON object and nothing else.\n"
             . "Do not output markdown, code fences, prose, or bullet lists outside JSON.\n"
@@ -143,10 +175,7 @@ class synchronizer_prompt_builder {
             . "options, do NOT claim the action is impossible or that a capability is missing, do NOT suggest a "
             . "manual workaround, and do NOT fabricate a completion. Simply ask the user the same question, clearly "
             . "formatted, so they can answer.\n"
-            . "PENDING STEPS POLICY: If next_step_intent or planned_steps indicate further actions are queued, "
-            . "do NOT tell the user to perform those steps manually. "
-            . "Instead report what was completed and state that the agent will continue with the remaining steps. "
-            . "Never suggest manual workarounds for actions the agent is capable of executing.\n"
+            . $continuationpolicy
             . "LINK POLICY: When you mention a course, booking option, activity, user or rule, include the URL "
             . "given for it in the observations (markdown link on the entity name). Use those URLs EXACTLY as "
             . "provided — NEVER construct, guess, shorten or modify a URL yourself, and never invent links for "

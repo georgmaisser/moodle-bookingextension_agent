@@ -43,13 +43,15 @@ class synchronizer_routing_service {
         int $threadid,
         int $contextid,
         int $userid,
-        array $observations
+        array $observations,
+        string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE
     ): array {
         return $orchestrator->process_synchronizer(
             $threadid,
             $contextid,
             $userid,
-            $observations
+            $observations,
+            $continuation
         );
     }
 }

@@ -38,6 +38,7 @@ use bookingextension_agent\local\wizard\services\localized_string_service;
 use bookingextension_agent\local\wizard\services\messaging\message_persistence_service;
 use bookingextension_agent\local\wizard\services\synchronizer_input_builder;
 use bookingextension_agent\local\wizard\services\synchronizer_output_contract;
+use bookingextension_agent\local\wizard\services\synchronizer_prompt_builder;
 use bookingextension_agent\local\wizard\services\synchronizer_routing_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 
@@ -68,6 +69,11 @@ class agent_runtime {
         // auto-continuation turn — that a manual "try again" reliably fixed, so the
         // framework retries it once itself instead of telling the user to retry.
         'CONTRACT_VALIDATION_ERROR',
+        // A confirm_pending emitted although no confirmation is awaiting while planned
+        // placeholders remain (selector mistook "pending steps" for a pending
+        // confirmation, thread 558). One re-plan round recovers the series instead of
+        // ending the turn and orphaning the remaining steps.
+        'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS',
     ];
 
     /** Maximum number of loop-level framework retries per issue code. */
@@ -450,13 +456,23 @@ class agent_runtime {
 
         $observations = $this->synchronizerinputbuilder->build_observations($result, $state);
 
+        // Deterministic continuation truth for the reply contract: the synchronizer runs at
+        // turn end, and the engine continues automatically ONLY when this turn ends as a
+        // confirmation_request (the queued work runs after the user confirms). Every other
+        // terminal state (sufficient / clarification / error) means nothing runs after the
+        // reply — the prompt contract must never let the model promise otherwise.
+        $continuation = ((string)($result['response_type'] ?? '') === 'confirmation_request')
+            ? synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION
+            : synchronizer_prompt_builder::CONTINUATION_NONE;
+
         try {
             $syncresult = $this->synchronizerroutingsvc->call_synchronizer_step(
                 $this->orchestrator,
                 $threadid,
                 $contextid,
                 $userid,
-                $observations
+                $observations,
+                $continuation
             );
         } catch (\Throwable $e) {
             // Synchronizer polish is best-effort; return the unpolished result on failure.
@@ -728,6 +744,12 @@ class agent_runtime {
                 . 'commands[] was empty. Emit the intended command, for example '
                 . 'commands=[{"skill":"<skill>","input":{...}}] — or, if no new command is needed, use '
                 . 'response_type=clarification, confirm_pending or sufficient instead.';
+        }
+
+        if ($issuecode === 'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS') {
+            return 'RETRY_HINT: There is NO pending confirmation to execute — response_type=confirm_pending '
+                . 'is only valid while a confirmation is awaiting. Planned steps remain in the queue: '
+                . 'select the real skill for the next planned step with response_type=skill_call.';
         }
 
         return 'RETRY_HINT: Previous planner output violated the contract. Retry once with strict JSON contract compliance.';

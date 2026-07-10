@@ -468,7 +468,8 @@ class agent_decision_service {
                 $result,
                 $modelmessage,
                 $isplaceholdermessage,
-                $outputlang
+                $outputlang,
+                $threadid
             );
         }
 
@@ -482,7 +483,8 @@ class agent_decision_service {
                 $result,
                 $modelmessage,
                 $isplaceholdermessage,
-                $outputlang
+                $outputlang,
+                $threadid
             );
         }
 
@@ -1544,14 +1546,29 @@ class agent_decision_service {
         array $result,
         string $modelmessage,
         bool $isplaceholdermessage,
-        string $outputlang
+        string $outputlang,
+        int $threadid
     ): array {
-        if ($modelmessage !== '' && !$isplaceholdermessage) {
-            $fallback = $this->clarification_result($modelmessage);
-            if (!empty($result['next_step_intent'])) {
-                $fallback['next_step_intent'] = trim((string)$result['next_step_intent']);
-            }
+        // Planned placeholders but no pending confirmation: the planner mistook the queued
+        // "pending steps" for a pending confirmation (confirm_pending is only valid while a
+        // confirmation is awaiting). That is a recoverable planner flake, not a user question —
+        // surface it as a retryable contract error so the runtime loop re-plans the step once
+        // via skill_call instead of ending the turn and orphaning the remaining series steps.
+        if ($this->queuesvc->has_planned_placeholders($threadid)) {
+            $cause = 'confirm_pending without a pending confirmation while planned steps remain in the queue.';
+            $fallback = $this->clarification_result($cause);
+            $fallback['response_type'] = 'error';
+            $fallback['errors'] = [$cause];
+            $fallback['issue_codes'] = ['CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS'];
             return $fallback;
+        }
+
+        if ($modelmessage !== '' && !$isplaceholdermessage) {
+            // Terminal clarification. Deliberately does NOT carry the model's next_step_intent:
+            // nothing follows this turn, and a copied intent feeds the synchronizer a false
+            // "further actions are queued" signal (thread 558's "Sprint 5 wird automatisch
+            // noch erstellt" on a turn that was over).
+            return $this->clarification_result($modelmessage);
         }
 
         return $this->clarification_result(

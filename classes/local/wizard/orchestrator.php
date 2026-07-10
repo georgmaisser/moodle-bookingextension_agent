@@ -574,6 +574,10 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
   but is currently not executable.
 - Do not emit unavailable skills in commands.
 - Never re-emit an already completed action signature (same skill + normalized input intent).
+- A completed action does NOT cover a request that adds a NEW scope or target — a named activity,
+  course, option or person that the completed input did not contain. That is a NEW action:
+  emit the command again including the new scope (thread 542: "search X" completed does not
+  answer "search X in activity Y" — search again with the activity).
 
 GROUNDING (prefer skills over free-form answers):
 - If a skill in the SKILL CATALOG can fulfil OR answer the request, select it (response_type=skill_call)

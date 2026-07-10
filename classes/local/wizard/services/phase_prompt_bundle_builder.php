@@ -279,6 +279,8 @@ PROMPT;
         ) {
             $lines = ['The following future steps are already planned as placeholders in the queue.'];
             $lines[] = 'Do NOT include planned_steps in your response — placeholders already exist.';
+            $lines[] = 'These placeholders are NOT a pending confirmation: never answer them with '
+                . 'response_type=confirm_pending. Select the real skill with a skill_call.';
             $lines[] = 'Select the real skill for the next pending step below:';
             foreach ($plannedstepintents as $i => $intent) {
                 $lines[] = ($i + 1) . '. ' . $intent;
