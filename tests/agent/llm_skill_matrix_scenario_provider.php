@@ -953,6 +953,25 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'course.scaffold_course_content' => [
+                // Structure named in the prompt (2 chapters, no quizzes) so the deterministic
+                // structure clarification does not fire and the scaffold executes directly.
+                'prompt' => 'Generate course content about "Vikings {{batch_label}}" in this course: '
+                    . '2 chapters, no practice quizzes, no final quiz.',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'course.create_course' => [
                 // The default test site has exactly one writable category (Miscellaneous), so
                 // the category resolves silently and the create executes without a clarification.

@@ -125,6 +125,7 @@ $teacherskills = [
     'course_add_quiz' => CONTEXT_COURSE,
     'course_analyze_course_structure' => CONTEXT_COURSE,
     'course_diagnose_user_in_course' => CONTEXT_COURSE,
+    'course_scaffold_course_content' => CONTEXT_COURSE,
     // Searches across all courses on the site.
     'course_search_courses' => CONTEXT_SYSTEM,
     'course_update_activity' => CONTEXT_COURSE,
