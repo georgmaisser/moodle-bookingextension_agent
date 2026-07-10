@@ -19,7 +19,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services;
 
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
-use core_text;
 
 /**
  * Enforces the synchronizer output contract.
@@ -90,26 +89,6 @@ class synchronizer_output_contract {
             return $this->with_issue_code(
                 $this->with_gate_telemetry($source, 'failed', $sourceconflictreason),
                 $sourceconflictreason
-            );
-        }
-
-        // Error presentation may only re-word the failure. A reply that announces an
-        // upcoming action ("I will now create ...") promises work the engine will not
-        // run — the turn ends with this message — so it is a semantic drift, not wording.
-        if (
-            !empty($source['error_presentation_requested'])
-            && $this->announces_future_action($syncmessage)
-        ) {
-            if ($mode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE) {
-                return $this->with_gate_telemetry(
-                    $this->apply_sync_message($source, $syncmessage),
-                    'observe',
-                    'SYNC_ERROR_FUTURE_PROMISE_OBSERVED'
-                );
-            }
-            return $this->with_issue_code(
-                $this->with_gate_telemetry($source, 'failed', 'SYNC_ERROR_FUTURE_PROMISE_REJECTED'),
-                'SYNC_ERROR_FUTURE_PROMISE_REJECTED'
             );
         }
 
@@ -278,58 +257,6 @@ class synchronizer_output_contract {
         }
 
         return '';
-    }
-
-    /**
-     * Detect first-person announcements of an upcoming agent action in an error reply.
-     *
-     * Deliberately narrow (agent-as-subject + now/next constructions in the two UI
-     * languages) so honest error wording — including "you can now retry" addressed to
-     * the user — never matches.
-     *
-     * @param string $syncmessage
-     * @return bool
-     */
-    private function announces_future_action(string $syncmessage): bool {
-        $normalized = core_text::strtolower($syncmessage);
-        $patterns = [
-            // German: verb-first and pronoun-first "I will now …" constructions.
-            'erstelle ich nun',
-            'erstelle ich jetzt',
-            'lege ich nun an',
-            'lege ich jetzt an',
-            'führe ich nun',
-            'führe ich jetzt',
-            'ich erstelle nun',
-            'ich erstelle jetzt',
-            'ich lege nun',
-            'ich lege jetzt',
-            'ich werde nun',
-            'ich werde jetzt',
-            'ich führe nun',
-            'ich führe jetzt',
-            'ich versuche es nun erneut',
-            'ich versuche es jetzt erneut',
-            'ich starte nun',
-            'ich starte jetzt',
-            // English equivalents.
-            'i will now',
-            'i am now creating',
-            "i'm now creating",
-            'i am now going to',
-            'i will retry',
-            'i will proceed',
-            'let me now create',
-            'proceeding to create',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (str_contains($normalized, $pattern)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
