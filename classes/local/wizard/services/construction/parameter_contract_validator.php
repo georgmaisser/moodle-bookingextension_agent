@@ -43,9 +43,23 @@ class parameter_contract_validator {
             return new parameter_construction_result($input, true, [], []);
         }
 
+        // F3 two-channel cause contract: a skill that supplies 'repair' guarantees its
+        // 'errors' are user_cause texts — those stay label-free (the "Command #N:" label is
+        // planner orientation, i.e. repair vocabulary). Legacy skills without the key keep
+        // the historical labelled/mixed behaviour until they migrate.
+        $migrated = array_key_exists('repair', (array)$structural);
+
         $errors = [];
         foreach ((array)($structural['errors'] ?? []) as $error) {
-            $errors[] = $label . ': ' . $error;
+            $errors[] = $migrated ? (string)$error : $label . ': ' . $error;
+        }
+
+        $repair = [];
+        foreach ((array)($structural['repair'] ?? []) as $hint) {
+            $hint = trim((string)$hint);
+            if ($hint !== '') {
+                $repair[] = $label . ': ' . $hint;
+            }
         }
 
         $issuecodes = [];
@@ -56,6 +70,6 @@ class parameter_contract_validator {
             }
         }
 
-        return new parameter_construction_result($input, false, $errors, $issuecodes);
+        return new parameter_construction_result($input, false, $errors, $issuecodes, $repair);
     }
 }

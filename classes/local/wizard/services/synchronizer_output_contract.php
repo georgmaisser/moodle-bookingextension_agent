@@ -50,6 +50,27 @@ class synchronizer_output_contract {
             return $this->with_gate_telemetry($source, 'failed', 'SYNC_EMPTY_MESSAGE');
         }
 
+        // F3 envelope sanitization (structural rejections only): on a terminal non-success
+        // source (clarification/error) a sync reply whose ENVELOPE is wrong — response_type
+        // 'error' instead of 'sufficient', or stray commands — often still carries the better
+        // user wording (thread 589: the German relay was discarded for the raw cause). The
+        // envelope is sanitized and the MESSAGE runs through the remaining content pipeline
+        // (fact conflict, source conflict, contract issues) unchanged; the source's own
+        // response_type/commands always win, so semantics cannot drift. On any other source
+        // (e.g. sufficient) a sync error envelope stays a real conflict and rejects as before.
+        $sanitized = false;
+        $sourceresponsetype = trim((string)($source['response_type'] ?? ''));
+        if (in_array($sourceresponsetype, ['clarification', 'error'], true)) {
+            if (trim((string)($sync['response_type'] ?? '')) === 'error') {
+                $sync['response_type'] = 'sufficient';
+                $sanitized = true;
+            }
+            if (!empty($sync['commands'])) {
+                $sync['commands'] = [];
+                $sanitized = true;
+            }
+        }
+
         $rejectreason = $this->reject_reason($sync, $syncmessage);
         if ($rejectreason !== '') {
             if ($mode === runtime_feature_flags::ENFORCEMENT_MODE_OBSERVE) {
@@ -108,7 +129,11 @@ class synchronizer_output_contract {
             $merged['lang'] = $synclang;
         }
 
-        return $this->with_gate_telemetry($merged, 'passed', 'SYNC_MESSAGE_ACCEPTED');
+        return $this->with_gate_telemetry(
+            $merged,
+            'passed',
+            $sanitized ? 'SYNC_ENVELOPE_SANITIZED' : 'SYNC_MESSAGE_ACCEPTED'
+        );
     }
 
     /**

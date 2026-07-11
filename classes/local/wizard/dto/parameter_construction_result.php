@@ -39,17 +39,28 @@ class parameter_construction_result {
     public readonly array $issuecodes;
 
     /**
+     * Planner-only repair instructions (F3 two-channel cause contract): key lists,
+     * canonical forms, retry guidance. Never shown to the user — errors stays the
+     * user_cause channel once a skill supplies this field.
+     *
+     * @var string[]
+     */
+    public readonly array $repair;
+
+    /**
      * Constructor.
      *
      * @param array $input
      * @param bool $valid
      * @param string[] $errors
      * @param string[] $issuecodes
+     * @param string[] $repair
      */
-    public function __construct(array $input, bool $valid, array $errors = [], array $issuecodes = []) {
+    public function __construct(array $input, bool $valid, array $errors = [], array $issuecodes = [], array $repair = []) {
         $this->input = $input;
         $this->valid = $valid;
         $this->errors = array_values($errors);
         $this->issuecodes = array_values($issuecodes);
+        $this->repair = array_values($repair);
     }
 }

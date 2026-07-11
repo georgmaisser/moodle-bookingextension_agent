@@ -98,9 +98,14 @@ class synchronizer_input_builder {
         $issuecodes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
         $errorclass = trim((string)($result['error_class'] ?? ''));
 
+        // F3 user_cause channel: causes are the only cause text the synchronizer may explain
+        // to the user, so planner vocabulary stays out — the "Command #N:" label is planner
+        // orientation and is stripped here (it lives on in the phase trace and retry
+        // observations), and failed execute rows prefer their usermessage over the internal
+        // detail. repair_hints never enter this block by construction.
         $causes = [];
         foreach ((array)($result['errors'] ?? []) as $error) {
-            $error = trim((string)$error);
+            $error = trim((string)preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', (string)$error));
             if ($error !== '') {
                 $causes[] = $error;
             }
@@ -110,9 +115,12 @@ class synchronizer_input_builder {
                 continue;
             }
             $status = trim((string)($entry['status'] ?? ''));
-            $detail = trim((string)($entry['detail'] ?? ''));
-            if (in_array($status, ['error', 'failed'], true) && $detail !== '') {
-                $causes[] = $detail;
+            $usercause = trim((string)($entry['usermessage'] ?? ''));
+            if ($usercause === '') {
+                $usercause = trim((string)($entry['detail'] ?? ''));
+            }
+            if (in_array($status, ['error', 'failed'], true) && $usercause !== '') {
+                $causes[] = $usercause;
             }
         }
 

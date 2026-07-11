@@ -249,11 +249,20 @@ class create_course_skill extends core_skill_base implements
      * @return array{valid:bool,errors:string[]}
      */
     public function check_structure(array $input): array {
-        $errors = [];
+        // F3 two-channel cause: errors = user_cause (localized question), repair = the
+        // planner instruction; RECOVERABLE_INPUT_ERROR routes the question as a real
+        // clarification turn instead of an error-with-apology.
         if (trim((string)($input['fullname'] ?? '')) === '') {
-            $errors[] = 'fullname is required: the course needs a name.';
+            return [
+                'valid' => false,
+                'errors' => [
+                    $this->localized_string('agent_createcourse_name_question', null, $this->get_output_language($input)),
+                ],
+                'repair' => ['fullname is required: the course needs a name.'],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+            ];
         }
-        return ['valid' => empty($errors), 'errors' => $errors];
+        return ['valid' => true, 'errors' => [], 'repair' => []];
     }
 
     /**
@@ -267,12 +276,16 @@ class create_course_skill extends core_skill_base implements
     protected function run_preflight(array $input, int $contextid, int $userid): array {
         global $DB;
 
+        $lang = $this->get_output_language($input);
         $fullname = trim((string)($input['fullname'] ?? ''));
         if ($fullname === '') {
-            return $this->clarify('What should the course be called?', 'CREATE_COURSE_NAME_REQUIRED');
+            return $this->clarify(
+                $this->localized_string('agent_createcourse_name_question', null, $lang),
+                'CREATE_COURSE_NAME_REQUIRED'
+            );
         }
 
-        $category = $this->resolve_category(trim((string)($input['categoryquery'] ?? '')), $userid);
+        $category = $this->resolve_category(trim((string)($input['categoryquery'] ?? '')), $userid, $lang);
         if (isset($category['clarify'])) {
             return $category['clarify'];
         }
@@ -297,8 +310,7 @@ class create_course_skill extends core_skill_base implements
         $shortname = trim((string)($input['shortname'] ?? ''));
         if ($shortname !== '' && $DB->record_exists('course', ['shortname' => $shortname])) {
             return $this->clarify(
-                'The short name "' . $shortname . '" is already taken. Please provide a different one '
-                . '(or leave it empty to derive one automatically).',
+                $this->localized_string('agent_createcourse_shortname_taken', $shortname, $lang),
                 'CREATE_COURSE_SHORTNAME_TAKEN'
             );
         }
@@ -404,13 +416,14 @@ class create_course_skill extends core_skill_base implements
      *
      * @param string $categoryquery
      * @param int $userid
+     * @param string $lang Output language for the clarification texts.
      * @return array{id?:int,name?:string,clarify?:array}
      */
-    private function resolve_category(string $categoryquery, int $userid): array {
+    private function resolve_category(string $categoryquery, int $userid, string $lang = ''): array {
         $writable = core_course_category::make_categories_list('moodle/course:create');
         if (empty($writable)) {
             return ['clarify' => $this->clarify(
-                'You have no course category where you may create courses.',
+                $this->localized_string('agent_createcourse_no_writable_category', null, $lang),
                 'CREATE_COURSE_NO_WRITABLE_CATEGORY'
             )];
         }
@@ -437,11 +450,14 @@ class create_course_skill extends core_skill_base implements
             }
             $candidates = empty($matches) ? $writable : $matches;
             return ['clarify' => $this->clarify(
-                (empty($matches)
-                    ? 'No category matched "' . $categoryquery . '". '
-                    : 'Several categories match "' . $categoryquery . '". ')
-                . 'Which one should the course go into? '
-                . $this->format_category_candidates($candidates),
+                $this->localized_string(
+                    empty($matches) ? 'agent_createcourse_category_nomatch' : 'agent_createcourse_category_ambiguous',
+                    (object)[
+                        'query' => $categoryquery,
+                        'candidates' => $this->format_category_candidates($candidates),
+                    ],
+                    $lang
+                ),
                 'CREATE_COURSE_CATEGORY_AMBIGUOUS'
             )];
         }
@@ -451,8 +467,11 @@ class create_course_skill extends core_skill_base implements
         }
 
         return ['clarify' => $this->clarify(
-            'Which course category should the new course go into? '
-            . $this->format_category_candidates($writable),
+            $this->localized_string(
+                'agent_createcourse_category_question',
+                (object)['candidates' => $this->format_category_candidates($writable)],
+                $lang
+            ),
             'CREATE_COURSE_CATEGORY_REQUIRED'
         )];
     }
@@ -472,7 +491,7 @@ class create_course_skill extends core_skill_base implements
         $suffix = count($entries) > self::MAX_CATEGORY_CANDIDATES
             ? ' (and ' . (count($entries) - self::MAX_CATEGORY_CANDIDATES) . ' more)'
             : '';
-        return 'Available: ' . implode('; ', $shown) . $suffix . '.';
+        return implode('; ', $shown) . $suffix . '.';
     }
 
     /**

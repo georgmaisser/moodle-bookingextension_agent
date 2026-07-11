@@ -895,7 +895,12 @@ class agent_decision_service {
 
         // If there were blocking errors, decide whether to allow confirmable continuation.
         if ($status !== 'pass') {
-            $validationmessage = trim(implode(' ', $blockingerrors));
+            // F3 user_cause channel: the user-facing wording prefers each issue's
+            // user_question over its (often technical) message, and never carries the
+            // planner-only "Command #N:" label — thread 586 showed the NOT_EMPTY guard's
+            // message although its user_question held the actual question. The raw
+            // $blockingerrors stay untouched in 'errors' for the planner/debug channels.
+            $validationmessage = $this->compose_user_cause_from_issues($allissues, $blockingerrors);
             if ($status === 'retry_hint') {
                 // Nothing was executed and nothing is awaiting confirmation (the queue items sit
                 // in retry_waiting, no pending intent exists) — so this must NOT be a
@@ -1624,6 +1629,45 @@ class agent_decision_service {
 
     // -------------------------------------------------------------------------
     // Private: localisation + normalization helpers.
+
+    /**
+     * User-facing cause text from preflight issues (F3): user_question preferred over
+     * message per issue, planner-only "Command #N:" labels stripped; falls back to the
+     * stripped blocking errors when no issue carries usable text.
+     *
+     * @param array $issues
+     * @param string[] $fallbackerrors
+     * @return string
+     */
+    private function compose_user_cause_from_issues(array $issues, array $fallbackerrors): string {
+        $striplabel = static fn(string $text): string =>
+            trim((string)preg_replace('/^\s*Command\s*#\d+\s*:\s*/i', '', $text));
+
+        $parts = [];
+        foreach ($issues as $issue) {
+            if (!is_array($issue)) {
+                continue;
+            }
+            $text = $striplabel(trim((string)($issue['user_question'] ?? '')));
+            if ($text === '') {
+                $text = $striplabel(trim((string)($issue['message'] ?? '')));
+            }
+            if ($text !== '' && !in_array($text, $parts, true)) {
+                $parts[] = $text;
+            }
+        }
+
+        if (empty($parts)) {
+            foreach ($fallbackerrors as $error) {
+                $text = $striplabel(trim((string)$error));
+                if ($text !== '' && !in_array($text, $parts, true)) {
+                    $parts[] = $text;
+                }
+            }
+        }
+
+        return trim(implode(' ', $parts));
+    }
 
     /**
      * Resolve a localized plugin string.

@@ -57,7 +57,7 @@ final class runtime_finalization_contract_test extends TestCase {
     /**
      * Synchronizer message merge must rollback on response_type drift.
      */
-    public function test_merge_rolls_back_when_response_type_drifts(): void {
+    public function test_merge_sanitizes_error_envelope_on_terminal_nonsuccess_source(): void {
         $contract = new synchronizer_output_contract();
 
         $source = [
@@ -75,13 +75,15 @@ final class runtime_finalization_contract_test extends TestCase {
 
         $merged = $contract->merge($source, $sync);
 
-        $expected = array_merge($source, [
-            'sync_gate_status' => 'failed',
-            'sync_gate_reason' => 'SYNC_RESPONSE_TYPE_ERROR_REJECTED',
-            'issue_codes' => ['SYNC_RESPONSE_TYPE_ERROR_REJECTED'],
-        ]);
-
-        $this->assertSame($expected, $merged);
+        // F3 §4/6 (thread 589): on a terminal non-success source, a wrong sync ENVELOPE is a
+        // structural defect — the envelope is sanitized and the (often better) message kept;
+        // source semantics never change. On a sufficient source the same envelope still
+        // rejects hard (see f3_error_cause_channels_test).
+        $this->assertSame('clarification', $merged['response_type']);
+        $this->assertSame('sync message', $merged['message']);
+        $this->assertSame([], $merged['commands']);
+        $this->assertSame('passed', $merged['sync_gate_status']);
+        $this->assertSame('SYNC_ENVELOPE_SANITIZED', $merged['sync_gate_reason']);
     }
 
     /**

@@ -73,6 +73,9 @@ class planner_result_composer {
             'embeddingstatus' => (string)($state['embeddingstatus'] ?? ''),
             'issue_codes' => (array)($state['issue_codes'] ?? []),
             'errors' => (array)($state['errors'] ?? []),
+            // Planner-only repair instructions (F3): part of the trace the next planner
+            // turn reads, never of any user-facing channel.
+            'repair_hints' => (array)($state['repair_hints'] ?? []),
         ];
     }
 }

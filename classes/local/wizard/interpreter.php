@@ -233,8 +233,8 @@ class interpreter implements agent_interpreter {
             return $this->error_result('Response type requires at least one command but none were provided.');
         }
 
-        [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedskills, $issuecodes, $confirmablecommands] =
-            $this->validate_commands($commands, $contextid, $userid, $lastusermessage);
+        [$validatedcommands, $errors, $ambiguities, $ambiguityoptions, $attemptedskills, $issuecodes, $confirmablecommands,
+            $repairhints] = $this->validate_commands($commands, $contextid, $userid, $lastusermessage);
 
         // Stage 5: Any ambiguity from backend validation stops execution and forces clarification.
         // The confirm button must NEVER appear when unresolved questions remain.
@@ -254,6 +254,7 @@ class interpreter implements agent_interpreter {
                     'ambiguities'   => [],
                     'ambiguity_options' => $ambiguityoptions,
                     'errors'        => $errors,
+                    'repair_hints'  => $repairhints,
                     'attempted_skills' => $attemptedskills,
                     'issue_codes'   => $issuecodes,
                 ], $nextstepintent);
@@ -266,6 +267,7 @@ class interpreter implements agent_interpreter {
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
                 'errors'        => $errors,
+                'repair_hints'  => $repairhints,
                 'attempted_skills' => $attemptedskills,
                 'issue_codes'   => $issuecodes,
             ], $nextstepintent);
@@ -1068,6 +1070,7 @@ class interpreter implements agent_interpreter {
     private function validate_commands(array $commands, int $contextid, int $userid, string $lastusermessage = ''): array {
         $validated = [];
         $errors = [];
+        $repairhints = [];
         $ambiguities = [];
         $ambiguityoptions = [];
         $attemptedskills = [];
@@ -1130,6 +1133,9 @@ class interpreter implements agent_interpreter {
                 foreach ($structural->errors as $error) {
                     $errors[] = $error;
                 }
+                foreach ($structural->repair as $hint) {
+                    $repairhints[] = $hint;
+                }
                 foreach ($structural->issuecodes as $issuecode) {
                     $issuecodes[] = $issuecode;
                 }
@@ -1159,6 +1165,7 @@ class interpreter implements agent_interpreter {
             array_values(array_unique($attemptedskills)),
             array_values(array_unique($issuecodes)),
             $confirmablecommands,
+            array_values(array_unique($repairhints)),
         ];
     }
 
