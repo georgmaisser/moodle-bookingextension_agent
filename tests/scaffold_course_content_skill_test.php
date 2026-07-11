@@ -98,6 +98,24 @@ final class scaffold_course_content_skill_test extends advanced_testcase {
     }
 
     /**
+     * Moodle's auto-created announcements forum is an EXPECTED activity: a fresh course
+     * containing only the news forum passes without any override (thread 586: the plain
+     * count>0 check blocked the chain on every fresh course).
+     */
+    public function test_default_news_forum_does_not_block_scaffolding(): void {
+        $env = $this->setup_course();
+        $this->getDataGenerator()->create_module('forum', ['course' => $env['courseid'], 'type' => 'news']);
+
+        $result = (new scaffold_course_content_skill())->preflight(
+            ['topic' => 'Wikinger', 'chapters' => 2],
+            $env['contextid'],
+            $env['userid']
+        )->to_array();
+
+        $this->assertSame('pass', $result['status'], json_encode($result['issue_codes'] ?? []));
+    }
+
+    /**
      * A non-empty course soft-blocks once and passes with the override token.
      */
     public function test_non_empty_course_soft_blocks_until_override(): void {

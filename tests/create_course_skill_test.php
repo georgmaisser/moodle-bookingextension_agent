@@ -107,6 +107,9 @@ final class create_course_skill_test extends advanced_testcase {
         $this->assertSame((int)$category->id, (int)$course->category);
         $this->assertStringContainsString('linkedcoursequery', (string)$result['observation_full']);
         $this->assertSame($courseid, (int)($result['produced_outputs']['courseid'] ?? 0));
+        // Expected-activities baseline (blueprint F2): whatever Moodle auto-created is
+        // reported so downstream skills treat it as expected, not as foreign content.
+        $this->assertIsArray($result['produced_outputs']['baseline_cmids'] ?? null);
     }
 
     /**

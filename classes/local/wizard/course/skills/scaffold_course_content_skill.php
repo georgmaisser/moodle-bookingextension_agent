@@ -311,15 +311,20 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             (int)($input['chapters'] ?? self::DEFAULT_CHAPTERS) ?: self::DEFAULT_CHAPTERS
         ));
 
-        // A course that already has activities is probably the wrong target — soft-block once.
+        // Expected-activities contract (blueprint F2): only activities BEYOND what the system
+        // itself put there count as "not empty". V1 expected set = Moodle's own default
+        // activities (announcements forum, detected via module data — forum.type=news — never
+        // via names); a template manifest becomes a second expected source in V2, where
+        // expected slots are UPDATED instead of blocking. Thread 586: the plain count>0 check
+        // fired on the auto-created announcements forum of every fresh course.
         $overrides = array_map('strval', is_array($input['override'] ?? null) ? $input['override'] : []);
-        $modinfo = get_fast_modinfo($course, $userid);
-        if (!in_array('course_not_empty', $overrides, true) && count($modinfo->get_cms()) > 0) {
+        $foreign = $this->list_foreign_activities($course, $userid);
+        if (!in_array('course_not_empty', $overrides, true) && !empty($foreign)) {
             return $this->invalid([[
                 'code' => 'SCAFFOLD_COURSE_NOT_EMPTY_CONFIRM_REQUIRED',
                 'severity' => 'needs_confirmation',
                 'message' => 'The course "' . $course->fullname . '" already contains '
-                    . count($modinfo->get_cms()) . ' activity(ies).',
+                    . count($foreign) . ' activity(ies) beyond Moodle\'s defaults.',
                 'user_question' => 'This course is not empty. Generate the scaffold content into it anyway?',
                 'remedy_options' => ['CONFIRM_SCAFFOLD_INTO_NON_EMPTY_COURSE', 'PICK_DIFFERENT_COURSE'],
             ]]);
@@ -475,6 +480,35 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             'observation_full' => $detail . "\nStages: " . implode(', ', $stages) . '.',
             'produced_outputs' => ['courseid' => $courseid, 'chapters' => count($chaptertitles)],
         ];
+    }
+
+    /**
+     * Activities that are NOT part of the expected set (Moodle defaults for now,
+     * template-manifest slots in V2).
+     *
+     * @param \stdClass $course
+     * @param int $userid
+     * @return \cm_info[]
+     */
+    private function list_foreign_activities(\stdClass $course, int $userid): array {
+        global $DB;
+
+        $foreign = [];
+        foreach (get_fast_modinfo($course, $userid)->get_cms() as $cm) {
+            if (!empty($cm->deletioninprogress)) {
+                continue;
+            }
+            // Moodle's auto-created announcements forum: detected via module DATA
+            // (forum.type = news), never via localized names.
+            if (
+                $cm->modname === 'forum'
+                && (string)$DB->get_field('forum', 'type', ['id' => (int)$cm->instance]) === 'news'
+            ) {
+                continue;
+            }
+            $foreign[] = $cm;
+        }
+        return $foreign;
     }
 
     /**

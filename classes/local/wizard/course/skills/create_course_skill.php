@@ -361,6 +361,19 @@ class create_course_skill extends core_skill_base implements
             ];
         }
 
+        // Baseline of Moodle's own default activities (e.g. the announcements forum the
+        // course_created observer adds): downstream skills treat these as EXPECTED and must
+        // not mistake the fresh course for a non-empty one (expected-activities contract,
+        // blueprint F2; a template-manifest source joins this channel in V2).
+        $baselinecmids = [];
+        try {
+            foreach (get_fast_modinfo($course)->get_cms() as $cm) {
+                $baselinecmids[] = (int)$cm->id;
+            }
+        } catch (\Throwable $e) {
+            $baselinecmids = [];
+        }
+
         $courseurl = (new moodle_url('/course/view.php', ['id' => (int)$course->id]))->out(false);
         $detail = 'Course created (fullname="' . $course->fullname . '", id=' . (int)$course->id
             . ', category="' . (string)($preparedinput['categoryname'] ?? '') . '", link=' . $courseurl . ').';
@@ -371,12 +384,17 @@ class create_course_skill extends core_skill_base implements
             'usermessage' => $detail,
             'resultid' => (int)$course->id,
             'observation_full' => $detail . "\n"
-                . 'The course is EMPTY. Planned follow-up steps (content, bookable option via '
+                . 'The course has no content yet'
+                . (empty($baselinecmids)
+                    ? ''
+                    : ' (Moodle auto-created ' . count($baselinecmids) . ' default activity(ies))')
+                . '. Planned follow-up steps (content, bookable option via '
                 . 'linkedcoursequery="' . $course->fullname . '") can now target it by this exact full name.',
             'produced_outputs' => [
                 'courseid' => (int)$course->id,
                 'coursefullname' => (string)$course->fullname,
                 'courseshortname' => (string)$course->shortname,
+                'baseline_cmids' => $baselinecmids,
             ],
         ];
     }
