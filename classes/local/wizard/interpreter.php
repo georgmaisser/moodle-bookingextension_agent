@@ -749,7 +749,7 @@ class interpreter implements agent_interpreter {
         $responsetype = (string)($parsed['response_type'] ?? '');
         $responsereferencedskill = $this->safe_string($responsetype);
         if ($responsereferencedskill !== '' && in_array($responsereferencedskill, $allowedskills, true)) {
-            $input = is_array($parsed['input'] ?? null) ? $parsed['input'] : [];
+            $input = $this->extract_command_input($parsed);
             return [
                 'response_type' => 'skill_call',
                 'message' => $this->safe_string($parsed['message'] ?? 'Executing.'),
@@ -955,7 +955,16 @@ class interpreter implements agent_interpreter {
      * @return array
      */
     private function extract_command_input(array $payload): array {
-        return is_array($payload['input'] ?? null) ? (array)$payload['input'] : [];
+        // Mirror normalize_commands_payload(): the planner may carry the payload under
+        // "parameters" or "input" (or both) — reading only "input" silently dropped every
+        // argument of a naked {"skill":…,"parameters":{…}} response, so a perfectly
+        // constructed fullname/topic surfaced as a false "<field> is required" error
+        // (threads 585/586). Parameters first, input wins on collision.
+        $input = is_array($payload['parameters'] ?? null) ? (array)$payload['parameters'] : [];
+        if (is_array($payload['input'] ?? null)) {
+            $input = array_merge($input, (array)$payload['input']);
+        }
+        return $input;
     }
 
     /**

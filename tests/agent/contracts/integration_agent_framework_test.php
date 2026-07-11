@@ -1138,6 +1138,63 @@ final class integration_agent_framework_test extends TestCase {
     }
 
     /**
+     * A naked skill-like response carrying its payload under "parameters" keeps every
+     * argument through the rescue path (threads 585/586: extract_command_input read only
+     * "input", so a perfectly constructed fullname/topic surfaced as a false
+     * "<field> is required" error).
+     */
+    public function test_interpreter_naked_skill_response_keeps_parameters_payload(): void {
+        $registry = skill_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
+        $method = new \ReflectionMethod($interpreter, 'normalize_skill_like_response');
+        $method->setAccessible(true);
+
+        $normalized = $method->invoke($interpreter, [
+            'skill' => 'course.scaffold_course_content',
+            'version' => 1,
+            'parameters' => [
+                'topic' => 'Das Leben der Wikinger',
+                'chapters' => 4,
+                'practicequizzes' => false,
+                'finalquiz' => true,
+                'coursequery' => 'Das Leben der Wikinger',
+            ],
+        ], '');
+
+        $this->assertIsArray($normalized);
+        $this->assertSame('skill_call', $normalized['response_type']);
+        $command = (array)($normalized['commands'][0] ?? []);
+        $this->assertSame('course.scaffold_course_content', $command['skill'] ?? '');
+        $input = (array)($command['input'] ?? []);
+        $this->assertSame('Das Leben der Wikinger', $input['topic'] ?? null);
+        $this->assertSame(4, (int)($input['chapters'] ?? 0));
+        $this->assertTrue((bool)($input['finalquiz'] ?? false));
+        $this->assertSame('Das Leben der Wikinger', $input['coursequery'] ?? null);
+    }
+
+    /**
+     * When both keys are present, "input" wins per key over "parameters" — the same
+     * precedence normalize_commands_payload() applies to enveloped commands.
+     */
+    public function test_interpreter_naked_skill_response_input_wins_over_parameters(): void {
+        $registry = skill_registry_factory::get_default();
+        $interpreter = new \bookingextension_agent\local\wizard\interpreter($registry);
+        $method = new \ReflectionMethod($interpreter, 'normalize_skill_like_response');
+        $method->setAccessible(true);
+
+        $normalized = $method->invoke($interpreter, [
+            'skill' => 'course.create_course',
+            'parameters' => ['fullname' => 'From parameters', 'summary' => 'Kept from parameters'],
+            'input' => ['fullname' => 'From input'],
+        ], '');
+
+        $this->assertIsArray($normalized);
+        $input = (array)($normalized['commands'][0]['input'] ?? []);
+        $this->assertSame('From input', $input['fullname'] ?? null);
+        $this->assertSame('Kept from parameters', $input['summary'] ?? null);
+    }
+
+    /**
      * A confirmation_request without commands is a question to the user: it must be relayed
      * as a clarification (message preserved) instead of erroring into the framework retry,
      * which pushes the planner to emit commands it was not ready to build.
