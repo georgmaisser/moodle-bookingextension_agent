@@ -658,17 +658,6 @@ class agent_decision_service {
 
         $firstmutatingenqueued = false;
         foreach ($mutatingcommands as $idx => $mutatingcommand) {
-            // Consume one planned placeholder when a real mutating skill is enqueued for a
-            // subsequent planned step. On the first multi-step turn ($hadplaceholders=false)
-            // the current command IS the initial step — placeholders represent future steps
-            // only, so nothing is consumed yet. Starting with Turn 2 ($hadplaceholders=true)
-            // each real command takes the place of the oldest remaining placeholder.
-            if (!$firstmutatingenqueued) {
-                if ($hadplaceholders) {
-                    $this->queuesvc->consume_next_placeholder($threadid);
-                }
-                $firstmutatingenqueued = true;
-            }
             $status = 'queued';
             $dependson = array_values(array_map('strval', (array)($mutatingcommand['depends_on'] ?? [])));
             if ($idx > 0 && !empty($mutatingqueueids[$idx - 1])) {
@@ -694,6 +683,23 @@ class agent_decision_service {
                 $dependson
             );
             $mutatingqueueids[] = (string)($queued['queue_item_id'] ?? '');
+            // Bind (not consume) the oldest planned placeholder to the first real mutating
+            // command of the turn: the placeholder leaves the pending list while the command
+            // is in flight and settles with its terminal state — succeeded only on succeeded
+            // execution, back to planned on a preflight clarification (F5, threads 544/589;
+            // the old consume-at-enqueue marked it succeeded at staging time, so a step whose
+            // command never executed vanished from the plan while the queue claimed success).
+            // On the first multi-step turn ($hadplaceholders=false) the current command IS the
+            // initial step — placeholders represent future steps only, so nothing is bound.
+            if (!$firstmutatingenqueued) {
+                if ($hadplaceholders) {
+                    $this->queuesvc->bind_next_placeholder(
+                        $threadid,
+                        (string)($queued['queue_item_id'] ?? '')
+                    );
+                }
+                $firstmutatingenqueued = true;
+            }
         }
 
         if (!empty($readonlycommands)) {
@@ -828,6 +834,13 @@ class agent_decision_service {
             static fn($issue): bool => is_array($issue)
         ));
         $blockingerrors = array_values(array_unique(array_map('strval', (array)($preflightresult['errors'] ?? []))));
+        $hasclarificationissues = false;
+        foreach ($allissues as $issue) {
+            if (trim((string)($issue['severity'] ?? '')) === 'needs_clarification') {
+                $hasclarificationissues = true;
+                break;
+            }
+        }
         $v2result = [
             'status' => $status,
             'issue_codes' => $allissuecodes,
@@ -835,6 +848,9 @@ class agent_decision_service {
             'retry_after_ms' => (int)($preflightresult['retry_after_ms'] ?? 0),
             'retry_count' => (int)($preflightresult['retry_count'] ?? 0),
             'duration_ms' => (int)($preflightresult['duration_ms'] ?? 0),
+            // Lets the transition service label clarification-class fails distinctly
+            // (PREFLIGHT_NEEDS_CLARIFICATION), which drives the F5 placeholder settle.
+            'has_clarification_issues' => $hasclarificationissues,
         ];
         $queueitemids = $this->normalize_queue_item_ids($result['queue_item_ids'] ?? []);
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread(
@@ -852,6 +868,12 @@ class agent_decision_service {
             $v2result,
             $autoconfirmmode
         );
+        if ($hasclarificationissues) {
+            // F5 (thread 589): a step blocked on a user answer stays represented in the
+            // pending plan — its bound placeholder reverts to planned, or (first-turn current
+            // command, never placeholdered) a placeholder is planted at the queue front.
+            $this->queuesvc->ensure_blocked_step_representation($threadid, $queueitemids);
+        }
         foreach ($preparedcommands as $idx => $preparedcommand) {
             $queueitemid = trim((string)($queueitemids[$idx] ?? ''));
             $preparedinput = is_array($preparedcommand['input'] ?? null) ? (array)$preparedcommand['input'] : [];
@@ -899,17 +921,8 @@ class agent_decision_service {
                 ];
             }
 
-            $hasclarificationissues = false;
-            foreach ($allissues as $issue) {
-                if (!is_array($issue)) {
-                    continue;
-                }
-                if (trim((string)($issue['severity'] ?? '')) === 'needs_clarification') {
-                    $hasclarificationissues = true;
-                    break;
-                }
-            }
-
+            // The clarification flag was computed before the preflight decision was applied
+            // (it also feeds the transition service's clarification-vs-hard-block labeling).
             if (
                 ($status === 'soft_block' || $this->has_confirmable_prevalidation_issues($allissuecodes))
                 && !$hasclarificationissues

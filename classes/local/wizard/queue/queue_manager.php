@@ -32,6 +32,7 @@ use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\interfaces\queue_identity_provider_interface;
 use bookingextension_agent\local\wizard\services\preflight_execution_gate;
 use bookingextension_agent\local\wizard\services\queue_status_policy;
+use bookingextension_agent\local\wizard\services\queue_transition_service;
 use bookingextension_agent\local\wizard\skill_registry;
 
 /**
@@ -263,6 +264,16 @@ class queue_manager {
             break;
         }
         unset($item);
+
+        // A real item's terminal transition settles its bound placeholder (F5): success is the
+        // only path that may mark a placeholder succeeded; hard failures fail it; a preflight
+        // needs_clarification block leaves it to ensure_blocked_step_representation().
+        $this->settle_bound_placeholder(
+            $items,
+            $queueitemid,
+            $status,
+            trim((string)($extrafields['reason_code'] ?? ''))
+        );
 
         $this->save_queue_items($threadid, $items);
     }
@@ -600,11 +611,16 @@ class queue_manager {
             $item['error_class'] = 'blocked_timeout';
             $item['last_error_message'] = 'blocked_confirmation TTL expired.';
             $item['updated_at'] = $now;
+            $expiredids[] = (string)($item['queue_item_id'] ?? '');
             $changed++;
         }
         unset($item);
 
         if ($changed > 0) {
+            // The step never executed: its bound placeholder fails with it (F5).
+            foreach ($expiredids ?? [] as $expiredid) {
+                $this->settle_bound_placeholder($items, $expiredid, queue_status_policy::failed_status(), '');
+            }
             $this->save_queue_items($threadid, $items);
         }
         return $changed;
@@ -641,11 +657,16 @@ class queue_manager {
             $item['error_class'] = 'stale_running';
             $item['last_error_message'] = 'running claim exceeded the stale threshold (crash corpse reaped).';
             $item['updated_at'] = $now;
+            $reapedids[] = (string)($item['queue_item_id'] ?? '');
             $changed++;
         }
         unset($item);
 
         if ($changed > 0) {
+            // A reaped corpse never finished its step: the bound placeholder fails with it (F5).
+            foreach ($reapedids ?? [] as $reapedid) {
+                $this->settle_bound_placeholder($items, $reapedid, queue_status_policy::failed_status(), '');
+            }
             $this->save_queue_items($threadid, $items);
         }
         return $changed;
@@ -654,8 +675,10 @@ class queue_manager {
     /**
      * Enqueue a planned placeholder for a future multi-step skill.
      *
-     * Placeholders carry an intent string only — no real skill name or parameters.
-     * They are consumed (marked succeeded) when a real skill is enqueued in their place.
+     * Placeholders carry an intent string only — no real skill name or parameters. A planned
+     * placeholder is BOUND to the real command that realizes its step
+     * ({@see self::bind_next_placeholder()}) and settles with that command's terminal state —
+     * it never claims success at staging time (F5, threads 544/589).
      *
      * @param int $threadid
      * @param int $runid
@@ -724,24 +747,288 @@ class queue_manager {
     }
 
     /**
-     * Consume (mark as succeeded) the oldest planned placeholder.
+     * Bind the oldest planned placeholder to the real command that starts realizing it.
      *
-     * Called when a real skill is enqueued to take the placeholder's place.
+     * Replaces the old consume-at-enqueue semantics (the placeholder lie of threads 544/589:
+     * the placeholder was marked succeeded the moment the real command was STAGED, so a step
+     * whose command then failed preflight vanished from the plan without ever executing, and
+     * the queue claimed success at zero runs). Binding moves the placeholder to the realizing
+     * state instead; it settles together with the real item in {@see self::update_status()}:
+     * succeeded on success, failed on hard failure, back to planned when the command is blocked
+     * by a preflight clarification ({@see self::ensure_blocked_step_representation()}).
      *
      * @param int $threadid
-     * @return bool True if a placeholder was consumed, false if none found.
+     * @param string $realqueueitemid Queue item id of the staged real command.
+     * @return string|null The bound placeholder's queue item id, or null when none is planned.
      */
-    public function consume_next_placeholder(int $threadid): bool {
+    public function bind_next_placeholder(int $threadid, string $realqueueitemid): ?string {
+        $realqueueitemid = trim($realqueueitemid);
+        if ($realqueueitemid === '') {
+            return null;
+        }
+
         $items = $this->get_queue_items($threadid);
-        foreach ($items as &$item) {
-            if (queue_status_policy::is_planned_status((string)($item['status'] ?? ''))) {
-                $item['status'] = queue_status_policy::succeeded_status();
-                $item['updated_at'] = time();
-                $this->save_queue_items($threadid, $items);
-                return true;
+        $realindex = null;
+        foreach ($items as $index => $item) {
+            if ((string)($item['queue_item_id'] ?? '') === $realqueueitemid) {
+                $realindex = $index;
+                break;
             }
         }
-        return false;
+        if ($realindex === null) {
+            return null;
+        }
+
+        $placeholderid = null;
+        foreach ($items as $index => $item) {
+            if (!queue_status_policy::is_planned_status((string)($item['status'] ?? ''))) {
+                continue;
+            }
+            $placeholderid = (string)($item['queue_item_id'] ?? '');
+            $items[$index]['status'] = queue_status_policy::realizing_status();
+            $items[$index]['realized_by'] = $realqueueitemid;
+            $items[$index]['updated_at'] = time();
+            break;
+        }
+        if ($placeholderid === null) {
+            return null;
+        }
+
+        $items[$realindex]['realizes_placeholder'] = $placeholderid;
+        $this->save_queue_items($threadid, $items);
+        return $placeholderid;
+    }
+
+    /**
+     * Keep a clarification-blocked step represented in the pending plan (F5, thread 589).
+     *
+     * A mutating command that failed preflight on a needs_clarification issue is not done: the
+     * user is being asked for the missing input and the step is still owed. Without
+     * representation the next selector turn works through the WRONG list (thread 589: the
+     * category question orphaned create_course; the selector prompt then directed the model to
+     * the scaffold step and the course was never created). For each such item:
+     *  - its bound placeholder (realizing) reverts to planned — the step reappears FIRST in the
+     *    pending list because that placeholder is the oldest;
+     *  - an unbound item (the first multi-step turn's current command never had a placeholder)
+     *    gets a planned placeholder PLANTED at the front of the queue, but only while a plan is
+     *    in flight (other placeholders planned/realizing). Single-command threads keep the
+     *    plain clarification flow without a pending-step entry.
+     *
+     * @param int $threadid
+     * @param string[] $queueitemids Queue item ids of the just-preflighted batch.
+     * @return void
+     */
+    public function ensure_blocked_step_representation(int $threadid, array $queueitemids): void {
+        $queueitemids = array_values(array_unique(array_filter(array_map(
+            static fn($id): string => trim((string)$id),
+            $queueitemids
+        ))));
+        if (empty($queueitemids)) {
+            return;
+        }
+
+        $items = $this->get_queue_items($threadid);
+        $changed = false;
+
+        foreach ($queueitemids as $queueitemid) {
+            $realindex = null;
+            foreach ($items as $index => $item) {
+                if ((string)($item['queue_item_id'] ?? '') === $queueitemid) {
+                    $realindex = $index;
+                    break;
+                }
+            }
+            if ($realindex === null) {
+                continue;
+            }
+
+            $realitem = $items[$realindex];
+            if (
+                (string)($realitem['skill'] ?? '') === '__placeholder__'
+                || (string)($realitem['mutability'] ?? '') !== 'mutating'
+                || !queue_status_policy::is_failed_status((string)($realitem['status'] ?? ''))
+                || (string)($realitem['reason_code'] ?? '') !== queue_transition_service::REASON_PREFLIGHT_NEEDS_CLARIFICATION
+            ) {
+                continue;
+            }
+
+            $link = trim((string)($realitem['realizes_placeholder'] ?? ''));
+            if ($link !== '') {
+                // Bound step: revert the realizing placeholder to planned. The stale
+                // realized_by marker stays informational; the next re-derive re-binds it.
+                foreach ($items as $index => $item) {
+                    if ((string)($item['queue_item_id'] ?? '') !== $link) {
+                        continue;
+                    }
+                    if (queue_status_policy::is_realizing_status((string)($item['status'] ?? ''))) {
+                        $items[$index]['status'] = queue_status_policy::planned_status();
+                        $items[$index]['updated_at'] = time();
+                        $changed = true;
+                    }
+                    break;
+                }
+                continue;
+            }
+
+            // Unbound step (first-turn current command): plant a placeholder at the front,
+            // but only while a plan is in flight.
+            $planinflight = false;
+            foreach ($items as $item) {
+                $status = (string)($item['status'] ?? '');
+                if (
+                    (string)($item['skill'] ?? '') === '__placeholder__'
+                    && (queue_status_policy::is_planned_status($status)
+                        || queue_status_policy::is_realizing_status($status))
+                ) {
+                    $planinflight = true;
+                    break;
+                }
+            }
+            if (!$planinflight) {
+                continue;
+            }
+
+            $seq = $this->next_sequence($threadid);
+            $now = time();
+            $placeholderid = 'q' . $threadid . '_' . $seq;
+            $placeholder = [
+                'queue_item_id' => $placeholderid,
+                'thread_id' => $threadid,
+                'contextid' => (int)($realitem['contextid'] ?? 0),
+                'run_id' => (int)($realitem['run_id'] ?? 0),
+                'step_id' => (int)($realitem['step_id'] ?? 0),
+                'skill' => '__placeholder__',
+                'version' => 1,
+                'input' => ['intent' => $this->compose_step_intent($realitem)],
+                'prepared_input' => null,
+                'guard_token' => '',
+                'input_signature' => '',
+                'input_signature_mode' => 'none',
+                'input_signature_payload' => [],
+                'mutability' => 'mutating',
+                'risk_class' => '',
+                'depends_on' => [],
+                'status' => queue_status_policy::planned_status(),
+                'realized_by' => $queueitemid,
+                'retry_count' => 0,
+                'preflight_retry_count' => 0,
+                'next_retry_at' => null,
+                'retry_after_ms' => 0,
+                'backoff_ms' => 0,
+                'blocked_expires_at' => null,
+                'issue_codes' => [],
+                'error_class' => '',
+                'last_error_message' => '',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            array_unshift($items, $placeholder);
+            // Re-locate the real item (unshift moved every index by one) and link it, so a
+            // second pass over the same batch cannot plant a duplicate.
+            foreach ($items as $index => $item) {
+                if ((string)($item['queue_item_id'] ?? '') === $queueitemid) {
+                    $items[$index]['realizes_placeholder'] = $placeholderid;
+                    break;
+                }
+            }
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->save_queue_items($threadid, $items);
+        }
+    }
+
+    /**
+     * Compose a deterministic pending-step intent from a real queue item.
+     *
+     * Planner-facing only (pending-step lists in the selector prompt and the synchronizer's
+     * unexecuted-steps block): skill name plus up to two scalar input fields, so the step stays
+     * identifiable after its command failed preflight. Structural — no language processing.
+     *
+     * @param array $item Real queue item.
+     * @return string
+     */
+    private function compose_step_intent(array $item): string {
+        $skill = trim((string)($item['skill'] ?? ''));
+        $parts = [];
+        foreach ((array)($item['input'] ?? []) as $key => $value) {
+            // Outputlang is a framework transport field, never step-identifying.
+            if ($key === 'outputlang' || !is_scalar($value)) {
+                continue;
+            }
+            $text = trim((string)$value);
+            if ($text === '') {
+                continue;
+            }
+            if (\core_text::strlen($text) > 60) {
+                $text = \core_text::substr($text, 0, 57) . '...';
+            }
+            $parts[] = $key . ': ' . $text;
+            if (count($parts) >= 2) {
+                break;
+            }
+        }
+
+        return $skill . (empty($parts) ? '' : ' (' . implode(', ', $parts) . ')');
+    }
+
+    /**
+     * Settle the placeholder bound to a real item when that item reaches a terminal state.
+     *
+     * succeeded => the placeholder becomes succeeded (the ONLY path that may claim success);
+     * failed => the placeholder becomes failed, EXCEPT a preflight needs_clarification block,
+     * which is handled by {@see self::ensure_blocked_step_representation()} (revert to planned)
+     * right after the transition. Other statuses leave the placeholder untouched.
+     *
+     * @param array $items Queue items (modified in place).
+     * @param string $realqueueitemid The transitioned real item's queue item id.
+     * @param string $newstatus The status the real item just transitioned to.
+     * @param string $reasoncode Transition reason code (from update_status extra fields).
+     * @return void
+     */
+    private function settle_bound_placeholder(
+        array &$items,
+        string $realqueueitemid,
+        string $newstatus,
+        string $reasoncode
+    ): void {
+        $link = '';
+        foreach ($items as $item) {
+            if ((string)($item['queue_item_id'] ?? '') !== $realqueueitemid) {
+                continue;
+            }
+            if ((string)($item['skill'] ?? '') === '__placeholder__') {
+                return;
+            }
+            $link = trim((string)($item['realizes_placeholder'] ?? ''));
+            break;
+        }
+        if ($link === '') {
+            return;
+        }
+
+        if (queue_status_policy::is_succeeded_status($newstatus)) {
+            $target = queue_status_policy::succeeded_status();
+        } else if (queue_status_policy::is_failed_status($newstatus)) {
+            if ($reasoncode === queue_transition_service::REASON_PREFLIGHT_NEEDS_CLARIFICATION) {
+                return;
+            }
+            $target = queue_status_policy::failed_status();
+        } else {
+            return;
+        }
+
+        foreach ($items as $index => $item) {
+            if ((string)($item['queue_item_id'] ?? '') !== $link) {
+                continue;
+            }
+            if (queue_status_policy::is_realizing_status((string)($item['status'] ?? ''))) {
+                $items[$index]['status'] = $target;
+                $items[$index]['updated_at'] = time();
+            }
+            break;
+        }
     }
 
     /**

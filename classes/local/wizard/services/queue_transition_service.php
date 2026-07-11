@@ -37,6 +37,14 @@ class queue_transition_service {
     /** Fallback reason code when a caller provides an empty value. */
     private const DEFAULT_REASON_CODE = 'TRANSITION_UNSPECIFIED';
 
+    /**
+     * Reason code for a preflight fail caused by a needs_clarification issue: the step is
+     * blocked on a user answer, NOT dead. queue_manager keys the F5 placeholder settle on this
+     * (the bound placeholder reverts to planned instead of failing), and the queue row stops
+     * mislabeling category-style questions as hard blocks (thread 589).
+     */
+    public const REASON_PREFLIGHT_NEEDS_CLARIFICATION = 'PREFLIGHT_NEEDS_CLARIFICATION';
+
     /** Maximum distinct retry layers allowed for the same error class. */
     private const MAX_RETRY_LAYERS_PER_ERROR_CLASS = 2;
 
@@ -182,11 +190,17 @@ class queue_transition_service {
                     $extrafields
                 );
             } else {
+                // A clarification-class block (any needs_clarification issue in the preflight
+                // result) is a question to the user, not a dead step — carry that distinction
+                // on the item so the F5 placeholder settle can keep the step owed.
+                $failreason = !empty($v2result['has_clarification_issues'])
+                    ? self::REASON_PREFLIGHT_NEEDS_CLARIFICATION
+                    : 'PREFLIGHT_HARD_BLOCK';
                 $this->to_failed(
                     $queuesvc,
                     $threadid,
                     $queueitemid,
-                    'PREFLIGHT_HARD_BLOCK',
+                    $failreason,
                     $issuecodes,
                     $errorclass,
                     $message

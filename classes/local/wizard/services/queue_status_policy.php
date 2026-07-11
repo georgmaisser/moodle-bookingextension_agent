@@ -54,6 +54,15 @@ class queue_status_policy {
     /** Canonical status: placeholder for a future multi-step skill (intent only, no skill/params yet). */
     public const STATUS_PLANNED = 'planned';
 
+    /**
+     * Canonical status: a placeholder whose real command is in flight (staged, awaiting
+     * confirmation or executing). Placeholder-only. Not planned (invisible to the pending-step
+     * lists), not terminal: it settles to succeeded/failed with the real item, or reverts to
+     * planned when the real item is blocked by a preflight clarification (F5, threads 544/589 —
+     * a placeholder must never claim success before its step actually executed).
+     */
+    public const STATUS_REALIZING = 'realizing';
+
     /** Actionable mutating statuses. */
     private const ACTIONABLE_MUTATING_STATUSES = [
         self::STATUS_QUEUED,
@@ -232,5 +241,24 @@ class queue_status_policy {
      */
     public static function is_planned_status(string $status): bool {
         return trim($status) === self::STATUS_PLANNED;
+    }
+
+    /**
+     * Canonical realizing status value (placeholder whose real command is in flight).
+     *
+     * @return string
+     */
+    public static function realizing_status(): string {
+        return self::STATUS_REALIZING;
+    }
+
+    /**
+     * Check whether a placeholder is being realized by an in-flight real command.
+     *
+     * @param string $status
+     * @return bool
+     */
+    public static function is_realizing_status(string $status): bool {
+        return trim($status) === self::STATUS_REALIZING;
     }
 }

@@ -41,6 +41,9 @@ trait scripted_llm_trait {
     /** @var string[] FIFO of raw planner_decide responses (selector, constructor, selector, ...). */
     private array $scriptedplannerqueue = [];
 
+    /** @var string[] Every planner_decide prompt, in call order (for prompt-contract assertions). */
+    protected array $scriptedplannerprompts = [];
+
     /**
      * Install a scripted planner. Planner (planner_decide) calls consume $plannerscript in order;
      * once exhausted they fall back to a terminal 'sufficient' so the loop always converges. The
@@ -62,8 +65,10 @@ trait scripted_llm_trait {
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient): string {
-            unset($prompt);
             if ($actionclass === wb_action_names::PLANNER_DECIDE) {
+                // Record the prompt so tests can assert prompt contracts (e.g. the
+                // pending-step block the selector was shown — thread 589 regression).
+                $this->scriptedplannerprompts[] = $prompt;
                 if (!empty($this->scriptedplannerqueue)) {
                     return (string)array_shift($this->scriptedplannerqueue);
                 }
@@ -86,6 +91,7 @@ trait scripted_llm_trait {
         llm_call_service::set_test_responder(null);
         llm_call_service::set_test_embedding(null);
         $this->scriptedplannerqueue = [];
+        $this->scriptedplannerprompts = [];
     }
 
     /**
