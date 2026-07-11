@@ -42,8 +42,10 @@ use bookingextension_agent\local\wizard\services\telemetry\audit_logger;
  *
  * Commands reaching execute_commands() are expected to carry prepared_input
  * plus a deterministic guard_token for mutating skills, both produced during
- * decision-service preflight. The executor therefore performs only lightweight
- * structural checks plus guard verification and does not re-run DB validation.
+ * decision-service preflight. A verified guard token replaces any structural
+ * re-check (the prepared input is preflight's contract, not the planner
+ * schema's); only token-less read-only commands get the lightweight
+ * check_structure() guard. DB validation is never re-run here.
  *
  * Enforces idempotency, capability checks, and produces structured per-command
  * results.  Partial success is allowed; no rollback is performed.
@@ -252,23 +254,6 @@ class executor implements agent_executor {
                 }
             }
 
-            // Lightweight structural guard only — no DB access.
-            // Deep validation already happened in decision-service preflight.
-            $structural = $skill->check_structure($input);
-            if (!($structural['valid'] ?? true)) {
-                $detail = implode('; ', (array)($structural['errors'] ?? []));
-                $entry = [
-                    'status' => 'error',
-                    'detail' => get_string('agent_executor_structural_failure', 'bookingextension_agent', $detail),
-                    'resultid' => null,
-                ];
-                if (!empty($structural['observation_full']) && is_string($structural['observation_full'])) {
-                    $entry['observation_full'] = trim($structural['observation_full']);
-                }
-                $results[] = $entry;
-                continue;
-            }
-
             if (!$skill->is_read_only()) {
                 $guardtoken = trim((string)($cmd['guard_token'] ?? ''));
                 if ($guardtoken === '') {
@@ -312,6 +297,32 @@ class executor implements agent_executor {
                         $this->channel,
                         $skill
                     );
+                    continue;
+                }
+
+                // A verified guard token attests this input is byte-for-byte the prepared input
+                // that preflight deep-validated, so NO structural re-check runs here. The prepared
+                // input is a different contract than the planner schema check_structure() validates
+                // (ch. 14 §1: check_structure runs in the planner right after parsing): it may
+                // legitimately carry engine-canonical keys the planner must never send — e.g.
+                // coursequery mapped from linkedcoursequery. Re-validating it against the planner
+                // schema made the engine reject its own preflight output (thread 590 N1).
+            } else {
+                // Token-less path: chat read-only commands execute without the preflight pipeline
+                // (thread 542), so deep validation never ran for them — keep the lightweight
+                // structural guard (pure, no DB access).
+                $structural = $skill->check_structure($input);
+                if (!($structural['valid'] ?? true)) {
+                    $detail = implode('; ', (array)($structural['errors'] ?? []));
+                    $entry = [
+                        'status' => 'error',
+                        'detail' => get_string('agent_executor_structural_failure', 'bookingextension_agent', $detail),
+                        'resultid' => null,
+                    ];
+                    if (!empty($structural['observation_full']) && is_string($structural['observation_full'])) {
+                        $entry['observation_full'] = trim($structural['observation_full']);
+                    }
+                    $results[] = $entry;
                     continue;
                 }
             }
