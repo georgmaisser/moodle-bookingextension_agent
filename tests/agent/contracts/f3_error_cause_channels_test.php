@@ -18,7 +18,6 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\tests\agent\contracts;
 
-use bookingextension_agent\local\wizard\agent_runtime;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\services\construction\parameter_contract_validator;
 use bookingextension_agent\local\wizard\services\decision\agent_decision_service;
@@ -34,7 +33,6 @@ use PHPUnit\Framework\TestCase;
  * @covers \bookingextension_agent\local\wizard\services\synchronizer_input_builder
  * @covers \bookingextension_agent\local\wizard\services\synchronizer_output_contract
  * @covers \bookingextension_agent\local\wizard\services\decision\agent_decision_service
- * @covers \bookingextension_agent\local\wizard\agent_runtime
  *
  * @package    bookingextension_agent
  * @copyright  2026 Wunderbyte GmbH <info@wunderbyte.at>
@@ -150,27 +148,6 @@ final class f3_error_cause_channels_test extends TestCase {
 
         $this->assertContains('SYNC_RESPONSE_TYPE_ERROR_REJECTED', (array)($result['issue_codes'] ?? []));
         $this->assertSame('Done.', $result['message']);
-    }
-
-    /**
-     * Origin rule for error presentation: repair_hints (migrated skill) or a failed row's
-     * usermessage count as structured user_cause; a bare legacy error does not.
-     */
-    public function test_runtime_structured_user_cause_origin_rule(): void {
-        $reflection = new \ReflectionClass(agent_runtime::class);
-        $runtime = $reflection->newInstanceWithoutConstructor();
-        $method = $reflection->getMethod('result_has_structured_user_cause');
-        $method->setAccessible(true);
-
-        $this->assertTrue($method->invoke($runtime, ['repair_hints' => ['x']]));
-        $this->assertTrue($method->invoke($runtime, ['results' => [[
-            'status' => 'error',
-            'usermessage' => 'Die Option konnte nicht erstellt werden.',
-        ]]]));
-        $this->assertFalse($method->invoke($runtime, [
-            'errors' => ['Command #1: technical mixed legacy text'],
-            'results' => [['status' => 'error', 'detail' => 'internal detail only']],
-        ]));
     }
 
     /**

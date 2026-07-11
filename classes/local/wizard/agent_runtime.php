@@ -461,35 +461,6 @@ class agent_runtime {
     }
 
     /**
-     * Whether an error result carries a structured user_cause (F3 origin rule).
-     *
-     * Structured means the cause verifiably comes from a user-audience channel: a failed
-     * execute row's usermessage, or a migrated check_structure (repair channel present ⇒
-     * its errors are guaranteed user_cause texts). Origin-based by design — never a text
-     * heuristic.
-     *
-     * @param array $result
-     * @return bool
-     */
-    private function result_has_structured_user_cause(array $result): bool {
-        if (!empty($result['repair_hints'])) {
-            return true;
-        }
-        foreach ((array)($result['results'] ?? []) as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-            if (
-                in_array(trim((string)($entry['status'] ?? '')), ['error', 'failed'], true)
-                && trim((string)($entry['usermessage'] ?? '')) !== ''
-            ) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * A blocking clarification is a real question to the user (carries its own issue code), as opposed
      * to the informative "found enough context" clarification used by the read/loop path.
      *
@@ -604,19 +575,12 @@ class agent_runtime {
         // the output contract honours this flag instead of auto-rejecting
         // message replacement for error sources.
         //
-        // F3 origin rule (immediate, per design decision "Ehrlichkeit > Politur"): the LLM
-        // may only present a cause that comes from a structured user_cause channel
-        // (migrated check_structure, issue user_question, execute usermessage). Without one
-        // the polish is skipped entirely and the reply degrades to the localized
-        // finalization template line — honest and leak-free until the owning skill migrates.
+        // HARD RULE (George, language agnosticism): the synchronizer ALWAYS formulates the
+        // final reply — errors included, unmigrated skills included. A Czech user must get
+        // a Czech answer even though no Czech engine strings exist, so no engine path may
+        // render cause texts directly. F3 cleans WHAT the sync is fed (user_cause channel,
+        // label strip, usermessage preference), never WHO formulates.
         if ((string)($result['response_type'] ?? '') === 'error') {
-            if (!$this->result_has_structured_user_cause($result)) {
-                $template = trim($this->finalizationtemplatesvc->resolve_message($result));
-                if ($template !== '') {
-                    $result['message'] = $template;
-                }
-                return $result;
-            }
             $result['error_presentation_requested'] = true;
         }
 

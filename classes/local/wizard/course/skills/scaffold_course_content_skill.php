@@ -255,15 +255,14 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
      * @return array{valid:bool,errors:string[]}
      */
     public function check_structure(array $input): array {
-        // F3 two-channel cause: errors = user_cause (localized question), repair = the
-        // planner instruction; RECOVERABLE_INPUT_ERROR routes the question as a real
-        // clarification turn instead of an error-with-apology.
+        // F3 two-channel cause: errors = user_cause, repair = the planner instruction.
+        // The user_cause is plain-English LLM MATERIAL, never rendered directly — the
+        // synchronizer formulates the reply in the user's language (hard rule: language
+        // agnosticism). RECOVERABLE_INPUT_ERROR routes it as a real clarification turn.
         if (trim((string)($input['topic'] ?? '')) === '') {
             return [
                 'valid' => false,
-                'errors' => [
-                    $this->localized_string('agent_scaffold_topic_question', null, $this->get_output_language($input)),
-                ],
+                'errors' => ['What topic should the course content cover?'],
                 'repair' => ['topic is required: pass the user\'s content topic verbatim.'],
                 'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
             ];
@@ -281,12 +280,11 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
      * @return array
      */
     protected function run_preflight(array $input, int $contextid, int $userid): array {
-        $lang = $this->get_output_language($input);
         $context = context::instance_by_id($contextid, IGNORE_MISSING);
         $coursecontext = $context ? $context->get_course_context(false) : false;
         if (!$coursecontext) {
             return $this->clarify(
-                $this->localized_string('agent_scaffold_no_course', null, $lang),
+                'Course content is generated inside a course. Please open a course, or name one.',
                 'SCAFFOLD_NO_COURSE'
             );
         }
@@ -299,10 +297,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
 
         $topic = trim((string)($input['topic'] ?? ''));
         if ($topic === '') {
-            return $this->clarify(
-                $this->localized_string('agent_scaffold_topic_question', null, $lang),
-                'SCAFFOLD_TOPIC_REQUIRED'
-            );
+            return $this->clarify('What topic should the course content cover?', 'SCAFFOLD_TOPIC_REQUIRED');
         }
 
         // Deterministic structure clarification: fires exactly when NONE of the structure
@@ -312,7 +307,9 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             || array_key_exists('finalquiz', $input);
         if (!$hasstructure) {
             return $this->clarify(
-                $this->localized_string('agent_scaffold_structure_question', null, $lang),
+                'How should the course be structured? Defaults: 4 chapters, no practice quizzes, no final '
+                . 'quiz. Ask the user for (a) the number of chapters, (b) practice quiz per chapter yes/no, '
+                . '(c) graded final quiz yes/no — or to simply confirm the defaults.',
                 'SCAFFOLD_STRUCTURE_REQUIRED'
             );
         }
@@ -334,11 +331,9 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             return $this->invalid([[
                 'code' => 'SCAFFOLD_COURSE_NOT_EMPTY_CONFIRM_REQUIRED',
                 'severity' => 'needs_confirmation',
-                'message' => $this->localized_string('agent_scaffold_not_empty', (object)[
-                    'coursename' => (string)$course->fullname,
-                    'count' => count($foreign),
-                ], $lang),
-                'user_question' => $this->localized_string('agent_scaffold_not_empty_question', null, $lang),
+                'message' => 'The course "' . $course->fullname . '" already contains '
+                    . count($foreign) . ' activity(ies) beyond Moodle\'s defaults.',
+                'user_question' => 'This course is not empty. Generate the scaffold content into it anyway?',
                 'remedy_options' => ['CONFIRM_SCAFFOLD_INTO_NON_EMPTY_COURSE', 'PICK_DIFFERENT_COURSE'],
             ]]);
         }
