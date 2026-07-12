@@ -316,7 +316,8 @@ class orchestrator {
         int $threadid,
         int $contextid,
         int $userid,
-        array $observations = []
+        array $observations = [],
+        string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE
     ): array {
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
@@ -346,12 +347,23 @@ class orchestrator {
             false
         );
         $runtimestate = $runtimeblocks['volatile'];
-        // Inject pending planned step intents so the sync never suggests manual workarounds
-        // for steps the agent is still planning to execute.
+        // Surface remaining planned placeholders with their TRUE execution status. Whether they
+        // still run is decided by the engine's continuation state, never assumed: after a
+        // confirmation_request they run once the user confirms; on every other terminal state
+        // the turn is over and they will NOT run — the reply must say so instead of promising
+        // automatic follow-up (thread 558: "Sprint 5 wird automatisch noch erstellt" on a
+        // terminal clarification, with the orphaned placeholder still in the queue).
         $pendingintents = (new queue_manager($this->store, $this->registry))
             ->get_planned_placeholder_intents($threadid);
         if (!empty($pendingintents)) {
-            $runtimestate .= "\n\nPENDING AGENT STEPS (will be executed automatically — do NOT suggest manual workarounds):\n";
+            if ($continuation === synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION) {
+                $runtimestate .= "\n\nPENDING AGENT STEPS (run after the user confirms — "
+                    . "do NOT suggest manual workarounds):\n";
+            } else {
+                $runtimestate .= "\n\nUNEXECUTED PLANNED STEPS (NOT completed — nothing runs after this reply; "
+                    . "never state or imply these will happen automatically; name them as NOT done and "
+                    . "ask the user how to proceed):\n";
+            }
             foreach ($pendingintents as $idx => $intent) {
                 $runtimestate .= ($idx + 1) . '. ' . trim($intent) . "\n";
             }
@@ -361,7 +373,8 @@ class orchestrator {
             $messages,
             $observations,
             $runtimeblocks['stable'],
-            $runtimestate
+            $runtimestate,
+            $continuation
         );
 
         $llm = new llm_call_service($this->store);
