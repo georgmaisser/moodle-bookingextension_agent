@@ -93,6 +93,13 @@ class agent_runtime {
         // confirmation, thread 558). One re-plan round recovers the series instead of
         // ending the turn and orphaning the remaining steps.
         'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS',
+        // Construction used input keys the skill schema rejects (interpreter structural
+        // validation). Deterministically unhealable by repetition of the SAME output, but
+        // healable by one retry WITH the repair text naming the canonical keys — which,
+        // measured, never got its chance (W2 baseline 2026-07-12: 0/7 healed, 5/7 without
+        // any retry). Genuinely missing user input is excluded at the tagging site
+        // (RECOVERABLE_INPUT_ERROR → clarification, no retry).
+        'CONTRACT_STRUCTURAL_MISMATCH',
     ];
 
     /** Maximum number of loop-level framework retries per issue code. */
@@ -317,6 +324,12 @@ class agent_runtime {
                 // F3: skill repair instructions are planner-only vocabulary — they travel on
                 // exactly this retry channel (and the phase trace), never to the user.
                 $repairhints = array_values(array_filter(array_map('strval', (array)($result['repair_hints'] ?? []))));
+                if (empty($repairhints) && $retryissuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
+                    // Legacy (pre-F3-migration) skills carry their repair guidance mixed into the
+                    // errors — without it the structural retry is blind to the canonical keys.
+                    // This is the planner-only channel, so relaying them here leaks nothing.
+                    $repairhints = array_values(array_filter(array_map('strval', (array)($result['errors'] ?? []))));
+                }
                 if (!empty($repairhints)) {
                     $retryobservation .= "\nREPAIR: " . implode(' | ', $repairhints);
                 }
@@ -861,6 +874,11 @@ class agent_runtime {
             return 'RETRY_HINT: The previous parameter_construction output was not valid JSON. '
                 . 'Retry once and return exactly one valid JSON object only. '
                 . 'Do not use markdown fences. Escape inner double quotes inside string values.';
+        }
+        if ($issuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
+            return 'RETRY_HINT: The previous parameter_construction used input keys or value shapes '
+                . 'the skill schema does not accept. Retry once using ONLY the canonical keys from '
+                . 'the skill schema; map the user\'s values onto them and drop everything else.';
         }
 
         if ($issuecode === 'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED') {

@@ -1139,6 +1139,15 @@ class interpreter implements agent_interpreter {
                 foreach ($structural->issuecodes as $issuecode) {
                     $issuecodes[] = $issuecode;
                 }
+                // W2 baseline 2026-07-12: in 5 of 7 measured wrong-key constructions NO in-turn
+                // retry fired — the structural reject went terminal although the skill's repair
+                // text names the canonical key. Tag the retryable class so the loop grants ONE
+                // construction retry (LOOP_RETRYABLE_ISSUE_CODES). RECOVERABLE_INPUT_ERROR is
+                // the deliberate exception: F3-migrated skills flag genuinely MISSING user input
+                // there — that must surface as a clarification turn, never burn a blind retry.
+                if (!in_array('RECOVERABLE_INPUT_ERROR', $structural->issuecodes, true)) {
+                    $issuecodes[] = 'CONTRACT_STRUCTURAL_MISMATCH';
+                }
                 continue;
             }
 
