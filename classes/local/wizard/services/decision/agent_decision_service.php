@@ -375,10 +375,34 @@ class agent_decision_service {
      * @return string
      */
     private function describe_target_context(\context $context, string $outputlang = ''): string {
+        // Module target: name the ACTIVITY itself (with its course for orientation), not the
+        // enclosing course. get_course_context() collapses a module context to its course, so a
+        // mutation of the option in activity "no content" was confirmed as "course 'ai' (ID 11)"
+        // (thread 590) — the user could not see WHICH activity was touched.
+        if ($context instanceof \context_module) {
+            try {
+                [$course, $cm] = get_course_and_cm_from_cmid((int)$context->instanceid);
+                return $this->localized('agent_confirm_target_activity', (object)[
+                    'activity' => format_string($cm->name),
+                    'course' => format_string($course->fullname),
+                    'id' => (int)$course->id,
+                ], $outputlang);
+            } catch (\Throwable $e) {
+                // Fall through to the course/generic naming when the module cannot be resolved.
+                unset($e);
+            }
+        }
+
         $coursecontext = $context->get_course_context(false);
         if ($coursecontext) {
+            $courseid = (int)$coursecontext->instanceid;
+            // The front-page "course" (SITEID) is the ambient context of a site/system-level
+            // action; it must read as the site, not an ordinary course "…(ID 1)" (thread 590).
+            if ($courseid == SITEID) {
+                return $this->localized('agent_confirm_target_site', null, $outputlang);
+            }
             try {
-                $course = get_course((int)$coursecontext->instanceid);
+                $course = get_course($courseid);
                 return $this->localized('agent_confirm_target_course', (object)[
                     'name' => format_string($course->fullname),
                     'id' => (int)$course->id,
