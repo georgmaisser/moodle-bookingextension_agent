@@ -271,6 +271,28 @@ abstract class base_skill implements skill_interface {
         return [];
     }
 
+    /**
+     * Live construction grounding for THIS operating context (constructor phase only).
+     *
+     * Unlike get_example_input()/get_contextual_prompt_packs() — both static — this hook runs
+     * after the skill is chosen and receives the resolved context, so a skill can inject the
+     * actual site/context facts the constructor otherwise has to GUESS (e.g. the real price
+     * category identifiers, the bookable activities). Hard rule: this produces INSTRUCTIONS and
+     * DB-derived data for the model, never lexical detection of the user's text.
+     *
+     * Return shape (all optional): [
+     *   'guidance' => string[],            // appended to the constructor guidance block
+     *   'example_parameters' => array,     // merged over the static example_parameters
+     * ]
+     *
+     * @param int $contextid Resolved operating context id.
+     * @param int $userid Acting user id.
+     * @return array
+     */
+    public function get_dynamic_construction_hints(int $contextid, int $userid): array {
+        return [];
+    }
+
     /** @var string[] Framework-level control params that carry no user meaning in a preview. */
     private const PROPOSED_ACTION_HIDDEN_KEYS = ['outputlang'];
 

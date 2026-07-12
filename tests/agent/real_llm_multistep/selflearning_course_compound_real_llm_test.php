@@ -97,6 +97,21 @@ final class selflearning_course_compound_real_llm_test extends abstract_agent_te
         $this->confirm_chain($result, $threadid, $store);
 
         $course = $DB->get_record('course', ['fullname' => $title]);
+        // Routing stochasticity: "Selbstlernkurs" is ambiguous (a Moodle course vs. a booking
+        // option), so the first turn may start at the option instead of create_course. Nudge the
+        // course explicitly like a live user would; the DB post-conditions stay the contract.
+        if ($course === false) {
+            $nudge = $this->chat(
+                'Lege zuerst den Moodle-Kurs "' . $title . '" an (als Selbstlernkurs, 3 Kapitel, '
+                    . 'Abschlusstest mit 5 Fragen).',
+                $threadid,
+                $store,
+                $runtime
+            );
+            $nudge = $this->answer_category_if_asked($nudge, $threadid, $store, $runtime);
+            $this->confirm_chain($nudge, $threadid, $store);
+            $course = $DB->get_record('course', ['fullname' => $title]);
+        }
         if ($course === false) {
             $this->dump_llm_debug((int)$threadid);
         }

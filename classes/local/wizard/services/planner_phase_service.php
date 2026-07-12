@@ -363,7 +363,9 @@ class planner_phase_service {
         $constructionruntimecatalog = $this->build_construction_runtime_catalog_for_selected_skill(
             $selectedskill,
             $runtimecatalog,
-            $adaptivecatalog
+            $adaptivecatalog,
+            $contextid,
+            $userid
         );
 
         $constructionobservations = array_values($observations);
@@ -519,7 +521,9 @@ class planner_phase_service {
     private function build_construction_runtime_catalog_for_selected_skill(
         string $selectedskill,
         array $runtimecatalog,
-        array $adaptivecatalog
+        array $adaptivecatalog,
+        int $contextid,
+        int $userid
     ): array {
         $filtered = [];
 
@@ -530,7 +534,7 @@ class planner_phase_service {
             if (trim((string)($entry['skill'] ?? '')) !== $selectedskill) {
                 continue;
             }
-            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry, $contextid, $userid);
         }
 
         if (!empty($filtered)) {
@@ -544,7 +548,7 @@ class planner_phase_service {
             if (trim((string)($entry['skill'] ?? '')) !== $selectedskill) {
                 continue;
             }
-            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry);
+            $filtered[] = $this->enrich_construction_catalog_entry($selectedskill, $entry, $contextid, $userid);
         }
 
         return array_values($filtered);
@@ -557,7 +561,12 @@ class planner_phase_service {
      * @param array $entry
      * @return array
      */
-    private function enrich_construction_catalog_entry(string $selectedskill, array $entry): array {
+    private function enrich_construction_catalog_entry(
+        string $selectedskill,
+        array $entry,
+        int $contextid,
+        int $userid
+    ): array {
         $skill = $this->registry->get_skill($selectedskill);
         if ($skill === null) {
             return $entry;
@@ -577,6 +586,25 @@ class planner_phase_service {
         $guidance = $this->collect_skill_guidance_lines($skill);
         if (!empty($guidance)) {
             $entry['guidance'] = $guidance;
+        }
+
+        // Live grounding for THIS context: DB-derived facts the constructor would otherwise
+        // guess (e.g. the actual price category identifiers, thread 593). Merged AFTER the static
+        // example/guidance so dynamic example_parameters win and dynamic guidance is appended, not
+        // overwritten. See base_skill::get_dynamic_construction_hints().
+        if (method_exists($skill, 'get_dynamic_construction_hints')) {
+            $dynamic = (array)$skill->get_dynamic_construction_hints($contextid, $userid);
+            $dynamicexample = (array)($dynamic['example_parameters'] ?? []);
+            if (!empty($dynamicexample)) {
+                $entry['example_parameters'] = array_merge(
+                    (array)($entry['example_parameters'] ?? []),
+                    $dynamicexample
+                );
+            }
+            $dynamicguidance = array_values(array_filter(array_map('strval', (array)($dynamic['guidance'] ?? []))));
+            if (!empty($dynamicguidance)) {
+                $entry['guidance'] = array_merge((array)($entry['guidance'] ?? []), $dynamicguidance);
+            }
         }
 
         return $entry;
