@@ -263,6 +263,41 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
     }
 
     /**
+     * Resolve the embeddings dimensions for a test provider registration.
+     *
+     * Precedence: explicit BOOKING_TEST_AI_EMBEDDING_DIMENSIONS env override → the dimensions of
+     * the committed skill-catalog fixture for this model → the production default. Deriving from
+     * the fixture keeps the variant key (model + dimensions) in sync with the model, so switching
+     * the embeddings model to one with a different vector size (bge-multilingual-gemma2 = 3584,
+     * qwen3-embedding-8b = 4096, text-embedding-3-small = 1536) automatically points at the right
+     * fixture instead of a stale hard-coded 1536 — which produced an unreachable variant and made
+     * PHPUnit discovery fall back to slim_all (blueprint compound_prompt §7 finding 2, D1).
+     *
+     * @param string $embeddingmodel
+     * @return int
+     */
+    protected function resolve_test_embedding_dimensions(string $embeddingmodel): int {
+        $envdims = (int)(getenv('BOOKING_TEST_AI_EMBEDDING_DIMENSIONS') ?: 0);
+        if ($envdims > 0) {
+            return $envdims;
+        }
+
+        if (trim($embeddingmodel) !== '') {
+            $modelkey = \bookingextension_agent\local\wizard\embeddings_csv_repository_base::normalize_variant_key(
+                $embeddingmodel
+            );
+            $matches = glob(__DIR__ . '/fixtures/skill_catalog_embeddings__' . $modelkey . '__*.csv') ?: [];
+            foreach ($matches as $match) {
+                if (preg_match('/__(\d+)\.csv$/', (string)$match, $captured)) {
+                    return (int)$captured[1];
+                }
+            }
+        }
+
+        return \bookingextension_agent\local\wizard\orchestrator::EMBEDDINGS_DEFAULT_DIMENSIONS;
+    }
+
+    /**
      * Register and enable a live Wunderbyte provider for agent tests.
      *
      * @param string $apikey
@@ -271,6 +306,9 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
      * @param string $embeddingmodel
      * @param string $chatendpoint
      * @param string $embeddingendpoint
+     * @param int|null $embeddingdimensions Explicit dimensions, or null to derive them from the
+     *      committed fixture for $embeddingmodel (keeps the variant key in sync with the model —
+     *      e.g. bge-multilingual-gemma2 -> 3584 -> its committed fixture, not a hard-coded 1536).
      * @return void
      */
     protected function register_live_wunderbyte_provider(
@@ -279,8 +317,10 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
         string $minimodel,
         string $embeddingmodel,
         string $chatendpoint,
-        string $embeddingendpoint
+        string $embeddingendpoint,
+        ?int $embeddingdimensions = null
     ): void {
+        $embeddingdimensions ??= $this->resolve_test_embedding_dimensions($embeddingmodel);
         $manager = \core\di::get(\core_ai\manager::class);
         $actionconfig = [
             // Core generate_text backs skill-internal LLM calls (e.g. the
@@ -314,7 +354,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'settings' => [
                     'model' => $embeddingmodel,
                     'endpoint' => $embeddingendpoint,
-                    'dimensions' => 1536,
+                    'dimensions' => $embeddingdimensions,
                 ],
             ],
         ];
