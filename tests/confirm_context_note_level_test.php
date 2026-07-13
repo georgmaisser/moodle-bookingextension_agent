@@ -132,4 +132,36 @@ final class confirm_context_note_level_test extends advanced_testcase {
             . 'note renders the front page as "' . $wrongsitelabel . '", which reads like an ordinary course.'
         );
     }
+
+    /**
+     * The empirically most common case (thread 591): course.create_course, a context-free system
+     * skill, ran in the admin's CONTEXT_USER (operating_contextid=5) and the note read
+     * "User: Admin User" — a user profile is not where the course lands. Such place-less contexts
+     * must carry site/system wording, not the user's name.
+     */
+    public function test_note_uses_site_label_for_user_context(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $user = $this->getDataGenerator()->create_user(['firstname' => 'Ada', 'lastname' => 'Administrina']);
+        $userctxid = (int)\context_user::instance($user->id)->id;
+
+        $note = $this->note(
+            $this->make_service(),
+            [['skill' => 'course.create_course', 'operating_contextid' => $userctxid]],
+            999999
+        );
+
+        $this->assertNotSame('', $note, 'A context-free system skill must still name a target level.');
+        $this->assertStringNotContainsString(
+            'Administrina',
+            $note,
+            'C3 (thread 591): a user-context ambient must not surface as "User: <name>" — that is doubly '
+            . 'wrong (user profile is not where the write lands). It must read as the site/system.'
+        );
+        $this->assertStringContainsString(
+            get_string('agent_confirm_target_site', 'bookingextension_agent'),
+            $note,
+            'A place-less (user/block) operating context must render as the site.'
+        );
+    }
 }

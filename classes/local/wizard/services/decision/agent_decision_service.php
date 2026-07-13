@@ -412,6 +412,16 @@ class agent_decision_service {
                 unset($e);
             }
         }
+
+        // A user or block context is never a real place for a mutation — it is only the ambient
+        // chat context a context-free system skill (e.g. course.create_course, which creates the
+        // course in a category regardless of where the chat runs) was invoked from. Render it as the
+        // site instead of "User: Admin User", which is doubly wrong: a user profile is not where the
+        // write lands (thread 591, create_course ran in the admin's CONTEXT_USER). The actual target
+        // (the course category) is named by the P7 proposed-data block, not this location note.
+        if ($context instanceof \context_user || $context instanceof \context_block) {
+            return $this->localized('agent_confirm_target_site', null, $outputlang);
+        }
         return $context->get_context_name();
     }
 
