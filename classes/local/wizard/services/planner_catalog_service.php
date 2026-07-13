@@ -314,7 +314,19 @@ class planner_catalog_service {
             return $normalized;
         }
 
-        return rtrim(core_text::substr($normalized, 0, 237)) . '...';
+        // Sentence-aware truncation (C1, thread 589): a hard character cap can slice inside a
+        // sentence and invert the card's meaning — the live course.create_course card was cut
+        // right after "asks which category to use unless", reading as an instruction to ASK
+        // instead of ACT. Cut at the LAST sentence boundary within the cap instead.
+        $window = core_text::substr($normalized, 0, 240);
+        if (preg_match('/^(.*[.!?]["\'\)\]]*)(?:\s|$)/us', $window, $matches)) {
+            return rtrim($matches[1]);
+        }
+
+        // No sentence boundary within the window: fall back to a word boundary + ellipsis so the
+        // card at least never breaks a word.
+        $wordsafe = preg_replace('/\s+\S*$/u', '', core_text::substr($normalized, 0, 237));
+        return rtrim(($wordsafe ?? '') !== '' ? $wordsafe : core_text::substr($normalized, 0, 237)) . '…';
     }
 
     /**
