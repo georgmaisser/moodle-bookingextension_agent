@@ -75,6 +75,17 @@ class issue_code_taxonomy {
         [['PERMISSION'], 'permission_error', self::CATEGORY_DOMAIN],
         [['CONFLICT'], 'domain_conflict', self::CATEGORY_DOMAIN],
         [['VALIDATION', 'MISSING_'], 'validation_error', self::CATEGORY_DOMAIN],
+        // A malformed/unloadable schema is deterministic: without new input it re-fails
+        // identically, so a retry without a repair hint is wasted work (audit C4, thread-590
+        // Run 214->215). Non-retryable DOMAIN. This sits AFTER the TIMEOUT rule, so a composite
+        // SCHEMA_CHECK_TIMEOUT still matches TIMEOUT first and stays a retryable technical
+        // timeout. Latent-invariant / defense-in-depth: the once-observed live path (executor
+        // check_structure) is already defused by e14118d — this closes the sharp edge at the
+        // classification single-source-of-truth so no future execute-time SCHEMA_ERROR can slip
+        // back into a useless retry loop. SCHEMA_UNAVAILABLE (schema not loadable) is grouped
+        // in deliberately: in practice it is a permanent deployment fault, and like SCHEMA_ERROR
+        // it cannot self-heal without an external change, so a hint-less retry is equally wasted.
+        [['SCHEMA'], 'schema_error', self::CATEGORY_DOMAIN],
         [['DOMAIN'], '', self::CATEGORY_DOMAIN],
     ];
 
