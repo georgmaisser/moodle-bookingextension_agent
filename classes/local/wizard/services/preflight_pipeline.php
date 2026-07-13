@@ -183,7 +183,15 @@ class preflight_pipeline {
                     $message = get_string('agent_target_ambiguous_choose', 'bookingextension_agent')
                         . "\n" . implode("\n", $lines);
                 } else if ($resolution->status() === context_target_resolution::STATUS_NOT_FOUND) {
-                    $message = get_string('agent_target_not_found', 'bookingextension_agent');
+                    // Level-aware wording (C2): a COURSE-level target miss must talk about the
+                    // missing course, not about an activity — telling a user who asked about a
+                    // course to open an activity sends the repair down the wrong path.
+                    $iscourselevel = method_exists($skill, 'get_target_context_level')
+                        && (int)$skill->get_target_context_level() === CONTEXT_COURSE;
+                    $message = get_string(
+                        $iscourselevel ? 'agent_target_not_found_course' : 'agent_target_not_found',
+                        'bookingextension_agent'
+                    );
                 } else {
                     $message = $e->getMessage();
                 }

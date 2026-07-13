@@ -275,6 +275,7 @@ $string['agent_step_connect'] = 'Connect AI';
 $string['agent_step_ready'] = 'Ready';
 $string['agent_target_ambiguous_choose'] = 'There is more than one matching target. Which one do you mean? You can answer with the id.';
 $string['agent_target_not_found'] = 'I could not find a matching course or activity for this action. Please tell me which one (and in which course) it should apply to.';
+$string['agent_target_not_found_course'] = 'I could not find a matching course for this action. Please tell me which course it should apply to.';
 $string['agent_target_not_resolved_to_module'] = 'I could not determine which activity this action applies to. Please tell me which activity (and in which course), or open it first.';
 $string['agent_upgrade_provider'] = 'Upgrade AI provider';
 $string['ai_action_add_price_category'] = 'Create price category';

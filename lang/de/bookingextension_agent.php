@@ -265,6 +265,7 @@ $string['agent_step_connect'] = 'KI verbinden';
 $string['agent_step_ready'] = 'Bereit';
 $string['agent_target_ambiguous_choose'] = 'Es gibt mehr als eine passende Aktivität. Welche meinen Sie?';
 $string['agent_target_not_found'] = 'Ich konnte keine passende Aktivität für diese Aktion finden. Bitte öffnen Sie die Aktivität oder sagen Sie mir, welche (und in welchem Kurs) gemeint ist.';
+$string['agent_target_not_found_course'] = 'Ich konnte keinen passenden Kurs für diese Aktion finden. Bitte sagen Sie mir, welcher Kurs gemeint ist.';
 $string['agent_target_not_resolved_to_module'] = 'Ich konnte nicht bestimmen, auf welche Aktivität sich diese Aktion bezieht. Bitte sagen Sie mir, welche Aktivität (und in welchem Kurs), oder öffnen Sie sie zuerst.';
 $string['agent_upgrade_provider'] = 'KI-Provider upgraden';
 $string['ai_action_add_price_category'] = 'Preiskategorie anlegen';
