@@ -327,12 +327,12 @@ final class course_authoring_compound_real_llm_test extends abstract_agent_testc
             'mod/label:addinstance',
             'mod/page:addinstance',
             'mod/quiz:addinstance',
-            // linkedcoursequery resolves through booking::load_courses, which without this
-            // capability only lists courses the user may manually enrol into — the creator
-            // has NO role in the course create_course just made, so the fresh course would
-            // be invisible to its own creator (G5 evidence; admins/managers carry this cap).
-            'mod/booking:duplicateanycourse',
         ];
+        // NOTE: mod/booking:duplicateanycourse is deliberately NOT granted anymore. It used to
+        // be the workaround for B3/G5 — create_course gave the creator no role, so
+        // booking::load_courses (behind linkedcoursequery) could not list the fresh course back
+        // to them. With the creatornewroleid-parity fix in create_course_skill the non-admin
+        // creator is enrolled into their own course and resolves it without this manager-only cap.
         foreach ($capabilities as $capability) {
             assign_capability($capability, CAP_ALLOW, $roleid, $systemcontext->id);
         }

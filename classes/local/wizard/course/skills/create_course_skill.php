@@ -369,6 +369,30 @@ class create_course_skill extends core_skill_base implements
             ];
         }
 
+        // creatornewroleid parity (B3/G5): the Moodle course-creation UI enrols the creator into
+        // the new course with $CFG->creatornewroleid so they can see and manage what they just
+        // made. create_course() itself does NOT, so a non-admin agent creator would get no role —
+        // and booking::load_courses (which linkedcoursequery resolves through) only lists courses
+        // the user may manually enrol into, hiding the fresh course from its own creator. Mirror
+        // the UI so the create -> link chain works for non-admins. Non-fatal: the course exists.
+        global $CFG;
+        try {
+            $coursecontext = \context_course::instance((int)$course->id);
+            // Enrol the creator with creatornewroleid unless they are a site admin (who already
+            // sees and manages every course via the admin bypass) or already enrolled. NB: the
+            // Moodle UI additionally skips when is_viewing() is true, but that only means the user
+            // can VIEW the course — it does not grant enrol/manual:enrol, which booking::load_courses
+            // (behind linkedcoursequery) filters on. A non-admin creator with a site-level
+            // course:view therefore still needs the enrolment to resolve their own course (B3).
+            if (!empty($CFG->creatornewroleid)
+                    && !is_siteadmin($userid)
+                    && !is_enrolled($coursecontext, $userid)) {
+                enrol_try_internal_enrol((int)$course->id, $userid, (int)$CFG->creatornewroleid);
+            }
+        } catch (\Throwable $e) {
+            unset($e);
+        }
+
         // Baseline of Moodle's own default activities (e.g. the announcements forum the
         // course_created observer adds): downstream skills treat these as EXPECTED and must
         // not mistake the fresh course for a non-empty one (expected-activities contract,
