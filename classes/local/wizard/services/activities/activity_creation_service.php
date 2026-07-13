@@ -46,6 +46,8 @@ class activity_creation_service {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/course/modlib.php');
 
+        $this->assert_creation_allowed($moduleinfo, $course);
+
         $transaction = $DB->start_delegated_transaction();
         try {
             $result = add_moduleinfo($moduleinfo, $course);
@@ -68,6 +70,59 @@ class activity_creation_service {
             'url' => $this->resolve_activity_url($course, $cmid, $modname),
             'coursecontextid' => (int)\context_course::instance($course->id)->id,
         ];
+    }
+
+    /**
+     * Raise a TRUTHFUL cause before add_moduleinfo() does (C6, thread-audit).
+     *
+     * core's add_moduleinfo() -> course_allowed_module() throws a single 'moduledisable' —
+     * whose {$a} is frequently unresolved — for TWO different causes: a genuinely disabled
+     * module type AND an acting user merely missing mod/<name>:addinstance. A reader cannot
+     * tell which. Pre-check the capability case here (the module is enabled) so the surfaced
+     * message names the missing capability instead of falsely claiming the module is disabled.
+     * A truly disabled module falls through to core's own error unchanged.
+     *
+     * @param stdClass $moduleinfo
+     * @param stdClass $course
+     * @return void
+     */
+    private function assert_creation_allowed(stdClass $moduleinfo, stdClass $course): void {
+        $modname = trim((string)($moduleinfo->modulename ?? $moduleinfo->modname ?? ''));
+        if ($this->addinstance_denial_reason($course, $modname) !== null) {
+            throw new \moodle_exception(
+                'agent_activity_missing_addinstance',
+                'bookingextension_agent',
+                '',
+                "mod/$modname:addinstance"
+            );
+        }
+    }
+
+    /**
+     * Truthful, localized reason a module cannot be added for a MISSING addinstance capability,
+     * or null when that is not the blocker (C6). Callers that build the mform BEFORE reaching
+     * create() (add_activity's form-first path) must consult this first, because the mform
+     * construction itself raises the misleading "module disabled ({$a})" for a mere capability
+     * gap. A genuinely disabled/uninstalled module returns null → core's own accurate error stands.
+     *
+     * @param stdClass $course
+     * @param string $modname
+     * @return string|null
+     */
+    public function addinstance_denial_reason(stdClass $course, string $modname): ?string {
+        global $DB;
+        $modname = trim($modname);
+        if ($modname === '') {
+            return null;
+        }
+        $module = $DB->get_record('modules', ['name' => $modname]);
+        if (!$module || (int)$module->visible !== 1) {
+            return null;
+        }
+        if (!has_capability("mod/$modname:addinstance", \context_course::instance((int)$course->id))) {
+            return get_string('agent_activity_missing_addinstance', 'bookingextension_agent', "mod/$modname:addinstance");
+        }
+        return null;
     }
 
     /**

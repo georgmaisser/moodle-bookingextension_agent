@@ -58,6 +58,7 @@ $string['agent:skill_wizard_scaffold_skill'] = 'Eine Startvorlage für einen neu
 $string['agent:skill_wizard_search_skills'] = 'Verfügbare Booking-Wizard-Skills durchsuchen';
 $string['agent:useaiinstructions'] = 'Den Booking Wizard verwenden';
 $string['agent:viewbenchmarks'] = 'KI-Benchmark-Berichte ansehen';
+$string['agent_activity_missing_addinstance'] = 'Ihnen fehlt die Berechtigung {$a}, die zum Hinzufügen dieser Aktivität in diesem Kurs erforderlich ist.';
 $string['agent_adminpages'] = 'Booking-Wizard-Admin-Seiten';
 $string['agent_adminpages_desc'] = 'Diese Seiten gehören zum Booking Wizard und sind nur verfügbar, solange der Booking Wizard aktiviert ist:';
 $string['agent_booking_core_calendar_event_created'] = 'Kalendereintrag erfolgreich erstellt.';

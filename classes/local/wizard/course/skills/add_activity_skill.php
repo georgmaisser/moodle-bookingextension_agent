@@ -398,6 +398,13 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
         $contract = new module_form_contract();
         $creator = new activity_creation_service();
 
+        // A missing addinstance capability is deterministic; surface the truthful cause instead of
+        // the mform's misleading "module disabled ({$a})" that the build below would raise (C6).
+        $denial = $creator->addinstance_denial_reason($course, $modname);
+        if ($denial !== null) {
+            return $this->build_error_result($denial);
+        }
+
         $lasterror = '';
         for ($attempt = 1; $attempt <= self::MAX_RETRIES; $attempt++) {
             try {
