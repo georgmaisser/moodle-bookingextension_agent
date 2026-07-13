@@ -409,6 +409,10 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
 
         // 3) Chapter sections: one page (and optionally one practice quiz) each.
         $quizservice = new quiz_question_service();
+        // IST quiz-question count actually created (thread 587/C5): the model may deliver fewer
+        // parseable GIFT questions than requested (Soll), and the honest number is what landed in
+        // the quizzes — reported via produced_outputs so the synchronizer states the real count.
+        $questioncount = 0;
         foreach ($chaptertitles as $i => $chaptertitle) {
             $sectionnum = $i + 1;
             $this->set_section_name($course, $sectionnum, (string)$chaptertitle);
@@ -432,7 +436,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             $this->create_page($course, $sectionnum, (string)$chaptertitle, '', $pagehtml);
 
             if (!empty($preparedinput['practicequizzes'])) {
-                $this->create_generated_quiz(
+                $questioncount += $this->create_generated_quiz(
                     $course,
                     $sectionnum,
                     (string)$chaptertitle . ' — Quiz',
@@ -460,7 +464,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             (string)($outline['summaryhtml'] ?? '<p></p>')
         );
         if (!empty($preparedinput['finalquiz'])) {
-            $this->create_generated_quiz(
+            $questioncount += $this->create_generated_quiz(
                 $course,
                 $closingsection,
                 (string)($outline['summarytitle'] ?? 'Final quiz'),
@@ -477,7 +481,9 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
 
         $courseurl = (new moodle_url('/course/view.php', ['id' => $courseid]))->out(false);
         $detail = 'Course content created in "' . $course->fullname . '" (id=' . $courseid . ', '
-            . count($chaptertitles) . ' chapters, link=' . $courseurl . ').'
+            . count($chaptertitles) . ' chapters'
+            . ($questioncount > 0 ? ', ' . $questioncount . ' quiz question(s) created' : '')
+            . ', link=' . $courseurl . ').'
             . (empty($warnings) ? '' : ' WARNINGS: ' . implode(' | ', $warnings));
 
         return [
@@ -486,7 +492,11 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             'usermessage' => $detail,
             'resultid' => $courseid,
             'observation_full' => $detail . "\nStages: " . implode(', ', $stages) . '.',
-            'produced_outputs' => ['courseid' => $courseid, 'chapters' => count($chaptertitles)],
+            'produced_outputs' => [
+                'courseid' => $courseid,
+                'chapters' => count($chaptertitles),
+                'questions' => $questioncount,
+            ],
         ];
     }
 
@@ -593,7 +603,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
      * @param int $userid
      * @param int $ambientcontextid
      * @param string[] $warnings Collector for non-fatal failures.
-     * @return void
+     * @return int The number of questions actually referenced into the created quiz (0 on skip/fail).
      */
     private function create_generated_quiz(
         \stdClass $course,
@@ -606,7 +616,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
         int $userid,
         int $ambientcontextid,
         array &$warnings
-    ): void {
+    ): int {
         $coursecontext = context_course::instance((int)$course->id);
         $generated = $quizservice->generate_into_bank(
             $course,
@@ -617,7 +627,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
         );
         if ($generated['error'] !== null || empty($generated['questionids'])) {
             $warnings[] = 'quiz "' . $name . '" skipped: ' . (string)($generated['error'] ?? 'no questions generated');
-            return;
+            return 0;
         }
 
         try {
@@ -637,13 +647,17 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
         } catch (\Throwable $e) {
             $warnings[] = 'quiz "' . $name . '" could not be created: ' . $e->getMessage()
                 . ' (the generated questions remain in the question bank)';
-            return;
+            return 0;
         }
 
         $population = $quizservice->reference_existing($course, (int)$created['instance'], $generated['questionids']);
         if (($population['error'] ?? null) !== null) {
             $warnings[] = 'quiz "' . $name . '": questions could not be added: ' . (string)$population['error'];
+            return 0;
         }
+
+        // The IST count is what actually landed in the quiz — the parseable questions referenced.
+        return count($generated['questionids']);
     }
 
     /**
