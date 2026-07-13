@@ -644,27 +644,54 @@ class queue_manager {
         $changed = 0;
         $now = time();
         $items = $this->get_queue_items($threadid);
+        $reapedids = [];
         foreach ($items as &$item) {
-            if (!is_array($item) || (string)($item['status'] ?? '') !== 'running') {
+            if (!is_array($item)) {
                 continue;
             }
+            $status = (string)($item['status'] ?? '');
             $updatedat = (int)($item['updated_at'] ?? 0);
-            if ($updatedat > 0 && ($now - $updatedat) < self::STALE_RUNNING_MAX_AGE_SECONDS) {
+            $tooold = $updatedat > 0 && ($now - $updatedat) >= self::STALE_RUNNING_MAX_AGE_SECONDS;
+
+            if ($status === 'running') {
+                if (!$tooold) {
+                    continue;
+                }
+                $item['status'] = queue_status_policy::failed_status();
+                $item['issue_codes'] = ['RUNNING_REAPED'];
+                $item['error_class'] = 'stale_running';
+                $item['last_error_message'] = 'running claim exceeded the stale threshold (crash corpse reaped).';
+                $item['updated_at'] = $now;
+                $reapedids[] = (string)($item['queue_item_id'] ?? '');
+                $changed++;
                 continue;
             }
-            $item['status'] = queue_status_policy::failed_status();
-            $item['issue_codes'] = ['RUNNING_REAPED'];
-            $item['error_class'] = 'stale_running';
-            $item['last_error_message'] = 'running claim exceeded the stale threshold (crash corpse reaped).';
-            $item['updated_at'] = $now;
-            $reapedids[] = (string)($item['queue_item_id'] ?? '');
-            $changed++;
+
+            // Orphaned realizing placeholders (audit C7, F5 edge case): a realizing placeholder
+            // settles ONLY through its bound command's terminal transition. If that command
+            // vanished (crash between save points, GC) or hangs, nothing settles it — after the
+            // stale window it is an undead step in every pending-list computation. Neither the
+            // blocked-TTL sweep (blocked_confirmation only) nor the running reaper (running only)
+            // covers this state, so reap it here. TTL-based: a legitimate in-flight command
+            // settles well within the window, so only genuinely stuck placeholders are hit.
+            if (queue_status_policy::is_realizing_status($status)) {
+                if (!$tooold) {
+                    continue;
+                }
+                $item['status'] = queue_status_policy::failed_status();
+                $item['issue_codes'] = ['REALIZING_ORPHAN_REAPED'];
+                $item['error_class'] = 'stale_realizing';
+                $item['last_error_message'] = 'realizing placeholder orphaned beyond the stale threshold.';
+                $item['updated_at'] = $now;
+                $changed++;
+            }
         }
         unset($item);
 
         if ($changed > 0) {
-            // A reaped corpse never finished its step: the bound placeholder fails with it (F5).
-            foreach ($reapedids ?? [] as $reapedid) {
+            // A reaped running corpse never finished its step: the bound placeholder fails with it
+            // (F5). Realizing placeholders are themselves the step and were failed directly above.
+            foreach ($reapedids as $reapedid) {
                 $this->settle_bound_placeholder($items, $reapedid, queue_status_policy::failed_status(), '');
             }
             $this->save_queue_items($threadid, $items);
