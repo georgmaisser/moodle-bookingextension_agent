@@ -51,10 +51,13 @@ class finalization_classifier {
         'DEPENDENCY_CYCLE',
         'CONTRACT_INVALID_RESPONSE_TYPE',
         'CONTRACT_COMMANDS_REQUIRED',
-        'CONTRACT_PHASE_RESPONSE_TYPE',
-        'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED',
-        'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED',
-        'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
+        // The CONTRACT_PHASE_* family was removed here (N-591a, George 2026-07-14): direct_final
+        // rendered the interpreter's raw "CONTRACT_VIOLATION: …" string verbatim to the user
+        // (thread 591 msg 1601). These errors now fall through to llm_polish — the interpreter
+        // splits them two-channel (plain user_cause in errors/message, technical detail in
+        // repair_hints), so the synchronizer formulates the reply in the user's language and
+        // planner vocabulary never leaks. Sync failure guards (error faithfulness, envelope
+        // sanitization) stay in force on this path.
     ];
 
     /** @var string[] */

@@ -148,7 +148,9 @@ final class integration_agent_framework_test extends TestCase {
         $entry = $method->invoke(
             $svc,
             'mod_booking.update_option',
-            ['skill' => 'mod_booking.update_option']
+            ['skill' => 'mod_booking.update_option'],
+            \context_system::instance()->id,
+            get_admin()->id
         );
 
         $this->assertArrayHasKey('guidance', $entry, 'Construction entry must carry skill guidance.');

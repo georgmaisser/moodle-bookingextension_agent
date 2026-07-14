@@ -196,18 +196,30 @@ final class finalization_classifier_contract_test extends TestCase {
     }
 
     /**
-     * Phase contract errors must not flow into LLM polish.
+     * Phase contract errors are synchronizer-formulated (N-591a, George 2026-07-14).
+     *
+     * direct_final rendered the interpreter's raw "CONTRACT_VIOLATION: …" string verbatim to
+     * the user (thread 591 msg 1601); the family now routes through llm_polish while the
+     * technical detail travels planner-only via repair_hints.
      */
-    public function test_classifies_phase_contract_issue_as_direct_final(): void {
+    public function test_classifies_phase_contract_issue_as_llm_polish(): void {
         $classifier = new finalization_classifier();
 
-        $strategy = $classifier->classify([
-            'response_type' => 'error',
-            'commands' => [],
-            'issue_codes' => ['CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED'],
-        ]);
+        $phasecodes = [
+            'CONTRACT_PHASE_RESPONSE_TYPE',
+            'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED',
+            'CONTRACT_PHASE_SINGLE_COMMAND_REQUIRED',
+            'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
+        ];
+        foreach ($phasecodes as $issuecode) {
+            $strategy = $classifier->classify([
+                'response_type' => 'error',
+                'commands' => [],
+                'issue_codes' => [$issuecode],
+            ]);
 
-        $this->assertSame(finalization_classifier::STRATEGY_DIRECT_FINAL, $strategy);
+            $this->assertSame(finalization_classifier::STRATEGY_LLM_POLISH, $strategy, $issuecode);
+        }
     }
 
     /**

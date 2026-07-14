@@ -64,6 +64,16 @@ class interpreter implements agent_interpreter {
     /** Planner phases that must not emit command-bearing outputs. */
     private const NON_COMMAND_PHASES = ['discovery'];
 
+    /**
+     * User-facing cause for phase-contract violations (N-591a, thread 591 msg 1601).
+     *
+     * Plain-English LLM material for the synchronizer's [ERROR] observation — deliberately
+     * generic: which phase broke which contract is planner vocabulary and travels on
+     * repair_hints only, never to the user.
+     */
+    private const PHASE_CONTRACT_USER_CAUSE = 'An internal planning error prevented this step from '
+        . 'being completed. Trying again or rephrasing the request may help.';
+
     /** @var skill_registry */
     private skill_registry $registry;
 
@@ -499,7 +509,8 @@ class interpreter implements agent_interpreter {
             if (in_array($responsetype, ['skill_call', 'confirmation_request'], true)) {
                 return $this->error_result_with_issue_code(
                     'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit command-bearing response_type.',
-                    'CONTRACT_PHASE_RESPONSE_TYPE'
+                    'CONTRACT_PHASE_RESPONSE_TYPE',
+                    self::PHASE_CONTRACT_USER_CAUSE
                 );
             }
 
@@ -507,7 +518,8 @@ class interpreter implements agent_interpreter {
             if (is_array($commands) && !empty($commands)) {
                 return $this->error_result_with_issue_code(
                     'CONTRACT_VIOLATION: phase "' . $phase . '" must not emit commands.',
-                    'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED'
+                    'CONTRACT_PHASE_COMMANDS_NOT_ALLOWED',
+                    self::PHASE_CONTRACT_USER_CAUSE
                 );
             }
         }
@@ -536,7 +548,8 @@ class interpreter implements agent_interpreter {
                         if (!is_array($command)) {
                             return $this->error_result_with_issue_code(
                                 'CONTRACT_VIOLATION: phase "' . $phase . '' . '" command payload is invalid.',
-                                'CONTRACT_PHASE_SKILL_NOT_ALLOWED'
+                                'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
+                                self::PHASE_CONTRACT_USER_CAUSE
                             );
                         }
 
@@ -544,8 +557,10 @@ class interpreter implements agent_interpreter {
                         if ($skill === '' || !in_array($skill, $allowedskills, true)) {
                             return $this->error_result_with_issue_code(
                                 'CONTRACT_VIOLATION: phase "' . $phase
-                                    . '" command skill is outside discovery-ranked allow-list.',
-                                'CONTRACT_PHASE_SKILL_NOT_ALLOWED'
+                                    . '" command skill "' . $skill . '" is outside discovery-ranked allow-list ('
+                                    . implode(', ', $allowedskills) . ').',
+                                'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
+                                self::PHASE_CONTRACT_USER_CAUSE
                             );
                         }
                     }
@@ -874,22 +889,37 @@ class interpreter implements agent_interpreter {
     /**
      * Build an error response payload with a canonical issue code.
      *
+     * Two-channel contract (F3, N-591a): when $usercause is given, it becomes the only
+     * user-facing cause text (message + errors — the channel the synchronizer's [ERROR]
+     * observation explains to the user), while the technical $message moves to repair_hints,
+     * the planner-only retry channel. Thread 591 msg 1601 showed why: the raw
+     * "CONTRACT_VIOLATION: … outside discovery-ranked allow-list." string reached the user
+     * verbatim. Without $usercause the payload is unchanged (technical message stays the
+     * cause — those sites either never reach the user or still await their F3 migration).
+     *
      * @param string $message
      * @param string $issuecode
+     * @param string $usercause
      * @return array
      */
-    private function error_result_with_issue_code(string $message, string $issuecode): array {
+    private function error_result_with_issue_code(string $message, string $issuecode, string $usercause = ''): array {
         $cleanmessage = $this->safe_string($message);
-        return [
+        $cleanusercause = $this->safe_string($usercause);
+        $result = [
             'response_type' => 'error',
             'lang' => '',
-            'message' => $cleanmessage,
+            'message' => $cleanusercause !== '' ? $cleanusercause : $cleanmessage,
             'commands' => [],
             'ambiguities' => [],
             'ambiguity_options' => [],
             'errors' => $cleanmessage !== '' ? [$cleanmessage] : [],
             'issue_codes' => [$this->safe_string($issuecode)],
         ];
+        if ($cleanusercause !== '') {
+            $result['errors'] = [$cleanusercause];
+            $result['repair_hints'] = $cleanmessage !== '' ? [$cleanmessage] : [];
+        }
+        return $result;
     }
 
     /**
