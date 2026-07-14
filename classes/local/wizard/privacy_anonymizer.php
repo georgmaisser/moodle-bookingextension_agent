@@ -257,29 +257,6 @@ class privacy_anonymizer {
     }
 
     /**
-     * De-anonymize command input using the active user thread in a booking context.
-     *
-     * Useful during validation where only contextid/userid is available.
-     *
-     * @param int $contextid
-     * @param int $userid
-     * @param array $input
-     * @return array
-     */
-    public function deanonymize_command_input_for_active_user(int $contextid, int $userid, array $input): array {
-        if ($this->get_mode() === self::MODE_OFF || $contextid <= 0 || $userid <= 0) {
-            return $input;
-        }
-
-        $thread = $this->store->get_active_thread($userid, $contextid);
-        if (!$thread || empty($thread->id)) {
-            return $input;
-        }
-
-        return $this->deanonymize_command_input((int)$thread->id, $input);
-    }
-
-    /**
      * Whether any string in the (already de-anonymized) value still contains an ANON_USER token.
      *
      * After deanonymize_command_input() a remaining placeholder means it could not be resolved to a

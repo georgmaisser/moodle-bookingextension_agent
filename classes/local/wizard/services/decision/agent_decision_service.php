@@ -1180,11 +1180,10 @@ class agent_decision_service {
                     continue;
                 }
                 $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
-                $command['input'] = $anonymizer->deanonymize_command_input_for_active_user(
-                    $contextid,
-                    $userid,
-                    $input
-                );
+                // De-anonymize against THIS thread's token map — the (userid, contextid) active-
+                // thread lookup is blind to MCP channel threads (status=<session channel>) and
+                // can pick the wrong map when a chat thread is open at the same context.
+                $command['input'] = $anonymizer->deanonymize_command_input($threadid, $input);
             }
             unset($command);
         }

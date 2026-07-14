@@ -162,7 +162,12 @@ class preflight_pipeline {
 
             $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
             if ($threadid > 0 && $userid > 0) {
-                $input = $anonymizer->deanonymize_command_input_for_active_user($contextid, $userid, $input);
+                // De-anonymize against THIS thread's token map. Never re-derive the thread from
+                // (userid, contextid): that lookup filters on status='active' and is blind to MCP
+                // channel threads (status=<session channel>), so preflight resolution would see
+                // raw ANON_USER_* tokens for every MCP session — and with a chat thread open at
+                // the same context it would even read the WRONG map.
+                $input = $anonymizer->deanonymize_command_input($threadid, $input);
             }
 
             try {
