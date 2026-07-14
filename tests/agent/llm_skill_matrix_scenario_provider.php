@@ -285,8 +285,12 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'wizard.recreate_skill_catalog' => [
-                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wizard.recreate_skill_catalog aus ' .
-                    'und plane den Neuaufbau des Skill-Katalogs.',
+                // States the intent as settled (matrix one-shot convention, like wizard.forget):
+                // the model otherwise sometimes asks its own "soll ich?" as a plain clarification
+                // instead of staging the command — the confirmation card asks exactly that anyway.
+                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wizard.recreate_skill_catalog aus '
+                    . 'und plane den Neuaufbau des Skill-Katalogs. Ich bin sicher — bitte ohne '
+                    . 'Rueckfrage direkt einleiten.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -792,8 +796,12 @@ final class llm_skill_matrix_scenario_provider {
             ],
             'mod_booking.update_option_trainer' => [
                 'setup' => 'prepare_update_option_scenario',
-                'prompt' => 'Use mod_booking.update_option_trainer to assign teacheremail ' .
-                    '{{teacher_email}} to optionid {{existing_option_id}}.',
+                // Name AND id of the target: with the id alone the model occasionally dropped the
+                // target from the constructed command (full run 2026-07-14b + repro) — the title
+                // gives it a second, robust reference (optionquery path).
+                'prompt' => 'Use mod_booking.update_option_trainer to assign teacheremail '
+                    . '{{teacher_email}} to the option "{{existing_option_name}}" '
+                    . '(optionid {{existing_option_id}}).',
                 'assertions' => [
                     [
                         'target' => 'final',
