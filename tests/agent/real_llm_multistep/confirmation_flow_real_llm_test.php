@@ -74,6 +74,15 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
 
         $title = 'Multistep Real LLM ' . uniqid('', true);
 
+        // A confirmation is evidenced by the response type OR a queue-backed item — the WS payload
+        // does not always carry the command array (the queue is the durable ground truth, same
+        // handling as the skill matrix). All three steps confirm the staged action and assert the
+        // deterministic DB effect instead of probing the payload command shape.
+        $hasconfirmable = static function (array $result): bool {
+            return (string)($result['response_type'] ?? '') === 'confirmation_request'
+                || trim((string)($result['queueitemid'] ?? '')) !== '';
+        };
+
         $result1 = $this->chat(
             'Create a booking option called "' . $title . '" with 8 spots, optiontype normal, '
                 . 'start 2045-11-10T09:00:00, end 2045-11-10T11:00:00.',
@@ -81,7 +90,7 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
             $store,
             $runtime
         );
-        if (($result1['response_type'] ?? '') !== 'confirmation_request') {
+        if (!$hasconfirmable($result1)) {
             $result1 = $this->chat(
                 'Please create a booking option called "' . $title . '" with 8 spots. '
                     . 'It should run from 2045-11-10T09:00:00 to 2045-11-10T11:00:00.',
@@ -90,18 +99,12 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $createcommand = $this->extract_command($result1, 'mod_booking.create_option');
-        $this->assertNotNull($createcommand, 'create_option command must be present.');
-        $createcommand['input'] = array_merge($createcommand['input'] ?? [], [
-            'text' => $title,
-            'optiontype' => 'normal',
-            'maxanswers' => 8,
-            'coursestarttime' => '2045-11-10T09:00:00',
-            'courseendtime' => '2045-11-10T11:00:00',
-            'teacherquery' => 'current',
-            'location' => 'Online',
-        ]);
-        unset($createcommand['input']['optiondates']);
+        $this->assertTrue(
+            $hasconfirmable($result1),
+            'The agent must stage a confirmable create_option. Response type: '
+                . (string)($result1['response_type'] ?? '')
+                . ' Message: ' . $this->payload_text($result1)
+        );
 
         $createconfirm = $this->confirm_pending_result($result1, (int)$threadid, $store, false);
         $this->assertTrue((bool)($createconfirm['success'] ?? false), (string)($createconfirm['message'] ?? ''));
@@ -111,15 +114,6 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
             'text' => $title,
         ]);
         $this->assertNotFalse($option, 'Created booking option must exist.');
-
-        // A confirmation is evidenced by the response type OR a queue-backed item — the WS payload
-        // does not always carry the command array (the queue is the durable ground truth, same
-        // handling as the skill matrix). Probing the command's input keys instead caused a retry
-        // chat against a still-pending card, which the confirm-slot guard rightly blocks.
-        $hasconfirmable = static function (array $result): bool {
-            return (string)($result['response_type'] ?? '') === 'confirmation_request'
-                || trim((string)($result['queueitemid'] ?? '')) !== '';
-        };
 
         $result2 = $this->chat(
             'Make Billy Teacher responsible for "' . $title . '". Use teacher email "' . $billy->email . '".',
@@ -165,7 +159,15 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         // even when the assignment never happened.
         $this->assertSame('executed', (string)($details['status'] ?? ''), 'get_option_details must succeed.');
         $teachers = json_encode($details['optiondetails'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $this->assertStringContainsString('Billy', (string)$teachers, 'The assigned teacher must appear on the option.');
+        $this->assertStringContainsString(
+            'Billy',
+            (string)$teachers,
+            'The assigned teacher must appear on the option. Teachers: ' . (string)$teachers . ' Queue: '
+                . json_encode(
+                    (new \bookingextension_agent\local\wizard\queue\queue_manager($store))->get_queue_items((int)$threadid),
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                )
+        );
 
         // The planner may legitimately route the visibility change through the single-option
         // update OR through bulk_update_options with a precise target — both carry the same
