@@ -220,12 +220,12 @@ final class privacy_anonymizer_reanchor_test extends \advanced_testcase {
         $anonymizer = new privacy_anonymizer($store);
         $threadid = (int)$this->fresh_thread($store, (int)$USER->id)->id;
 
-        // Obtain a real email token from this thread's map.
+        // Obtain a real email token from this thread's map (email-shaped, see ANON_EMAIL_DOMAIN).
         $sanitized = (string)$anonymizer->anonymize_value_for_llm($threadid, 'billy.teachy@example.com');
         $this->assertSame(
             1,
-            preg_match('/\bANON_USER_\d+_email\b/', $sanitized, $m),
-            'The email address must map to an _email token.'
+            preg_match('/\bANON_USER_\d+@anon\.invalid\b/', $sanitized, $m),
+            'The email address must map to an email-shaped token.'
         );
         $emailtoken = $m[0];
 

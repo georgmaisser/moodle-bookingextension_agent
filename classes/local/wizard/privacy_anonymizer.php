@@ -61,13 +61,25 @@ class privacy_anonymizer {
     private const PERSON_IDENTITY_FIELDS = ['firstname', 'lastname', 'email'];
 
     /**
+     * @var string Reserved, guaranteed-undeliverable domain (RFC 2606 ".invalid" TLD) for the
+     * email-shaped anonymization token. An email identity is masked as ANON_USER_<n>@anon.invalid
+     * instead of the suffix form ANON_USER_<n>_email, because LLMs must still recognize the value
+     * as an email address (e.g. a teacheremail parameter) — a non-email-shaped placeholder makes
+     * them reject the field or ask for a different identifier. Both token regexes below spell this
+     * domain out literally; keep all three in sync.
+     */
+    private const ANON_EMAIL_DOMAIN = 'anon.invalid';
+
+    /**
      * @var string Regex matching an anonymization token wherever it appears in free text
      * (word-bounded find/replace). Single source so the matcher cannot drift from the parser below.
+     * The email-shaped alternative must come before the generic suffix so the full address is
+     * consumed (never a bare ANON_USER_<n> leaving "@anon.invalid" behind).
      */
-    private const ANON_TOKEN_FIND_PATTERN = '/\bANON_USER_\d+(?:_[a-z]+)?\b/';
+    private const ANON_TOKEN_FIND_PATTERN = '/\bANON_USER_\d+(?:@anon\.invalid|_[a-z]+)?\b/';
 
     /** @var string Regex parsing a standalone token, capturing the stable id part (group 1). */
-    private const ANON_TOKEN_PARSE_PATTERN = '/^(ANON_USER_\d+)(?:_[a-z]+)?$/';
+    private const ANON_TOKEN_PARSE_PATTERN = '/^(ANON_USER_\d+)(?:@anon\.invalid|_[a-z]+)?$/';
 
     /** @var string Visual marker appended to a de-masked identity so an authorized viewer sees it was privacy-masked. */
     private const DEMASK_MARKER = '👤';
@@ -517,10 +529,16 @@ class privacy_anonymizer {
             return null;
         }
 
+        // The email-shaped key first, then the suffix variants ("_email" stays resolvable for
+        // token maps persisted before the email-shaped form existed).
+        $candidates = [$base . '@' . self::ANON_EMAIL_DOMAIN];
         foreach (['both', 'email', 'firstname', 'lastname'] as $suffix) {
-            $candidate = $entries[$base . '_' . $suffix] ?? null;
-            if (is_array($candidate)) {
-                return $candidate;
+            $candidates[] = $base . '_' . $suffix;
+        }
+        foreach ($candidates as $candidate) {
+            $entry = $entries[$candidate] ?? null;
+            if (is_array($entry)) {
+                return $entry;
             }
         }
 
@@ -716,6 +734,11 @@ class privacy_anonymizer {
             '/\b' . self::EMAIL_SUBPATTERN . '\b/i',
             function (array $match) use (&$tokenmap, &$count): string {
                 $email = (string)$match[0];
+                // An email-shaped ANON token is our own mask — re-tokenizing it on a second pass
+                // (history, backend data) would corrupt the map. Leave it untouched.
+                if (self::looks_like_anon_token($email)) {
+                    return $email;
+                }
                 $identity = $this->resolve_identity_from_email($email);
                 $token = $this->get_or_create_token(
                     $tokenmap,
@@ -1277,6 +1300,12 @@ class privacy_anonymizer {
         $normalizedbase = $this->extract_base_token_from_anon_token($basetoken);
         if ($normalizedbase === '') {
             return '';
+        }
+
+        // Email identities get an email-SHAPED token so downstream LLMs still treat the value as
+        // an address (see ANON_EMAIL_DOMAIN); the other identity fields keep the suffix form.
+        if ($normalizedtype === 'email') {
+            return $normalizedbase . '@' . self::ANON_EMAIL_DOMAIN;
         }
 
         return $normalizedbase . '_' . $normalizedtype;

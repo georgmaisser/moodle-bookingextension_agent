@@ -48,12 +48,16 @@ final class privacy_anonymizer_regex_test extends advanced_testcase {
      */
     public function test_token_find_pattern(): void {
         $find = $this->const_value('ANON_TOKEN_FIND_PATTERN');
-        $this->assertSame('/\bANON_USER_\d+(?:_[a-z]+)?\b/', $find);
+        $this->assertSame('/\bANON_USER_\d+(?:@anon\.invalid|_[a-z]+)?\b/', $find);
 
         $this->assertSame(1, preg_match($find, 'see ANON_USER_7 here'));
         $this->assertSame(1, preg_match($find, 'field ANON_USER_12_email value'));
         $this->assertSame(0, preg_match($find, 'ANON_USER'), 'A bare prefix without a number is not a token.');
         $this->assertSame(0, preg_match($find, 'ANON_USER_7X'), 'Uppercase suffix is not part of the grammar.');
+
+        // The email-shaped token is consumed as ONE token, never a bare id leaving "@anon.invalid" behind.
+        $this->assertSame(1, preg_match($find, 'teacheremail ANON_USER_3@anon.invalid please', $m));
+        $this->assertSame('ANON_USER_3@anon.invalid', $m[0]);
     }
 
     /**
@@ -61,13 +65,16 @@ final class privacy_anonymizer_regex_test extends advanced_testcase {
      */
     public function test_token_parse_pattern_anchors_and_captures(): void {
         $parse = $this->const_value('ANON_TOKEN_PARSE_PATTERN');
-        $this->assertSame('/^(ANON_USER_\d+)(?:_[a-z]+)?$/', $parse);
+        $this->assertSame('/^(ANON_USER_\d+)(?:@anon\.invalid|_[a-z]+)?$/', $parse);
 
         $this->assertSame(1, preg_match($parse, 'ANON_USER_42_firstname', $m));
         $this->assertSame('ANON_USER_42', $m[1], 'Group 1 must be the id without the field suffix.');
 
         $this->assertSame(1, preg_match($parse, 'ANON_USER_9', $m2));
         $this->assertSame('ANON_USER_9', $m2[1]);
+
+        $this->assertSame(1, preg_match($parse, 'ANON_USER_5@anon.invalid', $m3));
+        $this->assertSame('ANON_USER_5', $m3[1], 'The email-shaped token must parse to its base id.');
 
         // Anchored: an embedded token must NOT match (this is what separates parse from find).
         $this->assertSame(0, preg_match($parse, 'x ANON_USER_42 y'));
@@ -99,6 +106,7 @@ final class privacy_anonymizer_regex_test extends advanced_testcase {
     public function test_looks_like_anon_token_public_api(): void {
         $this->assertTrue(privacy_anonymizer::looks_like_anon_token('ANON_USER_1'));
         $this->assertTrue(privacy_anonymizer::looks_like_anon_token('ANON_USER_1_email'));
+        $this->assertTrue(privacy_anonymizer::looks_like_anon_token('ANON_USER_1@anon.invalid'));
         $this->assertTrue(privacy_anonymizer::looks_like_anon_token('prefix ANON_USER_3 suffix'));
         $this->assertFalse(privacy_anonymizer::looks_like_anon_token('ANON_USER'));
         $this->assertFalse(privacy_anonymizer::looks_like_anon_token('just a name'));
