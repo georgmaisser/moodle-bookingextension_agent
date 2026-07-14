@@ -207,7 +207,12 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         // Step 3 must go through the AGENT confirmation flow (no direct-exec fallback, which would mask
         // an agent that stopped handling visibility). Require the command, confirm it, then assert the
         // deterministic effect unconditionally.
-        $this->assertNotNull($visiblecommand, 'The agent must produce an update_option command to set visibility.');
+        $this->assertNotNull(
+            $visiblecommand,
+            'The agent must produce an update_option command to set visibility. Response type: '
+                . (string)($result3['response_type'] ?? '')
+                . ' Message: ' . $this->payload_text($result3)
+        );
         $visibleconfirm = $this->confirm_pending_result($result3, (int)$threadid, $store, false);
         $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
 
