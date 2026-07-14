@@ -112,13 +112,22 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         ]);
         $this->assertNotFalse($option, 'Created booking option must exist.');
 
+        // A confirmation is evidenced by the response type OR a queue-backed item — the WS payload
+        // does not always carry the command array (the queue is the durable ground truth, same
+        // handling as the skill matrix). Probing the command's input keys instead caused a retry
+        // chat against a still-pending card, which the confirm-slot guard rightly blocks.
+        $hasconfirmable = static function (array $result): bool {
+            return (string)($result['response_type'] ?? '') === 'confirmation_request'
+                || trim((string)($result['queueitemid'] ?? '')) !== '';
+        };
+
         $result2 = $this->chat(
             'Make Billy Teacher responsible for "' . $title . '". Use teacher email "' . $billy->email . '".',
             $threadid,
             $store,
             $runtime
         );
-        if (($result2['response_type'] ?? '') !== 'confirmation_request') {
+        if (!$hasconfirmable($result2)) {
             $result2 = $this->chat(
                 'Please assign Billy Teacher to the booking option "' . $title . '". '
                     . 'His email address is "' . $billy->email . '".',
@@ -127,28 +136,14 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $teachercommand = $this->extract_teacher_assignment_command($result2);
-        if (
-            $teachercommand === null
-            || empty($teachercommand['input'])
-            || (!array_key_exists('teacherquery', (array)$teachercommand['input'])
-                && !array_key_exists('teacheremail', (array)$teachercommand['input']))
-        ) {
-            $result2 = $this->chat(
-                'Please assign Billy Teacher to the booking option with the title "' . $title . '". '
-                    . 'His email address is "' . $billy->email . '".',
-                $threadid,
-                $store,
-                $runtime
-            );
-            $teachercommand = $this->extract_teacher_assignment_command($result2);
-        }
-        // The whole point of step 2 is that the agent CAN assign a teacher: after the retries it must
-        // have produced the command. Failing (instead of silently skipping) surfaces a real regression
-        // where the agent stops handling teacher assignment.
-        $this->assertNotNull(
-            $teachercommand,
-            'The agent must produce an update_option or update_option_trainer command to assign the teacher.'
+        // The whole point of step 2 is that the agent CAN assign a teacher: it must stage a
+        // confirmable action, and the deterministic post-condition below (Billy on the option)
+        // decides whether the assignment really happened — not the staged command's shape.
+        $this->assertTrue(
+            $hasconfirmable($result2),
+            'The agent must stage a confirmable teacher assignment. Response type: '
+                . (string)($result2['response_type'] ?? '')
+                . ' Message: ' . $this->payload_text($result2)
         );
         $teacherconfirm = $this->confirm_pending_result($result2, (int)$threadid, $store, false);
         $this->assertTrue((bool)($teacherconfirm['success'] ?? false), (string)($teacherconfirm['message'] ?? ''));
@@ -172,13 +167,31 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $teachers = json_encode($details['optiondetails'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $this->assertStringContainsString('Billy', (string)$teachers, 'The assigned teacher must appear on the option.');
 
+        // The planner may legitimately route the visibility change through the single-option
+        // update OR through bulk_update_options with a precise target — both carry the same
+        // schema fields and risk class, and the deterministic post-conditions decide, not the
+        // skill choice. The hidden decoy pins the precision: it must STAY hidden, so a bulk
+        // command is only acceptable when it hits exactly the named option (never apply_to_all).
+        $decoy = $this->gen->create_option([
+            'bookingid' => (int)$this->booking->id,
+            'text' => 'Decoy stays hidden ' . uniqid('', true),
+            'maxanswers' => 5,
+            'type' => 0,
+        ]);
+        $DB->set_field('booking_options', 'invisible', MOD_BOOKING_OPTION_INVISIBLE, ['id' => (int)$decoy->id]);
+
+        // Hide the target too, so "make it visible" is a real state transition (1 → 0) instead of
+        // a no-op on an already-visible option — the no-op shape occasionally provoked an inverted
+        // flag from the model, which reads as a product failure although nothing was ever hidden.
+        $DB->set_field('booking_options', 'invisible', MOD_BOOKING_OPTION_INVISIBLE, ['id' => (int)$option->id]);
+
         $result3 = $this->chat(
             'Now make "' . $title . '" visible.',
             $threadid,
             $store,
             $runtime
         );
-        if (($result3['response_type'] ?? '') !== 'confirmation_request') {
+        if (!$hasconfirmable($result3)) {
             $result3 = $this->chat(
                 'Please make the booking option "' . $title . '" visible.',
                 $threadid,
@@ -186,30 +199,14 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
                 $runtime
             );
         }
-        $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option')
-            ?? $this->extract_command($result3, 'booking.update_option');
-        if (
-            $visiblecommand === null
-            || empty($visiblecommand['input'])
-            || (!array_key_exists('visible', (array)$visiblecommand['input'])
-                && !array_key_exists('invisible', (array)$visiblecommand['input']))
-        ) {
-            $result3 = $this->chat(
-                'Please make the booking option with the title "' . $title . '" visible.',
-                $threadid,
-                $store,
-                $runtime
-            );
-            $visiblecommand = $this->extract_command($result3, 'mod_booking.update_option')
-                ?? $this->extract_command($result3, 'booking.update_option');
-        }
 
         // Step 3 must go through the AGENT confirmation flow (no direct-exec fallback, which would mask
-        // an agent that stopped handling visibility). Require the command, confirm it, then assert the
-        // deterministic effect unconditionally.
-        $this->assertNotNull(
-            $visiblecommand,
-            'The agent must produce an update_option command to set visibility. Response type: '
+        // an agent that stopped handling visibility). Require a confirmable action, confirm it, then
+        // assert the deterministic effect unconditionally — the outcome decides, not the skill choice
+        // or the staged input shape.
+        $this->assertTrue(
+            $hasconfirmable($result3),
+            'The agent must stage a confirmable visibility update. Response type: '
                 . (string)($result3['response_type'] ?? '')
                 . ' Message: ' . $this->payload_text($result3)
         );
@@ -217,7 +214,21 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
         $this->assertTrue((bool)($visibleconfirm['success'] ?? false), (string)($visibleconfirm['message'] ?? ''));
 
         $updated = $this->get_option_from_db((int)$option->id);
-        $this->assertSame(MOD_BOOKING_OPTION_VISIBLE, (int)$updated->invisible);
+        $this->assertSame(
+            MOD_BOOKING_OPTION_VISIBLE,
+            (int)$updated->invisible,
+            'The named option must be visible after the confirmed update. Queue: '
+                . json_encode(
+                    (new \bookingextension_agent\local\wizard\queue\queue_manager($store))->get_queue_items((int)$threadid),
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                )
+        );
+        $decoyafter = $this->get_option_from_db((int)$decoy->id);
+        $this->assertSame(
+            MOD_BOOKING_OPTION_INVISIBLE,
+            (int)$decoyafter->invisible,
+            'The visibility change must hit only the named option — the hidden decoy may never flip.'
+        );
     }
 
     /**
@@ -229,33 +240,5 @@ final class confirmation_flow_real_llm_test extends abstract_agent_testcase {
     private function is_skill_available(string $skillname): bool {
         $registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_default();
         return $registry->get_skill($skillname) !== null;
-    }
-
-    /**
-     * Extract the teacher-assignment command, whichever legitimate skill the planner chose.
-     *
-     * The specialized mod_booking.update_option_trainer is the preferred (and observed) routing
-     * for "make X responsible / assign X as teacher"; the generic update_option with a
-     * teacherquery/teacheremail field is equally correct. Commands may carry canonical
-     * (mod_booking.*) or alias (booking.*) names depending on the normalization layer.
-     *
-     * @param array $result AgentRuntime result.
-     * @return array|null The first matching command.
-     */
-    private function extract_teacher_assignment_command(array $result): ?array {
-        foreach (
-            [
-                'mod_booking.update_option_trainer',
-                'booking.update_option_trainer',
-                'mod_booking.update_option',
-                'booking.update_option',
-            ] as $skillname
-        ) {
-            $command = $this->extract_command($result, $skillname);
-            if ($command !== null) {
-                return $command;
-            }
-        }
-        return null;
     }
 }
