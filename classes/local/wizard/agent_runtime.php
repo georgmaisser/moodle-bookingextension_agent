@@ -100,6 +100,13 @@ class agent_runtime {
         // any retry). Genuinely missing user input is excluded at the tagging site
         // (RECOVERABLE_INPUT_ERROR → clarification, no retry).
         'CONTRACT_STRUCTURAL_MISMATCH',
+        // Construction emitted a command for a skill outside the discovery-ranked allow-list
+        // (thread 591: the selector mis-picked, the constructor 'corrected' to a skill it may
+        // not choose — the guard rightly blocks that, but ending the turn terminally wasted
+        // the recoverable case). One re-plan round lets SELECTION reconsider with the repair
+        // detail naming the attempted skill and the allow-list (N-591a, option C part 2).
+        // Consistent with the taxonomy: CONTRACT_ codes classify TECHNICAL/retryable.
+        'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
     ];
 
     /** Maximum number of loop-level framework retries per issue code. */
@@ -879,6 +886,14 @@ class agent_runtime {
             return 'RETRY_HINT: The previous parameter_construction used input keys or value shapes '
                 . 'the skill schema does not accept. Retry once using ONLY the canonical keys from '
                 . 'the skill schema; map the user\'s values onto them and drop everything else.';
+        }
+
+        if ($issuecode === 'CONTRACT_PHASE_SKILL_NOT_ALLOWED') {
+            return 'RETRY_HINT: The previous parameter_construction emitted a command for a skill '
+                . 'that was NOT the selected skill. Construction may never switch skills. Re-plan '
+                . 'this step once: if the selected skill cannot fulfil it, SELECT the correct skill '
+                . '(see the REPAIR detail below for what was attempted); if no available skill fits, '
+                . 'respond with a clarification instead.';
         }
 
         if ($issuecode === 'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED') {
