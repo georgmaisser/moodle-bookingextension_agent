@@ -103,7 +103,6 @@ final class add_activity_error_message_test extends advanced_testcase {
      * test is green today and only guards the contract against regressions.
      */
     public function test_disabled_module_message_names_module(): void {
-        global $DB;
         $this->resetAfterTest();
 
         $course = $this->getDataGenerator()->create_course(['format' => 'topics']);
@@ -112,24 +111,38 @@ final class add_activity_error_message_test extends advanced_testcase {
         $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
         $this->setUser($teacher);
 
-        // Disable the page module site-wide (the module chooser would hide it).
-        $DB->set_field('modules', 'visible', 0, ['name' => 'page']);
+        // Disable the page module site-wide through the proper API — a raw modules.visible
+        // set_field left the enabled-modules state stale after the DB rollback and turned
+        // every later add_activity/module_catalog test in the same run red (C6 pollution).
+        \core\plugininfo\mod::enable_plugin('page', 0);
+        // The actual leak is core get_module_types_names(): it caches the VISIBLE module names
+        // in a function-local static that no reset hook (plugin manager, MUC, DB rollback) ever
+        // clears — rebuild it explicitly on both sides of this test.
+        get_module_types_names(false, true);
 
-        $result = (new add_activity_skill())->preflight(
-            ['modname' => 'page', 'section' => 'top', 'name' => 'Welcome', 'settings' => ['content' => 'Hi.']],
-            (int)$coursecontext->id,
-            (int)$teacher->id
-        );
+        try {
+            $result = (new add_activity_skill())->preflight(
+                ['modname' => 'page', 'section' => 'top', 'name' => 'Welcome', 'settings' => ['content' => 'Hi.']],
+                (int)$coursecontext->id,
+                (int)$teacher->id
+            );
 
-        $this->assertNotSame('pass', $result->status, 'a disabled module must not pass preflight');
-        $message = (string)($result->issues[0]['message'] ?? '');
-        $this->assertNotSame('', $message);
+            $this->assertNotSame('pass', $result->status, 'a disabled module must not pass preflight');
+            $message = (string)($result->issues[0]['message'] ?? '');
+            $this->assertNotSame('', $message);
 
-        $this->assertStringNotContainsString('{$a}', $message, 'unresolved {$a} placeholder in: ' . $message);
-        $this->assertStringContainsStringIgnoringCase(
-            'page',
-            $message,
-            'the message must name the affected module readably, got: ' . $message
-        );
+            $this->assertStringNotContainsString('{$a}', $message, 'unresolved {$a} placeholder in: ' . $message);
+            $this->assertStringContainsStringIgnoringCase(
+                'page',
+                $message,
+                'the message must name the affected module readably, got: ' . $message
+            );
+        } finally {
+            // The DB change rolls back with resetAfterTest, but neither the plugin caches nor
+            // the get_module_types_names() static do — restore both through the same APIs (even
+            // on assertion failure) so they agree with the rolled-back DB state again.
+            \core\plugininfo\mod::enable_plugin('page', 1);
+            get_module_types_names(false, true);
+        }
     }
 }
