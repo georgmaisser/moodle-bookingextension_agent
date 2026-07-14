@@ -238,8 +238,15 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'wizard.forget' => [
+                // Names the skill explicitly and states the intent as already settled (matrix
+                // one-shot convention): with softer phrasing the model kept asking its own
+                // "are you sure?" as a plain clarification instead of staging the command — the
+                // engine asks exactly that via the R2 confirmation card anyway, which the
+                // harness answers (full run 2026-07-14 + repro).
                 'setup' => 'prepare_user_memory_scenario',
-                'prompt' => 'Vergiss bitte dauerhaft meine gespeicherte Notiz ueber "{{memory_token}}".',
+                'prompt' => 'Nutze wizard.forget, um meine gespeicherte Notiz ueber '
+                    . '"{{memory_token}}" dauerhaft zu loeschen. Ich bin sicher — bitte ohne '
+                    . 'Rueckfrage direkt den Loeschvorgang einleiten.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -957,9 +964,12 @@ final class llm_skill_matrix_scenario_provider {
             ],
             'course.scaffold_course_content' => [
                 // Structure named in the prompt (2 chapters, no quizzes) so the deterministic
-                // structure clarification does not fire and the scaffold executes directly.
-                'prompt' => 'Generate course content about "Vikings {{batch_label}}" in this course: '
-                    . '2 chapters, no practice quizzes, no final quiz.',
+                // structure clarification does not fire, and a seeded EMPTY course as the target —
+                // the ambient matrix course carries the harness booking activity, so the F2
+                // not-empty soft-block would fire on every run ("This course is not empty").
+                'setup' => 'prepare_empty_course_scenario',
+                'prompt' => 'Generate course content about "Vikings {{batch_label}}" in the course '
+                    . '"{{empty_course_fullname}}": 2 chapters, no practice quizzes, no final quiz.',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -975,9 +985,14 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'course.create_course' => [
-                // The default test site has exactly one writable category (Miscellaneous), so
-                // the category resolves silently and the create executes without a clarification.
-                'prompt' => 'Create a new Moodle course named "Vikings {{batch_label}}".',
+                // Summary and category are named in the prompt: the model otherwise legitimately
+                // asks for both (the skill only auto-resolves the category when exactly one is
+                // writable, and the summary guidance says "compose one" — which the model may
+                // decline in favour of a question). A seeded category keeps the query unique.
+                'setup' => 'prepare_create_course_scenario',
+                'prompt' => 'Create a new Moodle course named "Vikings {{batch_label}}" in the '
+                    . 'category "{{matrix_category_name}}". Summary: "Everyday life, seafaring '
+                    . 'and culture of the Vikings."',
                 'assertions' => [
                     [
                         'target' => 'final',

@@ -319,6 +319,22 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
             }
         }
 
+        // The contract carries only the governance capability (Gate 1). The skill's NATIVE
+        // capabilities (Gate 2, e.g. moodle/course:create) are enforced at the operating context
+        // at runtime — grant them too, or a scenario dies in preflight on a permission the matrix
+        // teacher was never meant to lack (create_course surfaced this once the model stopped
+        // clarifying and actually staged the command).
+        $skillinstance = $registry->get_skill($skillname);
+        if ($skillinstance !== null && method_exists($skillinstance, 'get_required_native_capabilities')) {
+            foreach ((array)$skillinstance->get_required_native_capabilities() as $nativecapability) {
+                $nativecapability = (string)$nativecapability;
+                $this->sync_capability_definition_from_component($nativecapability);
+                if ($nativecapability !== '' && get_capability_info($nativecapability)) {
+                    $this->grant_optional_capability_to_editingteacher($nativecapability);
+                }
+            }
+        }
+
         $contextid = (int)\context_module::instance((int)$this->booking->cmid)->id;
         $evaluator = new skill_executability_evaluator($registry, new authorization_service());
         $evaluation = $evaluator->evaluate_skill($skillname, (int)$this->teacher->id, $contextid);
@@ -567,6 +583,41 @@ abstract class abstract_llm_skill_matrix_testcase extends abstract_agent_testcas
             'replacements' => [
                 'existing_option_id' => (string)$seedoption->id,
                 'existing_option_name' => $optionname,
+            ],
+        ];
+    }
+
+    /**
+     * Seed an EMPTY course as scaffold target (the ambient matrix course carries the harness
+     * booking activity, which trips the scaffold's not-empty soft-block on every run).
+     *
+     * @return array
+     */
+    protected function prepare_empty_course_scenario(): array {
+        $fullname = 'Empty Matrix Course ' . substr(sha1(uniqid('', true)), 0, 8);
+        $course = $this->getDataGenerator()->create_course(['fullname' => $fullname]);
+        $this->getDataGenerator()->enrol_user((int)$this->teacher->id, (int)$course->id, 'editingteacher');
+
+        return [
+            'replacements' => [
+                'empty_course_fullname' => $fullname,
+            ],
+        ];
+    }
+
+    /**
+     * Seed a distinctly named course category so the create-course scenario can name it
+     * verbatim and the category resolves uniquely regardless of the site's category count.
+     *
+     * @return array
+     */
+    protected function prepare_create_course_scenario(): array {
+        $categoryname = 'Matrix Category ' . substr(sha1(uniqid('', true)), 0, 8);
+        $this->getDataGenerator()->create_category(['name' => $categoryname]);
+
+        return [
+            'replacements' => [
+                'matrix_category_name' => $categoryname,
             ],
         ];
     }
