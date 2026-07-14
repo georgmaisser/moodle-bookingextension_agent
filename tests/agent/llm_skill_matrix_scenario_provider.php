@@ -904,7 +904,9 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'course.add_quiz' => [
-                'prompt' => 'Create a quiz titled "Quiz {{batch_label}}" in this course.',
+                // Empty quiz (no questions) so the smart source resolver does not clarify and the
+                // B4 question-count trigger does not fire — a clean one-shot create for the matrix.
+                'prompt' => 'Create an empty quiz with no questions titled "Quiz {{batch_label}}" in this course.',
                 'assertions' => [
                     [
                         'target' => 'final',
