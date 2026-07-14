@@ -249,8 +249,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
                 'count' => [
                     'type' => 'integer',
-                    'description' => 'How many questions to generate (default ' . self::DEFAULT_COUNT
-                        . ', max ' . question_generation_service::MAX_COUNT . ').',
+                    'description' => 'How many questions to generate (max ' . question_generation_service::MAX_COUNT
+                        . '). There is NO default — set it to the number the user gave; if they did not say how many, '
+                        . 'leave it out so the system asks (never invent a number).',
                     'required' => false,
                 ],
                 'qtypes' => [
@@ -386,8 +387,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                         . ' input.content.',
                     '- Only ask the user for a source if NEITHER a document was uploaded NOR course PDFs were requested'
                         . ' NOR any content was provided.',
-                    '- Default to a single multiple-choice question unless the user asks otherwise; set input.count and'
-                        . ' input.qtypes accordingly (allowed types: multichoice, truefalse, shortanswer).',
+                    '- Set input.count to the number of questions the user asked for; if they did not say how many,'
+                        . ' leave input.count out so the system asks (no silent default). Set input.qtypes when named'
+                        . ' (allowed types: multichoice, truefalse, shortanswer).',
                     '- Do NOT ask the user which question bank or category to use, and never invent a category id. Leave'
                         . ' input.target_category and input.target_categoryid empty: if the course has more than one'
                         . ' category the system itself lists them and asks. Only if the user explicitly names a'
@@ -406,7 +408,20 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     public function check_structure(array $input): array {
         $errors = [];
 
-        if (isset($input['count']) && $input['count'] !== '') {
+        // B4 (Georg 2026-07-14): the question count is NEVER silently defaulted — if the user did
+        // not say how many questions, ask. RECOVERABLE_INPUT_ERROR routes it as a clarification turn,
+        // not a confirmation card with a fabricated number (thread 587).
+        if (!isset($input['count']) || trim((string)$input['count']) === '') {
+            return [
+                'valid' => false,
+                'errors' => ['How many questions should be generated?'],
+                'repair' => ['count is required: ask the user for the number of questions; never default it.'],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+                'ambiguities' => [],
+            ];
+        }
+
+        if ($input['count'] !== '') {
             $count = (int)$input['count'];
             if ($count < 1 || $count > question_generation_service::MAX_COUNT) {
                 $errors[] = 'count must be between 1 and ' . question_generation_service::MAX_COUNT . '.';

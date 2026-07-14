@@ -66,7 +66,7 @@ final class course_authoring_compound_real_llm_test extends abstract_agent_testc
 
         $result = $this->chat(
             'Erstelle einen neuen Kurs "' . $title . '". Fülle ihn danach mit 4 Kapiteln, ohne '
-                . 'Übungsquiz, aber mit benotetem Abschlussquiz. Mach ihn anschließend als '
+                . 'Übungsquiz, aber mit benotetem Abschlussquiz mit 10 Fragen. Mach ihn anschließend als '
                 . 'Selbstlernkurs buchbar in der Buchungsinstanz "Agent Test Booking": '
                 . 'Preis 20 Euro, Dauer 30 Tage.',
             $threadid,
@@ -141,7 +141,7 @@ final class course_authoring_compound_real_llm_test extends abstract_agent_testc
         if (!$this->course_has_scaffold((int)$course->id)) {
             $next = $this->chat(
                 'Fülle den Kurs "' . $title . '" jetzt mit den 4 Kapiteln und dem benoteten '
-                    . 'Abschlussquiz.',
+                    . 'Abschlussquiz mit 10 Fragen.',
                 $threadid,
                 $store,
                 $runtime
@@ -220,7 +220,7 @@ final class course_authoring_compound_real_llm_test extends abstract_agent_testc
 
         $result = $this->chat(
             'Erstelle einen neuen Kurs "' . $title . '". Fülle ihn danach mit 4 Kapiteln, ohne '
-                . 'Übungsquiz, aber mit benotetem Abschlussquiz. Mach ihn anschließend als '
+                . 'Übungsquiz, aber mit benotetem Abschlussquiz mit 10 Fragen. Mach ihn anschließend als '
                 . 'Selbstlernkurs buchbar in der Buchungsinstanz "Agent Test Booking": '
                 . 'Preis 20 Euro, Dauer 30 Tage.',
             $threadid,

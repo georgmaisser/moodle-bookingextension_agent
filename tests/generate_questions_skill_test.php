@@ -52,7 +52,9 @@ final class generate_questions_skill_test extends advanced_testcase {
      */
     public function test_check_structure(): void {
         $skill = new generate_questions_skill();
-        $this->assertTrue($skill->check_structure([])['valid']);
+        // B4 (Georg 2026-07-14): no count => clarify, never a silent default.
+        $this->assertFalse($skill->check_structure([])['valid']);
+        $this->assertContains('RECOVERABLE_INPUT_ERROR', (array)($skill->check_structure([])['issue_codes'] ?? []));
         $this->assertTrue($skill->check_structure(['count' => 5, 'qtypes' => ['multichoice', 'truefalse']])['valid']);
         $this->assertFalse($skill->check_structure(['count' => 0])['valid']);
         $this->assertFalse($skill->check_structure(['count' => 9999])['valid']);

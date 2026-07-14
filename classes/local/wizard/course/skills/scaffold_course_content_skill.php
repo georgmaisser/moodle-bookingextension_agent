@@ -169,6 +169,13 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
                         . 'when the user asked for a final/graded quiz or test.',
                     'required' => false,
                 ],
+                'quizquestions' => [
+                    'type' => 'integer',
+                    'description' => 'How many questions each quiz should have. There is NO default — set it to the '
+                        . 'number the user gave. If a quiz is wanted but the user did not say how many questions, '
+                        . 'leave this out so the system asks; never invent a number.',
+                    'required' => false,
+                ],
                 'coursequery' => [
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course by name, ONLY when the user names one (e.g. the '
@@ -194,7 +201,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['topic', 'chapters', 'practicequizzes', 'finalquiz', 'coursequery'],
+                'input_fields_for_prompt' => ['topic', 'chapters', 'practicequizzes', 'finalquiz', 'quizquestions', 'coursequery'],
                 'anchor_fields' => ['coursequery', 'topic'],
                 'context_scopes' => ['course'],
             ],
@@ -207,7 +214,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
      * @return array
      */
     public function get_example_input(): array {
-        return ['topic' => 'Das Leben der Wikinger', 'chapters' => 4, 'finalquiz' => true];
+        return ['topic' => 'Das Leben der Wikinger', 'chapters' => 4, 'finalquiz' => true, 'quizquestions' => 5];
     }
 
     /**
@@ -301,7 +308,8 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
         }
 
         // Deterministic structure clarification: fires exactly when NONE of the structure
-        // parameters were provided — one consolidated question, defaults spelled out.
+        // parameters were provided — one consolidated question, defaults spelled out. B4 (Georg
+        // 2026-07-14): it also asks the per-quiz question count, which has no silent default.
         $hasstructure = array_key_exists('chapters', $input)
             || array_key_exists('practicequizzes', $input)
             || array_key_exists('finalquiz', $input);
@@ -309,8 +317,22 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             return $this->clarify(
                 'How should the course be structured? Defaults: 4 chapters, no practice quizzes, no final '
                 . 'quiz. Ask the user for (a) the number of chapters, (b) practice quiz per chapter yes/no, '
-                . '(c) graded final quiz yes/no — or to simply confirm the defaults.',
+                . '(c) graded final quiz yes/no, and (d) if any quiz is wanted, how many questions per quiz '
+                . '(no default) — or to simply confirm the defaults.',
                 'SCAFFOLD_STRUCTURE_REQUIRED'
+            );
+        }
+
+        // B4 (Georg 2026-07-14): the per-quiz question count is never silently defaulted (it was a
+        // hard-coded 8). When a quiz IS requested but no count was given, ask — a real clarification,
+        // not a confirmation card with a fabricated number (thread 587).
+        $wantsquiz = !empty($input['practicequizzes']) || !empty($input['finalquiz']);
+        $hasquizcount = array_key_exists('quizquestions', $input)
+            && trim((string)$input['quizquestions']) !== '';
+        if ($wantsquiz && !$hasquizcount) {
+            return $this->clarify(
+                'How many questions should each quiz have? There is no default — please give a number.',
+                'SCAFFOLD_QUIZ_QUESTIONS_REQUIRED'
             );
         }
 
@@ -345,6 +367,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             'chapters' => $chapters,
             'practicequizzes' => !empty($input['practicequizzes']),
             'finalquiz' => !empty($input['finalquiz']),
+            'quizquestions' => max(1, (int)($input['quizquestions'] ?? 0)),
             'outputlang' => trim((string)($input['outputlang'] ?? '')),
             'ambientcontextid' => (int)$contextid,
         ]);
@@ -441,7 +464,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
                     $sectionnum,
                     (string)$chaptertitle . ' — Quiz',
                     $pagehtml,
-                    self::PRACTICE_QUIZ_QUESTIONS,
+                    (int)($preparedinput['quizquestions'] ?? self::FINAL_QUIZ_QUESTIONS),
                     $lang,
                     $quizservice,
                     $userid,
@@ -469,7 +492,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
                 $closingsection,
                 (string)($outline['summarytitle'] ?? 'Final quiz'),
                 $topic . ': ' . implode('; ', array_map('strval', $chaptertitles)),
-                self::FINAL_QUIZ_QUESTIONS,
+                (int)($preparedinput['quizquestions'] ?? self::FINAL_QUIZ_QUESTIONS),
                 $lang,
                 $quizservice,
                 $userid,

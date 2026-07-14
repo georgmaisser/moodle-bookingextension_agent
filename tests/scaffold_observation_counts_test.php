@@ -85,7 +85,7 @@ final class scaffold_observation_counts_test extends advanced_testcase {
 
         $skill = new scaffold_course_content_skill();
         $dto = $skill->preflight(
-            ['topic' => 'Das Leben der Wikinger', 'chapters' => 2, 'finalquiz' => true],
+            ['topic' => 'Das Leben der Wikinger', 'chapters' => 2, 'finalquiz' => true, 'quizquestions' => 8],
             $env['contextid'],
             $env['userid']
         );

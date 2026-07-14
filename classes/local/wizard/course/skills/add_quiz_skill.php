@@ -162,7 +162,9 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'count' => [
                     'type' => 'integer',
-                    'description' => 'How many questions to generate / add (default 5).',
+                    'description' => 'How many questions to generate / add. There is NO default when generating '
+                        . 'from content — set it to the number the user gave; if they did not say, leave it out so '
+                        . 'the system asks (never invent a number).',
                     'required' => false,
                 ],
                 'qtypes' => [
@@ -270,6 +272,21 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * @return array{valid:bool,errors:string[],ambiguities:string[]}
      */
     public function check_structure(array $input): array {
+        // B4 (Georg 2026-07-14): when the quiz is populated by GENERATING questions from provided
+        // content, the number of questions is never silently defaulted — ask if the user did not
+        // say how many. RECOVERABLE_INPUT_ERROR routes it as a clarification, not a confirm card
+        // with a fabricated number (thread 587). Other sources (a category, specific ids, or an
+        // empty quiz) carry no generation count and are unaffected.
+        $content = trim((string)($input['content'] ?? ''));
+        if ($content !== '' && (!isset($input['count']) || trim((string)$input['count']) === '')) {
+            return [
+                'valid' => false,
+                'errors' => ['How many questions should the quiz have?'],
+                'repair' => ['count is required when generating questions from content; never default it.'],
+                'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+                'ambiguities' => [],
+            ];
+        }
         return ['valid' => true, 'errors' => [], 'ambiguities' => []];
     }
 
