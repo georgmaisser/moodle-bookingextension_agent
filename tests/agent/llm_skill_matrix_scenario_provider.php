@@ -238,15 +238,12 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'wizard.forget' => [
-                // Names the skill explicitly and states the intent as already settled (matrix
-                // one-shot convention): with softer phrasing the model kept asking its own
-                // "are you sure?" as a plain clarification instead of staging the command — the
-                // engine asks exactly that via the R2 confirmation card anyway, which the
-                // harness answers (full run 2026-07-14 + repro).
+                // Deliberately NOT prompt-hardened: the model sometimes wraps its own "are you
+                // sure?" in a plain clarification instead of staging the R2 command (whose
+                // confirmation card asks exactly that). That flake is the honest signal for the
+                // structural response_type analysis (George 2026-07-15) — do not paper over it.
                 'setup' => 'prepare_user_memory_scenario',
-                'prompt' => 'Nutze wizard.forget, um meine gespeicherte Notiz ueber '
-                    . '"{{memory_token}}" dauerhaft zu loeschen. Ich bin sicher — bitte ohne '
-                    . 'Rueckfrage direkt den Loeschvorgang einleiten.',
+                'prompt' => 'Vergiss bitte dauerhaft meine gespeicherte Notiz ueber "{{memory_token}}".',
                 'assertions' => [
                     [
                         'target' => 'final',
@@ -285,12 +282,11 @@ final class llm_skill_matrix_scenario_provider {
                 ],
             ],
             'wizard.recreate_skill_catalog' => [
-                // States the intent as settled (matrix one-shot convention, like wizard.forget):
-                // the model otherwise sometimes asks its own "soll ich?" as a plain clarification
-                // instead of staging the command — the confirmation card asks exactly that anyway.
-                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wizard.recreate_skill_catalog aus '
-                    . 'und plane den Neuaufbau des Skill-Katalogs. Ich bin sicher — bitte ohne '
-                    . 'Rueckfrage direkt einleiten.',
+                // Deliberately NOT prompt-hardened: occasionally the model asks its own "soll
+                // ich?" as a clarification instead of staging (same family as wizard.forget) —
+                // honest signal for the structural response_type analysis (George 2026-07-15).
+                'prompt' => 'Bitte fuehre jetzt die Admin-Aktion wizard.recreate_skill_catalog aus ' .
+                    'und plane den Neuaufbau des Skill-Katalogs.',
                 'assertions' => [
                     [
                         'target' => 'final',
