@@ -35,7 +35,10 @@ SHA="$(git -C "$AGENT_REPO" rev-parse --short "$REF")"
 rm -rf "$DEST"
 mkdir -p "$DEST"
 git -C "$AGENT_REPO" archive "$REF" | tar -x -C "$DEST"
-rm -rf "$DEST/.gitignore" "$DEST/.github"
+# Strip repo infrastructure and internal dev tooling from the shipped copy:
+# release/ (this vendoring machinery) and tools/ (wizard_sync generator) are
+# development-internal and must not reach the public mod_booking tree.
+rm -rf "$DEST/.gitignore" "$DEST/.github" "$DEST/release" "$DEST/tools"
 
 VER="$(sed -n 's/^\$plugin->version[[:space:]]*=[[:space:]]*\([0-9]*\);.*/\1/p' "$DEST/version.php")"
 
