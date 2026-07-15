@@ -148,7 +148,7 @@ final class booking_create_language_probe_test extends abstract_agent_testcase {
             'cons_attempts' => $construction['attempts'],
             'guessed_keys' => $construction['guessed_keys'],
             'retry_hints' => $construction['retry_hints'],
-            // healed = wrong keys occurred but the turn still ended confirmable/executed.
+            // Healed means: wrong keys occurred but the turn still ended confirmable/executed.
             'healed' => !empty($construction['guessed_keys'])
                 && $responsetype === 'confirmation_request' && $executed === true,
             'surfaced' => in_array($responsetype, ['clarification', 'error'], true),
@@ -213,7 +213,7 @@ final class booking_create_language_probe_test extends abstract_agent_testcase {
      * @return array{0:string,1:array}
      */
     private function extract_command_keys(string $raw): array {
-        $raw = trim(preg_replace('/^```(json)?|```$/m', '', trim($raw)) ?? $raw);
+        $raw = trim(preg_replace('/^\x60{3}(json)?|\x60{3}$/m', '', trim($raw)) ?? $raw);
         $data = json_decode($raw, true);
         if (!is_array($data)) {
             return ['', []];

@@ -369,7 +369,7 @@ class create_course_skill extends core_skill_base implements
             ];
         }
 
-        // creatornewroleid parity (B3/G5): the Moodle course-creation UI enrols the creator into
+        // B3/G5 creatornewroleid parity: the Moodle course-creation UI enrols the creator into
         // the new course with $CFG->creatornewroleid so they can see and manage what they just
         // made. create_course() itself does NOT, so a non-admin agent creator would get no role —
         // and booking::load_courses (which linkedcoursequery resolves through) only lists courses
@@ -384,9 +384,10 @@ class create_course_skill extends core_skill_base implements
             // can VIEW the course — it does not grant enrol/manual:enrol, which booking::load_courses
             // (behind linkedcoursequery) filters on. A non-admin creator with a site-level
             // course:view therefore still needs the enrolment to resolve their own course (B3).
-            if (!empty($CFG->creatornewroleid)
-                    && !is_siteadmin($userid)
-                    && !is_enrolled($coursecontext, $userid)) {
+            $needscreatorenrol = !empty($CFG->creatornewroleid)
+                && !is_siteadmin($userid)
+                && !is_enrolled($coursecontext, $userid);
+            if ($needscreatorenrol) {
                 enrol_try_internal_enrol((int)$course->id, $userid, (int)$CFG->creatornewroleid);
             }
         } catch (\Throwable $e) {
