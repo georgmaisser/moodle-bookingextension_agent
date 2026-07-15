@@ -125,6 +125,14 @@ class confirm_run_service {
                 'No pending confirmation is available for this action. Please ask the assistant again.'
             );
         }
+        // The series steps the USER just authorized: this confirm's card covered exactly these
+        // queue items. Kept for the follow-up hand-off — over a step the user has authorized in
+        // front of them the planner never held terminal authority (R1 carve-out, see
+        // should_restage below and response_type_engine_state_ANALYSE_2026-07-15 §2a).
+        $confirmedintentitemids = array_values(array_filter(array_map(
+            'strval',
+            (array)($pendingintent['queue_item_ids'] ?? [])
+        )));
 
         $queuesvc = new queue_manager($this->store);
         // Stale blocked_confirmation items are always expired (no admin toggle).
@@ -368,32 +376,65 @@ class confirm_run_service {
             }
 
             $pendingintent = $this->pendingintentsvc->get($threadid);
+            $nextqueueitem = null;
             if ($this->should_restage_next_queue_item($pendingintent, $finalresult)) {
                 $nextqueueitem = $this->find_next_mutating_queue_item($queuesvc, $threadid);
-                if (is_array($nextqueueitem)) {
-                    $nextqueueitemid = (string)($nextqueueitem['queue_item_id'] ?? '');
-                    $nextcommand = queue_command_mapper::from_queue_item($nextqueueitem, true);
-                    if ($nextqueueitemid !== '' && is_array($nextcommand)) {
-                        $confirmationcode = $this->pendingintentsvc->set(
-                            $threadid,
-                            $userid,
-                            $contextid,
-                            [
-                                'queue_item_ids' => [$nextqueueitemid],
-                            ]
-                        );
+            } else if (
+                !is_array($pendingintent)
+                && (string)($finalresult['response_type'] ?? '') === 'clarification'
+            ) {
+                // A genuine user question defers the follow-up: the intent-scoped items stay
+                // blocked_confirmation and are re-offered on the answer turn (G2 decision).
+                $nextqueueitem = null;
+            } else if (!is_array($pendingintent)) {
+                // PLANNER-TERMINAL AUTHORITY with the R1 carve-out (Georg 2026-07-15, see
+                // response_type_engine_state_ANALYSE_2026-07-15 §2a): the planner's terminal
+                // 'sufficient' still overrides every stale/over-planned queue item (thread-554
+                // protection, unchanged) — but NOT the steps the USER just authorized: items the
+                // consumed confirmation intent explicitly referenced are the user's own series
+                // contract. Leaving one of them silently in blocked_confirmation while the reply
+                // reads like success stranded the series until its TTL (F1, 2026-07-14) and
+                // violated the F5 truth contract ("no success claim without execution").
+                $nextqueueitem = $this->find_next_confirmed_intent_queue_item(
+                    $queuesvc,
+                    $threadid,
+                    $confirmedintentitemids,
+                    $activequeueitemid
+                );
+            }
+            if (is_array($nextqueueitem)) {
+                $nextqueueitemid = (string)($nextqueueitem['queue_item_id'] ?? '');
+                $nextcommand = queue_command_mapper::from_queue_item($nextqueueitem, true);
+                if ($nextqueueitemid !== '' && is_array($nextcommand)) {
+                    // Carry the REMAINING user-authorized series ids into the restaged
+                    // intent (next first): each later confirm consumes them again, so the
+                    // R1 carve-out keeps its scope across a series longer than two steps —
+                    // a bare [next] would cut the authorized chain after one hand-off.
+                    $confirmationcode = $this->pendingintentsvc->set(
+                        $threadid,
+                        $userid,
+                        $contextid,
+                        [
+                            'queue_item_ids' => $this->followup_intent_item_ids(
+                                $queuesvc,
+                                $threadid,
+                                $confirmedintentitemids,
+                                $activequeueitemid,
+                                $nextqueueitemid
+                            ),
+                        ]
+                    );
 
-                        $pendingintent = $this->pendingintentsvc->get($threadid);
-                        $finalresult['pending_confirmation_code'] = $confirmationcode;
-                        if (empty((array)($finalresult['commands'] ?? []))) {
-                            $finalresult['commands'] = [$nextcommand];
-                        }
-                        $finalresult['response_type'] = 'confirmation_request';
-                        if ($this->has_successful_execution_results($results)) {
-                            $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
-                            $finalresult['issue_codes'] = [];
-                            $finalresult['errors'] = [];
-                        }
+                    $pendingintent = $this->pendingintentsvc->get($threadid);
+                    $finalresult['pending_confirmation_code'] = $confirmationcode;
+                    if (empty((array)($finalresult['commands'] ?? []))) {
+                        $finalresult['commands'] = [$nextcommand];
+                    }
+                    $finalresult['response_type'] = 'confirmation_request';
+                    if ($this->has_successful_execution_results($results)) {
+                        $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
+                        $finalresult['issue_codes'] = [];
+                        $finalresult['errors'] = [];
                     }
                 }
             }
@@ -956,8 +997,104 @@ class confirm_run_service {
             return false;
         }
 
+        // PLANNER-TERMINAL AUTHORITY (thread 554): a terminal sufficient/clarification verdict
+        // blocks the queue-wide drain — Driver B must not re-animate stale/over-planned items.
+        // The narrow R1 carve-out for 'sufficient' (steps the USER's just-consumed confirmation
+        // intent explicitly authorized) lives at the call site, NOT here: it may only ever look
+        // at the consumed intent's own item ids, never at the whole queue.
         $responsetype = (string)($finalresult['response_type'] ?? '');
         return !in_array($responsetype, ['sufficient', 'clarification'], true);
+    }
+
+    /**
+     * Next actionable follow-up among the items the user's consumed confirmation intent covered.
+     *
+     * R1 carve-out to planner-terminal authority (response_type_engine_state_ANALYSE_2026-07-15
+     * §2a): the confirmation card the user just answered explicitly listed these queue items as
+     * one series — a model-authored terminal 'sufficient' must not strand the rest of THAT series
+     * in blocked_confirmation (F1: the reply claimed success while step 2 waited for its TTL).
+     * Deliberately scoped: items outside the consumed intent keep the full 554 protection.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param string[] $confirmedintentitemids queue_item_ids of the consumed confirmation intent
+     * @param string $excludequeueitemid the just-confirmed item
+     * @return array|null
+     */
+    private function find_next_confirmed_intent_queue_item(
+        queue_manager $queuesvc,
+        int $threadid,
+        array $confirmedintentitemids,
+        string $excludequeueitemid
+    ): ?array {
+        if (empty($confirmedintentitemids)) {
+            return null;
+        }
+
+        $itemsbyid = [];
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if (is_array($item)) {
+                $itemsbyid[(string)($item['queue_item_id'] ?? '')] = $item;
+            }
+        }
+
+        foreach ($confirmedintentitemids as $intentitemid) {
+            $item = $itemsbyid[(string)$intentitemid] ?? null;
+            if (!$this->is_actionable_mutating_queue_item($item, $excludequeueitemid)) {
+                continue;
+            }
+            if (!$queuesvc->dependencies_succeeded($threadid, $item)) {
+                continue;
+            }
+            return $item;
+        }
+
+        return null;
+    }
+
+    /**
+     * Queue item ids for a restaged follow-up intent: the next item first, then every remaining
+     * user-authorized series item that is still actionable.
+     *
+     * The restaged intent must carry the REST of the consumed intent's series (not a bare
+     * [next]): each follow-up confirm consumes the restaged intent again, and the R1 carve-out
+     * only ever looks at consumed-intent items — a single-id intent would cut the authorized
+     * chain after one hand-off in a series of three or more steps.
+     *
+     * @param queue_manager $queuesvc
+     * @param int $threadid
+     * @param string[] $confirmedintentitemids queue_item_ids of the consumed confirmation intent
+     * @param string $excludequeueitemid the just-confirmed item
+     * @param string $nextqueueitemid the item being restaged now
+     * @return string[]
+     */
+    private function followup_intent_item_ids(
+        queue_manager $queuesvc,
+        int $threadid,
+        array $confirmedintentitemids,
+        string $excludequeueitemid,
+        string $nextqueueitemid
+    ): array {
+        $ids = [$nextqueueitemid];
+
+        $itemsbyid = [];
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if (is_array($item)) {
+                $itemsbyid[(string)($item['queue_item_id'] ?? '')] = $item;
+            }
+        }
+        foreach ($confirmedintentitemids as $intentitemid) {
+            $intentitemid = (string)$intentitemid;
+            if ($intentitemid === $nextqueueitemid) {
+                continue;
+            }
+            $item = $itemsbyid[$intentitemid] ?? null;
+            if ($this->is_actionable_mutating_queue_item($item, $excludequeueitemid)) {
+                $ids[] = $intentitemid;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
