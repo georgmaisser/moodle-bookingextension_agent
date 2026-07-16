@@ -127,7 +127,7 @@ class agent_decision_service {
         skill_registry $registry,
         conversation_store $store,
         authorization_service $authz,
-        issue_code_provider_interface $issuecodeprovider = null
+        ?issue_code_provider_interface $issuecodeprovider = null
     ) {
         $this->registry = $registry;
         $this->store    = $store;

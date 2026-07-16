@@ -18,6 +18,10 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\tests;
 
+// phpcs:disable PHPCompatibility.FunctionDeclarations.NewClosure.ThisFoundInStatic
+// -- $this inside the anonymous CLASSES built by the static data providers refers to the
+// anonymous class instance itself and is valid PHP; the sniff misreads it as closure scope.
+
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;

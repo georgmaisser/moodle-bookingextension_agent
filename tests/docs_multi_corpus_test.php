@@ -179,11 +179,12 @@ final class docs_multi_corpus_test extends advanced_testcase {
         $contextid = $this->contextid($this->create_booking_cmid());
         $renderer = new doc_markdown_preview_renderer();
 
-        $html = $renderer->render(['corpus_id' => 'corpb', 'path' => 'README.md'], $contextid, (int)$GLOBALS['USER']->id);
+        global $USER;
+        $html = $renderer->render(['corpus_id' => 'corpb', 'path' => 'README.md'], $contextid, (int)$USER->id);
         $this->assertStringContainsString('bravo zebra', $html);
 
         // No corpus_id → no preview (a bare relpath is not addressable).
-        $this->assertSame('', $renderer->render(['path' => 'README.md'], $contextid, (int)$GLOBALS['USER']->id));
+        $this->assertSame('', $renderer->render(['path' => 'README.md'], $contextid, (int)$USER->id));
     }
 
     /**

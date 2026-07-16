@@ -45,11 +45,11 @@ $writer = new benchmark_db_writer();
 $calc   = new benchmark_metrics_calculator();
 
 if ($runid <= 0) {
-    $run = $GLOBALS['DB']->get_record_sql(
+    $run = $DB->get_record_sql(
         'SELECT * FROM {bx_agent_bm_runs} ORDER BY timecreated DESC LIMIT 1'
     );
 } else {
-    $run = $GLOBALS['DB']->get_record('bx_agent_bm_runs', ['id' => $runid]);
+    $run = $DB->get_record('bx_agent_bm_runs', ['id' => $runid]);
 }
 
 if (!$run) {
@@ -57,7 +57,7 @@ if (!$run) {
     exit(2);
 }
 
-$metrics = $GLOBALS['DB']->get_records('bx_agent_bm_metrics', ['run_id' => $run->id]);
+$metrics = $DB->get_records('bx_agent_bm_metrics', ['run_id' => $run->id]);
 $metricsmap = [];
 foreach ($metrics as $m) {
     $metricsmap[$m->metric_key] = (float)$m->metric_value;
@@ -66,7 +66,7 @@ foreach ($metrics as $m) {
 $comparison = [];
 $baseline = $writer->get_latest_baseline();
 if ($baseline) {
-    $basemetrics = $GLOBALS['DB']->get_records('bx_agent_bm_metrics', ['run_id' => $baseline->id]);
+    $basemetrics = $DB->get_records('bx_agent_bm_metrics', ['run_id' => $baseline->id]);
     $baselinemap = [];
     foreach ($basemetrics as $m) {
         $baselinemap[$m->metric_key] = (float)$m->metric_value;
