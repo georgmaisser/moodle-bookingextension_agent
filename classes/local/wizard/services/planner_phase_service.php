@@ -516,6 +516,8 @@ class planner_phase_service {
      * @param string $selectedskill
      * @param array[] $runtimecatalog
      * @param array[] $adaptivecatalog
+     * @param int $contextid
+     * @param int $userid
      * @return array[]
      */
     private function build_construction_runtime_catalog_for_selected_skill(
@@ -559,6 +561,8 @@ class planner_phase_service {
      *
      * @param string $selectedskill
      * @param array $entry
+     * @param int $contextid
+     * @param int $userid
      * @return array
      */
     private function enrich_construction_catalog_entry(

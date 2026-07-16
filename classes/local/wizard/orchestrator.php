@@ -310,6 +310,7 @@ class orchestrator {
      * @param int $contextid
      * @param int $userid
      * @param string[] $observations
+     * @param string $continuation
      * @return array
      */
     public function process_synchronizer(
