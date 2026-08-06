@@ -114,6 +114,23 @@ $aisettingspage->add(
     )
 );
 
+// Default is on: an unsaved (false) value must count as enabled.
+$agentenabledraw = get_config('bookingextension_agent', 'agent_enabled');
+$agentenabled = $agentenabledraw === false || !empty($agentenabledraw);
+
+// Navbar magic-wand toggle, directly below the enable checkbox; like the rest of the agent
+// settings it is only shown while the agent is on.
+if ($agentenabled) {
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'bookingextension_agent/inject_in_navbar',
+            get_string('inject_in_navbar', 'bookingextension_agent'),
+            get_string('inject_in_navbar_desc', 'bookingextension_agent'),
+            1
+        )
+    );
+}
+
 // Hard cap on the character length of a single user message. Messages longer than this are rejected
 // immediately at the entry point (before any provider/token spend). Keeps the agent public-facing but
 // bounded. Generous by default; can be lowered (e.g. 100) for very tight abuse control.
@@ -178,10 +195,6 @@ $aisettingspage->add(
 
 // The trial/LiteLLM service base URL is hard-coded in trial_provisioner
 // (https://llm.wunderbyte.at) and intentionally NOT exposed as an admin setting.
-
-// Default is on: an unsaved (false) value must count as enabled.
-$agentenabledraw = get_config('bookingextension_agent', 'agent_enabled');
-$agentenabled = $agentenabledraw === false || !empty($agentenabledraw);
 
 // Register the AI settings page now, before the agent's other (benchmark) page is registered below,
 // so "AI settings" is listed first — including on the post-install "new settings" review page, which
@@ -269,15 +282,6 @@ if ($agentenabled) {
             get_string('licensekey', 'bookingextension_agent'),
             $licensekeydesc,
             ''
-        )
-    );
-
-    $aisettingspage->add(
-        new admin_setting_configcheckbox(
-            'bookingextension_agent/inject_in_navbar',
-            get_string('inject_in_navbar', 'bookingextension_agent'),
-            get_string('inject_in_navbar_desc', 'bookingextension_agent'),
-            1
         )
     );
 
