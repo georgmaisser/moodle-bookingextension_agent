@@ -60,7 +60,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         if (!$dbman->table_exists($table)) {
             $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
             $table->add_field('area', XMLDB_TYPE_CHAR, '32', null, XMLDB_NOTNULL, null, null);
-            $table->add_field('owner', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+            $table->add_field('owner', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
             $table->add_field('refkey', XMLDB_TYPE_TEXT, null, null, XMLDB_NOTNULL, null, null);
             $table->add_field('refindex', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('endindex', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
@@ -68,7 +68,7 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
             $table->add_field('emodel', XMLDB_TYPE_CHAR, '128', null, XMLDB_NOTNULL, null, null);
             $table->add_field('edims', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('contenthash', XMLDB_TYPE_CHAR, '40', null, null, null, null);
-            $table->add_field('identityhash', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, '');
+            $table->add_field('identityhash', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, null);
             $table->add_field('generation', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('embedding', XMLDB_TYPE_BINARY, null, null, XMLDB_NOTNULL, null, null);
             $table->add_field('docid', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
