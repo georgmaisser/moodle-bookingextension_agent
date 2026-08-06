@@ -27,6 +27,7 @@ namespace bookingextension_agent;
 
 use bookingextension_agent\local\wizard\wizard\skills\scaffold_skill;
 use bookingextension_agent\local\wizard\skill_contract_validator;
+use bookingextension_agent\local\wizard\services\engine_alias_registrar;
 use bookingextension_agent\local\wizard\services\scaffold\skill_template_generator;
 
 /**
@@ -216,37 +217,19 @@ final class scaffold_skill_template_test extends \advanced_testcase {
     }
 
     /**
-     * Require the bundle's engine alias layer so the generated skill class can load.
-     *
-     * The fake mod_scaffolddemo component has no autoloader, and both loadability tests
-     * share one PHP process, so every engine file is required at most once.
+     * The bundle ships no engine files: the engine registers the alias layer itself.
+     * This is the documented out-of-engine bootstrap the generated skill needs to load
+     * outside skill discovery (e.g. here, where the fake component has no autoloader).
      *
      * @param array $bundle generator result with the files map
      */
     private function load_bundle_engine_layer(array $bundle): void {
         $enginefiles = array_filter(
-            $bundle['files'],
-            fn ($path) => str_starts_with($path, 'classes/local/wizard/engine/'),
-            ARRAY_FILTER_USE_KEY
+            array_keys($bundle['files']),
+            fn ($path) => str_starts_with($path, 'classes/local/wizard/engine/')
         );
-        // The resolver first: alias files call it while being required.
-        uksort($enginefiles, fn ($a, $b) => strcmp(
-            str_contains($a, 'engine_resolver') ? '0' : $a,
-            str_contains($b, 'engine_resolver') ? '0' : $b
-        ));
+        $this->assertSame([], $enginefiles, 'The scaffold bundle must not ship engine files.');
 
-        $dir = make_request_directory();
-        foreach ($enginefiles as $path => $content) {
-            $fqcn = 'mod_scaffolddemo\\local\\wizard\\engine\\' . basename($path, '.php');
-            if (
-                class_exists($fqcn, false) || interface_exists($fqcn, false)
-                || trait_exists($fqcn, false) || enum_exists($fqcn, false)
-            ) {
-                continue;
-            }
-            $file = $dir . '/' . basename($path);
-            file_put_contents($file, $content);
-            require($file);
-        }
+        engine_alias_registrar::register_for_namespace_root('mod_scaffolddemo');
     }
 }

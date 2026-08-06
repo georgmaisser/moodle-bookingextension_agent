@@ -586,6 +586,12 @@ class skill_registry {
         $registeredcomponents = [];
 
         foreach (core_component::get_component_names() as $component) {
+            // A component's skill_provider and skill classes reference engine
+            // types through component-local aliases; define them before the
+            // first class of that component is (auto)loaded. Cheap no-op for
+            // components without a local/wizard tree.
+            services\engine_alias_registrar::ensure_component_aliases($component);
+
             $classname = '\\' . $component . '\\local\\wizard\\skill_provider';
             if (!class_exists($classname)) {
                 self::register_discovered_skills_without_provider($registry, $component, $registeredcomponents);

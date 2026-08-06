@@ -19,6 +19,7 @@ namespace bookingextension_agent\local\wizard;
 use core_component;
 use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wizard\services\engine_alias_registrar;
 
 /**
  * Discovers agent classes below a component's local/wizard tree.
@@ -44,6 +45,11 @@ class skill_discovery {
     public static function get_skill_instances(string $component = 'bookingextension_agent'): array {
         self::$lastdiagnostics = [];
         $classes = self::find_candidate_classes($component);
+        if (!empty($classes)) {
+            // Skill classes reference engine types through component-local
+            // aliases; define them before any candidate class is loaded.
+            engine_alias_registrar::ensure_component_aliases($component);
+        }
         usort($classes, [self::class, 'compare_skill_classes']);
 
         $skills = [];
@@ -89,7 +95,11 @@ class skill_discovery {
     public static function get_trigger_provider_instances(string $component = 'bookingextension_agent'): array {
         $providers = [];
 
-        foreach (self::find_candidate_classes($component) as $classname) {
+        $classes = self::find_candidate_classes($component);
+        if (!empty($classes)) {
+            engine_alias_registrar::ensure_component_aliases($component);
+        }
+        foreach ($classes as $classname) {
             $instance = self::instantiate_if_supported($classname, skill_trigger_provider_interface::class);
             if (!$instance instanceof skill_trigger_provider_interface) {
                 continue;
