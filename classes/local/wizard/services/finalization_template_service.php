@@ -43,6 +43,11 @@ class finalization_template_service {
         'CONTRACT_SELECTION_SKILL_MISSING' =>
             'The request could not continue because no next skill was selected. ' .
             'Please repeat the action or provide the next concrete step.',
+        'TRIAL_TOKEN_INVALID' =>
+            'AI provider authentication failed (trial token or API key is invalid). ' .
+            'Please contact an administrator.',
+        'AI_PROVIDER_QUOTA_EXCEEDED' =>
+            'AI provider quota exceeded. Please try again later.',
     ];
 
     /** @var array */
@@ -83,7 +88,9 @@ class finalization_template_service {
 
     /** @var array */
     private const ISSUE_CODE_LANG_KEYS = [
+        'AI_PROVIDER_QUOTA_EXCEEDED' => 'error_ai_provider_quota_exceeded',
         'PERMISSION_ERROR' => 'error_ai_permission_denied',
+        'TRIAL_TOKEN_INVALID' => 'error_ai_trial_token_invalid',
     ];
 
     /**

@@ -83,4 +83,34 @@ final class finalization_template_service_contract_test extends TestCase {
 
         $this->assertSame('', $message);
     }
+
+    /**
+     * A dead provider key resolves to the specific auth message even when the
+     * synchronizer itself could not run (no error_class on the final result).
+     */
+    public function test_resolves_trial_token_invalid_issue_code(): void {
+        $service = new finalization_template_service();
+
+        $message = $service->resolve_message([
+            'response_type' => 'error',
+            'issue_codes' => ['TRIAL_TOKEN_INVALID'],
+        ]);
+
+        $this->assertStringContainsStringIgnoringCase('authentication failed', $message);
+    }
+
+    /**
+     * An exhausted provider quota resolves to the specific quota message from
+     * the issue code alone.
+     */
+    public function test_resolves_provider_quota_issue_code(): void {
+        $service = new finalization_template_service();
+
+        $message = $service->resolve_message([
+            'response_type' => 'error',
+            'issue_codes' => ['AI_PROVIDER_QUOTA_EXCEEDED'],
+        ]);
+
+        $this->assertStringContainsStringIgnoringCase('quota', $message);
+    }
 }
