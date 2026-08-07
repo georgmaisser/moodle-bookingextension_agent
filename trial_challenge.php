@@ -22,6 +22,13 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+// Pure machine-to-machine callback: the trial service fetches this URL and expects the
+// nonce echoed back, without following redirects. No session is needed (the nonce lives
+// in the application cache), and hooks that redirect anonymous visitors (e.g. the
+// shopping_cart guest-checkout auto-login) skip cookie-less scripts - so declaring
+// NO_MOODLE_COOKIES keeps this endpoint redirect-free under any site configuration.
+define('NO_MOODLE_COOKIES', true);
+
 // phpcs:disable moodle.Files.RequireLogin.Missing
 require_once(__DIR__ . '/../../../../config.php');
 
