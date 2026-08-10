@@ -278,6 +278,10 @@ class orchestrator {
                 'ambiguities' => (array)($selectionstate['ambiguities'] ?? []),
                 'errors' => (array)($selectionstate['errors'] ?? []),
                 'issue_codes' => (array)($selectionstate['issue_codes'] ?? []),
+                // The classified cause must survive the construction skip: without it a
+                // provider outage during selection loses its error_class and the user gets
+                // the generic "could not reliably parse" fallback instead of the class text.
+                'error_class' => (string)($selectionstate['error_class'] ?? ''),
                 'lang' => (string)($selectionstate['lang'] ?? ''),
                 'user_lang' => (string)($selectionstate['user_lang'] ?? ''),
             ];

@@ -52,6 +52,9 @@ class finalization_template_service {
 
     /** @var array */
     private const ERROR_CLASS_MESSAGES = [
+        'provider_unreachable' =>
+            'The AI service is temporarily unreachable. Your request was not processed — ' .
+            'please try again in a moment.',
         'provider_timeout' =>
             'The AI provider timed out while processing your request. Please try again.',
         'transient_io' =>
@@ -79,6 +82,7 @@ class finalization_template_service {
         'quota_exceeded' => 'error_ai_provider_quota_exceeded',
         'runtime_disabled' => 'error_ai_context_disabled',
         'provider_timeout' => 'error_ai_provider_timeout',
+        'provider_unreachable' => 'error_ai_provider_unreachable',
         'transient_io' => 'error_ai_transient_io',
         'provider_error' => 'ai_provider_error',
         'internal_contract' => 'error_ai_internal_planning',

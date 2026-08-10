@@ -53,7 +53,20 @@ trait provider_error_result_trait {
             $errorclass = 'quota_exceeded';
         } else {
             $lower = core_text::strtolower($errormessage);
-            if (strpos($lower, 'timeout') !== false || strpos($lower, 'timed out') !== false) {
+            if (
+                strpos($lower, 'bad gateway') !== false
+                || strpos($lower, 'service unavailable') !== false
+                || strpos($lower, 'gateway time') !== false
+                || strpos($lower, 'connection refused') !== false
+                || strpos($lower, 'could not resolve host') !== false
+                || strpos($lower, 'curl error 6') !== false
+                || strpos($lower, 'curl error 7') !== false
+                || in_array($errorcode, [502, 503, 504], true)
+            ) {
+                // Transport-level: the gateway/endpoint itself is down or unreachable. Rephrasing
+                // cannot help — the template tells the user the service is temporarily unavailable.
+                $errorclass = 'provider_unreachable';
+            } else if (strpos($lower, 'timeout') !== false || strpos($lower, 'timed out') !== false) {
                 $errorclass = 'provider_timeout';
             } else if (strpos($lower, 'curl error 28') !== false || strpos($lower, 'connection reset') !== false) {
                 $errorclass = 'transient_io';

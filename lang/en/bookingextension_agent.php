@@ -757,6 +757,7 @@ $string['error_ai_permission_denied'] = 'You do not have the required permission
 $string['error_ai_provider_inactive'] = 'The AI provider is configured but currently system-wide disabled.';
 $string['error_ai_provider_quota_exceeded'] = 'AI provider quota exceeded. Please try again later.';
 $string['error_ai_provider_timeout'] = 'The AI provider timed out while processing your request. Please try again.';
+$string['error_ai_provider_unreachable'] = 'The AI service is temporarily unreachable. Your request was not processed — please try again in a moment.';
 $string['error_ai_skill_exception'] = 'The requested action failed with an internal error. Please try again or rephrase your request.';
 $string['error_ai_subsystem_missing'] = 'The Moodle Core AI subsystem is not installed or available on this platform.';
 $string['error_ai_transient_io'] = 'A temporary connection problem occurred while contacting the AI provider. Please try again.';
