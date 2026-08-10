@@ -59,6 +59,21 @@ $registry = \bookingextension_agent\local\wizard\skill_registry_factory::get_def
 $contracts = $registry->get_skill_contracts();
 ksort($contracts);
 
+// Without full access (PRO license / Wunderbyte LLM subscription), PRO-gated skills are not
+// toggleable in this UI: their Active checkbox renders disabled, and because a disabled checkbox
+// never posts, every save path must skip them too — blindly writing '0' would wipe stored intent
+// (e.g. skills enabled while a now-expired license was active, which must revive on renewal).
+$hasfullaccess = \bookingextension_agent\local\wizard\services\agent_access_service::has_full_access();
+$isprolocked = static function (string $skillname, $meta) use ($hasfullaccess): bool {
+    if ($hasfullaccess) {
+        return false;
+    }
+    return \bookingextension_agent\local\wizard\services\agent_access_service::skill_requires_full_access(
+        !empty($meta['readonly']),
+        (string)($meta['component'] ?? '')
+    );
+};
+
 // Handle POST actions.
 if (data_submitted() && confirm_sesskey()) {
     $action = optional_param('action', '', PARAM_ALPHA);
@@ -77,6 +92,9 @@ if (data_submitted() && confirm_sesskey()) {
         }
     } else if ($bulk === 'enableall') {
         foreach ($contracts as $skillname => $meta) {
+            if ($isprolocked((string)$skillname, $meta)) {
+                continue;
+            }
             $settingname = \bookingextension_agent\local\wizard\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             set_config($settingname, '1', 'bookingextension_agent');
         }
@@ -100,6 +118,10 @@ if (data_submitted() && confirm_sesskey()) {
         $enabledposted = optional_param_array('enabledskills', [], PARAM_RAW);
         $enabledset = array_flip(array_map('strval', $enabledposted));
         foreach ($contracts as $skillname => $meta) {
+            if ($isprolocked((string)$skillname, $meta)) {
+                // Disabled checkbox: nothing posted for it — keep the stored value untouched.
+                continue;
+            }
             $settingname = \bookingextension_agent\local\wizard\skill_registry::get_skill_toggle_setting_name((string)$skillname);
             $value = isset($enabledset[(string)$skillname]) ? '1' : '0';
             set_config($settingname, $value, 'bookingextension_agent');
@@ -469,6 +491,7 @@ foreach ($contracts as $skillname => $meta) {
         !empty($meta['readonly']),
         (string)($meta['component'] ?? '')
     );
+    $prolocked = $ispro && !$hasfullaccess;
 
     $capabilities = (array)($meta['capabilities'] ?? []);
     $capabilitylabel = implode('<br/>', array_map('s', $capabilities));
@@ -505,13 +528,18 @@ foreach ($contracts as $skillname => $meta) {
         'data-capabilities' => implode(' ', $capabilities),
     ]);
 
-    // Checkbox.
+    // Checkbox. PRO-locked skills render disabled (greyed): they cannot run without full access,
+    // so toggling them here would only store dead intent. The save paths skip them accordingly.
     echo html_writer::start_tag('td', ['style' => 'text-align: center;']);
     echo html_writer::empty_tag('input', [
         'type' => 'checkbox',
         'name' => 'enabledskills[]',
         'value' => (string)$skillname,
         'checked' => $isactive ? 'checked' : null,
+        'disabled' => $prolocked ? 'disabled' : null,
+        'title' => $prolocked
+            ? get_string('skillgovernance_gate_deny_requires_pro', 'bookingextension_agent')
+            : null,
     ]);
     echo html_writer::end_tag('td');
 
@@ -541,12 +569,19 @@ foreach ($contracts as $skillname => $meta) {
         $statushtml = '<span class="badge badge-success">&#10003; '
             . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>';
     } else {
-        $hint = $describedeny($evaluation);
+        // A PRO-locked skill may ALSO be toggled off, but the license lock is the dominant,
+        // actionable cause — showing "toggled off" next to a checkbox the admin cannot click
+        // would be absurd, so the lock wins regardless of the evaluator's deny ordering.
+        $denyreason = (string)($evaluation['deny_reason'] ?? '');
+        $showprolock = $prolocked
+            || $denyreason === \bookingextension_agent\local\wizard\skill_contract_validator::DENY_REQUIRES_PRO;
+        $hint = $showprolock
+            ? get_string('skillgovernance_gate_deny_requires_pro', 'bookingextension_agent')
+            : $describedeny($evaluation);
         $statushtml = '<span class="badge badge-danger" title="' . s($hint) . '" style="cursor: help;">&#10007; '
             . s(get_string('skillgovernance_gate_blocked', 'bookingextension_agent')) . '</span>'
             . '<br/><small class="text-danger">' . s($hint) . '</small>';
-        $denyreason = (string)($evaluation['deny_reason'] ?? '');
-        if ($denyreason === \bookingextension_agent\local\wizard\skill_contract_validator::DENY_REQUIRES_PRO) {
+        if ($showprolock) {
             // Same upgrade target the planner's locked-skill reply links to.
             $statushtml .= '<br/>' . html_writer::link(
                 get_string('aitrial_pro_license_url', 'bookingextension_agent'),
