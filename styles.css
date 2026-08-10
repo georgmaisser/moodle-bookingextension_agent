@@ -579,3 +579,26 @@ body.booking-ai-resizing #booking-ai-wrapper .booking-ai-body-layout {
     background-color: #7cb342;
     color: #0f2a14;
 }
+
+/* -----------------------------------------------------------------------
+   Skill governance page (skill_governance.php)
+   ----------------------------------------------------------------------- */
+
+/* Embedding-status hint under the "Available" badge. Bootstrap's .text-warning yellow
+   (#ffc107) is a background colour and fails WCAG contrast as text on white, so use the
+   theme's own warning EMPHASIS token (dark amber, dark-mode aware on Bootstrap 5.3
+   themes). No --warning middle fallback on purpose: on BS4 themes that variable IS the
+   unreadable yellow, so fall straight through to a fixed dark amber there. */
+#skills-governance-table .bookingextension-agent-embedding-hint {
+    color: var(--bs-warning-text-emphasis, #664d03);
+    font-weight: 500;
+}
+
+/* Some themes render alert-warning very pale; re-anchor this page's notifications to
+   Bootstrap's subtle/emphasis warning tokens. Scoped to the governance notifications
+   wrapper only, so the theme keeps owning alerts everywhere else. */
+.bookingextension-agent-governance-notifications .alert-warning {
+    color: var(--bs-warning-text-emphasis, #664d03);
+    background-color: var(--bs-warning-bg-subtle, #fff3cd);
+    border-color: var(--bs-warning-border-subtle, #ffe69c);
+}

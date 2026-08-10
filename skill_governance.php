@@ -312,13 +312,6 @@ $PAGE->set_heading(get_string('skillgovernance', 'bookingextension_agent'));
 
 echo $OUTPUT->header();
 
-// Readability: Bootstrap's yellow text-warning fails contrast on white, and some themes render
-// alert-warning very pale — darken both, scoped to this page's content region.
-echo html_writer::tag('style', '
-    #skills-governance-table .agent-embedding-hint { color: #7a5900; font-weight: 500; }
-    #region-main .alert-warning { color: #664d03; background-color: #fff3cd; border-color: #ffe69c; }
-');
-
 // Title and description.
 echo $OUTPUT->heading(get_string('skillgovernance', 'bookingextension_agent'), 2);
 echo html_writer::tag('p', get_string('aiskillgovernanceheading_desc', 'bookingextension_agent'));
@@ -368,7 +361,9 @@ echo html_writer::empty_tag('input', [
 echo html_writer::end_tag('form');
 echo html_writer::end_div();
 
-// Top Actions Bar & Status Warnings.
+// Top Actions Bar & Status Warnings. The wrapper class re-anchors alert-warning to the theme's
+// warning emphasis/subtle tokens (see styles.css) — some themes render it too pale to notice.
+echo html_writer::start_div('bookingextension-agent-governance-notifications');
 if ($highcollisioncount > 0) {
         $message = 'Warning: There are ' . $highcollisioncount .
             ' high-similarity embedding collision pair(s) detected. ' .
@@ -387,6 +382,7 @@ if (!$embeddingsprovideravailable) {
         'warning'
     );
 }
+echo html_writer::end_div();
 
 echo html_writer::start_div('row mb-4 align-items-center');
 
@@ -534,7 +530,7 @@ foreach ($contracts as $skillname => $meta) {
         $embhint = get_string('skillgovernance_gate_no_embeddings_' . $embstate, 'bookingextension_agent');
         $statushtml = '<span class="badge badge-warning" title="' . s($embhint) . '" style="cursor: help;">&#9888; '
             . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>'
-            . '<br/><small class="agent-embedding-hint">' . s($embhint) . '</small>';
+            . '<br/><small class="bookingextension-agent-embedding-hint">' . s($embhint) . '</small>';
     } else if ($isexecutable) {
         $statushtml = '<span class="badge badge-success">&#10003; '
             . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>';
