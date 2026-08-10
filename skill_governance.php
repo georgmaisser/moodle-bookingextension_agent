@@ -545,6 +545,15 @@ foreach ($contracts as $skillname => $meta) {
         $statushtml = '<span class="badge badge-danger" title="' . s($hint) . '" style="cursor: help;">&#10007; '
             . s(get_string('skillgovernance_gate_blocked', 'bookingextension_agent')) . '</span>'
             . '<br/><small class="text-danger">' . s($hint) . '</small>';
+        $denyreason = (string)($evaluation['deny_reason'] ?? '');
+        if ($denyreason === \bookingextension_agent\local\wizard\skill_contract_validator::DENY_REQUIRES_PRO) {
+            // Same upgrade target the planner's locked-skill reply links to.
+            $statushtml .= '<br/>' . html_writer::link(
+                get_string('aitrial_pro_license_url', 'bookingextension_agent'),
+                get_string('agent_get_pro', 'bookingextension_agent'),
+                ['class' => 'badge badge-warning', 'target' => '_blank', 'rel' => 'noopener']
+            );
+        }
     }
     echo html_writer::tag('td', $statushtml);
 
