@@ -163,7 +163,7 @@ class llm_call_service {
             $success = (bool)$response->get_success();
             $errormessage = (string)($response->get_errormessage() ?? '');
             $errorcode = (int)$response->get_errorcode();
-            // get_error() only exists on newer core_ai response APIs; Moodle 5.0 has none.
+            // Moodle 4.5/5.0 core_ai responses have no get_error(); it exists from 5.1 on.
             $errorname = method_exists($response, 'get_error') ? (string)$response->get_error() : '';
         } catch (\Throwable $e) {
             $success = false;
@@ -263,7 +263,7 @@ class llm_call_service {
             $success = (bool)$response->get_success() && !empty($embedding);
             $errormessage = (string)($response->get_errormessage() ?? '');
             $errorcode = (int)$response->get_errorcode();
-            // get_error() only exists on newer core_ai response APIs; Moodle 5.0 has none.
+            // Moodle 4.5/5.0 core_ai responses have no get_error(); it exists from 5.1 on.
             $errorname = method_exists($response, 'get_error') ? (string)$response->get_error() : '';
         } catch (\Throwable $e) {
             $success = false;
