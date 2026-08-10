@@ -177,73 +177,85 @@ foreach ($contracts as $skillname => $meta) {
 // embedding in the catalog (missing row, empty vector, or a content-hash that drifted) — which
 // silently removes it from semantic discovery even though the planner reports it as available.
 // We surface that as a warning ("current"|"stale"|"empty"|"missing") in the status column.
+// When no embeddings provider is installed at all, the per-skill catalog states are moot (a rebuild
+// cannot produce vectors and runtime retrieval is off anyway — the same class_exists check the
+// planner uses for em=off), so every skill gets the "noprovider" state and the page banner names
+// the real cause instead of suggesting a futile rebuild.
 $embeddingstatusbyskill = [];
 $missingembeddingcount = 0;
-try {
-    $embsettings = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->resolve();
-    // Multi-vector catalog: a skill spans MANY anchor rows (the description #0 plus one per example
-    // utterance), so aggregate ALL of a skill's rows instead of letting the last row win — otherwise
-    // a single unembedded anchor (or row ordering) makes a fully-retrievable skill look "empty".
-    // Rows come through the embeddings store abstraction (CSV or DB backend, per the embeddingsstore
-    // flag) for the ACTIVE variant — the same source the rebuild task and runtime discovery use.
-    $catalogrowsbyskill = [];
-    $skillstore = \bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory::instance();
-    $skillrows = $skillstore->stream_rows(
-        \bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper::AREA,
-        (string)$embsettings['model'],
-        (int)$embsettings['dimensions']
-    );
-    foreach ($skillrows as $skillrow) {
-        $catalogrowsbyskill[(string)$skillrow->owner][] = [
-            'skill' => (string)$skillrow->owner,
-            'hasvector' => !empty($skillrow->embedding),
-            'content_hash' => (string)$skillrow->contenthash,
-        ];
-    }
-    // Expected per-skill anchor content-hash SET (drift detection over the whole anchor set, not a
-    // single row): an added/removed/changed anchor flips the set and is surfaced as "stale".
-    $expectedhashesbyskill = [];
-    $expectedrows = (new \bookingextension_agent\local\wizard\services\embeddings\embeddings_catalog_builder_service())
-        ->build_full_catalog_rows($registry, (string)$embsettings['model'], (int)$embsettings['dimensions']);
-    foreach ($expectedrows as $expectedrow) {
-        $expectedhashesbyskill[(string)($expectedrow['skill'] ?? '')][(string)($expectedrow['content_hash'] ?? '')] = true;
-    }
+$embeddingsprovideravailable = (new \bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service())
+    ->is_wunderbyte_embeddings_available();
+if (!$embeddingsprovideravailable) {
     foreach ($contracts as $skillname => $meta) {
-        $rows = $catalogrowsbyskill[(string)$skillname] ?? [];
-        if (empty($rows)) {
-            $state = 'missing';
-        } else {
-            $storedhashes = [];
-            $embeddedanchors = 0;
-            foreach ($rows as $r) {
-                if (!empty($r['hasvector'])) {
-                    $embeddedanchors++;
-                }
-                $storedhashes[(string)($r['content_hash'] ?? '')] = true;
-            }
-            $expectedhashes = $expectedhashesbyskill[(string)$skillname] ?? [];
-            // Sets equal iff same size and expected ⊆ stored.
-            $hashesmatch = !empty($expectedhashes)
-                && count($storedhashes) === count($expectedhashes)
-                && empty(array_diff_key($expectedhashes, $storedhashes));
-            if ($embeddedanchors === 0) {
-                // No anchor carries a vector → genuinely not retrievable.
-                $state = 'empty';
-            } else if (!$hashesmatch) {
-                $state = 'stale';
-            } else {
-                $state = 'current';
-            }
-        }
-        $embeddingstatusbyskill[(string)$skillname] = $state;
-        if ($state !== 'current') {
-            $missingembeddingcount++;
-        }
+        $embeddingstatusbyskill[(string)$skillname] = 'noprovider';
     }
-} catch (\Throwable $e) {
-    // If the catalog cannot be read, leave the map empty: the status column then behaves as before.
-    $embeddingstatusbyskill = [];
-    $missingembeddingcount = 0;
+} else {
+    try {
+        $embsettings = (new \bookingextension_agent\local\wizard\embeddings_action_config_resolver())->resolve();
+        // Multi-vector catalog: a skill spans MANY anchor rows (the description #0 plus one per example
+        // utterance), so aggregate ALL of a skill's rows instead of letting the last row win — otherwise
+        // a single unembedded anchor (or row ordering) makes a fully-retrievable skill look "empty".
+        // Rows come through the embeddings store abstraction (CSV or DB backend, per the embeddingsstore
+        // flag) for the ACTIVE variant — the same source the rebuild task and runtime discovery use.
+        $catalogrowsbyskill = [];
+        $skillstore = \bookingextension_agent\local\wizard\services\retrieval\embeddings_store_factory::instance();
+        $skillrows = $skillstore->stream_rows(
+            \bookingextension_agent\local\wizard\services\retrieval\skill_row_mapper::AREA,
+            (string)$embsettings['model'],
+            (int)$embsettings['dimensions']
+        );
+        foreach ($skillrows as $skillrow) {
+            $catalogrowsbyskill[(string)$skillrow->owner][] = [
+                'skill' => (string)$skillrow->owner,
+                'hasvector' => !empty($skillrow->embedding),
+                'content_hash' => (string)$skillrow->contenthash,
+            ];
+        }
+        // Expected per-skill anchor content-hash SET (drift detection over the whole anchor set, not a
+        // single row): an added/removed/changed anchor flips the set and is surfaced as "stale".
+        $expectedhashesbyskill = [];
+        $expectedrows = (new \bookingextension_agent\local\wizard\services\embeddings\embeddings_catalog_builder_service())
+            ->build_full_catalog_rows($registry, (string)$embsettings['model'], (int)$embsettings['dimensions']);
+        foreach ($expectedrows as $expectedrow) {
+            $expectedhashesbyskill[(string)($expectedrow['skill'] ?? '')][(string)($expectedrow['content_hash'] ?? '')] = true;
+        }
+        foreach ($contracts as $skillname => $meta) {
+            $rows = $catalogrowsbyskill[(string)$skillname] ?? [];
+            if (empty($rows)) {
+                $state = 'missing';
+            } else {
+                $storedhashes = [];
+                $embeddedanchors = 0;
+                foreach ($rows as $r) {
+                    if (!empty($r['hasvector'])) {
+                        $embeddedanchors++;
+                    }
+                    $storedhashes[(string)($r['content_hash'] ?? '')] = true;
+                }
+                $expectedhashes = $expectedhashesbyskill[(string)$skillname] ?? [];
+                // Sets equal iff same size and expected ⊆ stored.
+                $hashesmatch = !empty($expectedhashes)
+                    && count($storedhashes) === count($expectedhashes)
+                    && empty(array_diff_key($expectedhashes, $storedhashes));
+                if ($embeddedanchors === 0) {
+                    // No anchor carries a vector → genuinely not retrievable.
+                    $state = 'empty';
+                } else if (!$hashesmatch) {
+                    $state = 'stale';
+                } else {
+                    $state = 'current';
+                }
+            }
+            $embeddingstatusbyskill[(string)$skillname] = $state;
+            if ($state !== 'current') {
+                $missingembeddingcount++;
+            }
+        }
+    } catch (\Throwable $e) {
+        // If the catalog cannot be read, leave the map empty: the status column then behaves as before.
+        $embeddingstatusbyskill = [];
+        $missingembeddingcount = 0;
+    }
 }
 
 // Resolve the evaluation context label and a readable user label for the header note.
@@ -299,6 +311,13 @@ $PAGE->set_title(get_string('skillgovernance', 'bookingextension_agent'));
 $PAGE->set_heading(get_string('skillgovernance', 'bookingextension_agent'));
 
 echo $OUTPUT->header();
+
+// Readability: Bootstrap's yellow text-warning fails contrast on white, and some themes render
+// alert-warning very pale — darken both, scoped to this page's content region.
+echo html_writer::tag('style', '
+    #skills-governance-table .agent-embedding-hint { color: #7a5900; font-weight: 500; }
+    #region-main .alert-warning { color: #664d03; background-color: #fff3cd; border-color: #ffe69c; }
+');
 
 // Title and description.
 echo $OUTPUT->heading(get_string('skillgovernance', 'bookingextension_agent'), 2);
@@ -357,7 +376,12 @@ if ($highcollisioncount > 0) {
         echo $OUTPUT->notification($message, 'warning');
 }
 
-if ($missingembeddingcount > 0) {
+if (!$embeddingsprovideravailable) {
+    echo $OUTPUT->notification(
+        get_string('skillgovernance_no_embeddings_provider_warning', 'bookingextension_agent'),
+        'warning'
+    );
+} else if ($missingembeddingcount > 0) {
     echo $OUTPUT->notification(
         get_string('skillgovernance_missing_embeddings_warning', 'bookingextension_agent', $missingembeddingcount),
         'warning'
@@ -510,7 +534,7 @@ foreach ($contracts as $skillname => $meta) {
         $embhint = get_string('skillgovernance_gate_no_embeddings_' . $embstate, 'bookingextension_agent');
         $statushtml = '<span class="badge badge-warning" title="' . s($embhint) . '" style="cursor: help;">&#9888; '
             . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>'
-            . '<br/><small class="text-warning">' . s($embhint) . '</small>';
+            . '<br/><small class="agent-embedding-hint">' . s($embhint) . '</small>';
     } else if ($isexecutable) {
         $statushtml = '<span class="badge badge-success">&#10003; '
             . s(get_string('skillgovernance_gate_available', 'bookingextension_agent')) . '</span>';
