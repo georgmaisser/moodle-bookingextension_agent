@@ -955,6 +955,7 @@ $string['skillgovernance_gate_deny_generic'] = 'Not executable.';
 $string['skillgovernance_gate_deny_inactive'] = 'Skill is toggled off (Active checkbox).';
 $string['skillgovernance_gate_deny_no_capability'] = 'No required capability is declared for this skill.';
 $string['skillgovernance_gate_deny_not_registered'] = 'Skill is not registered in the catalog.';
+$string['skillgovernance_gate_deny_requires_pro'] = 'Requires the Wunderbyte PRO license or an active Wunderbyte LLM subscription.';
 $string['skillgovernance_gate_deny_runtime_disabled'] = 'The Booking Wizard extension/runtime is disabled.';
 $string['skillgovernance_gate_deny_version_unsupported'] = 'Skill version is not supported.';
 $string['skillgovernance_gate_evaluate'] = 'Evaluate';

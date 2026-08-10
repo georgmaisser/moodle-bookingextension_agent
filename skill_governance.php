@@ -285,6 +285,8 @@ $describedeny = static function (array $evaluation) use ($evalcontextid): string
             return get_string('skillgovernance_gate_deny_context_invalid', 'bookingextension_agent', $evalcontextid);
         case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_SKILL_VERSION_UNSUPPORTED:
             return get_string('skillgovernance_gate_deny_version_unsupported', 'bookingextension_agent');
+        case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_REQUIRES_PRO:
+            return get_string('skillgovernance_gate_deny_requires_pro', 'bookingextension_agent');
         case \bookingextension_agent\local\wizard\skill_contract_validator::DENY_MISSING_CAPABILITY:
             $caps = (array)($diagnostics['required_capabilities'] ?? []);
             if (empty($caps)) {
@@ -459,10 +461,14 @@ foreach ($contracts as $skillname => $meta) {
     // Use the engine's own activation check so the checkbox reflects the real runtime state
     // (default-off for skills that were never explicitly enabled; honours "enable all").
     $isactive = $registry->is_skill_active((string)$skillname);
-    // PRO marker: the same property the runtime gate uses — non-readonly skills require full
-    // access (PRO license / Wunderbyte subscription), readonly skills are free. See
-    // skill_executability_evaluator::evaluate_skill() DENY_REQUIRES_PRO.
-    $ispro = !$registry->is_read_only_skill((string)$skillname);
+    // PRO marker: mirror the runtime gate exactly (skill_executability_evaluator ->
+    // DENY_REQUIRES_PRO). Only WRITE skills of Wunderbyte's own gated components are
+    // license-gated; read-only skills and the engine's own course/question skills are free —
+    // flagging every mutating skill here used to over-claim PRO on skills that run fine.
+    $ispro = \bookingextension_agent\local\wizard\services\agent_access_service::skill_requires_full_access(
+        !empty($meta['readonly']),
+        (string)($meta['component'] ?? '')
+    );
 
     $capabilities = (array)($meta['capabilities'] ?? []);
     $capabilitylabel = implode('<br/>', array_map('s', $capabilities));
