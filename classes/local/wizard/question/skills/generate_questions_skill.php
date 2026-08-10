@@ -714,15 +714,19 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 $targetcategoryid > 0 ? $targetcategoryid : null
             );
             if (!empty($imported['success'])) {
+                // Moodle 4.5 course-context target: cm is null, the bank label is the course name.
                 return $this->build_success_result(
                     (int)$imported['imported'],
                     array_map('intval', (array)$imported['questionids']),
-                    (int)$target['cm']->id,
-                    (string)$target['cm']->get_formatted_name(),
+                    $target['cm'] !== null ? (int)$target['cm']->id : 0,
+                    $target['cm'] !== null
+                        ? (string)$target['cm']->get_formatted_name()
+                        : (string)$target['course']->fullname,
                     (int)$target['context']->id,
                     $attempt,
                     (array)($preparedinput['sourcefiles'] ?? []),
-                    !empty($preparedinput['sourcetruncated'])
+                    !empty($preparedinput['sourcetruncated']),
+                    (int)$target['course']->id
                 );
             }
 
@@ -927,6 +931,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @param int    $attempts
      * @param array  $sourcefiles Course PDFs the source text came from (cmid/name/filename each).
      * @param bool   $sourcetruncated Whether the assembled PDF text hit the extraction budget.
+     * @param int    $courseid Course id, used for the bank URL when cmid is 0 (Moodle 4.5 course-context target).
      * @return array
      */
     private function build_success_result(
@@ -937,9 +942,12 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         int $bankcontextid,
         int $attempts,
         array $sourcefiles = [],
-        bool $sourcetruncated = false
+        bool $sourcetruncated = false,
+        int $courseid = 0
     ): array {
-        $bankurl = (new moodle_url('/question/edit.php', ['cmid' => $cmid]))->out(false);
+        $bankurl = $cmid > 0
+            ? (new moodle_url('/question/edit.php', ['cmid' => $cmid]))->out(false)
+            : (new moodle_url('/question/edit.php', ['courseid' => $courseid]))->out(false);
         $message = $imported . ' question(s) were created in the course question bank "' . $bankname . '".';
 
         $lines = [

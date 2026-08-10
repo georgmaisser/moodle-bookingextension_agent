@@ -41,11 +41,16 @@ class question_bank_target_resolver {
     /**
      * Resolve the course question bank module context for an ambient context.
      *
+     * On Moodle 4.5 (no mod_qbank, question_bank_helper missing) the target is the course
+     * context itself — the native home of question categories there — and cm is null.
+     *
      * @param context $ambient The context the agent is running in.
-     * @return array{context:context_module,course:stdClass,cm:cm_info}
+     * @return array{context:context,course:stdClass,cm:?cm_info}
      * @throws moodle_exception When the context is not within a course or no bank can be resolved.
      */
     public function resolve_for_context(context $ambient): array {
+        global $CFG;
+
         $coursecontext = $ambient->get_course_context(false);
         if (!$coursecontext) {
             throw new moodle_exception(
@@ -58,6 +63,16 @@ class question_bank_target_resolver {
         }
 
         $course = get_course((int)$coursecontext->instanceid);
+
+        if (!class_exists(question_bank_helper::class)) {
+            require_once($CFG->libdir . '/questionlib.php');
+            question_make_default_categories([$coursecontext]);
+            return [
+                'context' => $coursecontext,
+                'course' => $course,
+                'cm' => null,
+            ];
+        }
 
         $cm = question_bank_helper::get_default_open_instance_system_type($course, true);
         if (!$cm) {
@@ -99,6 +114,34 @@ class question_bank_target_resolver {
             return [];
         }
         $course = get_course((int)$coursecontext->instanceid);
+
+        // Moodle 4.5: no qbank activities — the writable targets are the course context's own
+        // categories (capability checked at the course context, bankcmid 0 marks "no module").
+        if (!class_exists(question_bank_helper::class)) {
+            if (!has_capability('moodle/question:add', $coursecontext, $userid)) {
+                return [];
+            }
+            $targets = [];
+            $categories = $DB->get_records_select(
+                'question_categories',
+                'contextid = :ctx AND parent <> 0',
+                ['ctx' => $coursecontext->id],
+                'sortorder, name',
+                'id, name'
+            );
+            foreach ($categories as $cat) {
+                $targets[] = [
+                    'categoryid' => (int)$cat->id,
+                    'categoryname' => format_string($cat->name, true, ['context' => $coursecontext]),
+                    'questioncount' => $this->count_category_questions((int)$cat->id),
+                    'bankcmid' => 0,
+                    'bankname' => format_string($course->fullname, true, ['context' => $coursecontext]),
+                    'bankcontextid' => (int)$coursecontext->id,
+                ];
+            }
+            return $targets;
+        }
+
         $modinfo = get_fast_modinfo($course, $userid);
 
         $targets = [];
@@ -161,6 +204,15 @@ class question_bank_target_resolver {
         foreach ($this->list_writable_targets($ambient, $userid) as $target) {
             if ($target['categoryid'] === $categoryid) {
                 $course = get_course((int)$coursecontext->instanceid);
+                if (empty($target['bankcmid'])) {
+                    // Moodle 4.5 course-context target (no qbank module).
+                    return [
+                        'context' => $coursecontext,
+                        'course' => $course,
+                        'cm' => null,
+                        'categoryid' => $categoryid,
+                    ];
+                }
                 $cm = get_fast_modinfo($course, $userid)->get_cm($target['bankcmid']);
                 return [
                     'context' => context_module::instance($target['bankcmid']),
