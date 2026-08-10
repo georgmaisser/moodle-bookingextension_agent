@@ -80,4 +80,30 @@ final class engine_alias_registrar_test extends \advanced_testcase {
             'Components without a local/wizard tree must not receive aliases.'
         );
     }
+
+    /**
+     * The engine_resolver alias resolves to the engine's resolver, reports the active
+     * engine (the bundled agent when no primary engine is installed) and builds engine
+     * FQCNs - so consumers no longer need a vendored engine_resolver.php.
+     */
+    public function test_engine_resolver_alias_resolves_and_reports_active_engine(): void {
+        $root = 'fakecomp_resolvertest';
+        engine_alias_registrar::register_for_namespace_root($root);
+
+        $alias = $root . '\\local\\wizard\\engine\\engine_resolver';
+        $this->assertTrue(class_exists($alias), 'engine_resolver must be a registered alias.');
+
+        // The alias IS the engine's resolver class (identity across the alias boundary).
+        $this->assertSame(
+            \bookingextension_agent\local\wizard\engine_resolver::class,
+            (new \ReflectionClass($alias))->getName()
+        );
+
+        // In the test environment local_wizard is not installed, so the bundled agent is active.
+        $this->assertSame('bookingextension_agent', $alias::component());
+        $this->assertSame(
+            '\\bookingextension_agent\\local\\wizard\\dto\\skill_risk_class',
+            $alias::fqcn('dto\\skill_risk_class')
+        );
+    }
 }

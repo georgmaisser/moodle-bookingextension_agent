@@ -73,6 +73,10 @@ class engine_alias_registrar {
         'observation_time' => 'services\\observation_time',
         'skill_catalog_discovery' => 'services\\skill_catalog_discovery',
         'localized_string_service' => 'services\\localized_string_service',
+        // The resolver itself, so consumers reach the active engine (and any engine
+        // service, via engine_resolver::fqcn) through the alias layer without a vendored
+        // copy. Retires the per-component engine_resolver.php.
+        'engine_resolver' => 'engine_resolver',
     ];
 
     /** @var array<string,bool> Namespace roots already handled in this request. */

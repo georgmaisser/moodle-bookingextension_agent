@@ -104,6 +104,19 @@ class authorization_service implements agent_authorization_service {
     }
 
     /**
+     * Frankenstyle component of the engine that backs the alias layer on this site.
+     *
+     * The single home of the precedence rule: the primary engine (local_wizard) when it
+     * has taken over, otherwise this engine. engine_resolver and every consumer resolve
+     * the active engine through here, so the rule is never duplicated per component.
+     *
+     * @return string
+     */
+    public static function active_engine_component(): string {
+        return self::primary_engine_takes_over() ? self::PRIMARY_ENGINE : self::ENGINE_COMPONENT;
+    }
+
+    /**
      * Return true when the given plugin is installed and upgraded.
      *
      * @param string $component Frankenstyle component name.
