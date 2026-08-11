@@ -61,8 +61,10 @@ class claude_connect_readiness {
     /**
      * Build the full readiness report: common prerequisites plus the per-method check groups.
      *
-     * @return array<string,mixed> ['common', 'oauth', 'token' => check rows; 'oauth_ready',
-     *                             'token_ready' => bool; 'server_url', 'token_manage_url' => string].
+     * @return array<string,mixed> ['common', 'oauth', 'token' => check rows; 'common_ready',
+     *                             'oauth_own_ready', 'token_own_ready', 'oauth_ready', 'token_ready',
+     *                             'oauth_blocked_by_common', 'token_blocked_by_common' => bool;
+     *                             'server_url', 'token_manage_url' => string].
      */
     public function get_report(): array {
         global $CFG;
@@ -170,12 +172,26 @@ class claude_connect_readiness {
             $installed && !$tokenon ? $settingsurl : null
         );
 
+        // A method is usable only when BOTH its own checks and the common prerequisites pass, but the
+        // two failure causes need different wording: a red cross inside the method's own list is what
+        // the admin sees next to the banner, whereas a red common prerequisite lives further up the
+        // page. Expose the intermediate states so the template can name the right section instead of
+        // pointing at a cross that is not there.
+        $commonready = $this->all_done($common);
+        $oauthownready = $this->all_done($oauth);
+        $tokenownready = $this->all_done($token);
+
         return [
             'common' => $common,
             'oauth' => $oauth,
             'token' => $token,
-            'oauth_ready' => $this->all_done($common) && $this->all_done($oauth),
-            'token_ready' => $this->all_done($common) && $this->all_done($token),
+            'common_ready' => $commonready,
+            'oauth_own_ready' => $oauthownready,
+            'token_own_ready' => $tokenownready,
+            'oauth_ready' => $commonready && $oauthownready,
+            'token_ready' => $commonready && $tokenownready,
+            'oauth_blocked_by_common' => $oauthownready && !$commonready,
+            'token_blocked_by_common' => $tokenownready && !$commonready,
             'server_url' => $this->server_url(),
             'token_manage_url' => (new \moodle_url('/admin/webservice/tokens.php'))->out(false),
         ];

@@ -24,17 +24,30 @@
     * common - array of check rows {done, label, detail, icon, configureurl, configurelabel}
     * oauth - array of OAuth-method check rows (same shape)
     * token - array of token-method check rows (same shape)
+    * common_ready - bool, true when every common prerequisite passes
+    * oauth_own_ready - bool, true when every check in the oauth list passes (ignores common)
+    * token_own_ready - bool, true when every check in the token list passes (ignores common)
     * oauth_ready - bool, true when common + oauth checks all pass
     * token_ready - bool, true when common + token checks all pass
+    * oauth_blocked_by_common - bool, true when oauth's own checks pass but a common one is red
+    * token_blocked_by_common - bool, true when token's own checks pass but a common one is red
     * server_url - string, the MCP endpoint URL to add in Claude
+
+    Each method shows exactly one banner: success (*_ready), "fix the cross in this list"
+    (^*_own_ready), or "fix the common prerequisites above" (*_blocked_by_common).
 
     Example context (json):
     {
         "common": [{"done": true, "label": "MCP server enabled", "detail": "OK", "icon": "<i></i>"}],
         "oauth": [],
         "token": [],
+        "common_ready": false,
+        "oauth_own_ready": true,
+        "token_own_ready": true,
         "oauth_ready": false,
         "token_ready": false,
+        "oauth_blocked_by_common": true,
+        "token_blocked_by_common": true,
         "server_url": "https://example.com/admin/tool/oauthmcp/server.php"
     }
 }}
@@ -99,11 +112,16 @@
         <i class="fa fa-check-circle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_oauth_ready, bookingextension_agent{{/str}}
     </div>
     {{/oauth_ready}}
-    {{^oauth_ready}}
+    {{^oauth_own_ready}}
     <div class="alert alert-warning mt-3" role="status">
         <i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_oauth_notready, bookingextension_agent{{/str}}
     </div>
-    {{/oauth_ready}}
+    {{/oauth_own_ready}}
+    {{#oauth_blocked_by_common}}
+    <div class="alert alert-warning mt-3" role="status">
+        <i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_oauth_notready_common, bookingextension_agent{{/str}}
+    </div>
+    {{/oauth_blocked_by_common}}
     <p class="font-weight-bold mt-3 mb-1">{{#str}}claudeconnect_howto, bookingextension_agent{{/str}}</p>
     <ol>
         <li class="mb-2">{{#str}}claudeconnect_oauth_step_open, bookingextension_agent{{/str}}</li>
@@ -138,11 +156,16 @@
         <i class="fa fa-check-circle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_token_ready, bookingextension_agent{{/str}}
     </div>
     {{/token_ready}}
-    {{^token_ready}}
+    {{^token_own_ready}}
     <div class="alert alert-warning mt-3" role="status">
         <i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_token_notready, bookingextension_agent{{/str}}
     </div>
-    {{/token_ready}}
+    {{/token_own_ready}}
+    {{#token_blocked_by_common}}
+    <div class="alert alert-warning mt-3" role="status">
+        <i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_token_notready_common, bookingextension_agent{{/str}}
+    </div>
+    {{/token_blocked_by_common}}
     <p class="font-weight-bold mt-3 mb-1">{{#str}}claudeconnect_howto, bookingextension_agent{{/str}}</p>
     <ol>
         <li class="mb-2">{{#str}}claudeconnect_token_step_create, bookingextension_agent, {"tokensurl": "{{token_manage_url}}"}{{/str}}</li>
