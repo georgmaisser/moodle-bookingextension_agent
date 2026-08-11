@@ -104,6 +104,15 @@ class claude_connect_readiness {
                 ? get_string('claudeconnect_check_https_done', 'bookingextension_agent', $CFG->wwwroot)
                 : get_string('claudeconnect_check_https_todo', 'bookingextension_agent', $CFG->wwwroot)
         );
+        // Bearer credentials (token AND OAuth access tokens) travel in the Authorization header;
+        // Apache with PHP-FPM strips it by default, which fails with an opaque auth challenge.
+        // Probing our own echo endpoint pinpoints that webserver misconfiguration directly.
+        [$authheaderok, $authheaderdetail] = $this->probe_auth_header();
+        $common[] = $this->build_check(
+            $authheaderok,
+            get_string('claudeconnect_check_authheader', 'bookingextension_agent'),
+            $authheaderdetail
+        );
         $common[] = $this->build_check(
             $toolcount > 0,
             get_string('claudeconnect_check_tools', 'bookingextension_agent'),
@@ -263,16 +272,55 @@ class claude_connect_readiness {
     }
 
     /**
+     * Probe whether an Authorization header survives the webserver and reaches PHP.
+     *
+     * Calls the plugin's own echo endpoint (authprobe.php) with a dummy Bearer header.
+     * Apache with PHP-FPM strips the header by default (fix: SetEnvIfNoCase pass-through),
+     * which breaks token AND OAuth authentication with an opaque challenge — this check
+     * names that misconfiguration directly instead of letting clients fail cryptically.
+     *
+     * @return array{0:bool,1:string} [ok, detail]
+     */
+    private function probe_auth_header(): array {
+        $url = (new moodle_url('/mod/booking/bookingextension/agent/authprobe.php'))->out(false);
+
+        // The ignoresecurity flag is safe here: the target is our OWN wwwroot-derived URL (no user
+        // input, no SSRF surface). Without it, sites whose hostname resolves to a private IP (dev boxes,
+        // behind-proxy setups) get a false "unreachable" from Moodle's curl blocklist.
+        $result = $this->fetch($url, ['Authorization: Bearer readiness-probe'], true);
+        if ($result['code'] !== 200) {
+            return [false, get_string(
+                'claudeconnect_check_authheader_unreachable',
+                'bookingextension_agent',
+                $url . ' (HTTP ' . $result['code'] . ')'
+            )];
+        }
+
+        $decoded = json_decode($result['body'], true);
+        $ok = is_array($decoded) && !empty($decoded['authheader']);
+
+        return [$ok, $ok
+            ? get_string('claudeconnect_check_authheader_done', 'bookingextension_agent')
+            : get_string('claudeconnect_check_authheader_todo', 'bookingextension_agent'),
+        ];
+    }
+
+    /**
      * Fetch a URL server-side, capturing headers, tolerating self-signed dev certificates.
      *
      * @param string $url
+     * @param string[] $requestheaders Optional request headers ("Name: value" strings).
+     * @param bool $ignoresecurity Bypass the curl host blocklist — ONLY for fixed self-URLs.
      * @return array{code:int,headers:string,body:string}
      */
-    private function fetch(string $url): array {
+    private function fetch(string $url, array $requestheaders = [], bool $ignoresecurity = false): array {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
-        $curl = new \curl();
+        $curl = new \curl($ignoresecurity ? ['ignoresecurity' => true] : []);
+        if (!empty($requestheaders)) {
+            $curl->setHeader($requestheaders);
+        }
         $body = (string)$curl->get($url, [], [
             'CURLOPT_SSL_VERIFYPEER' => 0,
             'CURLOPT_SSL_VERIFYHOST' => 0,
