@@ -706,6 +706,26 @@ $string['claudeconnect_check_tokenmode_todo'] = 'Token authentication is switche
 $string['claudeconnect_check_tools'] = 'At least one tool available';
 $string['claudeconnect_check_tools_done'] = '{$a} tool(s) are exposed over MCP, including the Booking Wizard skills contributed by the agent. Claude will see them once connected.';
 $string['claudeconnect_check_tools_todo'] = 'No tools are exposed over MCP yet. The Booking Wizard contributes its skills automatically once the agent can run for your account; you can additionally publish web-service functions in the MCP server settings.';
+$string['claudeconnect_client_code_command'] = 'claude mcp add --transport http moodle-booking-wizard {$a->serverurl} --header "Authorization: Bearer YOUR_TOKEN"';
+$string['claudeconnect_client_code_heading'] = 'Claude Code — exact command';
+$string['claudeconnect_client_code_verify'] = 'No restart needed. Verify with <code>claude mcp list</code> or the <code>/mcp</code> panel — both show the connection status and the available tools. Add <code>--scope user</code> to make the server available in every project.';
+$string['claudeconnect_client_desktop_config'] = '{
+  "mcpServers": {
+    "moodle-booking-wizard": {
+      "command": "npx",
+      "args": [
+        "mcp-remote@latest",
+        "{$a->serverurl}",
+        "--header",
+        "Authorization: Bearer YOUR_TOKEN"
+      ]
+    }
+  }
+}';
+$string['claudeconnect_client_desktop_heading'] = 'Claude Desktop — exact configuration';
+$string['claudeconnect_client_desktop_intro'] = 'Claude Desktop cannot call a remote MCP server directly from its config file — it starts a local bridge (<code>mcp-remote</code>) via <code>npx</code>. Merge the block below into <code>claude_desktop_config.json</code>; <code>mcpServers</code> belongs at the TOP level of the file, next to any existing keys.';
+$string['claudeconnect_client_desktop_notes'] = 'The header must stay TWO separate array entries — <code>"--header"</code> and the full <code>"Authorization: Bearer …"</code> string; the combined <code>--header=…</code> form does not work. After saving, fully quit Claude Desktop (Cmd+Q) and reopen it. To keep the token out of the file, write <code>"Authorization: Bearer ${MY_TOKEN}"</code> and set <code>MY_TOKEN</code> in your environment instead.';
+$string['claudeconnect_client_node_warning'] = 'Requires Node.js 20 or newer on your computer (check with <code>node -v</code>). With nvm and an older default version (e.g. 16) the bridge crashes with a cryptic "node:fs/promises does not provide an export named constants" error — fix it with <code>nvm alias default 22</code>, or pin <code>"command"</code> to the absolute path of a modern <code>npx</code> and add an <code>"env": {"PATH": "…"}</code> entry so the bridge and its Node version match.';
 $string['claudeconnect_common_heading'] = 'Prerequisites (needed for both methods)';
 $string['claudeconnect_howto'] = 'How to set it up:';
 $string['claudeconnect_intro'] = 'Connect this Moodle site to Claude.';
@@ -738,9 +758,10 @@ $string['claudeconnect_token_notready_common'] = 'This method\'s own checks pass
 $string['claudeconnect_token_ready'] = 'Token authentication is available — you can connect Claude Code or Claude Desktop with a token now.';
 $string['claudeconnect_token_step_bearer'] = 'Add the HTTP header <code>Authorization: Bearer &lt;your token&gt;</code>, pasting the token you created in step 1.';
 $string['claudeconnect_token_step_config'] = 'Open your MCP client configuration: in Claude Desktop, edit the <code>claude_desktop_config.json</code> file (Settings → Developer → Edit config); in Claude Code, run <code>claude mcp add</code>.';
-$string['claudeconnect_token_step_create'] = 'Create a Moodle web-service token for your own account: open <a href="{$a->tokensurl}" target="_blank" rel="noopener">Site administration → Server → Web services → Manage tokens</a>, choose <em>Create token</em>, and select the <strong>MCP server (tool_oauthmcp)</strong> service.';
+$string['claudeconnect_token_step_create'] = 'Create a Moodle web-service token for your own account: open <a href="{$a->tokensurl}" target="_blank" rel="noopener">Site administration → Server → Web services → Manage tokens</a>, choose <em>Create token</em>, and select the <strong>MCP server (tool_oauthmcp)</strong> service. The token must be created for exactly this service — a token for any other service authenticates fine but exposes no tools.';
 $string['claudeconnect_token_step_done'] = 'Restart Claude Code / Desktop — it lists the available tools. You are connected.';
 $string['claudeconnect_token_step_url'] = 'Point the client at this site\'s MCP endpoint: <code>{$a->serverurl}</code>';
+$string['claudeconnect_wellknown_admin_note'] = 'Server administrators: the two /.well-known discovery URLs must be answered at the DOMAIN ROOT, which a Moodle plugin cannot do by itself — ready-made Apache and nginx rewrite snippets ship with the plugin in <code>admin/tool/oauthmcp/.well-known-snippets/</code>. Only this OAuth method needs those rewrites; the token method below works without them.';
 $string['cs_badge_groups'] = 'groups';
 $string['cs_badge_hidden'] = 'hidden';
 $string['cs_badge_locked'] = 'locked';

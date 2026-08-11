@@ -107,6 +107,7 @@
         </li>
         {{/oauth}}
     </ul>
+    <p class="small text-muted mt-2">{{#str}}claudeconnect_wellknown_admin_note, bookingextension_agent{{/str}}</p>
     {{#oauth_ready}}
     <div class="alert alert-success mt-3" role="status">
         <i class="fa fa-check-circle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_oauth_ready, bookingextension_agent{{/str}}
@@ -174,5 +175,26 @@
         <li class="mb-2">{{#str}}claudeconnect_token_step_bearer, bookingextension_agent{{/str}}</li>
         <li class="mb-2">{{#str}}claudeconnect_token_step_done, bookingextension_agent{{/str}}</li>
     </ol>
+
+    {{! Exact per-client configuration, so nobody has to guess the shape of step 2. }}
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5 class="card-title">{{#str}}claudeconnect_client_desktop_heading, bookingextension_agent{{/str}}</h5>
+            <p class="small">{{#str}}claudeconnect_client_desktop_intro, bookingextension_agent{{/str}}</p>
+            <div class="alert alert-warning small" role="note">
+                <i class="fa fa-exclamation-triangle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_client_node_warning, bookingextension_agent{{/str}}
+            </div>
+            <pre class="small p-2 bg-light border rounded mb-2"><code>{{#str}}claudeconnect_client_desktop_config, bookingextension_agent, {"serverurl": "{{server_url}}"}{{/str}}</code></pre>
+            <p class="small text-muted mb-0">{{#str}}claudeconnect_client_desktop_notes, bookingextension_agent{{/str}}</p>
+        </div>
+    </div>
+    <div class="card mt-3 mb-3">
+        <div class="card-body">
+            <h5 class="card-title">{{#str}}claudeconnect_client_code_heading, bookingextension_agent{{/str}}</h5>
+            <pre class="small p-2 bg-light border rounded mb-2"><code>{{#str}}claudeconnect_client_code_command, bookingextension_agent, {"serverurl": "{{server_url}}"}{{/str}}</code></pre>
+            <p class="small text-muted mb-0">{{#str}}claudeconnect_client_code_verify, bookingextension_agent{{/str}}</p>
+        </div>
+    </div>
+
     <div class="alert alert-info" role="note">{{#str}}claudeconnect_token_note, bookingextension_agent{{/str}}</div>
 </div>

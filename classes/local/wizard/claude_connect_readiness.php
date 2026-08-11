@@ -89,7 +89,8 @@ class claude_connect_readiness {
             $installed
                 ? get_string('claudeconnect_check_installed_done', 'bookingextension_agent')
                 : get_string('claudeconnect_check_installed_todo', 'bookingextension_agent'),
-            $installed ? null : 'https://moodle.org/plugins/tool_oauthmcp'
+            // Not in the (now read-only) moodle.org plugins directory — the plugin lives on GitHub.
+            $installed ? null : 'https://github.com/Wunderbyte-GmbH/moodle-tool_oauthmcp'
         );
         $common[] = $this->build_check(
             $enabled,
