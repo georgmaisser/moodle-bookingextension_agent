@@ -262,11 +262,20 @@ class claude_connect_readiness {
         $issuerpath = rtrim((string)parse_url($CFG->wwwroot, PHP_URL_PATH), '/');
         $url = $host . '/.well-known/' . $wellknown . $issuerpath;
 
-        $result = $this->fetch($url);
+        // Self-URL probe (wwwroot-derived): bypass the curl blocklist like the auth-header probe,
+        // or private-IP/behind-proxy sites report a false "unreachable" (HTTP 0).
+        $result = $this->fetch($url, [], true);
         $decoded = json_decode($result['body'], true);
         $ok = $result['code'] === 200 && is_array($decoded) && trim((string)($decoded[$requiredfield] ?? '')) !== '';
 
-        return [$ok, $url . ' (HTTP ' . $result['code'] . ')'];
+        // A failing row must carry its remedy itself: the admin reading "HTTP 404" here is exactly
+        // the person who needs to know which snippet to install and where.
+        $detail = $url . ' (HTTP ' . $result['code'] . ')';
+        if (!$ok) {
+            $detail .= ' — ' . get_string('claudeconnect_check_wellknown_remedy', 'bookingextension_agent');
+        }
+
+        return [$ok, $detail];
     }
 
     /**
@@ -281,7 +290,14 @@ class claude_connect_readiness {
             return [false, get_string('claudeconnect_check_blocked', 'bookingextension_agent')];
         }
 
-        $result = $this->fetch($this->server_url());
+        // MCP streamable-HTTP talks POST; a GET may legitimately answer 405 (no server-initiated
+        // stream), so the challenge must be probed with an unauthenticated POST.
+        $result = $this->fetch(
+            $this->server_url(),
+            ['Content-Type: application/json'],
+            true,
+            '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{}}'
+        );
         $challenge = preg_match('/WWW-Authenticate:.*resource_metadata=/i', $result['headers']) === 1;
         $ok = $result['code'] === 401 && $challenge;
 
@@ -328,9 +344,15 @@ class claude_connect_readiness {
      * @param string $url
      * @param string[] $requestheaders Optional request headers ("Name: value" strings).
      * @param bool $ignoresecurity Bypass the curl host blocklist — ONLY for fixed self-URLs.
+     * @param string|null $postbody When set, send a POST with this raw body instead of a GET.
      * @return array{code:int,headers:string,body:string}
      */
-    private function fetch(string $url, array $requestheaders = [], bool $ignoresecurity = false): array {
+    private function fetch(
+        string $url,
+        array $requestheaders = [],
+        bool $ignoresecurity = false,
+        ?string $postbody = null
+    ): array {
         global $CFG;
         require_once($CFG->libdir . '/filelib.php');
 
@@ -338,14 +360,17 @@ class claude_connect_readiness {
         if (!empty($requestheaders)) {
             $curl->setHeader($requestheaders);
         }
-        $body = (string)$curl->get($url, [], [
+        $options = [
             'CURLOPT_SSL_VERIFYPEER' => 0,
             'CURLOPT_SSL_VERIFYHOST' => 0,
             'CURLOPT_TIMEOUT' => 8,
             'CURLOPT_CONNECTTIMEOUT' => 8,
             'CURLOPT_FOLLOWLOCATION' => 0,
             'CURLOPT_HEADER' => 1,
-        ]);
+        ];
+        $body = $postbody === null
+            ? (string)$curl->get($url, [], $options)
+            : (string)$curl->post($url, $postbody, $options);
         $info = $curl->get_info();
         $headersize = (int)($info['header_size'] ?? 0);
 
