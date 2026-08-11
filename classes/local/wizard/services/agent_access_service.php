@@ -226,11 +226,40 @@ class agent_access_service {
             $primary = reset($list);
             $actionconfig = (array)($primary->actionconfig ?? []);
             $settings = (array)(($actionconfig[$actionclass] ?? [])['settings'] ?? []);
+            $endpoint = trim((string)($settings['endpoint'] ?? $settings['apiendpoint'] ?? ''));
 
-            return trim((string)($settings['endpoint'] ?? $settings['apiendpoint'] ?? ''));
+            if ($endpoint === '' && !property_exists($primary, 'actionconfig')) {
+                // Moodle 4.5: there are no provider instances — get_providers_for_actions()
+                // returns bare provider plugin objects, and the per-action endpoint lives in
+                // flat plugin config (action_<basename>_endpoint, the same keys the
+                // provider_compat legacy views read). Without this fallback a 4.5 site routing
+                // e.g. aiprovider_openai through llm.wunderbyte.at is not recognised as running
+                // on the Wunderbyte LLM: no subscription-based full access, no settings notice.
+                $endpoint = self::legacy_flat_endpoint(get_class($primary), $actionclass);
+            }
+
+            return $endpoint;
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    /**
+     * Read a provider's per-action endpoint from Moodle 4.5 flat plugin config.
+     *
+     * @param string $providerclass Provider class name, e.g. 'aiprovider_openai\provider'.
+     * @param string $actionclass Action class name.
+     * @return string The configured endpoint, or '' when unset.
+     */
+    private static function legacy_flat_endpoint(string $providerclass, string $actionclass): string {
+        $component = substr($providerclass, 0, (int)strpos($providerclass, '\\'));
+        if ($component === '' || !is_callable([$actionclass, 'get_basename'])) {
+            return '';
+        }
+
+        $basename = (string)$actionclass::get_basename();
+
+        return trim((string)get_config($component, "action_{$basename}_endpoint"));
     }
 
     /**
