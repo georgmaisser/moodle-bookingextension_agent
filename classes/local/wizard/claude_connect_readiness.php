@@ -65,7 +65,8 @@ class claude_connect_readiness {
      *                             'oauth_own_ready', 'token_own_ready', 'oauth_ready', 'token_ready',
      *                             'oauth_blocked_by_common', 'token_blocked_by_common' => bool;
      *                             'server_url', 'token_manage_url', 'wellknown_vhost_snippet',
-     *                             'wellknown_htaccess_snippet', 'wellknown_curl_test' => string].
+     *                             'wellknown_htaccess_snippet', 'wellknown_curl_test', 'fixer_url' => string;
+     *                             'server_ok', 'fixer_supported', 'is_siteadmin', 'show_alt_header' => bool].
      */
     public function get_report(): array {
         global $CFG;
@@ -115,6 +116,14 @@ class claude_connect_readiness {
         // Apache with PHP-FPM strips it by default, which fails with an opaque auth challenge.
         // Probing our own echo endpoint pinpoints that webserver misconfiguration directly.
         [$authheaderok, $authheaderdetail] = $this->probe_auth_header();
+        // Newer tool_oauthmcp accepts the token in an X-Moodle-Token header too, which no
+        // webserver strips — a stripped Authorization header then stops being a blocker for
+        // the token method, and the row should say so.
+        $altheader = class_exists('\tool_oauthmcp\local\mcp\mcp_http_handler')
+            && defined('\tool_oauthmcp\local\mcp\mcp_http_handler::TOKEN_HEADER');
+        if (!$authheaderok && $altheader) {
+            $authheaderdetail .= ' ' . get_string('claudeconnect_check_authheader_alt', 'bookingextension_agent');
+        }
         $common[] = $this->build_check(
             $authheaderok,
             get_string('claudeconnect_check_authheader', 'bookingextension_agent'),
@@ -193,10 +202,30 @@ class claude_connect_readiness {
 
         $snippets = $this->wellknown_snippets();
 
+        // Newer tool_oauthmcp can write the .htaccess block itself (backup + self-test +
+        // auto-rollback). Only offer that path when the fixer says this server layout
+        // actually supports it — a button that can only fail is worse than a tutorial.
+        $fixersupported = false;
+        if (class_exists('\tool_oauthmcp\local\setup\htaccess_fixer')) {
+            try {
+                $fixersupported = (new \tool_oauthmcp\local\setup\htaccess_fixer())->status()['supported'];
+            } catch (\Throwable $e) {
+                debugging('claude_connect_readiness: htaccess_fixer status failed: ' . $e->getMessage(),
+                    DEBUG_DEVELOPER);
+            }
+        }
+
         return [
             'wellknown_vhost_snippet' => $snippets['vhost'],
             'wellknown_htaccess_snippet' => $snippets['htaccess'],
             'wellknown_curl_test' => $snippets['curltest'],
+            // The server-touching checks: header pass-through plus the two discovery documents.
+            // All green -> the whole server-setup section collapses to a single success line.
+            'server_ok' => $canprobe && $authheaderok && $asok && $prmok,
+            'fixer_supported' => $fixersupported,
+            'fixer_url' => (new moodle_url('/admin/tool/oauthmcp/serversetup.php'))->out(false),
+            'is_siteadmin' => is_siteadmin($this->userid),
+            'show_alt_header' => $altheader && !$authheaderok,
             'common' => $common,
             'oauth' => $oauth,
             'token' => $token,
