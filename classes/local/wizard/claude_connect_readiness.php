@@ -76,7 +76,10 @@ class claude_connect_readiness {
         $tokenon = $installed && in_array($authmode, ['wstoken', 'both'], true);
         $https = is_https();
         $toolcount = $this->count_tools();
-        $canconnect = has_capability('tool/oauthmcp:connect', context_system::instance(), $this->userid);
+        // The capability is defined by tool_oauthmcp itself: checking it before the plugin is
+        // installed makes has_capability() raise a "capability not found" debugging notice.
+        $canconnect = $installed
+            && has_capability('tool/oauthmcp:connect', context_system::instance(), $this->userid);
 
         $settingsurl = (new moodle_url('/admin/settings.php', ['section' => 'tool_oauthmcp_settings']))->out(false);
         $canprobe = $enabled && $https;
@@ -129,8 +132,13 @@ class claude_connect_readiness {
             get_string('claudeconnect_check_capability', 'bookingextension_agent'),
             $canconnect
                 ? get_string('claudeconnect_check_capability_done', 'bookingextension_agent')
-                : get_string('claudeconnect_check_capability_todo', 'bookingextension_agent'),
-            !$canconnect ? (new moodle_url('/admin/roles/manage.php'))->out(false) : null
+                : get_string(
+                    // Before the install the capability cannot exist on any role, so "grant it to
+                    // your role" would mislead — the real remedy is the install row further up.
+                    $installed ? 'claudeconnect_check_capability_todo' : 'claudeconnect_check_blocked',
+                    'bookingextension_agent'
+                ),
+            $installed && !$canconnect ? (new moodle_url('/admin/roles/manage.php'))->out(false) : null
         );
 
         // Method 1: OAuth 2.1 (browser login).
