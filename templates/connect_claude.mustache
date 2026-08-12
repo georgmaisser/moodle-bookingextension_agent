@@ -32,6 +32,9 @@
     * oauth_blocked_by_common - bool, true when oauth's own checks pass but a common one is red
     * token_blocked_by_common - bool, true when token's own checks pass but a common one is red
     * server_url - string, the MCP endpoint URL to add in Claude
+    * wellknown_vhost_snippet - string, Apache vhost block for the /.well-known rewrites
+    * wellknown_htaccess_snippet - string, .htaccess block for managed hosting without root
+    * wellknown_curl_test - string, curl command that verifies the discovery URL answers 200
 
     Each method shows exactly one banner: success (*_ready), "fix the cross in this list"
     (^*_own_ready), or "fix the common prerequisites above" (*_blocked_by_common).
@@ -48,7 +51,10 @@
         "token_ready": false,
         "oauth_blocked_by_common": true,
         "token_blocked_by_common": true,
-        "server_url": "https://example.com/admin/tool/oauthmcp/server.php"
+        "server_url": "https://example.com/admin/tool/oauthmcp/server.php",
+        "wellknown_vhost_snippet": "RewriteEngine On",
+        "wellknown_htaccess_snippet": "RewriteEngine On",
+        "wellknown_curl_test": "curl -s https://example.com/.well-known/oauth-authorization-server"
     }
 }}
 <div class="booking-ai-connect-claude" style="max-width: 860px;">
@@ -107,7 +113,32 @@
         </li>
         {{/oauth}}
     </ul>
-    <p class="small text-muted mt-2">{{#str}}claudeconnect_wellknown_admin_note, bookingextension_agent{{/str}}</p>
+    {{! Server-admin help: the /.well-known rewrites. Two collapsible variants, because the
+        admin's server access (root vs managed hosting) decides which one is even possible. }}
+    <div class="mt-3 small">
+        <p class="font-weight-bold mb-1">{{#str}}claudeconnect_wellknown_heading, bookingextension_agent{{/str}}</p>
+        <p class="text-muted">{{#str}}claudeconnect_wellknown_intro, bookingextension_agent{{/str}}</p>
+        <details class="mb-2">
+            <summary class="font-weight-bold">{{#str}}claudeconnect_wellknown_vhost_title, bookingextension_agent{{/str}}</summary>
+            <div class="pt-2 text-muted">
+                <p>{{#str}}claudeconnect_wellknown_vhost_intro, bookingextension_agent{{/str}}</p>
+                <pre class="p-2 bg-light border rounded"><code>{{wellknown_vhost_snippet}}</code></pre>
+                <p>{{#str}}claudeconnect_wellknown_vhost_after, bookingextension_agent{{/str}}</p>
+                <p class="mb-1">{{#str}}claudeconnect_wellknown_verify, bookingextension_agent{{/str}}</p>
+                <pre class="p-2 bg-light border rounded"><code>{{wellknown_curl_test}}</code></pre>
+            </div>
+        </details>
+        <details class="mb-2">
+            <summary class="font-weight-bold">{{#str}}claudeconnect_wellknown_htaccess_title, bookingextension_agent{{/str}}</summary>
+            <div class="pt-2 text-muted">
+                <p>{{#str}}claudeconnect_wellknown_htaccess_intro, bookingextension_agent{{/str}}</p>
+                <pre class="p-2 bg-light border rounded"><code>{{wellknown_htaccess_snippet}}</code></pre>
+                <p class="mb-1">{{#str}}claudeconnect_wellknown_verify, bookingextension_agent{{/str}}</p>
+                <pre class="p-2 bg-light border rounded"><code>{{wellknown_curl_test}}</code></pre>
+                <p class="mb-0">{{#str}}claudeconnect_wellknown_htaccess_after, bookingextension_agent{{/str}}</p>
+            </div>
+        </details>
+    </div>
     {{#oauth_ready}}
     <div class="alert alert-success mt-3" role="status">
         <i class="fa fa-check-circle mr-1" aria-hidden="true"></i>{{#str}}claudeconnect_oauth_ready, bookingextension_agent{{/str}}

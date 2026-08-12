@@ -64,7 +64,8 @@ class claude_connect_readiness {
      * @return array<string,mixed> ['common', 'oauth', 'token' => check rows; 'common_ready',
      *                             'oauth_own_ready', 'token_own_ready', 'oauth_ready', 'token_ready',
      *                             'oauth_blocked_by_common', 'token_blocked_by_common' => bool;
-     *                             'server_url', 'token_manage_url' => string].
+     *                             'server_url', 'token_manage_url', 'wellknown_vhost_snippet',
+     *                             'wellknown_htaccess_snippet', 'wellknown_curl_test' => string].
      */
     public function get_report(): array {
         global $CFG;
@@ -190,7 +191,12 @@ class claude_connect_readiness {
         $oauthownready = $this->all_done($oauth);
         $tokenownready = $this->all_done($token);
 
+        $snippets = $this->wellknown_snippets();
+
         return [
+            'wellknown_vhost_snippet' => $snippets['vhost'],
+            'wellknown_htaccess_snippet' => $snippets['htaccess'],
+            'wellknown_curl_test' => $snippets['curltest'],
             'common' => $common,
             'oauth' => $oauth,
             'token' => $token,
@@ -249,6 +255,51 @@ class claude_connect_readiness {
             }
         }
         return true;
+    }
+
+    /**
+     * Ready-to-paste webserver blocks for the /.well-known rewrites, generated for THIS site:
+     * host and issuer path come from wwwroot, so subdirectory installs get correct patterns and
+     * the verify command carries the real domain instead of a placeholder.
+     *
+     * Two variants, because the admin's server access decides which one is even possible:
+     * - vhost: for root access; goes inside the site's SSL <VirtualHost> (mod_rewrite server
+     *   context — leading slash in the pattern, [PT] to re-enter URL mapping).
+     * - htaccess: for managed hosting without root; per-directory context strips the leading
+     *   slash from patterns, and FastCGI setups additionally need the env-var rewrite pair to
+     *   pass the Authorization header (SetEnvIf alone is not always honoured there).
+     *
+     * @return array{vhost:string,htaccess:string,curltest:string}
+     */
+    private function wellknown_snippets(): array {
+        global $CFG;
+
+        $host = preg_replace('#^(https?://[^/]+).*$#', '$1', $CFG->wwwroot);
+        $path = rtrim((string)parse_url($CFG->wwwroot, PHP_URL_PATH), '/');
+
+        $passheader = 'SetEnvIfNoCase ^Authorization$ "(.+)" HTTP_AUTHORIZATION=$1';
+        $vhost = implode("\n", [
+            $passheader,
+            'RewriteEngine On',
+            'RewriteRule ^/\.well-known/oauth-authorization-server' . $path . '/?$ '
+                . $path . '/admin/tool/oauthmcp/oauth/asmeta.php [PT,L]',
+            'RewriteRule ^/\.well-known/oauth-protected-resource' . $path . '/?$ '
+                . $path . '/admin/tool/oauthmcp/oauth/prm.php [PT,L]',
+        ]);
+        $htaccess = implode("\n", [
+            $passheader,
+            'RewriteEngine On',
+            'RewriteCond %{HTTP:Authorization} .',
+            'RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]',
+            'RewriteRule ^\.well-known/oauth-authorization-server' . $path . '/?$ '
+                . $path . '/admin/tool/oauthmcp/oauth/asmeta.php [L]',
+            'RewriteRule ^\.well-known/oauth-protected-resource' . $path . '/?$ '
+                . $path . '/admin/tool/oauthmcp/oauth/prm.php [L]',
+        ]);
+        $curltest = "curl -s -o /dev/null -w '%{http_code}\\n' "
+            . $host . '/.well-known/oauth-authorization-server' . $path;
+
+        return ['vhost' => $vhost, 'htaccess' => $htaccess, 'curltest' => $curltest];
     }
 
     /**
