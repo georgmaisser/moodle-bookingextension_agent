@@ -59,7 +59,8 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
                 . 'return its identity: courseid, shortname, fullname, course URL and active enrolment count. '
                 . 'Use this only to find WHICH Moodle course is meant — typically to obtain a course id or link '
                 . 'for a follow-up step. NOT for listing what a user can book or attend (that is a booking option — '
-                . 'use search_options), and NOT for enrolling or booking anyone into anything.',
+                . 'use search_options), NOT for enrolling or booking anyone into anything, and NOT for listing '
+                . 'course categories or the category tree (use course.list_categories for categories).',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_courses',
             'example_utterances' => [

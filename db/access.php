@@ -126,6 +126,8 @@ $teacherskills = [
     'course_analyze_course_structure' => CONTEXT_COURSE,
     'course_diagnose_user_in_course' => CONTEXT_COURSE,
     'course_enrol_user' => CONTEXT_COURSE,
+    // Lists all course categories visible to the user (site-wide read).
+    'course_list_categories' => CONTEXT_SYSTEM,
     'course_scaffold_course_content' => CONTEXT_COURSE,
     // Searches across all courses on the site.
     'course_search_courses' => CONTEXT_SYSTEM,
