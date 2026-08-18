@@ -610,6 +610,11 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
             $intro,
             ['page' => $contenthtml]
         );
+        // add_moduleinfo() runs headless (no mform), and page_add_instance() only copies the
+        // 'page' editor into the content column when a form is present — set the column
+        // directly so the generated body survives the create (thread: empty chapter pages).
+        $moduleinfo->content = $contenthtml;
+        $moduleinfo->contentformat = FORMAT_HTML;
         (new activity_creation_service())->create($moduleinfo, $course);
     }
 
