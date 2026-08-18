@@ -146,6 +146,7 @@ final class scaffold_course_content_skill_test extends advanced_testcase {
      * welcome + chapter + summary pages — exactly N+2 pages, nothing more (exact-N doctrine).
      */
     public function test_execute_builds_anatomy_from_scripted_generation(): void {
+        global $DB;
         $env = $this->setup_course();
 
         // The responder receives ($actionclass, $prompt) and returns the raw content string;
@@ -185,6 +186,18 @@ final class scaffold_course_content_skill_test extends advanced_testcase {
 
         $pages = array_filter($modinfo->get_cms(), static fn($cm): bool => $cm->modname === 'page');
         $this->assertCount(4, $pages, 'welcome + 2 chapters + summary = exactly 4 pages');
+
+        // Regression guard (Wunderbyte-GmbH#2201): the generated BODY must be persisted, not just
+        // the module created — page_add_instance() drops the editor content when add_moduleinfo()
+        // runs without a form, which shipped every agent-created page with an empty body.
+        $allbodies = '';
+        foreach ($pages as $cm) {
+            $content = (string)$DB->get_field('page', 'content', ['id' => $cm->instance], MUST_EXIST);
+            $this->assertNotSame('', trim($content), "page '{$cm->name}' was saved with an empty body");
+            $allbodies .= $content;
+        }
+        $this->assertStringContainsString('Inhalt.', $allbodies,
+            'chapter bodies must contain the scripted generation output');
         $quizzes = array_filter($modinfo->get_cms(), static fn($cm): bool => $cm->modname === 'quiz');
         $this->assertCount(0, $quizzes, 'no quizzes were requested');
 

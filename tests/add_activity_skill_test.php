@@ -249,7 +249,7 @@ final class add_activity_skill_test extends advanced_testcase {
      * Execute creates a real page module in the chosen section.
      */
     public function test_execute_creates_page(): void {
-        global $PAGE;
+        global $DB, $PAGE;
         $this->resetAfterTest();
         [$course, $teacher] = $this->course_with_teacher();
         $coursecontext = context_course::instance($course->id);
@@ -276,6 +276,12 @@ final class add_activity_skill_test extends advanced_testcase {
         $this->assertSame('page', $cm->modname);
         $this->assertSame(0, (int)$cm->sectionnum);
         $this->assertSame('Welcome', $cm->name);
+
+        // Regression guard (Wunderbyte-GmbH#2201): the page body must be persisted, not just the
+        // module created — page_add_instance() drops the editor content on the headless create.
+        $content = (string)$DB->get_field('page', 'content', ['id' => $cm->instance], MUST_EXIST);
+        $this->assertStringContainsString('Hello world.', $content,
+            'the page body must contain the provided content');
 
         // The preview is a self-contained data block.
         $preview = $skill->get_result_preview($result, $coursecontextid, (int)$teacher->id);
