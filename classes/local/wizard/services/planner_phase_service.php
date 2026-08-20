@@ -399,6 +399,11 @@ class planner_phase_service {
             $this->catalogsvc->catalog_mode_is_static($catalogselectionmode)
         );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
+        // Engine-known readonly flag of the selected skill: lets the prompt state the valid
+        // constructor response_type deterministically instead of leaving the mutation judgement
+        // to the model (#2199 issue 2).
+        $selectedskillobject = $this->registry->get_skill($selectedskill);
+        $selectedskillisreadonly = $selectedskillobject !== null ? $selectedskillobject->is_read_only() : null;
         $prompt = $this->build_prompt(
             $systemprompt,
             $messages,
@@ -408,7 +413,8 @@ class planner_phase_service {
             $plannertracehistory,
             $autoconfirmmode,
             [],
-            $runtimeblocks['volatile']
+            $runtimeblocks['volatile'],
+            $selectedskillisreadonly
         );
 
         $historycount = count(

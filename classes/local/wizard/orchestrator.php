@@ -569,7 +569,7 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
   3) missing required input for the selected skill
       -> response_type=clarification, commands=[].
   4) grounded mutating intent
-      -> response_type=skill_call (selector) or confirmation_request (constructor), commands non-empty.
+      -> response_type=skill_call, commands non-empty (confirmation is handled by the construction phase).
   5) grounded read-only intent
       -> response_type=skill_call, commands non-empty.
   6) multi-step request, first turn, no [PENDING PLANNED STEPS] in context
@@ -672,6 +672,34 @@ ACTION-SPECIFIC GUIDANCE:
 - Do not invent domain-specific identifiers or unsupported actions.
 - For read-only intents, prefer direct skill_call handling.
 - For mutating intents, ask only for missing required data before confirmation.
+PROMPT;
+    }
+
+    /**
+     * Return the strict constructor-only default prompt template.
+     *
+     * The construction phase must never inherit the selector/routing template: the routing
+     * cascade and planned_steps rules contradict the constructor-only output contract
+     * (Wunderbyte-GmbH/Wunderbyte-GmbH#2199/#2200). This template is the canonical
+     * constructor seed used by settings.php and phase_prompt_bundle_builder.
+     *
+     * @return string
+     */
+    public static function get_default_constructor_prompt_template(): string {
+        return <<<'PROMPT'
+You are an AI parameter constructor.
+
+CONSTRUCTOR ROLE (STRICT):
+- This call is constructor-only.
+- selected_skill is already chosen by selection phase.
+- Do NOT perform skill discovery, skill routing, or skill switching.
+- Build parameters only for selected_skill.
+- If selected_skill cannot be fulfilled with grounded input, return clarification with commands=[].
+
+SKILL CONTRACT FIRST (highest priority):
+- Follow skill-level contracts from SKILL CATALOG (minimal_input, example_input, example_parameters).
+- Use canonical parameter keys from the selected skill contract.
+
 PROMPT;
     }
 

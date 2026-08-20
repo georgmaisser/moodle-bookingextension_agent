@@ -75,7 +75,7 @@ class prompt_policy_builder {
         }
 
         // 3. STEP INTENT POLICY (planner-facing guidance only).
-        $policies[] = self::build_step_intent_policy();
+        $policies[] = self::build_step_intent_policy($normalizedphase);
 
         // 4. DOCS ANSWER POLICY (selection phase only).
         if ($normalizedphase === 'selection') {
@@ -190,6 +190,8 @@ class prompt_policy_builder {
             . "- Follow one decision order: completed outcome -> sufficient, explicit pending confirmation"
             . " -> confirm_pending, missing required fields -> clarification, mutating -> confirmation_request,"
             . " read-only -> skill_call.\n"
+            . "- The last two outcomes (confirmation_request, skill_call) are emitted by the LATER phases;"
+            . " your own output in this phase stays within the response contract above.\n"
             . "\nMUTATION CLARIFICATION MINIMIZATION:\n"
             . "- Do not ask clarification for fields already explicitly provided by the user.\n"
             . "- Reuse skill-catalog examples and descriptions to map explicit user phrasing to skill input fields.\n"
@@ -202,12 +204,22 @@ class prompt_policy_builder {
     /**
      * Build NON-OPTIONAL STEP INTENT POLICY.
      *
+     * planned_steps is a selector-only field: only the selection phase may (and must) plan
+     * multi-step queues. Discovery and construction contracts exclude the field, so this
+     * policy must never demand it there (contradiction fixed in #2199/#2200).
+     *
+     * @param string $phase The normalized planner phase.
      * @return string
      */
-    private static function build_step_intent_policy(): string {
-        return "NON-OPTIONAL STEP INTENT POLICY:\n"
-            . "- next_step_intent: always a short string (never null) grounded in the immediate next action.\n"
-            . "- planned_steps: see OUTPUT_CONTRACT — required for multi-step requests.";
+    private static function build_step_intent_policy(string $phase): string {
+        $policy = "NON-OPTIONAL STEP INTENT POLICY:\n"
+            . "- next_step_intent: always a short string (never null) grounded in the immediate next action.\n";
+
+        if ($phase === 'selection') {
+            return $policy . "- planned_steps: see OUTPUT_CONTRACT — required for multi-step requests.";
+        }
+
+        return $policy . "- planned_steps: selector-only field — do NOT include it in this phase.";
     }
 
     /**
@@ -261,10 +273,22 @@ class prompt_policy_builder {
     private static function build_sufficiency_policy(string $phase = 'discovery', bool $hasobservations = false): string {
         $normalizedphase = self::normalize_phase($phase);
 
+        // The tail of the first-match priority names only response types the current phase may
+        // actually emit (selection has no confirmation_request; construction owns it — #2199/#2200).
+        if ($normalizedphase === 'selection') {
+            $prioritytail = "otherwise select the skill -> skill_call"
+                . " (confirmation for mutations is emitted by the construction phase)";
+        } else if ($normalizedphase === 'parameter_construction') {
+            $prioritytail = "mutating -> confirmation_request, read-only -> skill_call";
+        } else {
+            $prioritytail = "otherwise stay within this phase's response contract"
+                . " (skill_call/confirmation_request are emitted by the later phases)";
+        }
+
         $policy = "NON-OPTIONAL SUFFICIENCY POLICY:\n"
             . "- Use first-match priority: completed outcome evidence -> sufficient,"
             . " explicit pending confirmation -> confirm_pending,"
-            . " missing required fields -> clarification, mutating -> confirmation_request, read-only -> skill_call.\n"
+            . " missing required fields -> clarification, {$prioritytail}.\n"
             . "- Treat completed_commands and completed_observations as authoritative execution evidence.\n"
             . "- Do not re-emit a command when the same outcome is already completed.\n"
             . "- A completed command does NOT cover a request adding a NEW scope or target (a named"
@@ -276,10 +300,12 @@ class prompt_policy_builder {
         // This preserves the mini-model (early steps) / large-model (final synthesis) architecture.
         if ($normalizedphase !== 'discovery' && $hasobservations) {
             $policy .= "\n- For non-discovery phases with observations:"
-                . " if observations already answer the current request, return sufficient with commands=[].\n"
-                . "- For mutation intents, only return confirmation_request when required mutation data is grounded"
-                . " and no completed outcome already exists.\n"
-                . "- Avoid repeating the same command signature when its result already exists in observations.";
+                . " if observations already answer the current request, return sufficient with commands=[].\n";
+            if ($normalizedphase === 'parameter_construction') {
+                $policy .= "- For mutation intents, only return confirmation_request when required mutation data is grounded"
+                    . " and no completed outcome already exists.\n";
+            }
+            $policy .= "- Avoid repeating the same command signature when its result already exists in observations.";
         }
 
         return $policy;

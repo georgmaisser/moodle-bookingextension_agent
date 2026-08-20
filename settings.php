@@ -36,17 +36,21 @@ use core_ai\aiactions\summarise_text;
 if (class_exists('bookingextension_agent\local\wizard\orchestrator')) {
     $defaultsummarypromptprefix = orchestrator::get_default_summary_prompt_prefix();
     $defaultplannerprompttemplate = orchestrator::get_default_initial_prompt_template_for_action(summarise_text::class);
+    $defaultconstructorprompttemplate = orchestrator::get_default_constructor_prompt_template();
 } else {
     $defaultsummarypromptprefix = '';
     $defaultplannerprompttemplate = '';
+    $defaultconstructorprompttemplate = '';
 }
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_selection') === false) {
     set_config('aiinitialprompt_selection', $defaultplannerprompttemplate, 'bookingextension_agent');
 }
 
+// The construction phase seeds from its own constructor-only template — never from the
+// selector/routing template (Wunderbyte-GmbH/Wunderbyte-GmbH#2200).
 if (get_config('bookingextension_agent', 'aiinitialprompt_parameter_construction') === false) {
-    set_config('aiinitialprompt_parameter_construction', $defaultplannerprompttemplate, 'bookingextension_agent');
+    set_config('aiinitialprompt_parameter_construction', $defaultconstructorprompttemplate, 'bookingextension_agent');
 }
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') === false) {
@@ -469,7 +473,7 @@ if ($agentenabled) {
             'bookingextension_agent/aiinitialprompt_parameter_construction',
             get_string('aiinitialprompt_parameter_construction', 'bookingextension_agent'),
             get_string('aiinitialprompt_parameter_construction_desc', 'bookingextension_agent'),
-            $defaultplannerprompttemplate,
+            $defaultconstructorprompttemplate,
             PARAM_RAW,
             120,
             8

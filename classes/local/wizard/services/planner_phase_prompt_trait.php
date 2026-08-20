@@ -93,6 +93,8 @@ trait planner_phase_prompt_trait {
      * @param bool $autoconfirmmode
      * @param array $plannedstepintents
      * @param string $runtimestate
+     * @param bool|null $selectedskillisreadonly Engine-known readonly flag of the selected skill
+     *                  (construction phase only; null when unknown or not applicable).
      * @return string
      */
     private function build_prompt(
@@ -104,7 +106,8 @@ trait planner_phase_prompt_trait {
         array $plannertracehistory = [],
         bool $autoconfirmmode = false,
         array $plannedstepintents = [],
-        string $runtimestate = ''
+        string $runtimestate = '',
+        ?bool $selectedskillisreadonly = null
     ): string {
         return $this->promptbundlebuilder->build_prompt(
             $systemprompt,
@@ -115,7 +118,8 @@ trait planner_phase_prompt_trait {
             $plannertracehistory,
             $autoconfirmmode,
             $plannedstepintents,
-            $runtimestate
+            $runtimestate,
+            $selectedskillisreadonly
         );
     }
 

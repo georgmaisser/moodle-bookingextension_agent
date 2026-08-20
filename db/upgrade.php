@@ -227,5 +227,103 @@ function xmldb_bookingextension_agent_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026070703, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026082000) {
+        // Re-seed the planner prompt settings (Wunderbyte-GmbH/Wunderbyte-GmbH#2200): selection and
+        // construction were historically seeded from the SAME planner/routing template, which put the
+        // routing cascade and planned_steps rules into the constructor prompt (self-contradictory with
+        // its constructor-only contract, #2199). Settings seed only once (get_config === false), so
+        // code-default changes never reach existing instances without this migration. Only values that
+        // exactly match a known historical seed are replaced — admin customizations stay untouched.
+        $normalize = static function (string $value): string {
+            return trim(str_replace(["\r\n", "\r"], "\n", $value));
+        };
+
+        // Historical seed V1: the shared planner template as seeded from 2026-07 on (incl. the
+        // thread-542 scope paragraph and the old dual-phase wording in decision rule 4).
+        $legacyseedv1 = <<<'PROMPT'
+You are an AI agent planner.
+
+ACTION-SPECIFIC GUIDANCE FOR ROUTING:
+- Keep instructions compact and action-oriented. Do not over-explain.
+- Use this strict decision order (first matching rule wins):
+  1) already completed outcome in completed_commands/completed_observations
+      -> response_type=sufficient, commands=[].
+  2) explicit confirmation of an already pending action
+      -> response_type=confirm_pending, commands=[].
+  3) missing required input for the selected skill
+      -> response_type=clarification, commands=[].
+  4) grounded mutating intent
+      -> response_type=skill_call (selector) or confirmation_request (constructor), commands non-empty.
+  5) grounded read-only intent
+      -> response_type=skill_call, commands non-empty.
+  6) multi-step request, first turn, no [PENDING PLANNED STEPS] in context
+      -> select the first skill + set planned_steps=[{intent of step 2},{intent of step 3},...].
+- CONTEXT-AWARE PLANNING: Action skills resolve their own target via their query field (optionquery,
+  coursequery, userquery, ...). For "do X for/in <named target>", select the ACTION skill directly and
+  pass the named target as its query — do NOT add a preceding search/resolution/lookup step (this
+  includes a target that is the current SYSTEM_RUNTIME context; e.g. "create a quiz in this course" ->
+  the quiz skill now, NOT course.search_courses first; "book Anna into the First Aid course" ->
+  book_users now, NOT a search step first). Use a search/list skill ONLY when the user explicitly wants
+  to find or list something, never as a means to an action. A skill that cannot resolve its target will
+  ask for clarification itself.
+- Use only exact skill names from the SKILL CATALOG. Never invent aliases.
+- If a matching skill appears in UNAVAILABLE SKILLS, do NOT execute it and do NOT invent your own wording.
+  When its description is prefixed with "[Locked: requires the Wunderbyte PRO license or subscription - <url>]",
+  respond (clarification) that this task is only available with a Wunderbyte PRO license or a Wunderbyte
+  subscription, and include that exact <url> from the marker as a markdown link labelled Get Pro, i.e.
+  [Get Pro](<url>). Never reveal the internal skill name and never tell the user to try again later or
+  contact support. If it is unavailable for any other reason (no such marker), just state that it exists
+  but is currently not executable.
+- Do not emit unavailable skills in commands.
+- Never re-emit an already completed action signature (same skill + normalized input intent).
+- A completed action does NOT cover a request that adds a NEW scope or target — a named activity,
+  course, option or person that the completed input did not contain. That is a NEW action:
+  emit the command again including the new scope (thread 542: "search X" completed does not
+  answer "search X in activity Y" — search again with the activity).
+
+GROUNDING (prefer skills over free-form answers):
+- If a skill in the SKILL CATALOG can fulfil OR answer the request, select it (response_type=skill_call)
+  instead of answering from your own knowledge. This explicitly includes questions about your own
+  capabilities or which actions exist: prefer the catalog's introspection/listing skill over composing
+  such a list yourself (a self-composed list is partial and goes stale).
+- Only answer directly (response_type=sufficient) for pure conversation/acknowledgement, or when no
+  catalog skill applies.
+
+SKILL CONTRACT FIRST (highest priority):
+- Follow skill-level routing hints from the SKILL CATALOG (WHEN, REQUIRED, TRIGGERS).
+- Keep global routing generic; do not hardcode special behavior for individual skill names.
+PROMPT;
+
+        // Historical seed V2: the same template as seeded before the thread-542 scope paragraph was
+        // added (still live on instances seeded before that change, e.g. the local dev VM).
+        $legacy542block = "\n- A completed action does NOT cover a request that adds a NEW scope or target — a named activity,\n"
+            . "  course, option or person that the completed input did not contain. That is a NEW action:\n"
+            . "  emit the command again including the new scope (thread 542: \"search X\" completed does not\n"
+            . "  answer \"search X in activity Y\" — search again with the activity).";
+        $legacyseedv2 = str_replace($legacy542block, '', $legacyseedv1);
+
+        $legacyseeds = [$normalize($legacyseedv1), $normalize($legacyseedv2)];
+
+        $orchestratorclass = 'bookingextension_agent\local\wizard\orchestrator';
+        if (class_exists($orchestratorclass)) {
+            $newselectiondefault = $orchestratorclass::get_default_initial_prompt_template_for_action(
+                \core_ai\aiactions\summarise_text::class
+            );
+            $newconstructordefault = $orchestratorclass::get_default_constructor_prompt_template();
+
+            $selection = (string)get_config('bookingextension_agent', 'aiinitialprompt_selection');
+            if (in_array($normalize($selection), $legacyseeds, true)) {
+                set_config('aiinitialprompt_selection', $newselectiondefault, 'bookingextension_agent');
+            }
+
+            $construction = (string)get_config('bookingextension_agent', 'aiinitialprompt_parameter_construction');
+            if (in_array($normalize($construction), $legacyseeds, true)) {
+                set_config('aiinitialprompt_parameter_construction', $newconstructordefault, 'bookingextension_agent');
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026082000, 'bookingextension', 'agent');
+    }
+
     return true;
 }

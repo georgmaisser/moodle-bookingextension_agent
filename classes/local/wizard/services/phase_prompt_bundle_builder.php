@@ -89,24 +89,29 @@ class phase_prompt_bundle_builder {
         $skillnames = $this->registry->get_skill_names_for_context($evaluator, $userid, $contextid);
         $skilllist = implode(', ', $skillnames);
         $phaseconfigkey = $this->promptprofilesvc->get_planner_initial_prompt_config_key_for_phase($phase);
+        $actiondefault = orchestrator::get_default_initial_prompt_template_for_action($actionclass);
+        $isconstruction = $phase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
+            && $this->is_planner_action($actionclass);
+        // The construction phase has its own default: the selector/routing template must never
+        // leak into constructor calls (#2199/#2200). A stored value equal to EITHER default
+        // (constructor default, or the legacy shared selector seed) counts as "not customized".
+        $phasedefault = $isconstruction
+            ? orchestrator::get_default_constructor_prompt_template()
+            : $actiondefault;
         $configuredtemplate = $this->promptprofilesvc->normalize_config_prompt_template(
             (string)(get_config('bookingextension_agent', $phaseconfigkey) ?? ''),
-            orchestrator::get_default_initial_prompt_template_for_action($actionclass)
+            $actiondefault
         );
+        if ($configuredtemplate !== '' && $isconstruction) {
+            $configuredtemplate = $this->promptprofilesvc->normalize_config_prompt_template(
+                $configuredtemplate,
+                $phasedefault
+            );
+        }
 
         // Keep core operational prompts fixed to avoid admin misconfiguration risks.
         // Only a single optional synthesis prefix is allowed via aiinitialprompt_summarise_text.
-        $template = $configuredtemplate !== ''
-            ? $configuredtemplate
-            : orchestrator::get_default_initial_prompt_template_for_action($actionclass);
-
-        if (
-            $configuredtemplate === ''
-            && $phase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
-            && $this->is_planner_action($actionclass)
-        ) {
-            $template = $this->get_default_constructor_prompt_template();
-        }
+        $template = $configuredtemplate !== '' ? $configuredtemplate : $phasedefault;
 
         if (
             $actionclass === generate_text::class
@@ -181,31 +186,6 @@ class phase_prompt_bundle_builder {
     }
 
     /**
-     * Return a strict constructor-only default prompt template.
-     *
-     * @return string
-     */
-    private function get_default_constructor_prompt_template(): string {
-        return <<<'PROMPT'
-You are an AI parameter constructor.
-
-CONSTRUCTOR ROLE (STRICT):
-- This call is constructor-only.
-- selected_skill is already chosen by selection phase.
-- Do NOT perform skill discovery, skill routing, or skill switching.
-- Build parameters only for selected_skill.
-- If selected_skill cannot be fulfilled with grounded input, return clarification with commands=[].
-
-SKILL CONTRACT FIRST (highest priority):
-- Follow skill-level contracts from SKILL CATALOG (minimal_input, example_input, example_parameters).
-- Use canonical parameter keys from the selected skill contract.
-
-PROMPT;
-    }
-
-
-
-    /**
      * Build the full prompt string from system prompt + message history + observations.
      *
      * Observations (from prior internal loop tool executions) are injected near the [ASSISTANT]
@@ -228,6 +208,8 @@ PROMPT;
      * @param  bool        $autoconfirmmode Whether confirmation is already allowed for this thread.
      * @param  array       $plannedstepintents Planned step intents for this thread.
      * @param  string      $runtimestate Per-request volatile runtime state appended after history.
+     * @param  bool|null   $selectedskillisreadonly Engine-known readonly flag of the selected skill
+     *                     (construction phase only; null when unknown or not applicable).
      * @return string
      */
     public function build_prompt(
@@ -239,7 +221,8 @@ PROMPT;
         array $plannertracehistory = [],
         bool $autoconfirmmode = false,
         array $plannedstepintents = [],
-        string $runtimestate = ''
+        string $runtimestate = '',
+        ?bool $selectedskillisreadonly = null
     ): string {
         $trimmedmessages = $this->promptprofilesvc->select_history_messages($messages, $phase);
 
@@ -288,7 +271,7 @@ PROMPT;
             $parts[] = "[PENDING PLANNED STEPS]\n" . implode("\n", $lines);
         }
 
-        $reminder = $this->build_output_contract_reminder($phase, $autoconfirmmode);
+        $reminder = $this->build_output_contract_reminder($phase, $autoconfirmmode, $selectedskillisreadonly);
         if ($reminder !== '') {
             $parts[] = "[OUTPUT_REMINDER]\n{$reminder}";
         }
@@ -318,6 +301,9 @@ PROMPT;
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
             $lines[] = 'For mutating intents, do not use skill_call; '
                 . 'use confirmation_request unless already completed -> sufficient.';
+            $lines[] = 'phase_handoff.selection.response_type records the SELECTION phase result only '
+                . '(a selector always reports skill_call). Never copy it; derive YOUR response_type '
+                . 'from the rules here and from the [OUTPUT_REMINDER].';
             $lines[] = 'Constructor-only phase: do not discover/switch skills. Build parameters for selected_skill only.';
             $lines[] = 'Each command.skill must equal selected_skill from phase_handoff.selection.';
             $lines[] = 'Use canonical command envelope keys only: skill, version, parameters.';
@@ -361,11 +347,29 @@ PROMPT;
      *
      * @param string $phase
      * @param bool $autoconfirmmode
+     * @param bool|null $selectedskillisreadonly Engine-known readonly flag of the selected skill.
      * @return string
      */
-    private function build_output_contract_reminder(string $phase, bool $autoconfirmmode = false): string {
+    private function build_output_contract_reminder(
+        string $phase,
+        bool $autoconfirmmode = false,
+        ?bool $selectedskillisreadonly = null
+    ): string {
         $normalizedphase = trim(strtolower($phase));
         $lines = [];
+
+        // Deterministic response_type gate from engine state (skill registry readonly flag), so the
+        // model never has to judge "is this mutating?" against the selection handoff (#2199 issue 2).
+        if (
+            $selectedskillisreadonly !== null
+            && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
+        ) {
+            $lines[] = $selectedskillisreadonly
+                ? 'selected_skill is READ-ONLY: emit response_type="skill_call" '
+                    . '(unless required input is missing -> clarification, or already answered -> sufficient).'
+                : 'selected_skill is MUTATING: emit response_type="confirmation_request", never skill_call '
+                    . '(unless the outcome is already completed -> sufficient).';
+        }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
             $lines[] = 'Auto-confirm mode is active.';
