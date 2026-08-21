@@ -433,6 +433,7 @@ class db_embeddings_store implements embeddings_store {
     public function upsert(string $area, int $generation, embedding_row $row): void {
         global $DB;
         $mapper = $this->mapper($area);
+        embeddings_dimension_guard::assert_row_matches_dims($row);
         $record = new \stdClass();
         $record->area = $area;
         $record->owner = $row->owner;

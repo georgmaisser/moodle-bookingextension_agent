@@ -197,6 +197,7 @@ class csv_embeddings_store implements embeddings_store {
         if ($state === null) {
             throw new \coding_exception('csv_embeddings_store: no open generation for area "' . $area . '".');
         }
+        embeddings_dimension_guard::assert_row_matches_dims($row);
         $state->repo->stream_write_row($state->mapper->to_csv($row));
     }
 

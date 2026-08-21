@@ -281,7 +281,9 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $embeddings,
                     'model' => $embeddingsmodel,
-                    'dimensions' => 1536,
+                    // The wunderbyte-embeddings alias resolves to bge-multilingual-gemma2 upstream
+                    // (3584-dim vectors); a mismatching declaration makes every stored vector unusable.
+                    'dimensions' => $iswbendpoint ? 3584 : 1536,
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
@@ -532,7 +534,8 @@ class trial_provisioner {
                 'settings' => [
                     'endpoint' => $embeddings,
                     'model' => 'wunderbyte-embeddings',
-                    'dimensions' => 1536,
+                    // See build_cloned_actionconfig(): the alias serves 3584-dim vectors.
+                    'dimensions' => 3584,
                 ],
             ],
             'aiprovider_wunderbyte\\aiactions\\planner_decide' => [
