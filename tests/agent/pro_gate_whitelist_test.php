@@ -28,6 +28,7 @@ namespace bookingextension_agent;
 use bookingextension_agent\local\wizard\services\agent_access_service;
 use bookingextension_agent\local\wizard\services\assistant_state_guidance_service;
 use bookingextension_agent\local\wizard\services\planner_catalog_service;
+use bookingextension_agent\local\wizard\skill_contract_validator;
 
 /**
  * Deterministic coverage for the full-access (PRO) whitelist.
@@ -134,30 +135,58 @@ final class pro_gate_whitelist_test extends \advanced_testcase {
     }
 
     /**
-     * The planner catalog split routes contracts by the same whitelist: only gated Wunderbyte
-     * write contracts land in "locked", read-only and third-party write contracts stay available.
+     * The catalog partition routes contracts by their executability verdicts: allowed skills stay
+     * selectable, PRO-denied ones land in "locked" with the upgrade notice, every other denied
+     * skill (inactive, missing capability, …) is hidden from both lists, and a contract without a
+     * verdict is treated as denied (fail closed).
      *
-     * @covers \bookingextension_agent\local\wizard\services\planner_catalog_service::split_prompt_contracts_by_full_access
+     * @covers \bookingextension_agent\local\wizard\services\planner_catalog_service::partition_prompt_contracts_by_executability
      */
-    public function test_catalog_split_routes_by_whitelist(): void {
+    public function test_catalog_partition_routes_by_verdicts(): void {
         $service = new planner_catalog_service(new assistant_state_guidance_service());
 
         $contracts = [
             ['skill' => 'mod_booking.read_only', 'readonly' => true, 'component' => 'mod/booking', 'description' => 'r'],
             ['skill' => 'mod_booking.create_option', 'readonly' => false, 'component' => 'mod/booking', 'description' => 'w'],
             ['skill' => 'thirdparty.do_write', 'readonly' => false, 'component' => 'local/foo', 'description' => 'w'],
+            ['skill' => 'course.enrol_user', 'readonly' => false, 'component' => 'bookingextension/agent', 'description' => 'w'],
+            ['skill' => 'core.no_permission', 'readonly' => true, 'component' => 'bookingextension/agent', 'description' => 'r'],
+            ['skill' => 'wizard.no_verdict', 'readonly' => true, 'component' => 'bookingextension/agent', 'description' => 'r'],
         ];
 
-        [$available, $locked] = $service->split_prompt_contracts_by_full_access($contracts);
+        $verdicts = [
+            'mod_booking.read_only' => ['executable_state' => 'allow', 'deny_reason' => ''],
+            'mod_booking.create_option' => [
+                'executable_state' => 'deny',
+                'deny_reason' => skill_contract_validator::DENY_REQUIRES_PRO,
+            ],
+            'thirdparty.do_write' => ['executable_state' => 'allow', 'deny_reason' => ''],
+            'course.enrol_user' => [
+                'executable_state' => 'deny',
+                'deny_reason' => skill_contract_validator::DENY_INACTIVE,
+            ],
+            'core.no_permission' => [
+                'executable_state' => 'deny',
+                'deny_reason' => skill_contract_validator::DENY_MISSING_CAPABILITY,
+            ],
+        ];
+
+        [$available, $locked] = $service->partition_prompt_contracts_by_executability($contracts, $verdicts);
 
         $availableskills = array_column($available, 'skill');
         $lockedskills = array_column($locked, 'skill');
 
-        $this->assertContains('mod_booking.read_only', $availableskills, 'Read-only skill must stay available.');
-        $this->assertContains('thirdparty.do_write', $availableskills, 'Third-party write skill must stay available.');
-        $this->assertContains('mod_booking.create_option', $lockedskills, 'Wunderbyte write skill must be locked.');
+        $this->assertContains('mod_booking.read_only', $availableskills, 'Allowed read-only skill must stay selectable.');
+        $this->assertContains('thirdparty.do_write', $availableskills, 'Allowed third-party write skill must stay selectable.');
+        $this->assertContains('mod_booking.create_option', $lockedskills, 'PRO-denied write skill must be locked.');
         $this->assertNotContains('mod_booking.create_option', $availableskills);
-        $this->assertNotContains('thirdparty.do_write', $lockedskills, 'Third-party write skill must never be locked.');
+
+        // Issue #2223: a skill denied for any non-PRO reason is hidden entirely — never selectable,
+        // never advertised as merely "locked".
+        foreach (['course.enrol_user', 'core.no_permission', 'wizard.no_verdict'] as $hidden) {
+            $this->assertNotContains($hidden, $availableskills, "$hidden must not be selectable.");
+            $this->assertNotContains($hidden, $lockedskills, "$hidden must not appear in the locked list.");
+        }
 
         // The locked contract carries the upgrade notice so the truncating renderer keeps it.
         $lockedcontract = array_values(array_filter(
@@ -165,5 +194,33 @@ final class pro_gate_whitelist_test extends \advanced_testcase {
             static fn(array $c): bool => $c['skill'] === 'mod_booking.create_option'
         ))[0];
         $this->assertStringContainsString('Locked', (string)$lockedcontract['description']);
+    }
+
+    /**
+     * Catalog rows from availability-agnostic sources (embeddings top-k, discovery caches) are
+     * intersected with the selectable skill set: rows for unknown/denied skills are dropped.
+     *
+     * @covers \bookingextension_agent\local\wizard\services\planner_catalog_service::filter_catalog_rows_to_skills
+     */
+    public function test_filter_catalog_rows_to_skills(): void {
+        $service = new planner_catalog_service(new assistant_state_guidance_service());
+
+        $rows = [
+            ['skill' => 'course.create_course', 'score' => 0.9],
+            ['skill' => 'course.enrol_user', 'score' => 0.8],
+            ['skill' => '', 'score' => 0.7],
+            'not-an-array',
+            ['noskillkey' => true],
+        ];
+
+        $filtered = $service->filter_catalog_rows_to_skills($rows, ['course.create_course', 'wizard.search_skills']);
+
+        $this->assertSame(['course.create_course'], array_column($filtered, 'skill'));
+
+        // The allowed set also accepts key-indexed sets (skill => true).
+        $filtered = $service->filter_catalog_rows_to_skills($rows, ['course.enrol_user' => true]);
+        $this->assertSame(['course.enrol_user'], array_column($filtered, 'skill'));
+
+        $this->assertSame([], $service->filter_catalog_rows_to_skills($rows, []));
     }
 }

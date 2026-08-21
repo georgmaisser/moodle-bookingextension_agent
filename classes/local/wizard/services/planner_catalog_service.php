@@ -20,6 +20,7 @@ namespace bookingextension_agent\local\wizard\services;
 
 use core_text;
 use bookingextension_agent\local\wizard\contracts\skill_family_contract;
+use bookingextension_agent\local\wizard\skill_contract_validator;
 use bookingextension_agent\local\wizard\skill_registry_factory;
 
 /**
@@ -456,14 +457,26 @@ class planner_catalog_service {
     }
 
     /**
-     * Split prompt contracts into readonly (selectable without full access) and
-     * mutating ones, which move to the unavailable catalog with an upgrade hint.
+     * Partition prompt contracts by their executability verdicts into the selectable
+     * catalog and the UNAVAILABLE (PRO-locked) catalog; every other denied skill is
+     * dropped entirely.
      *
-     * @param array[] $contracts
-     * @return array{0: array[], 1: array[]}
+     * The catalog gate consumes the SAME evaluator verdicts the executor backstop
+     * re-derives later, so the two gates cannot disagree (issue #2223: an inactive
+     * skill was selectable, was actively offered, and only failed at governance):
+     *  - allow                → selectable,
+     *  - deny requires_pro    → UNAVAILABLE with the Get-Pro lock notice (upsell),
+     *  - every other deny     → hidden (inactive, missing capability, not registered,
+     *                           runtime disabled, invalid context) — the planner must
+     *                           never see, offer or plan a skill the user cannot run.
+     * A contract without a verdict is treated as denied (fail closed).
+     *
+     * @param array[] $contracts prompt contracts (all registered skills)
+     * @param array $verdicts skillname-indexed results of skill_executability_evaluator::evaluate_all_skills()
+     * @return array{0: array[], 1: array[]} [selectable, locked]
      */
-    public function split_prompt_contracts_by_full_access(array $contracts): array {
-        $available = [];
+    public function partition_prompt_contracts_by_executability(array $contracts, array $verdicts): array {
+        $selectable = [];
         $locked = [];
         $upgradeurl = trim((string)get_string('aitrial_pro_license_url', 'bookingextension_agent'));
         // Prepended (not appended): the catalog renderer truncates descriptions,
@@ -477,22 +490,58 @@ class planner_catalog_service {
                 continue;
             }
 
-            // Only the write skills of Wunderbyte's own gated components move to the locked list.
-            // Read-only skills and all third-party write skills stay selectable for the planner.
-            $requiresfullaccess = agent_access_service::skill_requires_full_access(
-                !empty($contract['readonly']),
-                (string)($contract['component'] ?? '')
-            );
-            if (!$requiresfullaccess) {
-                $available[] = $contract;
+            $skillname = trim((string)($contract['skill'] ?? ''));
+            $verdict = (array)($verdicts[$skillname] ?? []);
+            if ((string)($verdict['executable_state'] ?? 'deny') === 'allow') {
+                $selectable[] = $contract;
                 continue;
             }
 
-            $contract['description'] = trim($lockednote . trim((string)($contract['description'] ?? '')));
-            $locked[] = $contract;
+            if ((string)($verdict['deny_reason'] ?? '') === skill_contract_validator::DENY_REQUIRES_PRO) {
+                $contract['description'] = trim($lockednote . trim((string)($contract['description'] ?? '')));
+                $locked[] = $contract;
+            }
         }
 
-        return [$available, $locked];
+        return [$selectable, $locked];
+    }
+
+    /**
+     * Drop catalog rows whose skill is not in the allowed skill-name set.
+     *
+     * Availability filter for catalog sources that do not originate from the partitioned
+     * contract list — embeddings top-k retrieval rows and cached discovery catalogs. The
+     * embeddings index is deliberately availability-agnostic (it is global, while
+     * executability is per user/context), so retrieval output must be intersected with
+     * the selectable set before it reaches the planner; a stale index row for a removed
+     * or disabled skill must never resurface as a selectable catalog entry.
+     *
+     * @param array[] $rows catalog/retrieval rows carrying a 'skill' key
+     * @param array $allowedskillnames skill names allowed to stay (values or keys of the set)
+     * @return array[]
+     */
+    public function filter_catalog_rows_to_skills(array $rows, array $allowedskillnames): array {
+        $allowed = [];
+        foreach ($allowedskillnames as $key => $value) {
+            $name = is_string($value) ? $value : (string)$key;
+            $name = trim($name);
+            if ($name !== '') {
+                $allowed[$name] = true;
+            }
+        }
+
+        $filtered = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if (!isset($allowed[trim((string)($row['skill'] ?? ''))])) {
+                continue;
+            }
+            $filtered[] = $row;
+        }
+
+        return array_values($filtered);
     }
 
     /**

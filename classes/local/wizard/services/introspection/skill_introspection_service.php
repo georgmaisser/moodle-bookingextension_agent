@@ -27,7 +27,6 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\introspection;
 
 use bookingextension_agent\local\wizard\interfaces\skill_introspection_provider_interface;
-use bookingextension_agent\local\wizard\services\agent_access_service;
 use bookingextension_agent\local\wizard\services\assistant_state_guidance_service;
 use bookingextension_agent\local\wizard\services\planner_catalog_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
@@ -132,11 +131,13 @@ class skill_introspection_service implements skill_introspection_provider_interf
 
         $catalogsvc = new planner_catalog_service(new assistant_state_guidance_service());
 
-        // Mirror the discovery slim_all path: without full access, only Wunderbyte's own gated
-        // write skills are non-selectable; read-only and third-party write skills stay available.
-        if (!agent_access_service::has_full_access()) {
-            [$contracts] = $catalogsvc->split_prompt_contracts_by_full_access($contracts);
-        }
+        // Mirror the discovery catalog gate: partition by executability verdicts. Denied skills
+        // (inactive, missing capability, PRO-locked, …) are not part of the rendered list — this
+        // is the same source of truth the selectable catalog uses (issue #2223).
+        [$contracts] = $catalogsvc->partition_prompt_contracts_by_executability(
+            $contracts,
+            $this->evaluator->evaluate_all_skills($userid, $contextid)
+        );
 
         $catalog = $catalogsvc->slim_prompt_catalog_for_planner($contracts);
 

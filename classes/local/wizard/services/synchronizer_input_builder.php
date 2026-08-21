@@ -132,23 +132,28 @@ class synchronizer_input_builder {
                 . 'license or an active Wunderbyte subscription. This is NOT an error, bug or malfunction.';
         }
 
-        // A pure governance availability denial is NOT a malfunction: the skill is either not
-        // enabled on this system or the user lacks the capability for it. It still travels as
+        // A pure governance availability denial is NOT a malfunction. It still travels as
         // response_type=error (so the finalization_classifier humanizes it via the synchronizer,
         // per the flowchart's "safe domain error" path), but the observation must frame it as a
         // neutral availability notice — otherwise the reply calls it an internal error.
+        // The reason line below IS the deny-reason-specific user-facing message
+        // (skill_contract_validator::get_user_facing_deny_message), so the model must only relay
+        // it — issue #2223 produced three different explanations (including a wrong "contact an
+        // administrator" for an admin user) because the old framing offered a menu of possible
+        // causes instead of binding the reply to the one actual reason.
         if (!empty($issuecodes) && array_values(array_unique($issuecodes)) === ['SKILL_DENIED']) {
             $lines = [];
             $lines[] = '[UNAVAILABLE] The requested capability is not available to this user in this '
-                . 'session. This is NOT an error, bug or malfunction — the skill is either not enabled '
-                . 'on this system or the user lacks permission for it.';
+                . 'session. This is NOT an error, bug or malfunction.';
             if (!empty($causes)) {
                 $lines[] = 'reason: ' . implode(' | ', array_unique($causes));
             }
-            $lines[] = 'Rules: State plainly and neutrally, in the user\'s language, that this capability '
-                . 'is currently not available to them (use the reason above: not enabled, or missing '
-                . 'permission). Do NOT call it an internal error, do NOT apologize for a malfunction, do '
-                . 'NOT suggest reloading or waiting, do NOT invent other causes. Keep it short and factual.';
+            $lines[] = 'Rules: Convey ONLY the reason above, translated into the user\'s language — it is '
+                . 'the complete, authoritative explanation. Do NOT add advice, workarounds, alternative '
+                . 'causes or contact suggestions (e.g. "ask an administrator") that the reason itself does '
+                . 'not contain. Do NOT call it an internal error, do NOT apologize for a malfunction, do '
+                . 'NOT suggest reloading or waiting. If no reason line is present, state only that this '
+                . 'capability is currently not available. Keep it short and factual.';
             return implode("\n", $lines);
         }
 

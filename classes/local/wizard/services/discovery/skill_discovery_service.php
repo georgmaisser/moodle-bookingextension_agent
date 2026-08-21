@@ -32,6 +32,8 @@ use bookingextension_agent\local\wizard\interfaces\skill_discovery_provider_inte
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_readiness_service;
 use bookingextension_agent\local\wizard\services\embeddings\embeddings_retrieval_service;
 use bookingextension_agent\local\wizard\services\llm\llm_call_service;
+use bookingextension_agent\local\wizard\services\security\authorization_service;
+use bookingextension_agent\local\wizard\skill_executability_evaluator;
 use bookingextension_agent\local\wizard\skill_registry;
 use bookingextension_agent\local\wizard\skill_registry_factory;
 
@@ -103,20 +105,32 @@ class skill_discovery_service implements skill_discovery_provider_interface {
             max(1, $topk)
         );
 
+        // The embeddings index is availability-agnostic, so retrieval output is gated by the same
+        // executability verdicts as the selectable catalog (issue #2223): a stale row for a removed
+        // skill (get_skill() null) or a denied skill (inactive, missing capability, PRO, …) must
+        // never be advertised to the planner as discoverable.
+        $evaluator = new skill_executability_evaluator($this->registry, new authorization_service());
         $discovered = [];
         foreach ($toprows as $row) {
             $skillname = trim((string)($row['skill'] ?? ''));
             if ($skillname === '') {
                 continue;
             }
+            $skill = $this->registry->get_skill($skillname);
+            if ($skill === null) {
+                continue;
+            }
+            $evaluation = $evaluator->evaluate_skill($skillname, $userid, $contextid);
+            if ((string)($evaluation['executable_state'] ?? '') !== 'allow') {
+                continue;
+            }
             try {
-                $skill = $this->registry->get_skill($skillname);
                 $discovered[] = [
                     'skill' => $skillname,
                     'schema' => $skill->get_schema(),
                 ];
             } catch (\Exception $e) {
-                // Ignore missing skills.
+                // Ignore skills whose schema cannot be produced.
                 unset($e);
             }
         }

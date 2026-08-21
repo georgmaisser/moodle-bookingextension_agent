@@ -156,7 +156,17 @@ class discovery_phase_service {
 
         $recentskillhistory = $this->extract_recent_skill_names_from_messages($messages);
         $isfirstassistantturn = $this->is_first_assistant_turn($messages);
-        $promptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid);
+        // ONE evaluator pass drives the whole catalog gate: the verdict partition below is the same
+        // source of truth the interpreter/executor re-derive later, so the catalog can never offer
+        // a skill governance would deny (issue #2223). allow → selectable; requires_pro → the
+        // UNAVAILABLE upsell list; every other deny (inactive, missing capability, not registered,
+        // runtime disabled, invalid context) → hidden from the planner entirely.
+        $skillverdicts = $evaluator->evaluate_all_skills($userid, $contextid);
+        [$promptcontracts, $lockedpromptcontracts] =
+            $this->catalogsvc->partition_prompt_contracts_by_executability(
+                $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true),
+                $skillverdicts
+            );
         $adaptivecatalogresult = adaptive_skill_catalog_service::get_adaptive_catalog(
             $promptcontracts,
             $recentskillhistory,
@@ -190,16 +200,11 @@ class discovery_phase_service {
         $llm = new llm_call_service($this->store);
 
         if ($shouldincludeskillcatalog) {
-            $allpromptcontracts = $this->registry->get_prompt_contracts_for_context($evaluator, $userid, $contextid, true);
-            // Full-access gate: without a PRO license or the Wunderbyte LLM subscription, only the
-            // write skills of Wunderbyte's own gated components move from the selectable catalog to
-            // UNAVAILABLE SKILLS (read-only and third-party write skills stay selectable) — the
-            // planner still sees the locked ones and the reply can point at the upgrade path
-            // instead of failing late in governance.
-            if (!agent_access_service::has_full_access()) {
-                [$allpromptcontracts, $unavailableskillcatalog] =
-                    $this->catalogsvc->split_prompt_contracts_by_full_access($allpromptcontracts);
-            }
+            // The verdict partition above already removed every denied skill: PRO-locked write
+            // skills sit in the locked list (so the planner can point at the upgrade path instead
+            // of failing late in governance), all other denied skills are simply absent.
+            $allpromptcontracts = $promptcontracts;
+            $unavailableskillcatalog = $lockedpromptcontracts;
             $runtimecatalog = $this->catalogsvc->slim_prompt_catalog_for_planner($allpromptcontracts);
             $catalogselectionmode = 'slim_all';
 
@@ -265,10 +270,16 @@ class discovery_phase_service {
                 if ($cachekey !== '' && $agentstate !== null) {
                     $cachedcatalog = $agentstate->get_discovery_family_cache($cachekey);
                     if ($cachedcatalog !== null) {
-                        $runtimecatalog = $this->catalogsvc->sanitize_runtime_catalog_for_prompt(
-                            (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog)
+                        // Re-intersect the cached catalog with the CURRENT selectable partition: a
+                        // skill toggled off (or gone) since the cache write must not resurface as a
+                        // selectable entry. The UNAVAILABLE list is not cached at all — it comes
+                        // from the fresh partition above and does not depend on embeddings.
+                        $runtimecatalog = $this->catalogsvc->filter_catalog_rows_to_skills(
+                            $this->catalogsvc->sanitize_runtime_catalog_for_prompt(
+                                (array)($cachedcatalog['runtimecatalog'] ?? $runtimecatalog)
+                            ),
+                            array_column($allpromptcontracts, 'skill')
                         );
-                        $unavailableskillcatalog = (array)($cachedcatalog['unavailableskillcatalog'] ?? $unavailableskillcatalog);
                         $catalogselectionmode = (string)($cachedcatalog['catalogselectionmode'] ?? 'embed_topk_cache');
                         $embeddingstatus = 'cached_' . trim((string)($cachedcatalog['embeddingstatus'] ?? 'applied'));
                         $embeddingrebuildqueued = !empty($cachedcatalog['embeddingrebuildqueued']);
@@ -310,6 +321,15 @@ class discovery_phase_service {
                                     (array)$embeddingcall['embedding'],
                                     $status['rows'],
                                     orchestrator::EMBEDDINGS_DEFAULT_TOP_K
+                                );
+                                // The embeddings index is availability-agnostic (global store,
+                                // per-user/context executability), so retrieval output must be
+                                // intersected with the selectable partition: a stale row for a
+                                // removed/disabled/denied skill must never re-enter the
+                                // selectable catalog through top-k (issue #2223 leak path).
+                                $toprows = $this->catalogsvc->filter_catalog_rows_to_skills(
+                                    $toprows,
+                                    array_column($allpromptcontracts, 'skill')
                                 );
 
                                 if (runtime_feature_flags::is_enabled(runtime_feature_flags::FAMILY_EMBEDDINGS_ENABLED)) {
@@ -378,7 +398,6 @@ class discovery_phase_service {
                     if ($cachekey !== '' && $agentstate !== null) {
                         $agentstate->set_discovery_family_cache($cachekey, [
                             'runtimecatalog' => $runtimecatalog,
-                            'unavailableskillcatalog' => $unavailableskillcatalog,
                             'catalogselectionmode' => $catalogselectionmode,
                             'embeddingstatus' => $embeddingstatus,
                             'embeddingrebuildqueued' => $embeddingrebuildqueued,
