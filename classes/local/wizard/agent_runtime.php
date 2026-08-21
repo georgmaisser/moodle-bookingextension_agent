@@ -463,10 +463,13 @@ class agent_runtime {
         $key = 'clarification_origin_task';
 
         if (!$this->is_blocking_clarification($result)) {
-            // Resolved, moved on, or abandoned: forget the origin task.
+            // Resolved, moved on, or abandoned: forget the origin task and the pending action.
             $this->store->set_thread_metadata_value($threadid, $key, '');
+            $this->store->set_thread_metadata_value($threadid, 'clarification_pending_action', '');
             return;
         }
+
+        $this->maintain_clarification_pending_action($threadid, $result);
 
         // Preserve the task that opened the chain; do not overwrite it with a follow-up clarification.
         $existing = trim((string)$this->store->get_thread_metadata_value($threadid, $key));
@@ -478,6 +481,37 @@ class agent_runtime {
         if ($task !== '') {
             $this->store->set_thread_metadata_value($threadid, $key, $task);
         }
+    }
+
+    /**
+     * M1 (#2220): keep a deterministic record of the ACTION a blocking clarification is about.
+     *
+     * When a skill was attempted and the turn still ended as a blocking clarification (preflight
+     * question, confirmable soft-block such as a duplicate name, missing input), the next user turn
+     * is very often a correction of exactly that action ("no, call it X instead"). The selector has
+     * no structural way to know that — measured misroute rate 3/6 (embed_topk) and 2/8 (slim_all),
+     * see Blueprint selector_correction_turn_2220_2026-08-21.md §9. This record feeds the
+     * [PENDING CLARIFICATION CONTEXT] block of the selection prompt. It is advisory prompt context,
+     * never a routing lock, and is derived purely from engine state (attempted_skills + issue_codes
+     * + the asked question) — no user-text matching. Lifecycle mirrors clarification_origin_task:
+     * refreshed on each blocking clarification that attempted a skill, preserved across follow-up
+     * clarifications without an attempt, cleared as soon as a turn resolves.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @return void
+     */
+    private function maintain_clarification_pending_action(int $threadid, array $result): void {
+        $attempted = array_values(array_filter(array_map('strval', (array)($result['attempted_skills'] ?? []))));
+        if (empty($attempted)) {
+            // Follow-up clarification without a skill attempt: keep the recorded action.
+            return;
+        }
+        $this->store->set_thread_metadata_value($threadid, 'clarification_pending_action', json_encode([
+            'skill' => (string)$attempted[0],
+            'issue_codes' => array_values(array_map('strval', (array)($result['issue_codes'] ?? []))),
+            'question' => \core_text::substr(trim((string)($result['message'] ?? '')), 0, 300),
+        ]));
     }
 
     /**

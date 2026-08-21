@@ -185,6 +185,16 @@ class planner_phase_service {
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $plannedstepintents = (new queue_manager($this->store, $this->registry))
             ->get_planned_placeholder_intents($threadid);
+        // M1 (#2220): surface the engine-recorded action of an open clarification chain so a
+        // correction reply re-selects the attempted skill (see agent_runtime, blueprint §4 M1).
+        $pendingclarification = [];
+        $pendingraw = trim((string)$this->store->get_thread_metadata_value($threadid, 'clarification_pending_action'));
+        if ($pendingraw !== '') {
+            $decoded = json_decode($pendingraw, true);
+            if (is_array($decoded)) {
+                $pendingclarification = $decoded;
+            }
+        }
         $prompt = $this->build_prompt(
             $systemprompt,
             $messages,
@@ -194,7 +204,9 @@ class planner_phase_service {
             $plannertracehistory,
             $autoconfirmmode,
             $plannedstepintents,
-            $runtimeblocks['volatile']
+            $runtimeblocks['volatile'],
+            null,
+            $pendingclarification
         );
 
         $historycount = count(

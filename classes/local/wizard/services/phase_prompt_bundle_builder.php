@@ -210,6 +210,9 @@ class phase_prompt_bundle_builder {
      * @param  string      $runtimestate Per-request volatile runtime state appended after history.
      * @param  bool|null   $selectedskillisreadonly Engine-known readonly flag of the selected skill
      *                     (construction phase only; null when unknown or not applicable).
+     * @param  array       $pendingclarification M1 (#2220): engine-recorded action the previous
+     *                     blocking clarification was about ({skill, issue_codes, question}); empty
+     *                     when no clarification chain is open. Selection phase only.
      * @return string
      */
     public function build_prompt(
@@ -222,7 +225,8 @@ class phase_prompt_bundle_builder {
         bool $autoconfirmmode = false,
         array $plannedstepintents = [],
         string $runtimestate = '',
-        ?bool $selectedskillisreadonly = null
+        ?bool $selectedskillisreadonly = null,
+        array $pendingclarification = []
     ): string {
         $trimmedmessages = $this->promptprofilesvc->select_history_messages($messages, $phase);
 
@@ -255,6 +259,36 @@ class phase_prompt_bundle_builder {
         // completed_commands by recency (and the now_iso line above them is the only thing they sit
         // under, which is volatile anyway).
         $parts = $this->append_planner_traces_and_observations($parts, $plannertracehistory, $observations);
+
+        // M1 (#2220): when the previous turn ended in a blocking clarification about an attempted
+        // action, tell the selector so a correction reply re-selects that skill instead of drifting
+        // to a follow-up skill (measured misroute 3/6 embed_topk, 2/8 slim_all without this block).
+        // Advisory context from engine state only — the model keeps the choice (a decline + new
+        // request must still route freely), so this is NOT a routing lock.
+        $pendingskill = trim((string)($pendingclarification['skill'] ?? ''));
+        if ($phase === orchestrator_prompt_profile_service::PHASE_SELECTION && $pendingskill !== '') {
+            $lines = ['The previous assistant turn asked the user a question about an attempted action:'];
+            $lines[] = '- attempted skill: ' . $pendingskill;
+            $question = trim((string)($pendingclarification['question'] ?? ''));
+            if ($question !== '') {
+                $lines[] = '- question asked: ' . str_replace(["\r", "\n"], ' ', $question);
+            }
+            $issuecodes = array_values(array_filter(array_map(
+                'strval',
+                (array)($pendingclarification['issue_codes'] ?? [])
+            )));
+            if (!empty($issuecodes)) {
+                $lines[] = '- issue codes: ' . implode(', ', $issuecodes);
+            }
+            $lines[] = 'If the user\'s current reply answers that question or corrects a detail of that '
+                . 'attempted action (for example a different name or value), select ' . $pendingskill
+                . ' again — construction applies the corrected details.';
+            $lines[] = 'If the user declines and asks for something different, route the new request '
+                . 'normally instead.';
+            $lines[] = 'Never select a skill that would operate on an entity this attempted action has '
+                . 'not created yet.';
+            $parts[] = "[PENDING CLARIFICATION CONTEXT]\n" . implode("\n", $lines);
+        }
 
         if (
             $phase === orchestrator_prompt_profile_service::PHASE_SELECTION
