@@ -84,6 +84,18 @@ class privacy_anonymizer {
     /** @var string Visual marker appended to a de-masked identity so an authorized viewer sees it was privacy-masked. */
     private const DEMASK_MARKER = '👤';
 
+    /** @var string High-confidence token-map entry (full name, person field, email — #2226 D0). */
+    public const CONFIDENCE_HIGH = 'high';
+
+    /** @var string Low-confidence token-map entry (single-word name fallback — #2226 D0). */
+    public const CONFIDENCE_LOW = 'low';
+
+    /** @var string User-preference key holding per-user word/person collision decisions (JSON). */
+    private const ANON_WORD_DECISIONS_PREF = 'bookingextension_agent_anonworddecisions';
+
+    /** @var int Maximum stored collision decisions per user (oldest pruned first). */
+    private const ANON_WORD_DECISIONS_MAX = 200;
+
     /**
      * @var string Shared email-address subpattern (no delimiters/flags) — the single address grammar
      * used by every email matcher, so they cannot drift apart.
@@ -828,7 +840,8 @@ class privacy_anonymizer {
                         'both' => $fullname,
                         'firstname' => $firsttoken,
                         'lastname' => $lasttoken,
-                    ])
+                    ]),
+                    'fullname'
                 );
                 $replaceword[$i + 1] = '';
                 $skipword[$i + 1] = true;
@@ -861,6 +874,11 @@ class privacy_anonymizer {
             if ($normalized === '' || $this->is_protected_word($normalized)) {
                 continue;
             }
+            // #2226: a stored per-user "ordinary word" decision ends single-word masking for
+            // that word — the user already told us this standalone word is not a person.
+            if ($this->get_anon_word_decision($this->acting_userid(), $tokenvalue) === 'word') {
+                continue;
+            }
 
             $matchtype = (string)($nameindex[$normalized] ?? '');
             if ($matchtype === '') {
@@ -885,7 +903,8 @@ class privacy_anonymizer {
                 $matchtype,
                 $tokenvalue,
                 $tokenvalue,
-                (array)($identity['variants'] ?? [$matchtype => $tokenvalue])
+                (array)($identity['variants'] ?? [$matchtype => $tokenvalue]),
+                'single_' . $matchtype
             );
             $count++;
         }
@@ -1171,8 +1190,16 @@ class privacy_anonymizer {
         string $type,
         string $value,
         string $original,
-        array $variants = []
+        array $variants = [],
+        string $matchreason = ''
     ): string {
+        // Deterministic confidence (#2226 D0): only the single-word name fallback (pass 2 of
+        // anonymize_names) is low confidence — everything carrying more evidence (adjacent full
+        // name, explicit person field, labeled field, email shape) is high. Legacy entries
+        // without the field are treated as high by all readers.
+        $confidence = in_array($matchreason, ['single_firstname', 'single_lastname'], true)
+            ? self::CONFIDENCE_LOW
+            : self::CONFIDENCE_HIGH;
         $entries = $map['entries'] ?? [];
         if (!is_array($entries)) {
             $entries = [];
@@ -1215,6 +1242,8 @@ class privacy_anonymizer {
                     'value' => $value,
                     'original' => $original,
                     'variants' => $this->merge_identity_variants((array)($targetentry['variants'] ?? []), $variants),
+                    'confidence' => $confidence,
+                    'matchreason' => $matchreason,
                 ];
                 $map['entries'] = $entries;
                 return $targettoken;
@@ -1231,6 +1260,8 @@ class privacy_anonymizer {
                 $entry['value'] = $value;
                 $entry['original'] = $original;
                 $entry['variants'] = $this->merge_identity_variants((array)($entry['variants'] ?? []), $variants);
+                $entry['confidence'] = $confidence;
+                $entry['matchreason'] = $matchreason;
                 $entries[$token] = $entry;
                 $map['entries'] = $entries;
                 return (string)$token;
@@ -1254,6 +1285,8 @@ class privacy_anonymizer {
             'value' => $value,
             'original' => $original,
             'variants' => $this->merge_identity_variants([], $variants),
+            'confidence' => $confidence,
+            'matchreason' => $matchreason,
         ];
         $map['entries'] = $entries;
         $map['nextid'] = $nextid + 1;
@@ -1551,6 +1584,167 @@ class privacy_anonymizer {
         }
 
         return $value;
+    }
+
+    /**
+     * Userid whose collision decisions apply to the current run (the acting user).
+     *
+     * @return int
+     */
+    private function acting_userid(): int {
+        global $USER;
+        return (int)($USER->id ?? 0);
+    }
+
+    /**
+     * Low-confidence (single-word) name tokens of a thread: token => original word (#2226 D0).
+     *
+     * With a userid, words the user already decided on (person OR ordinary word) are
+     * filtered out — a decided word needs no further contract/gate treatment.
+     *
+     * @param int $threadid
+     * @param int $userid 0 = no decision filtering.
+     * @return array<string,string>
+     */
+    public function get_low_confidence_suspects(int $threadid, int $userid = 0): array {
+        $map = $this->get_token_map($threadid);
+        $suspects = [];
+        foreach ((array)($map['entries'] ?? []) as $token => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if ((string)($entry['confidence'] ?? self::CONFIDENCE_HIGH) !== self::CONFIDENCE_LOW) {
+                continue;
+            }
+            $original = (string)($entry['original'] ?? '');
+            if ($original === '') {
+                continue;
+            }
+            if ($userid > 0 && $this->get_anon_word_decision($userid, $original) !== '') {
+                continue;
+            }
+            $suspects[(string)$token] = $original;
+        }
+
+        return $suspects;
+    }
+
+    /**
+     * Low-confidence tokens referenced by a raw (still anonymized) command input (#2226 D3).
+     *
+     * @param int $threadid
+     * @param int $userid Decision filtering (see get_low_confidence_suspects()).
+     * @param array $input Raw command input BEFORE de-anonymization.
+     * @param bool $onlypersonfields Restrict hits to person-reference fields (userquery etc.).
+     * @return array<int,array{field:string,token:string,original:string}>
+     */
+    public function find_low_confidence_token_references(
+        int $threadid,
+        int $userid,
+        array $input,
+        bool $onlypersonfields = false
+    ): array {
+        $suspects = $this->get_low_confidence_suspects($threadid, $userid);
+        if (empty($suspects)) {
+            return [];
+        }
+
+        $hits = [];
+        $walker = function ($value, string $fieldkey) use (&$walker, &$hits, $suspects, $onlypersonfields): void {
+            if (is_string($value)) {
+                $normalizedfield = core_text::strtolower(trim($fieldkey));
+                if ($onlypersonfields && !$this->is_user_reference_field($normalizedfield)) {
+                    return;
+                }
+                foreach ($suspects as $token => $original) {
+                    if (str_contains($value, (string)$token)) {
+                        $hits[] = ['field' => $fieldkey, 'token' => (string)$token, 'original' => $original];
+                    }
+                }
+                return;
+            }
+            if (is_array($value)) {
+                foreach ($value as $key => $item) {
+                    $walker($item, is_string($key) ? $key : $fieldkey);
+                }
+            }
+        };
+        $walker($input, '');
+
+        return $hits;
+    }
+
+    /**
+     * Record a user's decision for a colliding word: person name or ordinary word (#2226).
+     *
+     * @param int $userid
+     * @param string $word The literal word as the user wrote it.
+     * @param string $decision 'person' or 'word'.
+     * @return void
+     */
+    public function record_anon_word_decision(int $userid, string $word, string $decision): void {
+        $normalized = $this->normalize_name($word);
+        if ($userid <= 0 || $normalized === '' || !in_array($decision, ['person', 'word'], true)) {
+            return;
+        }
+
+        $decisions = $this->get_anon_word_decisions($userid);
+        $decisions[$normalized] = ['decision' => $decision, 'timecreated' => time()];
+        if (count($decisions) > self::ANON_WORD_DECISIONS_MAX) {
+            uasort($decisions, static fn(array $a, array $b): int =>
+                (int)($a['timecreated'] ?? 0) <=> (int)($b['timecreated'] ?? 0));
+            $decisions = array_slice($decisions, -self::ANON_WORD_DECISIONS_MAX, null, true);
+        }
+        set_user_preference(self::ANON_WORD_DECISIONS_PREF, json_encode($decisions), $userid);
+    }
+
+    /**
+     * Stored decision for a word: 'person', 'word' or '' (undecided) (#2226).
+     *
+     * @param int $userid
+     * @param string $word
+     * @return string
+     */
+    public function get_anon_word_decision(int $userid, string $word): string {
+        $normalized = $this->normalize_name($word);
+        if ($userid <= 0 || $normalized === '') {
+            return '';
+        }
+
+        $entry = $this->get_anon_word_decisions($userid)[$normalized] ?? null;
+        $decision = is_array($entry) ? (string)($entry['decision'] ?? '') : '';
+
+        return in_array($decision, ['person', 'word'], true) ? $decision : '';
+    }
+
+    /**
+     * Load the per-user collision decision list from user preferences.
+     *
+     * @param int $userid
+     * @return array<string,array{decision:string,timecreated:int}>
+     */
+    private function get_anon_word_decisions(int $userid): array {
+        $raw = (string)get_user_preferences(self::ANON_WORD_DECISIONS_PREF, '', $userid);
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Whether a command input field semantically refers to a person (#2226 D3).
+     *
+     * Public projection of the internal user-reference-field rule so the preflight
+     * gate can reuse the exact same field semantics.
+     *
+     * @param string $field
+     * @return bool
+     */
+    public function is_person_reference_field(string $field): bool {
+        return $this->is_user_reference_field(core_text::strtolower(trim($field)));
     }
 
     /**

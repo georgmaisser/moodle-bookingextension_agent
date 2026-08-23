@@ -226,6 +226,19 @@ class runtime_context_block_builder {
 
         $privacy = new privacy_anonymizer($this->store);
 
+        // Low-confidence anonymization contract (#2226 D2): when the thread's token map holds
+        // single-word name hits the user has not decided on, both planner phases get a volatile
+        // instruction block. Condition is pure engine state (token-map confidence + stored
+        // decisions); the synchronizer channel is excluded — it composes the reply, it does not
+        // route. Volatile placement keeps the cached [SYSTEM_RUNTIME] prefix stable.
+        $isplannerphase = in_array($phase, [
+            orchestrator::PHASE_SELECTION,
+            orchestrator::PHASE_PARAMETER_CONSTRUCTION,
+        ], true);
+        if ($isplannerphase && $channel !== user_memory_service::SCOPE_SYNCHRONIZATION) {
+            $this->append_low_confidence_anon_section($statelines, $privacy, $threadid);
+        }
+
         $completedcommands = $this->completedhistorysvc->extract_from_messages($messages);
         $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands);
         $completedcommands = (array)$privacy->anonymize_value_for_llm($threadid, $completedcommands);
@@ -339,10 +352,39 @@ class runtime_context_block_builder {
     }
 
     /**
-     * Append the user's current-page hint to the volatile runtime state, if one was captured.
+     * Append the low-confidence anonymization contract for undecided single-word name hits (#2226 D2).
+     *
+     * @param array $statelines
+     * @param privacy_anonymizer $privacy
+     * @param int $threadid
+     */
+    private function append_low_confidence_anon_section(
+        array &$statelines,
+        privacy_anonymizer $privacy,
+        int $threadid
+    ): void {
+        $thread = $this->store->get_thread($threadid);
+        $userid = (int)($thread->userid ?? 0);
+        $suspects = $privacy->get_low_confidence_suspects($threadid, $userid);
+        if (empty($suspects)) {
+            return;
+        }
+
+        $statelines[] = '';
+        $statelines[] = 'LOW-CONFIDENCE ANONYMIZATION NOTICE:';
+        $statelines[] = '- The following masked tokens come from a SINGLE-word name match and may be '
+            . 'ordinary words, not persons: ' . implode(', ', array_keys($suspects)) . '.';
+        $statelines[] = '- Do not select person-centric skills solely because such a token is present.';
+        $statelines[] = '- In non-person parameters (course, option, search text, titles) pass the '
+            . 'token through unchanged and treat it as an ordinary word.';
+    }
+
+    /**
+     * Append the current-page hint from the navbar snapshot in thread metadata.
      *
      * @param array $statelines
      * @param int $threadid
+     * @return void
      */
     private function append_page_context_section(array &$statelines, int $threadid): void {
         try {
