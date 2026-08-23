@@ -80,6 +80,41 @@ class preflight_pipeline {
     }
 
     /**
+     * Whether the thread already carries person context (#2226 R3 suppression).
+     *
+     * Engine-state proxy: any executed observation that resolved persons — a
+     * core.search_users run, or any executed command whose input addressed a
+     * person-reference field. In that case a person-centric follow-up is the
+     * user's plausible intent and the collision gate stays silent.
+     *
+     * @param int $threadid
+     * @param privacy_anonymizer $anonymizer
+     * @return bool
+     */
+    private function thread_has_person_context(int $threadid, privacy_anonymizer $anonymizer): bool {
+        if ($threadid <= 0) {
+            return false;
+        }
+
+        $ledger = new execution_observation_ledger($this->store);
+        foreach ($ledger->get_recent_for_runtime($threadid, 25) as $row) {
+            if ((string)($row['status'] ?? '') !== 'executed') {
+                continue;
+            }
+            if ((string)($row['skill'] ?? '') === 'core.search_users') {
+                return true;
+            }
+            foreach (array_keys((array)($row['input'] ?? [])) as $field) {
+                if (is_string($field) && $anonymizer->is_person_reference_field($field)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Run full preflight L1->L2->L3 for a command batch.
      *
      * @param mixed[] $commands
@@ -161,6 +196,46 @@ class preflight_pipeline {
             }
 
             $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+
+            // Anonymizer collision guards (#2226 D3) — evaluated on the RAW input while the
+            // ANON tokens are still present, entirely from engine state (token-map confidence,
+            // stored user decisions, skill attribute, observation ledger). Two rules:
+            // - R3 gate: a person-centric READ-ONLY skill (declarative duck-typed attribute)
+            //   whose person parameter carries a low-confidence single-word token, in a thread
+            //   without person context, must clarify instead of executing — these skills run
+            //   without a confirmation preview, so this gate is the only net (baseline SO-4).
+            // - R2 enrichment (further down, in the target-unresolved catch): a suspect token in
+            //   a NON-person slot passes through normally; only an unresolvable target names the
+            //   suspect word in the existing clarification.
+            $rawsuspectrefs = [];
+            if ($threadid > 0 && $userid > 0) {
+                $rawsuspectrefs = $anonymizer->find_low_confidence_token_references($threadid, $userid, $input);
+            }
+            if (
+                !empty($rawsuspectrefs)
+                && method_exists($skill, 'is_person_centric_readonly')
+                && (bool)$skill->is_person_centric_readonly()
+                && !$this->thread_has_person_context($threadid, $anonymizer)
+            ) {
+                $personrefs = array_values(array_filter(
+                    $rawsuspectrefs,
+                    static fn(array $ref): bool =>
+                        $anonymizer->is_person_reference_field((string)($ref['field'] ?? ''))
+                ));
+                if (!empty($personrefs)) {
+                    $word = (string)$personrefs[0]['original'];
+                    $message = get_string('agent_anon_person_reference_clarify', 'bookingextension_agent', $word);
+                    $issuecodes[] = 'ANON_PERSON_REFERENCE_VALIDATION';
+                    $errors[] = $label . ': ' . $message;
+                    $issues[] = [
+                        'code'     => 'ANON_PERSON_REFERENCE_VALIDATION',
+                        'severity' => 'needs_clarification',
+                        'message'  => $message,
+                    ];
+                    continue;
+                }
+            }
+
             if ($threadid > 0 && $userid > 0) {
                 // De-anonymize against THIS thread's token map. Never re-derive the thread from
                 // (userid, contextid): that lookup filters on status='active' and is blind to MCP
@@ -199,6 +274,18 @@ class preflight_pipeline {
                     );
                 } else {
                     $message = $e->getMessage();
+                }
+                // R2 enrichment (#2226): when the unresolvable target request carried a
+                // low-confidence anon token, name the concrete word — the user then learns
+                // WHY the target may have gone missing (the word doubled as a person name)
+                // and can answer precisely. No extra LLM call: this clarification happens anyway.
+                foreach ($rawsuspectrefs as $suspectref) {
+                    $message .= "\n" . get_string(
+                        'agent_anon_collision_word_hint',
+                        'bookingextension_agent',
+                        (string)($suspectref['original'] ?? '')
+                    );
+                    break;
                 }
                 $errors[] = $label . ': ' . $message;
                 $issues[] = [

@@ -48,6 +48,15 @@ class search_users_skill extends core_skill_base implements
     }
 
     /**
+     * A person is this skill's direct object and it executes without confirmation (#2226 R3).
+     *
+     * @return bool
+     */
+    public function is_person_centric_readonly(): bool {
+        return true;
+    }
+
+    /**
      * Return skill schema.
      *
      * @return array
