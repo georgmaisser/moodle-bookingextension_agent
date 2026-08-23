@@ -25,9 +25,12 @@ import Ajax from 'core/ajax';
 import Notification from 'core/notification';
 import Templates from 'core/templates';
 import Fragment from 'core/fragment';
+import {getString} from 'core/str';
 
 /** Pending commands waiting for user confirmation. */
 let pendingCommands = null;
+// Structured anonymizer collision decision picked via chips (#2226); sent with the next precheck.
+let pendingAnonWordDecision = null;
 let pendingQueueItemId = '';
 let currentThreadId = 0;
 let currentContextId = 0;
@@ -631,6 +634,28 @@ registerPreviewRenderer('command_list', async (payload) => {
         + '<h6 class="mb-2">Proposed Actions</h6>'
         + `<ul class="mb-0 pl-3">${items}</ul>`
         + '</div></div>';
+});
+
+// Anonymizer collision clarification (#2226): two decision chips for the suspect word.
+// The chosen decision travels as a STRUCTURED ai_privacy_precheck parameter (never parsed
+// from reply text) and is recorded server-side via record_anon_word_decision().
+registerPreviewRenderer('anon_word_decision', async(payload) => {
+    const word = String((payload && payload.word) || '').trim();
+    if (word === '') {
+        return '';
+    }
+    const [personLabel, wordLabel] = await Promise.all([
+        getString('agent_anon_chip_person', 'bookingextension_agent', word),
+        getString('agent_anon_chip_word', 'bookingextension_agent', word),
+    ]);
+    const mkChip = (decision, label) =>
+        '<button type="button" class="btn btn-outline-primary btn-sm mr-2 mb-2 booking-ai-anonword-option" '
+        + `data-word="${escapeHtml(word)}" data-decision="${decision}" `
+        + `data-query="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+    return '<div class="booking-ai-anonword-choice">'
+        + mkChip('person', personLabel)
+        + mkChip('word', wordLabel)
+        + '</div>';
 });
 
 // Human-readable, skill-agnostic preview of the PROPOSED commands shown before confirmation.
@@ -2052,9 +2077,11 @@ const sendMessage = (message) => {
             contextid: currentContextId,
             message,
             forcenewthread: forceNewThreadOnFirstMessage ? 1 : 0,
+            anonworddecision: JSON.stringify(pendingAnonWordDecision || {}),
         },
     }])[0].then((precheck) => {
         forceNewThreadOnFirstMessage = false;
+        pendingAnonWordDecision = null;
 
         if (precheck.threadid && precheck.threadid > 0) {
             currentThreadId = precheck.threadid;
@@ -3153,6 +3180,21 @@ const handleBodyClick = (event) => {
             window.open(href, '_blank', 'noopener,noreferrer');
             return;
         }
+    }
+
+    const anonBtn = target.closest('.booking-ai-anonword-option');
+    if (anonBtn instanceof HTMLElement) {
+        const word = String(anonBtn.getAttribute('data-word') || '').trim();
+        const decision = String(anonBtn.getAttribute('data-decision') || '').trim();
+        const reply = String(anonBtn.getAttribute('data-query') || '').trim();
+        if (word !== '' && (decision === 'person' || decision === 'word') && reply !== '') {
+            pendingAnonWordDecision = {word, decision};
+            anonBtn.setAttribute('aria-disabled', 'true');
+            anonBtn.classList.remove('btn-outline-primary');
+            anonBtn.classList.add('btn-primary');
+            sendMessage(reply);
+        }
+        return;
     }
 
     const optionBtn = target.closest('.booking-ai-ambiguity-option, .booking-ai-followup-option');

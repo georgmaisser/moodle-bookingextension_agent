@@ -231,6 +231,13 @@ class preflight_pipeline {
                         'code'     => 'ANON_PERSON_REFERENCE_VALIDATION',
                         'severity' => 'needs_clarification',
                         'message'  => $message,
+                        // Clarification preview (source C): the frontend renders two decision
+                        // chips for the word; the chosen decision is recorded structurally via
+                        // the ai_privacy_precheck WS parameter — never parsed from reply text.
+                        'preview'  => [
+                            'type' => 'anon_word_decision',
+                            'payload' => ['word' => $word],
+                        ],
                     ];
                     continue;
                 }

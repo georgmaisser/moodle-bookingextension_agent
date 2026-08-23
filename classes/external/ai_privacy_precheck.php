@@ -54,6 +54,14 @@ class ai_privacy_precheck extends external_api {
                 VALUE_DEFAULT,
                 0
             ),
+            'anonworddecision' => new external_value(
+                PARAM_RAW,
+                'Optional JSON object {"word":"...","decision":"person"|"word"} recording the '
+                    . 'user\'s structured answer to an anonymizer collision clarification (#2226). '
+                    . 'Recorded BEFORE the precheck so a "word" decision unmasks immediately.',
+                VALUE_DEFAULT,
+                '{}'
+            ),
         ]);
     }
 
@@ -63,9 +71,15 @@ class ai_privacy_precheck extends external_api {
      * @param int $contextid
      * @param string $message
      * @param int $forcenewthread
+     * @param string $anonworddecision
      * @return array
      */
-    public static function execute(int $contextid, string $message, int $forcenewthread = 0): array {
+    public static function execute(
+        int $contextid,
+        string $message,
+        int $forcenewthread = 0,
+        string $anonworddecision = '{}'
+    ): array {
         global $USER;
 
         require_sesskey();
@@ -74,10 +88,12 @@ class ai_privacy_precheck extends external_api {
             'contextid' => $contextid,
             'message' => $message,
             'forcenewthread' => $forcenewthread,
+            'anonworddecision' => $anonworddecision,
         ]);
         $contextid = (int)$params['contextid'];
         $message = trim((string)$params['message']);
         $forcenewthread = (int)$params['forcenewthread'];
+        $anonworddecision = (string)($params['anonworddecision'] ?? '{}');
 
         $authz = new authorization_service();
         if ($problem = $authz->check_use_readiness((int)$USER->id, $contextid)) {
@@ -120,6 +136,19 @@ class ai_privacy_precheck extends external_api {
         $threadid = (int)$thread->id;
 
         $anonymizer = new privacy_anonymizer($store);
+
+        // Structured collision decision from the clarification chips (#2226): recorded before
+        // the precheck runs, so a "word" decision stops masking that word in THIS message
+        // already. The decision comes from a button, never from parsing the reply text.
+        $decisionpayload = json_decode($anonworddecision, true);
+        if (is_array($decisionpayload)) {
+            $anonymizer->record_anon_word_decision(
+                (int)$USER->id,
+                (string)($decisionpayload['word'] ?? ''),
+                (string)($decisionpayload['decision'] ?? '')
+            );
+        }
+
         $precheck = $anonymizer->precheck_user_message($threadid, $message);
 
         $count = (int)($precheck['anonymizedcount'] ?? 0);
