@@ -874,8 +874,8 @@ class privacy_anonymizer {
             if ($normalized === '' || $this->is_protected_word($normalized)) {
                 continue;
             }
-            // #2226: a stored per-user "ordinary word" decision ends single-word masking for
-            // that word — the user already told us this standalone word is not a person.
+            // Ticket #2226: a stored per-user "ordinary word" decision ends single-word masking
+            // for that word — the user already told us this standalone word is not a person.
             if ($this->get_anon_word_decision($this->acting_userid(), $tokenvalue) === 'word') {
                 continue;
             }
@@ -1182,6 +1182,7 @@ class privacy_anonymizer {
      * @param string $value
      * @param string $original
      * @param array $variants
+     * @param string $matchreason
      * @return string
      */
     private function get_or_create_token(

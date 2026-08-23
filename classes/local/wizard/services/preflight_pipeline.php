@@ -200,13 +200,13 @@ class preflight_pipeline {
             // Anonymizer collision guards (#2226 D3) — evaluated on the RAW input while the
             // ANON tokens are still present, entirely from engine state (token-map confidence,
             // stored user decisions, skill attribute, observation ledger). Two rules:
-            // - R3 gate: a person-centric READ-ONLY skill (declarative duck-typed attribute)
-            //   whose person parameter carries a low-confidence single-word token, in a thread
-            //   without person context, must clarify instead of executing — these skills run
-            //   without a confirmation preview, so this gate is the only net (baseline SO-4).
-            // - R2 enrichment (further down, in the target-unresolved catch): a suspect token in
-            //   a NON-person slot passes through normally; only an unresolvable target names the
-            //   suspect word in the existing clarification.
+            // R3 gate: a person-centric READ-ONLY skill (declarative duck-typed attribute)
+            // whose person parameter carries a low-confidence single-word token, in a thread
+            // without person context, must clarify instead of executing — these skills run
+            // without a confirmation preview, so this gate is the only net (baseline SO-4).
+            // R2 enrichment (further down, in the target-unresolved catch): a suspect token in
+            // a NON-person slot passes through normally; only an unresolvable target names the
+            // suspect word in the existing clarification.
             $rawsuspectrefs = [];
             if ($threadid > 0 && $userid > 0) {
                 $rawsuspectrefs = $anonymizer->find_low_confidence_token_references($threadid, $userid, $input);
