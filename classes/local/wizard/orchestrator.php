@@ -315,6 +315,7 @@ class orchestrator {
      * @param int $userid
      * @param string[] $observations
      * @param string $continuation
+     * @param string[] $omittedfields Detail fields read skills did not look up this turn.
      * @return array
      */
     public function process_synchronizer(
@@ -322,7 +323,8 @@ class orchestrator {
         int $contextid,
         int $userid,
         array $observations = [],
-        string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE
+        string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE,
+        array $omittedfields = []
     ): array {
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
@@ -379,7 +381,8 @@ class orchestrator {
             $observations,
             $runtimeblocks['stable'],
             $runtimestate,
-            $continuation
+            $continuation,
+            $omittedfields
         );
 
         $llm = new llm_call_service($this->store);

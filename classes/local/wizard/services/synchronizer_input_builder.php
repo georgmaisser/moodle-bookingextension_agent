@@ -78,6 +78,46 @@ class synchronizer_input_builder {
     }
 
     /**
+     * Collect the detail fields read skills reported as NOT looked up this turn.
+     *
+     * Generic result contract, no skill knowledge: any executed row may carry
+     * detail_capabilities.omitted_fields (supported fields the call deliberately skipped).
+     * The union across all rows feeds the synchronizer's OMITTED_FIELDS_POLICY, so the
+     * condition is engine state — structured data, never a text match on observations.
+     *
+     * @param array $result
+     * @return string[]
+     */
+    public function collect_omitted_fields(array $result): array {
+        $rows = [];
+        foreach ((array)($result['loop_results'] ?? []) as $step) {
+            foreach ((array)($step['results'] ?? []) as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row;
+                }
+            }
+        }
+        foreach ((array)($result['results'] ?? []) as $row) {
+            if (is_array($row)) {
+                $rows[] = $row;
+            }
+        }
+
+        $omitted = [];
+        foreach ($rows as $row) {
+            $fields = (array)(($row['detail_capabilities']['omitted_fields'] ?? null) ?: []);
+            foreach ($fields as $field) {
+                $name = trim((string)$field);
+                if ($name !== '') {
+                    $omitted[$name] = true;
+                }
+            }
+        }
+
+        return array_keys($omitted);
+    }
+
+    /**
      * Build the structured error observation for error presentation.
      *
      * The synchronizer presents errors like any other answer (user language,

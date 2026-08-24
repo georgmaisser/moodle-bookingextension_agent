@@ -649,6 +649,10 @@ class agent_runtime {
             ? synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION
             : synchronizer_prompt_builder::CONTINUATION_NONE;
 
+        // Same principle for partial detail lookups: which fields were NOT retrieved is read from
+        // the structured result rows, so the reply contract can forbid presenting them as absent.
+        $omittedfields = $this->synchronizerinputbuilder->collect_omitted_fields($result);
+
         try {
             $syncresult = $this->synchronizerroutingsvc->call_synchronizer_step(
                 $this->orchestrator,
@@ -656,7 +660,8 @@ class agent_runtime {
                 $contextid,
                 $userid,
                 $observations,
-                $continuation
+                $continuation,
+                $omittedfields
             );
         } catch (\Throwable $e) {
             // Synchronizer polish is best-effort; return the unpolished result on failure.

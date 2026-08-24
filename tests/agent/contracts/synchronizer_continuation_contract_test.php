@@ -21,6 +21,7 @@ namespace bookingextension_agent\tests\agent\contracts;
 use bookingextension_agent\local\wizard\agent_runtime;
 use bookingextension_agent\local\wizard\queue\queue_manager;
 use bookingextension_agent\local\wizard\services\decision\agent_decision_service;
+use bookingextension_agent\local\wizard\services\synchronizer_input_builder;
 use bookingextension_agent\local\wizard\services\synchronizer_prompt_builder;
 use PHPUnit\Framework\TestCase;
 
@@ -29,6 +30,7 @@ use PHPUnit\Framework\TestCase;
  * whether anything runs after its reply — never guess or promise automatic follow-up.
  *
  * @covers \bookingextension_agent\local\wizard\services\synchronizer_prompt_builder
+ * @covers \bookingextension_agent\local\wizard\services\synchronizer_input_builder
  * @covers \bookingextension_agent\local\wizard\services\decision\agent_decision_service
  * @covers \bookingextension_agent\local\wizard\agent_runtime
  *
@@ -71,6 +73,70 @@ final class synchronizer_continuation_contract_test extends TestCase {
         $this->assertStringContainsString('PENDING STEPS POLICY', $prompt);
         $this->assertStringContainsString('ONLY after the user confirms', $prompt);
         $this->assertStringNotContainsString('TURN END POLICY', $prompt);
+    }
+
+    /**
+     * Omitted-fields truth: the policy block exists ONLY when the engine collected fields a read
+     * skill did not look up. A turn without such fields must carry no trace of it, so the cached
+     * prompt prefix and the default contract stay unchanged.
+     */
+    public function test_prompt_contract_has_no_omitted_fields_policy_by_default(): void {
+        $builder = new synchronizer_prompt_builder();
+
+        $prompt = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
+
+        $this->assertStringNotContainsString('OMITTED_FIELDS_POLICY', $prompt);
+    }
+
+    /**
+     * With omitted fields the block names them and forbids presenting them as absent — the
+     * "no seat limit defined" answer next to a card reading "0 / 12" must be impossible.
+     */
+    public function test_prompt_contract_injects_omitted_fields_policy_from_engine_state(): void {
+        $builder = new synchronizer_prompt_builder();
+
+        $prompt = $builder->build_prompt(
+            'SYSTEM PROMPT',
+            [],
+            ['some observation'],
+            '',
+            '',
+            synchronizer_prompt_builder::CONTINUATION_NONE,
+            ['availability', 'imageurl', ' availability ', '']
+        );
+
+        $this->assertStringContainsString('[OMITTED_FIELDS_POLICY]', $prompt);
+        $this->assertStringContainsString('availability, imageurl', $prompt);
+        $this->assertStringContainsString('NEVER state or imply that any of these fields is missing', $prompt);
+        // Duplicates and blanks are normalised away; the field list appears exactly once.
+        $this->assertSame(1, substr_count($prompt, 'availability, imageurl'));
+        // The block sits in the volatile tail, after the shared output contract.
+        $this->assertGreaterThan(strpos($prompt, '[OUTPUT_CONTRACT]'), strpos($prompt, '[OMITTED_FIELDS_POLICY]'));
+    }
+
+    /**
+     * The condition is read from the structured result rows (loop steps and top-level rows),
+     * de-duplicated across rows — never from observation text.
+     */
+    public function test_input_builder_collects_omitted_fields_from_result_rows(): void {
+        $builder = new synchronizer_input_builder();
+
+        $result = [
+            'response_type' => 'sufficient',
+            'loop_results' => [
+                ['results' => [
+                    ['status' => 'executed', 'detail_capabilities' => ['omitted_fields' => ['availability', 'imageurl']]],
+                    ['status' => 'executed'],
+                ]],
+                ['results' => 'not-an-array'],
+            ],
+            'results' => [
+                ['status' => 'executed', 'detail_capabilities' => ['omitted_fields' => ['imageurl', 'location']]],
+            ],
+        ];
+
+        $this->assertSame(['availability', 'imageurl', 'location'], $builder->collect_omitted_fields($result));
+        $this->assertSame([], $builder->collect_omitted_fields(['response_type' => 'sufficient']));
     }
 
     /**

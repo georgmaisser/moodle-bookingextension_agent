@@ -37,6 +37,7 @@ class synchronizer_routing_service {
      * @param int $userid
      * @param array $observations
      * @param string $continuation Continuation marker (synchronizer_prompt_builder::CONTINUATION_*); default none.
+     * @param string[] $omittedfields Detail fields read skills did not look up this turn.
      * @return array
      */
     public function call_synchronizer_step(
@@ -45,14 +46,16 @@ class synchronizer_routing_service {
         int $contextid,
         int $userid,
         array $observations,
-        string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE
+        string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE,
+        array $omittedfields = []
     ): array {
         return $orchestrator->process_synchronizer(
             $threadid,
             $contextid,
             $userid,
             $observations,
-            $continuation
+            $continuation,
+            $omittedfields
         );
     }
 }

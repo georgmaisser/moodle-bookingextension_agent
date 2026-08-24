@@ -101,6 +101,8 @@ class synchronizer_prompt_builder {
      * @param string $runtimecontext Per-thread-stable runtime facts.
      * @param string $runtimestate Per-request volatile runtime state.
      * @param string $continuation One of the CONTINUATION_* states, computed by the engine.
+     * @param string[] $omittedfields Supported detail fields a read skill did NOT look up this
+     *                                turn (engine-collected from the structured result rows).
      * @return string
      */
     public function build_prompt(
@@ -109,7 +111,8 @@ class synchronizer_prompt_builder {
         array $observations,
         string $runtimecontext = '',
         string $runtimestate = '',
-        string $continuation = self::CONTINUATION_NONE
+        string $continuation = self::CONTINUATION_NONE,
+        array $omittedfields = []
     ): string {
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -203,6 +206,24 @@ class synchronizer_prompt_builder {
                 . "Pro: [Get Pro](" . get_string('aitrial_pro_license_url', 'bookingextension_agent') . "). "
                 . "Never reveal internal skill or function names, and never tell the user to try again "
                 . "later or contact support — upgrading via the Get Pro link is the only next step.";
+        }
+
+        // Omitted-fields truth — injected ONLY when a read skill reported fields it did not look
+        // up (engine state from the structured result rows, never a text match). Without this the
+        // model reads a missing key as "the option has no such value" and contradicts the option
+        // card standing right next to its reply (no seat limit defined vs. "0 / 12").
+        $omittedfields = array_values(array_unique(array_filter(array_map(
+            static fn($field): string => trim((string)$field),
+            $omittedfields
+        ))));
+        if (!empty($omittedfields)) {
+            $parts[] = "[OMITTED_FIELDS_POLICY]\n"
+                . "The detail lookup this turn did NOT retrieve these fields: "
+                . implode(', ', $omittedfields) . ". "
+                . "Their absence from the observations says NOTHING about whether such a value exists. "
+                . "NEVER state or imply that any of these fields is missing, unset, undefined or unlimited. "
+                . "If the user asked about one of them, say plainly that it was not retrieved and offer to look "
+                . "it up. Only fields listed as empty_fields in an observation may be reported as not set.";
         }
 
         $parts[] = '[ASSISTANT]';
