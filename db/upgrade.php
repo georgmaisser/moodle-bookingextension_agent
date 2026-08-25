@@ -325,5 +325,9 @@ PROMPT;
         upgrade_plugin_savepoint(true, 2026082000, 'bookingextension', 'agent');
     }
 
+    // Idempotent on every upgrade: archetype edits on existing capabilities never deploy on
+    // their own (Moodle applies defaults only at capability creation).
+    \bookingextension_agent\local\capability_defaults_sync::apply();
+
     return true;
 }
