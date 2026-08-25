@@ -514,6 +514,11 @@ class discovery_phase_service {
             $observations,
             $this->catalogsvc->catalog_mode_is_static($catalogselectionmode)
         );
+        $runtimeblocks = $this->append_missing_fallback_policy(
+            $runtimeblocks,
+            $runtimecatalog,
+            $this->catalogsvc->catalog_mode_is_static($catalogselectionmode)
+        );
         $autoconfirmmode = $this->store->is_confirmation_allowed_for_thread($userid, $contextid, $threadid);
         $prompt = $this->build_prompt(
             $systemprompt,
@@ -622,6 +627,39 @@ class discovery_phase_service {
             }
         }
         return $runtimecatalog;
+    }
+
+    /**
+     * When the fallback skill is unavailable (capability withdrawn), instruct the planner to
+     * answer unroutable requests with an honest clarification, never a permission claim.
+     *
+     * @param array $runtimeblocks Stable/volatile runtime block strings.
+     * @param array $runtimecatalog Final planner catalog for this turn.
+     * @param bool $isstatic Static catalogs carry no meta-skills by design — no policy.
+     * @return array The runtime blocks, volatile part possibly extended.
+     */
+    private function append_missing_fallback_policy(
+        array $runtimeblocks,
+        array $runtimecatalog,
+        bool $isstatic
+    ): array {
+        if ($isstatic) {
+            return $runtimeblocks;
+        }
+        foreach ($runtimecatalog as $entry) {
+            if (trim((string)($entry['skill'] ?? '')) === 'wizard.search_skills') {
+                return $runtimeblocks;
+            }
+        }
+        $policy = "[FALLBACK POLICY]\n"
+            . 'The registry fallback (wizard.search_skills) is not available in this session. '
+            . 'When NO catalog skill matches the request, reply with response_type=clarification '
+            . 'stating that this request cannot be mapped to an available action here. Do NOT '
+            . 'attribute this to missing user permissions and do NOT name internal skills.';
+        $volatile = trim((string)($runtimeblocks['volatile'] ?? ''));
+        $runtimeblocks['volatile'] = $volatile === '' ? $policy : $volatile . "\n\n" . $policy;
+
+        return $runtimeblocks;
     }
 
     /**

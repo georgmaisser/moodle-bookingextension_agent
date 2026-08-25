@@ -100,6 +100,44 @@ final class discovery_search_skills_fallback_test extends advanced_testcase {
     }
 
     /**
+     * When the user's roles lack the fallback capability, its contract is absent and the
+     * force-add has nothing to append — the fallback vanishes silently (finding F39b).
+     * This pin documents the mechanism the FALLBACK POLICY below compensates for.
+     */
+    public function test_fallback_vanishes_when_contract_is_filtered(): void {
+        $this->resetAfterTest();
+        $topk = [['skill' => 'mod_booking.create_option']];
+        $contracts = [['skill' => 'mod_booking.create_option', 'description' => 'Create an option.']];
+
+        $out = $this->invoke($this->service(), $topk, $contracts);
+
+        $names = array_map(static fn(array $e): string => (string)($e['skill'] ?? ''), $out);
+        $this->assertNotContains('wizard.search_skills', $names);
+    }
+
+    /**
+     * A missing fallback injects the honest-degradation policy into the volatile runtime
+     * block: unroutable requests become a clarification, never an invented permission error.
+     */
+    public function test_missing_fallback_appends_honesty_policy(): void {
+        $this->resetAfterTest();
+        $svc = $this->service();
+        $m = new \ReflectionMethod($svc, 'append_missing_fallback_policy');
+        $m->setAccessible(true);
+
+        $blocks = ['stable' => 'S', 'volatile' => 'V'];
+        $without = (array)$m->invoke($svc, $blocks, [['skill' => 'mod_booking.create_option']], false);
+        $this->assertStringContainsString('[FALLBACK POLICY]', (string)$without['volatile']);
+        $this->assertStringContainsString('response_type=clarification', (string)$without['volatile']);
+
+        $withfallback = (array)$m->invoke($svc, $blocks, [['skill' => 'wizard.search_skills']], false);
+        $this->assertStringNotContainsString('[FALLBACK POLICY]', (string)$withfallback['volatile']);
+
+        $static = (array)$m->invoke($svc, $blocks, [['skill' => 'mod_booking.create_option']], true);
+        $this->assertStringNotContainsString('[FALLBACK POLICY]', (string)$static['volatile']);
+    }
+
+    /**
      * If search_skills already ranked into the top-k, it must NOT be duplicated.
      */
     public function test_no_duplicate_when_already_present(): void {
