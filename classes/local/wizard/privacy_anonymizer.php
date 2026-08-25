@@ -1144,6 +1144,25 @@ class privacy_anonymizer {
      * @param int $threadid
      * @return array
      */
+    /**
+     * Token identifiers active in this thread (empty when nothing was anonymized).
+     *
+     * @param int $threadid
+     * @return string[]
+     */
+    public function get_active_token_names(int $threadid): array {
+        return array_values(array_filter(array_map(
+            'strval',
+            array_keys($this->get_token_map($threadid)['entries'])
+        )));
+    }
+
+    /**
+     * Load token map from thread metadata.
+     *
+     * @param int $threadid
+     * @return array
+     */
     private function get_token_map(int $threadid): array {
         $map = $this->store->get_thread_metadata_value($threadid, self::TOKEN_MAP_METADATA_KEY);
         if (!is_array($map)) {

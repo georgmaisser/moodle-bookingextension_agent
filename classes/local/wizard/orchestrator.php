@@ -324,7 +324,8 @@ class orchestrator {
         int $userid,
         array $observations = [],
         string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE,
-        array $omittedfields = []
+        array $omittedfields = [],
+        array $activetokens = []
     ): array {
         $context = context::instance_by_id($contextid, MUST_EXIST);
         $manager = di::get(ai_manager::class);
@@ -382,7 +383,8 @@ class orchestrator {
             $runtimeblocks['stable'],
             $runtimestate,
             $continuation,
-            $omittedfields
+            $omittedfields,
+            $activetokens
         );
 
         $llm = new llm_call_service($this->store);

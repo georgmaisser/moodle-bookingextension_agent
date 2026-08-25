@@ -42,6 +42,26 @@ class synchronizer_prompt_builder {
      */
     public const CONTINUATION_AWAITING_CONFIRMATION = 'awaiting_confirmation';
 
+    /** The turn ends with a question to the user; nothing was executed. */
+    public const CONTINUATION_AWAITING_ANSWER = 'awaiting_answer';
+
+    /**
+     * Derive the continuation state from the final response_type (single source).
+     *
+     * @param string $responsetype
+     * @return string
+     */
+    public static function continuation_for_response_type(string $responsetype): string {
+        if ($responsetype === 'confirmation_request') {
+            return self::CONTINUATION_AWAITING_CONFIRMATION;
+        }
+        if ($responsetype === 'clarification') {
+            return self::CONTINUATION_AWAITING_ANSWER;
+        }
+
+        return self::CONTINUATION_NONE;
+    }
+
     /**
      * Build synchronizer system prompt.
      *
@@ -103,6 +123,7 @@ class synchronizer_prompt_builder {
      * @param string $continuation One of the CONTINUATION_* states, computed by the engine.
      * @param string[] $omittedfields Supported detail fields a read skill did NOT look up this
      *                                turn (engine-collected from the structured result rows).
+     * @param string[] $activetokens Anonymizer tokens active in this thread (engine state).
      * @return string
      */
     public function build_prompt(
@@ -112,7 +133,8 @@ class synchronizer_prompt_builder {
         string $runtimecontext = '',
         string $runtimestate = '',
         string $continuation = self::CONTINUATION_NONE,
-        array $omittedfields = []
+        array $omittedfields = [],
+        array $activetokens = []
     ): string {
         $parts = ["[SYSTEM]\n{$systemprompt}"];
 
@@ -159,6 +181,12 @@ class synchronizer_prompt_builder {
                 . "anything after this reply. If parts of the request were NOT completed (see the "
                 . "observations and any UNEXECUTED PLANNED STEPS list), name them explicitly as not done "
                 . "and either relay the pending question or ask the user how to proceed.\n";
+            if ($continuation === self::CONTINUATION_AWAITING_ANSWER) {
+                $continuationpolicy .=
+                    "QUESTION TURN POLICY: This reply IS a question to the user. NOTHING was executed in "
+                    . "this turn and nothing is running or scheduled. NEVER state or imply that an action "
+                    . "is in progress, was started, or was completed.\n";
+            }
         }
 
         $parts[] = "[OUTPUT_CONTRACT]\n"
@@ -224,6 +252,21 @@ class synchronizer_prompt_builder {
                 . "NEVER state or imply that any of these fields is missing, unset, undefined or unlimited. "
                 . "If the user asked about one of them, say plainly that it was not retrieved and offer to look "
                 . "it up. Only fields listed as empty_fields in an observation may be reported as not set.";
+        }
+
+        // Token truth — only when the anonymizer masked something in this thread (engine state).
+        $activetokens = array_values(array_unique(array_filter(array_map(
+            static fn($token): string => trim((string)$token),
+            $activetokens
+        ))));
+        if (!empty($activetokens)) {
+            $parts[] = "[ANON_TOKEN_POLICY]\n"
+                . "Privacy placeholders are active in this conversation: " . implode(', ', $activetokens) . ". "
+                . "They stand for real words or names; observations may show the real value in clear text. "
+                . "NEVER report a difference between a placeholder and a clear-text value as a discrepancy, "
+                . "mismatch or error, NEVER suggest renaming, correcting or deleting anything because of such "
+                . "a difference, and never quote a placeholder in your reply — use the observation's "
+                . "clear-text value instead.";
         }
 
         $parts[] = '[ASSISTANT]';

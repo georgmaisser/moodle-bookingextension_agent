@@ -206,7 +206,11 @@ class synchronizer_input_builder {
             $lines[] = 'issue_codes: ' . implode(', ', $issuecodes);
         }
         if (!empty($causes)) {
-            $lines[] = 'causes: ' . implode(' | ', array_unique($causes));
+            $lines[] = 'causes - each entry is ONE independent cause; never merge or reattribute them:';
+            $index = 1;
+            foreach (array_unique($causes) as $cause) {
+                $lines[] = 'cause ' . $index++ . ': ' . $cause;
+            }
         }
 
         $lines[] = 'Rules: explain the cause above and a sensible next step. Do NOT blame the AI provider '

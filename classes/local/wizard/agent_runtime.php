@@ -645,13 +645,17 @@ class agent_runtime {
         // confirmation_request (the queued work runs after the user confirms). Every other
         // terminal state (sufficient / clarification / error) means nothing runs after the
         // reply — the prompt contract must never let the model promise otherwise.
-        $continuation = ((string)($result['response_type'] ?? '') === 'confirmation_request')
-            ? synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION
-            : synchronizer_prompt_builder::CONTINUATION_NONE;
+        $continuation = synchronizer_prompt_builder::continuation_for_response_type(
+            (string)($result['response_type'] ?? '')
+        );
 
         // Same principle for partial detail lookups: which fields were NOT retrieved is read from
         // the structured result rows, so the reply contract can forbid presenting them as absent.
         $omittedfields = $this->synchronizerinputbuilder->collect_omitted_fields($result);
+
+        // Token truth for the reply contract: which placeholders are live comes from the
+        // thread's token map, never from text inspection.
+        $activetokens = (new privacy_anonymizer($this->store))->get_active_token_names($threadid);
 
         try {
             $syncresult = $this->synchronizerroutingsvc->call_synchronizer_step(
@@ -661,7 +665,8 @@ class agent_runtime {
                 $userid,
                 $observations,
                 $continuation,
-                $omittedfields
+                $omittedfields,
+                $activetokens
             );
         } catch (\Throwable $e) {
             // Synchronizer polish is best-effort; return the unpolished result on failure.

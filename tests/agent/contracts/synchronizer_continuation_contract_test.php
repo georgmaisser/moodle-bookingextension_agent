@@ -76,6 +76,116 @@ final class synchronizer_continuation_contract_test extends TestCase {
     }
 
     /**
+     * Without active anonymizer tokens the prompt carries no token policy.
+     */
+    public function test_prompt_contract_has_no_anon_token_policy_by_default(): void {
+        $builder = new synchronizer_prompt_builder();
+
+        $prompt = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
+
+        $this->assertStringNotContainsString('ANON_TOKEN_POLICY', $prompt);
+    }
+
+    /**
+     * With active tokens the policy forbids treating token-vs-cleartext differences as
+     * discrepancies — the fake "Title Discrepancy" with destructive suggestions must be
+     * impossible.
+     */
+    public function test_prompt_contract_injects_anon_token_policy_from_engine_state(): void {
+        $builder = new synchronizer_prompt_builder();
+
+        $prompt = $builder->build_prompt(
+            'SYSTEM PROMPT',
+            [],
+            ['some observation'],
+            '',
+            '',
+            synchronizer_prompt_builder::CONTINUATION_NONE,
+            [],
+            ['ANON_USER_1_lastname', ' ANON_USER_1_lastname ', '']
+        );
+
+        $this->assertStringContainsString('[ANON_TOKEN_POLICY]', $prompt);
+        $this->assertStringContainsString('ANON_USER_1_lastname', $prompt);
+        $this->assertStringContainsString('NEVER report a difference', $prompt);
+        $this->assertSame(1, substr_count($prompt, 'ANON_USER_1_lastname'), 'token listed exactly once in the policy');
+        $this->assertGreaterThan(strpos($prompt, '[OUTPUT_CONTRACT]'), strpos($prompt, '[ANON_TOKEN_POLICY]'));
+    }
+
+    /**
+     * A clarification turn adds the question-turn policy: nothing was executed, nothing runs —
+     * the reply is a question (fabricated "wurde erfolgreich erstellt" must be impossible).
+     */
+    public function test_prompt_contract_awaiting_answer_adds_question_policy(): void {
+        $builder = new synchronizer_prompt_builder();
+
+        $prompt = $builder->build_prompt(
+            'SYSTEM PROMPT',
+            [],
+            ['some observation'],
+            '',
+            '',
+            'awaiting_answer'
+        );
+
+        $this->assertStringContainsString('QUESTION TURN POLICY', $prompt);
+        $this->assertStringContainsString('NOTHING was executed', $prompt);
+        $this->assertStringContainsString('TURN END POLICY', $prompt);
+
+        $default = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
+        $this->assertStringNotContainsString('QUESTION TURN POLICY', $default);
+    }
+
+    /**
+     * The continuation state is derived from the final response_type in ONE place.
+     */
+    public function test_continuation_mapping_is_deterministic(): void {
+        $this->assertSame(
+            synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION,
+            synchronizer_prompt_builder::continuation_for_response_type('confirmation_request')
+        );
+        $this->assertSame(
+            'awaiting_answer',
+            synchronizer_prompt_builder::continuation_for_response_type('clarification')
+        );
+        $this->assertSame(
+            synchronizer_prompt_builder::CONTINUATION_NONE,
+            synchronizer_prompt_builder::continuation_for_response_type('sufficient')
+        );
+        $this->assertSame(
+            synchronizer_prompt_builder::CONTINUATION_NONE,
+            synchronizer_prompt_builder::continuation_for_response_type('error')
+        );
+    }
+
+    /**
+     * Error causes are enumerated one per line — a pipe-joined single line let the relay swap
+     * attributions between independent errors.
+     */
+    public function test_error_observation_enumerates_causes_separately(): void {
+        $builder = new synchronizer_input_builder();
+
+        $observations = $builder->build_observations([
+            'response_type' => 'error',
+            'errors' => [
+                'No user matched miriam@firma.at.',
+                'Multiple users matched Peter: Peter Alt, Peter Neu.',
+            ],
+        ]);
+
+        $errorobservation = '';
+        foreach ($observations as $observation) {
+            if (str_contains((string)$observation, '[ERROR]')) {
+                $errorobservation = (string)$observation;
+            }
+        }
+        $this->assertNotSame('', $errorobservation);
+        $this->assertStringContainsString('cause 1: No user matched miriam@firma.at.', $errorobservation);
+        $this->assertStringContainsString('cause 2: Multiple users matched Peter: Peter Alt, Peter Neu.', $errorobservation);
+        $this->assertStringNotContainsString(' | ', $errorobservation);
+    }
+
+    /**
      * Omitted-fields truth: the policy block exists ONLY when the engine collected fields a read
      * skill did not look up. A turn without such fields must carry no trace of it, so the cached
      * prompt prefix and the default contract stay unchanged.

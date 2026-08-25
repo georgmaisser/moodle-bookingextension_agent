@@ -47,7 +47,8 @@ class synchronizer_routing_service {
         int $userid,
         array $observations,
         string $continuation = synchronizer_prompt_builder::CONTINUATION_NONE,
-        array $omittedfields = []
+        array $omittedfields = [],
+        array $activetokens = []
     ): array {
         return $orchestrator->process_synchronizer(
             $threadid,
@@ -55,7 +56,8 @@ class synchronizer_routing_service {
             $userid,
             $observations,
             $continuation,
-            $omittedfields
+            $omittedfields,
+            $activetokens
         );
     }
 }
