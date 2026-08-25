@@ -965,9 +965,17 @@ class agent_decision_service {
             if (
                 ($status === 'soft_block' || $this->has_confirmable_prevalidation_issues($allissuecodes))
                 && !$hasclarificationissues
-                && !empty($result['commands'])
+                && !empty($preparedcommands)
             ) {
-                $confirmcommands = !empty($preparedcommands) ? $preparedcommands : (array)$result['commands'];
+                // Only preflight-prepared commands may be staged for confirmation: they carry the
+                // prepared input and the execution guard token the executor's release gate demands.
+                // Raw planner commands are token-less by definition, so a Confirm button drawn over
+                // them can only ever answer EXECUTION_GUARD_MISSING — same doctrine as the
+                // retry_hint branch above (threads 544/549). Without this gate, a hard block
+                // co-occurring with a confirmable code (duplicate signature + duplicate title)
+                // staged an unexecutable confirmation; such mixes now fall through to the
+                // clarification below.
+                $confirmcommands = $preparedcommands;
                 // Soft-confirmable: show confirmation_request with augmented message.
                 $softmessage = $validationmessage !== '' ? $validationmessage : (string)$result['message'];
                 $softnote = $this->build_operating_context_note($confirmcommands, $contextid, $outputlang);

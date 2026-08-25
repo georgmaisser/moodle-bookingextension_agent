@@ -379,6 +379,23 @@ class preflight_pipeline {
             );
         }
 
+        if ($domainresult->status === 'soft_block' && empty($preparedcommands)) {
+            // A soft block promises a confirmable continuation, which needs at least one
+            // preflight-prepared command to stage (prepared input + guard token, ch. 08 §5).
+            // When every command hard-blocked per-command — e.g. a duplicate-signature hard
+            // stop riding along with a confirmable duplicate-title code — that promise is
+            // unfulfillable: report the truthful hard_block so the queue transition does not
+            // park token-less items in blocked_confirmation that no executor could ever release.
+            $domainresult = new preflight_result_v2(
+                'hard_block',
+                $combinedissuecodes,
+                preflight_result_v2::BLOCKING_LAYER_DOMAIN,
+                0,
+                0,
+                $domainresult->durationms
+            );
+        }
+
         $errorclass = preflight_error_classifier::infer_from_issue_codes($combinedissuecodes);
         $result = $domainresult;
         if (

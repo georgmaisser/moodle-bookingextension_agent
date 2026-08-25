@@ -145,4 +145,73 @@ final class duplicate_title_confirm_guard_token_test extends abstract_agent_test
         );
     }
 
+    /**
+     * Mixed case (live repro, thread 13): title duplicate (confirmable) PLUS signature
+     * duplicate (hard block, deliberately NOT prevalidation-confirmable) in one preflight.
+     *
+     * The engine must not stage a confirmation it cannot honor: with the hard block
+     * discarding the prepared input, no guard token can exist, so offering a Confirm
+     * button guarantees EXECUTION_GUARD_MISSING. Expected instead: the clarification
+     * built from the signature question (the user answers in chat, the planner re-issues
+     * with the override) — and no token-less blocked_confirmation item in the queue.
+     */
+    public function test_hard_signature_block_never_stages_tokenless_confirmation(): void {
+        $start = time() + (7 * DAYSECS);
+        $end = $start + HOURSECS;
+
+        $this->setUser($this->teacher);
+        $this->grant_agent_capabilities_to_editingteacher();
+
+        // One existing option with the SAME title and the SAME window as the input below:
+        // the title branch fires (confirmable) AND the signature branch fires (hard).
+        $this->gen->create_option([
+            'bookingid' => (int)$this->booking->id,
+            'text' => 'Sprechstunde',
+            'maxanswers' => 5,
+            'type' => 0,
+            'coursestarttime' => $start,
+            'courseendtime' => $end,
+        ]);
+
+        [$store, , $threadid] = $this->build_runtime();
+        $threadid = (int)$threadid;
+        $contextid = $this->booking_contextid();
+        $userid = (int)$this->teacher->id;
+
+        $service = new agent_decision_service(skill_registry::make_default(), $store, new authorization_service());
+        $decision = $service->process([
+            'response_type' => 'confirmation_request',
+            'message' => 'Soll die Sprechstunde angelegt werden?',
+            'commands' => [[
+                'skill' => 'mod_booking.create_option',
+                'version' => 1,
+                'input' => [
+                    'text' => 'Sprechstunde',
+                    'coursestarttime' => $start,
+                    'courseendtime' => $end,
+                    'maxanswers' => 5,
+                ],
+            ]],
+        ], $threadid, $contextid, $userid, 'en');
+
+        $this->assertSame(
+            'clarification',
+            (string)($decision['response_type'] ?? ''),
+            'a hard signature block must surface as a clarification, never as a Confirm button: '
+                . json_encode($decision['issue_codes'] ?? [])
+        );
+
+        // No unexecutable staging: every blocked_confirmation item must carry a guard token.
+        $queuesvc = new queue_manager($store);
+        foreach ($queuesvc->get_queue_items($threadid) as $item) {
+            if ((string)($item['status'] ?? '') !== 'blocked_confirmation') {
+                continue;
+            }
+            $this->assertNotSame(
+                '',
+                trim((string)($item['guard_token'] ?? '')),
+                'the engine must never stage a token-less blocked_confirmation item'
+            );
+        }
+    }
 }
