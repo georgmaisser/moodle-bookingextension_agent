@@ -138,7 +138,6 @@ $teacherskills = [
     'wizard_list_skills' => CONTEXT_SYSTEM,
     'wizard_recall_memory' => CONTEXT_SYSTEM,
     'wizard_scaffold_skill' => CONTEXT_SYSTEM,
-    'wizard_search_skills' => CONTEXT_SYSTEM,
 ];
 
 $managerskills = [
@@ -192,6 +191,18 @@ $buildskillcapability = static function (string $skillsuffix, string $role, int 
 foreach ($teacherskills as $skillsuffix => $contextlevel) {
     $capabilities += $buildskillcapability($skillsuffix, 'teacher', $contextlevel);
 }
+
+// Read-only discovery fallback: every agent user holds it; admins can still withdraw per role.
+$capabilities['bookingextension/agent:skill_wizard_search_skills'] = [
+    'captype' => 'read',
+    'contextlevel' => CONTEXT_SYSTEM,
+    'archetypes' => [
+        'user' => CAP_ALLOW,
+        'teacher' => CAP_ALLOW,
+        'editingteacher' => CAP_ALLOW,
+        'manager' => CAP_ALLOW,
+    ],
+];
 
 foreach ($managerskills as $skillsuffix => $contextlevel) {
     $capabilities += $buildskillcapability($skillsuffix, 'manager', $contextlevel);
