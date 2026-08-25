@@ -179,6 +179,82 @@ final class preflight_anon_person_gate_test extends advanced_testcase {
     }
 
     /**
+     * The gate fires for the REAL diagnose_booking_issue skill when its person field
+     * carries a masked low-confidence token.
+     */
+    public function test_r3_gate_fires_for_real_diagnose_booking_issue(): void {
+        $this->resetAfterTest();
+        \mod_booking\local\wizard\engine_component::ensure_engine_aliases();
+        $ctx = $this->prepare();
+        $this->assertNotSame('', $ctx['token'], 'Precondition: a low-confidence token was minted.');
+
+        $result = $this->run_real_skill_pipeline(
+            $ctx,
+            'mod_booking.diagnose_booking_issue',
+            static fn(): skill_interface => new \mod_booking\local\wizard\options\skills\diagnose_booking_issue_skill(),
+            ['userquery' => $ctx['token'], 'optionquery' => 'Irrelevant']
+        );
+
+        $this->assertContains(self::ISSUE, $this->issue_codes($result));
+    }
+
+    /**
+     * A masked word in the NON-person optionquery of the real diagnose_waitinglist skill is
+     * restored to the original word before resolution (R2) — person-based option resolution
+     * from the token is impossible.
+     */
+    public function test_masked_option_word_is_restored_for_waitinglist(): void {
+        $this->resetAfterTest();
+        \mod_booking\local\wizard\engine_component::ensure_engine_aliases();
+        $ctx = $this->prepare();
+        $this->assertNotSame('', $ctx['token'], 'Precondition: a low-confidence token was minted.');
+
+        $result = $this->run_real_skill_pipeline(
+            $ctx,
+            'mod_booking.diagnose_waitinglist',
+            static fn(): skill_interface => new \mod_booking\local\wizard\options\skills\diagnose_waitinglist_skill(),
+            ['optionquery' => $ctx['token']]
+        );
+
+        $this->assertStringNotContainsString(
+            $ctx['token'],
+            json_encode($result, JSON_UNESCAPED_UNICODE),
+            'the raw ANON token must never survive into resolution'
+        );
+        $this->assertNotContains(self::ISSUE, $this->issue_codes($result), 'no person gate for a non-person slot');
+    }
+
+    /**
+     * Run the pipeline with one real skill wired into a mock registry.
+     *
+     * @param array $ctx
+     * @param string $skillname
+     * @param callable $factory
+     * @param array $input
+     * @return array
+     */
+    private function run_real_skill_pipeline(array $ctx, string $skillname, callable $factory, array $input): array {
+        $registry = $this->getMockBuilder(skill_registry::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['get_skill', 'get_skill_contract'])
+            ->getMock();
+        $registry->method('get_skill')->willReturnCallback(
+            static fn(string $name): ?skill_interface => $name === $skillname ? $factory() : null
+        );
+        $registry->method('get_skill_contract')->willReturnCallback(
+            static fn(string $name): ?array => ['skill' => $name, 'version' => 1]
+        );
+
+        $pipeline = new preflight_pipeline($registry, $ctx['store']);
+        return $pipeline->run(
+            [['skill' => $skillname, 'input' => $input, '_structural_validated' => true]],
+            $ctx['threadid'],
+            $ctx['contextid'],
+            $ctx['userid']
+        );
+    }
+
+    /**
      * R3 does not fire for high-confidence (full-name) tokens.
      */
     public function test_r3_gate_ignores_full_name_tokens(): void {

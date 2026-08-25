@@ -80,6 +80,16 @@ final class person_centric_skill_attribute_test extends advanced_testcase {
             $this->declares(new \mod_booking\local\wizard\options\skills\diagnose_cancellation_issue_skill()),
             'mod_booking.diagnose_cancellation_issue accepts a target person and must declare the attribute.'
         );
+
+        $this->assertTrue(
+            $this->declares(new \mod_booking\local\wizard\options\skills\diagnose_waitinglist_skill()),
+            'mod_booking.diagnose_waitinglist resolves free-text option words that anonymization may
+             have masked as person tokens - it must declare the attribute.'
+        );
+        $this->assertTrue(
+            $this->declares(new \mod_booking\local\wizard\options\skills\diagnose_booking_issue_skill()),
+            'mod_booking.diagnose_booking_issue takes the same free-text queries and must declare the attribute.'
+        );
     }
 
     /**
