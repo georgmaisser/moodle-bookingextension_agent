@@ -474,6 +474,16 @@ class planner_phase_service {
         );
         if (is_array($interpreted)) {
             $interpreted['_planner_raw_response'] = $rawtext;
+            if ((string)($interpreted['response_type'] ?? '') === 'clarification') {
+                // A constructor question is about the already-selected skill: carry that
+                // state on the result so the pending-action continuity record survives the
+                // turn, and mark the question as a real blocking one.
+                $interpreted['selected_skill'] = $selectedskill;
+                $interpreted['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($interpreted['issue_codes'] ?? []),
+                    ['CONSTRUCTION_INPUT_REQUIRED']
+                )));
+            }
         }
 
         return $interpreted;

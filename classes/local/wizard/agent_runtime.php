@@ -522,8 +522,14 @@ class agent_runtime {
     private function maintain_clarification_pending_action(int $threadid, array $result): void {
         $attempted = array_values(array_filter(array_map('strval', (array)($result['attempted_skills'] ?? []))));
         if (empty($attempted)) {
-            // Follow-up clarification without a skill attempt: keep the recorded action.
-            return;
+            // Constructor questions carry no attempt, but the turn's selection is engine
+            // state too — record it, or the answer turn re-selects blind (F21).
+            $selected = trim((string)($result['selected_skill'] ?? ''));
+            if ($selected === '') {
+                // Follow-up clarification without a skill attempt: keep the recorded action.
+                return;
+            }
+            $attempted = [$selected];
         }
         $this->store->set_thread_metadata_value($threadid, 'clarification_pending_action', json_encode([
             'skill' => (string)$attempted[0],
