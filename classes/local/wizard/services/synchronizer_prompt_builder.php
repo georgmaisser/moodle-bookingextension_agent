@@ -172,7 +172,10 @@ class synchronizer_prompt_builder {
             $continuationpolicy =
                 "PENDING STEPS POLICY: This turn ends awaiting the user's confirmation. Queued steps run "
                 . "ONLY after the user confirms — report what was completed and that the remaining steps "
-                . "run after confirmation. Do NOT tell the user to perform those steps manually, and never "
+                . "run after confirmation. Each confirmation executes exactly ONE queued step: when several "
+                . "steps are staged, state the position (e.g. step 2 of 5) and that every remaining step "
+                . "asks for its own confirmation — never imply one confirmation runs them all. "
+                . "Do NOT tell the user to perform those steps manually, and never "
                 . "suggest manual workarounds for actions the agent is capable of executing.\n";
         } else {
             $continuationpolicy =

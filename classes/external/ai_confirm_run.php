@@ -171,7 +171,8 @@ class ai_confirm_run extends external_api {
         if (trim($previewjson) === '' && (string)($payload['response_type'] ?? '') === 'confirmation_request') {
             $previewjson = proposed_action_preview::build_preview_json(
                 is_array($payload['commands'] ?? null) ? (array)$payload['commands'] : [],
-                $registry
+                $registry,
+                (int)($payload['series_remaining'] ?? 0)
             );
         }
         // Source C: a preflight clarification inside this confirm turn (e.g. an autoconfirmed

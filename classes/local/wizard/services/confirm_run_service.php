@@ -410,18 +410,19 @@ class confirm_run_service {
                     // intent (next first): each later confirm consumes them again, so the
                     // R1 carve-out keeps its scope across a series longer than two steps —
                     // a bare [next] would cut the authorized chain after one hand-off.
+                    $followupids = $this->followup_intent_item_ids(
+                        $queuesvc,
+                        $threadid,
+                        $confirmedintentitemids,
+                        $activequeueitemid,
+                        $nextqueueitemid
+                    );
                     $confirmationcode = $this->pendingintentsvc->set(
                         $threadid,
                         $userid,
                         $contextid,
                         [
-                            'queue_item_ids' => $this->followup_intent_item_ids(
-                                $queuesvc,
-                                $threadid,
-                                $confirmedintentitemids,
-                                $activequeueitemid,
-                                $nextqueueitemid
-                            ),
+                            'queue_item_ids' => $followupids,
                         ]
                     );
 
@@ -431,6 +432,8 @@ class confirm_run_service {
                         $finalresult['commands'] = [$nextcommand];
                     }
                     $finalresult['response_type'] = 'confirmation_request';
+                    // Steps that follow AFTER the restaged one — the preview names them.
+                    $finalresult['series_remaining'] = max(0, count($followupids) - 1);
                     if ($this->has_successful_execution_results($results)) {
                         $finalresult['message'] = (string)($feedback['message'] ?? $finalresult['message'] ?? '');
                         $finalresult['issue_codes'] = [];

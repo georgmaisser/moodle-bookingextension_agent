@@ -58,9 +58,10 @@ class proposed_action_preview {
      *
      * @param mixed[] $commands Proposed commands (each: {skill, input, …}).
      * @param skill_registry $registry
+     * @param int $followupcount Series steps that follow AFTER the staged command(s).
      * @return string JSON-encoded descriptor, or '' when there is nothing to show.
      */
-    public static function build_preview_json(array $commands, skill_registry $registry): string {
+    public static function build_preview_json(array $commands, skill_registry $registry, int $followupcount = 0): string {
         $actions = [];
         foreach ($commands as $command) {
             if (!is_array($command)) {
@@ -102,6 +103,32 @@ class proposed_action_preview {
 
         if (empty($actions)) {
             return '';
+        }
+
+        // One confirmation executes exactly one step: number the cards and say so.
+        $lang = '';
+        foreach ($commands as $command) {
+            $lang = trim((string)(((array)($command['input'] ?? []))['outputlang'] ?? ''));
+            if ($lang !== '') {
+                break;
+            }
+        }
+        $total = count($actions);
+        if ($total > 1) {
+            foreach ($actions as $i => $action) {
+                $position = $i + 1;
+                $actions[$i]['title'] = trim("({$position}/{$total}) " . (string)$action['title']);
+            }
+            $note = localized_string_service::get('ai_preview_series_first', 'bookingextension_agent', $total, $lang);
+            $actions[0]['summary'] = trim($note . ' ' . (string)$actions[0]['summary']);
+        } else if ($followupcount > 0) {
+            $note = localized_string_service::get(
+                'ai_preview_series_remaining',
+                'bookingextension_agent',
+                $followupcount,
+                $lang
+            );
+            $actions[0]['summary'] = trim($note . ' ' . (string)$actions[0]['summary']);
         }
 
         $encoded = json_encode(['type' => 'proposed_action', 'payload' => ['actions' => $actions]]);
