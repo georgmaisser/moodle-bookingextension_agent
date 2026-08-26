@@ -56,11 +56,17 @@ class synchronizer_output_contract {
         // user wording (thread 589: the German relay was discarded for the raw cause). The
         // envelope is sanitized and the MESSAGE runs through the remaining content pipeline
         // (fact conflict, source conflict, contract issues) unchanged; the source's own
-        // response_type/commands always win, so semantics cannot drift. On any other source
-        // (e.g. sufficient) a sync error envelope stays a real conflict and rejects as before.
+        // response_type/commands always win, so semantics cannot drift. On a sufficient
+        // source WITH a message a sync error envelope stays a real conflict and rejects as
+        // before; an empty-message sufficient source has no wording to protect — rejecting
+        // there would only leave the user a placeholder.
         $sanitized = false;
         $sourceresponsetype = trim((string)($source['response_type'] ?? ''));
-        if (in_array($sourceresponsetype, ['clarification', 'error'], true)) {
+        $sourcemessageempty = trim((string)($source['message'] ?? '')) === '';
+        if (
+            in_array($sourceresponsetype, ['clarification', 'error'], true)
+            || ($sourceresponsetype === 'sufficient' && $sourcemessageempty)
+        ) {
             if (trim((string)($sync['response_type'] ?? '')) === 'error') {
                 $sync['response_type'] = 'sufficient';
                 $sanitized = true;

@@ -107,6 +107,16 @@ class agent_runtime {
         // detail naming the attempted skill and the allow-list (N-591a, option C part 2).
         // Consistent with the taxonomy: CONTRACT_ codes classify TECHNICAL/retryable.
         'CONTRACT_PHASE_SKILL_NOT_ALLOWED',
+        // A clarification whose message field came back empty — a transient planner flake.
+        // One retry with the contract hint recovers it; both interpreter doors are covered.
+        'CONTRACT_EMPTY_MESSAGE_CLARIFICATION',
+        'CONTRACT_EMPTY_SELECTION_MESSAGE',
+    ];
+
+    /** Empty-message planner flakes that, once retry-exhausted, end as an honest clarification. */
+    private const EMPTY_MESSAGE_ISSUE_CODES = [
+        'CONTRACT_EMPTY_MESSAGE_CLARIFICATION',
+        'CONTRACT_EMPTY_SELECTION_MESSAGE',
     ];
 
     /** Maximum number of loop-level framework retries per issue code. */
@@ -357,6 +367,14 @@ class agent_runtime {
                         'LOOP_RETRY_EXHAUSTED_' . $exhaustedissuecode,
                     ]
                 )));
+                if (in_array($exhaustedissuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
+                    // The planner twice delivered no text: ask the user to rephrase
+                    // instead of ending the turn as a system error.
+                    $result['response_type'] = 'clarification';
+                    $result['commands'] = [];
+                    $result['errors'] = [];
+                    $result['message'] = '';
+                }
             }
 
             return $this->finalize_and_persist_result($threadid, $result, $state);
@@ -951,6 +969,12 @@ class agent_runtime {
                 . 'commands[] was empty. Emit the intended command, for example '
                 . 'commands=[{"skill":"<skill>","input":{...}}] — or, if no new command is needed, use '
                 . 'response_type=clarification, confirm_pending or sufficient instead.';
+        }
+
+        if (in_array($issuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
+            return 'RETRY_HINT: The previous output had an EMPTY message field. The message IS the text '
+                . 'shown to the user — for a clarification it is the question itself. Retry once and put '
+                . 'the full user-facing text into message, in the user\'s language.';
         }
 
         if ($issuecode === 'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS') {
