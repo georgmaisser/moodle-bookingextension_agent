@@ -188,7 +188,8 @@ class synchronizer_prompt_builder {
                 $continuationpolicy .=
                     "QUESTION TURN POLICY: This reply IS a question to the user. NOTHING was executed in "
                     . "this turn and nothing is running or scheduled. NEVER state or imply that an action "
-                    . "is in progress, was started, or was completed.\n";
+                    . "is in progress, was started, or was completed. This reply carries NO confirmation "
+                    . "button: never ask the user to 'confirm' — ask for the missing information instead.\n";
             }
         }
 

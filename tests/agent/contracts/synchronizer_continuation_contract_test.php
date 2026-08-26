@@ -143,9 +143,15 @@ final class synchronizer_continuation_contract_test extends TestCase {
         $this->assertStringContainsString('QUESTION TURN POLICY', $prompt);
         $this->assertStringContainsString('NOTHING was executed', $prompt);
         $this->assertStringContainsString('TURN END POLICY', $prompt);
+        $this->assertStringContainsString(
+            'carries NO confirmation button',
+            $prompt,
+            'a question turn must never be worded as a confirmation request (F30)'
+        );
 
         $default = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
         $this->assertStringNotContainsString('QUESTION TURN POLICY', $default);
+        $this->assertStringNotContainsString('carries NO confirmation button', $default);
     }
 
     /**
