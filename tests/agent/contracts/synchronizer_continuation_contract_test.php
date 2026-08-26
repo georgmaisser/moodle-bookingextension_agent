@@ -76,6 +76,18 @@ final class synchronizer_continuation_contract_test extends TestCase {
     }
 
     /**
+     * Concrete values may only come from observations — never reconstructed from the wish
+     * (a wrong stored date must be reported, not soothingly replaced by the request's date).
+     */
+    public function test_prompt_contract_forbids_reconstructing_values_from_the_request(): void {
+        $builder = new synchronizer_prompt_builder();
+
+        $prompt = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
+
+        $this->assertStringContainsString('NEVER reconstruct them from the user', $prompt);
+    }
+
+    /**
      * Without active anonymizer tokens the prompt carries no token policy.
      */
     public function test_prompt_contract_has_no_anon_token_policy_by_default(): void {
