@@ -2099,6 +2099,18 @@ const sendMessage = (message) => {
             });
         }
 
+        // Low-confidence suspects: render the existing chip UI proactively (L6-P1) —
+        // the designed tiebreaker must be visible wherever a single word was masked,
+        // not only behind the person-centric preflight gate.
+        if (Array.isArray(precheck.suspects) && precheck.suspects.length > 0) {
+            precheck.suspects.forEach((suspect) => {
+                dispatchSkillPreview(
+                    {type: 'anon_word_decision', payload: {word: String(suspect.word || '')}},
+                    currentContextId
+                );
+            });
+        }
+
         if (String(precheck.status || '') !== 'ok') {
             if (thinking) {
                 thinking.classList.add('d-none');

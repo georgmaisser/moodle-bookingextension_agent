@@ -29,6 +29,7 @@ namespace bookingextension_agent\external;
 use core\context;
 use core_external\external_api;
 use core_external\external_function_parameters;
+use core_external\external_multiple_structure;
 use core_external\external_single_structure;
 use core_external\external_value;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
@@ -162,6 +163,16 @@ class ai_privacy_precheck extends external_api {
             ? get_string('ai_privacy_precheck_summary', 'bookingextension_agent', $a)
             : get_string('ai_privacy_precheck_summary_none', 'bookingextension_agent');
 
+        // The chip UI (the designed low-confidence tiebreaker) can only render when the
+        // response names WHICH words are suspects - counting alone degrades silently.
+        $suspects = [];
+        $sanitized = (string)($precheck['sanitizedmessage'] ?? '');
+        foreach ($anonymizer->get_low_confidence_suspects($threadid, (int)$USER->id) as $token => $word) {
+            if ($sanitized !== '' && strpos($sanitized, (string)$token) !== false) {
+                $suspects[] = ['token' => (string)$token, 'word' => (string)$word];
+            }
+        }
+
         return [
             'status' => 'ok',
             'message' => $summary,
@@ -171,6 +182,7 @@ class ai_privacy_precheck extends external_api {
             'anonymizednames' => (int)($precheck['anonymizednames'] ?? 0),
             'elapsedms' => (int)($precheck['elapsedms'] ?? 0),
             'threadid' => $threadid,
+            'suspects' => $suspects,
             'strictmode' => $anonymizer->should_anonymize_user_input() ? 1 : 0,
         ];
     }
@@ -191,6 +203,15 @@ class ai_privacy_precheck extends external_api {
             'elapsedms' => new external_value(PARAM_INT, 'Precheck duration in milliseconds.'),
             'threadid' => new external_value(PARAM_INT, 'Thread id.'),
             'strictmode' => new external_value(PARAM_INT, '1 when strict pre-LLM mode is active, otherwise 0.'),
+            'suspects' => new external_multiple_structure(
+                new external_single_structure([
+                    'token' => new external_value(PARAM_RAW, 'Anonymization token in the sanitized message.'),
+                    'word' => new external_value(PARAM_RAW, 'Original single word the token replaced (low confidence).'),
+                ]),
+                'Low-confidence single-word suspects of THIS message for the chip UI.',
+                VALUE_DEFAULT,
+                []
+            ),
         ]);
     }
 }
