@@ -1016,6 +1016,20 @@ class interpreter implements agent_interpreter {
 
         $data = json_decode($candidate, true);
         if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+            // Salvage the German-quote idiom „Wort" (typographic opener, ASCII closer): the
+            // straight quote terminates the JSON string and kills an otherwise perfect reply.
+            // Runs ONLY after a failed parse; valid JSON never reaches this path.
+            $healed = preg_replace(
+                '/\x{201E}([^"\x{201C}\x{201D}\x{201E}]{1,120}?)"/u',
+                "\u{201E}\$1\u{201C}",
+                $candidate
+            );
+            if (is_string($healed) && $healed !== $candidate) {
+                $data = json_decode($healed, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
+                    return $data;
+                }
+            }
             $this->lastparseissuecode = 'CONTRACT_PARSE_ERROR';
             $this->lastparseinputexcerpt = $this->truncate_parse_excerpt($candidate);
             return null;
