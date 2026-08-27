@@ -132,8 +132,12 @@ final class synchronizer_output_contract_postcondition_test extends TestCase {
      */
     public function test_sync_command_payload_rejected(): void {
         $contract = new synchronizer_output_contract();
+        // A REAL sufficient source (with its own message): stray sync commands must reject.
+        // The empty-message flavour sanitizes instead (#2253) and is pinned separately in
+        // sync_empty_source_message_sanitization_test.
         $source = [
             'response_type' => 'sufficient',
+            'message'       => 'Die Option wurde erstellt.',
             'commands'      => [],
             'issue_codes'   => [],
             'results'       => [],
