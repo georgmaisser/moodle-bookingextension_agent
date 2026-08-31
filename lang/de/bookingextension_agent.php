@@ -194,6 +194,7 @@ $string['agent_booking_search_courses_listed_partial'] = 'Es werden die ersten {
 $string['agent_booking_search_courses_no_results'] = 'Keine passenden Kurse gefunden.';
 $string['agent_booking_search_courses_query_required'] = 'Feld "query" ist erforderlich.';
 $string['agent_booking_search_users_found'] = '{$a} passende(r) Nutzer gefunden.';
+$string['agent_booking_search_users_hidden_matches'] = 'Kein für Sie sichtbares Konto passt zu dieser Suche. Es gibt passende Konten, die Sie nicht einsehen dürfen — wenden Sie sich bei Bedarf an eine Person mit umfassenderen Rechten.';
 $string['agent_booking_search_users_no_results'] = 'Keine passenden Nutzer gefunden.';
 $string['agent_booking_search_users_required_query'] = 'Bitte geben Sie eine Suchanfrage für Benutzer an.';
 $string['agent_booking_unknown_skill'] = 'Unbekannter Buchungs-Skill: {$a}.';

@@ -246,14 +246,24 @@ class search_users_skill extends core_skill_base implements
         }
 
         if (empty($payloadusers)) {
-            $usermessage = $this->localized_string('agent_booking_search_users_no_results', null, $outputlang);
+            // F59: matches removed by the visibility gate must not read as non-existence.
+            // The count may travel, identities of hidden users never do.
+            $hiddenonly = $hiddencount > 0;
+            $usermessage = $this->localized_string(
+                $hiddenonly ? 'agent_booking_search_users_hidden_matches' : 'agent_booking_search_users_no_results',
+                null,
+                $outputlang
+            );
             return [
                 'status' => 'executed',
                 'detail' => $usermessage,
                 'usermessage' => $usermessage,
                 'resultid' => null,
                 'users' => [],
-                'observation_full' => 'Found 0 user(s).',
+                'observation_full' => $hiddenonly
+                    ? 'Found 0 visible user(s). ' . $hiddencount
+                        . ' matching account(s) exist but are not visible to the acting user.'
+                    : 'Found 0 user(s).',
                 'debugmessage' => $debugbase . "\nResults: 0"
                     . ($hiddencount > 0 ? "\nHidden (not visible to actor): " . $hiddencount : ''),
             ];
@@ -283,7 +293,10 @@ class search_users_skill extends core_skill_base implements
             'resultid' => (int)($payloadusers[0]['userid'] ?? 0),
             'users' => $payloadusers,
             'user' => $payloadusers[0] ?? [],
-            'observation_full' => $this->build_user_observation_full($payloadusers),
+            'observation_full' => $this->build_user_observation_full($payloadusers)
+                . ($hiddencount > 0
+                    ? "\n" . $hiddencount . ' additional matching account(s) are not visible to the acting user.'
+                    : ''),
             'debugmessage' => $debugbase . "\n" . implode("\n", $debugextra),
         ];
     }

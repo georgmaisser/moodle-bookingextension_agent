@@ -200,6 +200,7 @@ $string['agent_booking_search_courses_listed_partial'] = 'Showing the first {$a-
 $string['agent_booking_search_courses_no_results'] = 'No matching courses found.';
 $string['agent_booking_search_courses_query_required'] = 'Field "query" is required.';
 $string['agent_booking_search_users_found'] = '{$a} matching user(s) found.';
+$string['agent_booking_search_users_hidden_matches'] = 'No account visible to you matches this search. There are matching accounts you are not permitted to see — ask someone with wider access if you need them.';
 $string['agent_booking_search_users_no_results'] = 'No matching users found.';
 $string['agent_booking_search_users_required_query'] = 'Please provide a user search query.';
 $string['agent_booking_unknown_skill'] = 'Unknown booking skill: {$a}.';
