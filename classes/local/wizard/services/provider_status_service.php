@@ -143,7 +143,12 @@ class provider_status_service {
                 : true;
 
             $moduleaienabled = true;
-            if ($context->contextlevel === CONTEXT_MODULE && !$availabilitybypassed) {
+            if (
+                $context->contextlevel === CONTEXT_MODULE
+                && !$availabilitybypassed
+                // Missing on Moodle 5.0 cores — no API means the toggle counts as enabled (#2328).
+                && method_exists($manager, 'get_ai_fields_from_course_module')
+            ) {
                 // Cast: $context->instanceid is a string; get_ai_fields_from_course_module() wants int,
                 // and this service runs under declare(strict_types=1) (the orchestrator did not, so the
                 // string was silently coerced there).

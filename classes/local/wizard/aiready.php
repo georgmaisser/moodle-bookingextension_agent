@@ -471,6 +471,10 @@ class aiready {
      * @return bool
      */
     private function is_module_ai_toggle_enabled(int $cmid): bool {
+        // Missing on Moodle 5.0 cores — no API means the toggle counts as enabled (#2328).
+        if (!method_exists(ai_manager::class, 'get_ai_fields_from_course_module')) {
+            return true;
+        }
         try {
             $fields = ai_manager::get_ai_fields_from_course_module($cmid);
             return is_null($fields->enableaitools) || (bool)$fields->enableaitools;
