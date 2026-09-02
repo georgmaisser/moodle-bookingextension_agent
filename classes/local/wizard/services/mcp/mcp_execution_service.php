@@ -384,15 +384,37 @@ class mcp_execution_service {
         $pipeline = new preflight_pipeline($this->registry, $this->store);
         $preflight = $pipeline->run([$command], $threadid, $contextid, $userid);
         $preparedcommands = (array)($preflight['prepared_commands'] ?? []);
+        $confirmreasons = [];
         if ((string)($preflight['status'] ?? '') !== 'pass' || empty($preparedcommands)) {
-            return $this->error_result(
-                get_string(
-                    'mcp_error_preflight_blocked',
-                    'bookingextension_agent',
-                    implode(' ', (array)($preflight['errors'] ?? []))
-                ),
-                array_merge(['MCP_PREFLIGHT_BLOCKED'], (array)($preflight['issue_codes'] ?? []))
-            );
+            // The confirmable channel of #2239 (#2336): when EVERY blocking issue merely asks for
+            // confirmation AND the prepared command survived, stage it like any mutation and
+            // let the human decide - only hard blocks stay terminal errors.
+            $issues = (array)($preflight['issues'] ?? []);
+            $confirmable = !empty($preparedcommands) && !empty($issues);
+            foreach ($issues as $issue) {
+                if ((string)($issue['severity'] ?? '') !== 'needs_confirmation') {
+                    $confirmable = false;
+                    break;
+                }
+            }
+            if (!$confirmable) {
+                return $this->error_result(
+                    get_string(
+                        'mcp_error_preflight_blocked',
+                        'bookingextension_agent',
+                        implode(' ', (array)($preflight['errors'] ?? []))
+                    ),
+                    array_merge(['MCP_PREFLIGHT_BLOCKED'], (array)($preflight['issue_codes'] ?? []))
+                );
+            }
+            foreach ($issues as $issue) {
+                foreach (['message', 'user_question'] as $key) {
+                    $line = trim((string)($issue[$key] ?? ''));
+                    if ($line !== '') {
+                        $confirmreasons[] = $line;
+                    }
+                }
+            }
         }
         $prepared = (array)$preparedcommands[0];
         $preparedinput = (array)($prepared['input'] ?? []);
@@ -421,6 +443,9 @@ class mcp_execution_service {
         $expiresin = max(0, (int)($intent['expiresat'] ?? 0) - time());
 
         $lines = [get_string('mcp_pending_confirmation', 'bookingextension_agent')];
+        foreach ($confirmreasons as $reason) {
+            $lines[] = $reason;
+        }
         if (is_array($preview)) {
             foreach ([trim((string)($preview['title'] ?? '')), trim((string)($preview['summary'] ?? ''))] as $line) {
                 if ($line !== '') {
@@ -449,6 +474,10 @@ class mcp_execution_service {
             'expiresin' => $expiresin,
             'preview' => $preview,
         ];
+        if (!empty($confirmreasons)) {
+            $structured['confirm_reasons'] = $confirmreasons;
+            $structured['issue_codes'] = (array)($preflight['issue_codes'] ?? []);
+        }
         if ($replacedpending !== '') {
             $structured['replaced_pending'] = $replacedpending;
         }
