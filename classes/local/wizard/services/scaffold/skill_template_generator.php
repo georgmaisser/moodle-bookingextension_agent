@@ -112,6 +112,14 @@ class skill_template_generator {
 
         // Skill name: keep a valid namespaced name or derive one from component + description.
         $skillname = trim(core_text::strtolower((string)($spec['skillname'] ?? '')));
+        // A provided plain name is the caller's choice: namespace it, never replace it
+        // with the description slug (#2338).
+        if ($skillname !== '' && !skill_contract_validator::is_namespaced_skill_name($skillname)) {
+            $candidate = self::derive_namespace($component) . '.' . self::slugify($skillname);
+            if (skill_contract_validator::is_namespaced_skill_name($candidate)) {
+                $skillname = $candidate;
+            }
+        }
         if (!skill_contract_validator::is_namespaced_skill_name($skillname)) {
             $namespace = self::derive_namespace($component);
             $action = self::slugify($description !== '' ? $description : 'do_something');
@@ -914,12 +922,23 @@ PHP;
      */
     private static function slugify(string $value): string {
         $value = core_text::strtolower(trim($value));
+        // Transliterate instead of mangling umlauts to underscores (#2338).
+        $value = str_replace(
+            ['ä', 'ö', 'ü', 'ß', 'é', 'è', 'ê', 'à', 'ç'],
+            ['ae', 'oe', 'ue', 'ss', 'e', 'e', 'e', 'a', 'c'],
+            $value
+        );
         $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';
         $value = trim($value, '_');
         // Limit to a sane length and ensure it starts with a letter.
         $value = (string)preg_replace('/^[^a-z]+/', '', $value);
         if (core_text::strlen($value) > 40) {
             $value = core_text::substr($value, 0, 40);
+            // Cut at the last word boundary so no fragment like "_actio" survives (#2338).
+            $cut = strrpos($value, '_');
+            if ($cut !== false && $cut >= 20) {
+                $value = core_text::substr($value, 0, $cut);
+            }
             $value = trim($value, '_');
         }
         return $value;
