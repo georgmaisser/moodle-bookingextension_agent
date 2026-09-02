@@ -355,6 +355,35 @@ class db_embeddings_store implements embeddings_store {
     }
 
     /**
+     * Committed row counts grouped by owner (#2342: the governance page shows per-area figures).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @return array<string,int>
+     */
+    public function count_rows_by_owner(string $area, string $emodel, int $edims): array {
+        global $DB;
+        $this->mapper($area);
+        $committed = $this->committed_generation($area, $emodel, $edims);
+        if ($committed <= 0) {
+            return [];
+        }
+        $rows = $DB->get_records_sql(
+            "SELECT owner, COUNT(*) AS cnt FROM {" . self::TABLE . "}
+              WHERE area = :area AND emodel = :emodel AND edims = :edims AND generation = :generation
+           GROUP BY owner",
+            $this->variant_params($area, $emodel, $edims) + ['generation' => $committed]
+        );
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(string)$row->owner] = (int)$row->cnt;
+        }
+        ksort($counts);
+        return $counts;
+    }
+
+    /**
      * Read the stored source fingerprint the index was last built from (empty when unknown).
      *
      * @param string $area

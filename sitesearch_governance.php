@@ -200,9 +200,8 @@ $dims = (int)$resolved['dimensions'];
 $store = embeddings_store_factory::instance();
 $staterepository = new site_content_state_repository();
 
-// Current index status, once. count_rows() counts the whole 'site_content' store area (all
-// owners) — a per-owner (per-area) count is a follow-up, so the figure is the same for every row.
-$rowcount = $store->count_rows(site_content_row_mapper::AREA, $model, $dims);
+// Current index status, once: committed chunk counts per owner (= per content area, #2342).
+$ownercounts = $store->count_rows_by_owner(site_content_row_mapper::AREA, $model, $dims);
 
 // Threshold legend, so the traffic light is self-explanatory.
 echo html_writer::tag(
@@ -513,9 +512,9 @@ foreach (site_content_area_registry::all_areas() as $areakey => $descriptor) {
     }
     echo html_writer::tag('td', $estimatecell);
 
-    // Current index status ($rowcount is the store-area-wide figure computed once above).
+    // Current index status: this area's own committed chunk count (#2342).
     $cursor = $staterepository->get_cursor($areakey, $model, $dims);
-    $statushtml = get_string('sitesearchgovernance_indexedchunks', 'bookingextension_agent', $rowcount)
+    $statushtml = get_string('sitesearchgovernance_indexedchunks', 'bookingextension_agent', $ownercounts[$areakey] ?? 0)
         . '<br/><small class="text-muted">'
         . ($cursor > 0
             ? s(get_string('sitesearchgovernance_cursor', 'bookingextension_agent', userdate($cursor)))

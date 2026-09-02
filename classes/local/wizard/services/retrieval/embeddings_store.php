@@ -96,6 +96,16 @@ interface embeddings_store {
     public function count_rows(string $area, string $emodel, int $edims): int;
 
     /**
+     * Committed row counts grouped by owner (e.g. per content area of the site_content store).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @return array<string,int> owner => committed row count
+     */
+    public function count_rows_by_owner(string $area, string $emodel, int $edims): array;
+
+    /**
      * Read the stored source fingerprint the index was last built from (empty when unknown).
      *
      * @param string $area

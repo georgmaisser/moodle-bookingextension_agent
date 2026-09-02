@@ -140,6 +140,25 @@ class csv_embeddings_store implements embeddings_store {
     }
 
     /**
+     * Committed row counts grouped by owner (#2342).
+     *
+     * @param string $area
+     * @param string $emodel
+     * @param int $edims
+     * @return array<string,int>
+     */
+    public function count_rows_by_owner(string $area, string $emodel, int $edims): array {
+        $repo = $this->mapper($area)->repo_for_variant($emodel, $edims);
+        $counts = [];
+        foreach ($repo->stream_rows() as $row) {
+            $owner = (string)($row['owner'] ?? '');
+            $counts[$owner] = ($counts[$owner] ?? 0) + 1;
+        }
+        ksort($counts);
+        return $counts;
+    }
+
+    /**
      * Read the stored source fingerprint for this area/variant.
      *
      * @param string $area
