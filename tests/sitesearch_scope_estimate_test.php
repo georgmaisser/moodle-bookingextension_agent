@@ -35,6 +35,12 @@ use bookingextension_agent\local\wizard\services\sitesearch\sitesearch_scope_res
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class sitesearch_scope_estimate_test extends advanced_testcase {
+    protected function setUp(): void {
+        parent::setUp();
+        // The resolver memoizes per request; in PHPUnit one request spans every test (#2339).
+        \bookingextension_agent\local\wizard\services\sitesearch\sitesearch_scope_resolver::reset_request_cache();
+    }
+
     /** The reference module area used throughout. */
     private const AREAKEY = 'mod_page-activity';
 
