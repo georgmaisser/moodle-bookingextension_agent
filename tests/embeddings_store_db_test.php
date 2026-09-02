@@ -126,6 +126,33 @@ final class embeddings_store_db_test extends advanced_testcase {
     }
 
     /**
+     * A dims change must not leave a dead meta row behind: committing heals same-area+model
+     * leftovers with other dims — the get_record()-on-duplicates trap of #2340.
+     */
+    public function test_commit_heals_stale_other_dims_meta(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $store = $this->store();
+
+        $DB->insert_record('bx_agent_embeddings_meta', (object)[
+            'area' => self::AREA,
+            'emodel' => self::MODEL,
+            'edims' => 1536,
+            'committedgeneration' => 0,
+            'fingerprint' => 'chunker:v1',
+            'timemodified' => time() - DAYSECS,
+        ]);
+
+        $gen = $store->begin_generation(self::AREA, self::MODEL, self::DIMS);
+        $store->upsert(self::AREA, $gen, $this->docrow('a.md', 1, [0.5, -0.25, 0.125, -1.0], 'h1'));
+        $store->commit_generation(self::AREA, self::MODEL, self::DIMS, $gen);
+
+        $metas = $DB->get_records('bx_agent_embeddings_meta', ['area' => self::AREA, 'emodel' => self::MODEL]);
+        $this->assertCount(1, $metas, 'committing must heal the stale other-dims meta row');
+        $this->assertSame(self::DIMS, (int)reset($metas)->edims);
+    }
+
+    /**
      * search_top_k ranks by cosine and returns typed hits (no vector), honouring minscore.
      */
     public function test_search_top_k_ranks_and_filters(): void {

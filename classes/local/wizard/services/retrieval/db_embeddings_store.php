@@ -523,6 +523,14 @@ class db_embeddings_store implements embeddings_store {
             'area = :area AND emodel = :emodel AND edims = :edims AND generation < :generation',
             ['area' => $area, 'emodel' => $emodel, 'edims' => $edims, 'generation' => $generation]
         );
+
+        // Self-heal: a dims change leaves a dead meta row (same area+model, other dims) behind —
+        // a get_record()-on-duplicates trap for area+model readers (#2340).
+        $DB->delete_records_select(
+            self::META,
+            'area = :area AND emodel = :emodel AND edims <> :edims',
+            ['area' => $area, 'emodel' => $emodel, 'edims' => $edims]
+        );
         return $count;
     }
 
