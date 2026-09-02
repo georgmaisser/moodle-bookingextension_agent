@@ -319,15 +319,6 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
             (object)['count' => $count, 'query' => $query],
             $outputlang
         );
-        // Freshness is part of the honest answer: content created after the last committed
-        // index run is not searchable yet (#2341) — especially load-bearing on zero hits.
-        $freshts = $this->searchservice->index_freshness_time();
-        $freshness = $freshts > 0
-            ? $this->localized_string('agent_find_content_freshness', userdate($freshts), $outputlang)
-            : '';
-        if ($freshness !== '') {
-            $usermessage .= ' ' . $freshness;
-        }
 
         return [
             'status' => 'executed',
@@ -335,8 +326,7 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
             'usermessage' => $usermessage,
             'resultid' => ($count > 0) ? (int)$hits[0]['docid'] : null,
             'results' => $hits,
-            'observation_full' => $this->build_observation($query, $hits, $searchedlabels, $areasunmatched, $includecontent)
-                . ($freshness !== '' ? "\n" . $freshness : ''),
+            'observation_full' => $this->build_observation($query, $hits, $searchedlabels, $areasunmatched, $includecontent),
             'debugmessage' => $this->build_skill_debug_message(self::SKILL_NAME, $input, [
                 'Hits: ' . $count,
                 'Searched areas: ' . implode(', ', $searchedareaids),

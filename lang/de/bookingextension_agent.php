@@ -221,7 +221,6 @@ $string['agent_enabled_desc'] = 'Wenn deaktiviert, werden alle weiteren Booking-
 $string['agent_executor_run_already_executed'] = 'Ausführung bereits erfolgt (Idempotenzschlüssel stimmt überein).';
 $string['agent_executor_skill_not_registered'] = 'Kein Skill für "{$a}" registriert.';
 $string['agent_executor_structural_failure'] = 'Strukturvalidierungsfehler: {$a}.';
-$string['agent_find_content_freshness'] = 'Suchindex-Stand: {$a} — danach erstellte Inhalte sind noch nicht auffindbar.';
 $string['agent_get_pro'] = 'Pro holen';
 $string['agent_key_invalid'] = 'Dieser Key wurde vom Wunderbyte-KI-Dienst abgelehnt (ungültig oder abgelaufen). Bitte prüfe den Key und versuche es erneut.';
 $string['agent_key_invalid_format'] = 'Das sieht nicht nach einem gültigen Wunderbyte-API-Key aus (erwartetes Format: sk-…).';

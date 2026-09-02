@@ -130,26 +130,21 @@ final class sitesearch_end_to_end_test extends advanced_testcase {
     }
 
     /**
-     * Freshness surface (#2341): after a commit the service reports the publish time and the
-     * find_content answer carries it — especially load-bearing for the zero-hit case.
+     * Decision on #2341: freshness lives on the governance banner ONLY — the chat answer of
+     * find_content stays clean (no index-timestamp sentence appended by the skill).
      */
-    public function test_freshness_reaches_the_answer(): void {
+    public function test_chat_answer_stays_free_of_freshness_boilerplate(): void {
         $this->seed_world();
         (new site_content_index_service($this->embedder()))->update();
 
-        $search = new site_content_search_service($this->embedder());
-        $this->assertGreaterThan(0, $search->index_freshness_time(), 'a committed index must report its publish time');
-
-        $skill = new find_content_skill($search);
+        $skill = new find_content_skill(new site_content_search_service($this->embedder()));
         $result = $skill->execute(
             ['query' => 'Gibt es hier etwas über Ufos?'],
             (int)\context_system::instance()->id,
             (int)get_admin()->id
         );
 
-        $this->assertStringContainsString('Search index as of', (string)($result['usermessage'] ?? ''),
-            'the zero-hit answer must carry the index freshness');
-        $this->assertStringContainsString('Search index as of', (string)($result['observation_full'] ?? ''),
-            'the observation must carry it too, so the synchronizer can phrase it');
+        $this->assertStringNotContainsString('Search index as of', (string)($result['usermessage'] ?? ''));
+        $this->assertStringNotContainsString('Search index as of', (string)($result['observation_full'] ?? ''));
     }
 }

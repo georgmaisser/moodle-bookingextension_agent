@@ -229,7 +229,6 @@ $string['agent_executor_skill_not_registered'] = 'No skill registered for "{$a}"
 $string['agent_executor_structural_failure'] = 'Structural validation failure: {$a}.';
 $string['agent_find_content_areasunmatched'] = 'Note: the requested content-type filter matched no known content areas, so all enabled areas were searched.';
 $string['agent_find_content_found'] = 'Found {$a->count} content match(es) for "{$a->query}":';
-$string['agent_find_content_freshness'] = 'Search index as of {$a} — content created after that is not searchable yet.';
 $string['agent_find_content_linknote'] = 'Every result line carries its deep link (url=) and course link (courseurl=). Present these links verbatim; never invent or alter URLs.';
 $string['agent_find_content_nohits'] = 'No indexed content matched "{$a->query}". Searched areas: {$a->areas}. Suggest a broader or reworded query, or dropping the area/course restriction.';
 $string['agent_find_content_notready'] = 'Semantic site search is not enabled on this site. An administrator must switch the agent to the database embeddings store, configure the Wunderbyte AI provider and enable at least one content area on the site search governance page.';
