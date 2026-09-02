@@ -419,4 +419,75 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
             return $areaid;
         }
     }
+
+    /**
+     * Structured self-contained preview for the search hits (#2350).
+     *
+     * Escaped list of title-link, course and snippet per hit; file-backed hits (mod_resource)
+     * carry a click-to-embed button the panel turns into an in-pane document iframe.
+     *
+     * @param array $resultentry One executed skill result entry.
+     * @param int $contextid
+     * @param int $userid
+     * @return array{type:string,html:string,payload:array}|null
+     */
+    public function get_result_preview(array $resultentry, int $contextid, int $userid): ?array {
+        $hits = (array)($resultentry['results'] ?? []);
+        if (empty($hits)) {
+            return null;
+        }
+
+        $items = '';
+        foreach ($hits as $hit) {
+            if (!is_array($hit)) {
+                continue;
+            }
+            $title = trim((string)($hit['title'] ?? ''));
+            $url = trim((string)($hit['url'] ?? ''));
+            if ($title === '' || $url === '') {
+                continue;
+            }
+            $coursename = '';
+            $courseid = (int)($hit['courseid'] ?? 0);
+            if ($courseid > 0) {
+                try {
+                    $coursename = format_string((string)get_course($courseid)->fullname);
+                } catch (\Throwable $e) {
+                    $coursename = '';
+                }
+            }
+            $snippet = trim((string)($hit['snippet'] ?? ''));
+            if (\core_text::strlen($snippet) > 220) {
+                $snippet = \core_text::substr($snippet, 0, 220) . '…';
+            }
+            // Module type is engine data: only real file modules offer the in-pane document view.
+            $isfile = strpos($url, '/mod/resource/view.php') !== false;
+
+            $items .= \html_writer::start_div('mb-2 pb-2 border-bottom');
+            $items .= \html_writer::link($url, s($title), ['target' => '_blank', 'class' => 'fw-bold']);
+            if ($coursename !== '') {
+                $items .= \html_writer::div(s($coursename), 'small text-muted');
+            }
+            if ($snippet !== '') {
+                $items .= \html_writer::div(s($snippet), 'small');
+            }
+            if ($isfile) {
+                $items .= \html_writer::tag('button', get_string('agent_find_content_embedpreview', 'bookingextension_agent'), [
+                    'class' => 'btn btn-sm btn-outline-secondary mt-1',
+                    'data-embed-url' => $url,
+                    'data-embed-title' => s($title),
+                ]);
+            }
+            $items .= \html_writer::end_div();
+        }
+        if ($items === '') {
+            return null;
+        }
+
+        return [
+            'type' => 'find_content_results',
+            'html' => \html_writer::div($items, 'booking-ai-findcontent-preview'),
+            'payload' => [],
+        ];
+    }
 }

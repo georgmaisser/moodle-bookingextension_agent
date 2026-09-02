@@ -590,6 +590,24 @@ const setSidePreviewHtml = async (html, js) => {
     if (!preview) {
         return;
     }
+    // Click-to-embed for file hits (#2350): one delegated handler, attached once.
+    if (!preview.dataset.embedHandler) {
+        preview.dataset.embedHandler = '1';
+        preview.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('[data-embed-url]');
+            if (!btn) {
+                return;
+            }
+            ev.preventDefault();
+            const url = String(btn.getAttribute('data-embed-url') || '');
+            const title = String(btn.getAttribute('data-embed-title') || '');
+            preview.innerHTML = '<div class="d-flex justify-content-between align-items-center mb-1">'
+                + '<strong class="small">' + escapeHtml(title) + '</strong>'
+                + '<a href="' + escapeHtml(url) + '" target="_blank" class="small">'
+                + escapeHtml(url.replace(/^https?:\/\/[^/]+/, '')) + '</a></div>'
+                + '<iframe src="' + escapeHtml(url) + '" style="width:100%;height:60vh;border:1px solid #dee2e6;"></iframe>';
+        });
+    }
     if (String(html || '').trim() !== '') {
         expandPreviewPane();
     }
@@ -1150,10 +1168,38 @@ const renderAssistantMessageHtml = (content) => {
     }
 
     if (/<\/?[a-z][\s\S]*>/i.test(raw)) {
-        return raw;
+        return linkifyBareUrlsInHtml(raw);
     }
 
     return renderTextWithLinks(raw);
+};
+
+/**
+ * Linkify bare URLs in the TEXT segments of an HTML string (#2350).
+ *
+ * The model sometimes emits HTML with a naked URL in it; without this pass that URL stays
+ * dead text. Tags are left untouched and segments inside <a>…</a> are skipped.
+ *
+ * @param {string} html
+ * @returns {string}
+ */
+const linkifyBareUrlsInHtml = (html) => {
+    const urlRegex = /(?:https?:\/\/|\/(?:mod|admin|course|local)\/)[^\s)`"'<]+/g;
+    let anchordepth = 0;
+    return String(html || '').split(/(<[^>]*>)/).map((part) => {
+        if (part.startsWith('<')) {
+            if (/^<a[\s>]/i.test(part)) {
+                anchordepth++;
+            } else if (/^<\/a>/i.test(part)) {
+                anchordepth = Math.max(0, anchordepth - 1);
+            }
+            return part;
+        }
+        if (anchordepth > 0) {
+            return part;
+        }
+        return part.replace(urlRegex, (url) => renderSmartLink(url, url));
+    }).join('');
 };
 
 /**
