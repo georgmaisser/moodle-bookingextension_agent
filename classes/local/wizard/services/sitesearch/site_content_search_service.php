@@ -122,6 +122,30 @@ class site_content_search_service {
     }
 
     /**
+     * When the committed site-content index was last published, 0 when never (#2341).
+     *
+     * The meta timemodified is stamped by commit_generation(), so this is the moment up to
+     * which content is searchable — anything created later waits for the next index run.
+     *
+     * @return int
+     */
+    public function index_freshness_time(): int {
+        global $DB;
+        $resolved = (new embeddings_action_config_resolver())->resolve();
+        $time = $DB->get_field_select(
+            'bx_agent_embeddings_meta',
+            'timemodified',
+            'area = :area AND emodel = :emodel AND edims = :edims AND committedgeneration > 0',
+            [
+                'area' => site_content_row_mapper::AREA,
+                'emodel' => (string)$resolved['model'],
+                'edims' => (int)$resolved['dimensions'],
+            ]
+        );
+        return $time === false ? 0 : (int)$time;
+    }
+
+    /**
      * Search the site-content index for the current user, access-gated.
      *
      * @param string $query

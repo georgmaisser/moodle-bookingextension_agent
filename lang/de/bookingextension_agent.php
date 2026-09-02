@@ -221,6 +221,7 @@ $string['agent_enabled_desc'] = 'Wenn deaktiviert, werden alle weiteren Booking-
 $string['agent_executor_run_already_executed'] = 'Ausführung bereits erfolgt (Idempotenzschlüssel stimmt überein).';
 $string['agent_executor_skill_not_registered'] = 'Kein Skill für "{$a}" registriert.';
 $string['agent_executor_structural_failure'] = 'Strukturvalidierungsfehler: {$a}.';
+$string['agent_find_content_freshness'] = 'Suchindex-Stand: {$a} — danach erstellte Inhalte sind noch nicht auffindbar.';
 $string['agent_get_pro'] = 'Pro holen';
 $string['agent_key_invalid'] = 'Dieser Key wurde vom Wunderbyte-KI-Dienst abgelehnt (ungültig oder abgelaufen). Bitte prüfe den Key und versuche es erneut.';
 $string['agent_key_invalid_format'] = 'Das sieht nicht nach einem gültigen Wunderbyte-API-Key aus (erwartetes Format: sk-…).';
@@ -916,6 +917,7 @@ $string['shortcode_warning_invalid_securitytoken'] = 'Das Sicherheits-Token in d
 $string['shortcode_warning_missing_securitytoken'] = 'Diesem [wbbagent]-Shortcode fehlt das erforderliche securitytoken.';
 $string['shortcodetoken'] = 'Sicherheits-Token für Shortcode';
 $string['shortcodetoken_desc'] = 'Token, das der [wbbagent]-Shortcode benötigt, z. B. [wbbagent securitytoken=ABCDEFGH]. Automatisch erzeugt; ändern Sie es, um alle bereits platzierten Shortcodes ungültig zu machen.';
+$string['sitesearchgovernance_freshness'] = 'Index-Stand: letzter Lauf {$a->last}, nächster Lauf {$a->next}. Neue oder geänderte Inhalte sind erst nach dem nächsten Lauf auffindbar.';
 $string['skillgovernance'] = 'Skill-Verwaltung';
 $string['skillgovernance_gate_available'] = 'Verfügbar';
 $string['skillgovernance_gate_blocked'] = 'Blockiert';

@@ -203,6 +203,22 @@ $staterepository = new site_content_state_repository();
 // Current index status, once: committed chunk counts per owner (= per content area, #2342).
 $ownercounts = $store->count_rows_by_owner(site_content_row_mapper::AREA, $model, $dims);
 
+// Freshness header (#2341): when the index last ran and when it will next — otherwise newly
+// created content silently looks unfindable until the next scheduled run.
+$indextask = \core\task\manager::get_scheduled_task(\bookingextension_agent\task\rebuild_site_content_embeddings::class);
+if ($indextask) {
+    $lastrun = (int)$indextask->get_last_run_time();
+    $nextrun = (int)$indextask->get_next_run_time();
+    echo $OUTPUT->notification(
+        get_string('sitesearchgovernance_freshness', 'bookingextension_agent', (object)[
+            'last' => $lastrun > 0 ? userdate($lastrun) : get_string('never'),
+            'next' => $nextrun > 0 ? userdate($nextrun) : get_string('never'),
+        ]),
+        'info',
+        false
+    );
+}
+
 // Threshold legend, so the traffic light is self-explanatory.
 echo html_writer::tag(
     'p',

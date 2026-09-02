@@ -229,6 +229,7 @@ $string['agent_executor_skill_not_registered'] = 'No skill registered for "{$a}"
 $string['agent_executor_structural_failure'] = 'Structural validation failure: {$a}.';
 $string['agent_find_content_areasunmatched'] = 'Note: the requested content-type filter matched no known content areas, so all enabled areas were searched.';
 $string['agent_find_content_found'] = 'Found {$a->count} content match(es) for "{$a->query}":';
+$string['agent_find_content_freshness'] = 'Search index as of {$a} — content created after that is not searchable yet.';
 $string['agent_find_content_linknote'] = 'Every result line carries its deep link (url=) and course link (courseurl=). Present these links verbatim; never invent or alter URLs.';
 $string['agent_find_content_nohits'] = 'No indexed content matched "{$a->query}". Searched areas: {$a->areas}. Suggest a broader or reworded query, or dropping the area/course restriction.';
 $string['agent_find_content_notready'] = 'Semantic site search is not enabled on this site. An administrator must switch the agent to the database embeddings store, configure the Wunderbyte AI provider and enable at least one content area on the site search governance page.';
@@ -992,6 +993,7 @@ $string['sitesearchgovernance_estimate_unavailable'] = 'Estimate unavailable (ar
 $string['sitesearchgovernance_files'] = 'Index files (PDF)';
 $string['sitesearchgovernance_files_desc'] = 'Areas marked "Index files (PDF)" additionally extract and index the text of their attached PDF files (e.g. File resources, forum attachments). Every PDF is extracted and embedded, which increases index size and embedding cost — while a scope\'s file flag is on, its size estimate includes the file content. Changing a file flag triggers a targeted re-sync of the affected courses right away.';
 $string['sitesearchgovernance_files_noextractor'] = 'No PDF extractor is available on this server (neither the pdftotext binary nor the bundled parser) — file indexing stays inactive until one is available.';
+$string['sitesearchgovernance_freshness'] = 'Index freshness: last completed run {$a->last}, next scheduled run {$a->next}. New or changed content becomes searchable only after the next run.';
 $string['sitesearchgovernance_gate_notice'] = 'Semantic site search requires the Wunderbyte embeddings provider (aiprovider_wunderbyte), Moodle 5 or later, and the database embeddings backend (setting "Embeddings store" set to Database).';
 $string['sitesearchgovernance_indexedchunks'] = 'Indexed chunks: {$a}';
 $string['sitesearchgovernance_indexstatus'] = 'Index status';
