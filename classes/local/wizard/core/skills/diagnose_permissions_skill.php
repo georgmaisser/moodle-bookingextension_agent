@@ -222,6 +222,16 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
         $courseid = (int)($input['courseid'] ?? 0);
         if ($courseid <= 0) {
             $courseid = $this->resolve_courseid($input);
+            // A NAMED course that cannot be resolved must never silently become a
+            // System-scope answer (#2337) - same honesty class as #2325.
+            $coursequery = trim((string)($input['coursequery'] ?? ''));
+            if ($courseid <= 0 && $coursequery !== '') {
+                return $this->error_result(
+                    'No unique course matched "' . s($coursequery) . '". '
+                        . 'Give the exact course name or its id.',
+                    'course_not_found'
+                );
+            }
         }
         if ($courseid > 0) {
             try {
