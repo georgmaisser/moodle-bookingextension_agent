@@ -61,14 +61,21 @@ class docs_embeddings_index_service {
      * @param string|null $model      Override embedding model (uses config if null).
      * @param int|null    $dimensions Override dimensions (uses config if null).
      * @param bool        $force      Force re-embedding of all scanned chunks.
-     * @return array  Summary: status, embedded, reused, deleted, written.
+     * @param callable|null $progress Optional sink for human-readable progress lines (#2343).
+     * @return array  Summary: status, embedded, reused, deleted, written, corpora.
      */
     public function rebuild(
         ?string $corpusid = null,
         ?string $model = null,
         ?int $dimensions = null,
-        bool $force = false
+        bool $force = false,
+        ?callable $progress = null
     ): array {
+        $note = static function (string $line) use ($progress): void {
+            if ($progress !== null) {
+                $progress($line);
+            }
+        };
         // E3 gate (defense-in-depth): any direct caller — tests, future callers — is covered too.
         if (!docs_embeddings_gate::is_docs_skill_active()) {
             return [
@@ -143,8 +150,11 @@ class docs_embeddings_index_service {
         try {
             // Pass 1 — scanned corpora: rewrite every current chunk (reuse by offset, else embed).
             // A file that vanished from a scanned corpus simply is not re-emitted (naturally pruned).
+            $corporasummary = [];
             foreach ($scan as $scancorpusid => $docsroot) {
                 $files = $this->scan_md_files($docsroot);
+                $cembedded = 0;
+                $creused = 0;
                 foreach ($files as $abspath) {
                     $relpath = ltrim(substr($abspath, strlen($docsroot)), '/\\');
                     $content = @file_get_contents($abspath);
@@ -164,6 +174,7 @@ class docs_embeddings_index_service {
                             if ($oldrow !== null && $oldrow->contenthash === $contenthash && !empty($oldrow->embedding)) {
                                 $store->upsert($area, $gen, $oldrow);
                                 $reused++;
+                                $creused++;
                                 continue;
                             }
                         }
@@ -200,8 +211,19 @@ class docs_embeddings_index_service {
                             (int)$chunk['line_end']
                         ));
                         $embedded++;
+                        $cembedded++;
+                        if ($cembedded % 25 === 0) {
+                            $note('corpus ' . $scancorpusid . ': ' . $cembedded . ' chunks embedded...');
+                        }
                     }
                 }
+                $corporasummary[$scancorpusid] = [
+                    'files' => count($files),
+                    'embedded' => $cembedded,
+                    'reused' => $creused,
+                ];
+                $note('corpus ' . $scancorpusid . ': files=' . count($files)
+                    . ', embedded=' . $cembedded . ', reused=' . $creused);
             }
 
             // Pass 2 — non-destructive merge: copy existing rows of declared corpora that were NOT
@@ -241,6 +263,7 @@ class docs_embeddings_index_service {
             'embedded' => $embedded,
             'reused' => $reused,
             'deleted' => $deleted,
+            'corpora' => $corporasummary,
         ];
     }
 

@@ -54,12 +54,22 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
 
         $customdata = (array)$this->get_custom_data();
         $service = new docs_embeddings_index_service();
-        $summary = $service->rebuild(
-            isset($customdata['corpus_id']) ? (string)$customdata['corpus_id'] : null,
-            isset($customdata['model']) ? (string)$customdata['model'] : null,
-            isset($customdata['dimensions']) ? (int)$customdata['dimensions'] : null,
-            !empty($customdata['force'])
-        );
+        try {
+            $summary = $service->rebuild(
+                isset($customdata['corpus_id']) ? (string)$customdata['corpus_id'] : null,
+                isset($customdata['model']) ? (string)$customdata['model'] : null,
+                isset($customdata['dimensions']) ? (int)$customdata['dimensions'] : null,
+                !empty($customdata['force']),
+                static function (string $line): void {
+                    mtrace('bookingextension_agent docs embeddings rebuild: ' . $line);
+                }
+            );
+        } catch (\Throwable $e) {
+            // The task log must never show a bare "failed" (#2343).
+            mtrace('bookingextension_agent docs embeddings rebuild FAILED: '
+                . get_class($e) . ': ' . $e->getMessage());
+            throw $e;
+        }
 
         mtrace('bookingextension_agent docs embeddings rebuild status: ' . (string)($summary['status'] ?? 'unknown'));
         mtrace('bookingextension_agent docs embeddings rebuild:'
@@ -78,11 +88,15 @@ class rebuild_docs_embeddings_adhoc extends \core\task\adhoc_task {
         if ($isfullrebuild && (string)($summary['status'] ?? '') === 'ok') {
             $status = (new docs_embeddings_readiness_service())->get_status();
             if (empty($status['ready'])) {
+                mtrace('bookingextension_agent docs embeddings rebuild: index NOT ready — status='
+                    . (string)($status['status'] ?? 'unknown')
+                    . ((string)($status['reason'] ?? '') !== '' ? ', reason=' . (string)$status['reason'] : ''));
                 throw new \moodle_exception(
                     'embeddingsdocsrebuildfailed',
                     'bookingextension_agent',
                     '',
                     (string)($status['status'] ?? 'unknown')
+                        . ((string)($status['reason'] ?? '') !== '' ? ' (' . (string)$status['reason'] . ')' : '')
                 );
             }
             mtrace('bookingextension_agent docs embeddings rebuild: index verified ready.');
