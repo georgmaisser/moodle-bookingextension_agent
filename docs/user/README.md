@@ -23,6 +23,7 @@ your request into the chat box.
 - [Edit an option](booking-options-edit.md) — dates, places, price, description, trainer, image.
 - [Prices and bulk changes](booking-options-prices-and-bulk.md)
 - [Find and read options](finding-options.md)
+- [Find content across the site](finding-site-content.md) — search course texts and pages by topic.
 
 ## Participants and the activity
 
