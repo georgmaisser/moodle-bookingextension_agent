@@ -105,6 +105,12 @@ final class mcp_confirm_flow_test extends advanced_testcase {
         $this->assertNotEmpty($structured['confirmationcode']);
         $this->assertGreaterThan(0, $structured['expiresin']);
         $this->assertNotEmpty($pending['content'][0]['text']);
+        // The text block must be self-contained (#2351): clients on pre-2025-06 protocols never
+        // see structuredContent — without the handle in the text the confirm flow dead-ends.
+        $this->assertStringContainsString((string)$structured['queueitemid'], $pending['content'][0]['text'],
+            'queueitemid must travel in the text block');
+        $this->assertStringContainsString((string)$structured['confirmationcode'], $pending['content'][0]['text'],
+            'confirmationcode must travel in the text block');
         $this->assertSame(
             1,
             (int)$DB->get_field('course_modules', 'visible', ['id' => $forum->cmid]),

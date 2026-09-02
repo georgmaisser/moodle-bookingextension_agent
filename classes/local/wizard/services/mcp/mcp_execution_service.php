@@ -436,6 +436,11 @@ class mcp_execution_service {
             }
         }
 
+        // Self-contained text (#2351): clients on pre-2025-06 protocols never see
+        // structuredContent — the confirm handle must travel in the text block too.
+        $lines[] = 'queueitemid: ' . $queueitemid;
+        $lines[] = 'confirmationcode: ' . $confirmationcode;
+
         $structured = [
             'pending' => true,
             'skill' => $skillname,
