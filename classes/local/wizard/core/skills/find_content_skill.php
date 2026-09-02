@@ -438,6 +438,7 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
         }
 
         $items = '';
+        $seenurls = [];
         foreach ($hits as $hit) {
             if (!is_array($hit)) {
                 continue;
@@ -447,6 +448,11 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
             if ($title === '' || $url === '') {
                 continue;
             }
+            // One entry per document: chunk hits of the same target collapse (best hit came first).
+            if (isset($seenurls[$url])) {
+                continue;
+            }
+            $seenurls[$url] = true;
             $coursename = '';
             $courseid = (int)($hit['courseid'] ?? 0);
             if ($courseid > 0) {
@@ -457,6 +463,12 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
                 }
             }
             $snippet = trim((string)($hit['snippet'] ?? ''));
+            // The chunk text starts with its own heading — no point echoing the title line.
+            foreach ([$title, 'FILE:'] as $prefix) {
+                while (str_starts_with(ltrim($snippet), $prefix)) {
+                    $snippet = trim(\core_text::substr(ltrim($snippet), \core_text::strlen($prefix)));
+                }
+            }
             if (\core_text::strlen($snippet) > 220) {
                 $snippet = \core_text::substr($snippet, 0, 220) . '…';
             }
@@ -465,7 +477,7 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
 
             $items .= \html_writer::start_div('mb-2 pb-2 border-bottom');
             $items .= \html_writer::link($url, s($title), ['target' => '_blank', 'class' => 'fw-bold']);
-            if ($coursename !== '') {
+            if ($coursename !== '' && $coursename !== $title) {
                 $items .= \html_writer::div(s($coursename), 'small text-muted');
             }
             if ($snippet !== '') {

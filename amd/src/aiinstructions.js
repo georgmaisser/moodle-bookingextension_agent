@@ -605,7 +605,8 @@ const setSidePreviewHtml = async (html, js) => {
                 + '<strong class="small">' + escapeHtml(title) + '</strong>'
                 + '<a href="' + escapeHtml(url) + '" target="_blank" class="small">'
                 + escapeHtml(url.replace(/^https?:\/\/[^/]+/, '')) + '</a></div>'
-                + '<iframe src="' + escapeHtml(url) + '" style="width:100%;height:60vh;border:1px solid #dee2e6;"></iframe>';
+                + '<iframe src="' + escapeHtml(url) + '#toolbar=0&navpanes=0&view=FitH"'
+                + ' style="width:100%;height:60vh;border:1px solid #dee2e6;"></iframe>';
         });
     }
     if (String(html || '').trim() !== '') {

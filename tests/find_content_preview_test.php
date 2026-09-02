@@ -71,6 +71,28 @@ final class find_content_preview_test extends advanced_testcase {
         $this->assertStringContainsString('data-embed-url', $html, 'resource hits need the click-to-embed button');
         $this->assertStringContainsString('&lt;b&gt;', $html, 'snippets must be escaped, never raw HTML');
         $this->assertSame(1, substr_count($html, 'data-embed-url'), 'only file-backed hits get the button');
+        $this->assertSame(1, substr_count($html, 'mod/label/view.php?id=99'), 'one entry per document');
+    }
+
+    /**
+     * Polish pins: chunk hits of one document collapse, the snippet never echoes the title,
+     * and a course line identical to the title is suppressed.
+     */
+    public function test_preview_dedupes_and_strips_title_echo(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $entry = ['results' => [
+            ['title' => 'Otter Handout (PDF)', 'url' => 'https://example.com/mod/resource/view.php?id=135',
+             'snippet' => 'Otter Handout (PDF) Handout zum Fischotter.', 'courseid' => 0, 'area' => 'mod_resource-activity'],
+            ['title' => 'Otter Handout (PDF)', 'url' => 'https://example.com/mod/resource/view.php?id=135',
+             'snippet' => 'FILE: otter-handout.pdf Fischotter jagen Forellen.', 'courseid' => 0, 'area' => 'mod_resource-activity'],
+        ]];
+        $html = (string)((new find_content_skill())->get_result_preview($entry, 1, 2)['html'] ?? '');
+
+        $this->assertSame(1, substr_count($html, 'data-embed-url'), 'same document must collapse to one entry');
+        $this->assertStringNotContainsString('Otter Handout (PDF) Handout', $html, 'no title echo in the snippet');
+        $this->assertStringContainsString('Handout zum Fischotter.', $html);
     }
 
     /**
