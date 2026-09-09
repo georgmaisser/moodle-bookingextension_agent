@@ -38,6 +38,27 @@ class parameter_contract_validator {
      * @return parameter_construction_result
      */
     public function validate(skill_interface $skill, array $input, string $label): parameter_construction_result {
+        // Engine-level key contract (#2364): the planner's input is untrusted; keys are checked
+        // against the skill's declared schema properties BEFORE the skill's own check_structure().
+        // Spelling variants of a declared key are canonicalized, unknown keys are rejected with a
+        // repair hint (one construction retry via CONTRACT_STRUCTURAL_MISMATCH) instead of being
+        // dropped silently by the skill.
+        $keycheck = self::check_input_keys($skill, $input);
+        $input = $keycheck['input'];
+        if (!empty($keycheck['unknown'])) {
+            $supported = $keycheck['supported'];
+            $message = 'Unknown input properties: ' . implode(', ', $keycheck['unknown'])
+                . '. Supported properties: ' . (empty($supported) ? '(none)' : implode(', ', $supported)) . '.';
+            return new parameter_construction_result(
+                $input,
+                false,
+                [$label . ': ' . $message],
+                [self::ISSUE_UNKNOWN_INPUT_PROPERTY],
+                [$label . ': use only the supported property names of ' . $skill->get_name()
+                    . ' (' . implode(', ', $supported) . '); drop ' . implode(', ', $keycheck['unknown']) . '.']
+            );
+        }
+
         $structural = $skill->check_structure($input);
         if (($structural['valid'] ?? true) === true) {
             return new parameter_construction_result($input, true, [], []);
@@ -71,5 +92,65 @@ class parameter_contract_validator {
         }
 
         return new parameter_construction_result($input, false, $errors, $issuecodes, $repair);
+    }
+
+    /** Issue code: the planner used input keys the skill schema does not declare (#2364). */
+    public const ISSUE_UNKNOWN_INPUT_PROPERTY = 'UNKNOWN_INPUT_PROPERTY';
+
+    /** @var string[] Input keys the engine itself manages; never part of a skill schema. */
+    private const ENGINE_INPUT_KEYS = ['outputlang'];
+
+    /**
+     * Canonicalize input keys against the skill schema and collect the unknown ones.
+     *
+     * A key that equals exactly one declared property once case, underscores and hyphens are
+     * ignored is renamed to that property (unless the property is already set). Schemas without
+     * declared properties or with additionalProperties = true are not checked; only the top level
+     * is inspected (nested shapes stay the skill's business).
+     *
+     * @param skill_interface $skill
+     * @param array $input
+     * @return array{input:array,unknown:string[],supported:string[]}
+     */
+    public static function check_input_keys(skill_interface $skill, array $input): array {
+        $schema = (array)$skill->get_schema();
+        $properties = array_values(array_map('strval', array_keys((array)($schema['properties'] ?? []))));
+        sort($properties);
+        if (empty($properties) || ($schema['additionalProperties'] ?? false) === true) {
+            return ['input' => $input, 'unknown' => [], 'supported' => $properties];
+        }
+
+        $bystripped = [];
+        foreach ($properties as $property) {
+            $bystripped[self::strip_key($property)][] = $property;
+        }
+        $unknown = [];
+        foreach ($input as $key => $value) {
+            $key = (string)$key;
+            if (in_array($key, $properties, true) || in_array($key, self::ENGINE_INPUT_KEYS, true)) {
+                continue;
+            }
+            $targets = $bystripped[self::strip_key($key)] ?? [];
+            if (count($targets) === 1) {
+                $target = $targets[0];
+                if (!array_key_exists($target, $input)) {
+                    $input[$target] = $value;
+                }
+                unset($input[$key]);
+                continue;
+            }
+            $unknown[] = $key;
+        }
+        return ['input' => $input, 'unknown' => $unknown, 'supported' => $properties];
+    }
+
+    /**
+     * Comparison form of a key: lower-case without underscores and hyphens.
+     *
+     * @param string $key
+     * @return string
+     */
+    private static function strip_key(string $key): string {
+        return str_replace(['_', '-'], '', \core_text::strtolower($key));
     }
 }
