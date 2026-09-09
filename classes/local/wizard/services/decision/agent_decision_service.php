@@ -658,6 +658,23 @@ class agent_decision_service {
             $readonlyqueueids[] = (string)($queued['queue_item_id'] ?? '');
         }
 
+        // Anonymizer person-reference gate for the read-only chat path (#2363). Read-only
+        // commands never enter the preflight pipeline here (R0: no queue layers, no
+        // confirmation), so the #2226 D3 gate — built for exactly these skills — has to run
+        // before execution: a low-confidence single-word token bound to a person field must
+        // end the turn as a clarification (decision chips) instead of being de-anonymized to a
+        // real, possibly foreign, user. Evaluated on the RAW (still anonymized) input.
+        $personclarification = $this->gate_readonly_person_references(
+            $readonlycommands,
+            $readonlyqueueids,
+            $threadid,
+            $userid,
+            $result
+        );
+        if ($personclarification !== null) {
+            return $personclarification;
+        }
+
         // Exactly-once cursor for confirm CONTINUATION frames (audit 554): a nested planner
         // frame spawned by confirm_run_service exists solely to advance the already-confirmed
         // plan. A mutating command in such a frame is legitimate only while un-consumed
@@ -1155,6 +1172,87 @@ class agent_decision_service {
 
     // -------------------------------------------------------------------------
     // Private: read-only command execution.
+
+    /**
+     * Read-only path counterpart of the preflight person-reference gate (#2363).
+     *
+     * Returns the clarification result when a read-only command binds a low-confidence
+     * anonymizer token to a person field (see preflight_pipeline::find_person_reference_collisions),
+     * null when every read-only command may execute. On a hit the read-only queue items are
+     * failed with a preflight-class reason and the decision-chip preview is stashed for the
+     * same-turn response (source C), exactly as a preflight clarification does.
+     *
+     * @param array $readonlycommands Raw read-only commands of the turn.
+     * @param string[] $readonlyqueueids Their queue item ids (same order).
+     * @param int $threadid
+     * @param int $userid
+     * @param array $result Planner result (issue codes are carried over).
+     * @return array|null
+     */
+    private function gate_readonly_person_references(
+        array $readonlycommands,
+        array $readonlyqueueids,
+        int $threadid,
+        int $userid,
+        array $result
+    ): ?array {
+        if (empty($readonlycommands) || $threadid <= 0 || $userid <= 0) {
+            return null;
+        }
+        foreach ($readonlycommands as $idx => $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+            $skillname = trim((string)($command['skill'] ?? ''));
+            $skill = $skillname !== '' ? $this->registry->get_skill($skillname) : null;
+            if ($skill === null) {
+                continue;
+            }
+            $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+            $collisions = $this->preflightpipeline->find_person_reference_collisions($skill, $input, $threadid, $userid);
+            if (empty($collisions)) {
+                continue;
+            }
+
+            $issue = preflight_pipeline::build_person_reference_issue((string)$collisions[0]['original']);
+            $message = (string)$issue['message'];
+            $issuecodes = array_values(array_unique(array_merge(
+                (array)($result['issue_codes'] ?? []),
+                [preflight_pipeline::ISSUE_ANON_PERSON_REFERENCE]
+            )));
+
+            // Nothing executes this turn: the read-only items settle like a preflight
+            // clarification (failed, preflight_block) so the queue never reports them as ready.
+            foreach ($readonlyqueueids as $queueitemid) {
+                $queueitemid = trim((string)$queueitemid);
+                if ($queueitemid === '') {
+                    continue;
+                }
+                $this->queuetransitionsvc->to_failed(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    'READONLY_PERSON_REFERENCE_CLARIFICATION',
+                    [preflight_pipeline::ISSUE_ANON_PERSON_REFERENCE],
+                    'preflight_block',
+                    $message
+                );
+            }
+            preview_passthrough::stash_clarification_preview($this->store, $threadid, (array)$issue['preview']);
+
+            return [
+                'response_type'    => 'clarification',
+                'message'          => $message,
+                'commands'         => [],
+                'queue_item_ids'   => [],
+                'ambiguities'      => [],
+                'errors'           => ['Command #' . ((int)$idx + 1) . ': ' . $message],
+                'attempted_skills' => [$skillname],
+                'issue_codes'      => $issuecodes,
+            ];
+        }
+        return null;
+    }
 
     /**
      * Execute read-only commands directly and return an execution result payload.

@@ -22,6 +22,7 @@ use bookingextension_agent\local\wizard\dto\preflight_result_v2;
 use core\context;
 use context_module;
 use bookingextension_agent\local\wizard\interfaces\external_dependency_checker_interface;
+use bookingextension_agent\local\wizard\interfaces\skill_interface;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\services\risk\risk_class_resolver;
 use bookingextension_agent\local\wizard\conversation_store;
@@ -77,6 +78,87 @@ class preflight_pipeline {
         $this->domainrunner = new preflight_domain_check_runner();
         $this->executiongate = new preflight_execution_gate();
         $this->externaldependencychecker = $externaldependencychecker ?? new noop_external_dependency_checker();
+    }
+
+    /** Issue code of the anonymizer person-reference gate (#2226 D3, #2363). */
+    public const ISSUE_ANON_PERSON_REFERENCE = 'ANON_PERSON_REFERENCE_VALIDATION';
+
+    /**
+     * Low-confidence anonymizer tokens of a raw command input that a read-only skill would use
+     * as a person (#2363): the token sits in a person-reference field, the skill is read-only,
+     * the thread carries no person context and the user has not decided on the word.
+     *
+     * Shared by the preflight pipeline (confirmation path) and the decision service's
+     * read-only chat path, so both channels apply the identical rule.
+     *
+     * @param skill_interface $skill Resolved skill of the command.
+     * @param array $rawinput Command input BEFORE de-anonymization.
+     * @param int $threadid
+     * @param int $userid
+     * @return array<int,array{field:string,token:string,original:string}> Empty when nothing gates.
+     */
+    public function find_person_reference_collisions(
+        skill_interface $skill,
+        array $rawinput,
+        int $threadid,
+        int $userid
+    ): array {
+        if ($threadid <= 0 || $userid <= 0) {
+            return [];
+        }
+        $anonymizer = new privacy_anonymizer($this->store);
+        $rawsuspectrefs = $anonymizer->find_low_confidence_token_references($threadid, $userid, $rawinput);
+        return $this->person_reference_collisions($skill, $rawsuspectrefs, $threadid, $anonymizer);
+    }
+
+    /**
+     * The needs_clarification issue of the person-reference gate, including the decision-chip
+     * preview (source C) the frontend renders for the colliding word.
+     *
+     * @param string $word The original word behind the token.
+     * @return array
+     */
+    public static function build_person_reference_issue(string $word): array {
+        return [
+            'code'     => self::ISSUE_ANON_PERSON_REFERENCE,
+            'severity' => 'needs_clarification',
+            'message'  => get_string('agent_anon_person_reference_clarify', 'bookingextension_agent', $word),
+            // Clarification preview (source C): the frontend renders two decision chips for the
+            // word; the chosen decision is recorded structurally via the ai_privacy_precheck WS
+            // parameter — never parsed from reply text.
+            'preview'  => [
+                'type' => 'anon_word_decision',
+                'payload' => ['word' => $word],
+            ],
+        ];
+    }
+
+    /**
+     * Filter suspect token references down to those a read-only skill binds to a person field.
+     *
+     * @param skill_interface $skill
+     * @param array $rawsuspectrefs Output of find_low_confidence_token_references().
+     * @param int $threadid
+     * @param privacy_anonymizer $anonymizer
+     * @return array
+     */
+    private function person_reference_collisions(
+        skill_interface $skill,
+        array $rawsuspectrefs,
+        int $threadid,
+        privacy_anonymizer $anonymizer
+    ): array {
+        if (empty($rawsuspectrefs) || !$skill->is_read_only()) {
+            return [];
+        }
+        $personrefs = array_values(array_filter(
+            $rawsuspectrefs,
+            static fn(array $ref): bool => $anonymizer->is_person_reference_field((string)($ref['field'] ?? ''))
+        ));
+        if (empty($personrefs) || $this->thread_has_person_context($threadid, $anonymizer)) {
+            return [];
+        }
+        return $personrefs;
     }
 
     /**
@@ -197,13 +279,14 @@ class preflight_pipeline {
 
             $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
 
-            // Anonymizer collision guards (#2226 D3) — evaluated on the RAW input while the
-            // ANON tokens are still present, entirely from engine state (token-map confidence,
-            // stored user decisions, skill attribute, observation ledger). Two rules:
-            // R3 gate: a person-centric READ-ONLY skill (declarative duck-typed attribute)
-            // whose person parameter carries a low-confidence single-word token, in a thread
-            // without person context, must clarify instead of executing — these skills run
-            // without a confirmation preview, so this gate is the only net (baseline SO-4).
+            // Anonymizer collision guard (#2226 D3, widened by #2363) — evaluated on the RAW
+            // input while the ANON tokens are still present, entirely from engine state
+            // (token-map confidence, stored user decisions, field binding, observation ledger).
+            // R3 gate: a READ-ONLY skill whose person parameter carries a low-confidence
+            // single-word token, in a thread without person context, must clarify instead of
+            // executing — read-only skills run without a confirmation preview, so this gate is
+            // the only net (baseline SO-4). The binding to a person-reference field IS the
+            // evidence that the engine treats the token as a person; no skill attribute needed.
             // R2 enrichment (further down, in the target-unresolved catch): a suspect token in
             // a NON-person slot passes through normally; only an unresolvable target names the
             // suspect word in the existing clarification.
@@ -211,36 +294,13 @@ class preflight_pipeline {
             if ($threadid > 0 && $userid > 0) {
                 $rawsuspectrefs = $anonymizer->find_low_confidence_token_references($threadid, $userid, $input);
             }
-            if (
-                !empty($rawsuspectrefs)
-                && method_exists($skill, 'is_person_centric_readonly')
-                && (bool)$skill->is_person_centric_readonly()
-                && !$this->thread_has_person_context($threadid, $anonymizer)
-            ) {
-                $personrefs = array_values(array_filter(
-                    $rawsuspectrefs,
-                    static fn(array $ref): bool =>
-                        $anonymizer->is_person_reference_field((string)($ref['field'] ?? ''))
-                ));
-                if (!empty($personrefs)) {
-                    $word = (string)$personrefs[0]['original'];
-                    $message = get_string('agent_anon_person_reference_clarify', 'bookingextension_agent', $word);
-                    $issuecodes[] = 'ANON_PERSON_REFERENCE_VALIDATION';
-                    $errors[] = $label . ': ' . $message;
-                    $issues[] = [
-                        'code'     => 'ANON_PERSON_REFERENCE_VALIDATION',
-                        'severity' => 'needs_clarification',
-                        'message'  => $message,
-                        // Clarification preview (source C): the frontend renders two decision
-                        // chips for the word; the chosen decision is recorded structurally via
-                        // the ai_privacy_precheck WS parameter — never parsed from reply text.
-                        'preview'  => [
-                            'type' => 'anon_word_decision',
-                            'payload' => ['word' => $word],
-                        ],
-                    ];
-                    continue;
-                }
+            $personrefs = $this->person_reference_collisions($skill, $rawsuspectrefs, $threadid, $anonymizer);
+            if (!empty($personrefs)) {
+                $issue = self::build_person_reference_issue((string)$personrefs[0]['original']);
+                $issuecodes[] = self::ISSUE_ANON_PERSON_REFERENCE;
+                $errors[] = $label . ': ' . $issue['message'];
+                $issues[] = $issue;
+                continue;
             }
 
             if ($threadid > 0 && $userid > 0) {
