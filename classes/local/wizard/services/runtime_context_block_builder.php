@@ -238,6 +238,12 @@ class runtime_context_block_builder {
         if ($isplannerphase && $channel !== user_memory_service::SCOPE_SYNCHRONIZATION) {
             $this->append_low_confidence_anon_section($statelines, $privacy, $threadid);
         }
+        // Requester identity for the constructor (#2246): the model must be able to bind a
+        // self-reference to something that exists instead of inventing a name or placeholder.
+        // Anonymized tokens only — the clear-text identity never reaches the LLM.
+        if ($phase === orchestrator::PHASE_PARAMETER_CONSTRUCTION) {
+            $this->append_current_user_section($statelines, $privacy, $threadid);
+        }
 
         $completedcommands = $this->completedhistorysvc->extract_from_messages($messages);
         $completedcommands = $this->completedhistorysvc->merge_from_queue($threadid, $completedcommands);
@@ -377,6 +383,63 @@ class runtime_context_block_builder {
         $statelines[] = '- Do not select person-centric skills solely because such a token is present.';
         $statelines[] = '- In non-person parameters (course, option, search text, titles) pass the '
             . 'token through unchanged and treat it as an ordinary word.';
+    }
+
+    /**
+     * Append the anonymized identity of the requester (thread owner) for the construction phase (#2246).
+     *
+     * @param array $statelines
+     * @param privacy_anonymizer $privacy
+     * @param int $threadid
+     * @return void
+     */
+    private function append_current_user_section(array &$statelines, privacy_anonymizer $privacy, int $threadid): void {
+        $tokens = self::current_user_identity_tokens($privacy, $threadid, $this->store);
+        if (empty($tokens)) {
+            return;
+        }
+        $statelines[] = 'current_user: ' . implode(' / ', $tokens)
+            . ' (the requester; a person parameter carrying this identity means the requester -> omit it)';
+    }
+
+    /**
+     * Anonymized identity tokens (name, e-mail) of a thread's owner, as the LLM sees them.
+     *
+     * Shared with the decision service, which strips person parameters bound to these tokens
+     * (structural self-reference resolution). Empty when the thread or user is unknown or when
+     * anonymization is off (the identity is then not shown to the LLM at all).
+     *
+     * @param privacy_anonymizer $privacy
+     * @param int $threadid
+     * @param conversation_store $store
+     * @return string[]
+     */
+    public static function current_user_identity_tokens(
+        privacy_anonymizer $privacy,
+        int $threadid,
+        conversation_store $store
+    ): array {
+        if ($threadid <= 0 || !$privacy->should_anonymize_llm_backend_data()) {
+            return [];
+        }
+        $thread = $store->get_thread($threadid);
+        $userid = (int)($thread->userid ?? 0);
+        $user = $userid > 0 ? \core_user::get_user($userid, '*', IGNORE_MISSING) : false;
+        if (!$user) {
+            return [];
+        }
+        $tokens = [];
+        foreach ([fullname($user), (string)($user->email ?? '')] as $identity) {
+            $identity = trim($identity);
+            if ($identity === '') {
+                continue;
+            }
+            $masked = trim((string)$privacy->anonymize_value_for_llm($threadid, $identity));
+            if ($masked !== '' && $masked !== $identity && !in_array($masked, $tokens, true)) {
+                $tokens[] = $masked;
+            }
+        }
+        return $tokens;
     }
 
     /**

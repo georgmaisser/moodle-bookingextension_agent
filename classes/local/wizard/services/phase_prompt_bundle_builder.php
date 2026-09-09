@@ -345,6 +345,13 @@ class phase_prompt_bundle_builder {
             $lines[] = 'Do NOT include planned_steps — selector phase only.';
             $lines[] = 'next_step_intent MUST be a string (never null; use "" if no follow-up).';
             $lines[] = 'Canonical example: {"skill":"<selected_skill>","version":1,"parameters":{...}}';
+            // Self-reference contract (#2246): agnostic, no word lists. Person parameters describe OTHER
+            // people; the requester is engine state (current_user in [SYSTEM_RUNTIME_STATE]), so a
+            // request about the requester omits the person parameter and never asks for their name.
+            $lines[] = 'Person parameters (user selectors such as a user query/id) name OTHER people. '
+                . 'When the request concerns the requester themselves, OMIT every person parameter: the skill '
+                . 'then acts for the current user. Never ask the requester for their own name, e-mail or id, '
+                . 'and never fill a person parameter with a placeholder for the requester.';
         } else {
             $lines[] = 'Apply routing semantics from [SYSTEM] decision order; do not override them here.';
             $lines[] = 'Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.';

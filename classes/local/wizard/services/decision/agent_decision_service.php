@@ -43,6 +43,7 @@ use bookingextension_agent\local\wizard\services\language_policy_service;
 use bookingextension_agent\local\wizard\services\localized_string_service;
 use bookingextension_agent\local\wizard\services\preflight_pipeline;
 use bookingextension_agent\local\wizard\services\preview_passthrough;
+use bookingextension_agent\local\wizard\services\runtime_context_block_builder;
 use bookingextension_agent\local\wizard\services\queue_transition_service;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
 use bookingextension_agent\local\wizard\services\pending_intent_service;
@@ -614,6 +615,10 @@ class agent_decision_service {
         if (!is_array($commands) || empty($commands)) {
             return $result;
         }
+        // Structural self-reference resolution (#2246): a person parameter the constructor filled
+        // with the requester's own identity (anonymized token, e-mail, username, id) is dropped, so
+        // the skill's "no person selector = the acting user" contract applies deterministically.
+        $commands = $this->strip_self_references($commands, $threadid, $userid);
 
         $split = $this->split_commands_by_mutability($commands);
         $readonlycommands = $split['readonly'];
@@ -1172,6 +1177,59 @@ class agent_decision_service {
 
     // -------------------------------------------------------------------------
     // Private: read-only command execution.
+
+    /**
+     * Drop person parameters that carry the requester's own identity (#2246).
+     *
+     * Compares raw (still anonymized) values of person-reference fields with the requester's
+     * anonymized identity tokens and, defensively, the clear-text identifiers (id, username,
+     * e-mail, full name). Pure equality on engine state — no word lists.
+     *
+     * @param array $commands
+     * @param int $threadid
+     * @param int $userid Acting user.
+     * @return array
+     */
+    private function strip_self_references(array $commands, int $threadid, int $userid): array {
+        if ($userid <= 0) {
+            return $commands;
+        }
+        $user = \core_user::get_user($userid, '*', IGNORE_MISSING);
+        if (!$user) {
+            return $commands;
+        }
+        $anonymizer = new privacy_anonymizer($this->store);
+        $identities = $threadid > 0
+            ? runtime_context_block_builder::current_user_identity_tokens($anonymizer, $threadid, $this->store)
+            : [];
+        foreach ([(string)$userid, (string)($user->username ?? ''), (string)($user->email ?? ''), fullname($user)] as $id) {
+            if (trim($id) !== '') {
+                $identities[] = trim($id);
+            }
+        }
+        $identities = array_map(static fn(string $v): string => \core_text::strtolower($v), $identities);
+
+        foreach ($commands as &$command) {
+            if (!is_array($command) || !is_array($command['input'] ?? null)) {
+                continue;
+            }
+            foreach ($command['input'] as $field => $value) {
+                if (!is_string($field) || !is_scalar($value)) {
+                    continue;
+                }
+                $isperson = $anonymizer->is_person_reference_field($field)
+                    || \core_text::strtolower(trim($field)) === 'userid';
+                if (!$isperson) {
+                    continue;
+                }
+                if (in_array(\core_text::strtolower(trim((string)$value)), $identities, true)) {
+                    unset($command['input'][$field]);
+                }
+            }
+        }
+        unset($command);
+        return $commands;
+    }
 
     /**
      * Read-only path counterpart of the preflight person-reference gate (#2363).
