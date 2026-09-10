@@ -44,7 +44,12 @@ class privacy_anonymizer {
     /** @var string Cache key for user-linked name matching index. */
     private const NAME_MATCH_INDEX_CACHE_KEY = 'user_name_match_index_v1';
     /** @var string[] Common words that must never be treated as person names. */
-    private const NAME_STOPWORDS = [
+    /**
+     * @var string[] Shipped DEFAULT of the `aiprivacyprotectedwords` setting (examples of typical
+     * non-name words). At runtime ONLY the setting is consulted — sites can edit or empty this list
+     * in the admin UI; the constant is never merged in behind their back.
+     */
+    public const PROTECTED_WORDS_DEFAULT = [
         'von', 'bei', 'mit', 'und', 'oder', 'der', 'die', 'das', 'dem', 'den', 'des',
         'ein', 'eine', 'einer', 'einem', 'einen', 'ich', 'du', 'er', 'sie', 'wir', 'ihr',
         'sein', 'ihre', 'ihren', 'soll', 'sollen', 'bitte', 'hier', 'dort', 'im', 'in',
@@ -120,10 +125,11 @@ class privacy_anonymizer {
     /**
      * Return the set of words that must never be treated as a person name.
      *
-     * Combines the engine-level {@see self::NAME_STOPWORDS} baseline with the admin-configured
-     * `aiprivacyprotectedwords` setting (comma- or newline-separated), so sites can stop common
-     * words from being anonymized when a real account happens to use them as a name (e.g. a user
-     * literally called "admin user"). Comparison is case-insensitive against normalized names.
+     * Read exclusively from the admin-configured `aiprivacyprotectedwords` setting (comma- or
+     * newline-separated; shipped default = {@see self::PROTECTED_WORDS_DEFAULT}), so sites decide
+     * which common words are never anonymized when a real account happens to use them as a name
+     * (e.g. a user literally called "admin user"). An emptied setting protects nothing.
+     * Comparison is case-insensitive against normalized names.
      *
      * @return string[]
      */
@@ -132,7 +138,7 @@ class privacy_anonymizer {
             return $this->protectedwords;
         }
 
-        $words = self::NAME_STOPWORDS;
+        $words = [];
         $configured = (string)get_config('bookingextension_agent', 'aiprivacyprotectedwords');
         foreach (preg_split('/[,\r\n]+/', $configured) ?: [] as $word) {
             $normalized = core_text::strtolower(trim((string)$word));

@@ -449,7 +449,7 @@ if ($agentenabled) {
             'bookingextension_agent/aiprivacyprotectedwords',
             get_string('aiprivacyprotectedwords', 'bookingextension_agent'),
             get_string('aiprivacyprotectedwords_desc', 'bookingextension_agent'),
-            get_string('aiprivacyprotectedwords_default', 'bookingextension_agent'),
+            implode(', ', \bookingextension_agent\local\wizard\privacy_anonymizer::PROTECTED_WORDS_DEFAULT),
             PARAM_RAW,
             60,
             4
