@@ -79,6 +79,22 @@ final class privacy_anonymizer_protected_words_test extends \advanced_testcase {
     }
 
     /**
+     * The shipped default is a clean example list: lowercase, trimmed, no duplicates, and it
+     * carries examples for every language the agent ships (de, en, fr, it, es).
+     */
+    public function test_default_list_is_normalized_and_multilingual(): void {
+        $default = privacy_anonymizer::PROTECTED_WORDS_DEFAULT;
+
+        foreach ($default as $word) {
+            $this->assertSame(\core_text::strtolower(trim($word)), $word, "Default entry '$word' must be lowercase and trimmed.");
+        }
+        $this->assertSame(array_values(array_unique($default)), $default, 'The default list must not repeat entries.');
+        foreach (['bitte', 'with', 'pour', 'questo', 'para'] as $example) {
+            $this->assertContains($example, $default);
+        }
+    }
+
+    /**
      * With the shipped default in the setting the word is protected.
      */
     public function test_default_setting_protects_the_word(): void {

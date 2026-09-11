@@ -50,13 +50,28 @@ class privacy_anonymizer {
      * in the admin UI; the constant is never merged in behind their back.
      */
     public const PROTECTED_WORDS_DEFAULT = [
+        // German.
         'von', 'bei', 'mit', 'und', 'oder', 'der', 'die', 'das', 'dem', 'den', 'des',
         'ein', 'eine', 'einer', 'einem', 'einen', 'ich', 'du', 'er', 'sie', 'wir', 'ihr',
         'sein', 'ihre', 'ihren', 'soll', 'sollen', 'bitte', 'hier', 'dort', 'im', 'in',
-        'am', 'an', 'auf', 'zu', 'zur', 'zum', 'for', 'and', 'or', 'the', 'a', 'an',
-        'to', 'with', 'by', 'is', 'are', 'be',
+        'am', 'an', 'auf', 'zu', 'zur', 'zum',
+        // English.
+        'for', 'and', 'or', 'the', 'a', 'to', 'with', 'by', 'is', 'are', 'be',
+        // French.
+        'les', 'une', 'pour', 'avec', 'dans', 'sur', 'par', 'qui', 'que', 'est', 'sont',
+        'nous', 'vous', 'ils', 'elle', 'elles', 'leur', 'leurs', 'cette', 'ces', 'aux', 'chez',
+        'sans', 'mais', 'donc', 'ici',
+        // Italian.
+        'gli', 'una', 'uno', 'per', 'con', 'nel', 'nella', 'dei', 'delle', 'che', 'sono', 'noi',
+        'voi', 'loro', 'questo', 'questa', 'anche', 'come', 'dove',
+        // Spanish.
+        'los', 'las', 'para', 'por', 'del', 'son', 'nosotros', 'vosotros', 'ellos', 'ellas',
+        'este', 'esta', 'donde', 'aquí', 'también',
         // Generic nouns frequently found in result summaries must never be treated as names.
         'user', 'users', 'benutzer', 'teilnehmer', 'teilnehmende',
+        'utilisateur', 'utilisateurs', 'participant', 'participants',
+        'utente', 'utenti', 'partecipante', 'partecipanti',
+        'usuario', 'usuarios', 'participante', 'participantes',
     ];
     /** @var string[] Fields that should always resolve to original literal text for SQL updates. */
     private const SQL_TEXT_FIELDS = ['text', 'description', 'optionquery'];
