@@ -48,12 +48,13 @@ class search_users_skill extends core_skill_base implements
     }
 
     /**
-     * A person is this skill's direct object and it executes without confirmation (#2226 R3).
+     * Input fields whose value is resolved to persons (#2363, F23): the free-text query IS the
+     * person lookup, so a low-confidence anonymizer token there must pass the collision gate.
      *
-     * @return bool
+     * @return string[]
      */
-    public function is_person_centric_readonly(): bool {
-        return true;
+    public function get_person_reference_fields(): array {
+        return ['query'];
     }
 
     /**

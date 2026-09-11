@@ -1774,6 +1774,26 @@ class privacy_anonymizer {
     }
 
     /**
+     * Normalized name words of a free-text value, split and normalized exactly like
+     * anonymize_names() does when it builds tokens (F23: word-specific person context).
+     *
+     * @param string $value
+     * @return string[]
+     */
+    public function name_words(string $value): array {
+        $matches = [];
+        preg_match_all('/\b[\p{L}][\p{L}\p{M}\-]{2,}\b/u', $value, $matches);
+        $words = [];
+        foreach ((array)($matches[0] ?? []) as $word) {
+            $normalized = $this->normalize_name((string)$word);
+            if ($normalized !== '') {
+                $words[] = $normalized;
+            }
+        }
+        return $words;
+    }
+
+    /**
      * Check whether a field semantically refers to a user identity.
      *
      * @param string $normalizedfield

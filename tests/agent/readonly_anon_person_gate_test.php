@@ -28,6 +28,7 @@ namespace bookingextension_agent;
 use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\queue\queue_manager;
 use bookingextension_agent\local\wizard\services\decision\agent_decision_service;
+use bookingextension_agent\local\wizard\services\execution_observation_ledger;
 use bookingextension_agent\local\wizard\services\preflight_pipeline;
 use bookingextension_agent\local\wizard\services\preview_passthrough;
 use bookingextension_agent\local\wizard\services\security\authorization_service;
@@ -151,6 +152,40 @@ final class readonly_anon_person_gate_test extends abstract_agent_testcase {
         );
         $this->assertNotSame('ready', (string)($items[0]['status'] ?? ''));
         $this->assertNotSame('succeeded', (string)($items[0]['status'] ?? ''));
+    }
+
+    /**
+     * Taskflow baseline F23 (thread 1295): core.search_users bound the suspect token to its
+     * free-text query and listed the real users carrying that name. The skill declares the
+     * query as a person lookup (get_person_reference_fields()), so the gate ends the turn first.
+     */
+    public function test_search_users_query_is_gated(): void {
+        $ctx = $this->prepare_thread_with_token();
+
+        $decision = $this->decide($ctx, 'core.search_users', ['query' => $ctx['token']]);
+
+        $this->assertSame('clarification', (string)($decision['response_type'] ?? ''), json_encode($decision));
+        $this->assertContains(preflight_pipeline::ISSUE_ANON_PERSON_REFERENCE, (array)($decision['issue_codes'] ?? []));
+        $this->assertSame(0, $this->run_count($ctx['threadid']), 'the colliding user must never be looked up');
+    }
+
+    /**
+     * F23: a lookup of a DIFFERENT person earlier in the thread no longer opens the gate —
+     * person context counts only for the same word, backed by more identity material.
+     */
+    public function test_unrelated_person_context_does_not_open_the_gate(): void {
+        $ctx = $this->prepare_thread_with_token();
+        (new execution_observation_ledger($ctx['store']))->append_from_results($ctx['threadid'], [[
+            'skill' => 'core.search_users',
+            'status' => 'executed',
+            'input' => ['query' => 'Maria Muster'],
+            'observation_full' => 'Found 1 user: userid=42.',
+        ]]);
+
+        $decision = $this->decide($ctx, 'core.search_users', ['query' => $ctx['token']]);
+
+        $this->assertContains(preflight_pipeline::ISSUE_ANON_PERSON_REFERENCE, (array)($decision['issue_codes'] ?? []));
+        $this->assertSame(0, $this->run_count($ctx['threadid']));
     }
 
     /**

@@ -151,30 +151,71 @@ class preflight_pipeline {
         if (empty($rawsuspectrefs) || !$skill->is_read_only()) {
             return [];
         }
-        $personrefs = array_values(array_filter(
-            $rawsuspectrefs,
-            static fn(array $ref): bool => $anonymizer->is_person_reference_field((string)($ref['field'] ?? ''))
-        ));
-        if (empty($personrefs) || $this->thread_has_person_context($threadid, $anonymizer)) {
-            return [];
+        $personrefs = [];
+        foreach ($rawsuspectrefs as $ref) {
+            if (!$this->is_person_field($skill, (string)($ref['field'] ?? ''), $anonymizer)) {
+                continue;
+            }
+            if ($this->thread_has_person_context_for_word($threadid, $anonymizer, (string)($ref['original'] ?? ''))) {
+                continue;
+            }
+            $personrefs[] = $ref;
         }
         return $personrefs;
     }
 
     /**
-     * Whether the thread already carries person context (#2226 R3 suppression).
+     * Whether an input field of a skill resolves persons (#2363, F23).
      *
-     * Engine-state proxy: any executed observation that resolved persons — a
-     * core.search_users run, or any executed command whose input addressed a
-     * person-reference field. In that case a person-centric follow-up is the
-     * user's plausible intent and the collision gate stays silent.
+     * A field qualifies by the engine-wide naming convention
+     * ({@see privacy_anonymizer::is_person_reference_field()}: userquery, teacherquery,
+     * targetuserquery, *userquery) or because the skill declares it through the duck-typed
+     * get_person_reference_fields() — e.g. core.search_users, whose free-text query IS the
+     * person lookup. No skill-name lists in the engine.
      *
-     * @param int $threadid
+     * @param skill_interface|null $skill
+     * @param string $field
      * @param privacy_anonymizer $anonymizer
      * @return bool
      */
-    private function thread_has_person_context(int $threadid, privacy_anonymizer $anonymizer): bool {
-        if ($threadid <= 0) {
+    private function is_person_field(?skill_interface $skill, string $field, privacy_anonymizer $anonymizer): bool {
+        $normalized = \core_text::strtolower(trim($field));
+        if ($normalized === '') {
+            return false;
+        }
+        if ($anonymizer->is_person_reference_field($normalized)) {
+            return true;
+        }
+        if ($skill === null || !method_exists($skill, 'get_person_reference_fields')) {
+            return false;
+        }
+        foreach ((array)$skill->get_person_reference_fields() as $declared) {
+            if (\core_text::strtolower(trim((string)$declared)) === $normalized) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether the thread already resolved THIS word as part of a person (#2226 R3, narrowed by F23).
+     *
+     * Engine state only (observation ledger + token-map original): an executed command whose
+     * person field (see is_person_field()) carried the word TOGETHER WITH further identity
+     * material — a full name or an e-mail address containing it — makes a later single-word
+     * mention of the same word a plausible follow-up, so the gate stays silent. A lookup of a
+     * different person no longer switches the gate off for every word of the thread, and a
+     * lookup that consisted of the suspect word alone is no evidence (it may itself have been
+     * the collision).
+     *
+     * @param int $threadid
+     * @param privacy_anonymizer $anonymizer
+     * @param string $word Original word behind the low-confidence token.
+     * @return bool
+     */
+    private function thread_has_person_context_for_word(int $threadid, privacy_anonymizer $anonymizer, string $word): bool {
+        $target = array_values(array_unique($anonymizer->name_words($word)));
+        if ($threadid <= 0 || empty($target)) {
             return false;
         }
 
@@ -183,11 +224,14 @@ class preflight_pipeline {
             if ((string)($row['status'] ?? '') !== 'executed') {
                 continue;
             }
-            if ((string)($row['skill'] ?? '') === 'core.search_users') {
-                return true;
-            }
-            foreach (array_keys((array)($row['input'] ?? [])) as $field) {
-                if (is_string($field) && $anonymizer->is_person_reference_field($field)) {
+            $skillname = trim((string)($row['skill'] ?? ''));
+            $rowskill = $skillname !== '' ? $this->registry->get_skill($skillname) : null;
+            foreach ((array)($row['input'] ?? []) as $field => $value) {
+                if (!is_string($field) || !is_scalar($value) || !$this->is_person_field($rowskill, $field, $anonymizer)) {
+                    continue;
+                }
+                $words = array_values(array_unique($anonymizer->name_words((string)$value)));
+                if (count($words) > count($target) && empty(array_diff($target, $words))) {
                     return true;
                 }
             }

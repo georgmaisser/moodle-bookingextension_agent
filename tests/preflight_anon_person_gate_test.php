@@ -280,7 +280,9 @@ final class preflight_anon_person_gate_test extends advanced_testcase {
     }
 
     /**
-     * R3 does not fire when the thread already carries person context (resolved-user observation).
+     * R3 does not fire when the thread already resolved the SAME word together with more identity
+     * material (here the full name) — a later single-word mention is a plausible follow-up.
+     * Spec narrowed by F23 (2026-09-11): person context is word-specific, not thread-wide.
      */
     public function test_r3_gate_suppressed_by_person_context(): void {
         $this->resetAfterTest();
@@ -288,8 +290,9 @@ final class preflight_anon_person_gate_test extends advanced_testcase {
 
         $ledger = new execution_observation_ledger($ctx['store']);
         $ledger->append_from_results($ctx['threadid'], [[
-            'skill' => 'core.search_users',
+            'skill' => 'demo.persondiag',
             'status' => 'executed',
+            'input' => ['userquery' => 'Goduuara Herbst'],
             'observation_full' => 'Found 1 user: userid=42.',
         ]]);
 
@@ -302,6 +305,41 @@ final class preflight_anon_person_gate_test extends advanced_testcase {
         );
 
         $this->assertNotContains(self::ISSUE, $this->issue_codes($result));
+    }
+
+    /**
+     * F23: a lookup of ANOTHER person, or one that consisted of the suspect word alone, is no
+     * person context for this word — the gate still fires.
+     */
+    public function test_r3_gate_not_suppressed_by_unrelated_or_single_word_context(): void {
+        $this->resetAfterTest();
+        $ctx = $this->prepare();
+
+        $ledger = new execution_observation_ledger($ctx['store']);
+        $ledger->append_from_results($ctx['threadid'], [
+            [
+                'skill' => 'demo.persondiag',
+                'status' => 'executed',
+                'input' => ['userquery' => 'Maria Muster'],
+                'observation_full' => 'Found 1 user: userid=41.',
+            ],
+            [
+                'skill' => 'demo.persondiag',
+                'status' => 'executed',
+                'input' => ['userquery' => 'Herbst'],
+                'observation_full' => 'Found 1 user: userid=42.',
+            ],
+        ]);
+
+        $result = $this->run_pipeline(
+            $ctx['store'],
+            ['skill' => 'demo.persondiag', 'input' => ['userquery' => $ctx['token']]],
+            $ctx['threadid'],
+            $ctx['contextid'],
+            $ctx['userid']
+        );
+
+        $this->assertContains(self::ISSUE, $this->issue_codes($result));
     }
 
     /**
