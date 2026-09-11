@@ -1272,7 +1272,10 @@ class agent_decision_service {
                 continue;
             }
 
-            $issue = preflight_pipeline::build_person_reference_issue((string)$collisions[0]['original']);
+            $issue = preflight_pipeline::build_person_reference_issue(
+                (string)$collisions[0]['token'],
+                (string)$collisions[0]['original']
+            );
             $message = (string)$issue['message'];
             $issuecodes = array_values(array_unique(array_merge(
                 (array)($result['issue_codes'] ?? []),

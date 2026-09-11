@@ -115,14 +115,20 @@ class preflight_pipeline {
      * The needs_clarification issue of the person-reference gate, including the decision-chip
      * preview (source C) the frontend renders for the colliding word.
      *
-     * @param string $word The original word behind the token.
+     * The message names the TOKEN, never the word: it is LLM input (synchronizer, stored
+     * history) and no masked value may reach an LLM in clear text (HARD RULE 2026-09-11).
+     * The display layer resolves the token for the user (with the privacy marker). Only the
+     * UI-only chip payload carries the original word, which the precheck WS records.
+     *
+     * @param string $token The anonymizer token bound to the person field.
+     * @param string $word The original word behind the token (chip payload only).
      * @return array
      */
-    public static function build_person_reference_issue(string $word): array {
+    public static function build_person_reference_issue(string $token, string $word): array {
         return [
             'code'     => self::ISSUE_ANON_PERSON_REFERENCE,
             'severity' => 'needs_clarification',
-            'message'  => get_string('agent_anon_person_reference_clarify', 'bookingextension_agent', $word),
+            'message'  => get_string('agent_anon_person_reference_clarify', 'bookingextension_agent', $token),
             // Clarification preview (source C): the frontend renders two decision chips for the
             // word; the chosen decision is recorded structurally via the ai_privacy_precheck WS
             // parameter — never parsed from reply text.
@@ -340,7 +346,10 @@ class preflight_pipeline {
             }
             $personrefs = $this->person_reference_collisions($skill, $rawsuspectrefs, $threadid, $anonymizer);
             if (!empty($personrefs)) {
-                $issue = self::build_person_reference_issue((string)$personrefs[0]['original']);
+                $issue = self::build_person_reference_issue(
+                    (string)$personrefs[0]['token'],
+                    (string)$personrefs[0]['original']
+                );
                 $issuecodes[] = self::ISSUE_ANON_PERSON_REFERENCE;
                 $errors[] = $label . ': ' . $issue['message'];
                 $issues[] = $issue;
@@ -390,11 +399,12 @@ class preflight_pipeline {
                 // low-confidence anon token, name the concrete word — the user then learns
                 // WHY the target may have gone missing (the word doubled as a person name)
                 // and can answer precisely. No extra LLM call: this clarification happens anyway.
+                // The text carries the TOKEN (LLM input); the display resolves it (HARD RULE 2026-09-11).
                 foreach ($rawsuspectrefs as $suspectref) {
                     $message .= "\n" . get_string(
                         'agent_anon_collision_word_hint',
                         'bookingextension_agent',
-                        (string)($suspectref['original'] ?? '')
+                        (string)($suspectref['token'] ?? '')
                     );
                     break;
                 }

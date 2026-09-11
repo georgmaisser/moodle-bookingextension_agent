@@ -171,11 +171,13 @@ final class preflight_anon_person_gate_test extends advanced_testcase {
         $issue = $this->find_issue($result, self::ISSUE);
         $this->assertIsArray($issue, 'The gate must surface a structured issue.');
         $this->assertSame('needs_clarification', (string)($issue['severity'] ?? ''));
-        $this->assertStringContainsString(
-            'Herbst',
-            (string)($issue['message'] ?? ''),
-            'The clarification must name the ORIGINAL word, not the token.'
-        );
+        // Spec reversed by the HARD RULE of 2026-09-11: the clarification is LLM input
+        // (synchronizer, stored history), so it carries the TOKEN; the display resolves it
+        // and only the UI-only decision chips name the word.
+        $message = (string)($issue['message'] ?? '');
+        $this->assertStringContainsString($ctx['token'], $message, 'The clarification carries the token.');
+        $this->assertStringNotContainsString('Herbst', $message, 'No masked value may reach an LLM in clear text.');
+        $this->assertSame('Herbst', (string)($issue['preview']['payload']['word'] ?? ''), 'The chips name the word.');
     }
 
     /**
@@ -423,9 +425,10 @@ final class preflight_anon_person_gate_test extends advanced_testcase {
         $issue = $this->find_issue($result, 'CONTEXT_TARGET_UNRESOLVED');
         $this->assertIsArray($issue, 'Precondition: the course target cannot be resolved.');
         $this->assertStringContainsString(
-            'Herbst',
+            $ctx['token'],
             (string)($issue['message'] ?? ''),
-            'The existing clarification must be enriched with the suspect word (#2226 R2).'
+            'The existing clarification is enriched with the suspect TOKEN; the display names the word '
+                . '(#2226 R2, HARD RULE 2026-09-11).'
         );
     }
 

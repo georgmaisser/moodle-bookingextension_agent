@@ -662,7 +662,13 @@ class agent_runtime {
             $result['error_presentation_requested'] = true;
         }
 
-        $observations = $this->synchronizerinputbuilder->build_observations($result, $state);
+        // The synchronizer is an LLM: it is fed a MASKED copy of the result (HARD RULE
+        // 2026-09-11) — engine-built clarifications and error texts may carry de-anonymized
+        // values. $result itself stays unmasked for display.
+        $observations = $this->synchronizerinputbuilder->build_observations(
+            $this->synchronizerinputbuilder->mask_for_llm($result, new privacy_anonymizer($this->store), $threadid),
+            $state
+        );
 
         // Deterministic continuation truth for the reply contract: the synchronizer runs at
         // turn end, and the engine continues automatically ONLY when this turn ends as a

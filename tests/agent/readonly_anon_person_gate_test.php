@@ -128,7 +128,11 @@ final class readonly_anon_person_gate_test extends abstract_agent_testcase {
 
         $this->assertSame('clarification', (string)($decision['response_type'] ?? ''), json_encode($decision));
         $this->assertContains(preflight_pipeline::ISSUE_ANON_PERSON_REFERENCE, (array)($decision['issue_codes'] ?? []));
-        $this->assertStringContainsString('hab', (string)($decision['message'] ?? ''));
+        $this->assertStringContainsString(
+            $ctx['token'],
+            (string)($decision['message'] ?? ''),
+            'The clarification carries the token (LLM input); the display resolves it (HARD RULE 2026-09-11).'
+        );
         $this->assertSame(0, $this->run_count($ctx['threadid']), 'a gated read-only command must never execute');
 
         // The decision chips travel via the same-turn preview stash (source C).

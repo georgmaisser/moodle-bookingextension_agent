@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services;
 
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\agent_state;
 
 /**
@@ -28,6 +29,42 @@ use bookingextension_agent\local\wizard\agent_state;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class synchronizer_input_builder {
+    /**
+     * Masked copy of the result fields this builder turns into synchronizer observations.
+     *
+     * The synchronizer is an LLM: no masked value may reach it in clear text (HARD RULE
+     * 2026-09-11). Engine-built texts — clarifications, errors, failed-row user messages —
+     * can carry de-anonymized values, so message, errors, phase trace and result rows pass
+     * through the anonymizer, the same treatment step observations get at construction.
+     * Rows flagged observation_engine_static stay untouched (instructional engine text,
+     * threads 286/288), and loop_results are skipped because their observations were masked
+     * when the step ran. The caller keeps the unmasked result for display.
+     *
+     * @param array $result
+     * @param privacy_anonymizer $anonymizer
+     * @param int $threadid
+     * @return array
+     */
+    public function mask_for_llm(array $result, privacy_anonymizer $anonymizer, int $threadid): array {
+        if ($threadid <= 0) {
+            return $result;
+        }
+        foreach (['message', 'errors', 'phase_trace'] as $key) {
+            if (array_key_exists($key, $result)) {
+                $result[$key] = $anonymizer->anonymize_value_for_llm($threadid, $result[$key]);
+            }
+        }
+        if (is_array($result['results'] ?? null)) {
+            foreach ($result['results'] as $index => $entry) {
+                if (!is_array($entry) || !empty($entry['observation_engine_static'])) {
+                    continue;
+                }
+                $result['results'][$index] = $anonymizer->anonymize_value_for_llm($threadid, $entry);
+            }
+        }
+        return $result;
+    }
+
     /**
      * Build the observation list for synchronizer finalization.
      *

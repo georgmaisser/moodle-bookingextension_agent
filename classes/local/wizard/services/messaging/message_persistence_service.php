@@ -27,6 +27,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\messaging;
 
 use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\privacy_anonymizer;
 use bookingextension_agent\local\wizard\services\phase_trace_normalizer;
 
 /**
@@ -104,6 +105,13 @@ class message_persistence_service {
             $this->store->set_phase_trace($threadid, $normalizedphasetrace);
         }
 
-        $this->store->add_message($threadid, 'assistant', $result['message'] ?? '', $structured);
+        // The stored conversation is LLM input for every later turn (history), so it holds masked
+        // values only (HARD RULE 2026-09-11); display de-anonymizes on read (ai_poll_thread,
+        // ai_send_message). An engine-built text or an LLM reply carrying a de-anonymized word is
+        // re-masked here with the thread's token map — tokens are never re-tokenized.
+        $anonymizer = new privacy_anonymizer($this->store);
+        $content = (string)$anonymizer->anonymize_value_for_llm($threadid, (string)($result['message'] ?? ''));
+        $structured['errors'] = $anonymizer->anonymize_value_for_llm($threadid, (array)$structured['errors']);
+        $this->store->add_message($threadid, 'assistant', $content, $structured);
     }
 }
