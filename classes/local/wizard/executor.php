@@ -475,8 +475,10 @@ class executor implements agent_executor {
      * and the target-contract traits would be inert in exactly the modality most users are in
      * (threads 542/539). This chokepoint resolves it with the same
      * skill_operating_context_resolver the pipeline uses, so early (pipeline) and late (here)
-     * resolution cannot diverge. Thread-515 semantics are preserved: an unresolvable or
-     * ambiguous target falls back to the ambient context and never blocks a read-only skill;
+     * resolution cannot diverge. Thread-515 semantics are preserved: an unresolvable target
+     * falls back to the ambient context and never blocks a read-only skill. A genuinely
+     * ambiguous target is clarified BEFORE execution by the decision service
+     * (gate_readonly_ambiguous_targets, flowchart PP_RUN); the fallback here is the safety net;
      * a module-targeted MUTATION whose context did not resolve to a module is still refused by
      * the fail-closed check at the call site.
      *

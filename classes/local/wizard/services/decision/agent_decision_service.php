@@ -680,6 +680,22 @@ class agent_decision_service {
             return $personclarification;
         }
 
+        // Ambiguous-target gate for the read-only chat path (flowchart PP_RUN): a read-only
+        // command never blocks on target resolution — an unresolvable target falls back to the
+        // ambient context (thread 515) — but a GENUINELY ambiguous one ends the turn as a
+        // clarification that lists the candidates, the same list the preflight shows.
+        $targetclarification = $this->gate_readonly_ambiguous_targets(
+            $readonlycommands,
+            $readonlyqueueids,
+            $threadid,
+            $contextid,
+            $userid,
+            $result
+        );
+        if ($targetclarification !== null) {
+            return $targetclarification;
+        }
+
         // Exactly-once cursor for confirm CONTINUATION frames (audit 554): a nested planner
         // frame spawned by confirm_run_service exists solely to advance the already-confirmed
         // plan. A mutating command in such a frame is legitimate only while un-consumed
@@ -1300,6 +1316,78 @@ class agent_decision_service {
                 );
             }
             preview_passthrough::stash_clarification_preview($this->store, $threadid, (array)$issue['preview']);
+
+            return [
+                'response_type'    => 'clarification',
+                'message'          => $message,
+                'commands'         => [],
+                'queue_item_ids'   => [],
+                'ambiguities'      => [],
+                'errors'           => ['Command #' . ((int)$idx + 1) . ': ' . $message],
+                'attempted_skills' => [$skillname],
+                'issue_codes'      => $issuecodes,
+            ];
+        }
+        return null;
+    }
+
+    /**
+     * Read-only counterpart of the preflight's ambiguous-target clarification (flowchart PP_RUN).
+     *
+     * Returns the clarification result listing the candidates when a read-only command names a
+     * genuinely ambiguous target (see preflight_pipeline::find_ambiguous_target()), null when every
+     * read-only command may execute. On a hit the read-only queue items are failed with a
+     * preflight-class reason, exactly as the person-reference gate does.
+     *
+     * @param array $readonlycommands Raw read-only commands of the turn.
+     * @param string[] $readonlyqueueids Their queue item ids (same order).
+     * @param int $threadid
+     * @param int $contextid Ambient context id.
+     * @param int $userid
+     * @param array $result Planner result (issue codes are carried over).
+     * @return array|null
+     */
+    private function gate_readonly_ambiguous_targets(
+        array $readonlycommands,
+        array $readonlyqueueids,
+        int $threadid,
+        int $contextid,
+        int $userid,
+        array $result
+    ): ?array {
+        foreach ($readonlycommands as $idx => $command) {
+            if (!is_array($command)) {
+                continue;
+            }
+            $skillname = trim((string)($command['skill'] ?? ''));
+            $skill = $skillname !== '' ? $this->registry->get_skill($skillname) : null;
+            if ($skill === null) {
+                continue;
+            }
+            $input = is_array($command['input'] ?? null) ? (array)$command['input'] : [];
+            $issue = $this->preflightpipeline->find_ambiguous_target($skill, $input, $threadid, $contextid, $userid);
+            if ($issue === null) {
+                continue;
+            }
+
+            $message = (string)$issue['message'];
+            $code = (string)$issue['code'];
+            $issuecodes = array_values(array_unique(array_merge((array)($result['issue_codes'] ?? []), [$code])));
+            foreach ($readonlyqueueids as $queueitemid) {
+                $queueitemid = trim((string)$queueitemid);
+                if ($queueitemid === '') {
+                    continue;
+                }
+                $this->queuetransitionsvc->to_failed(
+                    $this->queuesvc,
+                    $threadid,
+                    $queueitemid,
+                    'READONLY_TARGET_AMBIGUOUS_CLARIFICATION',
+                    [$code],
+                    'preflight_block',
+                    $message
+                );
+            }
 
             return [
                 'response_type'    => 'clarification',

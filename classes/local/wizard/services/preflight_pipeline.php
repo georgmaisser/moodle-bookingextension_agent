@@ -112,6 +112,107 @@ class preflight_pipeline {
     }
 
     /**
+     * Clarification text for a genuinely ambiguous target: the question plus one line per
+     * candidate carrying its unique id (shared by the preflight and the read-only chat path).
+     *
+     * @param array $candidates Candidate payloads of the target resolution.
+     * @return string
+     */
+    public static function ambiguous_target_message(array $candidates): string {
+        $lines = [];
+        foreach (array_slice($candidates, 0, 10) as $candidate) {
+            $lines[] = '- ' . self::format_ambiguous_candidate((array)$candidate);
+        }
+        return get_string('agent_target_ambiguous_choose', 'bookingextension_agent') . "\n" . implode("\n", $lines);
+    }
+
+    /**
+     * Whether the ambient context is itself one of the ambiguous candidates.
+     *
+     * Then staying ambient is a valid, deliberate pick (the user works inside one of the
+     * same-named places; architecture ch. 09 §2b: a read-only option query stays in the ambient
+     * activity), so the ambiguity is not genuine. Module-level candidates carry a coursename and
+     * their id is the cmid; course-level candidates carry the course id.
+     *
+     * @param int $contextid
+     * @param array $candidates
+     * @return bool
+     */
+    private static function ambient_is_candidate(int $contextid, array $candidates): bool {
+        $context = \context::instance_by_id($contextid, IGNORE_MISSING);
+        if (!$context || !in_array((int)$context->contextlevel, [CONTEXT_MODULE, CONTEXT_COURSE], true)) {
+            return false;
+        }
+        $ambientismodule = (int)$context->contextlevel === CONTEXT_MODULE;
+        foreach ($candidates as $candidate) {
+            $candidate = (array)$candidate;
+            $candidateismodule = trim((string)($candidate['coursename'] ?? '')) !== '';
+            if ($candidateismodule === $ambientismodule && (int)($candidate['id'] ?? 0) === (int)$context->instanceid) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Ambiguous-target clarification for a READ-ONLY command (flowchart PP_RUN).
+     *
+     * Read-only commands skip this pipeline and resolve their operating context late, at the
+     * executor, where an unresolvable target falls back to the ambient context (thread 515:
+     * read-only never blocks on resolution). A GENUINELY ambiguous target must clarify instead:
+     * the fallback would silently drop the candidates (thread 1304: two activities named
+     * "booking", the planner retried 21 times without ever seeing both). Same resolver and the
+     * same candidate list as the preflight; not-found and unsupported targets stay ambient, and so
+     * does an ambiguity whose candidates include the ambient context (ambient_is_candidate()).
+     *
+     * @param skill_interface $skill
+     * @param array $rawinput Command input BEFORE de-anonymization.
+     * @param int $threadid
+     * @param int $contextid Ambient context id.
+     * @param int $userid
+     * @return array|null needs_clarification issue with the candidates; null when not ambiguous.
+     */
+    public function find_ambiguous_target(
+        skill_interface $skill,
+        array $rawinput,
+        int $threadid,
+        int $contextid,
+        int $userid
+    ): ?array {
+        if (
+            !method_exists($skill, 'supports_target_context')
+            || !method_exists($skill, 'get_target_selector')
+            || !(bool)$skill->supports_target_context()
+        ) {
+            return null;
+        }
+        $input = $rawinput;
+        if ($threadid > 0 && $userid > 0) {
+            $input = (new privacy_anonymizer($this->store))->deanonymize_command_input($threadid, $input);
+        }
+        try {
+            (new skill_operating_context_resolver())->resolve($skill, $input, agent_context::from_contextid($contextid), $userid);
+        } catch (context_target_unresolved_exception $e) {
+            $resolution = $e->get_resolution();
+            $candidates = $resolution->candidates();
+            if (
+                $resolution->status() === context_target_resolution::STATUS_AMBIGUOUS
+                && !empty($candidates)
+                && !self::ambient_is_candidate($contextid, $candidates)
+            ) {
+                return [
+                    'code'     => 'CONTEXT_TARGET_UNRESOLVED',
+                    'severity' => 'needs_clarification',
+                    'message'  => self::ambiguous_target_message($candidates),
+                ];
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
      * The needs_clarification issue of the person-reference gate, including the decision-chip
      * preview (source C) the frontend renders for the colliding word.
      *
@@ -376,12 +477,7 @@ class preflight_pipeline {
                 $resolution = $e->get_resolution();
                 $candidates = $resolution->candidates();
                 if ($resolution->status() === context_target_resolution::STATUS_AMBIGUOUS && !empty($candidates)) {
-                    $lines = [];
-                    foreach (array_slice($candidates, 0, 10) as $candidate) {
-                        $lines[] = '- ' . $this->format_ambiguous_candidate((array)$candidate);
-                    }
-                    $message = get_string('agent_target_ambiguous_choose', 'bookingextension_agent')
-                        . "\n" . implode("\n", $lines);
+                    $message = self::ambiguous_target_message($candidates);
                 } else if ($resolution->status() === context_target_resolution::STATUS_NOT_FOUND) {
                     // Level-aware wording (C2): a COURSE-level target miss must talk about the
                     // missing course, not about an activity — telling a user who asked about a
@@ -562,7 +658,7 @@ class preflight_pipeline {
      * @param array $candidate One candidate payload from the target resolution.
      * @return string
      */
-    private function format_ambiguous_candidate(array $candidate): string {
+    private static function format_ambiguous_candidate(array $candidate): string {
         $id = (int)($candidate['id'] ?? 0);
         $name = trim((string)($candidate['name'] ?? ''));
         if ($name === '') {
