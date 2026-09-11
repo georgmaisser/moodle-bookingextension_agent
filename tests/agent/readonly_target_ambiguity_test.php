@@ -143,6 +143,18 @@ final class readonly_target_ambiguity_test extends advanced_testcase {
     }
 
     /**
+     * No target named (live thread 1314: the constructor put the activity name into the option
+     * search "query"): the selector is empty, so there is no NAMED ambiguity — no engine
+     * clarification, the skill runs and its own no-instance guard lists the activities.
+     */
+    public function test_unnamed_target_is_no_engine_clarification(): void {
+        [$decision, $threadid] = $this->decide(['query' => 'Dup Booking']);
+
+        $this->assertNotContains('CONTEXT_TARGET_UNRESOLVED', (array)($decision['issue_codes'] ?? []));
+        $this->assertSame(1, $this->run_count($threadid));
+    }
+
+    /**
      * A unique name resolves and executes as before.
      */
     public function test_unique_activity_executes(): void {

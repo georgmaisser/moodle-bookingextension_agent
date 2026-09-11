@@ -163,7 +163,8 @@ class preflight_pipeline {
      * the fallback would silently drop the candidates (thread 1304: two activities named
      * "booking", the planner retried 21 times without ever seeing both). Same resolver and the
      * same candidate list as the preflight; not-found and unsupported targets stay ambient, and so
-     * does an ambiguity whose candidates include the ambient context (ambient_is_candidate()).
+     * do an unnamed target (auto-pick) and an ambiguity whose candidates include the ambient
+     * context (ambient_is_candidate()).
      *
      * @param skill_interface $skill
      * @param array $rawinput Command input BEFORE de-anonymization.
@@ -189,6 +190,14 @@ class preflight_pipeline {
         $input = $rawinput;
         if ($threadid > 0 && $userid > 0) {
             $input = (new privacy_anonymizer($this->store))->deanonymize_command_input($threadid, $input);
+        }
+        // Only a NAMED target (an id or a query) can be genuinely ambiguous. Without one the
+        // resolver auto-picks and reports every accessible instance as a candidate — that is not
+        // ambiguity the user created, so the skill's own no-instance guard answers instead
+        // (live thread 1314: the activity name had gone into the option search "query").
+        $selector = $skill->get_target_selector($input);
+        if ($selector === null || $selector->is_empty()) {
+            return null;
         }
         try {
             (new skill_operating_context_resolver())->resolve($skill, $input, agent_context::from_contextid($contextid), $userid);
