@@ -45,6 +45,20 @@ use bookingextension_agent\local\wizard\services\sitesearch\sitesearch_scope_rep
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class site_content_file_indexing_test extends advanced_testcase {
+    /**
+     * Reset the scope resolver's request-static caches before every test (#2339 pattern).
+     *
+     * The resolver caches effective rule pairs per course id; after the per-test database reset a new
+     * course reuses an id, so a rule pair cached by an earlier test in the same process applied its
+     * include-files flag here and the incremental run indexed the file chunk (full suite only).
+     *
+     * @return void
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        \bookingextension_agent\local\wizard\services\sitesearch\sitesearch_scope_resolver::reset_request_cache();
+    }
+
     /** The file-indexing search area under test. */
     private const AREAKEY = 'mod_resource-activity';
 
