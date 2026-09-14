@@ -51,6 +51,9 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class interpreter implements agent_interpreter {
+    /** Issue code: a command named a skill that is not registered (planner slip, retried once — F62). */
+    public const ISSUE_SKILL_NOT_REGISTERED = 'SKILL_NOT_REGISTERED';
+
     /** Allowed response_type values from the LLM. */
     private const ALLOWED_RESPONSE_TYPES = [
         'clarification',
@@ -1154,9 +1157,19 @@ class interpreter implements agent_interpreter {
                     $errors[] = $denymessage !== null
                         ? "$label: " . $denymessage
                         : "$label: skill '" . $selection->skillname . "' denied by governance gate (" . $denyreason . ").";
-                    $issuecodes[] = ($denyreason === skill_contract_validator::DENY_REQUIRES_PRO)
-                        ? 'REQUIRES_PRO'
-                        : 'SKILL_DENIED';
+                    if ($denyreason === skill_contract_validator::DENY_NOT_REGISTERED) {
+                        // F62 (Lauf 8, thread 1537): a skill name that is not registered at all is a
+                        // planner slip (e.g. a constructor inventing "mod_booking.search_users"), not an
+                        // availability denial. Tag it for the one framework re-plan with a repair hint;
+                        // agent_runtime restores the neutral SKILL_DENIED framing if it stays unhealed.
+                        $issuecodes[] = self::ISSUE_SKILL_NOT_REGISTERED;
+                        $repairhints[] = "$label: skill '" . $selection->skillname . "' is not registered; "
+                            . 'use only a skill name from the catalog (keep the selected skill).';
+                    } else {
+                        $issuecodes[] = ($denyreason === skill_contract_validator::DENY_REQUIRES_PRO)
+                            ? 'REQUIRES_PRO'
+                            : 'SKILL_DENIED';
+                    }
                 } else {
                     foreach ($selection->errors as $error) {
                         $errors[] = $error;

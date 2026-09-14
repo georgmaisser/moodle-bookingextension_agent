@@ -111,6 +111,10 @@ class agent_runtime {
         // One retry with the contract hint recovers it; both interpreter doors are covered.
         'CONTRACT_EMPTY_MESSAGE_CLARIFICATION',
         'CONTRACT_EMPTY_SELECTION_MESSAGE',
+        // A command named a skill that is not registered at all (F62, thread 1537: the constructor
+        // invented mod_booking.search_users). One re-plan with the repair hint; unhealed, the turn
+        // keeps the neutral availability framing (SKILL_DENIED), never a technical error.
+        'SKILL_NOT_REGISTERED',
     ];
 
     /** Empty-message planner flakes that, once retry-exhausted, end as an honest clarification. */
@@ -367,7 +371,15 @@ class agent_runtime {
                         'LOOP_RETRY_EXHAUSTED_' . $exhaustedissuecode,
                     ]
                 )));
-                if ($exhaustedissuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
+                if ($exhaustedissuecode === 'SKILL_NOT_REGISTERED') {
+                    $result['issue_codes'] = array_values(array_unique(array_map(
+                        static fn($code): string => $code === 'SKILL_NOT_REGISTERED' ? 'SKILL_DENIED' : (string)$code,
+                        array_diff(
+                            (array)$result['issue_codes'],
+                            ['LOOP_RETRY_EXHAUSTED', 'LOOP_RETRY_EXHAUSTED_SKILL_NOT_REGISTERED']
+                        )
+                    )));
+                } else if ($exhaustedissuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
                     // The construction never produced a valid command, so nothing ran: end the turn
                     // as an honest clarification that keeps the user causes (errors) for the
                     // synchronizer, never as a terminal system error (Lauf 8 BU-3/CBI-2, since

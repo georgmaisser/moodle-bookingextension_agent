@@ -284,4 +284,59 @@ final class construction_structural_retry_test extends abstract_agent_testcase {
             }
         }
     }
+
+    /**
+     * Replay of Lauf 8 thread 1537 (EU-4): the constructor switched to a skill name that does not
+     * exist (mod_booking.search_users). The turn ended at once with "this function is not enabled
+     * here" instead of re-planning. An unregistered name must get the one framework retry.
+     */
+    public function test_unregistered_skill_name_is_retried_and_heals(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+
+        $this->install_scripted_planner([
+            $this->selector_skill_call('mod_booking.book_users'),
+            $this->constructor_confirmation_request('mod_booking.search_users', ['searchquery' => 'Frau Kraus']),
+            $this->selector_skill_call('mod_booking.book_users'),
+            $this->constructor_confirmation_request('mod_booking.book_users', [
+                'optionquery' => 'Erste Hilfe',
+                'userquery' => 'Frau Kraus',
+            ]),
+        ]);
+
+        $result = $this->chat('Die Frau Kraus braucht Zugang zum Erste-Hilfe-Kurs.', (int)$threadid, $store, $runtime);
+
+        $codes = (array)($result['issue_codes'] ?? []);
+        $this->assertGreaterThanOrEqual(4, count($this->scriptedplannerprompts), 'A re-plan round must have run.');
+        $this->assertNotContains(
+            'SKILL_DENIED',
+            $codes,
+            'An invented skill name is no availability denial: ' . json_encode($codes)
+        );
+    }
+
+    /**
+     * If the planner insists on the unregistered name, the turn keeps the neutral availability
+     * framing (SKILL_DENIED) after the one retry — never a technical error.
+     */
+    public function test_unregistered_skill_name_exhausted_keeps_availability_framing(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+
+        $this->install_scripted_planner([
+            $this->selector_skill_call('mod_booking.book_users'),
+            $this->constructor_confirmation_request('mod_booking.search_users', ['searchquery' => 'Frau Kraus']),
+            $this->selector_skill_call('mod_booking.book_users'),
+            $this->constructor_confirmation_request('mod_booking.search_users', ['searchquery' => 'Frau Kraus']),
+        ]);
+
+        $result = $this->chat('Die Frau Kraus braucht Zugang zum Erste-Hilfe-Kurs.', (int)$threadid, $store, $runtime);
+
+        $codes = (array)($result['issue_codes'] ?? []);
+        $this->assertGreaterThanOrEqual(4, count($this->scriptedplannerprompts), 'The retry must have run first.');
+        $this->assertContains('SKILL_DENIED', $codes, json_encode($codes));
+        $this->assertNotContains('SKILL_NOT_REGISTERED', $codes, 'The retry code is resolved before finalization.');
+    }
 }
