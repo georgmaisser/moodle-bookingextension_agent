@@ -123,9 +123,35 @@ final class mcp_tool_catalog_test extends advanced_testcase {
         $student = $this->getDataGenerator()->create_user();
         $catalog = $this->make_catalog();
 
-        // A user without the skill capabilities sees no tools at all.
-        $tools = $catalog->get_tools((int)$student->id, $contextid);
-        $this->assertSame([], $tools);
+        // Plugins may grant self-scoped skills to every authenticated user (local_taskflow does so for
+        // its employee self-service skills), so "no tools at all" is no longer the invariant. The
+        // invariant is the filter itself: every listed tool is executable for this user, and every
+        // exposed skill the evaluator denies to this user is absent.
+        $registry = skill_registry::make_default();
+        $evaluator = new skill_executability_evaluator($registry, new authorization_service());
+        $names = array_column($catalog->get_tools((int)$student->id, $contextid), 'name');
+
+        foreach ($names as $name) {
+            $skillname = $catalog->skill_for_tool_name((string)$name);
+            if ($skillname === null) {
+                continue;
+            }
+            $verdict = $evaluator->evaluate_skill($skillname, (int)$student->id, $contextid);
+            $this->assertSame('allow', (string)($verdict['executable_state'] ?? ''), "Listed tool $name must be executable.");
+        }
+
+        $denied = 0;
+        foreach ($registry->get_skill_names() as $skillname) {
+            if (!$catalog->is_exposed($skillname)) {
+                continue;
+            }
+            $verdict = $evaluator->evaluate_skill($skillname, (int)$student->id, $contextid);
+            if ((string)($verdict['executable_state'] ?? '') !== 'allow') {
+                $denied++;
+                $this->assertNotContains(mcp_tool_catalog_service::tool_name_for($skillname), $names);
+            }
+        }
+        $this->assertGreaterThan(0, $denied, 'The fixture must contain skills this user may not run.');
     }
 
     /**
