@@ -367,7 +367,16 @@ class agent_runtime {
                         'LOOP_RETRY_EXHAUSTED_' . $exhaustedissuecode,
                     ]
                 )));
-                if (in_array($exhaustedissuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
+                if ($exhaustedissuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
+                    // The construction never produced a valid command, so nothing ran: end the turn
+                    // as an honest clarification that keeps the user causes (errors) for the
+                    // synchronizer, never as a terminal system error (Lauf 8 BU-3/CBI-2, since
+                    // 3719ff9 an invented key ended as 'error'; same doctrine as the empty-message
+                    // codes below). Repair hints stay planner-only.
+                    $result['response_type'] = 'clarification';
+                    $result['commands'] = [];
+                    $result['message'] = '';
+                } else if (in_array($exhaustedissuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
                     // The planner twice delivered no text: ask the user to rephrase
                     // instead of ending the turn as a system error.
                     $result['response_type'] = 'clarification';

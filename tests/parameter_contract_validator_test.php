@@ -78,9 +78,21 @@ final class parameter_contract_validator_test extends advanced_testcase {
         $result = $validator->validate($skill, ['search_text' => 'x', 'query' => 'y'], 'Command #2');
         $this->assertFalse($result->valid);
         $this->assertContains(parameter_contract_validator::ISSUE_UNKNOWN_INPUT_PROPERTY, $result->issuecodes);
-        $this->assertStringContainsString('search_text', (string)$result->errors[0]);
+        // F3 two-channel contract (Lauf 8, CBI-2/BU-3): key names are planner vocabulary — the
+        // unknown key and the supported list travel on the repair channel only, never in the
+        // user-cause errors the synchronizer relays.
+        $this->assertStringContainsString('search_text', (string)$result->repair[0]);
         $this->assertStringContainsString('query', (string)$result->repair[0]);
         $this->assertStringStartsWith('Command #2:', (string)$result->repair[0]);
+        $this->assertNotEmpty($result->errors);
+        $schema = (array)$skill->get_schema();
+        $names = array_merge(['search_text'], array_map('strval', array_keys((array)($schema['properties'] ?? []))));
+        foreach ($result->errors as $error) {
+            foreach ($names as $name) {
+                $this->assertStringNotContainsString($name, (string)$error, 'user-cause error must not name keys');
+            }
+            $this->assertStringNotContainsString('Command #', (string)$error, 'user cause carries no planner label');
+        }
     }
 
     /**

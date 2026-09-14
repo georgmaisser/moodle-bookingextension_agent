@@ -47,15 +47,18 @@ class parameter_contract_validator {
         $input = $keycheck['input'];
         if (!empty($keycheck['unknown'])) {
             $supported = $keycheck['supported'];
-            $message = 'Unknown input properties: ' . implode(', ', $keycheck['unknown'])
-                . '. Supported properties: ' . (empty($supported) ? '(none)' : implode(', ', $supported)) . '.';
+            // F3 two-channel contract: the key names are planner vocabulary and travel on the
+            // repair channel only (framework retry observation). The error is a label-free user
+            // cause without any key or skill name — the synchronizer relays errors to the user
+            // (Lauf 8, threads 1427/1438: the supported-property list reached the chat).
             return new parameter_construction_result(
                 $input,
                 false,
-                [$label . ': ' . $message],
+                [self::USER_CAUSE_UNKNOWN_INPUT],
                 [self::ISSUE_UNKNOWN_INPUT_PROPERTY],
-                [$label . ': use only the supported property names of ' . $skill->get_name()
-                    . ' (' . implode(', ', $supported) . '); drop ' . implode(', ', $keycheck['unknown']) . '.']
+                [$label . ': unknown input properties ' . implode(', ', $keycheck['unknown'])
+                    . '; use only the supported property names of ' . $skill->get_name()
+                    . ' (' . (empty($supported) ? '(none)' : implode(', ', $supported)) . ').']
             );
         }
 
@@ -93,6 +96,12 @@ class parameter_contract_validator {
 
         return new parameter_construction_result($input, false, $errors, $issuecodes, $repair);
     }
+
+    /**
+     * User cause for rejected input keys: plain English LLM material for the synchronizer (F3: never a
+     * get_string rendering, the synchronizer formulates in the user's language); names no key or skill.
+     */
+    public const USER_CAUSE_UNKNOWN_INPUT = 'The request contained details this step cannot use, so nothing was done.';
 
     /** Issue code: the planner used input keys the skill schema does not declare (#2364). */
     public const ISSUE_UNKNOWN_INPUT_PROPERTY = 'UNKNOWN_INPUT_PROPERTY';

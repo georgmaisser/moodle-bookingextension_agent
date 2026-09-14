@@ -179,4 +179,109 @@ final class construction_structural_retry_test extends abstract_agent_testcase {
             'Exactly one selector + one constructor call — no retry round.'
         );
     }
+
+    /**
+     * Replay of Lauf 8 thread 1427 (BU-3): an unknown key, then a structurally invalid retry.
+     * Since 3719ff9 (#2364) the exhausted construction retry ended as response_type=error and the
+     * synchronizer relayed "Unknown input properties ... Supported properties: ..." to the user.
+     * Nothing was executed, so the turn must end as an honest clarification whose user causes
+     * carry neither the unknown key nor a field list.
+     */
+    public function test_exhausted_structural_retry_ends_as_clarification_bu3(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+
+        $this->install_scripted_planner([
+            $this->selector_skill_call('mod_booking.bulk_update_options'),
+            $this->constructor_confirmation_request('mod_booking.bulk_update_options', [
+                'optionquery' => 'atelier',
+                'endingtime' => 1735689599,
+            ]),
+            $this->selector_skill_call('mod_booking.bulk_update_options'),
+            $this->constructor_confirmation_request('mod_booking.bulk_update_options', [
+                'optionquery' => 'atelier',
+                'optiondates' => [['timestart' => '2026-12-31T00:00:00+01:00', 'timeend' => '2026-12-31T23:59:59+01:00']],
+            ]),
+        ]);
+
+        $result = $this->chat(
+            'Mets la même date de fin (31 décembre) sur toutes les offres qui contiennent « atelier ».',
+            (int)$threadid,
+            $store,
+            $runtime
+        );
+
+        $this->assert_exhausted_construction_clarifies($result, 'mod_booking.bulk_update_options', ['endingtime']);
+    }
+
+    /**
+     * Replay of Lauf 8 thread 1438 (CBI-2): the retry round switches to the read-only sibling and
+     * passes the ambient contextid as input. Same expectation: clarification, no key names.
+     */
+    public function test_exhausted_structural_retry_ends_as_clarification_cbi2(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+
+        $this->install_scripted_planner([
+            $this->selector_skill_call('mod_booking.configure_booking_instance'),
+            $this->constructor_confirmation_request('mod_booking.configure_booking_instance', [
+                'action' => 'update',
+                'changes' => [['field' => 'confirmationmailcopy', 'value' => 0]],
+            ]),
+            $this->selector_skill_call('mod_booking.list_instance_settings'),
+            $this->constructor_confirmation_request('mod_booking.list_instance_settings', [
+                'contextid' => $this->booking_contextid(),
+            ]),
+        ]);
+
+        $result = $this->chat(
+            'I keep getting copies of every confirmation mail — turn that off at the activity level.',
+            (int)$threadid,
+            $store,
+            $runtime
+        );
+
+        $this->assert_exhausted_construction_clarifies($result, 'mod_booking.list_instance_settings', ['contextid']);
+    }
+
+    /**
+     * Shared structural expectation for an exhausted construction retry.
+     *
+     * @param array $result Final runtime result.
+     * @param string $skillname Skill of the failing round (its schema names must not leak).
+     * @param string[] $unknownkeys Keys the planner invented.
+     * @return void
+     */
+    private function assert_exhausted_construction_clarifies(array $result, string $skillname, array $unknownkeys): void {
+        $codes = (array)($result['issue_codes'] ?? []);
+        $this->assertContains('LOOP_RETRY_EXHAUSTED', $codes, json_encode($codes));
+        $this->assertSame(
+            'clarification',
+            (string)($result['response_type'] ?? ''),
+            'An exhausted construction retry executed nothing and must clarify: ' . json_encode($codes)
+        );
+        $this->assertEmpty((array)($result['commands'] ?? []), 'No command may be staged.');
+
+        $skill = \bookingextension_agent\local\wizard\skill_registry::make_default()->get_skill($skillname);
+        $schema = (array)$skill->get_schema();
+        $properties = array_map('strval', array_keys((array)($schema['properties'] ?? [])));
+        $usertexts = array_merge([(string)($result['message'] ?? '')], array_map('strval', (array)($result['errors'] ?? [])));
+        foreach ($usertexts as $text) {
+            foreach ($unknownkeys as $key) {
+                $this->assertStringNotContainsString($key, $text, 'The invented key must not reach the user.');
+            }
+            $named = 0;
+            foreach ($properties as $property) {
+                if (strlen($property) > 3 && preg_match('/\\b' . preg_quote($property, '/') . '\\b/', $text)) {
+                    $named++;
+                }
+            }
+            $this->assertLessThanOrEqual(1, $named, 'No field list may reach the user: ' . $text);
+            foreach ($codes as $code) {
+                $this->assertStringNotContainsString((string)$code, $text, 'Issue codes must not reach the user.');
+            }
+        }
+    }
 }
