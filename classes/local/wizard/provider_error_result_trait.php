@@ -81,7 +81,10 @@ trait provider_error_result_trait {
             'message' => '',
             'commands' => [],
             'ambiguities' => [],
-            'errors' => [$errormessage],
+            // F61 (Lauf 8, thread 1512): the raw provider/exception text ("Invalid error code: 0") is an
+            // admin diagnostic (provider_detail), never a user cause the synchronizer could relay.
+            'errors' => ['The AI service could not be reached or returned an error, so the request was not processed.'],
+            'provider_detail' => $errormessage,
             'issue_codes' => $issuecodes,
             'error_class' => $errorclass,
         ];
@@ -99,7 +102,8 @@ trait provider_error_result_trait {
             'message' => '',
             'commands' => [],
             'ambiguities' => [],
-            'errors' => ['Provider returned empty content.'],
+            'errors' => ['The AI service returned no answer, so the request was not processed.'],
+            'provider_detail' => 'Provider returned empty content.',
             'issue_codes' => [],
             'error_class' => 'transient_io',
         ];

@@ -142,7 +142,10 @@ class finalization_template_service {
             // the localized class text only (raw provider/internal strings are noise
             // for them and may be English-only).
             if (is_siteadmin()) {
-                $rawerrors = $result['errors'] ?? [];
+                $rawerrors = array_merge(
+                    (array)($result['errors'] ?? []),
+                    trim((string)($result['provider_detail'] ?? '')) !== '' ? [(string)$result['provider_detail']] : []
+                );
                 if (!empty($rawerrors) && is_array($rawerrors)) {
                     $rawerror = trim(implode(' ', $rawerrors));
                     if ($rawerror !== '') {

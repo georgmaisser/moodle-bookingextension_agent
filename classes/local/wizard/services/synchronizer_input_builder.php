@@ -239,9 +239,8 @@ class synchronizer_input_builder {
         if ($errorclass !== '') {
             $lines[] = 'error_class: ' . $errorclass;
         }
-        if (!empty($issuecodes)) {
-            $lines[] = 'issue_codes: ' . implode(', ', $issuecodes);
-        }
+        // F61 (Lauf 8, thread 1463): raw issue codes are engine state, not user material — the
+        // synchronizer quoted them. The engine already decided on them (framing above, error_class).
         if (!empty($causes)) {
             $lines[] = 'causes - each entry is ONE independent cause; never merge or reattribute them:';
             $index = 1;
@@ -363,15 +362,11 @@ class synchronizer_input_builder {
         }
 
         $responsetype = trim((string)($result['response_type'] ?? ''));
-        $issuecodes = issue_code_normalizer::normalize((array)($result['issue_codes'] ?? []));
         $attemptedskills = $this->normalize_nonempty_string_list((array)($result['attempted_skills'] ?? []));
 
         $lines = ['FINAL_SOURCE_RESULT'];
         if ($responsetype !== '') {
             $lines[] = 'response_type=' . $responsetype;
-        }
-        if (!empty($issuecodes)) {
-            $lines[] = 'issue_codes=' . implode(',', array_slice($issuecodes, 0, 8));
         }
         if (!empty($attemptedskills)) {
             $lines[] = 'attempted_skills=' . implode(',', array_slice($attemptedskills, 0, 8));
