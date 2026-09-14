@@ -43,6 +43,15 @@ final class docs_embeddings_index_prune_test extends advanced_testcase {
     /** @var int Deterministic dimensions used for hashing. */
     private const DIMS = 8;
 
+    /**
+     * A vector of exactly DIMS values: the store refuses any other length (embeddings_dimension_guard, #2225).
+     *
+     * @return string JSON array.
+     */
+    private static function vector_json(): string {
+        return '[' . implode(',', array_fill(0, self::DIMS, '0.1')) . ']';
+    }
+
     /** @var string */
     private string $roota;
 
@@ -123,7 +132,7 @@ final class docs_embeddings_index_prune_test extends advanced_testcase {
             'embedding_model' => self::MODEL,
             'embedding_dimensions' => (string)self::DIMS,
             'content_hash' => $hash,
-            'embedding_json' => '[0.1,0.2,0.3]',
+            'embedding_json' => self::vector_json(),
         ];
     }
 
@@ -154,7 +163,7 @@ final class docs_embeddings_index_prune_test extends advanced_testcase {
                 'corpus_id' => 'gone', 'chunk_path' => 'x.md', 'chunk_title' => '',
                 'line_start' => '1', 'line_end' => '1', 'embedding_model' => self::MODEL,
                 'embedding_dimensions' => (string)self::DIMS, 'content_hash' => 'deadbeef',
-                'embedding_json' => '[0.9]',
+                'embedding_json' => self::vector_json(),
             ],
         ]);
 

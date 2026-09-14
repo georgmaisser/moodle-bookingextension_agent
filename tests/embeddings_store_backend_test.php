@@ -106,7 +106,8 @@ final class embeddings_store_backend_test extends advanced_testcase {
                 $model,
                 $dims,
                 sha1($cid),
-                [0.1, 0.2],
+                // Exactly $dims values: the store refuses any other length (embeddings_dimension_guard, #2225).
+                array_fill(0, $dims, 0.1),
                 1
             ));
         }

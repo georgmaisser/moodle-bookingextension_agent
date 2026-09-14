@@ -135,7 +135,9 @@ final class docs_embeddings_streaming_test extends advanced_testcase {
         // A large catalog: many single-chunk files, each with a sizeable embedding vector so the
         // on-disk file is several MB. Every file has a hash-matching seed row → pure reuse on rebuild.
         $count = 400;
-        $bigvector = '[' . implode(',', array_fill(0, 1536, '0.123456789')) . ']';
+        // The declared dimensions must match the vector length (embeddings_dimension_guard, #2225).
+        $bigdims = 1536;
+        $bigvector = '[' . implode(',', array_fill(0, $bigdims, '0.123456789')) . ']';
         $seedrows = [];
         for ($i = 0; $i < $count; $i++) {
             $relpath = 'doc' . $i . '.md';
@@ -148,14 +150,14 @@ final class docs_embeddings_streaming_test extends advanced_testcase {
                 'line_start' => '1',
                 'line_end' => (string)(substr_count($content, "\n") + 1),
                 'embedding_model' => self::MODEL,
-                'embedding_dimensions' => (string)self::DIMS,
-                'content_hash' => sha1($content . '|m=' . self::MODEL . '|d=' . self::DIMS),
+                'embedding_dimensions' => (string)$bigdims,
+                'content_hash' => sha1($content . '|m=' . self::MODEL . '|d=' . $bigdims),
                 'embedding_json' => $bigvector,
             ];
         }
 
         docs_corpus_registry::set_corpora_for_testing(['big' => $root]);
-        $repo = $this->repo();
+        $repo = $this->repo($bigdims);
         $repo->write_rows($seedrows);
 
         $filesize = (int)filesize($repo->get_csv_path());
@@ -165,7 +167,7 @@ final class docs_embeddings_streaming_test extends advanced_testcase {
         gc_collect_cycles();
         $before = memory_get_usage();
         memory_reset_peak_usage();
-        $summary = (new docs_embeddings_index_service())->rebuild('big', self::MODEL, self::DIMS, false);
+        $summary = (new docs_embeddings_index_service())->rebuild('big', self::MODEL, $bigdims, false);
         $peakdelta = memory_get_peak_usage() - $before;
 
         // Pure reuse: every file copied from the old index, nothing embedded, nothing dropped.
@@ -187,14 +189,15 @@ final class docs_embeddings_streaming_test extends advanced_testcase {
     }
 
     /**
-     * Repository bound to the same variant the rebuild writes (MODEL/DIMS).
+     * Repository bound to the same variant the rebuild writes (MODEL plus the given dimensions).
      *
+     * @param int $dims Declared dimensions of the variant.
      * @return docs_embeddings_csv_repository
      */
-    private function repo(): docs_embeddings_csv_repository {
+    private function repo(int $dims = self::DIMS): docs_embeddings_csv_repository {
         return new docs_embeddings_csv_repository(
             null,
-            embeddings_csv_repository_base::normalize_variant_key(self::MODEL . '__' . self::DIMS)
+            embeddings_csv_repository_base::normalize_variant_key(self::MODEL . '__' . $dims)
         );
     }
 

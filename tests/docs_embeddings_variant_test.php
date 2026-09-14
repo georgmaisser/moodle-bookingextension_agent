@@ -65,7 +65,8 @@ final class docs_embeddings_variant_test extends advanced_testcase {
             'line_start' => '1', 'line_end' => (string)(substr_count($content, "\n") + 1),
             'embedding_model' => $model, 'embedding_dimensions' => (string)$dims,
             'content_hash' => sha1($content . '|m=' . $model . '|d=' . $dims),
-            'embedding_json' => '[0.1,0.2]',
+            // Exactly $dims values: the store refuses any other length (embeddings_dimension_guard, #2225).
+            'embedding_json' => '[' . implode(',', array_fill(0, $dims, '0.1')) . ']',
         ];
     }
 
