@@ -108,10 +108,12 @@ class message_persistence_service {
         // The stored conversation is LLM input for every later turn (history), so it holds masked
         // values only (HARD RULE 2026-09-11); display de-anonymizes on read (ai_poll_thread,
         // ai_send_message). An engine-built text or an LLM reply carrying a de-anonymized word is
-        // re-masked here with the thread's token map — tokens are never re-tokenized.
+        // re-masked here with the thread's token map — tokens are never re-tokenized. Storage masking
+        // mints no single-word tokens (Lauf 8 F60): ordinary words stay readable in the history,
+        // full names and e-mails of unmapped persons are still masked.
         $anonymizer = new privacy_anonymizer($this->store);
-        $content = (string)$anonymizer->anonymize_value_for_llm($threadid, (string)($result['message'] ?? ''));
-        $structured['errors'] = $anonymizer->anonymize_value_for_llm($threadid, (array)$structured['errors']);
+        $content = (string)$anonymizer->anonymize_value_for_storage($threadid, (string)($result['message'] ?? ''));
+        $structured['errors'] = $anonymizer->anonymize_value_for_storage($threadid, (array)$structured['errors']);
         $this->store->add_message($threadid, 'assistant', $content, $structured);
     }
 }

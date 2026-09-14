@@ -155,4 +155,56 @@ final class llm_boundary_masking_test extends advanced_testcase {
         $display = $anonymizer->deanonymize_message_for_display($threadid, (string)$record->content);
         $this->assertStringContainsString('Herbst', (string)$display['message']);
     }
+
+    /**
+     * Lauf 8 F60 (thread 1555): since 2f1121a the persistence ran the single-word name fallback over
+     * engine and planner texts, so ordinary words that happen to be site first names ("Note", "will")
+     * became new tokens and the stored history (LLM input of later turns) turned unreadable.
+     * Storage re-masks known values only and never mints single-word tokens.
+     */
+    public function test_persisted_text_does_not_mint_tokens_for_unmapped_single_words(): void {
+        global $DB;
+        $this->resetAfterTest();
+        // Users first: the anonymizer's name index is built on the first precheck of the request.
+        $this->getDataGenerator()->create_user(['firstname' => 'Note', 'lastname' => 'Quellenbach']);
+        $this->getDataGenerator()->create_user(['firstname' => 'Will', 'lastname' => 'Pardubitz']);
+        [$store, $anonymizer, $threadid] = $this->prepare();
+        $before = count((array)($store->get_thread_metadata_value($threadid, 'privacy_anon_map')['entries'] ?? []));
+
+        $text = 'You are about to delete all stored memories. Note: this will be carried out in activity "ai".';
+        (new message_persistence_service($store))->persist_assistant_message($threadid, [
+            'response_type' => 'confirmation_request',
+            'message' => $text,
+        ]);
+
+        $records = $DB->get_records('bx_agent_ai_messages', ['threadid' => $threadid, 'role' => 'assistant'], 'id DESC', '*', 0, 1);
+        $record = reset($records);
+        $this->assertSame($text, (string)$record->content, 'Unmapped single words must be stored as written.');
+        $after = count((array)($store->get_thread_metadata_value($threadid, 'privacy_anon_map')['entries'] ?? []));
+        $this->assertSame($before, $after, 'Storage must not mint new single-word tokens.');
+    }
+
+    /**
+     * The leak stays closed for text the LLM never saw masked: a full name of a site user that is not
+     * in the thread map (e.g. an engine-built candidate list) is still masked before it is stored.
+     */
+    public function test_persisted_text_masks_unmapped_full_names(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->getDataGenerator()->create_user(['firstname' => 'Annabel', 'lastname' => 'Maierhofer']);
+        [$store, $anonymizer, $threadid] = $this->prepare();
+
+        (new message_persistence_service($store))->persist_assistant_message($threadid, [
+            'response_type' => 'clarification',
+            'message' => 'Did you mean Annabel Maierhofer?',
+            'errors' => ['Two people match: Annabel Maierhofer.'],
+        ]);
+
+        $records = $DB->get_records('bx_agent_ai_messages', ['threadid' => $threadid, 'role' => 'assistant'], 'id DESC', '*', 0, 1);
+        $record = reset($records);
+        $this->assertStringNotContainsString('Maierhofer', (string)$record->content);
+        $this->assertStringNotContainsString('Maierhofer', (string)$record->structuredjson);
+        $display = $anonymizer->deanonymize_message_for_display($threadid, (string)$record->content);
+        $this->assertStringContainsString('Annabel Maierhofer', (string)$display['message']);
+    }
 }

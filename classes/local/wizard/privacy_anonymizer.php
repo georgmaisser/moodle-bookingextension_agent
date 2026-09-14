@@ -104,6 +104,9 @@ class privacy_anonymizer {
     /** @var string Visual marker appended to a de-masked identity so an authorized viewer sees it was privacy-masked. */
     private const DEMASK_MARKER = '👤';
 
+    /** @var bool Storage mode: known map values are re-masked, no single-word name tokens are minted. */
+    private bool $storagemode = false;
+
     /** @var string High-confidence token-map entry (full name, person field, email — #2226 D0). */
     public const CONFIDENCE_HIGH = 'high';
 
@@ -398,6 +401,78 @@ class privacy_anonymizer {
     }
 
     /**
+     * Mask a text or payload before it is STORED as conversation history (LLM input of later turns).
+     *
+     * Values already known to the thread's token map are replaced by their tokens (the display
+     * resolves exactly these originals), and high-confidence identities not yet mapped - full names,
+     * e-mails, labelled or structured person fields - are still masked. The single-word name fallback
+     * does NOT run here: stored texts are engine or planner prose, and minting tokens for ordinary
+     * words that happen to be site first or last names made the history unreadable (Lauf 8, F60,
+     * thread 1555: "Note: this will be carried out"). The LLM-bound path keeps the full detection.
+     *
+     * @param int $threadid
+     * @param mixed $value
+     * @return mixed
+     */
+    public function anonymize_value_for_storage(int $threadid, $value) {
+        if (!$this->should_anonymize_llm_backend_data()) {
+            return $value;
+        }
+
+        $tokenmap = $this->get_token_map($threadid);
+        $previous = $this->storagemode;
+        $this->storagemode = true;
+        try {
+            $sanitized = $this->anonymize_value_recursive($value, $tokenmap);
+        } finally {
+            $this->storagemode = $previous;
+        }
+        $this->set_token_map($threadid, $tokenmap);
+
+        return $sanitized;
+    }
+
+    /**
+     * Replace every original already known to the token map by its token (storage mode only).
+     *
+     * @param string $message
+     * @param array $tokenmap
+     * @return string
+     */
+    private function replace_known_map_values(string $message, array $tokenmap): string {
+        $entries = is_array($tokenmap['entries'] ?? null) ? (array)$tokenmap['entries'] : [];
+        $needles = [];
+        foreach ($entries as $token => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            foreach (['original', 'value'] as $key) {
+                $candidate = trim((string)($entry[$key] ?? ''));
+                if (core_text::strlen($candidate) < 2 || self::looks_like_anon_token($candidate)) {
+                    continue;
+                }
+                if (!isset($needles[$candidate])) {
+                    $needles[$candidate] = (string)$token;
+                }
+            }
+        }
+        if (empty($needles)) {
+            return $message;
+        }
+        uksort($needles, static fn($a, $b) => core_text::strlen($b) <=> core_text::strlen($a));
+        foreach ($needles as $candidate => $token) {
+            $pattern = '/(?<![\p{L}\p{N}_])' . preg_quote($candidate, '/') . '(?![\p{L}\p{N}_])(?:\s*'
+                . preg_quote(self::DEMASK_MARKER, '/') . ')?/iu';
+            $replaced = preg_replace($pattern, $token, $message);
+            if (is_string($replaced)) {
+                $message = $replaced;
+            }
+        }
+
+        return $message;
+    }
+
+    /**
      * Re-anchor ANON_USER tokens that were minted in another thread into the current thread's map.
      *
      * Recalled memory (recall_memory) surfaces content that was persisted in anonymized form under
@@ -604,6 +679,10 @@ class privacy_anonymizer {
             if ($direct !== null) {
                 return $direct;
             }
+        }
+
+        if ($this->storagemode) {
+            $message = $this->replace_known_map_values($message, $tokenmap);
         }
 
         // Field-labeled summaries (firstname=..., lastname=..., email=...) must keep
@@ -880,7 +959,12 @@ class privacy_anonymizer {
         }
 
         // Pass 2: single-token fallback only where pass 1 found no valid full-name pair.
+        // Not in storage mode (see anonymize_value_for_storage()): known words were re-masked from
+        // the token map already, new single-word tokens are never minted for stored prose.
         foreach ($words as $idx => $entry) {
+            if ($this->storagemode) {
+                break;
+            }
             if (array_key_exists($idx, $replaceword) || !empty($skipword[$idx])) {
                 continue;
             }
