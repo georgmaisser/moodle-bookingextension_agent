@@ -18,8 +18,8 @@
  * Truncated provider output and unreachable providers are handled structurally.
  *
  * Reasoning runaways of the upstream model are cut off at the output-token cap and come back as a
- * successful call with finish_reason 'length' and the partial reasoning as content (training
- * threads 16/26, 2026-09-15). The phase call is retried once with the same prompt; exhausted, the
+ * successful call with finish_reason 'length' and the partial reasoning as content. The phase
+ * call is retried once with the same prompt; exhausted, the
  * turn ends as an honest clarification. The partial output never reaches the parser, retry
  * observations, the synchronizer or the user. An unreachable provider (HTTP 502/503/504) ends as a
  * template without a second LLM call against the failing service.
