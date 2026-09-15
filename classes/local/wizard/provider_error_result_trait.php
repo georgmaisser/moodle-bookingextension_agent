@@ -76,8 +76,9 @@ trait provider_error_result_trait {
         return [
             'response_type' => 'error',
             // Deliberately empty: the template fallback resolves the localized
-            // class-specific text from error_class (provider classes never go to
-            // the synchronizer — the provider itself is the failing component).
+            // class-specific text from error_class (provider classes are routed to the
+            // template by finalization_classifier — the provider itself is the failing
+            // component, so a synchronizer call would fail too).
             'message' => '',
             'commands' => [],
             'ambiguities' => [],
@@ -87,6 +88,28 @@ trait provider_error_result_trait {
             'provider_detail' => $errormessage,
             'issue_codes' => $issuecodes,
             'error_class' => $errorclass,
+        ];
+    }
+
+    /**
+     * Build the payload for provider output that stayed cut off after the one retry.
+     *
+     * The partial content is discarded here on purpose: it is unfinished model reasoning, so it
+     * must not reach the parser, retry observations, the synchronizer, storage or the user. The
+     * runtime turns this result into an honest clarification (agent_runtime).
+     *
+     * @return array
+     */
+    private function build_truncated_provider_result(): array {
+        return [
+            'response_type' => 'error',
+            'message' => '',
+            'commands' => [],
+            'ambiguities' => [],
+            'errors' => ['The AI service stopped before it could complete an answer, so nothing was processed.'],
+            'provider_detail' => 'Provider output was cut off at the token limit (finish_reason length), also after one retry.',
+            'issue_codes' => ['PROVIDER_OUTPUT_TRUNCATED'],
+            'error_class' => 'provider_output_truncated',
         ];
     }
 

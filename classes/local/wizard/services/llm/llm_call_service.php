@@ -211,6 +211,55 @@ class llm_call_service {
     }
 
     /**
+     * Invoke a phase call and repeat it once when the provider cut the output off.
+     *
+     * A reasoning runaway of the upstream model ends at the output-token cap: the call succeeds
+     * with finish_reason 'length' and the partial reasoning as content, which is not a usable
+     * answer. Runaways are stochastic, so the SAME call is repeated once (no retry observation —
+     * there is nothing to repair). The decision is taken from the structural finish reason only.
+     * If the repeated call is cut off again, 'truncated' is true and the caller must discard the
+     * content instead of parsing, storing or relaying it.
+     *
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param string $source
+     * @param string $prompt
+     * @param string $actionclass
+     * @return array The invoke_for_context() result plus 'truncated' (bool) and 'truncationretries' (int).
+     */
+    public function invoke_for_context_retrying_truncation(
+        int $threadid,
+        int $contextid,
+        int $userid,
+        string $source,
+        string $prompt,
+        string $actionclass = generate_text::class
+    ): array {
+        $call = $this->invoke_for_context($threadid, $contextid, $userid, $source, $prompt, $actionclass);
+        $retries = 0;
+        if (self::is_truncated_call($call)) {
+            $retries = 1;
+            // Same source on purpose: the debug log shows the retry as a second row of the same call
+            // site (the source column is length-limited).
+            $call = $this->invoke_for_context($threadid, $contextid, $userid, $source, $prompt, $actionclass);
+        }
+        $call['truncated'] = self::is_truncated_call($call);
+        $call['truncationretries'] = $retries;
+        return $call;
+    }
+
+    /**
+     * Whether a provider call succeeded but was cut off at the output-token limit.
+     *
+     * @param array $call
+     * @return bool
+     */
+    public static function is_truncated_call(array $call): bool {
+        return !empty($call['success']) && (string)($call['finishreason'] ?? '') === 'length';
+    }
+
+    /**
      * Invoke Wunderbyte embeddings action by context id (context-level-agnostic).
      *
      * @param int $threadid

@@ -231,9 +231,12 @@ class planner_phase_service {
 
         $llm = new llm_call_service($this->store);
         $phaseoutput = [];
-        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
+        $call = $llm->invoke_for_context_retrying_truncation($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
-        if (empty($call['success'])) {
+        if (!empty($call['truncated'])) {
+            // Cut off twice at the token limit: the partial content is discarded, never parsed.
+            $phaseoutput = $this->build_truncated_provider_result();
+        } else if (empty($call['success'])) {
             $phaseoutput = $this->build_provider_error_result($call);
         } else if ($rawtext === '') {
             $phaseoutput = $this->build_empty_provider_result();
@@ -307,6 +310,9 @@ class planner_phase_service {
             'message' => (string)($phaseoutput['message'] ?? ''),
             'issue_codes' => (array)($phaseoutput['issue_codes'] ?? []),
             'errors' => (array)($phaseoutput['errors'] ?? []),
+            // The classified provider/contract cause; the orchestrator forwards it on the
+            // construction skip so finalization can route provider failures to the template.
+            'error_class' => (string)($phaseoutput['error_class'] ?? ''),
             'planned_steps' => (array)($phaseoutput['planned_steps'] ?? []),
         ];
     }
@@ -449,8 +455,13 @@ class planner_phase_service {
             false
         );
 
-        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
+        $call = $llm->invoke_for_context_retrying_truncation($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
+
+        if (!empty($call['truncated'])) {
+            // Cut off twice at the token limit: the partial content is discarded, never parsed.
+            return $this->build_truncated_provider_result();
+        }
 
         if (empty($call['success'])) {
             return $this->build_provider_error_result($call);

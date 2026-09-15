@@ -393,8 +393,13 @@ class orchestrator {
             . '|fb=' . ($routingfallback ? '1' : '0')
             . '|ob=' . count($observations);
 
-        $call = $llm->invoke_for_context($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
+        $call = $llm->invoke_for_context_retrying_truncation($threadid, $contextid, $userid, $debugsource, $prompt, $actionclass);
         $rawtext = (string)($call['rawcontent'] ?? '');
+        if (!empty($call['truncated'])) {
+            // Cut off twice at the token limit: the partial reply is discarded, never relayed.
+            return $this->build_truncated_provider_result();
+        }
+
         if (empty($call['success'])) {
             return $this->build_provider_error_result($call);
         }

@@ -89,6 +89,9 @@ class finalization_classifier {
         // Provider classes never route to the synchronizer: the provider itself is
         // the failing component, so an extra LLM call would fail (or lie) too.
         'provider_error',
+        // HTTP 502/503/504 or an unreachable endpoint: polishing would call the same dead
+        // service again and add another gateway wait before the user sees anything (#2395).
+        'provider_unreachable',
         // Internal status failures are deterministic facts, not conversation.
         'internal_status',
     ];

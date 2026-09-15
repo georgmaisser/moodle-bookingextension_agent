@@ -127,6 +127,14 @@ class agent_runtime {
     private const LOOP_MAX_RETRIES_PER_ISSUE = 1;
 
     /**
+     * Provider output cut off at the token limit, also after the one repeated phase call
+     * (llm_call_service::invoke_for_context_retrying_truncation). Not a framework retry code:
+     * the phase call was already repeated with the same prompt, and a re-plan round has nothing
+     * to repair (#2395).
+     */
+    private const PROVIDER_OUTPUT_TRUNCATED_ISSUE_CODE = 'PROVIDER_OUTPUT_TRUNCATED';
+
+    /**
      * Read-only runtime feature-flag snapshot used by orchestration consumers.
      *
      * @return array
@@ -396,6 +404,19 @@ class agent_runtime {
                     $result['errors'] = [];
                     $result['message'] = '';
                 }
+            }
+
+            if (
+                (string)($result['response_type'] ?? '') === 'error'
+                && in_array(self::PROVIDER_OUTPUT_TRUNCATED_ISSUE_CODE, (array)($result['issue_codes'] ?? []), true)
+            ) {
+                // The provider twice stopped before completing an answer (reasoning runaway at the
+                // token limit): nothing was planned or run in this step, so the turn ends as an honest
+                // clarification that keeps the plain cause for the synchronizer — never as a system
+                // error (#2395, George 2026-09-15). The discarded partial output is not part of the result.
+                $result['response_type'] = 'clarification';
+                $result['commands'] = [];
+                $result['message'] = '';
             }
 
             return $this->finalize_and_persist_result($threadid, $result, $state);
