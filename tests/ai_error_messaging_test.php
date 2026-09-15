@@ -94,7 +94,9 @@ final class ai_error_messaging_test extends \advanced_testcase {
     public function test_classifier_routes_error_classes(): void {
         $classifier = new finalization_classifier();
 
-        foreach (['provider_error', 'quota_exceeded', 'provider_timeout', 'transient_io', 'internal_status'] as $class) {
+        $templateclasses = ['provider_error', 'provider_unreachable', 'quota_exceeded', 'provider_timeout', 'transient_io',
+            'internal_status'];
+        foreach ($templateclasses as $class) {
             $this->assertSame(
                 finalization_classifier::STRATEGY_TEMPLATE_ONLY,
                 $classifier->classify(['response_type' => 'error', 'error_class' => $class]),

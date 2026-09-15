@@ -38,24 +38,41 @@ use bookingextension_agent\local\wizard\wb_action_names;
  * Reusable scripted-planner installer for deterministic run_loop tests.
  */
 trait scripted_llm_trait {
-    /** @var string[] FIFO of raw planner_decide responses (selector, constructor, selector, ...). */
+    /** @var array FIFO of planner_decide responses (selector, constructor, selector, ...). */
     private array $scriptedplannerqueue = [];
+
+    /** @var array FIFO of synchronizer (generate_agent_reply) responses. */
+    private array $scriptedsyncqueue = [];
 
     /** @var string[] Every planner_decide prompt, in call order (for prompt-contract assertions). */
     protected array $scriptedplannerprompts = [];
 
+    /** @var string[] Every synchronizer (generate_agent_reply) prompt, in call order. */
+    protected array $scriptedsyncprompts = [];
+
     /**
      * Install a scripted planner. Planner (planner_decide) calls consume $plannerscript in order;
      * once exhausted they fall back to a terminal 'sufficient' so the loop always converges. The
-     * synchronizer (generate_agent_reply) and any generate_text call return a 'sufficient' reply.
-     * Discovery embeddings return a fixed vector (inert — the selector output is scripted).
+     * synchronizer (generate_agent_reply) consumes $syncscript in order, then returns a
+     * 'sufficient' reply, as do generate_text calls. Discovery embeddings return a fixed vector
+     * (inert — the selector output is scripted).
      *
-     * @param string[] $plannerscript Raw JSON strings, one per planner_decide call, in call order.
+     * A script entry is either a raw JSON string (a successful, completed provider answer) or a
+     * structured provider result built with scripted_truncated_output() / scripted_provider_failure().
+     *
+     * @param array $plannerscript One entry per planner_decide call, in call order.
      * @param string $finalmessage User-facing message returned for terminal/synchronizer calls.
+     * @param array $syncscript One entry per synchronizer call, in call order.
      * @return void
      */
-    protected function install_scripted_planner(array $plannerscript, string $finalmessage = 'Done.'): void {
-        $this->scriptedplannerqueue = array_values(array_map('strval', $plannerscript));
+    protected function install_scripted_planner(
+        array $plannerscript,
+        string $finalmessage = 'Done.',
+        array $syncscript = []
+    ): void {
+        $normalize = static fn($entry) => is_array($entry) ? $entry : (string)$entry;
+        $this->scriptedplannerqueue = array_values(array_map($normalize, $plannerscript));
+        $this->scriptedsyncqueue = array_values(array_map($normalize, $syncscript));
 
         $sufficient = json_encode([
             'response_type' => 'sufficient',
@@ -64,17 +81,24 @@ trait scripted_llm_trait {
             'user_lang' => 'en',
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient): string {
+        llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient) {
             if ($actionclass === wb_action_names::PLANNER_DECIDE) {
                 // Record the prompt so tests can assert prompt contracts (e.g. the
                 // pending-step block the selector was shown — thread 589 regression).
                 $this->scriptedplannerprompts[] = $prompt;
                 if (!empty($this->scriptedplannerqueue)) {
-                    return (string)array_shift($this->scriptedplannerqueue);
+                    return array_shift($this->scriptedplannerqueue);
                 }
                 return $sufficient;
             }
-            // The generate_agent_reply (synchronizer), generate_text and summarise_text calls.
+            if ($actionclass === wb_action_names::GENERATE_AGENT_REPLY) {
+                $this->scriptedsyncprompts[] = $prompt;
+                if (!empty($this->scriptedsyncqueue)) {
+                    return array_shift($this->scriptedsyncqueue);
+                }
+                return $sufficient;
+            }
+            // The generate_text and summarise_text calls.
             return $sufficient;
         });
 
@@ -92,6 +116,40 @@ trait scripted_llm_trait {
         llm_call_service::set_test_embedding(null);
         $this->scriptedplannerqueue = [];
         $this->scriptedplannerprompts = [];
+        $this->scriptedsyncqueue = [];
+        $this->scriptedsyncprompts = [];
+    }
+
+    /**
+     * Convenience: a provider answer cut off at the output-token cap (finish_reason 'length').
+     *
+     * With merge_reasoning_content_in_choices the provider delivers the partial reasoning as
+     * content, so a truncated answer is successful and non-empty but not a planner payload.
+     *
+     * @param string $partialcontent
+     * @return array
+     */
+    protected function scripted_truncated_output(string $partialcontent): array {
+        return [
+            'content' => $partialcontent,
+            'success' => true,
+            'finishreason' => 'length',
+        ];
+    }
+
+    /**
+     * Convenience: a failed provider call with an HTTP status (e.g. 504 gateway timeout).
+     *
+     * @param int $httpcode
+     * @return array
+     */
+    protected function scripted_provider_failure(int $httpcode): array {
+        return [
+            'content' => '',
+            'success' => false,
+            'errorcode' => $httpcode,
+            'errormessage' => 'scripted provider failure',
+        ];
     }
 
     /**

@@ -73,8 +73,10 @@ class llm_call_service {
      *
      * TEST-ONLY. Production never calls this, so the static stays null and invoke_for_context()
      * always takes the real core_ai path. Installing it outside a test run is a coding error.
-     * The responder receives ($actionclass, $prompt) and returns the raw generated content the
-     * phase would otherwise receive from the provider.
+     * The responder receives ($actionclass, $prompt) and returns either the raw generated content
+     * the phase would otherwise receive from the provider, or a structured provider result
+     * (keys content, success, errorcode, errormessage, finishreason) to script provider failures
+     * and truncated output.
      *
      * @param callable|null $responder
      * @return void
@@ -112,7 +114,7 @@ class llm_call_service {
      * @param string $source
      * @param string $prompt
      * @param string $actionclass
-     * @return array{success:bool,rawcontent:string,errormessage:string,errorcode:int,errorname:string}
+     * @return array{success:bool,rawcontent:string,errormessage:string,errorcode:int,errorname:string,finishreason:string}
      */
     public function invoke_for_context(
         int $threadid,
@@ -125,7 +127,11 @@ class llm_call_service {
         // TEST-ONLY deterministic path: return scripted content instead of calling the provider,
         // so run_loop (selector/constructor/synchronizer) can be driven without a live LLM.
         if (self::$testresponder !== null) {
-            $scripted = (string)(self::$testresponder)($actionclass, $prompt);
+            $scripted = (self::$testresponder)($actionclass, $prompt);
+            $scripted = is_array($scripted) ? $scripted : ['content' => (string)$scripted];
+            $scriptedcontent = (string)($scripted['content'] ?? '');
+            $scriptedsuccess = (bool)($scripted['success'] ?? true);
+            $scriptederror = (string)($scripted['errormessage'] ?? '');
             llm_debug_logger::log_exchange(
                 $this->store,
                 $threadid,
@@ -133,16 +139,17 @@ class llm_call_service {
                 $userid,
                 $source,
                 $prompt,
-                $scripted,
-                true,
-                ''
+                $scriptedcontent,
+                $scriptedsuccess,
+                $scriptederror
             );
             return [
-                'success' => true,
-                'rawcontent' => $scripted,
-                'errormessage' => '',
-                'errorcode' => 0,
+                'success' => $scriptedsuccess,
+                'rawcontent' => $scriptedcontent,
+                'errormessage' => $scriptederror,
+                'errorcode' => (int)($scripted['errorcode'] ?? 0),
                 'errorname' => '',
+                'finishreason' => (string)($scripted['finishreason'] ?? 'stop'),
             ];
         }
 
@@ -150,6 +157,7 @@ class llm_call_service {
         $errormessage = '';
         $errorcode = 0;
         $errorname = '';
+        $finishreason = '';
         $success = false;
 
         try {
@@ -159,7 +167,11 @@ class llm_call_service {
             $action = $this->build_prompt_action($actionclass, (int)$context->id, $userid, $prompt);
 
             $response = $manager->process_action($action);
-            $rawcontent = (string)($response->get_response_data()['generatedcontent'] ?? '');
+            $responsedata = (array)$response->get_response_data();
+            $rawcontent = (string)($responsedata['generatedcontent'] ?? '');
+            // Structural completion signal of the provider (OpenAI-compatible enum, e.g. 'stop',
+            // 'length'); never derived from the generated text.
+            $finishreason = (string)($responsedata['finishreason'] ?? '');
             $success = (bool)$response->get_success();
             $errormessage = (string)($response->get_errormessage() ?? '');
             $errorcode = (int)$response->get_errorcode();
@@ -194,6 +206,7 @@ class llm_call_service {
             'errormessage' => $errormessage,
             'errorcode' => $errorcode,
             'errorname' => $errorname,
+            'finishreason' => $finishreason,
         ];
     }
 
