@@ -218,6 +218,9 @@ final class construction_structural_retry_test extends abstract_agent_testcase {
     /**
      * Replay of Lauf 8 thread 1438 (CBI-2): the retry round switches to the read-only sibling and
      * passes the ambient contextid as input. Same expectation: clarification, no key names.
+     *
+     * Since #2411 an unknown field NAME is a skill-side clarification with remedies, no longer a
+     * structural error; the structural error of the first round here is the change without a value.
      */
     public function test_exhausted_structural_retry_ends_as_clarification_cbi2(): void {
         $this->setUser($this->teacher);
@@ -228,7 +231,7 @@ final class construction_structural_retry_test extends abstract_agent_testcase {
             $this->selector_skill_call('mod_booking.configure_booking_instance'),
             $this->constructor_confirmation_request('mod_booking.configure_booking_instance', [
                 'action' => 'update',
-                'changes' => [['field' => 'confirmationmailcopy', 'value' => 0]],
+                'changes' => [['field' => 'sendmailtobooker']],
             ]),
             $this->selector_skill_call('mod_booking.list_instance_settings'),
             $this->constructor_confirmation_request('mod_booking.list_instance_settings', [
