@@ -66,8 +66,16 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
         if (preview_support::truthy($input['all'] ?? null)) {
             preview_support::push($rows, $label, preview_support::str('previewvalue_allmemories', $lang));
         } else {
-            preview_support::push($rows, $label, preview_support::text($input['query'] ?? null));
-            preview_support::push($rows, $label, preview_support::posint($input['id'] ?? null));
+            // Preflight resolves the target to its stored text ('memory'); the card shows what will be
+            // deleted, never just the internal id (baseline run 9, P5, #2410). The id remains the
+            // fallback for a prepared input without resolved text.
+            $memory = preview_support::text($input['memory'] ?? null);
+            if ($memory !== null) {
+                preview_support::push($rows, $label, $memory);
+            } else {
+                preview_support::push($rows, $label, preview_support::text($input['query'] ?? null));
+                preview_support::push($rows, $label, preview_support::posint($input['id'] ?? null));
+            }
         }
         return [
             'title' => preview_support::str('previewtitle_forget', $lang),
