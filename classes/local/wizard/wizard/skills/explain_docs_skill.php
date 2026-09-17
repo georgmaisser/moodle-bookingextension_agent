@@ -88,8 +88,9 @@ class explain_docs_skill extends core_skill_base implements
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Search the plugin documentation and return the excerpt that answers how something works or what '
-                . 'a term means. Not for "can you do X" capability questions (wizard.search_skills). Works in any '
+            'description' => 'Search the plugin documentation for how something works or what a term means. Not the field '
+                . 'list of an option (mod_booking.list_option_properties), not capability questions '
+                . '(wizard.search_skills). Returns the excerpt that answers the question. Works in any '
                 . 'language — queries are matched against the documentation corpus language-agnostically. Use this '
                 . 'skill whenever the user asks how something works, how to configure a feature, or what a term '
                 . 'means in the context of this plugin. Documentation answers are strictly grounded: only the '

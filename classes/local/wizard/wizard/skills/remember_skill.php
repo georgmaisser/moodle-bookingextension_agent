@@ -65,8 +65,10 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Store a fact, preference or standing instruction the user explicitly asks the agent '
-                . 'to remember for future planning (e.g. "remember that I prefer morning bookings"). '
+            // First 240 characters = selector window (#2423, REM-2 "remember permanently that …").
+            'description' => 'Store permanently a fact, preference or standing instruction (memory) the user asks the '
+                . 'agent to remember, e.g. "remember that I prefer morning bookings". Not a capability search '
+                . '(wizard.search_skills). '
                 . 'This stores user-stated facts — it is NOT for recalling previous conversation '
                 . '(use wizard.recall_memory for that). User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),

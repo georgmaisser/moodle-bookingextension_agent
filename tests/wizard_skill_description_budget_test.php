@@ -83,14 +83,24 @@ final class wizard_skill_description_budget_test extends advanced_testcase {
         return [
             'find_content' => ['core.find_content', ['content', 'course.search_courses']],
             'search_courses' => ['course.search_courses', ['course', 'mod_booking.search_options', 'core.find_content']],
-            'enrol_user' => ['course.enrol_user', ['course', 'mod_booking.book_users']],
-            'diagnose_user_in_course' => ['course.diagnose_user_in_course', ['course', 'mod_booking.diagnose_user_booking']],
-            'generate_questions' => ['question.generate_questions', ['question bank', 'usecoursepdfs']],
+            // Run 10 (#2423): access to a named Moodle course = enrol (EU-4).
+            'enrol_user' => ['course.enrol_user', ['course', 'mod_booking.book_users', 'coursequery']],
+            // Run 10 (#2423): cannot open / grade missing is course; cannot book is booking (DBI-1, DUC-4).
+            // Nachlauf 2026-09-17: DUC-2 ("cohort sync did not pull Tom into …") went to
+            // local_taskflow.diagnose_import, so the window names the enrolment facet and that sibling.
+            'diagnose_user_in_course' => [
+                'course.diagnose_user_in_course',
+                ['course', 'cohort sync', 'local_taskflow.diagnose_import'],
+            ],
+            // Run 10 (#2423): dictated questions go into the bank, not into a quiz (GQ-4).
+            'generate_questions' => ['question.generate_questions', ['question bank', 'usecoursepdfs', 'course.add_quiz']],
             'add_activity' => ['course.add_activity', ['modname', 'question.generate_questions']],
             'add_quiz' => ['course.add_quiz', ['quiz', 'question.generate_questions']],
             'list_skills' => ['wizard.list_skills', ['no query', 'wizard.search_skills']],
             'search_skills' => ['wizard.search_skills', ['query', 'wizard.list_skills']],
             'explain_docs' => ['wizard.explain_docs', ['documentation', 'wizard.search_skills']],
+            // Run 10 (#2423): a standing preference is stored, not searched as a capability (REM-2).
+            'remember' => ['wizard.remember', ['memory', 'wizard.search_skills']],
         ];
     }
 

@@ -135,8 +135,9 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Enrol an EXISTING user — or the asking person themselves — into a Moodle course (manual '
-                . 'enrolment, role default student). Not booking someone into a booking option '
+            // First 240 characters = selector window (#2419, #2423 EU-4 "needs access to the first-aid course").
+            'description' => 'Give an EXISTING user — or the asking person — access to a Moodle course (coursequery) '
+                . 'by enrolling them (manual enrolment, role default student). Not booking into a booking option '
                 . '(mod_booking.book_users), not creating accounts. Use when the user wants to enrol/add/put a '
                 . 'person (or themselves) into a course; the role is optional.',
             'readonly' => false,
