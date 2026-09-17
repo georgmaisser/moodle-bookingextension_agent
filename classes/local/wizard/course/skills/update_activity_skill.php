@@ -176,7 +176,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 'coursequery' => [
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course than the current one, ONLY when the user names one. '
-                        . 'Resolve via course.search_courses first if only the name is known. Leave empty otherwise.',
+                        . 'The system resolves the name; no course.search_courses lookup first. Leave empty otherwise.',
                     'required' => false,
                 ],
                 'courseid' => [
