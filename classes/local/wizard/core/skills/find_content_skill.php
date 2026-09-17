@@ -103,13 +103,13 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Semantic search across the site\'s indexed content (pages, forum posts, course '
-                . 'summaries, glossaries, ... — whatever an admin enabled for indexing). Finds content by MEANING, '
-                . 'not just keywords, and returns per hit the title, a deep link, the course link, ids and a '
-                . 'snippet. Results are access-checked: users only find what they may already see. Stateless and '
-                . 'cheap — iterate freely: search BROAD first, then re-run with a refined query, areas or courseid, '
-                . 'and set includecontent=true (fewer hits, full text) for the hits you want to work with. '
-                . 'NOT for finding users, courses by name, or booking options — use the dedicated search skills.',
+            'description' => 'Find content by MEANING across the site\'s indexed content: pages, forum posts, course summaries, '
+                . 'glossaries — which course or page deals with a topic. Not a course-name lookup '
+                . '(course.search_courses), not users or booking options. Returns per hit the title, a deep link, '
+                . 'the course link, ids and a snippet; results are access-checked (users only find what they may '
+                . 'see). Stateless and cheap — iterate freely: search BROAD first, then re-run with a refined '
+                . 'query, areas or courseid, and set includecontent=true (fewer hits, full text) for the hits you '
+                . 'want to work with.',
             'readonly' => true,
             'example_utterances' => [
                 'find the page about assessment criteria',

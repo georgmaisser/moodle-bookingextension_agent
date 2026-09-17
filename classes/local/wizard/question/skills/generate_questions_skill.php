@@ -219,15 +219,12 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Generate Moodle quiz/test questions (multiple choice, true/false, short answer) and '
-                . 'save them into the course question bank. The questions can be based on a document/PDF the '
-                . 'user uploaded, on the PDF files already stored IN the target course as resource activities '
-                . '(set usecoursepdfs, or resourcecmid for one specific file — the system reads them itself, no '
-                . 're-upload needed), OR on a topic, facts, or an explicit question and answer the user provides '
-                . 'directly in the chat — an upload is NOT required. Use this whenever the user wants a question, '
-                . 'quiz or test created or inserted into Moodle (e.g. "make me a question", "create a question", '
-                . '"create a quiz", "create questions from the document", "create a quiz from the PDFs in the '
-                . 'course", "insert a question in Moodle").',
+            'description' => 'Generate quiz questions into the course question bank from an uploaded document, from PDFs '
+                . 'already stored in the course (usecoursepdfs/resourcecmid, no re-upload) or from a topic given in '
+                . 'chat. Question types: multiple choice, true/false, short answer; an upload is NOT required — '
+                . 'facts or an explicit question and answer in the chat are enough. Use this whenever the user '
+                . 'wants a question, quiz or test created or inserted into Moodle (e.g. "make me a question", '
+                . '"create questions from the document", "create a quiz from the PDFs in the course").',
             'readonly' => false,
             'example_utterances' => [
                 'create quiz questions from this PDF',
@@ -288,7 +285,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course than the current one, ONLY when the user explicitly '
                         . 'names one (e.g. "create the questions in the course Biology 101"). Pass the user\'s wording '
-                        . 'verbatim; resolve via course.search_courses first if you only know the name. Leave empty to '
+                        . 'verbatim; the system resolves it, no course.search_courses lookup first. Leave empty to '
                         . 'create the questions in the current course.',
                     'required' => false,
                 ],
@@ -316,7 +313,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['content', 'count', 'qtypes', 'difficulty'],
+                'input_fields_for_prompt' => [],
                 'anchor_fields' => [],
             ],
         ];

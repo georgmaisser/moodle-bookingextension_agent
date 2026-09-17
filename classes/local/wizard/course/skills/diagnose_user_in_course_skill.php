@@ -97,12 +97,12 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Diagnose a person\'s situation in a course (read-only): access (can they see/open '
-                . 'the course or an activity), enrolment (are they enrolled and why or why not), progress '
-                . '(activity completion) or grades. Set "aspect" to the facet asked about. Details per aspect: '
+            'description' => 'Diagnose a person in a Moodle course (read-only): access, enrolment, progress (completion) or '
+                . 'grades — why a grade is missing, why they cannot open an activity. Not booking options '
+                . '(mod_booking.diagnose_user_booking). Set "aspect" to the facet asked about. Details per aspect: '
                 . 'access covers restrictions and visibility; enrolment covers self-enrolment, cohort sync and '
                 . 'suspended/expired, and omitting the course lists all of the person\'s courses; grades covers a '
-                . 'missing or wrong grade. NOT for booking options (that is mod_booking.diagnose_booking_issue).',
+                . 'missing or wrong grade. Booking issues belong to mod_booking.diagnose_booking_issue.',
             'readonly' => true,
             'example_utterances' => [
                 'why can\'t this student open the quiz',

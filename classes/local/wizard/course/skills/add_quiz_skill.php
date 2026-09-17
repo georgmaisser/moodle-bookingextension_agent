@@ -119,11 +119,13 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Create a quiz/test in a course and optionally fill it with questions. Use for '
-                . '"create a quiz", "make a quiz from this PDF". The quiz can be '
-                . 'created empty (add questions later) or populated from one of three sources: newly generated '
-                . 'questions (from a document/PDF or a topic), specific existing questions, or random questions from '
-                . 'a question category. To only add questions to the bank (no quiz) use question.generate_questions.',
+            // First 240 characters = selector window: a named course goes into coursequery (no lookup step).
+            'description' => 'Create a quiz activity in a course (a named course: coursequery, no lookup needed), empty or '
+                . 'with generated, existing or random questions. Questions into the bank without a quiz: '
+                . 'question.generate_questions. Use for '
+                . '"create a quiz", "make a quiz from this PDF". The quiz can be created empty (add questions '
+                . 'later) or populated from one of three sources: newly generated questions (from a document/PDF or '
+                . 'a topic), specific existing questions, or random questions from a question category.',
             'readonly' => false,
             'example_utterances' => [
                 'create a quiz for this course',
@@ -197,8 +199,9 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'coursequery' => [
                     'type' => 'string',
-                    'description' => 'Target a DIFFERENT course, ONLY when the user names one. Resolve via '
-                        . 'course.search_courses first if only the name is known. Leave empty for the current course.',
+                    'description' => 'Name of a DIFFERENT course, ONLY when the user names one (their wording '
+                        . 'verbatim). The system resolves it; no course.search_courses lookup first. Leave empty for the '
+                        . 'current course.',
                     'required' => false,
                 ],
                 'courseid' => [
@@ -208,7 +211,7 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['name', 'intro', 'content', 'count', 'category', 'addquestions'],
+                'input_fields_for_prompt' => ['name'],
                 'anchor_fields' => ['coursequery', 'category'],
             ],
         ];
@@ -220,7 +223,13 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
      * @return array
      */
     public function get_example_input(): array {
-        return ['name' => 'Chapter 1 quiz', 'content' => 'Photosynthesis basics', 'count' => 5];
+        // The constructor only sees example VALUES: show that a named course is passed as coursequery.
+        return [
+            'name' => 'Chapter 1 quiz',
+            'content' => 'Photosynthesis basics',
+            'count' => 5,
+            'coursequery' => 'Biology 101',
+        ];
     }
 
     /**

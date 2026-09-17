@@ -88,13 +88,16 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Last-resort capability discovery. Use this ONLY when none of the other listed '
-                . 'skills can fulfil the request — i.e. the user wants an action or capability that no available '
-                . 'skill represents (for example: downloading or issuing a certificate, exporting or importing data, '
-                . 'a feature with no matching skill in the list). Pass a descriptive query of the wanted capability; '
-                . 'it searches the full tool registry for skills not currently shown. Always prefer a concrete '
-                . 'matching skill when one exists — pick this only as the fallback, never for a request another '
-                . 'listed skill already covers.',
+            // The "last resort" restriction must stay inside the selector's 240-character window: outside it the
+            // selector used this skill for "what can you do" (LS-3, wave 7 Nachlauf 2026-09-17).
+            'description' => 'LAST RESORT only: find one hidden capability by a concrete query (e.g. certificates, export) '
+                . 'when no listed skill fits. Never for "what can you do" (the full menu is wizard.list_skills), not '
+                . 'documentation (wizard.explain_docs). '
+                . 'Use it ONLY when none of the other listed skills can fulfil the request — '
+                . 'the user wants an action or capability that no available skill represents (downloading or '
+                . 'issuing a certificate, exporting or importing data, a feature with no matching skill in the '
+                . 'list). Pass a descriptive query of the wanted capability; it searches the full tool registry for '
+                . 'skills not currently shown. Always prefer a concrete matching skill when one exists.',
             'readonly' => true,
             'properties' => [
                 'query' => [

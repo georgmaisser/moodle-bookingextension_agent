@@ -72,9 +72,10 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'List the AI agent capabilities and skill names that this booking agent supports.'
-                . ' Use this ONLY when the user asks what the agent CAN DO or which agent skills/commands exist.'
-                . ' Do NOT use for regular entity listing requests; use the appropriate search/list skill instead. ',
+            'description' => 'The menu: list everything this assistant can do (all skills/commands), no query needed. For ONE '
+                . 'specific capability question use wizard.search_skills; for listing data use the search/list '
+                . 'skills. Use this ONLY when the user asks what the agent CAN DO or which agent skills/commands '
+                . 'exist, never for regular entity listing requests.',
             'readonly' => true,
             'example_utterances' => [
                 'what can you do',
