@@ -139,14 +139,11 @@ class interpreter implements agent_interpreter {
 
         $lang = $this->safe_string($parsed['lang'] ?? '');
         $userlang = $this->safe_string($parsed['user_lang'] ?? $parsed['userlang'] ?? '');
+        // The planner's step label travels as written. Whether the work already happened is engine state
+        // (the thread's completed commands), never a property of the wording — the previous guard matched
+        // seven German and English regexes on LLM text and did nothing at all for French (HARD RULE: no
+        // lexical detection). The orchestrator suppresses the step bubble for an already completed skill.
         $nextstepintent = $this->safe_string($parsed['next_step_intent'] ?? '');
-        if (
-            $nextstepintent !== ''
-            && in_array((string)$responsetype, ['skill_call', 'confirmation_request'], true)
-            && $this->looks_like_completed_action_intent($nextstepintent)
-        ) {
-            $nextstepintent = '';
-        }
         if ($lang === '' && $userlang !== '') {
             $lang = $userlang;
         }
@@ -413,16 +410,9 @@ class interpreter implements agent_interpreter {
         }
 
         // The planner's human-readable step intent (shown as the progress step bubble). The selection
-        // interpreter previously dropped this field entirely; mirror interpret()'s handling, including
-        // the completed-action guard so a "already did X" intent does not surface as a next step.
+        // interpreter previously dropped this field entirely; mirror interpret()'s handling. Whether the
+        // work already happened is decided by the orchestrator from the thread's completed commands.
         $nextstepintent = $this->safe_string($parsed['next_step_intent'] ?? '');
-        if (
-            $nextstepintent !== ''
-            && $responsetype === 'skill_call'
-            && $this->looks_like_completed_action_intent($nextstepintent)
-        ) {
-            $nextstepintent = '';
-        }
 
         if (in_array($responsetype, ['clarification', 'confirm_pending', 'sufficient', 'error'], true)) {
             $message = $this->safe_string($parsed['message'] ?? '');
@@ -723,36 +713,6 @@ class interpreter implements agent_interpreter {
         return $payload;
     }
 
-    /**
-     * Detect whether an intent text describes completed work instead of next action.
-     *
-     * @param string $intent
-     * @return bool
-     */
-    private function looks_like_completed_action_intent(string $intent): bool {
-        $normalized = strtolower(trim($intent));
-        if ($normalized === '') {
-            return false;
-        }
-
-        $patterns = [
-            '/^i\s+have\b/',
-            '/^i\s+already\b/',
-            '/^ich\s+habe\b/',
-            '/^ich\s+bin\s+fertig\b/',
-            '/\bhabe\s+.*\bgegeben\b/',
-            '/\bhave\s+.*\bprovided\b/',
-            '/\bhave\s+.*\bexplained\b/',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $normalized)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     /**
      * Normalize common skill-like malformed outputs into canonical skill_call payload.

@@ -338,6 +338,17 @@ class ai_send_message extends external_api {
             $previewjson
         );
 
+        // Display-side resolution for the structured payloads (#2424): ambiguity options are rendered as
+        // buttons and pasted back into the input box, preview rows are shown as a table. Both used to carry
+        // raw tokens because only the scalar message went through the resolver. Engine texts keep the token,
+        // the display resolves it — so this happens here, at the presentation boundary, and nowhere earlier.
+        $ambiguityoptions = $anonymizer->deanonymize_value_for_display($threadid, (array)($result['ambiguity_options'] ?? []));
+        $ambiguities = $anonymizer->deanonymize_value_for_display($threadid, (array)($result['ambiguities'] ?? []));
+        $decodedpreview = json_decode((string)$previewjson, true);
+        if (is_array($decodedpreview)) {
+            $previewjson = (string)json_encode($anonymizer->deanonymize_value_for_display($threadid, $decodedpreview));
+        }
+
         return [
             'response_type'         => $result['response_type'] ?? 'error',
             'message'               => $formattedmessage,
@@ -349,8 +360,8 @@ class ai_send_message extends external_api {
                 && !$autoconfirmblocked
             ),
             'commands'              => json_encode($responsecommands),
-            'ambiguities'           => json_encode($result['ambiguities'] ?? []),
-            'ambiguityoptionsjson'  => json_encode($result['ambiguity_options'] ?? []),
+            'ambiguities'           => json_encode($ambiguities),
+            'ambiguityoptionsjson'  => json_encode($ambiguityoptions),
             'errorsjson'            => json_encode($errors),
             'issuecodesjson'        => json_encode($issuecodes),
             'phasetracejson'        => $phasetracejson,

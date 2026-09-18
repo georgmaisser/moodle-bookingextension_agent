@@ -196,6 +196,15 @@ class ai_confirm_run extends external_api {
             $privacyapplied = 1;
         }
 
+        // Same presentation boundary as in ai_send_message (#2424): the preview table is display, so it is
+        // resolved here rather than travelling to the client with raw tokens.
+        $decodedpreview = json_decode((string)$previewjson, true);
+        if (is_array($decodedpreview)) {
+            $previewjson = (string)json_encode(
+                $anonymizer->deanonymize_value_for_display((int)$params['threadid'], $decodedpreview)
+            );
+        }
+
         return [
             'success' => (bool)($payload['success'] ?? false),
             'runid' => (int)($payload['runid'] ?? 0),

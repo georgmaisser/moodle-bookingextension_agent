@@ -40,6 +40,9 @@ use bookingextension_agent\local\wizard\services\queue_status_policy;
  *   Source-of-truth hierarchy: observations > completed_commands > assistant narrative.
  */
 class completed_command_history_service {
+    /** Result status of a command the executor ran successfully. */
+    public const STATUS_EXECUTED = 'executed';
+
     /**
      * Compact normalization preset for the completed_commands prompt blob: drop noise keys,
      * cap strings/lists and drop empties to keep the blob small (audit 03-F03).
@@ -116,7 +119,7 @@ class completed_command_history_service {
             }
 
             $status = trim((string)($entry['status'] ?? ''));
-            if ($status !== 'executed') {
+            if ($status !== self::STATUS_EXECUTED) {
                 continue;
             }
 
@@ -139,6 +142,38 @@ class completed_command_history_service {
         }
 
         return $completed;
+    }
+
+    /**
+     * Whether a skill has already run successfully in this thread's completed command history.
+     *
+     * Used to decide from engine state — not from the wording of a planner text — whether work has already
+     * happened. A command that ended in an error does not count: the retry is a real next step.
+     *
+     * @param array[] $completed Completed command history as returned by extract_from_messages()/merge_from_queue().
+     * @param string $skill Fully qualified skill name.
+     * @return bool
+     */
+    public function contains_skill(array $completed, string $skill): bool {
+        $skill = trim($skill);
+        if ($skill === '') {
+            return false;
+        }
+
+        foreach ($completed as $entry) {
+            if (!is_array($entry) || trim((string)($entry['skill'] ?? '')) !== $skill) {
+                continue;
+            }
+            // History rows are already filtered to successful work: extract_from_messages() keeps result
+            // rows with status "executed", merge_from_queue() keeps succeeded queue items, and both drop
+            // the status afterwards. A row that still carries a status is only completed when it says so.
+            $status = trim((string)($entry['status'] ?? ''));
+            if ($status === '' || $status === self::STATUS_EXECUTED || queue_status_policy::is_succeeded_status($status)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

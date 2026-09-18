@@ -562,6 +562,50 @@ class privacy_anonymizer {
     }
 
     /**
+     * Resolve every token inside a display payload, however deeply nested.
+     *
+     * deanonymize_message_for_display() only takes a string, so payloads that reach the user as structure —
+     * ambiguity options (rendered as buttons and pasted back into the input box) and preview rows — used to
+     * carry raw tokens to the client. Same contract as the scalar resolver: fail closed, an unresolvable
+     * token becomes the neutral label rather than travelling on.
+     *
+     * @param int $threadid
+     * @param mixed $value Any display payload: string, list or map.
+     * @return mixed Same shape, tokens resolved.
+     */
+    public function deanonymize_value_for_display(int $threadid, $value) {
+        if ($this->get_mode() === self::MODE_OFF) {
+            return $value;
+        }
+
+        return $this->deanonymize_display_recursive($threadid, $value);
+    }
+
+    /**
+     * Walk a display payload and resolve strings through the scalar display resolver.
+     *
+     * @param int $threadid
+     * @param mixed $value
+     * @return mixed
+     */
+    private function deanonymize_display_recursive(int $threadid, $value) {
+        if (is_string($value)) {
+            $resolved = $this->deanonymize_message_for_display($threadid, $value);
+            return (string)($resolved['message'] ?? $value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        foreach ($value as $key => $item) {
+            $value[$key] = $this->deanonymize_display_recursive($threadid, $item);
+        }
+
+        return $value;
+    }
+
+    /**
      * Recursively de-anonymize all string values in input payload.
      *
      * @param mixed $value

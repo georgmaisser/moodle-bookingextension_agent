@@ -256,10 +256,21 @@ class orchestrator {
         );
 
         $intent = trim((string)($selectionstate['next_step_intent'] ?? ''));
-        if ($intent === '') {
-            $selectedskill = trim((string)($selectionstate['selected_skill'] ?? ''));
-            if ($selectedskill !== '') {
-                $intent = 'Executing ' . $selectedskill;
+        $selectedskill = trim((string)($selectionstate['selected_skill'] ?? ''));
+        if ($intent === '' && $selectedskill !== '') {
+            $intent = 'Executing ' . $selectedskill;
+        }
+
+        // Do not announce work that already happened in this thread. The decision comes from the completed
+        // command history (engine state); it replaces the regex list that used to inspect the planner's
+        // wording in two of the three baseline languages (HARD RULE: no lexical detection).
+        if ($intent !== '' && $selectedskill !== '') {
+            $completed = $this->completedhistorysvc->merge_from_queue(
+                $threadid,
+                $this->completedhistorysvc->extract_from_messages($this->store->get_messages($threadid))
+            );
+            if ($this->completedhistorysvc->contains_skill($completed, $selectedskill)) {
+                $intent = '';
             }
         }
 

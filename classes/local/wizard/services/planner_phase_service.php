@@ -620,6 +620,18 @@ class planner_phase_service {
             $entry['example_parameters'] = $exampleparameters;
         }
 
+        // The input fields of THIS skill (F29, baseline run 12): the construction phase has exactly one skill in
+        // scope, so its fields travel with the prompt instead of the stubbed schema placeholder. Without them the
+        // constructor cannot know what it may fill and asks the user instead of building the command — the single
+        // largest cause of prompts that end in a question (16 of 34 unreached booking prompts in run 12).
+        // It replaces minimal_input here on purpose: two field lists in one prompt can only drift apart, and the
+        // schema is the one the executor validates against. minimal_input stays in the selector catalog.
+        $inputfields = skill_input_schema_projection::for_skill($skill);
+        if (!empty($inputfields)) {
+            $entry['input_fields'] = $inputfields;
+            unset($entry['minimal_input']);
+        }
+
         // In the construction phase exactly one skill is in scope, so we surface ALL of its prompt-pack
         // guidance unconditionally (no lexical trigger gate). This is the only place situational rules
         // — e.g. "for several options with the same name, search first to obtain their IDs and use
