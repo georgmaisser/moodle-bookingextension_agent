@@ -66,6 +66,23 @@ class section_resolver_service {
     }
 
     /**
+     * Highest existing section number of a course.
+     *
+     * Used to clamp a relative move ("one section down") to what the course actually has.
+     *
+     * @param stdClass $course
+     * @return int
+     */
+    public function last_section_number(stdClass $course): int {
+        $sections = $this->list_sections($course);
+        if (empty($sections)) {
+            return 0;
+        }
+
+        return (int)end($sections)['sectionnum'];
+    }
+
+    /**
      * Resolve a placement query to a concrete section number.
      *
      * Returns:

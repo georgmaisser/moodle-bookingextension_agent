@@ -173,6 +173,14 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                         . 'it where it is. On the site front page everything stays in section 1.',
                     'required' => false,
                 ],
+                'sectiondelta' => [
+                    'type' => 'integer',
+                    'description' => 'Move the activity RELATIVE to where it is now: 1 = one section down, '
+                        . '-1 = one section up, 2 = two down. Use this whenever the user describes the movement '
+                        . 'relative ("one section down") instead of naming a number — you do not need to know the '
+                        . 'current section, this skill resolves it. Do not combine with "section".',
+                    'required' => false,
+                ],
                 'coursequery' => [
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course than the current one, ONLY when the user names one. '
@@ -187,7 +195,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'settings', 'section'],
+                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'settings', 'section', 'sectiondelta'],
                 'anchor_fields' => ['activityquery', 'coursequery'],
             ],
         ];
@@ -240,7 +248,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                     '- Set only the fields that should change (name, intro, visible, or settings{}); omit the rest —',
                     '  they keep their current value. Do NOT invent values.',
                     '- To MOVE the activity to another section/topic, set "section" to the target section number.',
-                    '  For "one section down/up" compute the number from the current one. Never use settings{} to move.',
+                    '  For a RELATIVE movement ("one section down/up") set "sectiondelta" instead (1 = down, -1 = up);',
+                    '  you do not know the current section and must not ask for it. Never use settings{} to move.',
                 ],
             ],
         ];
@@ -256,6 +265,15 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $errors = [];
         if (isset($input['settings']) && $input['settings'] !== '' && !is_array($input['settings'])) {
             $errors[] = 'settings must be an object of module-specific fields.';
+        }
+        $hasdelta = isset($input['sectiondelta']) && $input['sectiondelta'] !== '' && $input['sectiondelta'] !== null;
+        if ($hasdelta) {
+            if (!is_numeric($input['sectiondelta']) || (int)$input['sectiondelta'] != $input['sectiondelta']) {
+                $errors[] = 'sectiondelta must be a whole number (1 = one section down, -1 = one section up).';
+            }
+            if (isset($input['section']) && $input['section'] !== '' && $input['section'] !== null) {
+                $errors[] = 'Use either section (absolute) or sectiondelta (relative), not both.';
+            }
         }
         if (isset($input['section']) && $input['section'] !== '' && $input['section'] !== null) {
             if (!is_numeric($input['section']) || (int)$input['section'] < 0) {
@@ -431,12 +449,39 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * @param \cm_info $cm Target module (carries its current section number).
      * @return int|array|null Target section number, a clarification array, or null when no move is needed.
      */
+    /**
+     * Target section for a relative movement, clamped to the sections the course has.
+     *
+     * @param int $current Section the activity is in.
+     * @param int $delta Requested movement (1 = one down, -1 = one up).
+     * @param int $lastsection Highest existing section number.
+     * @return int
+     */
+    public static function target_section_for_delta(int $current, int $delta, int $lastsection): int {
+        return max(0, min($lastsection, $current + $delta));
+    }
+
+    /**
+     * Resolve the target section of a move, absolute or relative.
+     *
+     * @param array $input
+     * @param \stdClass $course
+     * @param \cm_info $cm
+     * @return int|array|null Target section, a clarification payload, or null when nothing moves.
+     */
     private function resolve_section_move(array $input, \stdClass $course, \cm_info $cm) {
         $raw = $input['section'] ?? null;
-        if ($raw === null || $raw === '' || !is_numeric($raw)) {
+        $delta = $input['sectiondelta'] ?? null;
+        if (($raw === null || $raw === '' || !is_numeric($raw)) && ($delta === null || $delta === '' || !is_numeric($delta))) {
             return null;
         }
-        $target = (int)$raw;
+        if ($raw === null || $raw === '' || !is_numeric($raw)) {
+            // Relative movement: the model states the direction, the skill knows where the activity is.
+            $last = (new section_resolver_service())->last_section_number($course);
+            $target = self::target_section_for_delta((int)$cm->sectionnum, (int)$delta, $last);
+        } else {
+            $target = (int)$raw;
+        }
 
         // Site front page: everything lives in section 1 (section 0 is not rendered there).
         if (section_resolver_service::is_site_front_page($course)) {
