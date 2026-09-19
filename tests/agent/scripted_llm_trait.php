@@ -195,4 +195,25 @@ trait scripted_llm_trait {
             'commands' => [['skill' => $skill, 'version' => 1, 'parameters' => $parameters]],
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
+
+    /**
+     * Convenience: a bare constructor 'clarification' — a question with no command and no issue code.
+     *
+     * This is what the live constructor emits when it asks the user although its skill requires
+     * nothing (baseline run 17: LR-2, TSA-4, UQ-1, UQ-4). Scripting it is the only way to exercise
+     * the repair round at the phase seam; a unit test that hands the issue code in cannot.
+     *
+     * @param string $message
+     * @return string
+     */
+    protected function constructor_clarification(string $message = 'Which value should I use?'): string {
+        return json_encode([
+            'response_type' => 'clarification',
+            'message' => $message,
+            'next_step_intent' => '',
+            'lang' => 'en',
+            'user_lang' => 'en',
+            'commands' => [],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
 }

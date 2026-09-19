@@ -50,6 +50,12 @@ final class constructor_command_repair_test extends \advanced_testcase {
 
     /**
      * A clarification from a skill that HAS required fields is left alone: it may really need one of them.
+     *
+     * The second case below (no issue code at all) is a pure function-level guard. It is NOT the production
+     * state: planner_phase_service stamps CONSTRUCTION_INPUT_REQUIRED on every constructor clarification
+     * BEFORE calling is_repairable(). Until run 17 it stamped it afterwards, which made the zero-required
+     * branch unreachable, and this file could not see it — the phase seam is covered by
+     * tests/agent/constructor_repair_round_seam_test.php instead.
      */
     public function test_clarification_of_a_skill_with_required_fields_is_not_repaired(): void {
         $this->resetAfterTest();

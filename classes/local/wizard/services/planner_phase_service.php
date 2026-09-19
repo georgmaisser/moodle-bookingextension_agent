@@ -483,6 +483,26 @@ class planner_phase_service {
                 'allowed_skills' => $constructionallowedskills,
             ]
         );
+        if (is_array($interpreted)) {
+            $interpreted['_planner_raw_response'] = $rawtext;
+            if ((string)($interpreted['response_type'] ?? '') === 'clarification') {
+                // A constructor question is about the already-selected skill: carry that
+                // state on the result so the pending-action continuity record survives the
+                // turn, and mark the question as a real blocking one.
+                //
+                // This stamp MUST happen before the repair round below reads the issue codes. Until
+                // baseline run 17 it sat after that block, so constructor_command_repair never saw
+                // CONSTRUCTION_INPUT_REQUIRED and its zero-required-field branch was unreachable
+                // (LR-2, TSA-4, UQ-1, UQ-4; not one rp=1 call in the whole run).
+                // See constructor_repair_round_seam_test.
+                $interpreted['selected_skill'] = $selectedskill;
+                $interpreted['issue_codes'] = array_values(array_unique(array_merge(
+                    (array)($interpreted['issue_codes'] ?? []),
+                    ['CONSTRUCTION_INPUT_REQUIRED']
+                )));
+            }
+        }
+
         // One targeted repair round when the constructor announced an action but carried no command
         // (baseline run 15: UO-3, GQ-4, RSC-3, RSC-4). The trigger is the interpreter's issue code, i.e. engine
         // state, and the instruction offers the honest alternative so the model is not pushed into inventing
@@ -526,20 +546,6 @@ class planner_phase_service {
                     )));
                     return $repaired;
                 }
-            }
-        }
-
-        if (is_array($interpreted)) {
-            $interpreted['_planner_raw_response'] = $rawtext;
-            if ((string)($interpreted['response_type'] ?? '') === 'clarification') {
-                // A constructor question is about the already-selected skill: carry that
-                // state on the result so the pending-action continuity record survives the
-                // turn, and mark the question as a real blocking one.
-                $interpreted['selected_skill'] = $selectedskill;
-                $interpreted['issue_codes'] = array_values(array_unique(array_merge(
-                    (array)($interpreted['issue_codes'] ?? []),
-                    ['CONSTRUCTION_INPUT_REQUIRED']
-                )));
             }
         }
 
