@@ -109,6 +109,34 @@ final class runtime_context_block_builder_test extends advanced_testcase {
      * Selection must receive the structured moodle_context (so the CONTEXT-AWARE PLANNING rule is
      * data-backed), but in the VOLATILE half so it never busts the cached skill-catalog prefix.
      */
+    /**
+     * The requester's own identity reaches BOTH planner phases.
+     *
+     * Baseline run 16, BKU-2 ("Trag mich beim Nähcafé ein"): the selector asked the requester for their own
+     * name. The identity block existed, but only for the construction phase, so the selector read the request
+     * as missing input. Anonymized tokens only — the clear-text identity never travels to the model.
+     */
+    public function test_requester_identity_reaches_selection_and_construction(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
+        $ctxid = (int)context_course::instance($course->id)->id;
+
+        $store = new conversation_store();
+        $threadid = (int)$store->get_or_create_thread((int)$user->id, $ctxid)->id;
+        $builder = $this->builder($store);
+
+        foreach ([orchestrator::PHASE_SELECTION, orchestrator::PHASE_PARAMETER_CONSTRUCTION] as $phase) {
+            $block = $builder->build($threadid, $ctxid, $phase);
+            $this->assertStringContainsString(
+                'current_user',
+                $block['volatile'],
+                'the requester identity is missing in phase ' . $phase
+            );
+        }
+    }
+
     public function test_selection_gets_moodle_context_in_the_volatile_half(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course(['fullname' => 'Algebra 101']);

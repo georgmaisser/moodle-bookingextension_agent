@@ -238,10 +238,13 @@ class runtime_context_block_builder {
         if ($isplannerphase && $channel !== user_memory_service::SCOPE_SYNCHRONIZATION) {
             $this->append_low_confidence_anon_section($statelines, $privacy, $threadid);
         }
-        // Requester identity for the constructor (#2246): the model must be able to bind a
-        // self-reference to something that exists instead of inventing a name or placeholder.
+        // Requester identity for BOTH planner phases (#2246; selection added 2026-09-19): the model must be
+        // able to bind a self-reference to something that exists instead of inventing a name or placeholder.
+        // Without it in the selection phase the selector treated "trag mich ein" as missing input and asked the
+        // requester for their own name (baseline run 16, BKU-2) — the rule that forbids that sits in the skill
+        // guidance and only ever reached the construction phase.
         // Anonymized tokens only — the clear-text identity never reaches the LLM.
-        if ($phase === orchestrator::PHASE_PARAMETER_CONSTRUCTION) {
+        if ($isplannerphase) {
             $this->append_current_user_section($statelines, $privacy, $threadid);
         }
 
