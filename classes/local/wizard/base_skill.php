@@ -455,6 +455,29 @@ abstract class base_skill implements skill_interface {
      *
      * @return array
      */
+    /**
+     * Field names the schema marks as required.
+     *
+     * @param array $schema
+     * @return string[]
+     */
+    protected static function required_fields_of(array $schema): array {
+        $properties = (array)($schema['properties'] ?? ($schema['input']['properties'] ?? []));
+        $required = [];
+        foreach ($properties as $field => $definition) {
+            if (is_array($definition) && !empty($definition['required'])) {
+                $required[] = (string)$field;
+            }
+        }
+
+        return array_values($required);
+    }
+
+    /**
+     * Build the prompt contract payload the registry and the planner catalogue read.
+     *
+     * @return array
+     */
     protected function prompt_contract_payload(): array {
         $schema = (array)$this->get_schema();
         $promptmeta = (array)($schema['prompt_meta'] ?? []);
@@ -468,6 +491,10 @@ abstract class base_skill implements skill_interface {
             'intent' => trim((string)($promptmeta['intent'] ?? '')),
             'anchors' => array_values(array_filter((array)($promptmeta['anchor_fields'] ?? []), 'is_string')),
             'minimal_input' => array_values(array_filter((array)($promptmeta['input_fields_for_prompt'] ?? []), 'is_string')),
+            // What the SCHEMA requires, which is not the same as what is worth showing. The selection catalogue
+            // used to print minimal_input behind "REQUIRED:", so optional fields looked mandatory and the selector
+            // asked the user for them instead of routing (baseline run 15: DP-1, CC-3, CC-4, UA-4).
+            'required_input' => self::required_fields_of($schema),
             'example_input' => $this->get_example_input(),
             'namespace' => $namespace,
             'version' => max(1, (int)($schema['version'] ?? 1)),

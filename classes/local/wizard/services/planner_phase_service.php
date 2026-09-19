@@ -483,6 +483,42 @@ class planner_phase_service {
                 'allowed_skills' => $constructionallowedskills,
             ]
         );
+        // One targeted repair round when the constructor announced an action but carried no command
+        // (baseline run 15: UO-3, GQ-4, RSC-3, RSC-4). The trigger is the interpreter's issue code, i.e. engine
+        // state, and the instruction offers the honest alternative so the model is not pushed into inventing
+        // keys. Exactly one extra call; if it fails, the original downgrade stands.
+        if (is_array($interpreted) && constructor_command_repair::is_repairable($interpreted)) {
+            $repaircall = $llm->invoke_for_context_retrying_truncation(
+                $threadid,
+                $contextid,
+                $userid,
+                $debugsource . '|rp=1',
+                $prompt . constructor_command_repair::instruction($selectedskill),
+                $actionclass
+            );
+            $repairtext = (string)($repaircall['rawcontent'] ?? '');
+            if (!empty($repaircall['success']) && $repairtext !== '' && empty($repaircall['truncated'])) {
+                $repaired = $this->interpreter->interpret_phase_output(
+                    $repairtext,
+                    orchestrator::PHASE_PARAMETER_CONSTRUCTION,
+                    [
+                        'contextid' => $contextid,
+                        'userid' => $userid,
+                        'lastusermessage' => (string)($selectionstate['lastusermessage'] ?? ''),
+                        'allowed_skills' => $constructionallowedskills,
+                    ]
+                );
+                if (is_array($repaired) && constructor_command_repair::accept($repaired, $selectedskill)) {
+                    $repaired['_planner_raw_response'] = $repairtext;
+                    $repaired['issue_codes'] = array_values(array_unique(array_merge(
+                        (array)($repaired['issue_codes'] ?? []),
+                        ['CONSTRUCTION_COMMAND_REPAIRED']
+                    )));
+                    return $repaired;
+                }
+            }
+        }
+
         if (is_array($interpreted)) {
             $interpreted['_planner_raw_response'] = $rawtext;
             if ((string)($interpreted['response_type'] ?? '') === 'clarification') {

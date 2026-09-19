@@ -80,6 +80,7 @@ class planner_catalog_service {
                 'readonly' => (bool)($entry['readonly'] ?? false),
                 'intent' => (string)($entry['intent'] ?? ''),
                 'minimal_input' => (array)($entry['minimal_input'] ?? []),
+                'required_input' => (array)($entry['required_input'] ?? []),
                 'example_input' => $this->compact_catalog_example_input((array)($entry['example_input'] ?? [])),
                 'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
                 'message_triggers' => $this->compact_catalog_message_triggers((array)($entry['message_triggers'] ?? [])),
@@ -167,6 +168,7 @@ class planner_catalog_service {
                 'readonly' => $readonly,
                 'intent' => $intent,
                 'minimal_input' => $minimalinput,
+                'required_input' => (array)($live['required_input'] ?? ($entry['required_input'] ?? [])),
                 'description' => $this->compact_catalog_description($description),
                 'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
             ];
@@ -263,10 +265,13 @@ class planner_catalog_service {
                 $lines[] = 'WHEN: ' . core_text::substr($when, 0, 180);
             }
 
-            // REQUIRED: minimal_input fields.
-            $minimal = array_filter(array_map('strval', (array)($entry['minimal_input'] ?? [])));
-            if (!empty($minimal)) {
-                $lines[] = 'REQUIRED: ' . implode(', ', array_values($minimal));
+            // REQUIRED: only what the SCHEMA requires. Until run 15 this line printed minimal_input — the fields
+            // worth showing — so optional fields read as mandatory and the selector asked the user for them
+            // instead of routing (rule "missing required input -> clarification"). See
+            // catalog_required_reflects_schema_test.
+            $required = array_filter(array_map('strval', (array)($entry['required_input'] ?? [])));
+            if (!empty($required)) {
+                $lines[] = 'REQUIRED: ' . implode(', ', array_values($required));
             }
 
             // OPTIONAL parameters are deliberately NOT listed in the selection catalog: selection must

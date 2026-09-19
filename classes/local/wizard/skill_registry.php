@@ -476,6 +476,9 @@ class skill_registry {
         $promptcontract = $skill->get_prompt_contract()->to_array();
         $skillmeta = (array)($this->get_skill_contract($skillname) ?? []);
         $minimalinput = array_values(array_filter(array_map('strval', (array)($promptcontract['minimal_input'] ?? []))));
+        // The schema's own required flags travel separately: the catalogue prints these behind "REQUIRED:",
+        // never minimal_input (baseline run 15 forensics).
+        $requiredinput = array_values(array_filter(array_map('strval', (array)($promptcontract['required_input'] ?? []))));
         $anchorfields = array_values(array_filter(array_map('strval', (array)($promptcontract['anchors'] ?? []))));
 
         $exampleinput = is_array($promptcontract['example_input'] ?? null)
@@ -539,6 +542,7 @@ class skill_registry {
                 (array)($schema['example_utterances'] ?? ($skillmeta['example_utterances'] ?? []))
             ))),
             'minimal_input' => $minimalinput,
+            'required_input' => $requiredinput,
             'example_input' => $exampleinput,
             'namespace' => $namespace,
             'family' => $family,

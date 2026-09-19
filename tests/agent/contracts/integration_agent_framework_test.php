@@ -296,7 +296,10 @@ final class integration_agent_framework_test extends TestCase {
         $sanitized = $catalogsvc->sanitize_runtime_catalog_for_prompt($catalog);
         $this->assertCount(2, $sanitized);
         $this->assertSame(
-            ['skill', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers', 'example_input'],
+            // required_input joined the sanitized catalogue on 2026-09-19: the REQUIRED line of the
+            // selection prompt is built from the schema's required flags, no longer from minimal_input.
+            ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'description',
+                'message_triggers', 'example_input'],
             array_keys($sanitized[0])
         );
         $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['skill']);
@@ -332,7 +335,7 @@ final class integration_agent_framework_test extends TestCase {
         // Entry [1] names a skill that is NOT registered, so there is no live contract to re-join:
         // the sanitizer emits a minimal entry rather than trusting the catalog row's stale metadata.
         $this->assertSame(
-            ['skill', 'readonly', 'intent', 'minimal_input', 'description', 'message_triggers'],
+            ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'description', 'message_triggers'],
             array_keys($sanitized[1])
         );
         $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['skill']);
