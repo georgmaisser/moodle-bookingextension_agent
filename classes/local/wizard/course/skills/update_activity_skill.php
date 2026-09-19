@@ -181,6 +181,14 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                         . 'current section, this skill resolves it. Do not combine with "section".',
                     'required' => false,
                 ],
+                'position' => [
+                    'type' => 'string',
+                    'enum' => ['up', 'down', 'top', 'bottom'],
+                    'description' => 'Move the activity WITHIN its section: up = one place earlier, down = one '
+                        . 'place later, top = first in the section, bottom = last. Use this for "move the page up", '
+                        . '"put the forum at the top". For moving to ANOTHER section use section or sectiondelta.',
+                    'required' => false,
+                ],
                 'coursequery' => [
                     'type' => 'string',
                     'description' => 'Target a DIFFERENT course than the current one, ONLY when the user names one. '
@@ -195,7 +203,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'settings', 'section', 'sectiondelta'],
+                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'settings', 'section', 'sectiondelta',
+                    'position'],
                 'anchor_fields' => ['activityquery', 'coursequery'],
             ],
         ];
@@ -250,6 +259,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                     '- To MOVE the activity to another section/topic, set "section" to the target section number.',
                     '  For a RELATIVE movement ("one section down/up") set "sectiondelta" instead (1 = down, -1 = up);',
                     '  you do not know the current section and must not ask for it. Never use settings{} to move.',
+                    '- To move it WITHIN its section set "position": up | down | top | bottom.',
                 ],
             ],
         ];
@@ -265,6 +275,11 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $errors = [];
         if (isset($input['settings']) && $input['settings'] !== '' && !is_array($input['settings'])) {
             $errors[] = 'settings must be an object of module-specific fields.';
+        }
+        if (isset($input['position']) && $input['position'] !== '' && $input['position'] !== null) {
+            if (!in_array((string)$input['position'], self::POSITION_MOVES, true)) {
+                $errors[] = 'position must be one of: ' . implode(', ', self::POSITION_MOVES) . '.';
+            }
         }
         $hasdelta = isset($input['sectiondelta']) && $input['sectiondelta'] !== '' && $input['sectiondelta'] !== null;
         if ($hasdelta) {
@@ -325,7 +340,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             return $sectionmove;
         }
 
-        if (empty($changes) && $sectionmove === null) {
+        if (empty($changes) && $sectionmove === null && trim((string)($input['position'] ?? '')) === '') {
             return $this->clarify(
                 'What should I change about "' . format_string($cm->name) . '"? (name, description, visibility, '
                     . 'a module setting, or move it to another section)',
@@ -355,6 +370,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             'modname' => $modname,
             'changes' => $changes,
             'section_move' => $sectionmove,
+            'position_move' => trim((string)($input['position'] ?? '')),
             'before' => [
                 'name' => (string)$cm->name,
                 'visible' => (int)$cm->visible,
@@ -377,7 +393,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $changes = (array)($preparedinput['changes'] ?? []);
         $sectionmove = $preparedinput['section_move'] ?? null;
         $sectionmove = ($sectionmove === null) ? null : (int)$sectionmove;
-        if ($courseid <= 0 || $cmid <= 0 || (empty($changes) && $sectionmove === null)) {
+        $hasposition = trim((string)($preparedinput['position_move'] ?? '')) !== '';
+        if ($courseid <= 0 || $cmid <= 0 || (empty($changes) && $sectionmove === null && !$hasposition)) {
             return $this->build_error_result('Missing prepared activity or changes for the update.');
         }
 
@@ -427,6 +444,18 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
             }
         }
 
+        // 3) Ordering inside the section (up / down / top / bottom). Runs after a section move so the
+        // order is computed in the section the activity ends up in.
+        $position = trim((string)($preparedinput['position_move'] ?? ''));
+        if ($position !== '') {
+            try {
+                $cmrecord = get_coursemodule_from_id('', $cmid, $courseid, false, MUST_EXIST);
+                $this->apply_position_move($course, $cmrecord, $position);
+            } catch (\Throwable $e) {
+                return $this->build_error_result('Could not move the activity within its section. ' . $e->getMessage());
+            }
+        }
+
         // Move-only update: synthesize the descriptor from the (moved) module.
         if ($updated === null) {
             $updated = $this->describe_current_module($course, $cmid);
@@ -442,13 +471,68 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     }
 
     /**
-     * Resolve a requested section move to a concrete target section number.
+     * Reorder the activity inside its own section.
      *
-     * @param array $input
      * @param \stdClass $course
-     * @param \cm_info $cm Target module (carries its current section number).
-     * @return int|array|null Target section number, a clarification array, or null when no move is needed.
+     * @param \stdClass $cmrecord
+     * @param string $move One of POSITION_MOVES.
+     * @return void
      */
+    private function apply_position_move(\stdClass $course, \stdClass $cmrecord, string $move): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/course/lib.php');
+
+        $modinfo = get_fast_modinfo($course);
+        $sectionnum = (int)$cmrecord->sectionnum;
+        $order = array_values(array_map('intval', (array)($modinfo->sections[$sectionnum] ?? [])));
+        $target = self::target_position_index($order, (int)$cmrecord->id, $move);
+        $current = array_search((int)$cmrecord->id, $order, true);
+        if ($target === null || $current === false || $target === $current) {
+            return;
+        }
+
+        // Moodle places the module BEFORE the one handed to moveto_module(); moving to the end passes null.
+        $remaining = array_values(array_filter($order, static fn(int $id): bool => $id !== (int)$cmrecord->id));
+        $beforeid = $remaining[$target] ?? null;
+        $beforemod = $beforeid === null
+            ? null
+            : get_coursemodule_from_id('', (int)$beforeid, (int)$course->id, false, IGNORE_MISSING);
+        $section = $modinfo->get_section_info($sectionnum);
+        moveto_module($cmrecord, $section, $beforemod ?: null);
+    }
+
+    /** Movements within a section. */
+    public const POSITION_MOVES = ['up', 'down', 'top', 'bottom'];
+
+    /**
+     * Index the activity should end up at inside its section.
+     *
+     * @param int[] $order Course module ids in their current order within the section.
+     * @param int $cmid Module being moved.
+     * @param string $move One of POSITION_MOVES.
+     * @return int|null Target index, or null when the module is not in this section.
+     */
+    public static function target_position_index(array $order, int $cmid, string $move): ?int {
+        $order = array_values(array_map('intval', $order));
+        $current = array_search($cmid, $order, true);
+        if ($current === false) {
+            return null;
+        }
+        $last = count($order) - 1;
+        switch ($move) {
+            case 'up':
+                return max(0, $current - 1);
+            case 'down':
+                return min($last, $current + 1);
+            case 'top':
+                return 0;
+            case 'bottom':
+                return $last;
+            default:
+                return $current;
+        }
+    }
+
     /**
      * Target section for a relative movement, clamped to the sections the course has.
      *
