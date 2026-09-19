@@ -197,6 +197,41 @@ trait scripted_llm_trait {
     }
 
     /**
+     * Convenience: a constructor 'skill_call' carrying one read-only command.
+     *
+     * @param string $skill
+     * @param array $parameters
+     * @return string
+     */
+    protected function constructor_skill_call(string $skill, array $parameters): string {
+        return json_encode([
+            'response_type' => 'skill_call',
+            'message' => '',
+            'next_step_intent' => '',
+            'lang' => 'de',
+            'user_lang' => 'de',
+            'commands' => [['skill' => $skill, 'version' => 1, 'parameters' => $parameters]],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * Convenience: a planner turn that answers from what it already observed.
+     *
+     * @param string $message
+     * @return string
+     */
+    protected function planner_sufficient(string $message): string {
+        return json_encode([
+            'response_type' => 'sufficient',
+            'message' => $message,
+            'next_step_intent' => '',
+            'lang' => 'de',
+            'user_lang' => 'de',
+            'commands' => [],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
      * Convenience: a bare constructor 'clarification' — a question with no command and no issue code.
      *
      * This is what the live constructor emits when it asks the user although its skill requires

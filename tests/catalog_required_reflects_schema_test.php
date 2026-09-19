@@ -80,9 +80,16 @@ final class catalog_required_reflects_schema_test extends \advanced_testcase {
     }
 
     /**
-     * A skill whose schema requires nothing carries no REQUIRED line at all.
+     * A skill whose schema requires nothing says "REQUIRED: none" — and still advertises no optional field.
+     *
+     * This assertion was inverted on 2026-09-19. It used to demand the ABSENCE of the line, which is how the
+     * original defect (optional fields printed as REQUIRED) was fixed. Baseline run 17 showed the absence is
+     * not neutral: decision rule 3 of the selector prompt ("missing required input -> clarification") is
+     * stated in every prompt, so the model read the missing line as ignorance rather than freedom and
+     * invented a mandatory field (DMD-4 called assignmentid mandatory although the schema marks it optional).
+     * The part that must not regress — an optional field never appearing under REQUIRED — is still pinned.
      */
-    public function test_skill_without_required_fields_has_no_required_line(): void {
+    public function test_skill_without_required_fields_says_none(): void {
         $this->resetAfterTest();
 
         $text = $this->catalog_text([
@@ -93,7 +100,10 @@ final class catalog_required_reflects_schema_test extends \advanced_testcase {
             'required_input' => [],
         ]);
 
-        $this->assertStringNotContainsString('REQUIRED:', $text);
+        $this->assertStringContainsString('REQUIRED: none', $text);
+        foreach (['activityquery', 'name', 'intro', 'visible', 'settings', 'section'] as $optional) {
+            $this->assertStringNotContainsString($optional, $text, 'an optional field was advertised as required');
+        }
     }
 
     /**

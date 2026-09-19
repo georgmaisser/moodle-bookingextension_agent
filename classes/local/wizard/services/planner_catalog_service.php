@@ -252,9 +252,15 @@ class planner_catalog_service {
             $lines = [];
             $lines[] = "## {$skillname} [{$mutability}]";
 
-            $description = trim(preg_replace('/\s+/', ' ', (string)($entry['description'] ?? '')) ?? '');
+            // The description arrives already shortened sentence-aware by compact_catalog_description().
+            // A second, hard cut here used to slice it mid-word at 160 characters, which is what the
+            // selector actually received — and it threw away exactly the sentences ten skill classes place
+            // between 160 and 240 on purpose to separate themselves from a sibling (#471, #472, #473, #2423).
+            // Re-compacting is idempotent for an already compacted string and keeps a raw entry safe.
+            // See planner_catalog_truncation_test::test_rendered_card_keeps_the_compacted_description.
+            $description = $this->compact_catalog_description((string)($entry['description'] ?? ''));
             if ($description !== '') {
-                $lines[] = core_text::substr($description, 0, 160);
+                $lines[] = $description;
             }
 
             // WHEN: from first message trigger description.
@@ -269,7 +275,14 @@ class planner_catalog_service {
             // worth showing — so optional fields read as mandatory and the selector asked the user for them
             // instead of routing (rule "missing required input -> clarification"). See
             // catalog_required_reflects_schema_test.
+            // "Requires nothing" must be SAID, not expressed by an absent line. Decision rule 3 of the
+            // selector prompt ("missing required input -> clarification") is stated in every prompt, so the
+            // model read the silence as ignorance and invented a mandatory field (run 17, DMD-4: it called
+            // assignmentid mandatory although the schema marks it optional).
             $required = array_filter(array_map('strval', (array)($entry['required_input'] ?? [])));
+            if (empty($required) && array_key_exists('required_input', $entry)) {
+                $lines[] = 'REQUIRED: none';
+            }
             if (!empty($required)) {
                 $lines[] = 'REQUIRED: ' . implode(', ', array_values($required));
             }

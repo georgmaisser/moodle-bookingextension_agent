@@ -82,8 +82,13 @@ final class discovery_meta_skills_visibility_test extends advanced_testcase {
         $text = (new skill_introspection_service())->render_full_skill_catalog((int)$USER->id, $contextid, 'all');
 
         $this->assertIsString($text);
-        $this->assertStringNotContainsString('wizard.list_skills', $text);
-        $this->assertStringNotContainsString('wizard.search_skills', $text);
+        // Match the CARD header, not the bare name. Sibling skills name the meta-skills inside their own
+        // description on purpose ("Not a capability search (wizard.search_skills)") to steer routing; those
+        // sentences sit past character 160 and only became visible when the second, hard truncation of the
+        // rendered card was removed (2026-09-19). What must not happen is the meta-skill being OFFERED as an
+        // entry of its own — that is the header.
+        $this->assertStringNotContainsString('## wizard.list_skills', $text);
+        $this->assertStringNotContainsString('## wizard.search_skills', $text);
         // It is the compact "## <skill> [..]" rendering, and it lists real skills.
         $this->assertStringContainsString('## ', $text);
     }

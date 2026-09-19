@@ -111,6 +111,77 @@ final class planner_catalog_truncation_test extends advanced_testcase {
     }
 
     /**
+     * The RENDERED selector card carries the compacted description unchanged.
+     *
+     * The test above guards slim_prompt_catalog_for_planner(), which shortens sentence-aware at 240 —
+     * and that layer was never the problem. render_catalog_as_text() then cut the result a SECOND
+     * time with a hard substr(…, 0, 160), mid-word, which is what the selector actually received:
+     *
+     *   ## mod_booking.diagnose_waitinglist [readonly]
+     *   Diagnose why the waiting list … or - most commonly - why reducing the numbe
+     *
+     * Ten skill classes in mod_booking and local_taskflow are authored against the documented 240
+     * window and carry that in a code comment with a ticket number (#471, #472, #473, #2423); every
+     * one of their sibling-discriminating sentences sat past 160 and was thrown away. Baseline run 17
+     * attributed DWL-2, TDP-4, DMD-4, DAS-2, LR-2 and GRD-4 to it.
+     */
+    public function test_rendered_card_keeps_the_compacted_description(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $registry = skill_registry_factory::get_default();
+        $service = new planner_catalog_service(new assistant_state_guidance_service());
+        $catalog = $service->slim_prompt_catalog_for_planner($registry->get_all_prompt_contracts());
+        $this->assertNotEmpty($catalog);
+
+        $violations = [];
+        foreach ($catalog as $entry) {
+            $skill = (string)$entry['skill'];
+            $expected = trim((string)preg_replace('/\s+/', ' ', (string)($entry['description'] ?? '')));
+            if ($expected === '') {
+                continue;
+            }
+            $rendered = $service->render_catalog_as_text([$entry]);
+            if (!str_contains($rendered, $expected)) {
+                // Report the rendered description line, which is what the model reads.
+                $lines = explode("\n", $rendered);
+                $violations[] = $skill . ': rendered as "' . ($lines[1] ?? '') . '"';
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $violations,
+            "The rendered selector card must carry the compacted description unchanged — a second, "
+                . "hard truncation slices the sibling discrimination off:\n" . implode("\n", $violations)
+        );
+    }
+
+    /**
+     * A skill whose schema requires nothing says so, instead of leaving the line out silently.
+     *
+     * Decision rule 3 of the selector prompt ("missing required input -> clarification") is stated in
+     * every prompt, while "this skill needs nothing" was expressed by the ABSENCE of a line. The model
+     * read that silence as ignorance rather than freedom and invented a mandatory field (run 17: DMD-4
+     * claimed diagnose_message_delivery "works with a specific assignment ID", which its schema marks
+     * optional).
+     */
+    public function test_a_skill_without_required_fields_says_so(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $service = new planner_catalog_service(new assistant_state_guidance_service());
+        $rendered = $service->render_catalog_as_text([[
+            'skill' => 'demo.without_required',
+            'readonly' => true,
+            'description' => 'A skill that resolves everything it needs by itself.',
+            'required_input' => [],
+        ]]);
+
+        $this->assertStringContainsString('REQUIRED: none', $rendered);
+    }
+
+    /**
      * Whether a shortened card ends exactly where a sentence of the original description ends.
      *
      * An optional trailing ellipsis marker ("..." or "…") is ignored; the remaining text must be a

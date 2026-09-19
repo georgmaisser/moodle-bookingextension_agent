@@ -1263,11 +1263,20 @@ class agent_runtime {
 
         $haserror = false;
         $hassuccess = false;
+        $allrecoverable = true;
         $lasterror = '';
         foreach ($rows as $row) {
             $status = strtolower(trim((string)($row['status'] ?? '')));
             if ($status === 'error') {
                 $haserror = true;
+                // A target the user can name differently is not a failed run. The planner has usually already
+                // written the honest answer ("no such user"), and stamping the turn as an error replaces it with
+                // a technical failure — the opposite of the house rule that a fixable input error ends as a
+                // question, not an error (baseline runs 17/18: UTP-3, TDP-4, DMD-1/3).
+                $codes = array_map('strval', (array)($row['issue_codes'] ?? []));
+                if (!in_array('RECOVERABLE_INPUT_ERROR', $codes, true)) {
+                    $allrecoverable = false;
+                }
                 $msg = trim((string)($row['usermessage'] ?? ($row['detail'] ?? '')));
                 if ($msg !== '') {
                     $lasterror = $msg;
@@ -1277,8 +1286,9 @@ class agent_runtime {
             }
         }
 
-        // Only a run where every executed step failed is a disguised failure.
-        if (!$haserror || $hassuccess) {
+        // Only a run where every executed step failed is a disguised failure — and only when at least one of
+        // those failures is something the user cannot simply restate (see the loop above).
+        if (!$haserror || $hassuccess || $allrecoverable) {
             return $result;
         }
 

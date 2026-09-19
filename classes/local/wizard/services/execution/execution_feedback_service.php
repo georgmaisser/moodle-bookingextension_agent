@@ -122,6 +122,15 @@ class execution_feedback_service {
                 $entry['skill'] = trim($result['skill']);
             }
 
+            // Issue codes are engine vocabulary, not skill internals, and the turn's own classification depends
+            // on them: without RECOVERABLE_INPUT_ERROR reaching this far, agent_runtime cannot tell a target the
+            // user mistyped from a provider outage and stamps both as a failed run (run 17/18: UTP-3, TDP-4,
+            // DMD-1/3). They never reach the user — the synchronizer writes the text.
+            $issuecodes = array_values(array_filter(array_map('strval', (array)($result['issue_codes'] ?? []))));
+            if (!empty($issuecodes)) {
+                $entry['issue_codes'] = $issuecodes;
+            }
+
             // Keep executor-provided input payload for planner runtime memory.
             // This is consumed by orchestrator SYSTEM_RUNTIME.completed_commands.
             if (isset($result['executed_input']) && is_array($result['executed_input'])) {
