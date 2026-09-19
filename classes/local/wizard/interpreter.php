@@ -982,8 +982,11 @@ class interpreter implements agent_interpreter {
             // Salvage the German-quote idiom „Wort" (typographic opener, ASCII closer): the
             // straight quote terminates the JSON string and kills an otherwise perfect reply.
             // Runs ONLY after a failed parse; valid JSON never reaches this path.
+            // The content must not contain a backslash: an already escaped quote (\") is valid JSON and
+            // healing it would produce the invalid escape \“ (run 16, thread 5173: one escaped and one
+            // broken quote in the same message).
             $healed = preg_replace(
-                '/\x{201E}([^"\x{201C}\x{201D}\x{201E}]{1,120}?)"/u',
+                '/\x{201E}([^"\x{201C}\x{201D}\x{201E}\\\\]{1,120}?)"/u',
                 "\u{201E}\$1\u{201C}",
                 $candidate
             );

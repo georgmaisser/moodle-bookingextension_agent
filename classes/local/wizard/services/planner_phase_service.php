@@ -487,13 +487,23 @@ class planner_phase_service {
         // (baseline run 15: UO-3, GQ-4, RSC-3, RSC-4). The trigger is the interpreter's issue code, i.e. engine
         // state, and the instruction offers the honest alternative so the model is not pushed into inventing
         // keys. Exactly one extra call; if it fails, the original downgrade stands.
-        if (is_array($interpreted) && constructor_command_repair::is_repairable($interpreted)) {
+        $skillobject = $this->registry->get_skill($selectedskill);
+        $requiredfields = [];
+        if ($skillobject !== null) {
+            $schema = (array)$skillobject->get_schema();
+            foreach ((array)($schema['properties'] ?? []) as $field => $definition) {
+                if (is_array($definition) && !empty($definition['required'])) {
+                    $requiredfields[] = (string)$field;
+                }
+            }
+        }
+        if (is_array($interpreted) && constructor_command_repair::is_repairable($interpreted, $requiredfields)) {
             $repaircall = $llm->invoke_for_context_retrying_truncation(
                 $threadid,
                 $contextid,
                 $userid,
                 $debugsource . '|rp=1',
-                $prompt . constructor_command_repair::instruction($selectedskill),
+                $prompt . constructor_command_repair::instruction($selectedskill, $requiredfields),
                 $actionclass
             );
             $repairtext = (string)($repaircall['rawcontent'] ?? '');

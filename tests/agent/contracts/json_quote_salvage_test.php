@@ -45,6 +45,40 @@ final class json_quote_salvage_test extends TestCase {
     }
 
     /**
+     * Run 16, thread 5173 (DAS-2): the answer mixes a CORRECTLY escaped quote with a broken one.
+     *
+     * The salvage used to heal both, which turned the valid \" into an invalid \“ escape — the reply still
+     * failed to parse, the loop retried and the turn ended as `error` although the answer was complete.
+     */
+    public function test_run16_thread_5173_bytes_are_salvaged(): void {
+        $raw = '{"response_type":"sufficient","message":"Die Zuweisung von ANON_USER_1_both '
+            . '(Datenschutz-Unterweisung 2026, #4065) zeigt den Status „Verlängert\\", weil ANON_USER_2_both '
+            . 'am 15.09.2026 um 16:18 Uhr eine manuelle Änderung vorgenommen hat: „Frist einmalig verlängert '
+            . '(Krankenstand)". Dadurch wurde das Fälligkeitsdatum verschoben und der Status ist verlängert '
+            . 'statt überfällig.","next_step_intent":"Frage beantwortet","lang":"de","user_lang":"de",'
+            . '"planned_steps":[]}';
+
+        $result = (new interpreter(skill_registry::make_default()))->interpret($raw, 0, 0);
+
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''), json_encode($result));
+        $this->assertStringContainsString('Verlängert', (string)($result['message'] ?? ''));
+        $this->assertStringContainsString('Krankenstand', (string)($result['message'] ?? ''));
+    }
+
+    /**
+     * An escaped quote inside a quoted German phrase stays escaped: the salvage must not touch it.
+     */
+    public function test_escaped_quote_is_left_alone(): void {
+        $raw = '{"response_type":"sufficient","message":"Der Status „Verlängert\\" ist gesetzt.",'
+            . '"commands":[],"planned_steps":[],"next_step_intent":"","lang":"de","user_lang":"de"}';
+
+        $result = (new interpreter(skill_registry::make_default()))->interpret($raw, 0, 0);
+
+        $this->assertSame('sufficient', (string)($result['response_type'] ?? ''), json_encode($result));
+        $this->assertStringContainsString('Verlängert', (string)($result['message'] ?? ''));
+    }
+
+    /**
      * The verbatim Lauf-6 thread-303 response must parse into its sufficient answer.
      */
     public function test_thread_303_bytes_are_salvaged(): void {

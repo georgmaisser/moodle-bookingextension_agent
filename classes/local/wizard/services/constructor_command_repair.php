@@ -43,12 +43,21 @@ class constructor_command_repair {
      * Whether this construction result should get one more round.
      *
      * @param array $interpreted Interpreted construction output.
+     * @param string[] $requiredfields Fields the selected skill's schema really requires.
      * @return bool
      */
-    public static function is_repairable(array $interpreted): bool {
+    public static function is_repairable(array $interpreted, array $requiredfields = []): bool {
         $codes = array_map('strval', (array)($interpreted['issue_codes'] ?? []));
+        if (in_array(self::DOWNGRADE_CODE, $codes, true)) {
+            return true;
+        }
 
-        return in_array(self::DOWNGRADE_CODE, $codes, true);
+        // Second case (baseline run 16: AA-1, SCC-3, UQ-4, TSA-4, DMD-2): the constructor asks for input
+        // although the skill declares no required field at all. Its own guidance usually says the skill asks
+        // for what is missing. Engine state decides: empty required list + "input required" issue code.
+        return $requiredfields === []
+            && in_array('CONSTRUCTION_INPUT_REQUIRED', $codes, true)
+            && trim((string)($interpreted['response_type'] ?? '')) === 'clarification';
     }
 
     /**
@@ -58,12 +67,18 @@ class constructor_command_repair {
      * (see interpreter::interpret), so the alternative "say that you need input instead" is stated explicitly.
      *
      * @param string $selectedskill Skill the construction phase is building for.
+     * @param string[] $requiredfields Fields the selected skill's schema really requires.
      * @return string
      */
-    public static function instruction(string $selectedskill): string {
+    public static function instruction(string $selectedskill, array $requiredfields = []): string {
+        $requirement = $requiredfields === []
+            ? "This skill declares NO required field: everything it needs it resolves or asks for itself.\n"
+            : 'Required fields of this skill: ' . implode(', ', $requiredfields) . ".\n";
+
         return "\n\nREPAIR ROUND (the previous answer broke the contract):\n"
-            . "Your last answer announced an action but carried an empty commands array, so nothing could be "
-            . "staged for confirmation. Answer again, and choose exactly one of these two:\n"
+            . $requirement
+            . "Your last answer asked the user instead of staging the action. Answer again, and choose exactly "
+            . "one of these two:\n"
             . "1) Emit the action you described as a command: response_type=confirmation_request with commands "
             . "containing exactly one object for {\"skill\":\"" . $selectedskill . "\"} and the parameters you "
             . "already worked out.\n"

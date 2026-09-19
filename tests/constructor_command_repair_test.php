@@ -49,19 +49,32 @@ final class constructor_command_repair_test extends \advanced_testcase {
     }
 
     /**
-     * An ordinary clarification is NOT repaired: the constructor is asking for something it needs.
+     * A clarification from a skill that HAS required fields is left alone: it may really need one of them.
      */
-    public function test_plain_clarification_is_not_repairable(): void {
+    public function test_clarification_of_a_skill_with_required_fields_is_not_repaired(): void {
         $this->resetAfterTest();
 
         $this->assertFalse(constructor_command_repair::is_repairable([
             'response_type' => 'clarification',
             'issue_codes' => ['CONSTRUCTION_INPUT_REQUIRED'],
-        ]));
+        ], ['component']));
         $this->assertFalse(constructor_command_repair::is_repairable([
             'response_type' => 'clarification',
             'issue_codes' => [],
-        ]));
+        ], []));
+    }
+
+    /**
+     * A clarification from a skill that requires NOTHING gets the repair round: the skill resolves or asks
+     * for what it needs itself (baseline run 16: AA-1, SCC-3, UQ-4, TSA-4, DMD-2).
+     */
+    public function test_clarification_of_a_skill_without_required_fields_is_repaired(): void {
+        $this->resetAfterTest();
+
+        $this->assertTrue(constructor_command_repair::is_repairable([
+            'response_type' => 'clarification',
+            'issue_codes' => ['CONSTRUCTION_INPUT_REQUIRED'],
+        ], []));
     }
 
     /**
