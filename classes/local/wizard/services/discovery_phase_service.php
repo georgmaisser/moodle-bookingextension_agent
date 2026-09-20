@@ -40,6 +40,7 @@ use bookingextension_agent\local\wizard\contracts\skill_family_contract;
 use bookingextension_agent\local\wizard\config\runtime_feature_flags;
 use bookingextension_agent\local\wizard\queue\queue_manager;
 use bookingextension_agent\local\wizard\services\catalog\adaptive_skill_catalog_service;
+use bookingextension_agent\local\wizard\services\discovery\context_owner_resolver;
 use bookingextension_agent\local\wizard\services\discovery\context_prior_builder;
 use bookingextension_agent\local\wizard\services\discovery\discovery_stage_controller;
 use bookingextension_agent\local\wizard\services\discovery\family_ranker;
@@ -337,6 +338,12 @@ class discovery_phase_service {
                                         'userid' => $userid,
                                         'namespace_hint' =>
                                             $this->catalogsvc->resolve_namespace_hint_from_prompt_contracts($allpromptcontracts),
+                                        'page_type' => $this->page_type_of_thread($threadid),
+                                        'context_namespace' => (new context_owner_resolver())->resolve(
+                                            $context,
+                                            $this->page_type_of_thread($threadid),
+                                            $this->namespaces_of($allpromptcontracts)
+                                        ),
                                     ]);
                                     $familydiscovery = (new family_registry_service())->discover(
                                         $allpromptcontracts,
@@ -793,5 +800,46 @@ class discovery_phase_service {
         }
 
         return $history;
+    }
+
+    /**
+     * Moodle page type the thread was started from, '' when the client sent none.
+     *
+     * @param int $threadid
+     * @return string
+     */
+    private function page_type_of_thread(int $threadid): string {
+        try {
+            $pagecontext = $this->store->get_thread_metadata_value($threadid, '_page_context');
+        } catch (\Throwable $e) {
+            return '';
+        }
+        if (is_string($pagecontext)) {
+            $pagecontext = json_decode($pagecontext, true);
+        }
+
+        return is_array($pagecontext) ? trim((string)($pagecontext['pagetype'] ?? '')) : '';
+    }
+
+    /**
+     * The distinct skill namespaces the registry offers, so no preference is ever invented for a plugin
+     * that has no skills at all.
+     *
+     * @param array $promptcontracts
+     * @return string[]
+     */
+    private function namespaces_of(array $promptcontracts): array {
+        $namespaces = [];
+        foreach ($promptcontracts as $contract) {
+            if (!is_array($contract)) {
+                continue;
+            }
+            $namespace = trim((string)($contract['namespace'] ?? ''));
+            if ($namespace !== '') {
+                $namespaces[$namespace] = true;
+            }
+        }
+
+        return array_keys($namespaces);
     }
 }

@@ -101,9 +101,14 @@ class family_embeddings_retrieval_service {
     public function boost_skill_rows(
         array $toprows,
         array $familyscores,
-        float $skillweight = 0.7,
-        float $familyweight = 0.3
+        float $skillweight = 0.92,
+        float $familyweight = 0.08
     ): array {
+        // 0.7/0.3 until 2026-09-20. With a family score spanning 0.2..1.0 that moved the combined score by up
+        // to 0.24 — far more than the gap between adjacent candidates, so the family decided the ranking
+        // outright. On a booking page the correct answer is regularly a course or core skill (UA-3, SC-2,
+        // ACS-2, EU-2), and such a weight would have buried all four. At 0.08 the family breaks a near-tie
+        // and nothing else.
         if (empty($toprows)) {
             return [];
         }

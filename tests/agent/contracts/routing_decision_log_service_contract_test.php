@@ -91,10 +91,48 @@ final class routing_decision_log_service_contract_test extends TestCase {
         ]);
 
         $this->assertFalse($shadow['live_routing_affected']);
-        $this->assertSame('A', $shadow['discovery_stage']);
-        $this->assertSame('none', $shadow['escalation_reason']);
         $this->assertSame('slim_all', $shadow['catalogselectionmode']);
         $this->assertSame('no_embeddings', $shadow['embedding_path']);
+        // The shadow now names WHY it escalates instead of reporting 'none'.
+        $this->assertSame('stage_a_low_confidence', $shadow['escalation_reason']);
+
+        // Stage B, not A: the prior above carries only namespace_hint, which is catalogue POPULARITY — the
+        // namespace with the most registered skills, identical on every page of the site. Since 2026-09-20 that
+        // no longer buys confidence (its weight fell from 0.35 to 0.10), so the shadow escalates instead of
+        // settling. Before that date it was the strongest signal of all and produced a confident 'A' from a
+        // fact that says nothing about where the user is.
+        $this->assertSame('B', $shadow['discovery_stage']);
+    }
+
+    /**
+     * The REAL context signal restores confidence: the plugin owning the current page settles the stage.
+     *
+     * Same input as above plus context_namespace, which context_owner_resolver derives from the Moodle context
+     * and page type. This is the pair that shows the weights now sit on the signal that knows the context
+     * rather than on the one that does not.
+     */
+    public function test_the_page_owner_restores_discovery_confidence(): void {
+        $normalized = routing_decision_log_service::normalize_telemetry([
+            'catalogselectionmode' => 'slim_all',
+            'discovery_stage' => 'A',
+            'confidence_score' => 0.75,
+            'escalation_reason' => 'none',
+        ]);
+
+        $shadow = routing_decision_log_service::build_shadow_result($normalized, [
+            runtime_feature_flags::FAMILY_DISCOVERY_ENABLED => true,
+            runtime_feature_flags::STAGED_DISCOVERY_ENABLED => true,
+        ], [
+            'promptcontracts' => [
+                ['skill' => 'mod_booking.create_option', 'family' => 'mod_booking.options', 'namespace' => 'mod_booking'],
+                ['skill' => 'wizard.recall_memory', 'family' => 'core.general', 'namespace' => 'core'],
+            ],
+            'contextprior' => ['namespace_hint' => 'mod_booking', 'context_namespace' => 'mod_booking'],
+            'recent_skill_names' => ['mod_booking.create_option'],
+        ]);
+
+        $this->assertFalse($shadow['live_routing_affected']);
+        $this->assertSame('A', $shadow['discovery_stage']);
     }
 
     /**

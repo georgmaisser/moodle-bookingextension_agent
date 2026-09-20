@@ -37,12 +37,17 @@ class context_prior_builder {
      */
     public function build(int $contextid, array $signals = []): array {
         $namespacehint = trim((string)($signals['namespace_hint'] ?? ''));
+        // The namespace of the plugin that owns the page the request came from, '' when nothing identifies one.
+        // This is the actual context signal; namespace_hint above is only catalogue popularity and says nothing
+        // about where the user is (it resolves to whichever plugin registers the most skills).
+        $contextnamespace = trim((string)($signals['context_namespace'] ?? ''));
         $pagetype = trim((string)($signals['page_type'] ?? 'unknown'));
         $userid = (int)($signals['userid'] ?? 0);
 
         return [
             'contextid' => max(0, $contextid),
             'namespace_hint' => $namespacehint,
+            'context_namespace' => $contextnamespace,
             'page_type' => ($pagetype === '' ? 'unknown' : $pagetype),
             'user_state' => [
                 'is_authenticated' => $userid > 0,

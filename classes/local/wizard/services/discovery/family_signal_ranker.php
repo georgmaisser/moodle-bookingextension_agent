@@ -38,6 +38,9 @@ class family_signal_ranker {
     /** @var float Bonus when recent skill namespaces match. */
     private float $recencynamespaceweight;
 
+    /** @var float Weight for the namespace of the plugin owning the current page. */
+    private float $contextnamespaceweight;
+
     /**
      * Constructor.
      *
@@ -46,7 +49,12 @@ class family_signal_ranker {
     public function __construct(array $weights = []) {
         $this->baseweight = $this->normalize_weight($weights['base'] ?? 0.20);
         $this->coreweight = $this->normalize_weight($weights['core'] ?? 0.10);
-        $this->namespacehintweight = $this->normalize_weight($weights['namespace_hint'] ?? 0.35);
+        // Down from 0.35 on 2026-09-20: namespace_hint is catalogue POPULARITY (the plugin with the most
+        // registered skills), constant across every request and blind to where the user is. It was the
+        // strongest term, which would have preferred local_taskflow on every page of the site.
+        $this->namespacehintweight = $this->normalize_weight($weights['namespace_hint'] ?? 0.10);
+        // The plugin that owns the current page — the only term here that actually knows the context.
+        $this->contextnamespaceweight = $this->normalize_weight($weights['context_namespace'] ?? 0.40);
         $this->recencynamespaceweight = $this->normalize_weight($weights['recent_namespace'] ?? 0.20);
     }
 
@@ -61,6 +69,7 @@ class family_signal_ranker {
     public function score_families(array $families, array $contextprior, array $recentskillnames = []): array {
         $scores = [];
         $namespacehint = trim((string)($contextprior['namespace_hint'] ?? ''));
+        $contextnamespace = trim((string)($contextprior['context_namespace'] ?? ''));
 
         $recentnamespaces = [];
         foreach ($recentskillnames as $skillname) {
@@ -80,6 +89,10 @@ class family_signal_ranker {
 
             if ($namespacehint !== '' && strpos($family, $namespacehint . '.') === 0) {
                 $score += $this->namespacehintweight;
+            }
+
+            if ($contextnamespace !== '' && strpos($family, $contextnamespace . '.') === 0) {
+                $score += $this->contextnamespaceweight;
             }
 
             foreach ($recentnamespaces as $namespace) {

@@ -317,8 +317,12 @@ class orchestrator_routing_service {
             return 'na';
         }
 
-        if (core_text::strlen($normalized) > 10) {
-            return core_text::substr($normalized, 0, 10);
+        // 10 until 2026-09-20. The catalogue modes "embed_topk" and "embed_topk_family_boost" both truncated
+        // to "embed_topk", so the one field we read to tell whether the family boost is active could not
+        // distinguish the two states at all — the boost looked dead while it was running. 24 keeps the tag
+        // short and separates every mode the pipeline emits.
+        if (core_text::strlen($normalized) > 24) {
+            return core_text::substr($normalized, 0, 24);
         }
 
         return $normalized;
