@@ -208,7 +208,12 @@ final class planner_catalog_truncation_test extends advanced_testcase {
             }
             try {
                 $structure = (array)$skill->check_structure([]);
-                $acceptsempty = (bool)($structure['valid'] ?? true);
+                // A rejection the gate flags RECOVERABLE_INPUT_ERROR is the skill asking the user, not a
+                // precondition for routing — the selector may send the request there. Same rule as
+                // base_skill::accepts_empty_input(); question.generate_questions is that case.
+                $codes = array_map('strval', (array)($structure['issue_codes'] ?? []));
+                $acceptsempty = !empty($structure['valid'])
+                    || in_array('RECOVERABLE_INPUT_ERROR', $codes, true);
             } catch (\Throwable $e) {
                 $acceptsempty = false;
             }
@@ -229,6 +234,43 @@ final class planner_catalog_truncation_test extends advanced_testcase {
             $liars,
             "These cards promise the selector they need nothing, while their own check_structure() rejects an "
                 . "empty input:\n" . implode("\n", $liars)
+        );
+    }
+
+    /**
+     * Every card says something true about what it requires — never nothing.
+     *
+     * The REQUIRED line has three truthful forms: the schema's required fields, the gate's alternatives
+     * ("one of a | b", declared as required_groups), or "none" when an empty input really is accepted.
+     * A card with no line at all is the state that cost GOD-1 and GOD-2 in run 21: the model reads silence
+     * as ignorance rather than freedom, exactly as decision rule 3 of the selector prompt invites it to.
+     *
+     * This is the stricter successor of the honesty test above. That one only forbade the lie; this one also
+     * forbids the silence, which is how wave 13 traded one defect for the other.
+     */
+    public function test_every_card_states_its_requirement(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $registry = skill_registry_factory::get_default();
+        $service = new planner_catalog_service(new assistant_state_guidance_service());
+        $silent = [];
+
+        foreach ($registry->get_all_prompt_contracts() as $contract) {
+            if (!is_array($contract) || ($contract['skill'] ?? '') === '') {
+                continue;
+            }
+            if (!str_contains($service->render_catalog_as_text([$contract]), 'REQUIRED:')) {
+                $silent[] = (string)$contract['skill'];
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $silent,
+            "These cards say nothing at all about what they need. Either the schema marks the fields required, "
+                . "or prompt_meta['required_groups'] names the alternatives the structure gate accepts:\n"
+                . implode("\n", $silent)
         );
     }
 

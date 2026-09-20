@@ -501,6 +501,12 @@ abstract class base_skill implements skill_interface {
             // those told the selector they were free of charge, which is how EU-2 lost course.enrol_user to a
             // booking skill in run 19. check_structure() is pure and does no DB work, so asking it is cheap.
             'accepts_empty_input' => $this->accepts_empty_input(),
+            // Alternatives the skill's own structure gate accepts: [['optionid', 'optionquery']] means it
+            // needs ONE of the two. Many skills express their mandatory input this way instead of through the
+            // schema's `required` flag, and until 2026-09-20 the catalogue had no way to say so: it either
+            // lied ("REQUIRED: none") or said nothing at all, and saying nothing cost GOD-1 and GOD-2 in run 21
+            // because the model reads silence as ignorance rather than freedom.
+            'required_groups' => self::required_groups_of($schema),
             'example_input' => $this->get_example_input(),
             'namespace' => $namespace,
             'version' => max(1, (int)($schema['version'] ?? 1)),
@@ -647,6 +653,36 @@ abstract class base_skill implements skill_interface {
             return false;
         }
 
-        return (bool)($result['valid'] ?? true);
+        if (!empty($result['valid'])) {
+            return true;
+        }
+
+        // A rejection the gate itself flags RECOVERABLE_INPUT_ERROR is the SKILL asking the user, not a
+        // precondition for routing to it: the selector may send the request here and the skill takes it from
+        // there. question.generate_questions is the case that made this explicit — its `count` field says
+        // "leave it out so the system asks (never invent a number)" (#B4), so declaring the field required
+        // would invert its own contract and make the selector ask before the skill is ever reached.
+        $codes = array_map('strval', (array)($result['issue_codes'] ?? []));
+
+        return in_array('RECOVERABLE_INPUT_ERROR', $codes, true);
+    }
+
+    /**
+     * Groups of alternative fields the skill requires one of.
+     *
+     * @param array $schema
+     * @return array[] List of groups, each a list of field names.
+     */
+    protected static function required_groups_of(array $schema): array {
+        $meta = (array)($schema['prompt_meta'] ?? []);
+        $groups = [];
+        foreach ((array)($meta['required_groups'] ?? []) as $group) {
+            $fields = array_values(array_filter(array_map('strval', (array)$group)));
+            if (count($fields) > 1) {
+                $groups[] = $fields;
+            }
+        }
+
+        return $groups;
     }
 }

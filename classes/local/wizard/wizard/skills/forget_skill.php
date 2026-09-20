@@ -138,6 +138,11 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                     . '(all=true), always confirmed.',
                 'input_fields_for_prompt' => ['query', 'all'],
                 'anchor_fields' => ['query'],
+                // Mirrors check_structure(): deleting needs a target — a query, an explicit id or the
+                // all flag. None of them can be required alone, so the gate is declared as a group.
+                'required_groups' => [
+                    ['query', 'id', 'all'],
+                ],
                 'capabilities' => ['user_memory_delete'],
                 // Affected scope is the USER's global memory store, not the hosting context.
                 'context_scopes' => ['user'],

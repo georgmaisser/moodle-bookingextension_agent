@@ -480,6 +480,7 @@ class skill_registry {
         // never minimal_input (baseline run 15 forensics).
         $requiredinput = array_values(array_filter(array_map('strval', (array)($promptcontract['required_input'] ?? []))));
         $acceptsemptyinput = (bool)($promptcontract['accepts_empty_input'] ?? true);
+        $requiredgroups = array_values((array)($promptcontract['required_groups'] ?? []));
         $anchorfields = array_values(array_filter(array_map('strval', (array)($promptcontract['anchors'] ?? []))));
 
         $exampleinput = is_array($promptcontract['example_input'] ?? null)
@@ -545,6 +546,7 @@ class skill_registry {
             'minimal_input' => $minimalinput,
             'required_input' => $requiredinput,
             'accepts_empty_input' => $acceptsemptyinput,
+            'required_groups' => $requiredgroups,
             'example_input' => $exampleinput,
             'namespace' => $namespace,
             'family' => $family,

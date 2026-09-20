@@ -82,6 +82,7 @@ class planner_catalog_service {
                 'minimal_input' => (array)($entry['minimal_input'] ?? []),
                 'required_input' => (array)($entry['required_input'] ?? []),
                 'accepts_empty_input' => (bool)($entry['accepts_empty_input'] ?? true),
+                'required_groups' => array_values((array)($entry['required_groups'] ?? [])),
                 'example_input' => $this->compact_catalog_example_input((array)($entry['example_input'] ?? [])),
                 'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
                 'message_triggers' => $this->compact_catalog_message_triggers((array)($entry['message_triggers'] ?? [])),
@@ -171,6 +172,7 @@ class planner_catalog_service {
                 'minimal_input' => $minimalinput,
                 'required_input' => (array)($live['required_input'] ?? ($entry['required_input'] ?? [])),
                 'accepts_empty_input' => (bool)($live['accepts_empty_input'] ?? ($entry['accepts_empty_input'] ?? true)),
+                'required_groups' => array_values((array)($live['required_groups'] ?? ($entry['required_groups'] ?? []))),
                 'description' => $this->compact_catalog_description($description),
                 'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
             ];
@@ -281,16 +283,27 @@ class planner_catalog_service {
             // selector prompt ("missing required input -> clarification") is stated in every prompt, so the
             // model read the silence as ignorance and invented a mandatory field (run 17, DMD-4: it called
             // assignmentid mandatory although the schema marks it optional).
+            // The REQUIRED line has three truthful forms, and every skill should produce one of them:
+            //   schema flags      -> "REQUIRED: a, b"
+            //   gate alternatives -> "REQUIRED: one of a | b"   (required_groups)
+            //   nothing at all    -> "REQUIRED: none"           (only when the gate really accepts {})
+            // Before 2026-09-20 the line came from the flags alone. That first made it LIE for the sixteen
+            // skills that gate their input in check_structure() ("none" although {} is rejected, which tipped
+            // EU-2 in run 19), and once the lie was removed it made the line fall SILENT for them — which cost
+            // GOD-1 and GOD-2 in run 21, because the model reads a missing line as ignorance, not as freedom.
             $required = array_filter(array_map('strval', (array)($entry['required_input'] ?? [])));
-            // The claim is only printed when it is TRUE: the schema requires nothing AND the skill's own structure
-            // gate accepts an empty input. 16 skills fail that second half — they declare no required field and
-            // still reject {} — and telling the selector they cost nothing tipped EU-2 in run 19. Where the
-            // truth is unclear the line is simply left out, as it was before 2026-09-20.
-            if (empty($required) && !empty($entry['accepts_empty_input'])) {
+            $groups = [];
+            foreach ((array)($entry['required_groups'] ?? []) as $group) {
+                $fields = array_values(array_filter(array_map('strval', (array)$group)));
+                if (count($fields) > 1) {
+                    $groups[] = 'one of ' . implode(' | ', $fields);
+                }
+            }
+            if (empty($required) && empty($groups) && !empty($entry['accepts_empty_input'])) {
                 $lines[] = 'REQUIRED: none';
             }
-            if (!empty($required)) {
-                $lines[] = 'REQUIRED: ' . implode(', ', array_values($required));
+            if (!empty($required) || !empty($groups)) {
+                $lines[] = 'REQUIRED: ' . implode(', ', array_merge(array_values($required), $groups));
             }
 
             // OPTIONAL parameters are deliberately NOT listed in the selection catalog: selection must
