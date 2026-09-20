@@ -98,6 +98,9 @@ final class catalog_required_reflects_schema_test extends \advanced_testcase {
             'readonly' => false,
             'minimal_input' => ['activityquery', 'name', 'intro', 'visible', 'settings', 'section'],
             'required_input' => [],
+            // The claim is only printed when it is true, so the fixture must state that this demo skill
+            // really does accept an empty input (2026-09-20).
+            'accepts_empty_input' => true,
         ]);
 
         $this->assertStringContainsString('REQUIRED: none', $text);

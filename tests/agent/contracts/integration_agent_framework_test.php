@@ -298,8 +298,11 @@ final class integration_agent_framework_test extends TestCase {
         $this->assertSame(
             // required_input joined the sanitized catalogue on 2026-09-19: the REQUIRED line of the
             // selection prompt is built from the schema's required flags, no longer from minimal_input.
-            ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'description',
-                'message_triggers', 'example_input'],
+            // accepts_empty_input joined on 2026-09-20: the flags alone are not the whole truth, because
+            // sixteen skills gate their mandatory fields in check_structure() instead, and the card may
+            // only claim "REQUIRED: none" when both halves agree.
+            ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'accepts_empty_input',
+                'description', 'message_triggers', 'example_input'],
             array_keys($sanitized[0])
         );
         $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['skill']);
@@ -335,7 +338,8 @@ final class integration_agent_framework_test extends TestCase {
         // Entry [1] names a skill that is NOT registered, so there is no live contract to re-join:
         // the sanitizer emits a minimal entry rather than trusting the catalog row's stale metadata.
         $this->assertSame(
-            ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'description', 'message_triggers'],
+            ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'accepts_empty_input',
+                'description', 'message_triggers'],
             array_keys($sanitized[1])
         );
         $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['skill']);

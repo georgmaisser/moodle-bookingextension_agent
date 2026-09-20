@@ -92,14 +92,21 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Delete a previously stored user-stated memory/preference (e.g. "forget that I prefer '
-                . 'morning bookings"). Resolves by query or explicit id and always asks for confirmation before '
-                . 'deleting. This manages stored facts the user told the agent — it is NOT for previous '
-                . 'conversation. User isolation is strict; userid is never taken from input.',
+            // Saying only "resolves by query or explicit id" made the selector conclude the skill can delete one
+            // memory at a time, so "wipe everything you have stored about me" (FOR-2) ended as a dead end and
+            // the user was told there is no delete operation at all. The bulk flag has always existed; the card
+            // simply never mentioned it.
+            'description' => 'Delete previously stored user-stated memories/preferences: ONE by query or id '
+                . '(e.g. "forget that I prefer morning bookings"), or ALL of them at once with all=true for '
+                . 'requests like "forget everything about me". Always asks for confirmation before deleting. '
+                . 'This manages stored facts the user told the agent — it is NOT for previous conversation. '
+                . 'User isolation is strict; userid is never taken from input.',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'agent_memory_forget_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_forget_skillcall',
             'example_utterances' => [
+                'forget everything you have stored about me',
+                'wipe all my preferences, clean slate',
                 'forget that I prefer morning bookings',
                 'delete the preference about room B',
                 'stop remembering my employee id',

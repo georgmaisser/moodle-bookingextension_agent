@@ -44,6 +44,12 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
     public function test_boost_skill_rows_uses_family_scores(): void {
         $service = new family_embeddings_retrieval_service();
 
+        // Until 2026-09-20 this case asserted the opposite: create_option (0.20) beat get_current_user (0.50)
+        // because its family scored 0.90 against 0.10. That is a family weight of 0.30 deciding the ranking
+        // outright, and it is the reason the preference was never safe to switch on — on a booking page the
+        // correct answer is regularly a course or core skill (baseline runs 17-19: UA-3, SC-2, ACS-2, EU-2).
+        // The family is now a tie-breaker at 0.08, so a candidate that is clearly better semantically stays on
+        // top; test_boost_skill_rows_breaks_a_tie below pins the other direction.
         $rows = $service->boost_skill_rows([
             ['skill' => 'mod_booking.create_option', 'score' => '0.20'],
             ['skill' => 'mod_booking.list_options', 'score' => '0.10'],
@@ -53,12 +59,32 @@ final class family_embeddings_retrieval_service_test extends advanced_testcase {
             'core.general' => 0.10,
         ]);
 
-        $this->assertSame('mod_booking.create_option', $rows[0]['skill']);
-        $this->assertSame('mod_booking.general', $rows[0]['family']);
-        $this->assertSame(0.41, round((float)$rows[0]['score'], 2));
+        $this->assertSame('core.get_current_user', $rows[0]['skill']);
+        $this->assertSame('core.general', $rows[0]['family']);
+        $this->assertSame(0.47, round((float)$rows[0]['score'], 2));
         $families = array_values(array_unique(array_map(static fn(array $row): string => (string)$row['family'], $rows)));
         $this->assertContains('mod_booking.general', $families);
-        $this->assertContains('core.general', $families);
+    }
+
+    /**
+     * The other direction: where the semantic scores are even, the better-matching family decides.
+     *
+     * That is the whole point of the preference — it settles a tie, it does not overrule one.
+     *
+     * @covers \bookingextension_agent\local\wizard\services\embeddings\family_embeddings_retrieval_service::boost_skill_rows
+     */
+    public function test_boost_skill_rows_breaks_a_tie(): void {
+        $service = new family_embeddings_retrieval_service();
+
+        $rows = $service->boost_skill_rows([
+            ['skill' => 'core.get_current_user', 'score' => '0.500'],
+            ['skill' => 'mod_booking.create_option', 'score' => '0.499'],
+        ], [
+            'mod_booking.general' => 0.90,
+            'core.general' => 0.10,
+        ]);
+
+        $this->assertSame('mod_booking.create_option', $rows[0]['skill']);
     }
 
     /**
