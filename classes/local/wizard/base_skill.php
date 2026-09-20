@@ -495,6 +495,12 @@ abstract class base_skill implements skill_interface {
             // used to print minimal_input behind "REQUIRED:", so optional fields looked mandatory and the selector
             // asked the user for them instead of routing (baseline run 15: DP-1, CC-3, CC-4, UA-4).
             'required_input' => self::required_fields_of($schema),
+            // Whether the skill accepts an EMPTY input at all. The schema flag is not the whole truth: 16 of the
+            // registered skills declare no required field and still reject {} in check_structure() — among them
+            // update_option_trainer, get_option_details and generate_questions. Printing "REQUIRED: none" for
+            // those told the selector they were free of charge, which is how EU-2 lost course.enrol_user to a
+            // booking skill in run 19. check_structure() is pure and does no DB work, so asking it is cheap.
+            'accepts_empty_input' => $this->accepts_empty_input(),
             'example_input' => $this->get_example_input(),
             'namespace' => $namespace,
             'version' => max(1, (int)($schema['version'] ?? 1)),
@@ -619,5 +625,28 @@ abstract class base_skill implements skill_interface {
             default:
                 return preflight_result_v2::ok($result['prepared_input'] ?? $input);
         }
+    }
+
+    /**
+     * Whether this skill would accept an entirely empty input.
+     *
+     * Used to keep the catalogue honest: a skill that gates its mandatory fields in check_structure() instead
+     * of the schema's `required` flag must not be advertised as requiring nothing.
+     *
+     * @return bool
+     */
+    protected function accepts_empty_input(): bool {
+        if (!method_exists($this, 'check_structure')) {
+            return true;
+        }
+
+        try {
+            $result = (array)$this->check_structure([]);
+        } catch (\Throwable $e) {
+            // A gate that cannot even be asked is not evidence of freedom.
+            return false;
+        }
+
+        return (bool)($result['valid'] ?? true);
     }
 }

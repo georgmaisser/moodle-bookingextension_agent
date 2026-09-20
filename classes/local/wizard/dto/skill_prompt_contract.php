@@ -56,6 +56,7 @@ class skill_prompt_contract {
             'minimal_input' => self::normalize_string_list((array)($this->payload['minimal_input'] ?? [])),
             // The schema's own required flags; the selection catalogue prints these as REQUIRED.
             'required_input' => self::normalize_string_list((array)($this->payload['required_input'] ?? [])),
+            'accepts_empty_input' => (bool)($this->payload['accepts_empty_input'] ?? true),
             'example_input' => is_array($this->payload['example_input'] ?? null) ? (array)$this->payload['example_input'] : [],
             'namespace' => $namespace,
             'family' => skill_family_contract::normalize_family($family),

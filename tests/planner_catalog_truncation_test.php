@@ -176,9 +176,60 @@ final class planner_catalog_truncation_test extends advanced_testcase {
             'readonly' => true,
             'description' => 'A skill that resolves everything it needs by itself.',
             'required_input' => [],
+            // The claim is only printed when it is true, so the fixture has to state it: this demo skill
+            // really does accept an empty input.
+            'accepts_empty_input' => true,
         ]]);
 
         $this->assertStringContainsString('REQUIRED: none', $rendered);
+    }
+
+    /**
+     * No card claims "REQUIRED: none" while its own structure gate rejects an empty input.
+     *
+     * Sixteen registered skills declare no required field in the schema and still refuse {} in
+     * check_structure() — update_option_trainer, get_option_details, generate_questions, wizard.forget and
+     * others. Advertising those as free of charge is how EU-2 lost course.enrol_user to a booking skill in
+     * run 19: the target card read "REQUIRED: userquery" and the wrong one read "REQUIRED: none", so the
+     * apparent cost was inverted. The skill's own gate is the source of truth here, not the schema flag.
+     */
+    public function test_no_card_claims_none_while_its_gate_refuses_empty_input(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $registry = skill_registry_factory::get_default();
+        $service = new planner_catalog_service(new assistant_state_guidance_service());
+        $liars = [];
+
+        foreach ($registry->get_skill_names() as $name) {
+            $skill = $registry->get_skill($name);
+            if ($skill === null || !method_exists($skill, 'check_structure')) {
+                continue;
+            }
+            try {
+                $structure = (array)$skill->check_structure([]);
+                $acceptsempty = (bool)($structure['valid'] ?? true);
+            } catch (\Throwable $e) {
+                $acceptsempty = false;
+            }
+            if ($acceptsempty) {
+                continue;
+            }
+
+            $contract = $skill->get_prompt_contract()->to_array();
+            $contract['skill'] = $name;
+            $rendered = $service->render_catalog_as_text([$contract]);
+            if (str_contains($rendered, 'REQUIRED: none')) {
+                $liars[] = $name;
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $liars,
+            "These cards promise the selector they need nothing, while their own check_structure() rejects an "
+                . "empty input:\n" . implode("\n", $liars)
+        );
     }
 
     /**

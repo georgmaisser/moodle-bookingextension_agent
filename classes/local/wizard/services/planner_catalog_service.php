@@ -81,6 +81,7 @@ class planner_catalog_service {
                 'intent' => (string)($entry['intent'] ?? ''),
                 'minimal_input' => (array)($entry['minimal_input'] ?? []),
                 'required_input' => (array)($entry['required_input'] ?? []),
+                'accepts_empty_input' => (bool)($entry['accepts_empty_input'] ?? true),
                 'example_input' => $this->compact_catalog_example_input((array)($entry['example_input'] ?? [])),
                 'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
                 'message_triggers' => $this->compact_catalog_message_triggers((array)($entry['message_triggers'] ?? [])),
@@ -169,6 +170,7 @@ class planner_catalog_service {
                 'intent' => $intent,
                 'minimal_input' => $minimalinput,
                 'required_input' => (array)($live['required_input'] ?? ($entry['required_input'] ?? [])),
+                'accepts_empty_input' => (bool)($live['accepts_empty_input'] ?? ($entry['accepts_empty_input'] ?? true)),
                 'description' => $this->compact_catalog_description($description),
                 'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
             ];
@@ -280,7 +282,11 @@ class planner_catalog_service {
             // model read the silence as ignorance and invented a mandatory field (run 17, DMD-4: it called
             // assignmentid mandatory although the schema marks it optional).
             $required = array_filter(array_map('strval', (array)($entry['required_input'] ?? [])));
-            if (empty($required) && array_key_exists('required_input', $entry)) {
+            // The claim is only printed when it is TRUE: the schema requires nothing AND the skill's own structure
+            // gate accepts an empty input. 16 skills fail that second half — they declare no required field and
+            // still reject {} — and telling the selector they cost nothing tipped EU-2 in run 19. Where the
+            // truth is unclear the line is simply left out, as it was before 2026-09-20.
+            if (empty($required) && !empty($entry['accepts_empty_input'])) {
                 $lines[] = 'REQUIRED: none';
             }
             if (!empty($required)) {
