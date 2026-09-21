@@ -192,6 +192,7 @@ $string['agent_booking_recall_memory_invalid_date_hint'] = 'Could not understand
 $string['agent_booking_recall_memory_invalid_mode'] = 'Field "mode" must be either "last_thread" or "date_window".';
 $string['agent_booking_recall_memory_no_memory_found'] = 'No previous memory was found for your request.';
 $string['agent_booking_recall_memory_summary'] = 'Found {$a} message(s) from your previous conversation memory.';
+$string['agent_booking_recall_memory_summary_truncated'] = 'Found {$a->total} message(s) from your previous conversation memory and am showing the most recent {$a->shown}.';
 $string['agent_booking_recreate_skill_catalog_invalid_dimensions'] = 'Embedding dimensions must be greater than 0.';
 $string['agent_booking_recreate_skill_catalog_queued'] = 'Skill catalog rebuild has been queued.';
 $string['agent_booking_search_courses_found'] = '{$a} matching course(s) found.';

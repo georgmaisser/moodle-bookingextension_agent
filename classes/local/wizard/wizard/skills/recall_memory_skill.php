@@ -38,6 +38,16 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     private int $runtimethreadid = 0;
 
     /**
+     * @var int Most messages a date window may recall.
+     *
+     * Run-22 finding F68: the window merged every message of every thread in it. One day of
+     * baseline runs produced 2272 messages (853 KB) in a single observation, which the anonymizer
+     * could not process inside max_execution_time - the user got an HTTP 500 instead of an answer.
+     * A busy day is normal, so the skill keeps the most recent messages and reports that it cut.
+     */
+    public const WINDOW_MESSAGE_LIMIT = 200;
+
+    /**
      * Constructor.
      */
     public function __construct() {
@@ -261,6 +271,15 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             }
         }
 
+        // Keep the newest end of the window: a recall question is about what was said, and the
+        // most recent exchanges carry it. The count before cutting is kept for the answer.
+        $totalfound = count($messages);
+        $truncated = false;
+        if ($totalfound > self::WINDOW_MESSAGE_LIMIT) {
+            $messages = array_slice($messages, -self::WINDOW_MESSAGE_LIMIT);
+            $truncated = true;
+        }
+
         if (empty($messages)) {
             return [
                 'status' => 'executed',
@@ -313,7 +332,12 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
 
         return [
             'status' => 'executed',
-            'detail' => get_string('agent_booking_recall_memory_summary', 'bookingextension_agent', count($normalizedmessages)),
+            'detail' => $truncated
+                ? get_string('agent_booking_recall_memory_summary_truncated', 'bookingextension_agent', (object)[
+                    'shown' => count($normalizedmessages),
+                    'total' => $totalfound,
+                ])
+                : get_string('agent_booking_recall_memory_summary', 'bookingextension_agent', count($normalizedmessages)),
             'resultid' => null,
             'threadid' => $threadid > 0 ? $threadid : null,
             'from_timestamp' => $fromtimestamp,
