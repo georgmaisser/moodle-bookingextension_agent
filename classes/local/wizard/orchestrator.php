@@ -587,8 +587,11 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
       -> response_type=sufficient, commands=[].
   2) explicit confirmation of an already pending action
       -> response_type=confirm_pending, commands=[].
-  3) missing required input for the selected skill
+  3) the turn does not identify which skill is meant, or names a target no catalogue skill serves
       -> response_type=clarification, commands=[].
+      A missing FIELD of an otherwise clear skill is NOT this case: route to it and let its own gate
+      speak. The gate knows the field's name, its alternatives and the candidates it found; this phase
+      knows none of that and can only ask a vaguer question one step earlier.
   4) grounded mutating intent
       -> response_type=skill_call, commands non-empty (confirmation is handled by the construction phase).
   5) grounded read-only intent
