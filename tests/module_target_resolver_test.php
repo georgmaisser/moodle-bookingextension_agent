@@ -87,6 +87,40 @@ final class module_target_resolver_test extends advanced_testcase {
     }
 
     /**
+     * A module CONTEXT id given where a cmid is expected still finds the activity.
+     *
+     * Run-23 finding (CBI-1): the runtime block hands the model both numbers, "context_id: 6168"
+     * and "module: cmid: 25", and the model filled the cmid field with the context id. The target
+     * then resolved to nothing and the turn ended as "I could not find a matching activity" -
+     * about an activity the session was already sitting in.
+     *
+     * The two number spaces can collide, so a real cmid always wins; only when the value is no
+     * course module of the wanted type is it tried as a context id.
+     */
+    public function test_a_module_context_id_in_the_cmid_field_still_finds_the_activity(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $course = $this->getDataGenerator()->create_course();
+        $cmid = $this->make_booking($course->id, 'Sprechstunde');
+        $contextid = (int)context_module::instance($cmid)->id;
+        $this->assertNotSame($cmid, $contextid, 'the fixture must not make the two numbers equal');
+
+        // A second instance, so an accidental auto-pick cannot make this pass.
+        $this->make_booking($course->id, 'Beratung');
+
+        $ambient = agent_context::from_context(context_course::instance($course->id));
+        $resolution = (new module_target_resolver())->resolve(
+            target_selector::for_module($contextid, null, 'booking'),
+            $ambient,
+            $this->userid()
+        );
+
+        $this->assertSame(context_target_resolution::STATUS_RESOLVED, $resolution->status());
+        $this->assertSame($cmid, (int)$resolution->context()->instanceid);
+    }
+
+    /**
      * Several instances in the ambient course → ambiguous, carrying the course's instances.
      */
     public function test_multiple_instances_in_course_are_ambiguous(): void {

@@ -21,6 +21,7 @@ namespace bookingextension_agent\local\wizard\services\security;
 use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\dto\context_target_resolution;
 use bookingextension_agent\local\wizard\dto\target_selector;
+use context;
 use context_module;
 
 /**
@@ -135,6 +136,15 @@ class module_target_resolver {
      */
     private function resolve_explicit_cmid(int $cmid, string $modname, int $userid): context_target_resolution {
         $cm = get_coursemodule_from_id($modname, $cmid, 0, false, IGNORE_MISSING);
+        if (!$cm || empty($cm->id)) {
+            // Run-23 finding (CBI-1): the runtime block hands the model "context_id" and
+            // "module: cmid" one under the other, and it filled this field with the context id.
+            // The turn then ended as "no matching activity" about the activity the session was
+            // already in. A real cmid always wins - the two number spaces can collide - so this
+            // runs only once the value has proven to be no course module of this type.
+            $cmid = $this->cmid_behind_module_context($cmid, $modname);
+            $cm = $cmid > 0 ? get_coursemodule_from_id($modname, $cmid, 0, false, IGNORE_MISSING) : null;
+        }
         if (!$cm || empty($cm->id)) {
             return context_target_resolution::not_found();
         }
@@ -272,5 +282,26 @@ class module_target_resolver {
             return false;
         }
         return $DB->get_manager()->table_exists($modname);
+    }
+
+    /**
+     * The course module id behind a module CONTEXT id, or 0 when it is not one.
+     *
+     * @param int    $contextid
+     * @param string $modname Only a context of this module type is accepted.
+     * @return int
+     */
+    private function cmid_behind_module_context(int $contextid, string $modname): int {
+        if ($contextid <= 0) {
+            return 0;
+        }
+        $context = context::instance_by_id($contextid, IGNORE_MISSING);
+        if (!($context instanceof context_module)) {
+            return 0;
+        }
+        $cmid = (int)($context->instanceid ?? 0);
+        $cm = $cmid > 0 ? get_coursemodule_from_id($modname, $cmid, 0, false, IGNORE_MISSING) : null;
+
+        return ($cm && !empty($cm->id)) ? $cmid : 0;
     }
 }
