@@ -38,6 +38,10 @@ const INLINE_WRAPPER_ID = 'booking-ai-wrapper';
 
 let modalPromise = null;
 
+// Resolves once the panel fragment has been put into the modal body, so the first click can put
+// the cursor into the input as soon as it exists (and not before).
+let panelPromise = null;
+
 /**
  * Reuse an already-rendered inline agent panel instead of opening the modal.
  *
@@ -96,19 +100,36 @@ const focusInlinePanel = () => {
  *
  * @param {Object} modal core/modal instance
  * @param {Number} contextid current page context id
+ * @returns {Promise} resolving once the panel markup sits in the modal body
  */
 const loadPanel = async(modal, contextid) => {
     const Fragment = await import('core/fragment');
     const Templates = await import('core/templates');
 
-    Fragment.loadFragment('bookingextension_agent', 'aipanel', contextid, {contextid: contextid})
-        .done((html, js) => {
-            Templates.replaceNodeContents(modal.getBody(), html, js);
-        })
-        .fail(async(ex) => {
-            const Notification = await import('core/notification');
-            Notification.exception(ex);
+    try {
+        const rendered = await new Promise((resolve, reject) => {
+            Fragment.loadFragment('bookingextension_agent', 'aipanel', contextid, {contextid: contextid})
+                .done((html, js) => resolve({html: html, js: js}))
+                .fail(reject);
         });
+        await Templates.replaceNodeContents(modal.getBody(), rendered.html, rendered.js);
+    } catch (ex) {
+        const Notification = await import('core/notification');
+        Notification.exception(ex);
+    }
+};
+
+/**
+ * Put the cursor into the agent's input, so the user can type right away.
+ *
+ * Called after the modal reports itself shown - core/modal focuses the dialog itself while
+ * showing, so focusing earlier would be taken back.
+ */
+const focusPanelInput = () => {
+    const input = document.getElementById('booking-ai-input');
+    if (input) {
+        input.focus();
+    }
 };
 
 /**
@@ -134,7 +155,7 @@ const getModal = (contextid, title) => {
             // Bootstrap-native baseline (1140px), the hook class widens it
             // further via --bs-modal-width in styles.css.
             modal.getModal().addClass('modal-xl bookingextension-agent-wand-modal');
-            loadPanel(modal, contextid);
+            panelPromise = loadPanel(modal, contextid);
             return modal;
         })();
     }
@@ -209,6 +230,9 @@ export const init = (contextid, label, pagecontext = {}) => {
             return;
         }
         const modal = await getModal(contextid, label);
-        modal.show();
+        await modal.show();
+        // Wait for the panel itself on the first click; on later clicks it is long there.
+        await panelPromise;
+        focusPanelInput();
     });
 };
