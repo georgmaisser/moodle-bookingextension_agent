@@ -29,6 +29,7 @@ use bookingextension_agent\local\wizard\services\activities\module_form_contract
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
 use bookingextension_agent\local\wizard\services\activity_preview_builder;
 use context;
+use context_course;
 
 /**
  * Generic skill: edit an existing activity in a course (course.update_activity).
@@ -324,12 +325,25 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         $course = get_course($coursecontext->instanceid);
 
         // Resolve the target course module.
-        $cmresolution = $this->resolve_target_cm($course, $context, $input);
+        $cmresolution = $this->resolve_target_cm($course, $context, $input, $userid);
         if (is_array($cmresolution)) {
             return $cmresolution;
         }
         $cm = $cmresolution;
         $modname = (string)$cm->modname;
+
+        // The activity may live in another course than the one we are sitting in (run 23). The right
+        // to edit it is decided THERE, not here.
+        if ((int)$cm->course !== (int)$course->id) {
+            $course = get_course((int)$cm->course);
+            $coursecontext = context_course::instance((int)$cm->course);
+            if (!has_capability('moodle/course:manageactivities', $coursecontext, $userid)) {
+                return $this->clarify(
+                    get_string('nopermissions', 'error', 'moodle/course:manageactivities'),
+                    'NO_NATIVE_CAPABILITY'
+                );
+            }
+        }
 
         // Collect the requested field changes (name / intro / visibility / module settings).
         $changes = $this->collect_changes($input);
@@ -655,7 +669,7 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
      * @param array $input
      * @return \cm_info|array
      */
-    private function resolve_target_cm(\stdClass $course, $context, array $input) {
+    private function resolve_target_cm(\stdClass $course, $context, array $input, int $userid) {
         $catalog = new module_catalog_service();
         $modinfo = get_fast_modinfo($course);
 
@@ -698,8 +712,33 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                     'More than one activity matches "' . $query . '". Which one?'
                 );
             }
+            // Nothing here - but the user named it, so look beyond the ambient course before giving
+            // up (run 23, UA-2: the forum existed one course over).
+            $elsewhere = $this->find_activities_site_wide(
+                \bookingextension_agent\local\wizard\services\activities\module_catalog_service::WHITELIST,
+                $query,
+                $userid
+            );
+            if (count($elsewhere) === 1) {
+                try {
+                    return get_fast_modinfo((int)$elsewhere[0]['courseid'], $userid)
+                        ->get_cm((int)$elsewhere[0]['cmid']);
+                } catch (\Throwable $e) {
+                    unset($e);
+                }
+            }
+            if (count($elsewhere) > 1) {
+                $lines = ['More than one activity matches "' . $query . '". Which one?', ''];
+                $options = [];
+                foreach ($elsewhere as $candidate) {
+                    $lines[] = '- ' . $candidate['name'] . ' in ' . $candidate['coursename']
+                        . ' [cmid ' . (int)$candidate['cmid'] . ']';
+                    $options[] = ['cmid' => (int)$candidate['cmid'], 'name' => $candidate['name']];
+                }
+                return $this->clarify(implode("\n", $lines), 'UPDATE_ACTIVITY_AMBIGUOUS', $options);
+            }
             return $this->clarify(
-                'I could not find an editable activity called "' . $query . '" in this course.',
+                'I could not find an editable activity called "' . $query . '".',
                 'UPDATE_ACTIVITY_NOT_FOUND'
             );
         }

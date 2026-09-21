@@ -863,4 +863,99 @@ abstract class core_skill_base extends base_skill {
 
         return '[' . implode('; ', $parts) . ']';
     }
+
+    /**
+     * Activities of one module type whose name matches, across every course the user may see.
+     *
+     * Run-23 finding: the course skills searched the ambient course only. A user who says "rename
+     * the Abschlusstest" while sitting in a booking activity got "no quiz called that in this
+     * course" - about a quiz that exists one course over. The ambient course stays the first place
+     * to look; this is what happens when it holds no match, so a named target is never lost to the
+     * course boundary alone.
+     *
+     * Visibility is not a detail here: the search runs over the user's own modinfo per course, so
+     * an activity they may not see never becomes a candidate.
+     *
+     * @param string|string[] $modnames One module type, or several to search in turn.
+     * @param string $query Name or part of it.
+     * @param int $userid
+     * @param int $limit Stop after this many candidates.
+     * @return array[] {cmid, name, courseid, coursename, modname}
+     */
+    protected function find_activities_site_wide($modnames, string $query, int $userid, int $limit = 10): array {
+        $query = trim($query);
+        if ($query === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach ((array)$modnames as $modname) {
+            foreach ($this->find_one_modtype_site_wide((string)$modname, $query, $userid, $limit) as $found) {
+                $out[] = $found;
+                if (count($out) >= $limit) {
+                    return $out;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * One module type's matching activities across all courses the user may see.
+     *
+     * @param string $modname
+     * @param string $query
+     * @param int $userid
+     * @param int $limit
+     * @return array[]
+     */
+    private function find_one_modtype_site_wide(string $modname, string $query, int $userid, int $limit): array {
+        global $DB;
+
+        $modname = trim($modname);
+        // The module name reaches SQL as a table name, which no bound parameter can carry, so it is
+        // checked against what Moodle has installed rather than trusted.
+        if ($modname === '' || !$DB->record_exists('modules', ['name' => $modname])) {
+            return [];
+        }
+
+        $sql = "SELECT cm.id AS cmid, inst.name AS name, c.id AS courseid, c.fullname AS coursename
+                  FROM {course_modules} cm
+                  JOIN {modules} m ON m.id = cm.module AND m.name = :modname
+                  JOIN {" . $modname . "} inst ON inst.id = cm.instance
+                  JOIN {course} c ON c.id = cm.course
+                 WHERE " . $DB->sql_like('inst.name', ':needle', false, false) . "
+                   AND cm.deletioninprogress = 0
+              ORDER BY c.id, inst.name";
+
+        $rows = $DB->get_records_sql($sql, [
+            'modname' => $modname,
+            'needle' => '%' . $DB->sql_like_escape($query) . '%',
+        ], 0, $limit * 5);
+
+        $out = [];
+        foreach ($rows as $row) {
+            try {
+                $modinfo = get_fast_modinfo((int)$row->courseid, $userid);
+                if (!$modinfo->get_cm((int)$row->cmid)->uservisible) {
+                    continue;
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+            $out[] = [
+                'cmid' => (int)$row->cmid,
+                'name' => (string)$row->name,
+                'courseid' => (int)$row->courseid,
+                'coursename' => format_string($row->coursename),
+                'modname' => $modname,
+            ];
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+
+        return $out;
+    }
 }

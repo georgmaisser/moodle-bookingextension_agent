@@ -99,6 +99,64 @@ final class update_quiz_skill_test extends advanced_testcase {
     }
 
     /**
+     * A quiz named from another course is found instead of reported missing.
+     *
+     * Run-23 finding (UQ-2, UQ-4): the search ran over the ambient course only, so "rename the
+     * Abschlusstest" answered "no quiz called that in this course" - about a quiz that existed one
+     * course over. The ambient course is still looked at first; this is what happens when it holds
+     * no match, and a user who may not see the activity still never finds it.
+     */
+    public function test_a_quiz_in_another_course_is_found_when_the_ambient_course_has_none(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $quiz, $ctxid] = $this->quiz_course();
+        unset($course, $quiz);
+
+        // The named quiz lives elsewhere, and the acting user may edit it there.
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($teacher->id, $other->id, 'editingteacher');
+        $elsewhere = $this->getDataGenerator()->create_module(
+            'quiz',
+            ['course' => $other->id, 'name' => 'Abschlusstest']
+        );
+
+        $skill = new update_quiz_skill();
+        $pf = $skill->preflight(
+            ['activityquery' => 'Abschlusstest', 'name' => 'Zertifikatspruefung'],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('pass', $pf->status);
+
+        $result = $skill->execute($pf->preparedinput, $ctxid, (int)$teacher->id);
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame(
+            'Zertifikatspruefung',
+            get_fast_modinfo($other->id)->get_cm((int)$elsewhere->cmid)->name
+        );
+    }
+
+    /**
+     * A quiz the acting user may not see stays invisible, wherever it lives.
+     */
+    public function test_the_site_wide_search_never_reveals_a_hidden_activity(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $quiz, $ctxid] = $this->quiz_course();
+        unset($course, $quiz);
+
+        // Another course the acting user is not enrolled in at all.
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->create_module('quiz', ['course' => $other->id, 'name' => 'Geheimtest']);
+
+        $skill = new update_quiz_skill();
+        $pf = $skill->preflight(
+            ['activityquery' => 'Geheimtest', 'name' => 'Neuer Name'],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertNotSame('pass', $pf->status);
+    }
+
+    /**
      * Adding specific existing questions to an existing quiz.
      */
     public function test_add_specific_questions(): void {

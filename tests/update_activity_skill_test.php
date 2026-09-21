@@ -118,6 +118,61 @@ final class update_activity_skill_test extends advanced_testcase {
     }
 
     /**
+     * An activity named from another course is found instead of reported missing.
+     *
+     * Run-23 finding (UA-2): "hide the Vorstellungs-Forum" answered "no editable activity called
+     * that in this course" - about a forum that existed one course over. The right to edit it is
+     * decided in the course it actually lives in, not in the one the session happens to sit in.
+     */
+    public function test_an_activity_in_another_course_is_found_and_judged_there(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        unset($course, $page);
+
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($teacher->id, $other->id, 'editingteacher');
+        $forum = $this->getDataGenerator()->create_module(
+            'forum',
+            ['course' => $other->id, 'name' => 'Vorstellungsforum']
+        );
+
+        $skill = new update_activity_skill();
+        $pf = $skill->preflight(
+            ['activityquery' => 'Vorstellungsforum', 'visible' => false],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertSame('pass', $pf->status);
+
+        $result = $skill->execute($pf->preparedinput, $ctxid, (int)$teacher->id);
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame(0, (int)get_fast_modinfo($other->id)->get_cm((int)$forum->cmid)->visible);
+    }
+
+    /**
+     * Without the right in the course the activity lives in, the search does not help.
+     */
+    public function test_the_search_does_not_grant_what_the_target_course_denies(): void {
+        $this->resetAfterTest();
+        [$course, $teacher, $page, $ctxid] = $this->setup_page();
+        unset($course, $page);
+
+        // Enrolled, but only as a student: may see the forum, may not edit it.
+        $other = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($teacher->id, $other->id, 'student');
+        $this->getDataGenerator()->create_module('forum', ['course' => $other->id, 'name' => 'Fremdforum']);
+
+        $skill = new update_activity_skill();
+        $pf = $skill->preflight(
+            ['activityquery' => 'Fremdforum', 'visible' => false],
+            $ctxid,
+            (int)$teacher->id
+        );
+        $this->assertNotSame('pass', $pf->status);
+        $this->assertContains('NO_NATIVE_CAPABILITY', $pf->issuecodes);
+    }
+
+    /**
      * An ambiguous name lists candidates with options.
      */
     public function test_ambiguous_name(): void {

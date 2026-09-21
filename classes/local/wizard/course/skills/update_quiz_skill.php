@@ -301,9 +301,23 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         }
         $course = get_course($coursecontext->instanceid);
 
-        $cm = $this->resolve_target_quiz($course, $context, $input);
+        $cm = $this->resolve_target_quiz($course, $context, $input, $userid);
         if (is_array($cm)) {
             return $cm;
+        }
+
+        // The quiz may live in another course than the one we are sitting in (run 23). The right to
+        // edit it is decided THERE, not here, and everything below - question categories, the
+        // generate permission - has to follow the quiz as well.
+        if ((int)$cm->course !== (int)$course->id) {
+            $course = get_course((int)$cm->course);
+            $coursecontext = context_course::instance((int)$cm->course);
+            if (!has_capability('moodle/course:manageactivities', $coursecontext, $userid)) {
+                return $this->clarify(
+                    get_string('nopermissions', 'error', 'moodle/course:manageactivities'),
+                    'NO_NATIVE_CAPABILITY'
+                );
+            }
         }
 
         $changes = $this->collect_settings_changes($input);
@@ -447,14 +461,15 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     }
 
     /**
-     * Resolve the target quiz cm (cmid > name > ambient module), restricted to quiz modules.
+     * Resolve the target quiz cm (cmid > name in this course > name anywhere > ambient module).
      *
      * @param \stdClass $course
      * @param context|false $context
      * @param array $input
+     * @param int $userid Whose visibility decides which activities may be found.
      * @return \cm_info|array
      */
-    private function resolve_target_quiz(\stdClass $course, $context, array $input) {
+    private function resolve_target_quiz(\stdClass $course, $context, array $input, int $userid) {
         $modinfo = get_fast_modinfo($course);
 
         $cmid = (int)($input['cmid'] ?? 0);
@@ -494,7 +509,29 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 }
                 return $this->clarify(implode("\n", $lines), 'UPDATE_QUIZ_AMBIGUOUS', $options);
             }
-            return $this->clarify('I could not find a quiz called "' . $query . '" in this course.', 'UPDATE_QUIZ_NOT_FOUND');
+            // Nothing here - but the user named it, so look beyond the ambient course before giving
+            // up (run 23, UQ-2/UQ-4: the quiz existed one course over and the turn ended as a
+            // not-found about an activity that was there all along).
+            $elsewhere = $this->find_activities_site_wide('quiz', $query, $userid);
+            if (count($elsewhere) === 1) {
+                try {
+                    return get_fast_modinfo((int)$elsewhere[0]['courseid'], $userid)
+                        ->get_cm((int)$elsewhere[0]['cmid']);
+                } catch (\Throwable $e) {
+                    unset($e);
+                }
+            }
+            if (count($elsewhere) > 1) {
+                $lines = ['More than one quiz matches "' . $query . '". Which one?', ''];
+                $options = [];
+                foreach ($elsewhere as $candidate) {
+                    $lines[] = '- ' . $candidate['name'] . ' in ' . $candidate['coursename']
+                        . ' [cmid ' . (int)$candidate['cmid'] . ']';
+                    $options[] = ['cmid' => (int)$candidate['cmid'], 'name' => $candidate['name']];
+                }
+                return $this->clarify(implode("\n", $lines), 'UPDATE_QUIZ_AMBIGUOUS', $options);
+            }
+            return $this->clarify('I could not find a quiz called "' . $query . '".', 'UPDATE_QUIZ_NOT_FOUND');
         }
 
         if ($context && (int)$context->contextlevel === CONTEXT_MODULE) {
