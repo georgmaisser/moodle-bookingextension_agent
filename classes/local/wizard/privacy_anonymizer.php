@@ -131,6 +131,12 @@ class privacy_anonymizer {
     /** @var string[]|null Lazily-built union of built-in stop words and admin-configured protected words. */
     private ?array $protectedwords = null;
 
+    /** @var array<int,array> Decoded collision decisions per user, memoized for the hot word loop. */
+    private array $anonworddecisions = [];
+
+    /** @var array<int,string> Raw preference value each memoized decision list was decoded from. */
+    private array $anonworddecisionsraw = [];
+
     /**
      * Constructor.
      *
@@ -912,10 +918,10 @@ class privacy_anonymizer {
         // "core.ANON_USER_n_lastname" in prompts/history, so the planner emitted a
         // non-registered skill. Standalone prose occurrences of such names stay
         // anonymizable — only the code-token span is exempt.
-        $protectedspans = array_merge(
+        $protectedspans = $this->merge_protected_spans(array_merge(
             $this->find_email_spans($message),
             $this->find_code_token_spans($message)
-        );
+        ));
 
         if (empty($nameindex)) {
             return [$message, 0];
@@ -1165,15 +1171,66 @@ class privacy_anonymizer {
      * @return bool
      */
     private function offset_overlaps_protected_span(int $offset, array $spans): bool {
-        foreach ($spans as $span) {
+        // Run-22 finding F68: this is asked once per word, so a linear scan made the cost grow
+        // with words x spans - a 853 KB recall observation never finished inside
+        // max_execution_time. The list arrives sorted and disjoint from merge_protected_spans(),
+        // which makes the answer a binary search.
+        $low = 0;
+        $high = count($spans) - 1;
+        while ($low <= $high) {
+            $mid = ($low + $high) >> 1;
+            $span = $spans[$mid];
             $start = (int)($span['start'] ?? 0);
             $end = (int)($span['end'] ?? 0);
-            if ($offset >= $start && $offset < $end) {
+            if ($offset < $start) {
+                $high = $mid - 1;
+            } else if ($offset >= $end) {
+                $low = $mid + 1;
+            } else {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Sort protected spans by start and merge the ones that touch or overlap.
+     *
+     * offset_overlaps_protected_span() relies on the result being ordered and disjoint: only then
+     * does a missed offset tell it which half to keep searching. Email and code-token spans are
+     * found by separate passes and do overlap - an address may sit inside a serialized payload.
+     *
+     * @param array[] $spans
+     * @return array[] ordered, non-overlapping spans
+     */
+    private function merge_protected_spans(array $spans): array {
+        if (count($spans) < 2) {
+            return array_values($spans);
+        }
+
+        usort($spans, static function (array $a, array $b): int {
+            return ((int)($a['start'] ?? 0)) <=> ((int)($b['start'] ?? 0));
+        });
+
+        $merged = [];
+        foreach ($spans as $span) {
+            $start = (int)($span['start'] ?? 0);
+            $end = (int)($span['end'] ?? 0);
+            if ($end <= $start) {
+                continue;
+            }
+
+            $last = count($merged) - 1;
+            if ($last >= 0 && $start <= $merged[$last]['end']) {
+                $merged[$last]['end'] = max($merged[$last]['end'], $end);
+                continue;
+            }
+
+            $merged[] = ['start' => $start, 'end' => $end];
+        }
+
+        return $merged;
     }
 
     /**
@@ -1898,9 +1955,18 @@ class privacy_anonymizer {
             return [];
         }
 
-        $decoded = json_decode($raw, true);
+        // Asked once per word of the message; decoding the same string again each time showed up
+        // next to F68 in the same hot loop. Keyed by the raw value, so a decision recorded during
+        // the request invalidates the memo by itself.
+        if (($this->anonworddecisionsraw[$userid] ?? null) === $raw) {
+            return $this->anonworddecisions[$userid];
+        }
 
-        return is_array($decoded) ? $decoded : [];
+        $decoded = json_decode($raw, true);
+        $this->anonworddecisionsraw[$userid] = $raw;
+        $this->anonworddecisions[$userid] = is_array($decoded) ? $decoded : [];
+
+        return $this->anonworddecisions[$userid];
     }
 
     /**
