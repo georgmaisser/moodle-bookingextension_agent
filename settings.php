@@ -45,12 +45,20 @@ if (class_exists('bookingextension_agent\local\wizard\orchestrator')) {
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_selection') === false) {
     set_config('aiinitialprompt_selection', $defaultplannerprompttemplate, 'bookingextension_agent');
+    \bookingextension_agent\local\prompt_seed_sync::remember_seed(
+        'aiinitialprompt_selection',
+        (string)$defaultplannerprompttemplate
+    );
 }
 
 // The construction phase seeds from its own constructor-only template — never from the
 // selector/routing template (Wunderbyte-GmbH/Wunderbyte-GmbH#2200).
 if (get_config('bookingextension_agent', 'aiinitialprompt_parameter_construction') === false) {
     set_config('aiinitialprompt_parameter_construction', $defaultconstructorprompttemplate, 'bookingextension_agent');
+    \bookingextension_agent\local\prompt_seed_sync::remember_seed(
+        'aiinitialprompt_parameter_construction',
+        (string)$defaultconstructorprompttemplate
+    );
 }
 
 if (get_config('bookingextension_agent', 'aiinitialprompt_summarise_text') === false) {

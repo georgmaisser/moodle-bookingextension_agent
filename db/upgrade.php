@@ -325,6 +325,12 @@ PROMPT;
         upgrade_plugin_savepoint(true, 2026082000, 'bookingextension', 'agent');
     }
 
+    // Idempotent on every upgrade: a changed default planner prompt reaches the stored config
+    // that is actually read, unless an admin has edited it. Without this every wave had to add
+    // its superseded seed to the list above by hand, and forgetting looked like the model
+    // ignoring a rule it had never been given.
+    \bookingextension_agent\local\prompt_seed_sync::apply();
+
     // Idempotent on every upgrade: archetype edits on existing capabilities never deploy on
     // their own (Moodle applies defaults only at capability creation).
     \bookingextension_agent\local\capability_defaults_sync::apply();
