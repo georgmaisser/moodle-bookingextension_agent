@@ -70,7 +70,7 @@
         <FIELD NAME="threadid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="contextid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
-        <FIELD NAME="source" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Call site identifier (orchestrator/feedback/followup)"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Call site identifier with its phase flags (orchestrator/feedback/followup)"/>
         <FIELD NAME="requesttext" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Exact prompt string sent to provider"/>
         <FIELD NAME="responsetext" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Exact raw provider response string"/>
         <FIELD NAME="success" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1=provider success, 0=provider error/exception"/>

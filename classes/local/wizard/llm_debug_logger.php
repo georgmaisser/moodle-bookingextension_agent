@@ -72,15 +72,22 @@ class llm_debug_logger {
             return;
         }
 
-        $store->add_llm_debug_entry(
-            $threadid,
-            $userid,
-            $cmid,
-            $source,
-            $requesttext,
-            $responsetext,
-            $success ? 1 : 0,
-            $errormessage
-        );
+        // A debug log is a side channel: it must never decide the outcome of the user's turn. F72
+        // (baseline runs 25-27) was exactly that — a column overflow in this insert surfaced as
+        // "Fehler beim Schreiben der Datenbank" to the user, after the LLM had already answered.
+        try {
+            $store->add_llm_debug_entry(
+                $threadid,
+                $userid,
+                $cmid,
+                $source,
+                $requesttext,
+                $responsetext,
+                $success ? 1 : 0,
+                $errormessage
+            );
+        } catch (\Throwable $e) {
+            debugging('bookingextension_agent: LLM debug entry not stored: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
     }
 }

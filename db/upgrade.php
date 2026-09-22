@@ -325,6 +325,18 @@ PROMPT;
         upgrade_plugin_savepoint(true, 2026082000, 'bookingextension', 'agent');
     }
 
+    if ($oldversion < 2026092201) {
+        // F72 (baseline runs 25-27): the debug source of a constructor repair call is up to 102 characters
+        // ("...|em=cached_applied|tk=1|rq=0|ex=0|rp=1"), the column held 100. The insert threw
+        // dml_write_exception and, because nothing caught it, the user's turn died on a debug-log write.
+        $table = new xmldb_table('bx_agent_ai_llm_debug');
+        $field = new xmldb_field('source', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'contextid');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->change_field_precision($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026092201, 'bookingextension', 'agent');
+    }
+
     // Idempotent on every upgrade: a changed default planner prompt reaches the stored config
     // that is actually read, unless an admin has edited it. Without this every wave had to add
     // its superseded seed to the list above by hand, and forgetting looked like the model

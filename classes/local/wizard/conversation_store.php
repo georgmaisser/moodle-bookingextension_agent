@@ -37,6 +37,9 @@ use stdClass;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class conversation_store implements agent_conversation_store {
+    /** @var int Width of bx_agent_ai_llm_debug.source (db/install.xml). */
+    public const LLM_DEBUG_SOURCE_MAXLENGTH = 255;
+
     /** Default pending intent TTL in seconds. */
     private const PENDING_INTENT_TTL = 900;
 
@@ -1042,7 +1045,9 @@ class conversation_store implements agent_conversation_store {
         $record->threadid = $threadid;
         $record->userid = $userid;
         $record->contextid = $contextid;
-        $record->source = trim($source);
+        // The column is char(255) since 2026092201; a longer call-site string is cut rather than
+        // thrown at the database (F72: an overflow here killed the user's turn).
+        $record->source = \core_text::substr(trim($source), 0, self::LLM_DEBUG_SOURCE_MAXLENGTH);
         $record->requesttext = $requesttext;
         $record->responsetext = $responsetext;
         $record->success = $success ? 1 : 0;
