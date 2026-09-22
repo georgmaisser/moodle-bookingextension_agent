@@ -117,11 +117,12 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Edit / change an existing activity or resource in a course — rename it, change its '
-                . 'description, show or hide it, change a module-specific setting (e.g. a URL\'s link), or MOVE it '
-                . 'to a different section/topic. Use for "rename the page to X", "hide the forum", "change the '
-                . 'activity\'s URL", "hide the quiz", "move the label to section 2", "move the page one section down". '
-                . 'Only the fields you give are changed. To CREATE a new activity use course.add_activity instead.',
+            'description' => 'Edit / change an existing activity or resource in a course — rename it, change its description, show '
+                . 'or hide it, change a module-specific setting (e.g. a URL\'s link), or MOVE it to a different section/topic. Use '
+                . 'for "rename the page to X", "hide the forum", "change the activity\'s URL", "hide the quiz", "move the label to '
+                . 'section 2", "move the page one section down". Only the fields you give are changed.',
+            'is' => 'Changing an activity that already exists.',
+            'not' => 'Creating a new activity (add_activity).',
             'readonly' => false,
             'example_utterances' => [
                 'rename the Welcome page to Course intro',

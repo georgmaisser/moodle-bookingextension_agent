@@ -21,8 +21,11 @@ use bookingextension_agent\local\wizard\skill_provider;
 
 /**
  * The selector and the constructor see a skill description only up to the first sentence boundary
- * within 240 characters (planner_catalog_service::compact_catalog_description). The sentences that
- * discriminate sibling skills must therefore sit inside that window.
+ * within 240 characters (planner_catalog_service::compact_catalog_description). Whatever a skill needs
+ * to say about ITSELF must therefore sit inside that window.
+ *
+ * Since wave 17 (#2453) the boundary AGAINST a sibling is not said in the description at all: it travels
+ * in the IS:/NOT: card lines, which the selector reads and the embedding anchor builder does not.
  *
  * Baseline run 9 (2026-09-16, Wunderbyte-GmbH#2419): FC-2 core.find_content → course.search_courses,
  * SC-2 course.search_courses → mod_booking.search_options, DUC-3/4 course.diagnose_user_in_course →
@@ -120,8 +123,25 @@ final class wizard_skill_description_budget_test extends advanced_testcase {
             }
         }
         $this->assertNotNull($skill, $skillname . ' not provided');
-        $window = $this->window((string)($skill->get_schema()['description'] ?? ''));
+        $schema = (array)$skill->get_schema();
+        $window = $this->window((string)($schema['description'] ?? ''));
+        // Since wave 17 (#2453) a sibling's NAME no longer belongs in the description: the description is
+        // embedding anchor #0, and a vector carries no negation, so a boundary sentence there pulled the
+        // skill towards the queries it was meant to repel. The name now travels in the IS:/NOT: card
+        // lines, which the selector reads but the anchor builder does not. The guarantee is unchanged —
+        // the identifier must reach the selector — only its surface moved, so a skill identifier is
+        // asserted against the whole card and subject vocabulary still against the description window.
+        $card = $window . ' ' . trim((string)($schema['is'] ?? '')) . ' ' . trim((string)($schema['not'] ?? ''));
         foreach ($identifiers as $identifier) {
+            if (strpos($identifier, '.') !== false) {
+                // Inside its own namespace a card names a sibling by its short name, which is shorter and
+                // still unambiguous; skill_catalog_discrimination_test proves no short name is shared by
+                // two namespaces. Either spelling therefore identifies the sibling for the selector.
+                $short = substr($identifier, (int)strrpos($identifier, '.') + 1);
+                $reached = strpos($card, $identifier) !== false || strpos($card, $short) !== false;
+                $this->assertTrue($reached, $skillname . ' does not name ' . $identifier . ' on its card: ' . $card);
+                continue;
+            }
             $this->assertStringContainsString($identifier, $window, $skillname . ' window: ' . $window);
         }
     }

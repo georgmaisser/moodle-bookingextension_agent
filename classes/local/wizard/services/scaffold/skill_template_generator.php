@@ -88,7 +88,8 @@ class skill_template_generator {
      * Normalize a raw spec into the canonical shape used by the builders.
      *
      * Accepted raw keys: component (required), skillname, description (required), intent,
-     * risk_class, properties[], anchor_fields[], context_scopes[], capabilities[], triggers[].
+     * risk_class, properties[], anchor_fields[], context_scopes[], capabilities[], triggers[],
+     * is, not, example_utterances[].
      *
      * @param array $spec
      * @return array
@@ -145,6 +146,12 @@ class skill_template_generator {
             'classfile' => $action . '_skill.php',
             'domain' => trim((string)($spec['domain'] ?? $namespace)) ?: $namespace,
             'description' => $description !== '' ? $description : 'TODO: describe what this skill does.',
+            // Sibling discrimination (#2453): it belongs on the selector CARD, never in the embedded
+            // description. See skill_template_get_schema() for the reasoning the template carries.
+            'is' => trim((string)($spec['is'] ?? '')) ?: 'TODO: what this skill covers, in one short clause.',
+            'not' => trim((string)($spec['not'] ?? ''))
+                ?: 'TODO: what a sibling skill covers instead, with that sibling in brackets.',
+            'example_utterances' => self::normalize_string_list((array)($spec['example_utterances'] ?? [])),
             'intent' => trim((string)($spec['intent'] ?? '')) ?: $description,
             'risk_class' => $risk,
             'readonly' => $readonly,
@@ -243,6 +250,13 @@ class skill_template_generator {
             '{{READONLY}}' => $spec['readonly'] ? 'true' : 'false',
             '{{RISKCONST}}' => $spec['risk_const'],
             '{{DESCRIPTION}}' => self::php_single_quote($spec['description']),
+            '{{IS}}' => self::php_single_quote($spec['is']),
+            '{{NOT}}' => self::php_single_quote($spec['not']),
+            '{{UTTERANCES}}' => self::render_utterances(
+                $spec['example_utterances'] !== []
+                    ? $spec['example_utterances']
+                    : ['TODO: a sentence a user would really say to trigger this skill.']
+            ),
             '{{INTENT}}' => self::php_single_quote($spec['intent']),
             '{{PROPERTIES}}' => self::render_properties($spec['properties']),
             '{{ANCHORS}}' => self::render_quoted_list($spec['anchor_fields']),
@@ -410,12 +424,38 @@ PHP;
      * - 'prompt_meta.intent': one line; 'anchor_fields': the main lookup field(s).
      * - For R2/R3 skills 'context_scopes' is MANDATORY (e.g. ['module','course']) or the skill is rejected.
      *
+     * The skill is reached in TWO steps, and they read different fields:
+     *
+     * 1. DISCOVERY (semantic, no text budget). 'description' and EACH 'example_utterances' entry become
+     *    their OWN embedding vector, so several phrasings can each find this skill. Add utterances
+     *    generously - they cost only embedding tokens and never take anything away from another skill.
+     * 2. SELECTION (a language model reads cards). Only about 240 characters of the description reach the
+     *    card, cut at a sentence boundary. 'is' and 'not' are printed there as IS: / NOT: lines.
+     *
+     * Therefore: write 'description' as what this skill DOES, in the words a user would use, and put every
+     * boundary against a neighbouring skill into 'not'. Do not write the boundary into the description. A
+     * vector carries no negation - "not the built-in fields" lands NEXT TO "built-in fields" and on top of
+     * that names the competitor, so a boundary sentence inside the description attracts exactly the
+     * requests it was written to keep away (#2453). The selector, unlike a vector, does read negation.
+     *
+     * Both clauses are English, one short clause each, at most 120 characters (they are printed for every
+     * skill when the full catalogue goes into the prompt). Name the sibling in brackets. If this skill has
+     * no sibling it can be confused with, DELETE both keys - an absent line is better than an empty one.
+     *
+     *   'is'  => 'Custom fields an administrator defined for booking options.',
+     *   'not' => 'The built-in properties of a booking option (list_option_properties).',
+     *
      * @return array
      */
     public function get_schema(): array {
         return [
             'version' => 1,
             'description' => {{DESCRIPTION}},
+            'is' => {{IS}},
+            'not' => {{NOT}},
+            'example_utterances' => [
+{{UTTERANCES}}
+            ],
             'readonly' => $this->is_read_only(),
             'properties' => [
 {{PROPERTIES}}
@@ -691,6 +731,23 @@ PHP;
             return '';
         }
         return implode(', ', array_map([self::class, 'php_single_quote'], $items));
+    }
+
+    /**
+     * Render the example_utterances block: one discovery anchor per line.
+     *
+     * Each entry becomes its own embedding vector, so they are written one per line to invite the author
+     * to add more; a single inline list reads like a closed set.
+     *
+     * @param string[] $items
+     * @return string
+     */
+    private static function render_utterances(array $items): string {
+        $lines = [];
+        foreach ($items as $item) {
+            $lines[] = '                ' . self::php_single_quote((string)$item) . ',';
+        }
+        return implode("\n", $lines);
     }
 
     /**

@@ -136,10 +136,11 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
         return [
             'version' => 1,
             // First 240 characters = selector window (#2419, #2423 EU-4 "needs access to the first-aid course").
-            'description' => 'Give an EXISTING user — or the asking person — access to a Moodle course (coursequery) '
-                . 'by enrolling them (manual enrolment, role default student). Not booking into a booking option '
-                . '(mod_booking.book_users), not creating accounts. Use when the user wants to enrol/add/put a '
-                . 'person (or themselves) into a course; the role is optional.',
+            'description' => 'Give an EXISTING user — or the asking person — access to a Moodle course (coursequery) by enrolling '
+                . 'them (manual enrolment, role default student). Use when the user wants to enrol/add/put a person (or '
+                . 'themselves) into a course; the role is optional.',
+            'is' => 'Enrolling into a Moodle course.',
+            'not' => 'Booking into a booking option (mod_booking.book_users); creating accounts.',
             'readonly' => false,
             'example_utterances' => [
                 'enrol Anna into First Aid',

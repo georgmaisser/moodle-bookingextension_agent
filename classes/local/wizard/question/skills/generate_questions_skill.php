@@ -220,13 +220,13 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         return [
             'version' => 1,
             // First 240 characters = selector window (#2419, #2423 GQ-4: dictated question into the bank).
-            'description' => 'Put questions into the course question bank: generated from an uploaded document, course '
-                . 'PDFs (usecoursepdfs/resourcecmid) or a topic, or a dictated question and answer. No quiz '
-                . 'activity: course.add_quiz. Question types: multiple choice, true/false, short answer; '
-                . 'an upload is NOT required — '
-                . 'facts or an explicit question and answer in the chat are enough. Use this whenever the user '
-                . 'wants a question, quiz or test created or inserted into Moodle (e.g. "make me a question", '
-                . '"create questions from the document", "create a quiz from the PDFs in the course").',
+            'description' => 'Put questions into the course question bank: generated from an uploaded document, course PDFs '
+                . '(usecoursepdfs/resourcecmid) or a topic, or a dictated question and answer. Question types: multiple choice, '
+                . 'true/false, short answer; an upload is optional — facts or an explicit question and answer in the chat are '
+                . 'enough. Use this whenever the user wants a question, quiz or test created or inserted into Moodle (e.g. "make '
+                . 'me a question", "create questions from the document", "create a quiz from the PDFs in the course").',
+            'is' => 'Questions in the question bank.',
+            'not' => 'Creating the quiz activity itself (course.add_quiz).',
             'readonly' => false,
             'example_utterances' => [
                 'create quiz questions from this PDF',

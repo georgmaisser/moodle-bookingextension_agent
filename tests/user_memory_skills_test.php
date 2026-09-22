@@ -152,18 +152,28 @@ final class user_memory_skills_test extends advanced_testcase {
     }
 
     /**
-     * remember and list_memories explicitly name wizard.recall_memory to keep the
-     * selector from confusing stored facts with past-conversation recall.
+     * The three memory skills separate themselves from recall_memory on their CARD.
+     *
+     * Wave 17 (#2453) moved the boundary out of the description: the description is embedding anchor #0,
+     * and a vector carries no negation, so "NOT for previous conversation" landed right next to "previous
+     * conversation" and named the competitor on top of it — it attracted exactly the recall requests it was
+     * written to repel. The NOT: card line says the same thing where the selector, which does read
+     * negation, sees it, and the anchor builder does not.
      */
     public function test_descriptions_disambiguate_from_recall_memory(): void {
-        foreach ([new remember_skill(), new list_memories_skill()] as $skill) {
-            $description = (string)$skill->get_schema()['description'];
-            $this->assertStringContainsStringIgnoringCase('recall_memory', $description);
+        foreach ([new remember_skill(), new list_memories_skill(), new forget_skill()] as $skill) {
+            $schema = (array)$skill->get_schema();
+            $this->assertStringContainsStringIgnoringCase(
+                'conversation',
+                (string)($schema['not'] ?? ''),
+                $skill->get_name() . ' must fence itself off against past-conversation recall'
+            );
+            $this->assertStringNotContainsStringIgnoringCase(
+                'recall_memory',
+                (string)($schema['description'] ?? ''),
+                $skill->get_name() . ' must not carry the competitor into its own embedding anchor'
+            );
         }
-
-        // The forget skill is less confusable with recall; it contrasts via "not ... conversation".
-        $forgetdescription = (string)(new forget_skill())->get_schema()['description'];
-        $this->assertStringContainsStringIgnoringCase('not for previous conversation', $forgetdescription);
     }
 
     /**

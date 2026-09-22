@@ -99,12 +99,12 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
             'version' => 1,
             // First 240 characters = selector window (#2419, #2423 DBI-1/DUC-4): open/grade vs book.
             'description' => 'Diagnose a person in a Moodle course (read-only): cannot OPEN it, enrolment incl. cohort sync, '
-                . 'completion or a missing grade. Cannot BOOK: mod_booking.diagnose_booking_issue; taskflow HR feed: '
-                . 'local_taskflow.diagnose_import. Set "aspect" to the facet asked about. Details per '
-                . 'aspect: '
-                . 'access covers restrictions and visibility; enrolment covers self-enrolment, cohort sync and '
-                . 'suspended/expired, and omitting the course lists all of the person\'s courses; grades covers a '
-                . 'missing or wrong grade. Booking issues belong to mod_booking.diagnose_booking_issue.',
+                . 'completion or a missing grade. Set "aspect" to the facet asked about. Details per aspect: access covers '
+                . 'restrictions and visibility; enrolment covers self-enrolment, cohort sync and suspended/expired, and omitting '
+                . 'the course lists all of the person\'s courses; grades covers a missing or wrong grade.',
+            'is' => 'Access, enrolment, completion and grades in a course.',
+            'not' => 'Getting into a booking option (mod_booking.diagnose_booking_issue); the HR feed '
+                . '(local_taskflow.diagnose_import).',
             'readonly' => true,
             'example_utterances' => [
                 'why can\'t this student open the quiz',

@@ -120,12 +120,13 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return [
             'version' => 1,
             // First 240 characters = selector window: a named course goes into coursequery (no lookup step).
-            'description' => 'Create a quiz activity in a course (a named course: coursequery, no lookup needed), empty or '
-                . 'with generated, existing or random questions. Questions into the bank without a quiz: '
-                . 'question.generate_questions. Use for '
-                . '"create a quiz", "make a quiz from this PDF". The quiz can be created empty (add questions '
-                . 'later) or populated from one of three sources: newly generated questions (from a document/PDF or '
-                . 'a topic), specific existing questions, or random questions from a question category.',
+            'description' => 'Create a quiz activity in a course (a named course: coursequery, no lookup needed), empty or with '
+                . 'generated, existing or random questions. Use for "create a quiz", "make a quiz from this PDF". The quiz can be '
+                . 'created empty (add questions later) or populated from one of three sources: newly generated questions (from a '
+                . 'document/PDF or a topic), specific existing questions, or random questions from a question category.',
+            'is' => 'Creating the quiz activity itself.',
+            'not' => 'Questions into the bank without a quiz (question.generate_questions); editing an existing quiz '
+                . '(update_quiz).',
             'readonly' => false,
             'example_utterances' => [
                 'create a quiz for this course',

@@ -84,10 +84,11 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     public function get_schema(): array {
         $schema = [
             'version' => 1,
-            'description' => 'Recall previous user-only conversation memory. Use mode="last_thread" for requests like '
-                . '"last time/yesterday" and mode="date_window" only for date-specific requests. '
-                . 'When mode="date_window", date_hint is mandatory. '
-                . 'User isolation is strict and userid is never accepted from input.',
+            'description' => 'Recall previous user-only conversation memory. Use mode="last_thread" for requests like "last '
+                . 'time/yesterday" and mode="date_window" only for date-specific requests. When mode="date_window", date_hint is '
+                . 'mandatory. User isolation is strict and userid is never accepted from input.',
+            'is' => 'Previous conversation.',
+            'not' => 'Facts the user asked the agent to remember (list_memories, remember).',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'ai_status_confirm_booking_recall_memory',
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_recall_memory',

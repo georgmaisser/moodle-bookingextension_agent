@@ -131,11 +131,12 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
     public function get_schema(): array {
         return $this->enrich_schema_with_prompt_meta([
             'version' => 1,
-            'description' => 'Fill a course with AI-generated content in ONE step: a welcome section, N chapter '
-                . 'pages and a closing section, optionally practice quizzes per chapter and a graded final quiz. '
-                . 'Use after course.create_course (or for an existing course) when the user wants an interesting/'
-                . 'ready-to-use course about a topic. Do NOT plan add_activity/add_quiz steps for the same '
-                . 'content — this skill creates all of it in one call.',
+            'description' => 'Fill a course with AI-generated content in ONE step: a welcome section, N chapter pages and a '
+                . 'closing section, optionally practice quizzes per chapter and a graded final quiz. Use it once the '
+                . 'course exists (newly created or existing) and the user wants an interesting/ready-to-use course '
+                . 'about a topic. It creates all of this in a single call.',
+            'is' => 'A whole course filled in one call.',
+            'not' => 'Separate add_activity or add_quiz steps for the same content.',
             'readonly' => false,
             'example_utterances' => [
                 'Fill the Vikings course with interesting content',

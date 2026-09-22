@@ -118,10 +118,11 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
         return [
             'version' => 1,
             'description' => 'Add an activity or resource (modname: page, url, label, book, folder, forum) to a Moodle course '
-                . 'section; a named course goes into coursequery, no lookup needed. Not a quiz (course.add_quiz). Not '
-                . 'quiz questions (question.generate_questions). Use '
-                . 'this whenever the user wants to add, create or insert an activity or resource into a course '
-                . '(e.g. "add a page", "add a URL/link", "create a forum", "create a label").',
+                . 'section; a named course goes into coursequery, no lookup needed. Use this whenever the user wants to add, '
+                . 'create or insert an activity or resource into a course (e.g. "add a page", "add a URL/link", "create a forum", '
+                . '"create a label").',
+            'is' => 'Creating an activity or resource.',
+            'not' => 'A quiz (add_quiz) or quiz questions (question.generate_questions).',
             'readonly' => false,
             'example_utterances' => [
                 'add a page to week 2',

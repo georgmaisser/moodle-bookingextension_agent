@@ -103,12 +103,13 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Analyse / list the STRUCTURE of a course: its sections (topics/weeks) and the '
-                . 'activities & resources in them — names, types and links, plus whether each is hidden, '
-                . 'restricted or locked for the viewer. Use for "what '
-                . 'is in this course", "show me the structure/sections of course X", "which activities/'
-                . 'sections does the course have", "what is in the Mathematics course". It is the prerequisite for later '
-                . 'placing something into a section. It only READS; it never creates or changes anything.',
+            'description' => 'Analyse / list the STRUCTURE of a course: its sections (topics/weeks) and the activities & resources '
+                . 'in them — names, types and links, plus whether each is hidden, restricted or locked for the viewer. Use for '
+                . '"what is in this course", "show me the structure/sections of course X", "which activities/sections does the '
+                . 'course have", "what is in the Mathematics course". It is the prerequisite for later placing something into a '
+                . 'section.',
+            'is' => 'Reading what a course contains.',
+            'not' => 'Creating or changing anything.',
             'readonly' => true,
             'example_utterances' => [
                 'what is in this course',

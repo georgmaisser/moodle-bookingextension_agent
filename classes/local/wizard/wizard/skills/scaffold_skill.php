@@ -62,12 +62,13 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
     public function get_schema(): array {
         $schema = [
             'version' => 1,
-            'description' => 'Create / scaffold a NEW custom agent skill: generate a downloadable starter '
-                . 'template for a new AI agent skill (action/command) in a third-party plugin. Use this when '
-                . 'the user wants to BUILD or ADD their own skill, capability, command or action to the agent '
-                . '(e.g. "I want to create my own skill that ..."). Fills the skill contract (name, schema, '
-                . 'risk class, capability, triggers) with guided comments; it does not implement the behaviour '
-                . 'and does not run the new skill. NOT for using an existing skill — only for authoring a new one.',
+            'description' => 'Create / scaffold a NEW custom agent skill: generate a downloadable starter template for a new AI '
+                . 'agent skill (action/command) in a third-party plugin. Use this when the user wants to BUILD or ADD their own '
+                . 'skill, capability, command or action to the agent (e.g. "I want to create my own skill that ..."). Fills the '
+                . 'skill contract (name, schema, risk class, capability, triggers) with guided comments; it does not implement the '
+                . 'behaviour and does not run the new skill.',
+            'is' => 'Authoring a new skill.',
+            'not' => 'Using an existing skill.',
             'readonly' => $this->is_read_only(),
             'example_utterances' => [
                 'I want to create my own skill to see all users in a course',
@@ -88,6 +89,25 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
                     'type' => 'string',
                     'description' => 'What the new skill should do, in natural language.',
                     'required' => true,
+                ],
+                'is' => [
+                    'type' => 'string',
+                    'description' => 'Optional one short English clause naming what the new skill covers, '
+                        . 'printed on the selector card as "IS:".',
+                    'required' => false,
+                ],
+                'not' => [
+                    'type' => 'string',
+                    'description' => 'Optional one short English clause naming what a neighbouring skill '
+                        . 'covers instead (that skill in brackets), printed on the card as "NOT:". It '
+                        . 'belongs here and never in the description, which is embedded for retrieval.',
+                    'required' => false,
+                ],
+                'example_utterances' => [
+                    'type' => 'array',
+                    'description' => 'Optional sentences a user would really say to reach the new skill. '
+                        . 'Each one becomes its own semantic discovery anchor, so more is better.',
+                    'required' => false,
                 ],
                 'skillname' => [
                     'type' => 'string',
@@ -140,6 +160,12 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
         return [
             'component' => 'mod/myplugin',
             'description' => 'Archive an item when the teacher asks for it.',
+            'is' => 'Archiving an item that already exists.',
+            'not' => 'Deleting an item for good (delete_item).',
+            'example_utterances' => [
+                'Archive the old reading list',
+                'Put this item into the archive',
+            ],
         ];
     }
 

@@ -250,7 +250,10 @@ final class integration_agent_framework_test extends TestCase {
             }
 
             if (isset($skillinfo['description']) && is_string($skillinfo['description'])) {
-                $this->assertLessThanOrEqual(240, \core_text::strlen($skillinfo['description']));
+                // The card budget is 240, with a tolerance up to 288: a description that overshoots the cap
+                // only slightly keeps its last sentence rather than losing it whole
+                // (planner_catalog_service::CARD_DESCRIPTION_TOLERANCE, planner_catalog_truncation_test).
+                $this->assertLessThanOrEqual(288, \core_text::strlen($skillinfo['description']));
             }
         }
 
@@ -304,8 +307,11 @@ final class integration_agent_framework_test extends TestCase {
             // The required_groups key joined on 2026-09-20 as well: a skill that gates its input in check_structure()
             // declares the alternatives it accepts, so the card can say "one of a | b" instead of falling
             // silent — the silence cost GOD-1 and GOD-2 in run 21.
+            // The is/not keys joined on 2026-09-22 (wave 17, #2453): the boundary against a sibling moved
+            // out of the description — which is embedding anchor #0 and cannot carry a negation — into the
+            // IS:/NOT: card lines, which the selector reads and the anchor builder does not.
             ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'accepts_empty_input',
-                'required_groups', 'description', 'message_triggers', 'example_input'],
+                'required_groups', 'description', 'is', 'not', 'message_triggers', 'example_input'],
             array_keys($sanitized[0])
         );
         $this->assertSame('mod_booking.diagnose_booking_issue', (string)$sanitized[0]['skill']);
@@ -342,7 +348,7 @@ final class integration_agent_framework_test extends TestCase {
         // the sanitizer emits a minimal entry rather than trusting the catalog row's stale metadata.
         $this->assertSame(
             ['skill', 'readonly', 'intent', 'minimal_input', 'required_input', 'accepts_empty_input',
-                'required_groups', 'description', 'message_triggers'],
+                'required_groups', 'description', 'is', 'not', 'message_triggers'],
             array_keys($sanitized[1])
         );
         $this->assertSame('mod_booking.list_options', (string)$sanitized[1]['skill']);

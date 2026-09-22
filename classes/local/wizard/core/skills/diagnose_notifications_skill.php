@@ -86,11 +86,12 @@ class diagnose_notifications_skill extends core_skill_base implements skill_trig
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Explain why a person may NOT be receiving e-mails or notifications from Moodle. Checks '
-                . 'user-level blockers (missing/blocked e-mail, unconfirmed or suspended account, "disable all e-mail" '
-                . 'setting, bounce threshold) and, for admins, the site mail switches and mail task health. Use for '
-                . '"why does Maria get no e-mails", "why does Tom get no notifications". For booking '
-                . 'confirmation/reminder mails about a specific option, mod_booking.diagnose_user_booking is better.',
+            'description' => 'Explain why a person may NOT be receiving e-mails or notifications from Moodle. Checks user-level '
+                . 'blockers (missing/blocked e-mail, unconfirmed or suspended account, "disable all e-mail" setting, bounce '
+                . 'threshold) and, for admins, the site mail switches and mail task health. Use for "why does Maria get no '
+                . 'e-mails", "why does Tom get no notifications".',
+            'is' => 'Moodle\'s mail and notification plumbing for a person.',
+            'not' => 'Confirmation or reminder mails for one option (mod_booking.diagnose_user_booking).',
             'readonly' => true,
             'example_utterances' => [
                 'the confirmation email never arrived',

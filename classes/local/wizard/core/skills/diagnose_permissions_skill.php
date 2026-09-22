@@ -88,12 +88,12 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Inspect a person\'s ROLES and CAPABILITIES (permissions) across the context chain '
-                . '(system → category → course → activity). Answers "what roles does X have here", and "may X do '
-                . '<capability> at course Y" including the ALLOW/PREVENT/PROHIBIT overrides on the chain. For a '
-                // phpcs:ignore moodle.Strings.ForbiddenStrings.Found -- Literal backticks in prose describing a parameter name, not shell execution.
-                . 'capability question, pass the technical capability name in `capability` (e.g. mod/booking:addoption). '
-                . 'NOT for "who all has right Z" and not for access/enrolment/grades.',
+            'description' => 'Inspect a person\'s ROLES and CAPABILITIES (permissions) across the context chain (system → category '
+                . '→ course → activity). Answers "what roles does X have here", and "may X do <capability> at course Y" including '
+                . 'the ALLOW/PREVENT/PROHIBIT overrides on the chain. For a capability question, pass the technical capability '
+                . 'name in `capability` (e.g. mod/booking:addoption).',
+            'is' => 'One named person\'s roles and capabilities.',
+            'not' => 'Who all holds a right; access, enrolment or grades (course.diagnose_user_in_course).',
             'readonly' => true,
             'example_utterances' => [
                 'why can\'t this teacher edit the activity',

@@ -65,12 +65,12 @@ class list_categories_skill extends core_skill_base implements skill_trigger_pro
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'List the course categories of this Moodle site: every category visible to the '
-                . 'user with its id, full hierarchical path (parent / subcategory), direct course count and '
-                . 'hidden flag. Use this to enumerate the category tree, answer which categories exist on '
-                . 'the platform, or find a category id before creating or organising courses. Supports an '
-                . 'optional name filter. Read-only: it never creates, moves or deletes categories, and it '
-                . 'does NOT list courses themselves (use course.search_courses for courses).',
+            'description' => 'List the course categories of this Moodle site: every category visible to the user with its id, full '
+                . 'hierarchical path (parent / subcategory), direct course count and hidden flag. Use this to enumerate the '
+                . 'category tree, answer which categories exist on the platform, or find a category id before creating or '
+                . 'organising courses. Supports an optional name filter. Read-only.',
+            'is' => 'The category tree.',
+            'not' => 'The courses themselves (search_courses); creating, moving or deleting a category.',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_list_categories',
             'example_utterances' => [

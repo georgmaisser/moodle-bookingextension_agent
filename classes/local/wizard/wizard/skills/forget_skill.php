@@ -96,11 +96,12 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
             // memory at a time, so "wipe everything you have stored about me" (FOR-2) ended as a dead end and
             // the user was told there is no delete operation at all. The bulk flag has always existed; the card
             // simply never mentioned it.
-            'description' => 'Delete previously stored user-stated memories/preferences: ONE by query or id '
-                . '(e.g. "forget that I prefer morning bookings"), or ALL of them at once with all=true for '
-                . 'requests like "forget everything about me". Always asks for confirmation before deleting. '
-                . 'This manages stored facts the user told the agent — it is NOT for previous conversation. '
-                . 'User isolation is strict; userid is never taken from input.',
+            'description' => 'Delete previously stored user-stated memories/preferences: ONE by query or id (e.g. "forget that I '
+                . 'prefer morning bookings"), or ALL of them at once with all=true for requests like "forget everything about me". '
+                . 'Always asks for confirmation before deleting. This manages stored facts the user told the agent. User isolation '
+                . 'is strict; userid is never taken from input.',
+            'is' => 'Stored user-stated facts.',
+            'not' => 'Previous conversation (recall_memory).',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'agent_memory_forget_confirm',
             'fallback_skillcall_string_key' => 'agent_memory_forget_skillcall',

@@ -59,10 +59,10 @@ class list_memories_skill extends core_skill_base implements skill_trigger_provi
     public function get_schema(): array {
         $schema = [
             'version' => 1,
-            'description' => 'List the stored facts/preferences the user previously asked the agent to remember '
-                . '(e.g. "what do you know about me?"). These are stored user-stated facts, NOT previous '
-                . 'conversation (use wizard.recall_memory for past conversation). '
-                . 'User isolation is strict; userid is never taken from input.',
+            'description' => 'List the stored facts/preferences the user previously asked the agent to remember (e.g. "what do you '
+                . 'know about me?"). User isolation is strict; userid is never taken from input.',
+            'is' => 'Stored user-stated facts.',
+            'not' => 'Previous conversation (recall_memory).',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'agent_memory_list_skillcall',
             'example_utterances' => [

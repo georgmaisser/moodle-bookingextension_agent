@@ -72,10 +72,10 @@ class list_skills_skill extends core_skill_base implements skill_trigger_provide
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'The menu: list everything this assistant can do (all skills/commands), no query needed. For ONE '
-                . 'specific capability question use wizard.search_skills; for listing data use the search/list '
-                . 'skills. Use this ONLY when the user asks what the agent CAN DO or which agent skills/commands '
-                . 'exist, never for regular entity listing requests.',
+            'description' => 'The menu: list everything this assistant can do (all skills/commands), no query needed. Use this '
+                . 'when the user asks what the agent CAN DO or which agent skills/commands exist.',
+            'is' => 'The full menu of agent skills.',
+            'not' => 'One specific capability question (search_skills); listing data or entities.',
             'readonly' => true,
             'example_utterances' => [
                 'what can you do',

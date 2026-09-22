@@ -47,6 +47,9 @@ use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interf
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class skill_registry {
+    /** @var int Characters an IS:/NOT: discrimination clause may carry on a selector card. */
+    private const DISCRIMINATION_CAP = 120;
+
     /** @var array component => provider instance */
     private array $providers = [];
 
@@ -527,6 +530,17 @@ class skill_registry {
         return [
             'skill' => $skillname,
             'description' => trim((string)($schema['description'] ?? '')),
+            // Sibling discrimination (#2453). Until wave 17 a skill separated itself from its sibling
+            // inside the DESCRIPTION — which is embedding anchor #0. Vectors carry no negation: "not the
+            // built-in option properties" sits NEXT TO "built-in option properties" and additionally names
+            // the competitor, so the boundary sentence pulled the wrong skill towards exactly the queries
+            // it was meant to keep it away from. These two keys carry the boundary instead: they are
+            // rendered as IS:/NOT: card lines for the selector and are deliberately NOT embedded
+            // (see embeddings_catalog_builder_service::build_anchor_list, which reads description +
+            // example_utterances only). English, one short clause each; skill_catalog_discrimination_test
+            // enforces the length so the slim catalogue stays affordable.
+            'is' => $this->compact_discrimination((string)($schema['is'] ?? '')),
+            'not' => $this->compact_discrimination((string)($schema['not'] ?? '')),
             'readonly' => (bool)($schema['readonly'] ?? $skill->is_read_only()),
             // Owning component (path form, e.g. 'mod/booking'). Carried so the full-access gate can
             // restrict the PRO lock to Wunderbyte's own write skills; see agent_access_service.
@@ -555,6 +569,24 @@ class skill_registry {
             'context_scopes' => $contextscopes,
             'message_triggers' => $messagetriggers,
         ];
+    }
+
+    /**
+     * Normalise one IS:/NOT: discrimination clause.
+     *
+     * Collapses whitespace and caps the clause. The cap is a guard, not a feature: a skill that needs
+     * more than {@see self::DISCRIMINATION_CAP} characters to say what it is not has an unclear scope,
+     * and every clause is paid for in the slim catalogue, where all cards enter the prompt at once.
+     *
+     * @param string $clause
+     * @return string
+     */
+    private function compact_discrimination(string $clause): string {
+        $clause = trim((string)preg_replace('/\s+/', ' ', $clause));
+        if ($clause === '') {
+            return '';
+        }
+        return core_text::substr($clause, 0, self::DISCRIMINATION_CAP);
     }
 
     /**

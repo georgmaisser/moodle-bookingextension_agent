@@ -125,6 +125,41 @@ final class planner_catalog_truncation_test extends advanced_testcase {
      * one of their sibling-discriminating sentences sat past 160 and was thrown away. Baseline run 17
      * attributed DWL-2, TDP-4, DMD-4, DAS-2, LR-2 and GRD-4 to it.
      */
+    /**
+     * A description barely over the cap keeps its last sentence instead of losing it whole.
+     *
+     * Survey of 2026-09-22: 58 of 83 descriptions exceed 240 characters, and several lose exactly
+     * the sentence somebody wrote to separate the skill from a sibling - list_option_fields loses
+     * "Not the built-in option properties", create_option_field loses its two-way boundary, remember
+     * loses "it is NOT for recalling previous conversation". Some are barely over: 249 characters
+     * costing 51, 277 costing 57, 290 costing 60.
+     *
+     * Dropping a whole sentence because a description is nine characters too long is a cliff, not a
+     * budget. Within a fifth over the cap the text stays whole; far beyond it the cut still applies,
+     * because a card of 841 characters has a different problem and the slim catalogue has to carry
+     * every card at once.
+     */
+    public function test_a_description_barely_over_the_cap_keeps_its_last_sentence(): void {
+        $service = new planner_catalog_service(new assistant_state_guidance_service());
+
+        // Two sentences, a handful of characters over the cap: the second must survive.
+        $second = ' Not the sibling skill.';
+        $padding = 241 - core_text::strlen($second) - 1;
+        $first = str_pad('One sentence that carries the main purpose of the skill', $padding, ' and more') . '.';
+        $barely = $first . $second;
+        $this->assertGreaterThan(240, core_text::strlen($barely));
+        $this->assertLessThanOrEqual(288, core_text::strlen($barely));
+        $this->assertSame($barely, $service->compact_catalog_description($barely));
+
+        // Far beyond the cap the sentence-aware cut still applies.
+        $long = $first . ' ' . str_pad('A second sentence', 300, ' that keeps going') . '. Tail sentence.';
+        $this->assertGreaterThan(288, core_text::strlen($long));
+        $compacted = $service->compact_catalog_description($long);
+        $this->assertNotSame($long, $compacted);
+        $this->assertLessThanOrEqual(240, core_text::strlen($compacted));
+        $this->assertStringEndsWith('.', $compacted);
+    }
+
     public function test_rendered_card_keeps_the_compacted_description(): void {
         $this->resetAfterTest();
         $this->setAdminUser();

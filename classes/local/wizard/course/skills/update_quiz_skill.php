@@ -114,10 +114,11 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Edit an existing quiz and/or add questions to it. Rename it, change its description, '
-                . 'show/hide it, and/or add questions (newly generated, specific existing ones, or random from a '
-                . 'category). Use for "add 5 questions to Quiz 3", "rename the quiz", "add questions to the quiz", '
-                . '"hide the quiz". To CREATE a new quiz use course.add_quiz.',
+            'description' => 'Edit an existing quiz and/or add questions to it. Rename it, change its description, show/hide it, '
+                . 'and/or add questions (newly generated, specific existing ones, or random from a category). Use for "add 5 '
+                . 'questions to Quiz 3", "rename the quiz", "add questions to the quiz", "hide the quiz".',
+            'is' => 'Changing a quiz that already exists.',
+            'not' => 'Creating a new quiz (add_quiz).',
             'readonly' => false,
             'example_utterances' => [
                 'add 5 questions to the existing quiz',

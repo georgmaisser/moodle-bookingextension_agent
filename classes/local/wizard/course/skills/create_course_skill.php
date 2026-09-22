@@ -133,12 +133,11 @@ class create_course_skill extends core_skill_base implements
     public function get_schema(): array {
         return $this->enrich_schema_with_prompt_meta([
             'version' => 1,
-            'description' => 'Create a NEW Moodle course (the course container itself). Use when the user asks to '
-                . 'create/set up a course, e.g. "create a course about the Vikings". The system asks which course '
-                . 'category to use unless the user named one or only one is available. This creates an EMPTY '
-                . 'course — content is added afterwards (activities via the add-activity/quiz skills); a bookable '
-                . 'option linking the course is created via mod_booking create skills with linkedcoursequery. '
-                . 'NOT for creating booking options or activities inside an existing course.',
+            'description' => 'Create a NEW Moodle course (the course container itself). Use when the user asks to create/set up a '
+                . 'course, e.g. "create a course about the Vikings". The system asks which course category to use unless the user '
+                . 'named one or only one is available. This creates an EMPTY course — content is added afterwards.',
+            'is' => 'The course container.',
+            'not' => 'Booking options or activities inside an existing course (add_activity, mod_booking.create_option).',
             'readonly' => false,
             'example_utterances' => [
                 'Create a new course about the life of the Vikings',

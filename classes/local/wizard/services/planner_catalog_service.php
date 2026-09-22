@@ -36,6 +36,12 @@ use bookingextension_agent\local\wizard\skill_registry_factory;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class planner_catalog_service {
+    /** @var int Characters of the description a selector card carries. */
+    private const CARD_DESCRIPTION_CAP = 240;
+
+    /** @var int Up to here a description is kept whole rather than losing its last sentence. */
+    private const CARD_DESCRIPTION_TOLERANCE = 288;
+
     /**
      * Discovery meta-skills (registry introspection + RAG fallback). They are only meaningful while
      * the catalog is a SEMANTIC SUBSET (embed_topk): there they let the planner widen beyond the
@@ -85,6 +91,8 @@ class planner_catalog_service {
                 'required_groups' => array_values((array)($entry['required_groups'] ?? [])),
                 'example_input' => $this->compact_catalog_example_input((array)($entry['example_input'] ?? [])),
                 'description' => $this->compact_catalog_description((string)($entry['description'] ?? '')),
+                'is' => trim((string)($entry['is'] ?? '')),
+                'not' => trim((string)($entry['not'] ?? '')),
                 'message_triggers' => $this->compact_catalog_message_triggers((array)($entry['message_triggers'] ?? [])),
             ];
 
@@ -154,6 +162,8 @@ class planner_catalog_service {
                 $intent = trim((string)($live['intent'] ?? ''));
                 $readonly = !empty($live['readonly']);
                 $description = (string)($live['description'] ?? '');
+                $is = (string)($live['is'] ?? '');
+                $not = (string)($live['not'] ?? '');
             } else {
                 // A row whose skill is no longer registered has no live metadata (the CSV stores none),
                 // so emit a minimal entry rather than fabricating fields.
@@ -163,6 +173,8 @@ class planner_catalog_service {
                 $intent = '';
                 $readonly = false;
                 $description = '';
+                $is = '';
+                $not = '';
             }
 
             $row = [
@@ -174,6 +186,8 @@ class planner_catalog_service {
                 'accepts_empty_input' => (bool)($live['accepts_empty_input'] ?? ($entry['accepts_empty_input'] ?? true)),
                 'required_groups' => array_values((array)($live['required_groups'] ?? ($entry['required_groups'] ?? []))),
                 'description' => $this->compact_catalog_description($description),
+                'is' => trim($is),
+                'not' => trim($not),
                 'message_triggers' => $this->compact_catalog_message_triggers($triggerraw),
             ];
 
@@ -267,6 +281,21 @@ class planner_catalog_service {
                 $lines[] = $description;
             }
 
+            // IS: / NOT: the sibling discrimination (#2453). It used to live inside the description and
+            // was therefore embedded as anchor #0, where a negation does not survive the vector: the
+            // sentence "not X" sits next to "X" and names the competitor, attracting the very queries it
+            // was written to repel. Here it reaches the selector — which DOES read negation — without
+            // touching retrieval. Both lines also travel in the slim catalogue: there every card is in the
+            // prompt at once, so confusability is highest and nothing pre-filters.
+            $is = trim((string)($entry['is'] ?? ''));
+            if ($is !== '') {
+                $lines[] = 'IS: ' . $is;
+            }
+            $not = trim((string)($entry['not'] ?? ''));
+            if ($not !== '') {
+                $lines[] = 'NOT: ' . $not;
+            }
+
             // WHEN: from first message trigger description.
             $triggers = (array)($entry['message_triggers'] ?? []);
             $firsttrigger = !empty($triggers) && is_array($triggers[0]) ? (array)$triggers[0] : [];
@@ -284,9 +313,9 @@ class planner_catalog_service {
             // model read the silence as ignorance and invented a mandatory field (run 17, DMD-4: it called
             // assignmentid mandatory although the schema marks it optional).
             // The REQUIRED line has three truthful forms, and every skill should produce one of them:
-            //   schema flags      -> "REQUIRED: a, b"
-            //   gate alternatives -> "REQUIRED: one of a | b"   (required_groups)
-            //   nothing at all    -> "REQUIRED: none"           (only when the gate really accepts {})
+            // schema flags      -> "REQUIRED: a, b"
+            // gate alternatives -> "REQUIRED: one of a | b"   (required_groups)
+            // nothing at all    -> "REQUIRED: none"           (only when the gate really accepts {})
             // Before 2026-09-20 the line came from the flags alone. That first made it LIE for the sixteen
             // skills that gate their input in check_structure() ("none" although {} is rejected, which tipped
             // EU-2 in run 19), and once the lie was removed it made the line fall SILENT for them — which cost
@@ -348,7 +377,21 @@ class planner_catalog_service {
             return '';
         }
 
-        if (core_text::strlen($normalized) <= 240) {
+        if (core_text::strlen($normalized) <= self::CARD_DESCRIPTION_CAP) {
+            return $normalized;
+        }
+
+        // A description a few characters over the cap loses its whole last sentence, and that sentence
+        // is often the one somebody wrote to separate the skill from a sibling: a survey on 2026-09-22
+        // found 58 of 83 descriptions over the cap, among them list_option_fields (270, losing "Not the
+        // built-in option properties"), create_option_field (278) and remember (377). Some miss by very
+        // little - 249 characters costing 51, 277 costing 57, 290 costing 60.
+        //
+        // Dropping a sentence because a text is nine characters too long is a cliff, not a budget. Within
+        // a fifth over the cap the description stays whole; beyond that the cut still applies, because a
+        // card of 841 characters has a different problem and slim_all has to carry every card at once.
+        // Measured cost of the tolerance across the whole catalogue: about 930 characters.
+        if (core_text::strlen($normalized) <= self::CARD_DESCRIPTION_TOLERANCE) {
             return $normalized;
         }
 
@@ -356,7 +399,7 @@ class planner_catalog_service {
         // sentence and invert the card's meaning — the live course.create_course card was cut
         // right after "asks which category to use unless", reading as an instruction to ASK
         // instead of ACT. Cut at the LAST sentence boundary within the cap instead.
-        $window = core_text::substr($normalized, 0, 240);
+        $window = core_text::substr($normalized, 0, self::CARD_DESCRIPTION_CAP);
         if (preg_match('/^(.*[.!?]["\'\)\]]*)(?:\s|$)/us', $window, $matches)) {
             return rtrim($matches[1]);
         }

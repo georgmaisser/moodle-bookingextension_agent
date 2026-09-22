@@ -55,12 +55,11 @@ class search_courses_skill extends core_skill_base implements skill_trigger_prov
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Resolve a Moodle course by its NAME: courseid, shortname, fullname, URL, active enrolment count. '
-                . 'Not a booking option (mod_booking.search_options), not content by topic (core.find_content), not '
-                . 'enrolling or booking anyone. Use this only to find WHICH Moodle course is meant — typically to '
-                . 'obtain a course id or link for a follow-up step. NOT for listing what a user can book or attend '
-                . '(booking options), NOT for listing course categories or the category tree (use '
-                . 'course.list_categories for categories).',
+            'description' => 'Resolve a Moodle course by its NAME: courseid, shortname, fullname, URL, active enrolment count. Use '
+                . 'this only to find WHICH Moodle course is meant — typically to obtain a course id or link for a follow-up step.',
+            'is' => 'Moodle course containers, by name.',
+            'not' => 'Booking options (mod_booking.search_options), content by topic (core.find_content), categories '
+                . '(list_categories).',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_search_courses',
             'example_utterances' => [
