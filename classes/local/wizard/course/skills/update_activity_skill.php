@@ -121,8 +121,9 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
                 . 'or hide it, change a module-specific setting (e.g. a URL\'s link), or MOVE it to a different section/topic. Use '
                 . 'for "rename the page to X", "hide the forum", "change the activity\'s URL", "hide the quiz", "move the label to '
                 . 'section 2", "move the page one section down". Only the fields you give are changed.',
-            'is' => 'Changing an activity that already exists.',
-            'not' => 'Creating a new activity (add_activity).',
+            'is' => 'Changing an activity that already exists: name, description, visibility, section, a module setting.',
+            'not' => 'Creating a new activity (add_activity); the settings of a booking activity '
+                . '(mod_booking.configure_booking_instance).',
             'readonly' => false,
             'example_utterances' => [
                 'rename the Welcome page to Course intro',

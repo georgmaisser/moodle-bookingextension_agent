@@ -724,6 +724,14 @@ SKILL CONTRACT FIRST (highest priority):
 - Follow skill-level contracts from SKILL CATALOG (minimal_input, example_input, example_parameters).
 - Use canonical parameter keys from the selected skill contract.
 
+TARGET NAMES (STRICT):
+- A query field (any field whose name ends in "query") carries the target's name exactly as the user wrote it:
+  same language, same spelling. Never translate it and never replace it with a synonym.
+- Leave out what is not part of the name: a salutation, an article, a generic noun the user attached
+  ("the ... course" -> the name alone). Do not abbreviate the name and do not complete it from your own
+  knowledge; the skill resolves the name itself and asks when it cannot.
+- If the user named no target, ask for it. Never take one from an example or invent one.
+
 PROMPT;
     }
 

@@ -538,7 +538,8 @@ class planner_phase_service {
                         'allowed_skills' => $constructionallowedskills,
                     ]
                 );
-                if (is_array($repaired) && constructor_command_repair::accept($repaired, $selectedskill)) {
+                $userturn = (string)($selectionstate['lastusermessage'] ?? '');
+                if (is_array($repaired) && constructor_command_repair::accept($repaired, $selectedskill, $userturn)) {
                     $repaired['_planner_raw_response'] = $repairtext;
                     $repaired['issue_codes'] = array_values(array_unique(array_merge(
                         (array)($repaired['issue_codes'] ?? []),

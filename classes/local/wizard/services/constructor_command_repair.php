@@ -94,13 +94,56 @@ class constructor_command_repair {
      * @param string $selectedskill
      * @return bool
      */
-    public static function accept(array $repaired, string $selectedskill): bool {
+    public static function accept(array $repaired, string $selectedskill, string $userturn = ''): bool {
         $commands = (array)($repaired['commands'] ?? []);
         if (empty($commands)) {
             return false;
         }
         foreach ($commands as $command) {
             if (!is_array($command) || trim((string)($command['skill'] ?? '')) !== trim($selectedskill)) {
+                return false;
+            }
+            if (!self::targets_are_grounded($command, $userturn)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Every target name the repaired command carries must come from the user's turn.
+     *
+     * Baseline run 26 (UA-4): the first round asked, correctly, for the new description text; the repair
+     * round staged the move of an activity called "ai", a name that occurs nowhere in the turn, and the user
+     * read a confirmation for something that does not exist. The repair instruction already forbids
+     * inventing; this makes it engine state. The check is structural — a query value must occur in the turn
+     * (case-insensitively) or be a plain id — it never inspects what the words mean, so it holds in every
+     * language. An empty turn switches it off for callers that have none.
+     *
+     * @param array $command One repaired command.
+     * @param string $userturn The user's turn as the constructor saw it.
+     * @return bool
+     */
+    private static function targets_are_grounded(array $command, string $userturn): bool {
+        $userturn = trim($userturn);
+        if ($userturn === '') {
+            return true;
+        }
+        $haystack = \core_text::strtolower($userturn);
+        $input = (array)($command['input'] ?? ($command['parameters'] ?? []));
+        foreach ($input as $field => $value) {
+            if (!is_string($value) || substr((string)$field, -5) !== 'query') {
+                continue;
+            }
+            $needle = trim(\core_text::strtolower($value));
+            if ($needle === '' || ctype_digit($needle)) {
+                continue;
+            }
+            // Whole words only: "ai" must not pass because "repair" contains it. Letters and digits of any
+            // script count as word characters, so the boundary holds for every language.
+            $pattern = '/(?<![\\p{L}\\p{N}])' . preg_quote($needle, '/') . '(?![\\p{L}\\p{N}])/u';
+            if (!preg_match($pattern, $haystack)) {
                 return false;
             }
         }

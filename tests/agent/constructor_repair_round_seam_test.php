@@ -174,4 +174,33 @@ final class constructor_repair_round_seam_test extends abstract_agent_testcase {
             'No repair round for a skill whose schema really requires input.'
         );
     }
+
+    /**
+     * A repair round that invents a target the user never named does not replace the honest question.
+     *
+     * Baseline run 26, UA-4: the first round asked for the new description text, the repair round staged
+     * "activity 'ai'". The user then read a confirmation for an activity that does not exist.
+     */
+    public function test_repair_round_may_not_introduce_a_foreign_target(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        $this->create_option('Repair Target');
+        [$store, $runtime, $threadid] = $this->build_runtime();
+
+        $this->install_scripted_planner([
+            $this->selector_skill_call('mod_booking.update_option'),
+            $this->constructor_clarification('Which title should the option get?'),
+            // The repair round names an option the user never mentioned.
+            $this->constructor_confirmation_request('mod_booking.update_option', [
+                'optionquery' => 'ai',
+                'text' => 'Repaired Title',
+            ]),
+        ]);
+
+        $result = $this->chat('Benenn die Option "Repair Target" um.', (int)$threadid, $store, $runtime);
+
+        $this->assertCount(3, $this->scriptedplannerprompts, 'The repair round itself still runs.');
+        $this->assertSame('clarification', (string)($result['response_type'] ?? ''), 'The honest question stands.');
+        $this->assertNotContains('CONSTRUCTION_COMMAND_REPAIRED', (array)($result['issue_codes'] ?? []));
+    }
 }

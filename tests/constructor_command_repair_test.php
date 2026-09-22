@@ -127,4 +127,32 @@ final class constructor_command_repair_test extends \advanced_testcase {
         $this->assertFalse(constructor_command_repair::accept($wrongskill, 'demo.skill'));
         $this->assertFalse(constructor_command_repair::accept($stillempty, 'demo.skill'));
     }
+
+    /**
+     * A repaired command may not name a target the user never named (baseline run 26, UA-4).
+     *
+     * The first round asked, correctly, for the new description text; the repair round staged the move of an
+     * activity called "ai" — a name that occurs nowhere in the turn. The guard is structural: every *query
+     * value of the repaired command must occur in the user's turn (or be a plain id). It never inspects
+     * wording, only presence.
+     */
+    public function test_repaired_command_must_be_grounded_in_the_user_turn(): void {
+        $this->resetAfterTest();
+        $turn = 'Schieb die Seite mit den Übungsdaten einen Abschnitt nach unten und pass die Beschreibung an.';
+
+        $foreign = ['commands' => [['skill' => 'course.update_activity', 'input' => ['activityquery' => 'ai']]]];
+        $this->assertFalse(constructor_command_repair::accept($foreign, 'course.update_activity', $turn));
+
+        $grounded = ['commands' => [['skill' => 'course.update_activity', 'input' => ['activityquery' => 'Übungsdaten']]]];
+        $this->assertTrue(constructor_command_repair::accept($grounded, 'course.update_activity', $turn));
+
+        // Case does not matter, an id is always allowed, and fields that are not queries are not judged.
+        $mixed = ['commands' => [['skill' => 'course.update_activity', 'input' => [
+            'activityquery' => 'übungsdaten', 'coursequery' => '56', 'intro' => 'A new description',
+        ]]]];
+        $this->assertTrue(constructor_command_repair::accept($mixed, 'course.update_activity', $turn));
+
+        // Without a turn to ground against the guard stays out of the way (callers that have none).
+        $this->assertTrue(constructor_command_repair::accept($foreign, 'course.update_activity', ''));
+    }
 }
