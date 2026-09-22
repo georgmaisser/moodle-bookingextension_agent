@@ -485,6 +485,16 @@ class planner_phase_service {
         );
         if (is_array($interpreted)) {
             $interpreted['_planner_raw_response'] = $rawtext;
+            // A "sufficient" from the constructor is not an answer, it is a missing command. The interpreter
+            // passes "sufficient" through because the selector legitimately ends a turn with it; here the
+            // phase is constructor-only. Baseline run 27 and re-run N18 (LM-2): the constructor read the
+            // MEMORY block of its own prompt and recited the facts instead of staging wizard.list_memories,
+            // so the user got text that never came from the skill. Engine state decides: a read-only skill
+            // that accepts empty input is called as it stands; anything else becomes the repairable question
+            // the repair round below already knows how to handle. No wording is inspected.
+            if ((string)($interpreted['response_type'] ?? '') === 'sufficient') {
+                $interpreted = $this->replace_constructor_sufficient($interpreted, $selectedskill);
+            }
             if ((string)($interpreted['response_type'] ?? '') === 'clarification') {
                 // A constructor question is about the already-selected skill: carry that
                 // state on the result so the pending-action continuity record survives the
@@ -646,6 +656,44 @@ class planner_phase_service {
         }
 
         return array_values($filtered);
+    }
+
+    /**
+     * Turn a constructor "sufficient" into the command it failed to build, or into a repairable question.
+     *
+     * @param array $interpreted Interpreted constructor output with response_type sufficient.
+     * @param string $selectedskill The skill the selection phase chose.
+     * @return array
+     */
+    private function replace_constructor_sufficient(array $interpreted, string $selectedskill): array {
+        $skill = $this->registry->get_skill($selectedskill);
+        $contract = $skill !== null ? (array)$skill->get_prompt_contract()->to_array() : [];
+        $callable = $skill !== null
+            && $skill->is_read_only()
+            && (bool)($contract['accepts_empty_input'] ?? false);
+
+        $codes = array_values(array_unique(array_merge(
+            (array)($interpreted['issue_codes'] ?? []),
+            ['CONSTRUCTION_ANSWERED_INSTEAD_OF_CALLING']
+        )));
+        $interpreted['selected_skill'] = $selectedskill;
+        $interpreted['issue_codes'] = $codes;
+
+        if ($callable) {
+            $interpreted['response_type'] = 'skill_call';
+            $interpreted['message'] = '';
+            $interpreted['commands'] = [['skill' => $selectedskill, 'version' => 1, 'input' => []]];
+            return $interpreted;
+        }
+
+        // Not callable as it stands: the repair round gets one chance to build it or to ask honestly.
+        $interpreted['response_type'] = 'clarification';
+        $interpreted['commands'] = [];
+        $interpreted['issue_codes'] = array_values(array_unique(array_merge(
+            $codes,
+            [constructor_command_repair::DOWNGRADE_CODE]
+        )));
+        return $interpreted;
     }
 
     /**
