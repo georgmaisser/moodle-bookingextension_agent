@@ -125,8 +125,8 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 . 'created empty (add questions later) or populated from one of three sources: newly generated questions (from a '
                 . 'document/PDF or a topic), specific existing questions, or random questions from a question category.',
             'is' => 'Creating the quiz activity itself.',
-            'not' => 'Questions into the bank without a quiz (question.generate_questions); editing an existing quiz '
-                . '(update_quiz).',
+            'not' => 'Bank questions only (question.generate_questions); editing a quiz (update_quiz); other activities '
+                . '(add_activity); a whole course (scaffold_course_content).',
             'readonly' => false,
             'example_utterances' => [
                 'create a quiz for this course',

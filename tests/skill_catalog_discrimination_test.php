@@ -227,12 +227,62 @@ final class skill_catalog_discrimination_test extends \advanced_testcase {
         foreach ($registry->get_all_prompt_contracts() as $contract) {
             foreach (['is', 'not'] as $key) {
                 $clause = trim((string)($contract[$key] ?? ''));
-                if (\core_text::strlen($clause) > 120) {
+                if (\core_text::strlen($clause) > 160) {
                     $overlong[] = $contract['skill'] . ' ' . $key . ': ' . \core_text::strlen($clause);
                 }
             }
         }
 
         $this->assertSame([], $overlong, "discrimination clauses over budget:\n" . implode("\n", $overlong));
+    }
+
+    /**
+     * A fence is mutual: when A names B on its card, B names A on its card.
+     *
+     * Baseline runs 25-28: list_rule_properties said "not the written documentation (wizard.explain_docs)",
+     * explain_docs said nothing about rule properties - and LRP-4 went to explain_docs in nine of ten runs.
+     * The selector follows the card that speaks. Wave 17 checked only that a named skill has SOME fence;
+     * 31 pairs were one-sided, most of them across plugins. A reference counts in either spelling: the
+     * full name, or the short name inside the sibling's own namespace.
+     */
+    public function test_every_sibling_fence_is_mutual(): void {
+        $this->resetAfterTest();
+
+        $registry = skill_registry_factory::get_default();
+        $contracts = $registry->get_all_prompt_contracts();
+        $card = [];
+        $short = [];
+        foreach ($contracts as $contract) {
+            $name = trim((string)($contract['skill'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $card[$name] = trim((string)($contract['is'] ?? '')) . ' ' . trim((string)($contract['not'] ?? ''));
+            $short[$name] = substr($name, (int)strrpos($name, '.') + 1);
+        }
+        $names = static function (string $text, string $own) use ($card, $short): array {
+            $found = [];
+            foreach ($card as $other => $unused) {
+                if ($other === $own) {
+                    continue;
+                }
+                $pattern = '/(?<![.\\w])' . preg_quote($short[$other], '/') . '\\b/';
+                if (strpos($text, $other) !== false || preg_match($pattern, $text)) {
+                    $found[] = $other;
+                }
+            }
+            return $found;
+        };
+
+        $onesided = [];
+        foreach ($card as $a => $text) {
+            foreach ($names($text, $a) as $b) {
+                if (!in_array($a, $names($card[$b], $b), true)) {
+                    $onesided[] = $a . ' names ' . $b . ', which does not name it back';
+                }
+            }
+        }
+
+        $this->assertSame([], $onesided, "one-sided fences:\n" . implode("\n", $onesided));
     }
 }

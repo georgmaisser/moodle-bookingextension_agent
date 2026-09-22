@@ -103,8 +103,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
                 . 'restrictions and visibility; enrolment covers self-enrolment, cohort sync and suspended/expired, and omitting '
                 . 'the course lists all of the person\'s courses; grades covers a missing or wrong grade.',
             'is' => 'Access, enrolment, completion and grades in a course.',
-            'not' => 'Getting into a booking option (mod_booking.diagnose_booking_issue); the HR feed '
-                . '(local_taskflow.diagnose_import).',
+            'not' => 'Bookings (mod_booking.diagnose_booking_issue, mod_booking.diagnose_user_booking); roles '
+                . '(core.diagnose_permissions); HR feed (local_taskflow.diagnose_import).',
             'readonly' => true,
             'example_utterances' => [
                 'why can\'t this student open the quiz',

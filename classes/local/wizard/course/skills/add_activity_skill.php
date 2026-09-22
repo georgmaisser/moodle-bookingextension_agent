@@ -122,7 +122,8 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
                 . 'create or insert an activity or resource into a course (e.g. "add a page", "add a URL/link", "create a forum", '
                 . '"create a label").',
             'is' => 'Creating an activity or resource.',
-            'not' => 'A quiz (add_quiz) or quiz questions (question.generate_questions).',
+            'not' => 'A quiz (add_quiz); questions (question.generate_questions); the course (create_course); edits '
+                . '(update_activity); a whole course (scaffold_course_content).',
             'readonly' => false,
             'example_utterances' => [
                 'add a page to week 2',

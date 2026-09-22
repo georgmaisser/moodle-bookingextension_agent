@@ -88,7 +88,7 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 . 'time/yesterday" and mode="date_window" only for date-specific requests. When mode="date_window", date_hint is '
                 . 'mandatory. User isolation is strict and userid is never accepted from input.',
             'is' => 'Previous conversation.',
-            'not' => 'Facts the user asked the agent to remember (list_memories, remember).',
+            'not' => 'Facts the user asked the agent to remember (list_memories, remember, forget).',
             'readonly' => $this->is_read_only(),
             'fallback_confirm_string_key' => 'ai_status_confirm_booking_recall_memory',
             'fallback_skillcall_string_key' => 'ai_status_skillcall_booking_recall_memory',

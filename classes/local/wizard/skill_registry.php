@@ -47,8 +47,13 @@ use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interf
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class skill_registry {
-    /** @var int Characters an IS:/NOT: discrimination clause may carry on a selector card. */
-    private const DISCRIMINATION_CAP = 120;
+    /**
+     * @var int Characters an IS:/NOT: discrimination clause may carry on a selector card.
+     *
+     * 120 until wave 20; a skill with four or five siblings (course.add_activity) cannot name them all in
+     * that, and a fence that is not mutual is what the selector follows (LRP-4, nine of ten runs).
+     */
+    private const DISCRIMINATION_CAP = 160;
 
     /** @var array component => provider instance */
     private array $providers = [];

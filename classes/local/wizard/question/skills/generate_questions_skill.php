@@ -226,7 +226,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 . 'enough. Use this whenever the user wants a question, quiz or test created or inserted into Moodle (e.g. "make '
                 . 'me a question", "create questions from the document", "create a quiz from the PDFs in the course").',
             'is' => 'Questions in the question bank.',
-            'not' => 'Creating the quiz activity itself (course.add_quiz).',
+            'not' => 'Creating the quiz activity itself (course.add_quiz); other activities or resources '
+                . '(course.add_activity).',
             'readonly' => false,
             'example_utterances' => [
                 'create quiz questions from this PDF',

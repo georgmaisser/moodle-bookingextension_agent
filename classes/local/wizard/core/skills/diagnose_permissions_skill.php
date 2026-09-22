@@ -93,7 +93,8 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
                 . 'the ALLOW/PREVENT/PROHIBIT overrides on the chain. For a capability question, pass the technical capability '
                 . 'name in `capability` (e.g. mod/booking:addoption).',
             'is' => 'One named person\'s roles and capabilities.',
-            'not' => 'Who all holds a right; access, enrolment or grades (course.diagnose_user_in_course).',
+            'not' => 'Who all holds a right; course access, enrolment or grades (course.diagnose_user_in_course); taskflow '
+                . 'rights and tabs (local_taskflow.diagnose_permissions).',
             'readonly' => true,
             'example_utterances' => [
                 'why can\'t this teacher edit the activity',

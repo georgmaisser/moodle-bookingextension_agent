@@ -97,7 +97,8 @@ class search_skills_skill extends core_skill_base implements skill_trigger_provi
                 . 'capability; it searches the full tool registry for skills not currently shown. Always prefer a concrete '
                 . 'matching skill when one exists.',
             'is' => 'One hidden capability, by query.',
-            'not' => '"What can you do" — the full menu (list_skills); documentation (explain_docs).',
+            'not' => '"What can you do" — the full menu (list_skills); documentation (explain_docs); storing a fact '
+                . '(remember).',
             'readonly' => true,
             'properties' => [
                 'query' => [

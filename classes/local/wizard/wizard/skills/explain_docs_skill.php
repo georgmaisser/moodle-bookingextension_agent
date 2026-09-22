@@ -94,7 +94,8 @@ class explain_docs_skill extends core_skill_base implements
                 . 'or what a term means in the context of this plugin. Documentation answers are strictly grounded: only the '
                 . 'returned excerpt counts — never answer such questions from general knowledge.',
             'is' => 'The written documentation.',
-            'not' => 'The field list of an option (mod_booking.list_option_properties); capability questions (search_skills).',
+            'not' => 'Field lists derived from code (mod_booking.list_option_properties, '
+                . 'local_taskflow.list_rule_properties); capability questions (search_skills).',
             'readonly' => $this->is_read_only(),
             'fallback_skillcall_string_key' => 'ai_action_core_explain_docs',
             'example_utterances' => [

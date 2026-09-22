@@ -94,8 +94,10 @@ final class constructor_contract_carries_no_discrimination_test extends abstract
         $selector = (string)$this->scriptedplannerprompts[0];
         $constructor = (string)$this->scriptedplannerprompts[1];
 
+        // The clause may continue with further siblings (wave 20 made every fence mutual), so only its
+        // start is pinned.
         $this->assertStringContainsString(
-            'NOT: Many options at once (bulk_update_options).',
+            'NOT: Many options at once (bulk_update_options)',
             $selector,
             'The selector card must print the boundary.'
         );
