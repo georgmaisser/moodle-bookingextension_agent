@@ -684,6 +684,13 @@ class planner_phase_service {
             unset($entry['minimal_input']);
         }
 
+        // The IS:/NOT: sibling discrimination (#2453) is for the SELECTOR, which still has to choose.
+        // Here the choice is made: a sentence about what a NEIGHBOUR skill does cannot help fill a field,
+        // costs tokens on every construction call, and can mislead — in baseline run 25 (TSA-4) the
+        // contract named "the unit list (list_units)" and the constructor asked the user for a unit the
+        // skill does not require. Dropped for the same reason minimal_input is dropped above.
+        unset($entry['is'], $entry['not']);
+
         // In the construction phase exactly one skill is in scope, so we surface ALL of its prompt-pack
         // guidance unconditionally (no lexical trigger gate). This is the only place situational rules
         // — e.g. "for several options with the same name, search first to obtain their IDs and use
