@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services\security;
 
+use bookingextension_agent\local\wizard\services\target_query_normalizer;
 use bookingextension_agent\local\wizard\dto\agent_context;
 use bookingextension_agent\local\wizard\dto\context_target_resolution;
 use bookingextension_agent\local\wizard\dto\target_selector;
@@ -178,13 +179,19 @@ class module_target_resolver {
             return array_values($instances);
         }
 
+        // Names are compared on a key of letters and digits only: "Vorstellungs-Forum" and the forum
+        // "Vorstellungsforum" are the same name (baseline run 26, UA-2; #2453, wave 19).
+        $querykey = target_query_normalizer::name_key($query);
+        if ($querykey === '') {
+            return array_values($instances);
+        }
         $exact = [];
         $partial = [];
         foreach ($instances as $instance) {
-            $name = (string)$instance['name'];
-            if (\core_text::strtolower($name) === \core_text::strtolower($query)) {
+            $namekey = target_query_normalizer::name_key((string)$instance['name']);
+            if ($namekey === $querykey) {
                 $exact[] = $instance;
-            } else if (\core_text::strpos(\core_text::strtolower($name), \core_text::strtolower($query)) !== false) {
+            } else if (\core_text::strpos($namekey, $querykey) !== false) {
                 $partial[] = $instance;
             }
         }

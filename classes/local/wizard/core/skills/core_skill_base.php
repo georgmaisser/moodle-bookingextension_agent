@@ -166,8 +166,10 @@ abstract class core_skill_base extends base_skill {
             return (int)$query;
         }
 
-        if (strpos($query, '@') !== false) {
-            $user = \core_user::get_user_by_email($query, 'id', null, IGNORE_MISSING);
+        // An address-shaped token is an address wherever it stands ("Herr <e-mail>", run 25; #2453).
+        $address = \bookingextension_agent\local\wizard\services\target_query_normalizer::address_token($query);
+        if ($address !== '') {
+            $user = \core_user::get_user_by_email($address, 'id', null, IGNORE_MISSING);
             if ($user && !empty($user->id)) {
                 return (int)$user->id;
             }

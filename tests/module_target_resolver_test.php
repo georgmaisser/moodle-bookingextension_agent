@@ -345,4 +345,25 @@ final class module_target_resolver_test extends advanced_testcase {
 
         $this->assertSame(context_target_resolution::STATUS_NOT_FOUND, $resolution->status());
     }
+
+    /**
+     * A hyphen the user typed does not hide the forum "Vorstellungsforum" (baseline run 26, UA-2).
+     */
+    public function test_a_name_that_differs_only_in_hyphens_resolves(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $forum = $this->getDataGenerator()->create_module('forum', ['course' => (int)$course->id, 'name' => 'Vorstellungsforum']);
+        $this->getDataGenerator()->create_module('forum', ['course' => (int)$course->id, 'name' => 'Ankündigungen']);
+        $ambient = agent_context::from_context(context_course::instance($course->id));
+
+        $resolution = (new module_target_resolver())->resolve(
+            target_selector::for_module(null, 'Vorstellungs-Forum', 'forum'),
+            $ambient,
+            $this->userid()
+        );
+
+        $this->assertSame(context_target_resolution::STATUS_RESOLVED, $resolution->status());
+        $this->assertSame((int)$forum->cmid, (int)$resolution->context()->instanceid);
+    }
 }
