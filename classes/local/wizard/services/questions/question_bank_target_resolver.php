@@ -129,11 +129,13 @@ class question_bank_target_resolver {
                 'sortorder, name',
                 'id, name'
             );
+            $default = question_get_default_category($coursecontext->id);
             foreach ($categories as $cat) {
                 $targets[] = [
                     'categoryid' => (int)$cat->id,
                     'categoryname' => format_string($cat->name, true, ['context' => $coursecontext]),
                     'questioncount' => $this->count_category_questions((int)$cat->id),
+                    'isdefault' => $default !== false && (int)$default->id === (int)$cat->id,
                     'bankcmid' => 0,
                     'bankname' => format_string($course->fullname, true, ['context' => $coursecontext]),
                     'bankcontextid' => (int)$coursecontext->id,
@@ -162,11 +164,15 @@ class question_bank_target_resolver {
                 'sortorder, name',
                 'id, name'
             );
+            // Moodle's own default category of this bank (question_get_default_category, no creation): the
+            // one place the questions go when the user names nothing and no other default competes.
+            $default = question_get_default_category($bankcontext->id);
             foreach ($categories as $cat) {
                 $targets[] = [
                     'categoryid' => (int)$cat->id,
                     'categoryname' => format_string($cat->name, true, ['context' => $bankcontext]),
                     'questioncount' => $this->count_category_questions((int)$cat->id),
+                    'isdefault' => $default !== false && (int)$default->id === (int)$cat->id,
                     'bankcmid' => (int)$cm->id,
                     'bankname' => format_string($cm->get_name(), true, ['context' => $bankcontext]),
                     'bankcontextid' => (int)$bankcontext->id,

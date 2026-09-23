@@ -140,7 +140,11 @@ final class generate_questions_skill_test extends advanced_testcase {
     }
 
     /**
-     * With more than one writable question-bank category, preflight asks where to create the questions.
+     * With more than one writable category and no single default, preflight asks where to create the questions.
+     *
+     * Until wave 21 one bank with its default plus two further categories was enough to ask; now the bank's
+     * single default is taken (test_preflight_takes_the_single_default_category), so the ambiguity needs
+     * two banks, each with a default of its own.
      */
     public function test_preflight_asks_when_multiple_targets(): void {
         $this->resetAfterTest();
@@ -149,6 +153,7 @@ final class generate_questions_skill_test extends advanced_testcase {
 
         [$contextid, $course] = $this->make_run_context_with_course();
         $this->add_writable_categories($course, 2);
+        $this->add_writable_categories($course, 1);
 
         $store = new conversation_store();
         $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
@@ -564,5 +569,95 @@ final class generate_questions_skill_test extends advanced_testcase {
             get_string('ai_generatequestions_resourcenotfound', 'bookingextension_agent', 99999999),
             $result->issues[0]['message']
         );
+    }
+
+    /**
+     * Add a question bank whose DEFAULT category exists, plus $extra further categories.
+     *
+     * @param \stdClass $course
+     * @param int       $extra
+     * @return array{0:int,1:int[]} default category id, extra category ids
+     */
+    private function add_bank_with_default(\stdClass $course, int $extra): array {
+        $qbank = $this->getDataGenerator()->create_module('qbank', ['course' => $course->id]);
+        $bankcontext = \context_module::instance($qbank->cmid);
+        $default = question_get_default_category($bankcontext->id, true);
+        $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
+        $ids = [];
+        for ($i = 0; $i < $extra; $i++) {
+            $ids[] = (int)$questiongenerator->create_question_category([
+                'contextid' => $bankcontext->id, 'name' => 'Extra category ' . $i,
+            ])->id;
+        }
+        return [(int)$default->id, $ids];
+    }
+
+    /**
+     * The bank's default category is taken without asking when it is the only default among the targets.
+     *
+     * GQ-2, GQ-3, GQ-4 and AQ-1 ended as a question in every baseline run since run 8 although none of the
+     * prompts names a category: the gate asked between "Default for ..." and a second category. Moodle's own
+     * default is not an invented value (decision George 2026-09-23, wave 21).
+     */
+    public function test_preflight_takes_the_single_default_category(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+        [$contextid, $course] = $this->make_run_context_with_course();
+        [$defaultid, $extra] = $this->add_bank_with_default($course, 1);
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $result = (new generate_questions_skill())->preflight([], $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status'], json_encode($result->to_array()['issue_codes'] ?? []));
+        $this->assertSame($defaultid, (int)$result->preparedinput['target_categoryid']);
+        $this->assertNotContains($defaultid, $extra);
+        // The confirmation card reads the prepared input and must say where the questions will land.
+        $this->assertStringContainsString('(default category)', (string)$result->preparedinput['target_categorylabel']);
+        $card = (new generate_questions_skill())->describe_proposed_action($result->preparedinput);
+        $labels = array_column($card['rows'], 'value', 'label');
+        $this->assertStringContainsString('(default category)', (string)($labels['Category'] ?? ''));
+    }
+
+    /**
+     * Two banks with a default each: nothing is "the" default, the gate still asks.
+     */
+    public function test_preflight_still_asks_between_two_defaults(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+        [$contextid, $course] = $this->make_run_context_with_course();
+        $this->add_bank_with_default($course, 0);
+        $this->add_bank_with_default($course, 0);
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $result = (new generate_questions_skill())->preflight([], $contextid, (int)$USER->id)->to_array();
+
+        $this->assertSame('hard_block', $result['status']);
+        $this->assertContains('GENERATE_QUESTIONS_TARGET_AMBIGUOUS', $result['issue_codes']);
+    }
+
+    /**
+     * A category the user named still wins over the default.
+     */
+    public function test_a_named_category_beats_the_default(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+        [$contextid, $course] = $this->make_run_context_with_course();
+        [$defaultid, $extra] = $this->add_bank_with_default($course, 1);
+        $store = new conversation_store();
+        $thread = $store->get_or_create_thread((int)$USER->id, $contextid);
+        $store->add_message((int)$thread->id, 'user', self::DOC_MESSAGE);
+
+        $input = ['target_category' => 'Extra category 0'];
+        $result = (new generate_questions_skill())->preflight($input, $contextid, (int)$USER->id);
+
+        $this->assertSame('pass', $result->to_array()['status']);
+        $this->assertSame($extra[0], (int)$result->preparedinput['target_categoryid']);
     }
 }

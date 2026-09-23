@@ -127,6 +127,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             $rows,
             preview_support::str('previewlabel_category', $lang),
             preview_support::text($input['target_category'] ?? null)
+                ?? preview_support::text($input['target_categorylabel'] ?? null)
         );
         preview_support::push(
             $rows,
@@ -153,6 +154,33 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'summary' => '',
             'rows' => $rows,
         ];
+    }
+
+    /**
+     * Human-readable label of the category the gate resolved, or null when the user named one / none was chosen.
+     *
+     * Mirrors step 5 of resolve_target_selection(): only when the user named nothing and the gate picked a
+     * target itself does the confirmation card need to say so, before anything is written.
+     *
+     * @param array $input Raw command input.
+     * @param int $categoryid Resolved category id (0 = execute resolves the course default lazily).
+     * @param context $context Ambient context of the run.
+     * @param int $userid
+     * @return string|null
+     */
+    private function resolved_target_label(array $input, int $categoryid, context $context, int $userid): ?string {
+        if ($categoryid <= 0 || trim((string)($input['target_category'] ?? '')) !== '') {
+            return null;
+        }
+        foreach ((new question_bank_target_resolver())->list_writable_targets($context, $userid) as $target) {
+            if ((int)$target['categoryid'] === $categoryid) {
+                $label = $target['bankname'] . ' › ' . $target['categoryname'];
+                return !empty($target['isdefault'])
+                    ? get_string('previewvalue_default_category', 'bookingextension_agent', $label)
+                    : $label;
+            }
+        }
+        return null;
     }
 
     /**
@@ -391,9 +419,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                         . ' leave input.count out so the system asks (no silent default). Set input.qtypes when named'
                         . ' (allowed types: multichoice, truefalse, shortanswer).',
                     '- Do NOT ask the user which question bank or category to use, and never invent a category id. Leave'
-                        . ' input.target_category and input.target_categoryid empty: if the course has more than one'
-                        . ' category the system itself lists them and asks. Only if the user explicitly names a'
-                        . ' category, pass that name verbatim as input.target_category.',
+                        . ' input.target_category and input.target_categoryid empty: the system takes the bank\'s default'
+                        . ' category, or lists the categories and asks when no single default exists. Only if the user'
+                        . ' explicitly names a category, pass that name verbatim as input.target_category.',
                 ],
             ],
         ];
@@ -505,6 +533,9 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'difficulty' => (string)($input['difficulty'] ?? 'medium'),
             'outputlang' => $this->get_output_language($input),
             'target_categoryid' => $targetselection,
+            // The confirmation card reads the prepared input: say where the questions will land when the
+            // user named no category and the gate resolved it (the bank's default, or the only bank).
+            'target_categorylabel' => $this->resolved_target_label($input, $targetselection, $context, $userid),
         ]);
     }
 
@@ -572,7 +603,16 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             return 0;
         }
 
-        // 5) Several writable targets and nothing chosen yet => ask, listing them all.
+        // 5) Several writable targets, nothing chosen, but exactly one of them is a bank's own default
+        // category => take it. Baseline runs 8-29: GQ-2/3/4 and AQ-1 asked in EVERY run between
+        // "Default for ..." and a second category although the user had named none. Moodle's default is
+        // not an invented value - it is where a click in the UI would put the questions too - and the
+        // confirmation card names it before anything is written (decision George 2026-09-23).
+        $defaults = array_values(array_filter($targets, static fn(array $target): bool => !empty($target['isdefault'])));
+        if (count($defaults) === 1) {
+            return (int)$defaults[0]['categoryid'];
+        }
+        // 6) Several writable targets and no single default => ask, listing them all.
         return $this->build_target_clarification(
             $targets,
             'This course has more than one question bank category you can add to. '
