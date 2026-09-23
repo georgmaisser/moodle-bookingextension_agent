@@ -1028,7 +1028,13 @@ class interpreter implements agent_interpreter {
             $candidate = trim((string)($matches[1] ?? ''));
         }
 
-        $candidate = trim(strip_tags($candidate));
+        // Tags are stripped only from a candidate that is not already a JSON object. F76 (baseline run 31,
+        // threads 9318/9322): strip_tags() over a complete answer whose message listed placeholders ("<chat>,
+        // <due_date>") and operators ("user value <= now + N days") ate everything from the first "<" on and
+        // a valid reply died as CONTRACT_PARSE_ERROR. A "<" inside a JSON string is content, not markup.
+        if ($candidate === '' || $candidate[0] !== '{' || substr($candidate, -1) !== '}') {
+            $candidate = trim(strip_tags($candidate));
+        }
 
         if ($candidate === '' || $candidate[0] !== '{' || substr($candidate, -1) !== '}') {
             $this->lastparseissuecode = 'CONTRACT_PARSE_ERROR';
