@@ -373,11 +373,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
         return [
             [
                 'id' => 'question.generate_questions_request',
-                'description' => 'User wants a Moodle quiz/test question (a question, quiz or test) generated or '
-                    . 'inserted into Moodle — based on an uploaded document/PDF, on the PDF files stored in a '
-                    . 'course, OR on content the user provides directly (e.g. "make me a question", '
-                    . '"create a question", "create 10 questions from this PDF", '
-                    . '"create a quiz from the PDFs in the course", "insert a question into Moodle").',
+                'description' => 'The user wants quiz questions generated from an uploaded document, from the PDF files of a'
+                    . ' course, or from text they provide, and put into the question bank.',
             ],
         ];
     }

@@ -231,10 +231,8 @@ class update_activity_skill extends core_skill_base implements skill_trigger_pro
         return [
             [
                 'id' => 'course.update_activity_request',
-                'description' => 'User wants to change/edit an EXISTING activity or resource in a course: rename it, '
-                    . 'change its description, show/hide it, change a module setting, or MOVE it to another '
-                    . 'section/topic (e.g. "rename the page", "hide the forum", "change the URL", "move the label '
-                    . 'to section 2", "move the page one section down"). Not creating a new one.',
+                'description' => 'The user wants an existing activity or resource changed: renamed, described differently, shown'
+                    . ' or hidden, a setting changed, or moved to another section.',
             ],
         ];
     }

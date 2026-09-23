@@ -227,10 +227,7 @@ class scaffold_course_content_skill extends core_skill_base implements skill_tri
         return [
             [
                 'id' => 'course.scaffold_course_content_request',
-                'description' => 'User wants a course FILLED with generated content/chapters about a topic '
-                    . '("interesting course about X", "generate the content", "erstelle Inhalte"). Creating the '
-                    . 'course container itself is course.create_course; single activities are add_activity/'
-                    . 'add_quiz.',
+                'description' => 'The user wants an existing course filled with generated chapters and content about a topic.',
             ],
         ];
     }

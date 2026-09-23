@@ -181,9 +181,8 @@ class find_content_skill extends core_skill_base implements skill_trigger_provid
         return [
             [
                 'id' => 'core.find_content_request',
-                'description' => 'User wants to FIND CONTENT somewhere on the site or in a course by topic/meaning: '
-                    . 'a page, forum post, glossary entry, course summary etc. about some subject — including '
-                    . '"which course covers X". Not user/course-by-name/booking-option lookups.',
+                'description' => 'The user wants content on the site or in a course found by topic or meaning: a page, forum'
+                    . ' post, glossary entry or course summary about a subject.',
                 'examples' => [
                     'Find the page about assessment criteria.',
                     'In welchem Kurs geht es um Photosynthese?',

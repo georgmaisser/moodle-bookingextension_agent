@@ -166,9 +166,8 @@ class analyze_course_structure_skill extends core_skill_base implements skill_tr
         return [
             [
                 'id' => 'course.analyze_course_structure_request',
-                'description' => 'User wants an overview of a course\'s structure — its sections and the activities/'
-                    . 'resources within (names, descriptions, visibility/restrictions) — e.g. to understand it or '
-                    . 'before placing something into a section. Read-only.',
+                'description' => 'The user wants an overview of a course\'s sections and the activities in them, for instance'
+                    . ' before placing something into a section.',
                 'examples' => [
                     'What is in the course "Mathematics 101"?',
                     'Show me the sections and activities of this course.',

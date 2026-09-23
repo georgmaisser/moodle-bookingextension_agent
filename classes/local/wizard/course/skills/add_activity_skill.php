@@ -220,9 +220,8 @@ class add_activity_skill extends core_skill_base implements skill_trigger_provid
         return [
             [
                 'id' => 'course.add_activity_request',
-                'description' => 'User wants to add/create/insert an activity or resource (page, url/link, '
-                    . 'label/text, book, folder, forum) in a Moodle course — e.g. "add a page", "'
-                    . 'add a link", "create a forum", "create a label/text area".',
+                'description' => 'The user wants an activity or resource (page, link, label, book, folder, forum) added to a'
+                    . ' Moodle course.',
             ],
         ];
     }

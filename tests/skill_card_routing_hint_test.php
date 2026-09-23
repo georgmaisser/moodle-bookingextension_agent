@@ -49,12 +49,15 @@ final class skill_card_routing_hint_test extends \advanced_testcase {
         parent::setUp();
     }
 
+    /** @var int What the renderer keeps of a WHEN line (planner_catalog_service, WHEN: substr 0..180). */
+    private const WHEN_CAP = 180;
+
     /**
-     * Every registered skill renders a WHEN line.
+     * Every registered skill renders a WHEN line, and none of them is cut by the renderer.
      *
-     * Length is not asserted here: 18 pre-existing triggers (mod_booking, core, course, question) are longer
-     * than the 180 characters the renderer keeps and are cut mid-sentence today (F75, 2026-09-23) - a
-     * separate wave, so its effect on the baseline stays attributable.
+     * F75 (2026-09-23, wave 23): 18 triggers (mod_booking, core, course, question) were 191-495 characters
+     * long and the selector saw them cut mid-sentence; several carried phrase examples and construction
+     * instructions the selector cannot use. A WHEN line is the situation, in one sentence.
      */
     public function test_every_card_carries_a_when_line(): void {
         $this->resetAfterTest();
@@ -65,6 +68,7 @@ final class skill_card_routing_hint_test extends \advanced_testcase {
         $this->assertNotEmpty($contracts);
 
         $missing = [];
+        $cut = [];
         foreach ($contracts as $contract) {
             $name = trim((string)($contract['skill'] ?? ''));
             if ($name === '') {
@@ -77,6 +81,9 @@ final class skill_card_routing_hint_test extends \advanced_testcase {
                 $missing[] = $name;
                 continue;
             }
+            if (\core_text::strlen($when) > self::WHEN_CAP) {
+                $cut[] = $name . ' (' . \core_text::strlen($when) . ')';
+            }
             $this->assertMatchesRegularExpression(
                 '/^WHEN: /m',
                 $service->render_catalog_as_text([$contract]),
@@ -85,5 +92,6 @@ final class skill_card_routing_hint_test extends \advanced_testcase {
         }
 
         $this->assertSame([], $missing, "cards without a WHEN line:\n" . implode("\n", $missing));
+        $this->assertSame([], $cut, "WHEN lines the renderer cuts:\n" . implode("\n", $cut));
     }
 }

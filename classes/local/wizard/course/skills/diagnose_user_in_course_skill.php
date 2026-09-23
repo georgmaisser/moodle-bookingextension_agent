@@ -193,9 +193,8 @@ class diagnose_user_in_course_skill extends core_skill_base implements skill_tri
         return [
             [
                 'id' => 'course.diagnose_user_in_course_request',
-                'description' => 'User asks why a person can (not) access/see/open a course or activity, why they were '
-                    . '(not) enrolled, how far they have progressed / why an activity is not complete, or why a grade '
-                    . 'is missing/wrong — for a course or one of its activities. NOT booking options.',
+                'description' => 'The user asks why a person cannot access or see a course or activity, was not enrolled, has not'
+                    . ' completed something, or lacks a grade.',
                 'examples' => [
                     'Why can Maria not see Quiz 3?',
                     'Why was Tom not enrolled in the course "Mathematics"?',

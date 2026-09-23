@@ -160,9 +160,8 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
         return [
             [
                 'id' => 'core.diagnose_permissions_request',
-                'description' => 'User asks which roles a person has (where), or whether a person is allowed to do a '
-                    . 'specific thing (capability) at a course/context — including why (role overrides). Not "who all '
-                    . 'has right Z".',
+                'description' => 'The user asks which roles a person holds and where, or whether and why a person may or may not'
+                    . ' do a specific thing in a course or context.',
                 'examples' => [
                     'Which roles does Maria have in the course "Mathematics"?',
                     'Is Tom allowed to create booking options in this course?',

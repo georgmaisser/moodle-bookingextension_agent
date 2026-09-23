@@ -242,10 +242,8 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return [
             [
                 'id' => 'course.add_quiz_request',
-                'description' => 'User wants to CREATE a quiz/test activity in a course (optionally with questions: '
-                    . 'generated, from a category, or specific ones). E.g. "create a quiz", '
-                    . '"make a quiz from this PDF", "create a test with 10 questions". To only put questions in '
-                    . 'the bank, that is question.generate_questions.',
+                'description' => 'The user wants a new quiz or test activity created in a course, empty or with generated,'
+                    . ' existing or random questions.',
             ],
         ];
     }

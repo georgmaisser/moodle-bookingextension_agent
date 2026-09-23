@@ -216,9 +216,7 @@ class enrol_user_skill extends core_skill_base implements skill_trigger_provider
         return [
             [
                 'id' => 'course.enrol_user_request',
-                'description' => 'User wants to enrol/add/register a person (or themselves) into a Moodle course — '
-                    . 'e.g. "enrol Anna into First Aid", "add john@example.com to Biology 101 as teacher", '
-                    . '"put me in the marketing course".',
+                'description' => 'The user wants a person, or themselves, enrolled into a Moodle course, optionally with a role.',
             ],
         ];
     }

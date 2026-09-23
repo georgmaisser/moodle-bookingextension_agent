@@ -235,9 +235,8 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         return [
             [
                 'id' => 'course.update_quiz_request',
-                'description' => 'User wants to edit an EXISTING quiz (rename, description, show/hide) and/or ADD '
-                    . 'questions to it (generated, specific, or from a category). E.g. "add 5 questions to Quiz 3", '
-                    . '"add questions to the quiz", "rename the quiz", "hide the quiz". Not creating a new quiz.',
+                'description' => 'The user wants an existing quiz changed, or questions added to it (generated, specific, or from'
+                    . ' a category).',
             ],
         ];
     }

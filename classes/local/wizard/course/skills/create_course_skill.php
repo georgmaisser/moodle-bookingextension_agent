@@ -211,10 +211,8 @@ class create_course_skill extends core_skill_base implements
         return [
             [
                 'id' => 'course.create_course_request',
-                'description' => 'User wants to CREATE a new Moodle course (the container), e.g. "create a course '
-                    . 'about X", "lege einen Kurs an". Options/activities inside an existing course are other '
-                    . 'skills; a course that should also be bookable is this skill FIRST, then a booking create '
-                    . 'skill with linkedcoursequery.',
+                'description' => 'The user wants a new Moodle course created; a course that should also be bookable starts here,'
+                    . ' the booking option follows.',
             ],
         ];
     }
