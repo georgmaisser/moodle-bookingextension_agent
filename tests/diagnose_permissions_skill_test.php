@@ -118,9 +118,51 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
     }
 
     /**
-     * Unknown capability returns suggestions rather than a hard failure.
+     * Unknown capability with look-alikes: a recoverable lookup (never a hard failure, never a finished
+     * check) whose candidates include the real name — and nothing for the preview to render.
+     *
+     * The invented names are the ones a planner actually produces: a typo, and the 2026-09-23 chat turn's
+     * `moodle/activity:manage` for "edit activities", whose real name the old substring ranking never listed
+     * ("activity" is not a substring of "manageactivities").
      */
-    public function test_unknown_capability_suggestions(): void {
+    public function test_unknown_capability_is_recoverable_with_candidates(): void {
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $coursecontextid = (int)context_course::instance($course->id)->id;
+        $this->setUser($teacher);
+        $skill = new diagnose_permissions_skill();
+
+        foreach (['moodle/course:managactivities', 'moodle/activity:manage'] as $invented) {
+            $start = microtime(true);
+            $result = $skill->execute(
+                ['courseid' => (int)$course->id, 'capability' => $invented],
+                $coursecontextid,
+                (int)$teacher->id
+            );
+            $elapsedms = (int)round((microtime(true) - $start) * 1000);
+
+            $this->assertSame('error', $result['status'], $invented);
+            $this->assertSame('unknown_capability', $result['error_class'], $invented);
+            $this->assertContains('RECOVERABLE_INPUT_ERROR', (array)($result['issue_codes'] ?? []), $invented);
+            $this->assertContains(
+                'moodle/course:manageactivities',
+                (array)($result['capability_candidates'] ?? []),
+                $invented . ': the real capability must be offered'
+            );
+            $this->assertStringContainsString('moodle/course:manageactivities', $result['observation_full'], $invented);
+            $this->assertArrayNotHasKey('checklist_rows', $result, $invented);
+            $this->assertNull($skill->get_result_preview($result, $coursecontextid, (int)$teacher->id), $invented);
+            $this->assertLessThan(2000, $elapsedms, $invented . ': candidate ranking must stay inside the preflight budget');
+        }
+    }
+
+    /**
+     * Unknown capability without any look-alike: nothing to retry with, so the skill completes with the
+     * role picture (a finished result the planner can answer from) and no retry marker.
+     */
+    public function test_unknown_capability_without_candidates_falls_back_to_roles(): void {
         $this->resetAfterTest();
         $course = $this->getDataGenerator()->create_course();
         $teacher = $this->getDataGenerator()->create_user();
@@ -129,12 +171,15 @@ final class diagnose_permissions_skill_test extends advanced_testcase {
         $this->setUser($teacher);
 
         $result = (new diagnose_permissions_skill())->execute(
-            ['courseid' => (int)$course->id, 'capability' => 'moodle/course:managactivities'],
+            ['courseid' => (int)$course->id, 'capability' => 'moodle/qqzzxx:yyvvww'],
             $coursecontextid,
             (int)$teacher->id
         );
-        $this->assertSame('unknown_capability', $result['diagnosis']['mode']);
-        $this->assertStringContainsString('Unknown capability', $result['observation_full']);
+        $this->assertSame('executed', $result['status']);
+        $this->assertSame('roles', $result['diagnosis']['mode']);
+        $this->assertNotContains('RECOVERABLE_INPUT_ERROR', (array)($result['issue_codes'] ?? []));
+        $this->assertArrayNotHasKey('capability_candidates', $result);
+        $this->assertStringContainsString('editingteacher', $result['observation_full']);
     }
 
     /**
