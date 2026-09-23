@@ -299,20 +299,23 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
 
         $allcaps = get_all_capabilities();
         if (!isset($allcaps[$capability])) {
-            $suggestions = $this->suggest_capabilities($capability, array_keys($allcaps));
-            $rows = [diagnostic_result_builder::row(
-                'warn',
-                'Unknown capability "' . $capability . '"',
-                empty($suggestions) ? 'No similar capability found.' : 'Did you mean: ' . implode(', ', $suggestions)
-            )];
-            return $this->build_result(
-                $targetcontext,
-                $targetuser,
-                $isself,
-                $rows,
-                'Capability check',
-                'unknown_capability'
-            );
+            // The planner maps everyday wording to a technical name itself, so an unknown name is its
+            // guess, not a finding. Reporting it as an executed check (2026-09-23: "moodle/activity:manage")
+            // told the planner the check was done and put a developer card into the preview. The read-only
+            // chat path has no preflight, so the correction travels like every other recoverable read-only
+            // lookup: an error row flagged RECOVERABLE_INPUT_ERROR whose observation offers the real names,
+            // after which the loop re-plans and the honest end of the turn stays 'sufficient'.
+            $candidates = $this->suggest_capabilities($capability, array_keys($allcaps));
+            if (empty($candidates)) {
+                // Nothing resembles it, so there is nothing to retry with: finish with the role picture
+                // (a completed result the planner answers from) and say why the check did not run.
+                $result = $this->diagnose_roles($targetcontext, $targetuser, $isself, $links, $actinguserid);
+                $result['observation_full'] = 'Capability check did NOT run: "' . $capability . '" is not a capability'
+                    . ' on this site and no similar capability exists. Do not call this skill again for it;'
+                    . ' answer from the role assignments below.' . "\n" . $result['observation_full'];
+                return $result;
+            }
+            return $this->unknown_capability_result($capability, $candidates);
         }
 
         $rows = [];
@@ -419,30 +422,118 @@ class diagnose_permissions_skill extends core_skill_base implements skill_trigge
     }
 
     /**
-     * Suggest capability names closest to an unknown one.
+     * The recoverable result for a capability name that does not exist: not a finding, no checklist
+     * (so nothing reaches the preview), the real look-alikes on the observation for one corrected call.
+     *
+     * @param string $capability
+     * @param string[] $candidates
+     * @return array
+     */
+    private function unknown_capability_result(string $capability, array $candidates): array {
+        $message = 'Capability "' . $capability . '" is not defined on this site.';
+        $observation = 'Capability check did NOT run: "' . $capability . '" is not a capability on this site.'
+            . ' Existing capabilities that resemble it: ' . implode(', ', $candidates) . '.'
+            . ' Re-run this skill ONCE with input.capability set to exactly one of these names'
+            . ' (same person, same course). If none of them means what the user asked, do not call it'
+            . ' again — tell the user which permission could not be identified.';
+        return [
+            'status' => 'error',
+            'detail' => $message,
+            'usermessage' => $message,
+            'resultid' => null,
+            'error_class' => 'unknown_capability',
+            'issue_codes' => ['RECOVERABLE_INPUT_ERROR'],
+            'capability_candidates' => array_values($candidates),
+            'observation_full' => $observation,
+        ];
+    }
+
+    /**
+     * Rank the site's capability identifiers by resemblance to an unknown one.
+     *
+     * Identifier similarity only (no language). A candidate qualifies when the part after its colon
+     * resembles the query's — by token containment, tolerant of an inflected tail ("activity" ~
+     * "manageactivities"), or by a short edit distance for a typo ("managactivities"). The tokens of the
+     * query's component name (after the "type/" prefix, i.e. "activity" in "moodle/activity:manage")
+     * count as much as the name tokens, because they are what the planner meant. The old plain substring
+     * count had no such anchor and never listed moodle/course:manageactivities for moodle/activity:manage
+     * ("activity" is not a substring of "manageactivities"), so eight unrelated "manage" capabilities
+     * outranked it.
      *
      * @param string $query
      * @param string[] $allnames
      * @return string[]
      */
     private function suggest_capabilities(string $query, array $allnames): array {
-        $needle = \core_text::strtolower($query);
-        $tokens = array_filter(preg_split('/[^a-z0-9]+/', $needle) ?: []);
+        $needle = \core_text::strtolower(trim($query));
+        $colon = strrpos($needle, ':');
+        $querycomponent = $colon === false ? '' : substr($needle, 0, $colon);
+        $queryname = $colon === false ? $needle : substr($needle, $colon + 1);
+        $slash = strrpos($querycomponent, '/');
+        $querycomponentname = $slash === false ? $querycomponent : substr($querycomponent, $slash + 1);
+        $nametokens = self::identifier_tokens($queryname);
+        $componenttokens = self::identifier_tokens($querycomponentname);
+        if (empty($nametokens)) {
+            return [];
+        }
+        $typothreshold = max(2, intdiv(strlen($queryname), 4));
+
         $scored = [];
         foreach ($allnames as $name) {
             $lname = \core_text::strtolower($name);
+            $lcolon = strrpos($lname, ':');
+            $candidatename = $lcolon === false ? $lname : substr($lname, $lcolon + 1);
+
             $score = 0;
-            foreach ($tokens as $t) {
-                if ($t !== '' && strpos($lname, $t) !== false) {
-                    $score++;
+            foreach ($nametokens as $token) {
+                if (self::identifier_contains($candidatename, $token)) {
+                    $score += 2;
                 }
             }
-            if ($score > 0) {
-                $scored[$name] = $score;
+            $distance = levenshtein($queryname, $candidatename);
+            if ($distance > 0 && $distance <= $typothreshold) {
+                $score += 3;
             }
+            if ($score === 0) {
+                continue;
+            }
+            foreach ($componenttokens as $token) {
+                if (self::identifier_contains($lname, $token)) {
+                    $score += 2;
+                }
+            }
+            $scored[$name] = $score;
         }
         arsort($scored);
         return array_slice(array_keys($scored), 0, self::MAX_SUGGESTIONS);
+    }
+
+    /**
+     * Split an identifier fragment into its lowercase alphanumeric tokens.
+     *
+     * @param string $fragment
+     * @return string[]
+     */
+    private static function identifier_tokens(string $fragment): array {
+        return array_values(array_filter(
+            preg_split('/[^a-z0-9]+/', $fragment) ?: [],
+            static fn(string $token): bool => $token !== ''
+        ));
+    }
+
+    /**
+     * Does an identifier contain a token — or, for longer tokens, the token without its last two
+     * characters, so an inflected tail does not hide the match?
+     *
+     * @param string $identifier
+     * @param string $token
+     * @return bool
+     */
+    private static function identifier_contains(string $identifier, string $token): bool {
+        if (strpos($identifier, $token) !== false) {
+            return true;
+        }
+        return strlen($token) >= 6 && strpos($identifier, substr($token, 0, -2)) !== false;
     }
 
     /**
