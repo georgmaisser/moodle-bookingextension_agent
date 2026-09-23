@@ -82,6 +82,11 @@ class agent_runtime {
     /** Planner contract issue codes eligible for one framework retry hint in the loop. */
     private const LOOP_RETRYABLE_ISSUE_CODES = [
         'CONTRACT_PARSE_ERROR',
+        // The planner re-issued a command that already ran in this turn with the same input (F77,
+        // baseline run 31 thread 9469: core.diagnose_permissions five times with {userid: 7164} after
+        // five identical observations). One retry hint tells it to answer from the observation or to
+        // change the input; a second identical command ends the turn as a synthesis of what exists.
+        'LOOP_IDENTICAL_COMMAND_REPEATED',
         'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED',
         // Command-bearing response_type with empty commands[] (interpreter's single
         // error_result() site). A transient planner flake — observed on the guest-claim
@@ -394,6 +399,12 @@ class agent_runtime {
                     // 3719ff9 an invented key ended as 'error'; same doctrine as the empty-message
                     // codes below). Repair hints stay planner-only.
                     $result['response_type'] = 'clarification';
+                    $result['commands'] = [];
+                    $result['message'] = '';
+                } else if ($exhaustedissuecode === 'LOOP_IDENTICAL_COMMAND_REPEATED') {
+                    // The planner insisted on a command that already ran: nothing new can be learned, so
+                    // the turn answers from the observations it has (the synchronizer always answers).
+                    $result['response_type'] = 'sufficient';
                     $result['commands'] = [];
                     $result['message'] = '';
                 } else if (in_array($exhaustedissuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
@@ -993,6 +1004,12 @@ class agent_runtime {
      * @return string
      */
     private function build_framework_retry_observation(string $issuecode): string {
+        if ($issuecode === 'LOOP_IDENTICAL_COMMAND_REPEATED') {
+            return 'RETRY_HINT: The previous command was identical (same skill, same input) to one that '
+                . 'already ran in this turn; its observation is above and running it again returns the same. '
+                . 'Either answer from that observation (response_type=sufficient) or, if something is still '
+                . 'missing, call a skill with DIFFERENT input or a different skill.';
+        }
         if ($issuecode === 'CONTRACT_PARSE_ERROR') {
             return 'RETRY_HINT: The previous parameter_construction output was not valid JSON. '
                 . 'Retry once and return exactly one valid JSON object only. '
@@ -1396,6 +1413,10 @@ class agent_runtime {
 
         unset($result['_planner_raw_response']);
 
+        if ($state !== null) {
+            $result = $this->reject_identical_repeat($result, $state);
+        }
+
         $outputlang = $this->resolve_output_language($result);
 
         $rawresponsetype = trim((string)($result['response_type'] ?? ''));
@@ -1412,6 +1433,66 @@ class agent_runtime {
         $result['lang'] = $outputlang;
 
         return $result;
+    }
+
+    /**
+     * A command that already ran in this turn with the same input does not run again (F77).
+     *
+     * The state remembers every command this turn handed to execution, as the planner sent it. When every
+     * command of a new skill_call was already sent, nothing new can happen: the step becomes a retryable
+     * planner error that carries the hint, and the loop decides from its retry budget (one hint, then synthesis).
+     *
+     * @param array $result
+     * @param agent_state $state
+     * @return array
+     */
+    private function reject_identical_repeat(array $result, agent_state $state): array {
+        if (trim((string)($result['response_type'] ?? '')) !== 'skill_call') {
+            return $result;
+        }
+        $commands = array_values(array_filter((array)($result['commands'] ?? []), 'is_array'));
+        if (empty($commands)) {
+            return $result;
+        }
+
+        $fingerprints = array_map([self::class, 'command_fingerprint'], $commands);
+        foreach ($fingerprints as $fingerprint) {
+            if (!$state->was_sent($fingerprint)) {
+                // At least one command is new: the whole step goes to execution and is remembered.
+                $state->remember_sent_commands($fingerprints);
+                return $result;
+            }
+        }
+
+        $result['response_type'] = 'error';
+        $result['commands'] = [];
+        $result['message'] = '';
+        $result['issue_codes'] = array_values(array_unique(array_merge(
+            array_map('strval', (array)($result['issue_codes'] ?? [])),
+            ['LOOP_IDENTICAL_COMMAND_REPEATED']
+        )));
+        return $result;
+    }
+
+    /**
+     * Skill plus canonicalised input of a command.
+     *
+     * @param array $command
+     * @return string
+     */
+    private static function command_fingerprint(array $command): string {
+        $input = $command['input'] ?? ($command['parameters'] ?? []);
+        $input = is_array($input) ? $input : [];
+        $sort = static function (array $value) use (&$sort): array {
+            ksort($value);
+            foreach ($value as $key => $item) {
+                if (is_array($item)) {
+                    $value[$key] = $sort($item);
+                }
+            }
+            return $value;
+        };
+        return trim((string)($command['skill'] ?? '')) . '|' . json_encode($sort($input), JSON_UNESCAPED_UNICODE);
     }
 
     /**

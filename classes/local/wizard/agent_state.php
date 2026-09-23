@@ -58,6 +58,8 @@ final class agent_state {
      * @var array[]
      */
     private array $steps = [];
+    /** @var array<string,bool> Fingerprints of commands handed to execution in this turn (F77). */
+    private array $sentfingerprints = [];
 
     /**
      * Ordered list of structured observation strings, one per completed step.
@@ -155,6 +157,34 @@ final class agent_state {
      */
     public function get_steps(): array {
         return $this->steps;
+    }
+
+    /**
+     * Remember the fingerprints of commands this turn handed to execution (F77).
+     *
+     * Executed commands come back with prepared input (engine-added keys such as outputlang), so the
+     * planner's own command is remembered as it was sent - that is what a repeated plan is compared with.
+     *
+     * @param string[] $fingerprints
+     * @return void
+     */
+    public function remember_sent_commands(array $fingerprints): void {
+        foreach ($fingerprints as $fingerprint) {
+            $fingerprint = trim((string)$fingerprint);
+            if ($fingerprint !== '') {
+                $this->sentfingerprints[$fingerprint] = true;
+            }
+        }
+    }
+
+    /**
+     * Whether a command with this fingerprint was already handed to execution in this turn.
+     *
+     * @param string $fingerprint
+     * @return bool
+     */
+    public function was_sent(string $fingerprint): bool {
+        return isset($this->sentfingerprints[trim($fingerprint)]);
     }
 
     /**
