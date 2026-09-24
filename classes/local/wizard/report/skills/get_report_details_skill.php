@@ -65,7 +65,8 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
                 . 'with aggregation and sorting, conditions with their values, filters, audiences (who may see it), schedules '
                 . '(when it is sent) and the row count. Read-only.',
             'is' => 'The configuration and visibility of one existing report.',
-            'not' => 'Finding a report by name (search_reports); what a source could offer (describe_report_source).',
+            'not' => 'Finding a report by name (search_reports); a source (describe_report_source); changing who sees it '
+                . '(set_report_audience).',
             'readonly' => true,
             'fallback_skillcall_string_key' => 'ai_status_skillcall_report_get_report_details',
             'example_utterances' => [
@@ -293,8 +294,9 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
 
         $lines[] = 'AUDIENCES (' . count($snapshot['audiences']) . '):';
         foreach ($snapshot['audiences'] as $audience) {
+            // The audience description may name persons; the observation carries the count only.
             $lines[] = '- id ' . $audience['id'] . ' | ' . $audience['type'] . ' | ' . $audience['name']
-                . ($audience['description'] !== '' ? ' | ' . $audience['description'] : '')
+                . ' | users covered: ' . (int)($audience['usercount'] ?? 0)
                 . ($audience['available'] ? '' : ' | unavailable');
         }
 

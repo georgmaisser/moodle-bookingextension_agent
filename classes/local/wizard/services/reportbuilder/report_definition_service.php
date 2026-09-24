@@ -596,6 +596,7 @@ final class report_definition_service {
                 'name' => '',
                 'description' => '',
                 'available' => false,
+                'usercount' => (new audience_service())->count_users($audiencemodel),
             ];
             $audience = audience_base::instance((int)$audiencemodel->get('id'));
             if ($audience !== null) {

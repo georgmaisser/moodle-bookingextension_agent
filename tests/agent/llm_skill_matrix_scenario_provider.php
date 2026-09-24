@@ -442,6 +442,19 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'report.set_report_audience' => [
+                'prompt' => 'Make the custom report "Smoke users" visible to all users with the manager role.',
+                'mode' => 'mutating',
+                // The phpunit site has no such report: an honest miss with candidates is a correct outcome.
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'examples.multistep_example' => [
                 'prompt' => 'Ich brauche Hilfe bei folgendem Vorhaben: "{{example_objective}}". '
                     . 'Bitte gehe dabei in diesen Schritten vor: '

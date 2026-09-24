@@ -78,6 +78,7 @@ Both are preview-capable (`get_result_preview`).
 | `report.get_report_details` | R0 | ✓ | One report as stored: columns with aggregation/sorting, conditions with values, filters, audiences, schedules, row count; live report view in the side panel | `reportid` or `reportquery`, `include_row_count` |
 | `report.create_report` | **R2** | ✗ | Create a custom report: name, source, optional columns (heading, aggregation, sort), conditions with values, filters, unique rows, tags; source defaults when no columns are given; confirmable on a duplicate name | `name`, `source`, `columns`, `conditions`, `filters`, `override` |
 | `report.update_report` | **R2** | ✗ | Change a report: add/remove/replace columns, heading, aggregation, sorting, position; conditions with values; filters; rename; unique rows | `reportid` or `reportquery`, `add_columns`, `set_columns`, `add_conditions`, … |
+| `report.set_report_audience` | **R2** | ✗ | Add or remove an audience of any registered type (all users, admins, system role, cohort, named persons, plugin types); persons resolved by id/address/single name, reported as a count only | `reportid` or `reportquery`, `action`, `audience_type`, `roles`, `cohorts`, `userqueries`, `audienceid` |
 
 All run in the system context and decide access like core (`core_reportbuilder\permission`): the
 discovery and authoring skills require the authoring capabilities (`moodle/reportbuilder:edit` or
@@ -88,8 +89,7 @@ render-time JS (`replace` preview, paging/sorting/filters work in the panel). Ev
 input problem (unknown source, report, column, condition, filter, operator, aggregation) is a
 clarification with the alternatives as options; the authoring skills validate the whole definition
 against the datasource in preflight (`report_definition_service`, `filter_value_codec`) and write
-in one transaction. The audience and schedule skills follow in later work packages of
-Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
+in one transaction. The schedule skill follows in a later work package of Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
 
 ---
 

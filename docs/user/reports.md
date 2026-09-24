@@ -63,6 +63,20 @@ Example requests:
 
 The assistant shows the planned changes, waits for your confirmation, and then shows the changed report in the side panel.
 
+## Deciding who sees a report
+
+A new report is visible only to you. Tell the assistant who else should see it: everyone, people with a role, the members of a cohort, or named persons. You can also take an audience away again.
+
+Example requests:
+
+- "Make the report visible to all managers."
+- "Share the completion report with the members of the cohort Trainers."
+- "Let everyone on the site see this report."
+- "Give Anna Muster access to the users report."
+- "Remove the all-users audience from the report."
+
+The assistant shows the planned change and waits for your confirmation. Afterwards it tells you how many people each audience covers.
+
 ## Listing the report sources
 
 Ask for the sources in general, or for those of one plugin.
