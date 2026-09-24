@@ -1,8 +1,34 @@
-# Exploring report sources
+# Reports in the Report Builder
 
-The assistant can tell you what the Moodle Report Builder on your site can report on. Every report is built on a **report source**: a data set such as users, courses, badges, or, when the Booking plugin is installed, booking answers and booking options. Which sources exist depends on the plugins your site has installed; the assistant always shows the current state of your site.
+The assistant can show you the custom reports that exist on your site and tell you what the Moodle Report Builder can report on. Every report is built on a **report source**: a data set such as users, courses, badges, or, when the Booking plugin is installed, booking answers and booking options. Which sources exist depends on the plugins your site has installed; the assistant always shows the current state of your site.
 
-Exploring sources changes nothing. You need the permission to create or edit custom reports to use it.
+Looking things up changes nothing. You see only the reports you are allowed to see; exploring sources needs the permission to create or edit custom reports.
+
+## Finding existing reports
+
+Ask for all reports, for reports by name, or for those built on one source.
+
+Example requests:
+
+- "Which custom reports exist on this site?"
+- "Find the report about course completions."
+- "Which reports can I edit?"
+- "Is there already a report built on the users source?"
+
+The side panel shows one card per report with a link to open it. If several reports match a name, the assistant asks which one you mean.
+
+## Looking into one report
+
+Name the report or give its id.
+
+Example requests:
+
+- "What does the completion report contain?"
+- "Who can see the booking answers report?"
+- "When is the weekly report sent, and to whom?"
+- "How many rows does report 12 currently have?"
+
+The assistant lists the columns, the conditions with their values, the filters, the audiences and the schedules as they are stored. The side panel shows the report itself, live: you can page, sort and use its filters right there.
 
 ## What you can ask
 

@@ -284,6 +284,33 @@ final class report_source_catalog_service {
     }
 
     /**
+     * Constant name of a filter operator value, e.g. text::IS_EQUAL_TO (3) => 'IS_EQUAL_TO'.
+     *
+     * Aliased constants collapse onto the first declared name; unit constants are ignored. Returns
+     * '' when the class is unknown or has no such operator.
+     *
+     * @param string $filterclass FQCN of a core_reportbuilder filter class.
+     * @param int $value
+     * @return string
+     */
+    public function operator_name(string $filterclass, int $value): string {
+        $filterclass = ltrim($filterclass, '\\');
+        if (!class_exists($filterclass)) {
+            return '';
+        }
+        foreach ((new \ReflectionClass($filterclass))->getConstants() as $name => $constant) {
+            if (!is_int($constant) || $constant !== $value) {
+                continue;
+            }
+            if (str_starts_with((string)$name, 'DATE_UNIT_') || str_starts_with((string)$name, 'SIZE_UNIT_')) {
+                continue;
+            }
+            return (string)$name;
+        }
+        return '';
+    }
+
+    /**
      * Human-readable name of a column type constant.
      *
      * @param int $type

@@ -74,12 +74,17 @@ Both are preview-capable (`get_result_preview`).
 |-------|:---:|:---:|---------|-----------|
 | `report.list_report_sources` | R0 | ✓ | List the datasources the Report Builder offers here: identifier, name, plugin, entities, counts | `component`, `include_entities`, `limit` |
 | `report.describe_report_source` | R0 | ✓ | Columns, filters and conditions of one source with exact identifiers, types, aggregations and operator enums | `source`, `section`, `entity` |
+| `report.search_reports` | R0 | ✓ | Existing custom reports the user may view or edit (id, name, source, audiences, schedules, links); hidden reports are counted, not listed | `reportquery`, `source`, `editable_only`, `mine_only` |
+| `report.get_report_details` | R0 | ✓ | One report as stored: columns with aggregation/sorting, conditions with values, filters, audiences, schedules, row count; live report view in the side panel | `reportid` or `reportquery`, `include_row_count` |
 
-Both run in the system context, decide access exactly like core (`core_reportbuilder\permission`),
-and are preview-capable: the list renders source cards, the description a per-entity table; an
-unknown source is answered with the candidate list as a clarification (options + side-panel cards).
-The authoring skills of the family (create, update, audience, schedule) follow in later work
-packages of Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
+All four run in the system context and decide access like core (`core_reportbuilder\permission`):
+the two discovery skills require the authoring capabilities (`moodle/reportbuilder:edit` or
+`:editall`), the two lookup skills apply core's per-report visibility (`can_view_report`). All are
+preview-capable: source cards, a per-entity table, report cards, and — for the details skill — the
+real Report Builder view rendered with its render-time JS (`replace` preview, paging/sorting/filters
+work in the panel). An unknown source or report is answered with the candidate list as a
+clarification (options + side-panel cards). The authoring skills of the family (create, update,
+audience, schedule) follow in later work packages of Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
 
 ---
 

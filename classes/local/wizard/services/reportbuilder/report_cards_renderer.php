@@ -118,6 +118,44 @@ final class report_cards_renderer {
     }
 
     /**
+     * One card per existing report.
+     *
+     * @param array[] $reports Entries of report_resolver::find()['reports'] / summarize().
+     * @return string
+     */
+    public function render_reports(array $reports): string {
+        if (empty($reports)) {
+            return '';
+        }
+        $out = html_writer::start_div('bx-agent-report-list');
+        foreach ($reports as $report) {
+            $idbadge = html_writer::tag('span', '#' . (int)($report['id'] ?? 0), ['class' => 'text-muted small']);
+            $body = html_writer::tag('div', s((string)($report['name'] ?? '')) . ' ' . $idbadge, ['class' => 'fw-bold']);
+            $body .= html_writer::tag(
+                'div',
+                s($this->str('agent_report_preview_source')) . ': ' . s((string)($report['sourcename'] ?? '')),
+                ['class' => 'small text-muted']
+            );
+            $body .= html_writer::tag(
+                'div',
+                s($this->str('agent_report_preview_audiences')) . ': ' . (int)($report['audiences'] ?? 0) . ' · '
+                . s($this->str('agent_report_preview_schedules')) . ': ' . (int)($report['schedules'] ?? 0),
+                ['class' => 'small text-muted']
+            );
+            if (!empty($report['url'])) {
+                $body .= html_writer::link(
+                    $report['url'],
+                    s($this->str('agent_report_preview_open_report')),
+                    ['class' => 'small', 'target' => '_blank']
+                );
+            }
+            $out .= html_writer::div(html_writer::div($body, 'card-body py-2 px-3'), 'card mb-2');
+        }
+        $out .= html_writer::end_div();
+        return $out;
+    }
+
+    /**
      * One source card.
      *
      * @param array $entry

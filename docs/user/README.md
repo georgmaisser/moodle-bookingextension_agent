@@ -34,7 +34,7 @@ your request into the chat box.
 ## Building a course
 
 - [Add activities to a course](course-activities.md) — page, link, label, folder, forum, Booking.
-- [Explore report sources](reports.md) — which data sets the Report Builder offers and what each one contains.
+- [Reports in the Report Builder](reports.md) — find existing reports, look into one, explore the report sources.
 - [Quizzes and questions](quizzes-and-questions.md) — incl. generating questions from a PDF.
 - [Course overview](course-overview.md)
 

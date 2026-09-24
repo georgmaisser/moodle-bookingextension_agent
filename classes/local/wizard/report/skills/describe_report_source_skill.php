@@ -71,7 +71,7 @@ class describe_report_source_skill extends report_skill_base implements skill_tr
                 . 'exact identifier, entity, type, allowed aggregations and filter operators, plus the defaults a new report '
                 . 'starts with. Read-only.',
             'is' => 'The columns, filters and conditions one source offers.',
-            'not' => 'The list of all sources (list_report_sources).',
+            'not' => 'The list of all sources (list_report_sources); what an existing report contains (get_report_details).',
             'readonly' => true,
             'fallback_skillcall_string_key' => 'ai_status_skillcall_report_describe_report_source',
             'example_utterances' => [
