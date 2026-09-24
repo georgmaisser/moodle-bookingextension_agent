@@ -36,6 +36,33 @@ The assistant lists the columns, the conditions with their values, the filters, 
 - What one source offers: its columns, the filters a reader can use, the conditions an author can set, and the operators each filter understands.
 - Which columns and filters a new report on that source would start with.
 
+## Creating a report
+
+Name the report and the data it should be built on. You can also name columns, conditions and filters; without columns the assistant takes the defaults of the source. It shows you what it will create and waits for your confirmation. A new report is visible only to you until you give it an audience.
+
+Example requests:
+
+- "Create a report of all users with their e-mail addresses."
+- "Build a report on course completions, only completed ones, sorted by date."
+- "Make a report of booking answers with the participant, the option and the booking date."
+- "Set up a report of badges awarded in the last three months."
+
+If a column or condition you named does not exist in that source, the assistant lists what the source offers and asks you to pick. After the report is created the side panel shows it live.
+
+## Changing a report
+
+Name the report and what should change.
+
+Example requests:
+
+- "Add the e-mail column to the users report."
+- "Remove the city column from that report."
+- "Sort the completion report by date, newest first."
+- "Only show completed entries in the report."
+- "Rename the report to Quarterly overview."
+
+The assistant shows the planned changes, waits for your confirmation, and then shows the changed report in the side panel.
+
 ## Listing the report sources
 
 Ask for the sources in general, or for those of one plugin.

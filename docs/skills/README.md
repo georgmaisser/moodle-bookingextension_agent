@@ -76,15 +76,20 @@ Both are preview-capable (`get_result_preview`).
 | `report.describe_report_source` | R0 | ✓ | Columns, filters and conditions of one source with exact identifiers, types, aggregations and operator enums | `source`, `section`, `entity` |
 | `report.search_reports` | R0 | ✓ | Existing custom reports the user may view or edit (id, name, source, audiences, schedules, links); hidden reports are counted, not listed | `reportquery`, `source`, `editable_only`, `mine_only` |
 | `report.get_report_details` | R0 | ✓ | One report as stored: columns with aggregation/sorting, conditions with values, filters, audiences, schedules, row count; live report view in the side panel | `reportid` or `reportquery`, `include_row_count` |
+| `report.create_report` | **R2** | ✗ | Create a custom report: name, source, optional columns (heading, aggregation, sort), conditions with values, filters, unique rows, tags; source defaults when no columns are given; confirmable on a duplicate name | `name`, `source`, `columns`, `conditions`, `filters`, `override` |
+| `report.update_report` | **R2** | ✗ | Change a report: add/remove/replace columns, heading, aggregation, sorting, position; conditions with values; filters; rename; unique rows | `reportid` or `reportquery`, `add_columns`, `set_columns`, `add_conditions`, … |
 
-All four run in the system context and decide access like core (`core_reportbuilder\permission`):
-the two discovery skills require the authoring capabilities (`moodle/reportbuilder:edit` or
-`:editall`), the two lookup skills apply core's per-report visibility (`can_view_report`). All are
-preview-capable: source cards, a per-entity table, report cards, and — for the details skill — the
-real Report Builder view rendered with its render-time JS (`replace` preview, paging/sorting/filters
-work in the panel). An unknown source or report is answered with the candidate list as a
-clarification (options + side-panel cards). The authoring skills of the family (create, update,
-audience, schedule) follow in later work packages of Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
+All run in the system context and decide access like core (`core_reportbuilder\permission`): the
+discovery and authoring skills require the authoring capabilities (`moodle/reportbuilder:edit` or
+`:editall`, plus core's per-report edit rule for changes), the lookup skills apply core's per-report
+visibility (`can_view_report`). All are preview-capable: source cards, a per-entity table, report
+cards, and — for details, create and update — the real Report Builder view rendered with its
+render-time JS (`replace` preview, paging/sorting/filters work in the panel). Every recoverable
+input problem (unknown source, report, column, condition, filter, operator, aggregation) is a
+clarification with the alternatives as options; the authoring skills validate the whole definition
+against the datasource in preflight (`report_definition_service`, `filter_value_codec`) and write
+in one transaction. The audience and schedule skills follow in later work packages of
+Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
 
 ---
 

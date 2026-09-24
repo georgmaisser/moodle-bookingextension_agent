@@ -69,7 +69,8 @@ class list_report_sources_skill extends report_skill_base implements skill_trigg
                 . 'identifier, localised name, the plugin that ships it, the entities it joins and how many columns, filters '
                 . 'and conditions it has. Read-only; nothing is created.',
             'is' => 'Which data sets exist for reporting, and from which plugin.',
-            'not' => 'The columns of one source (describe_report_source); reports that already exist (search_reports).',
+            'not' => 'The columns of one source (describe_report_source); existing reports (search_reports); building one '
+                . '(create_report).',
             'readonly' => true,
             'fallback_skillcall_string_key' => 'ai_status_skillcall_report_list_report_sources',
             'example_utterances' => [

@@ -18,6 +18,7 @@ namespace bookingextension_agent\local\wizard\report\skills;
 
 use bookingextension_agent\local\wizard\core\skills\core_skill_base;
 use bookingextension_agent\local\wizard\services\reportbuilder\report_cards_renderer;
+use bookingextension_agent\local\wizard\services\reportbuilder\report_definition_service;
 use bookingextension_agent\local\wizard\services\reportbuilder\report_resolver;
 use bookingextension_agent\local\wizard\services\reportbuilder\report_source_catalog_service;
 use context_system;
@@ -54,6 +55,36 @@ abstract class report_skill_base extends core_skill_base {
 
     /** Issue code: several visible reports match the name. */
     public const CODE_REPORT_AMBIGUOUS = 'REPORT_TARGET_AMBIGUOUS';
+
+    /** Issue code: a column identifier is not offered by the source. */
+    public const CODE_COLUMN_VALIDATION_ERROR = 'REPORT_COLUMN_VALIDATION_ERROR';
+
+    /** Issue code: a condition identifier is not offered by the source. */
+    public const CODE_CONDITION_VALIDATION_ERROR = 'REPORT_CONDITION_VALIDATION_ERROR';
+
+    /** Issue code: a filter identifier is not offered by the source. */
+    public const CODE_FILTER_VALIDATION_ERROR = 'REPORT_FILTER_VALIDATION_ERROR';
+
+    /** Issue code: a condition value or operator does not fit the filter class. */
+    public const CODE_CONDITION_VALUE_VALIDATION_ERROR = 'REPORT_CONDITION_VALUE_VALIDATION_ERROR';
+
+    /** Issue code: an aggregation or sort setting does not fit the column. */
+    public const CODE_COLUMN_SETTING_VALIDATION_ERROR = 'REPORT_COLUMN_SETTING_VALIDATION_ERROR';
+
+    /** Issue code (confirmable): a report with this name and source already exists. */
+    public const CODE_NAME_CONFLICT = 'REPORT_NAME_CONFLICT_CONFIRM_REQUIRED';
+
+    /** Issue code: the site's custom report limit is reached. */
+    public const CODE_LIMIT_REACHED = 'REPORT_LIMIT_REACHED';
+
+    /** Issue code: no report name given. */
+    public const CODE_MISSING_NAME = 'MISSING_REPORT_NAME';
+
+    /** Issue code: an update without any change. */
+    public const CODE_MISSING_CHANGES = 'MISSING_REPORT_CHANGES';
+
+    /** Override token that confirms a duplicate report name. */
+    public const OVERRIDE_DUPLICATE_NAME = 'duplicate_name';
 
     /** Preview type of the source list (sources A and C). */
     public const PREVIEW_TYPE_SOURCES = 'report_sources';
@@ -216,6 +247,115 @@ abstract class report_skill_base extends core_skill_base {
             'observation_full' => implode("\n", $lines),
             'debugmessage' => $debugmessage,
         ];
+    }
+
+    /**
+     * Turn a definition validation problem (report_definition_service::normalize_*) into a clarification.
+     *
+     * The message names what was not accepted in the user's language; the alternatives travel as
+     * structured options (identifiers, aggregations, operators), never as a field list in the text.
+     *
+     * @param array $problem {kind, value, identifier?, detail?, options}
+     * @param string $lang
+     * @return array
+     */
+    protected function definition_problem_clarification(array $problem, string $lang): array {
+        $kind = (string)($problem['kind'] ?? '');
+        $value = (string)($problem['value'] ?? '');
+        $identifier = (string)($problem['identifier'] ?? '');
+        switch ($kind) {
+            case report_definition_service::PROBLEM_UNKNOWN_COLUMN:
+                $code = self::CODE_COLUMN_VALIDATION_ERROR;
+                $message = $this->localized_string('agent_report_clarify_column', $value, $lang);
+                break;
+            case report_definition_service::PROBLEM_UNKNOWN_CONDITION:
+                $code = self::CODE_CONDITION_VALIDATION_ERROR;
+                $message = $this->localized_string('agent_report_clarify_condition', $value, $lang);
+                break;
+            case report_definition_service::PROBLEM_UNKNOWN_FILTER:
+                $code = self::CODE_FILTER_VALIDATION_ERROR;
+                $message = $this->localized_string('agent_report_clarify_filter', $value, $lang);
+                break;
+            case report_definition_service::PROBLEM_CONDITION_VALUE:
+                $code = self::CODE_CONDITION_VALUE_VALIDATION_ERROR;
+                $message = $this->localized_string('agent_report_clarify_condition_value', $identifier, $lang);
+                break;
+            default:
+                $code = self::CODE_COLUMN_SETTING_VALIDATION_ERROR;
+                $message = $this->localized_string(
+                    'agent_report_clarify_column_setting',
+                    (object)['identifier' => $identifier, 'value' => $value],
+                    $lang
+                );
+                break;
+        }
+        $issue = ['code' => $code, 'severity' => 'needs_clarification', 'message' => $message];
+        if (!empty($problem['options'])) {
+            $issue['options'] = array_values((array)$problem['options']);
+        }
+        return $this->invalid([$issue]);
+    }
+
+    /**
+     * Human-readable rows for a normalised definition (confirmation card, source B).
+     *
+     * @param array $columns normalised column items
+     * @param array $conditions normalised condition items
+     * @param array $filters normalised filter items
+     * @param string $lang
+     * @return array[] rows {label, value}
+     */
+    protected function definition_rows(array $columns, array $conditions, array $filters, string $lang): array {
+        $rows = [];
+        if (!empty($columns)) {
+            $parts = [];
+            foreach ($columns as $column) {
+                $part = (string)($column['heading'] ?? '') !== ''
+                    ? (string)$column['heading']
+                    : (string)($column['title'] ?? $column['identifier']);
+                if (!empty($column['aggregation'])) {
+                    $part .= ' (' . $column['aggregation'] . ')';
+                }
+                if (!empty($column['sort'])) {
+                    $part .= ' ' . ($column['sort'] === 'desc' ? '↓' : '↑');
+                }
+                $parts[] = $part;
+            }
+            $rows[] = [
+                'label' => $this->localized_string('agent_report_preview_columns', null, $lang),
+                'value' => implode(', ', $parts),
+            ];
+        }
+        if (!empty($conditions)) {
+            $parts = [];
+            foreach ($conditions as $condition) {
+                $part = (string)($condition['title'] ?? $condition['identifier']);
+                $values = (array)($condition['values'] ?? []);
+                $summary = [];
+                foreach ($values as $key => $value) {
+                    $suffix = (string)substr((string)$key, strlen((string)$condition['identifier']) + 1);
+                    $summary[] = $suffix . '=' . (is_array($value) ? implode('|', $value) : (string)$value);
+                }
+                if (!empty($summary)) {
+                    $part .= ': ' . implode(', ', $summary);
+                }
+                $parts[] = $part;
+            }
+            $rows[] = [
+                'label' => $this->localized_string('agent_report_preview_conditions', null, $lang),
+                'value' => implode('; ', $parts),
+            ];
+        }
+        if (!empty($filters)) {
+            $rows[] = [
+                'label' => $this->localized_string('agent_report_preview_filters', null, $lang),
+                'value' => implode(', ', array_map(
+                    static fn(array $f): string => (string)($f['title'] ?? $f['identifier']),
+                    $filters
+                )),
+            ];
+        }
+        return $rows;
     }
 
     /**

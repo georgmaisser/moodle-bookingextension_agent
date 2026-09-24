@@ -417,6 +417,31 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'report.create_report' => [
+                'prompt' => 'Create a custom report called "Smoke users" on the users report source with the name and '
+                    . 'e-mail address columns.',
+                'mode' => 'mutating',
+                'assertions' => [
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'report.update_report' => [
+                'prompt' => 'Add the username column to the custom report "Smoke users" and sort it by name.',
+                'mode' => 'mutating',
+                // The phpunit site has no such report: an honest miss with candidates is a correct outcome.
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'examples.multistep_example' => [
                 'prompt' => 'Ich brauche Hilfe bei folgendem Vorhaben: "{{example_objective}}". '
                     . 'Bitte gehe dabei in diesen Schritten vor: '

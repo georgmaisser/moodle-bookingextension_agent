@@ -37,6 +37,7 @@ class booking_issue_code_provider implements issue_code_provider_interface {
         return [
             'DUPLICATE_TITLE_CONFIRM_REQUIRED',
             'DUPLICATE_TITLE_MULTI_CONFIRM_REQUIRED',
+            'REPORT_NAME_CONFLICT_CONFIRM_REQUIRED',
         ];
     }
 
@@ -69,6 +70,7 @@ class booking_issue_code_provider implements issue_code_provider_interface {
             'LOCATION_NOT_FOUND_POSSIBLE',
             'SLOTBOOKING_DURATION_EQUALS_WINDOW',
             'TEACHER_USER_NOT_FOUND',
+            'REPORT_NAME_CONFLICT_CONFIRM_REQUIRED',
         ];
     }
 
