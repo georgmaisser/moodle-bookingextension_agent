@@ -696,6 +696,52 @@ class planner_phase_service {
         return $interpreted;
     }
 
+    /** Placed directly before the input fields of the construction contract (F79). */
+    public const QUERY_FIELD_RULE = 'Every field whose name ends in "query" carries the target\'s name exactly as the '
+        . 'user wrote it - same language, same spelling, no salutation, no article, no translation, never an '
+        . 'example value. If the user named no target, ask.';
+
+    /**
+     * Drop the example values of query fields (F79).
+     *
+     * @param array $exampleparameters
+     * @return array
+     */
+    public static function without_query_field_examples(array $exampleparameters): array {
+        return array_filter(
+            $exampleparameters,
+            static fn($key): bool => !self::is_query_field_name((string)$key),
+            ARRAY_FILTER_USE_KEY
+        );
+    }
+
+    /**
+     * Whether the projected input fields contain a query field.
+     *
+     * @param array $inputfields Lines of skill_input_schema_projection ("name (type, ...): description").
+     * @return bool
+     */
+    private static function has_query_field(array $inputfields): bool {
+        foreach ($inputfields as $line) {
+            $name = trim((string)strtok(trim((string)$line), ' ('));
+            if (self::is_query_field_name($name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A query field: its name is "query" or ends in "query".
+     *
+     * @param string $name
+     * @return bool
+     */
+    private static function is_query_field_name(string $name): bool {
+        $name = strtolower(trim($name));
+        return $name === 'query' || str_ends_with($name, 'query');
+    }
+
     /**
      * Attach concrete parameter examples for the selected construction skill.
      *
@@ -716,7 +762,12 @@ class planner_phase_service {
             return $entry;
         }
 
-        $exampleparameters = (array)$skill->get_example_input();
+        // F79 (baseline runs 25-32): an example value of a query field is bait, not help. The constructor
+        // copied "completion confirmation" for "Abschlussbestätigung" and "reminder 7 days" for "rappel à 7
+        // jours" - verbatim the skill's example - because the example stood next to the field while the
+        // TARGET NAMES rule stood 6000 characters earlier; 21 commands in eight runs carried an example
+        // value as target. A query field's value is the user's own words: no example is shown for it.
+        $exampleparameters = self::without_query_field_examples((array)$skill->get_example_input());
         if (!empty($exampleparameters)) {
             $entry['example_parameters'] = $exampleparameters;
         }
@@ -729,6 +780,11 @@ class planner_phase_service {
         // schema is the one the executor validates against. minimal_input stays in the selector catalog.
         $inputfields = skill_input_schema_projection::for_skill($skill);
         if (!empty($inputfields)) {
+            // The rule for query fields sits where the decision is made - directly before the fields (F79),
+            // not only in the template block far above. Engine text, planner-only.
+            if (self::has_query_field($inputfields)) {
+                $entry['input_rules'] = [self::QUERY_FIELD_RULE];
+            }
             $entry['input_fields'] = $inputfields;
             unset($entry['minimal_input']);
         }
