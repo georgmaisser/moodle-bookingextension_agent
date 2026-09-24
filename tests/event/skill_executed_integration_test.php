@@ -95,7 +95,7 @@ final class skill_executed_integration_test extends abstract_agent_testcase {
                 'maxanswers' => 10,
                 'coursestarttime' => '2045-03-15T09:00:00',
                 'courseendtime' => '2045-03-15T17:00:00',
-                'teacherquery' => 'current',
+                'teacherquery' => '__current_user__',
             ],
         ];
         $sink = $this->redirectEvents();

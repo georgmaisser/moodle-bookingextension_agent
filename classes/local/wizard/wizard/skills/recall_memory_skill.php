@@ -85,7 +85,8 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
         $schema = [
             'version' => 1,
             'description' => 'Recall previous user-only conversation memory. Use mode="last_thread" for requests like "last '
-                . 'time/yesterday" and mode="date_window" only for date-specific requests. When mode="date_window", date_hint is '
+                . 'time/yesterday" and mode="date_window" only for date-specific requests. When mode="date_window", '
+                . 'date_from is an ISO date.'
                 . 'mandatory. User isolation is strict and userid is never accepted from input.',
             'is' => 'Previous conversation.',
             'not' => 'Facts the user asked the agent to remember (list_memories, remember, forget).',
@@ -107,10 +108,16 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                     'enum' => ['last_thread', 'date_window'],
                     'required' => true,
                 ],
-                'date_hint' => [
+                'date_from' => [
                     'type' => 'string',
-                    'description' => 'Natural language date hint (e.g. "last friday" or "2026-05-20"). '
-                        . 'Required when mode="date_window"; omit for mode="last_thread".',
+                    'description' => 'First day of the window as an ISO date (YYYY-MM-DD), computed from now_iso '
+                        . '("last Friday" is a date, not a phrase). Required when mode="date_window"; omit for '
+                        . 'mode="last_thread".',
+                    'required' => false,
+                ],
+                'date_to' => [
+                    'type' => 'string',
+                    'description' => 'Last day of the window as an ISO date (YYYY-MM-DD); omit for a single day.',
                     'required' => false,
                 ],
                 'query' => [
@@ -127,9 +134,10 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             'prompt_meta' => [
                 'intent' => 'Recall earlier conversation memory for the same user. '
                     . 'Choose mode="last_thread" for generic "remember last discussion" requests. '
-                    . 'Choose mode="date_window" only when a concrete date hint is present and then always include date_hint.',
+                    . 'Choose mode="date_window" only when a concrete day or range is meant and then always include '
+                    . 'date_from as an ISO date.',
                 'input_fields_for_prompt' => ['mode'],
-                'anchor_fields' => ['date_hint', 'query'],
+                'anchor_fields' => ['date_from', 'query'],
                 'capabilities' => ['conversation_memory_recall', 'date_window_lookup'],
                 // Reads the USER's own conversation history; was implicitly defaulting
                 // to ['module'] via base_skill — declared honestly as user-scoped.
@@ -165,9 +173,18 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
             $errors[] = get_string('agent_booking_recall_memory_invalid_mode', 'bookingextension_agent');
             $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
-        if ($mode === 'date_window' && trim((string)($input['date_hint'] ?? '')) === '') {
-            $errors[] = get_string('agent_booking_recall_memory_date_hint_required', 'bookingextension_agent');
-            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
+        if ($mode === 'date_window') {
+            // F80 (wave 26): dates arrive as ISO fields, not as a phrase in some language the skill would
+            // have to understand ("vendredi dernier" failed three runs in a row against an English parser).
+            $from = trim((string)($input['date_from'] ?? ''));
+            $to = trim((string)($input['date_to'] ?? ''));
+            if ($from === '') {
+                $errors[] = get_string('agent_booking_recall_memory_date_from_required', 'bookingextension_agent');
+                $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
+            } else if (!self::is_iso_date($from) || ($to !== '' && !self::is_iso_date($to))) {
+                $errors[] = get_string('agent_booking_recall_memory_invalid_date', 'bookingextension_agent');
+                $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
+            }
         }
 
         return [
@@ -234,12 +251,15 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
                 }
             }
         } else {
-            $datehint = trim((string)($input['date_hint'] ?? ''));
-            $window = $this->resolve_date_window($userid, $datehint);
+            $window = $this->resolve_date_window(
+                $userid,
+                trim((string)($input['date_from'] ?? '')),
+                trim((string)($input['date_to'] ?? ''))
+            );
             if ($window === null) {
                 return [
                     'status' => 'error',
-                    'detail' => get_string('agent_booking_recall_memory_invalid_date_hint', 'bookingextension_agent'),
+                    'detail' => get_string('agent_booking_recall_memory_invalid_date', 'bookingextension_agent'),
                     'resultid' => null,
                     'threadid' => null,
                     'from_timestamp' => null,
@@ -350,53 +370,45 @@ class recall_memory_skill extends core_skill_base implements skill_trigger_provi
     }
 
     /**
-     * Resolve date window for natural language hints.
+     * Whether a value is a plain ISO date (YYYY-MM-DD).
+     *
+     * @param string $value
+     * @return bool
+     */
+    private static function is_iso_date(string $value): bool {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1
+            && \DateTimeImmutable::createFromFormat('!Y-m-d', $value) !== false;
+    }
+
+    /**
+     * The day window [from 00:00, to 23:59:59] in the user's timezone, from ISO dates only.
+     *
+     * No phrase is parsed here: the planner knows now_iso and turns "last Friday", "vendredi dernier"
+     * or "letzten Freitag" into a date before the skill is called (F80, wave 26).
      *
      * @param int $userid
-     * @param string $datehint
-     * @return array|null
+     * @param string $from ISO date.
+     * @param string $to ISO date or '' for a single day.
+     * @return array{from_timestamp:int,to_timestamp:int}|null
      */
-    private function resolve_date_window(int $userid, string $datehint): ?array {
-        $normalized = \core_text::strtolower(trim($datehint));
-        if ($normalized === '') {
+    private function resolve_date_window(int $userid, string $from, string $to = ''): ?array {
+        if (!self::is_iso_date($from) || ($to !== '' && !self::is_iso_date($to))) {
             return null;
         }
-
         $timezone = $this->resolve_user_timezone($userid);
-        $now = new \DateTimeImmutable('now', $timezone);
-
-        if (
-            preg_match('/\b(last|previous|letzten|letzter|letzte)\s+friday\b/u', $normalized)
-            || preg_match('/\b(letzten|letzter|letzte)\s+freitag\b/u', $normalized)
-        ) {
-            $day = $now->modify('last friday');
-            return [
-                'from_timestamp' => $day->setTime(0, 0, 0)->getTimestamp(),
-                'to_timestamp' => $day->setTime(23, 59, 59)->getTimestamp(),
-            ];
-        }
-
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized)) {
-            try {
-                $day = new \DateTimeImmutable($normalized, $timezone);
-                return [
-                    'from_timestamp' => $day->setTime(0, 0, 0)->getTimestamp(),
-                    'to_timestamp' => $day->setTime(23, 59, 59)->getTimestamp(),
-                ];
-            } catch (\Throwable $e) {
-                return null;
-            }
-        }
-
         try {
-            $day = new \DateTimeImmutable($datehint, $timezone);
-            return [
-                'from_timestamp' => $day->setTime(0, 0, 0)->getTimestamp(),
-                'to_timestamp' => $day->setTime(23, 59, 59)->getTimestamp(),
-            ];
+            $first = new \DateTimeImmutable($from, $timezone);
+            $last = new \DateTimeImmutable($to !== '' ? $to : $from, $timezone);
         } catch (\Throwable $e) {
             return null;
         }
+        if ($last < $first) {
+            [$first, $last] = [$last, $first];
+        }
+        return [
+            'from_timestamp' => $first->setTime(0, 0, 0)->getTimestamp(),
+            'to_timestamp' => $last->setTime(23, 59, 59)->getTimestamp(),
+        ];
     }
 
     /**

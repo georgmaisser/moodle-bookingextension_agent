@@ -69,13 +69,15 @@ final class diagnose_user_in_course_skill_test extends advanced_testcase {
      * userquery="me" resolves to the ACTING user instead of failing with "could not identify"
      * (regression: the current-user fallback was hardcoded to 0).
      */
-    public function test_userquery_me_resolves_to_acting_user(): void {
+    public function test_an_empty_userquery_resolves_to_acting_user(): void {
         $this->resetAfterTest();
         [$course, $teacher] = $this->build_course();
         $ctxid = (int)context_course::instance($course->id)->id;
 
+        // Wave 26 / F81: no word means "me" any more - the engine omits a person parameter that names the
+        // requester, so an EMPTY person field is the acting user.
         $res = (new diagnose_user_in_course_skill())->execute(
-            ['userquery' => 'me'],
+            ['userquery' => ''],
             $ctxid,
             (int)$teacher->id
         );

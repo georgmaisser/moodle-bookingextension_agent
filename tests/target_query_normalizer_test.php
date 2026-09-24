@@ -62,4 +62,59 @@ final class target_query_normalizer_test extends \basic_testcase {
         $this->assertSame('übungsdaten', target_query_normalizer::name_key('Übungs-Daten'));
         $this->assertNotSame($forum, target_query_normalizer::name_key('Vorstellungsrunde'));
     }
+
+    /**
+     * A directory of three users, searched by substring - the shape every resolver offers.
+     *
+     * @return callable
+     */
+    private function directory(): callable {
+        $users = [
+            ['userid' => 11, 'firstname' => 'Chidi', 'lastname' => 'Okafor'],
+            ['userid' => 12, 'firstname' => 'Amélie', 'lastname' => 'Duvernay'],
+            ['userid' => 13, 'firstname' => 'Chidi', 'lastname' => 'Nwosu'],
+        ];
+        return static function (string $token, int $limit) use ($users): array {
+            $hits = [];
+            foreach ($users as $user) {
+                if (stripos($user['firstname'] . ' ' . $user['lastname'], $token) !== false) {
+                    $hits[] = $user;
+                }
+            }
+            return array_slice($hits, 0, $limit);
+        };
+    }
+
+    /**
+     * Run 31, SVO-3: "Mr Okafor" - the salutation matches nobody, the name matches one.
+     */
+    public function test_a_token_nobody_matches_carries_no_meaning(): void {
+        $found = target_query_normalizer::narrow_by_tokens('Mr Okafor', $this->directory());
+        $this->assertCount(1, $found);
+        $this->assertSame(11, (int)$found[0]['userid']);
+    }
+
+    /**
+     * Two matching tokens must agree; the first name alone would be ambiguous.
+     */
+    public function test_matching_tokens_must_agree_on_one_user(): void {
+        $this->assertSame(11, (int)target_query_normalizer::narrow_by_tokens('Chidi Okafor', $this->directory())[0]['userid']);
+        $ambiguous = target_query_normalizer::narrow_by_tokens('Herr Chidi', $this->directory());
+        $this->assertCount(2, $ambiguous, 'two users share the first name: the caller asks');
+        $this->assertSame(
+            [],
+            target_query_normalizer::narrow_by_tokens('Chidi Duvernay', $this->directory()),
+            'no user unites both'
+        );
+    }
+
+    /**
+     * One token, an address or a number is not a case for token narrowing.
+     */
+    public function test_single_tokens_addresses_and_numbers_are_left_to_the_callers(): void {
+        $this->assertSame([], target_query_normalizer::narrow_by_tokens('Okafor', $this->directory()));
+        $this->assertSame([], target_query_normalizer::narrow_by_tokens('Mr', $this->directory()));
+        $this->assertSame([], target_query_normalizer::narrow_by_tokens('Madame wbtf_duval@example.invalid', $this->directory()));
+        $this->assertSame([], target_query_normalizer::narrow_by_tokens('user 4021', $this->directory()));
+    }
 }

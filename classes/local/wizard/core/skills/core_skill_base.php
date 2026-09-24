@@ -158,7 +158,9 @@ abstract class core_skill_base extends base_skill {
      */
     protected function resolve_userid(array $input, int $currentuserid): int {
         $query = trim((string)($input['userquery'] ?? ''));
-        if ($query === '' || strtolower($query) === 'current' || strtolower($query) === 'me') {
+        // No person named means the requester; the constructor omits self-references deterministically
+        // (wave 26 / F81: the former "current" / "me" word check was a language-bound detection).
+        if ($query === '') {
             return $currentuserid;
         }
 
@@ -178,6 +180,16 @@ abstract class core_skill_base extends base_skill {
         $matches = $this->search_user_candidates_for_preview($query, 2);
         if (count($matches) === 1) {
             return (int)($matches[0]['userid'] ?? 0);
+        }
+        if (empty($matches)) {
+            // Wave 26: "Mr Okafor" as one string matches nobody; the tokens that do match must agree.
+            $matches = \bookingextension_agent\local\wizard\services\target_query_normalizer::narrow_by_tokens(
+                $query,
+                fn(string $token, int $limit): array => $this->search_user_candidates_for_preview($token, $limit)
+            );
+            if (count($matches) === 1) {
+                return (int)($matches[0]['userid'] ?? 0);
+            }
         }
 
         return 0;

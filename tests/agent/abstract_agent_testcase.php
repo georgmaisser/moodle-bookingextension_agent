@@ -572,7 +572,7 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
                 'maxanswers'      => 10,
                 'coursestarttime' => '2045-03-15T09:00:00',
                 'courseendtime'   => '2045-03-15T17:00:00',
-                'teacherquery'    => 'current',
+                'teacherquery'    => '__current_user__',
             ],
             $extra
         ));

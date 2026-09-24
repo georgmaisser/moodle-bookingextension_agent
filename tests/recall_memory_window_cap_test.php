@@ -76,7 +76,7 @@ final class recall_memory_window_cap_test extends \advanced_testcase {
 
         $skill = new recall_memory_skill();
         $result = $skill->execute(
-            ['mode' => 'date_window', 'date_hint' => '2026-09-18'],
+            ['mode' => 'date_window', 'date_from' => '2026-09-18'],
             $contextid,
             (int)$user->id
         );
