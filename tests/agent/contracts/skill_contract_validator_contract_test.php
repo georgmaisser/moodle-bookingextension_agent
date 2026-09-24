@@ -58,6 +58,10 @@ final class skill_contract_validator_contract_test extends TestCase {
     public function test_reserved_namespace_ownership(): void {
         $this->assertTrue(skill_contract_validator::component_may_register_namespace('bookingextension_agent', 'booking'));
         $this->assertTrue(skill_contract_validator::component_may_register_namespace('bookingextension_agent', 'core'));
+        // The report.* family (Moodle Report Builder skills) is engine-owned like course.*, but reserved
+        // explicitly so no third-party provider can squat it (Wunderbyte-GmbH/Wunderbyte-GmbH#2471).
+        $this->assertTrue(skill_contract_validator::component_may_register_namespace('bookingextension_agent', 'report'));
+        $this->assertFalse(skill_contract_validator::component_may_register_namespace('local_dummy', 'report'));
         $this->assertFalse(skill_contract_validator::component_may_register_namespace('local_dummy', 'booking'));
         $this->assertFalse(skill_contract_validator::component_may_register_namespace('local_dummy', 'core'));
         $this->assertTrue(skill_contract_validator::component_may_register_namespace('local_dummy', 'entities'));
