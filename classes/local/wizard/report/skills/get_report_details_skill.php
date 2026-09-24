@@ -64,9 +64,9 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Show one existing custom report of the Moodle Report Builder as it is configured: source, columns '
-                . 'with aggregation and sorting, conditions with their values, filters, audiences (who may see it), schedules '
-                . '(when it is sent) and the row count. Read-only.',
+            'description' => 'Show one existing custom report of the Moodle Report Builder as it is configured. Covers the '
+                . 'source, columns with aggregation and sorting, conditions with values, filters, audiences, schedules, the '
+                . 'row count and an optional delivery diagnosis for a named person. Read-only.',
             'is' => 'The configuration and visibility of one existing report.',
             'not' => 'A report by name (search_reports); a source (describe_report_source); who sees it '
                 . '(set_report_audience); sending (schedule_report); row counts (query_report).',

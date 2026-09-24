@@ -73,9 +73,9 @@ class update_report_skill extends report_skill_base implements skill_trigger_pro
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Change an existing custom report of the Moodle Report Builder: add, remove or replace columns, '
-                . 'set headings, aggregation and sorting, add or remove conditions and set their values, add or remove '
-                . 'filters, rename the report, toggle unique rows.',
+            'description' => 'Change an existing custom report of the Moodle Report Builder. Add, remove or replace columns; '
+                . 'set headings, aggregation and sorting; add or remove conditions and set their values; add or remove '
+                . 'filters; rename the report; toggle unique rows.',
             'is' => 'Edits to a report that already exists.',
             'not' => 'A new report (create_report); who may see it (set_report_audience); when it is sent (schedule_report).',
             'readonly' => false,

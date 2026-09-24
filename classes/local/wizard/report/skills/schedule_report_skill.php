@@ -106,9 +106,9 @@ class schedule_report_skill extends report_skill_base implements skill_trigger_p
     public function get_schema(): array {
         return [
             'version' => 1,
-            'description' => 'Send a custom report of the Moodle Report Builder automatically: create a schedule (recipients '
-                . 'from the report audiences, format, recurrence, start time, view-as, empty-report policy, subject and '
-                . 'message), change, enable, disable or send it now.',
+            'description' => 'Send a custom report of the Moodle Report Builder automatically. Create a schedule (recipient '
+                . 'audiences, format, recurrence, start time, view-as, empty-report policy, subject, message), change it, '
+                . 'enable, disable or send it now.',
             'is' => 'When and to whom a report is sent.',
             'not' => 'Who may open it (set_report_audience); its columns (update_report); its current schedules '
                 . '(get_report_details).',
