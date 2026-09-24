@@ -478,48 +478,57 @@ class preflight_pipeline {
             try {
                 $operatingcontextid = $operatingresolver->resolve($skill, $input, $ambient, $userid)->id();
             } catch (context_target_unresolved_exception $e) {
-                // An opted-in skill named (or implied) a target that could not be resolved uniquely
-                // (ambiguous / not found / unsupported) → surface as a clarification. For an
-                // ambiguous outcome we list the candidates so the user can pick instead of being told
-                // a bare "could not resolve" — the resolution carries them.
-                $issuecodes[] = 'CONTEXT_TARGET_UNRESOLVED';
-                $resolution = $e->get_resolution();
-                $candidates = $resolution->candidates();
-                if ($resolution->status() === context_target_resolution::STATUS_AMBIGUOUS && !empty($candidates)) {
-                    $message = self::ambiguous_target_message($candidates);
-                } else if ($resolution->status() === context_target_resolution::STATUS_NOT_FOUND) {
-                    // Level-aware wording (C2): a COURSE-level target miss must talk about the
-                    // missing course, not about an activity — telling a user who asked about a
-                    // course to open an activity sends the repair down the wrong path.
-                    $iscourselevel = method_exists($skill, 'get_target_context_level')
-                        && (int)$skill->get_target_context_level() === CONTEXT_COURSE;
-                    $message = get_string(
-                        $iscourselevel ? 'agent_target_not_found_course' : 'agent_target_not_found',
-                        'bookingextension_agent'
-                    );
+                if ($skill->is_read_only()) {
+                    // Read-only never blocks on its operating context (thread 515, ch. 09 §2): an unknown or
+                    // unnamed target falls back to the ambient context and the skill's own guards speak. The
+                    // genuinely ambiguous NAMED target is clarified one step earlier by the decision service
+                    // (gate_readonly_ambiguous_targets). Since wave 25 read-only commands pass this pipeline
+                    // too, so the rule lives here and holds for the chat and the MCP channel alike.
+                    $operatingcontextid = $ambient->id();
                 } else {
-                    $message = $e->getMessage();
+                    // An opted-in skill named (or implied) a target that could not be resolved uniquely
+                    // (ambiguous / not found / unsupported) → surface as a clarification. For an
+                    // ambiguous outcome we list the candidates so the user can pick instead of being told
+                    // a bare "could not resolve" — the resolution carries them.
+                    $issuecodes[] = 'CONTEXT_TARGET_UNRESOLVED';
+                    $resolution = $e->get_resolution();
+                    $candidates = $resolution->candidates();
+                    if ($resolution->status() === context_target_resolution::STATUS_AMBIGUOUS && !empty($candidates)) {
+                        $message = self::ambiguous_target_message($candidates);
+                    } else if ($resolution->status() === context_target_resolution::STATUS_NOT_FOUND) {
+                        // Level-aware wording (C2): a COURSE-level target miss must talk about the
+                        // missing course, not about an activity — telling a user who asked about a
+                        // course to open an activity sends the repair down the wrong path.
+                        $iscourselevel = method_exists($skill, 'get_target_context_level')
+                            && (int)$skill->get_target_context_level() === CONTEXT_COURSE;
+                        $message = get_string(
+                            $iscourselevel ? 'agent_target_not_found_course' : 'agent_target_not_found',
+                            'bookingextension_agent'
+                        );
+                    } else {
+                        $message = $e->getMessage();
+                    }
+                    // R2 enrichment (#2226): when the unresolvable target request carried a
+                    // low-confidence anon token, name the concrete word — the user then learns
+                    // WHY the target may have gone missing (the word doubled as a person name)
+                    // and can answer precisely. No extra LLM call: this clarification happens anyway.
+                    // The text carries the TOKEN (LLM input); the display resolves it (HARD RULE 2026-09-11).
+                    foreach ($rawsuspectrefs as $suspectref) {
+                        $message .= "\n" . get_string(
+                            'agent_anon_collision_word_hint',
+                            'bookingextension_agent',
+                            (string)($suspectref['token'] ?? '')
+                        );
+                        break;
+                    }
+                    $errors[] = $label . ': ' . $message;
+                    $issues[] = [
+                        'code'     => 'CONTEXT_TARGET_UNRESOLVED',
+                        'severity' => 'needs_clarification',
+                        'message'  => $message,
+                    ];
+                    continue;
                 }
-                // R2 enrichment (#2226): when the unresolvable target request carried a
-                // low-confidence anon token, name the concrete word — the user then learns
-                // WHY the target may have gone missing (the word doubled as a person name)
-                // and can answer precisely. No extra LLM call: this clarification happens anyway.
-                // The text carries the TOKEN (LLM input); the display resolves it (HARD RULE 2026-09-11).
-                foreach ($rawsuspectrefs as $suspectref) {
-                    $message .= "\n" . get_string(
-                        'agent_anon_collision_word_hint',
-                        'bookingextension_agent',
-                        (string)($suspectref['token'] ?? '')
-                    );
-                    break;
-                }
-                $errors[] = $label . ': ' . $message;
-                $issues[] = [
-                    'code'     => 'CONTEXT_TARGET_UNRESOLVED',
-                    'severity' => 'needs_clarification',
-                    'message'  => $message,
-                ];
-                continue;
             }
 
             // Gate 2 (central): the user must natively hold the skill's declared capabilities at the

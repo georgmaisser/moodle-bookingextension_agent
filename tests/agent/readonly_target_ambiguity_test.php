@@ -151,7 +151,11 @@ final class readonly_target_ambiguity_test extends advanced_testcase {
         [$decision, $threadid] = $this->decide(['query' => 'Dup Booking']);
 
         $this->assertNotContains('CONTEXT_TARGET_UNRESOLVED', (array)($decision['issue_codes'] ?? []));
-        $this->assertSame(1, $this->run_count($threadid));
+        // Wave 25: read-only commands pass their skill's preflight first. At the system context the
+        // skill's own no-instance guard asks BEFORE execution (it used to answer the same sentence as an
+        // execution error after a run). The engine still never blocks on the target.
+        $this->assertSame(0, $this->run_count($threadid));
+        $this->assertSame('clarification', (string)($decision['response_type'] ?? ''), json_encode($decision));
     }
 
     /**
@@ -171,7 +175,10 @@ final class readonly_target_ambiguity_test extends advanced_testcase {
         [$decision, $threadid] = $this->decide(['activityquery' => 'No such activity']);
 
         $this->assertNotContains('CONTEXT_TARGET_UNRESOLVED', (array)($decision['issue_codes'] ?? []));
-        $this->assertSame(1, $this->run_count($threadid));
+        // Wave 25: the ambient (system) context has no booking instance, so the skill's own preflight
+        // guard asks instead of the engine blocking on the unknown target; nothing runs.
+        $this->assertSame(0, $this->run_count($threadid));
+        $this->assertSame('clarification', (string)($decision['response_type'] ?? ''), json_encode($decision));
     }
 
     /**

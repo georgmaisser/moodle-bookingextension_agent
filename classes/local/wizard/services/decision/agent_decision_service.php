@@ -775,6 +775,19 @@ class agent_decision_service {
         }
 
         if (!empty($readonlycommands)) {
+            $preflighted = $this->preflight_readonly_commands(
+                $readonlycommands,
+                $readonlyqueueids,
+                $threadid,
+                $contextid,
+                $userid,
+                $outputlang,
+                $result
+            );
+            if (($preflighted['clarification'] ?? null) !== null) {
+                return $preflighted['clarification'];
+            }
+            $readonlycommands = $preflighted['commands'];
             $readonlyexecution = $this->execute_readonly_commands(
                 $readonlycommands,
                 $readonlyqueueids,
@@ -1401,6 +1414,95 @@ class agent_decision_service {
             ];
         }
         return null;
+    }
+
+    /**
+     * Read-only commands pass their skill's preflight before they execute (F20).
+     *
+     * Until wave 25 the R0 path executed the planner's raw input: skills that resolve their targets in
+     * run_preflight() - as the developer guide asks - had to resolve again in execute() and, when nothing
+     * matched, ended as an execution error ("No user matches ...", "No message template name contains ...":
+     * 22 honest errors in baseline runs 25-32) although a clarification with candidates and an issue code
+     * had been available one layer earlier. The same pipeline as for mutating commands runs here: a
+     * clarification issue ends the turn as a clarification and nothing runs; a pass hands execute() the
+     * prepared input. Anything else (no issues, unknown status) executes as before.
+     *
+     * @param array $readonlycommands
+     * @param array $readonlyqueueids
+     * @param int $threadid
+     * @param int $contextid
+     * @param int $userid
+     * @param string $outputlang
+     * @param array $result
+     * @return array{commands:array,clarification:?array}
+     */
+    private function preflight_readonly_commands(
+        array $readonlycommands,
+        array $readonlyqueueids,
+        int $threadid,
+        int $contextid,
+        int $userid,
+        string $outputlang,
+        array $result
+    ): array {
+        $preflightresult = $this->with_output_language(
+            $outputlang,
+            fn() => $this->preflightpipeline->run($readonlycommands, $threadid, $contextid, $userid)
+        );
+        $issues = array_values(array_filter((array)($preflightresult['issues'] ?? []), 'is_array'));
+        $clarificationissues = array_values(array_filter(
+            $issues,
+            static fn(array $issue): bool => trim((string)($issue['severity'] ?? '')) === 'needs_clarification'
+        ));
+        if (empty($clarificationissues)) {
+            $prepared = array_values(array_filter((array)($preflightresult['prepared_commands'] ?? []), 'is_array'));
+            $status = trim((string)($preflightresult['status'] ?? ''));
+            return [
+                'commands' => ($status === 'pass' && count($prepared) === count($readonlycommands))
+                    ? $prepared
+                    : $readonlycommands,
+                'clarification' => null,
+            ];
+        }
+
+        $issuecodes = array_values(array_unique(array_merge(
+            array_map('strval', (array)($result['issue_codes'] ?? [])),
+            array_map('strval', (array)($preflightresult['issue_codes'] ?? []))
+        )));
+        $errors = array_values(array_unique(array_map('strval', (array)($preflightresult['errors'] ?? []))));
+        $message = $this->compose_user_cause_from_issues($clarificationissues, $errors);
+        foreach ($readonlyqueueids as $queueitemid) {
+            $queueitemid = trim((string)$queueitemid);
+            if ($queueitemid === '') {
+                continue;
+            }
+            $this->queuetransitionsvc->to_failed(
+                $this->queuesvc,
+                $threadid,
+                $queueitemid,
+                'READONLY_PREFLIGHT_CLARIFICATION',
+                $issuecodes,
+                'preflight_block',
+                $message
+            );
+        }
+
+        return [
+            'commands' => $readonlycommands,
+            'clarification' => [
+                'response_type'    => 'clarification',
+                'message'          => $message,
+                'commands'         => [],
+                'queue_item_ids'   => [],
+                'ambiguities'      => [],
+                'errors'           => $errors,
+                'attempted_skills' => array_values(array_unique(array_map(
+                    'strval',
+                    (array)($preflightresult['attempted_skills'] ?? [])
+                ))),
+                'issue_codes'      => $issuecodes,
+            ],
+        ];
     }
 
     /**
