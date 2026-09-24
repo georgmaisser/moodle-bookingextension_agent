@@ -73,6 +73,34 @@ final class create_course_skill_test extends advanced_testcase {
     }
 
     /**
+     * A course that already exists is the first thing to ask about - before any category question.
+     *
+     * Baseline runs 25-32, SCC-4: "Mach aus 'Winter School 2027' ... einen fertigen Kurs" reached
+     * create_course, which asked which of five categories to use while a course of exactly that name
+     * existed; the decisive fact (fill the existing course, or really create a second one?) came second.
+     */
+    public function test_an_existing_course_is_asked_about_before_the_category(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        global $USER;
+
+        $gen = $this->getDataGenerator();
+        $gen->create_category(['name' => 'Wikingerkategorie']);
+        $gen->create_category(['name' => 'Segelkategorie']);
+        $gen->create_course(['fullname' => 'Winter School 2027']);
+
+        $result = (new create_course_skill())->preflight(
+            ['fullname' => 'Winter School 2027'],
+            (int)context_system::instance()->id,
+            (int)$USER->id
+        )->to_array();
+
+        $codes = (array)($result['issue_codes'] ?? []);
+        $this->assertContains('DUPLICATE_COURSE_FULLNAME_CONFIRM_REQUIRED', $codes, json_encode($result));
+        $this->assertNotContains('CREATE_COURSE_CATEGORY_REQUIRED', $codes, 'the category is not the question here');
+    }
+
+    /**
      * A named category resolves silently when unambiguous; execute creates the course in it
      * and reports courseid + link material in the observation.
      */

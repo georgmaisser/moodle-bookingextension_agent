@@ -277,14 +277,10 @@ class create_course_skill extends core_skill_base implements
             return $this->clarify('What should the course be called?', 'CREATE_COURSE_NAME_REQUIRED');
         }
 
-        $category = $this->resolve_category(trim((string)($input['categoryquery'] ?? '')), $userid);
-        if (isset($category['clarify'])) {
-            return $category['clarify'];
-        }
-        $categoryid = (int)$category['id'];
-        $categoryname = (string)$category['name'];
-
-        // Duplicate full name is legal in Moodle but usually an accident — soft-block once.
+        // Duplicate full name is legal in Moodle but usually an accident — soft-block once, and BEFORE the
+        // category question: baseline runs 25-32, SCC-4 ("make a finished course out of 'Winter School 2027'")
+        // was asked which of five categories to use while the course existed. Whether to fill it or really
+        // create a second one is the decisive question; the category is not.
         $overrides = array_map('strval', is_array($input['override'] ?? null) ? $input['override'] : []);
         if (
             !in_array('duplicate_fullname', $overrides, true)
@@ -298,6 +294,13 @@ class create_course_skill extends core_skill_base implements
                 'remedy_options' => ['CONFIRM_CREATE_WITH_DUPLICATE_FULLNAME', 'USE_EXISTING_COURSE'],
             ]]);
         }
+
+        $category = $this->resolve_category(trim((string)($input['categoryquery'] ?? '')), $userid);
+        if (isset($category['clarify'])) {
+            return $category['clarify'];
+        }
+        $categoryid = (int)$category['id'];
+        $categoryname = (string)$category['name'];
 
         $shortname = trim((string)($input['shortname'] ?? ''));
         if ($shortname !== '' && $DB->record_exists('course', ['shortname' => $shortname])) {

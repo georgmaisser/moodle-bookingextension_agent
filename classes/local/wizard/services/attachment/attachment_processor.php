@@ -98,6 +98,10 @@ class attachment_processor {
             return $message;
         }
 
-        return implode("\n\n", $prefixes) . "\n\n" . $message;
+        // The request is the instruction, the attachment is material: material follows the request.
+        // Baseline runs 25-32, AQ-1: with the document first, the selector had read the script before it
+        // saw "a test with 15 questions from it" and chose the skill that generates questions from a
+        // document instead of the one that creates the quiz. Consumers find the blocks by their markers.
+        return $message . "\n\n" . implode("\n\n", $prefixes);
     }
 }
