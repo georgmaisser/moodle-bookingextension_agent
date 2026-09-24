@@ -36,7 +36,7 @@ use bookingextension_agent\local\wizard\interfaces\skill_interface;
  */
 class skill_contract_validator {
     /** Reserved namespaces owned by bookingextension_agent. */
-    public const RESERVED_NAMESPACES = ['booking', 'core', 'wizard'];
+    public const RESERVED_NAMESPACES = ['booking', 'core', 'report', 'wizard'];
 
     /** Deny reason: skill was not registered. */
     public const DENY_NOT_REGISTERED = 'not_registered';

@@ -41,12 +41,16 @@ use bookingextension_agent\local\wizard\conversation_store;
  *                                         // the client injects html + runs js via core/templates
  *     'js_module' => 'mod_x/preview',    // optional AMD module name for client-side rendering
  *     'payload'   => [ … ],              // optional data handed to the js_module
+ *     'replace'   => true,               // optional: this block shows the CURRENT STATE of one object and
+ *                                         // supersedes the accumulated same-type block instead of being
+ *                                         // appended to it (e.g. a report re-rendered after each edit)
  *   ]
  *
  * This service never calls into skills and never renders anything: it only collects the precomputed
  * 'preview' blocks from the results and, across a multi-step confirm chain, concatenates HTML of the
- * same type. Because the block is computed before result sanitization (in the executor), previews no
- * longer depend on any per-skill result field surviving the sanitizer's whitelist.
+ * same type (unless the new block sets 'replace'). Because the block is computed before result
+ * sanitization (in the executor), previews no longer depend on any per-skill result field surviving
+ * the sanitizer's whitelist.
  *
  * Besides the executed-result path (source A; source B is proposed_action_preview) this service
  * also carries the CLARIFICATION preview channel (source C): a skill's preflight issue may ship
@@ -271,11 +275,20 @@ class preview_passthrough {
      * Type-agnostic: for HTML-based previews of the same type, the new HTML is appended to the
      * accumulated HTML so a multi-step chain shows every affected item.
      *
+     * A block carrying `replace => true` is a state preview: it renders the current state of one
+     * object (the same object the chain keeps editing), so appending would show stale copies. Such
+     * a block supersedes the accumulator as a whole (HTML, JS and payload). The flag is per block:
+     * a later block without it accumulates again on top of the replaced state.
+     *
      * @param array $accumulated
      * @param array $preview
      * @return array
      */
     private static function merge_with_accumulated(array $accumulated, array $preview): array {
+        if (!empty($preview['replace'])) {
+            return $preview;
+        }
+
         $sametype = isset($accumulated['type'], $preview['type'])
             && (string)$accumulated['type'] === (string)$preview['type'];
         if (!$sametype) {

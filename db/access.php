@@ -146,6 +146,19 @@ $managerskills = [
     // moodle/course:create at the resolved category). Declared at CONTEXT_SYSTEM because the
     // category is resolved in preflight, not from the thread context.
     'course_create_course' => CONTEXT_SYSTEM,
+    // Moodle Report Builder family (report.*): custom reports live in the system context and
+    // core grants moodle/reportbuilder:view/edit to managers only, so the skill capabilities
+    // mirror that (fail-closed; Gate 2 additionally requires the native reportbuilder
+    // capabilities and core_reportbuilder\permission checks for the acting user).
+    'report_create_report' => CONTEXT_SYSTEM,
+    'report_describe_report_source' => CONTEXT_SYSTEM,
+    'report_get_report_details' => CONTEXT_SYSTEM,
+    'report_list_report_sources' => CONTEXT_SYSTEM,
+    'report_query_report' => CONTEXT_SYSTEM,
+    'report_schedule_report' => CONTEXT_SYSTEM,
+    'report_search_reports' => CONTEXT_SYSTEM,
+    'report_set_report_audience' => CONTEXT_SYSTEM,
+    'report_update_report' => CONTEXT_SYSTEM,
     // Rebuilds the site-global skill-catalog embeddings (cost-bearing) — manager/admin only,
     // not teacher-grantable (audit CAP-03). Execution additionally requires moodle/site:config
     // via the skill's native capability (Gate 2).
