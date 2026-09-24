@@ -75,10 +75,11 @@ Both are preview-capable (`get_result_preview`).
 | `report.list_report_sources` | R0 | ✓ | List the datasources the Report Builder offers here: identifier, name, plugin, entities, counts | `component`, `include_entities`, `limit` |
 | `report.describe_report_source` | R0 | ✓ | Columns, filters and conditions of one source with exact identifiers, types, aggregations and operator enums | `source`, `section`, `entity` |
 | `report.search_reports` | R0 | ✓ | Existing custom reports the user may view or edit (id, name, source, audiences, schedules, links); hidden reports are counted, not listed | `reportquery`, `source`, `editable_only`, `mine_only` |
-| `report.get_report_details` | R0 | ✓ | One report as stored: columns with aggregation/sorting, conditions with values, filters, audiences, schedules, row count; live report view in the side panel | `reportid` or `reportquery`, `include_row_count` |
+| `report.get_report_details` | R0 | ✓ | One report as stored: columns with aggregation/sorting, conditions with values, filters, audiences (covered users as counts), schedules, row count; optional delivery diagnosis for a named person (audience membership, schedule state, account state, as facts); live report view in the side panel | `reportid` or `reportquery`, `include_row_count`, `diagnose_userquery` |
 | `report.create_report` | **R2** | ✗ | Create a custom report: name, source, optional columns (heading, aggregation, sort), conditions with values, filters, unique rows, tags; source defaults when no columns are given; confirmable on a duplicate name | `name`, `source`, `columns`, `conditions`, `filters`, `override` |
 | `report.update_report` | **R2** | ✗ | Change a report: add/remove/replace columns, heading, aggregation, sorting, position; conditions with values; filters; rename; unique rows | `reportid` or `reportquery`, `add_columns`, `set_columns`, `add_conditions`, … |
 | `report.set_report_audience` | **R2** | ✗ | Add or remove an audience of any registered type (all users, admins, system role, cohort, named persons, plugin types); persons resolved by id/address/single name, reported as a count only | `reportid` or `reportquery`, `action`, `audience_type`, `roles`, `cohorts`, `userqueries`, `audienceid` |
+| `report.schedule_report` | **R2** | ✗ | Create, change, enable, disable or send now a schedule: recipient audiences, format (enabled dataformats), recurrence, start time (ISO 8601), view-as, empty-report policy, subject, message | `reportid` or `reportquery`, `action`, `scheduleid`, `format`, `recurrence`, `starttime`, `viewas`, `if_empty` |
 
 All run in the system context and decide access like core (`core_reportbuilder\permission`): the
 discovery and authoring skills require the authoring capabilities (`moodle/reportbuilder:edit` or
@@ -89,7 +90,8 @@ render-time JS (`replace` preview, paging/sorting/filters work in the panel). Ev
 input problem (unknown source, report, column, condition, filter, operator, aggregation) is a
 clarification with the alternatives as options; the authoring skills validate the whole definition
 against the datasource in preflight (`report_definition_service`, `filter_value_codec`) and write
-in one transaction. The schedule skill follows in a later work package of Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
+in one transaction. `report.query_report` (row count of a report, rows only in the panel) follows in the last work package of
+Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
 
 ---
 

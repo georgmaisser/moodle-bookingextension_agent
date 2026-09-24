@@ -320,11 +320,14 @@ final class filter_value_codec {
     /**
      * A Unix timestamp from an integer or an ISO 8601 date/date-time in the user's time zone.
      *
+     * Shared by the condition codec and the schedule service; nothing else is accepted (no
+     * natural-language dates).
+     *
      * @param mixed $value
      * @param int $userid
      * @return int|null
      */
-    private function timestamp($value, int $userid): ?int {
+    public static function timestamp($value, int $userid): ?int {
         if (is_int($value) || (is_string($value) && ctype_digit($value))) {
             return (int)$value;
         }

@@ -18,9 +18,12 @@ namespace bookingextension_agent\local\wizard\report\skills;
 
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
+use bookingextension_agent\local\wizard\services\reportbuilder\audience_service;
 use bookingextension_agent\local\wizard\services\reportbuilder\report_definition_service;
 use bookingextension_agent\local\wizard\services\reportbuilder\report_preview_renderer;
+use bookingextension_agent\local\wizard\services\reportbuilder\schedule_service;
 use core_reportbuilder\local\models\report;
+use core_reportbuilder\local\models\schedule as schedule_model;
 
 /**
  * Skill report.get_report_details: one existing custom report as it is configured.
@@ -65,8 +68,8 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
                 . 'with aggregation and sorting, conditions with their values, filters, audiences (who may see it), schedules '
                 . '(when it is sent) and the row count. Read-only.',
             'is' => 'The configuration and visibility of one existing report.',
-            'not' => 'Finding a report by name (search_reports); a source (describe_report_source); changing who sees it '
-                . '(set_report_audience).',
+            'not' => 'Finding a report (search_reports); a source (describe_report_source); changing who sees it '
+                . '(set_report_audience) or its sending (schedule_report).',
             'readonly' => true,
             'fallback_skillcall_string_key' => 'ai_status_skillcall_report_get_report_details',
             'example_utterances' => [
@@ -92,6 +95,12 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
                 'include_row_count' => [
                     'type' => 'boolean',
                     'description' => 'Whether to count the rows the report currently returns (default true).',
+                    'required' => false,
+                ],
+                'diagnose_userquery' => [
+                    'type' => 'string',
+                    'description' => 'Optional: a person (name, e-mail or id exactly as the user wrote it) whose delivery of '
+                        . 'the scheduled report should be diagnosed: audience membership, schedule state, account state.',
                     'required' => false,
                 ],
                 'outputlang' => [
@@ -131,6 +140,15 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
                     . 'or how many rows it has.',
             ],
         ];
+    }
+
+    /**
+     * The delivery diagnosis names a person.
+     *
+     * @return string[]
+     */
+    public function get_person_reference_fields(): array {
+        return ['diagnose_userquery'];
     }
 
     /**
@@ -206,6 +224,41 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
         $withrows = !array_key_exists('include_row_count', $input) || !empty($input['include_row_count']);
         $snapshot = (new report_definition_service($this->resolver(), $this->catalog()))->snapshot($persistent, $userid, $withrows);
 
+        // Delivery diagnosis for a named person: deterministic facts, no interpretation.
+        $diagnosis = null;
+        $diagnosequery = trim((string)($input['diagnose_userquery'] ?? ''));
+        if ($diagnosequery !== '') {
+            $persons = (new audience_service())->resolve_users([$diagnosequery], $userid);
+            if ($persons['problem'] !== null) {
+                $kind = (string)$persons['problem']['kind'];
+                $message = $this->localized_string($kind === audience_service::PROBLEM_USER_AMBIGUOUS
+                    ? 'agent_report_clarify_user_ambiguous' : 'agent_report_clarify_user_not_found', $diagnosequery, $lang);
+                $observation = $message;
+                foreach ((array)($persons['problem']['options'] ?? []) as $option) {
+                    $observation .= "\n- " . $option['label'] . ' (id ' . $option['id'] . ')';
+                }
+                return [
+                    'status' => 'error',
+                    'detail' => $message,
+                    'usermessage' => $message,
+                    'resultid' => null,
+                    'observation_full' => $observation,
+                    'debugmessage' => $debugbase . "\nUnresolved person for diagnosis",
+                ];
+            }
+            $personid = (int)$persons['ids'][0];
+            $service = new schedule_service();
+            $diagnosis = ['userid' => $personid, 'schedules' => []];
+            foreach (schedule_model::get_records(['reportid' => (int)$persistent->get('id')], 'id') as $schedule) {
+                $diagnosis['schedules'][] = $service->diagnose($schedule, $personid);
+            }
+            $diagnosis['user_in_report_audiences'] = (new audience_service())->covers_user(
+                \core_reportbuilder\local\models\audience::get_records(['reportid' => (int)$persistent->get('id')]),
+                $personid
+            );
+            $diagnosis['user_can_view_report'] = \core_reportbuilder\permission::can_view_report($persistent, $personid);
+        }
+
         $usermessage = $this->localized_string('agent_report_details_summary', (object)[
             'name' => $snapshot['name'],
             'columns' => count($snapshot['columns']),
@@ -221,7 +274,9 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
             'usermessage' => $usermessage,
             'resultid' => (int)$snapshot['id'],
             'report' => $snapshot,
-            'observation_full' => $this->build_observation($snapshot, $usermessage),
+            'diagnosis' => $diagnosis,
+            'observation_full' => $this->build_observation($snapshot, $usermessage)
+                . ($diagnosis !== null ? "\n" . $this->build_diagnosis_observation($diagnosis) : ''),
             'debugmessage' => $debugbase . "\nReport: " . $snapshot['id'],
         ];
     }
@@ -245,6 +300,43 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
             return null;
         }
         return (new report_preview_renderer())->build($persistent, $userid, $snapshot);
+    }
+
+    /**
+     * Delivery facts for one person as observation lines (the person appears as an id only).
+     *
+     * @param array $diagnosis
+     * @return string
+     */
+    private function build_diagnosis_observation(array $diagnosis): string {
+        $lines = ['DELIVERY DIAGNOSIS for user id ' . (int)$diagnosis['userid'] . ':'];
+        $lines[] = '- in a report audience: ' . ($diagnosis['user_in_report_audiences'] ? 'yes' : 'no')
+            . ' | may view the report: ' . ($diagnosis['user_can_view_report'] ? 'yes' : 'no');
+        if (empty($diagnosis['schedules'])) {
+            $lines[] = '- the report has no schedule: nothing is sent automatically';
+        }
+        foreach ($diagnosis['schedules'] as $facts) {
+            $lines[] = '- schedule id ' . $facts['scheduleid']
+                . ' | enabled: ' . ($facts['schedule_enabled'] ? 'yes' : 'no')
+                . ' | recurrence: ' . $facts['recurrence']
+                . ' | start: ' . ($facts['timescheduled'] > 0 ? userdate($facts['timescheduled']) : '-')
+                . ' | next: ' . ($facts['timenextsend'] > 0 ? userdate($facts['timenextsend']) : '-')
+                . ' | last: ' . ($facts['timelastsent'] > 0 ? userdate($facts['timelastsent']) : '-')
+                . ' | due now: ' . ($facts['should_send_now'] ? 'yes' : 'no')
+                . ' | person in schedule audiences: ' . ($facts['user_in_schedule_audiences'] ? 'yes' : 'no')
+                . ' | account: ' . ($facts['user_exists'] ? 'exists' : 'missing')
+                . ($facts['user_suspended'] ? ', suspended' : '')
+                . ($facts['user_confirmed'] ? '' : ', unconfirmed')
+                . ($facts['user_has_email'] ? '' : ', no e-mail')
+                . ($facts['user_emailstop'] ? ', e-mail disabled' : '')
+                . ' | view as: ' . $facts['viewas']
+                . ' | if empty: ' . ($facts['if_empty'] !== '' ? $facts['if_empty'] : 'send_empty')
+                . ' | rows: ' . ($facts['report_rowcount'] ?? '-')
+                . ($facts['would_skip_empty'] ? ' | would be skipped (empty report)' : '')
+                . (!empty($facts['schedule_audiences_missing'])
+                    ? ' | schedule refers to deleted audiences: ' . implode(',', $facts['schedule_audiences_missing']) : '');
+        }
+        return implode("\n", $lines);
     }
 
     /**

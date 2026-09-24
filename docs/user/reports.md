@@ -77,6 +77,29 @@ Example requests:
 
 The assistant shows the planned change and waits for your confirmation. Afterwards it tells you how many people each audience covers.
 
+## Sending a report on a schedule
+
+Once a report has an audience, the assistant can send it to those people automatically: choose how often, from when, and in which file format. You can also pause, resume or change a schedule, or have the report sent right away.
+
+Example requests:
+
+- "Send the completion report every Monday as an Excel file."
+- "E-mail that report to its audience once a month, starting on the first of next month."
+- "Do not send the report when it is empty."
+- "Pause the weekly report schedule."
+- "Send the report now."
+
+The assistant shows the planned schedule and waits for your confirmation. A report without an audience cannot be scheduled; the assistant asks you to set one first.
+
+## Why someone does not receive a report
+
+Ask the assistant about a specific person and it checks the facts: whether the person is in the report's audience and in the schedule's recipients, whether the schedule is active and when it sends next, and whether the account can receive e-mail.
+
+Example requests:
+
+- "Why does Maria not get the weekly report?"
+- "Is anna@example.com among the recipients of the completion report?"
+
 ## Listing the report sources
 
 Ask for the sources in general, or for those of one plugin.

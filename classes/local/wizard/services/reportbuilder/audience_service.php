@@ -229,6 +229,31 @@ final class audience_service {
     }
 
     /**
+     * Whether a user is covered by the given audiences (any of them).
+     *
+     * @param audience_model[] $models
+     * @param int $userid
+     * @return bool
+     */
+    public function covers_user(array $models, int $userid): bool {
+        global $DB;
+        if (empty($models)) {
+            return false;
+        }
+        try {
+            [$wheres, $params] = audience_helper::user_audience_sql($models);
+            if (empty($wheres)) {
+                return false;
+            }
+            $params['bxagentuid'] = $userid;
+            $sql = 'SELECT u.id FROM {user} u WHERE (' . implode(' OR ', $wheres) . ') AND u.deleted = 0 AND u.id = :bxagentuid';
+            return $DB->record_exists_sql($sql, $params);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * Number of (non-deleted) users an audience currently covers.
      *
      * @param audience_model $model
@@ -376,7 +401,7 @@ final class audience_service {
      * @param int $actorid
      * @return array{ids: int[], problem: array|null}
      */
-    private function resolve_users(array $references, int $actorid): array {
+    public function resolve_users(array $references, int $actorid): array {
         global $CFG;
         require_once($CFG->libdir . '/datalib.php');
         require_once($CFG->libdir . '/enrollib.php');
