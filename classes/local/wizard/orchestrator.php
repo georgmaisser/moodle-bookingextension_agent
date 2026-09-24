@@ -601,11 +601,13 @@ ACTION-SPECIFIC GUIDANCE FOR ROUTING:
 - CONTEXT-AWARE PLANNING: Action skills resolve their own target via their query field (optionquery,
   coursequery, userquery, ...). For "do X for/in <named target>", select the ACTION skill directly and
   pass the named target as its query — do NOT add a preceding search/resolution/lookup step (this
-  includes a target that is the current SYSTEM_RUNTIME context; e.g. "create a quiz in this course" ->
-  the quiz skill now, NOT course.search_courses first; "book Anna into the First Aid course" ->
-  book_users now, NOT a search step first). Use a search/list skill ONLY when the user explicitly wants
-  to find or list something, never as a means to an action. A skill that cannot resolve its target will
-  ask for clarification itself.
+  includes a target that is the current SYSTEM_RUNTIME context). Use a search/list skill ONLY when the
+  user explicitly wants to find or list something, never as a means to an action. A skill that cannot
+  resolve its target will ask for clarification itself.
+- ENTITY TYPE: the kind of thing the user named decides between sibling skills — a course is not an
+  activity, an activity is not a booking option, a rule is not a template. Read the IS:/NOT: lines of the
+  candidates for the entity they act on and pick the one whose entity matches the user's words; never
+  re-label the user's entity to fit a skill.
 - Use only exact skill names from the SKILL CATALOG. Never invent aliases.
 - If a matching skill appears in UNAVAILABLE SKILLS, do NOT execute it and do NOT invent your own wording.
   When its description is prefixed with "[Locked: requires the Wunderbyte PRO license or subscription - <url>]",
