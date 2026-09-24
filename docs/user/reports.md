@@ -91,6 +91,19 @@ Example requests:
 
 The assistant shows the planned schedule and waits for your confirmation. A report without an audience cannot be scheduled; the assistant asks you to set one first.
 
+## Counting and looking at the data
+
+Ask how many rows a report returns, with or without filter values. The assistant tells you the number and the columns, and shows the report itself, with its rows, in the side panel. The rows are never part of the assistant's answer.
+
+Example requests:
+
+- "How many rows does the completion report have?"
+- "How many people are in the radiation protection report?"
+- "Run the users report filtered to suspended accounts."
+- "Show me the enrolment report."
+
+Filter values you ask for are applied to your own view of the report, exactly as if you had set them in the report's filter bar.
+
 ## Why someone does not receive a report
 
 Ask the assistant about a specific person and it checks the facts: whether the person is in the report's audience and in the schedule's recipients, whether the schedule is active and when it sends next, and whether the account can receive e-mail.

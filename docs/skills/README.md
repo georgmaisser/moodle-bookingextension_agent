@@ -75,6 +75,7 @@ Both are preview-capable (`get_result_preview`).
 | `report.list_report_sources` | R0 | ✓ | List the datasources the Report Builder offers here: identifier, name, plugin, entities, counts | `component`, `include_entities`, `limit` |
 | `report.describe_report_source` | R0 | ✓ | Columns, filters and conditions of one source with exact identifiers, types, aggregations and operator enums | `source`, `section`, `entity` |
 | `report.search_reports` | R0 | ✓ | Existing custom reports the user may view or edit (id, name, source, audiences, schedules, links); hidden reports are counted, not listed | `reportquery`, `source`, `editable_only`, `mine_only` |
+| `report.query_report` | R0 | ✓ | Row count of a report, optionally with filter values (stored as the user's own filter values, as the report view does); the observation carries count, headers and filters only, the rows are shown in the side panel | `reportid` or `reportquery`, `filters` |
 | `report.get_report_details` | R0 | ✓ | One report as stored: columns with aggregation/sorting, conditions with values, filters, audiences (covered users as counts), schedules, row count; optional delivery diagnosis for a named person (audience membership, schedule state, account state, as facts); live report view in the side panel | `reportid` or `reportquery`, `include_row_count`, `diagnose_userquery` |
 | `report.create_report` | **R2** | ✗ | Create a custom report: name, source, optional columns (heading, aggregation, sort), conditions with values, filters, unique rows, tags; source defaults when no columns are given; confirmable on a duplicate name | `name`, `source`, `columns`, `conditions`, `filters`, `override` |
 | `report.update_report` | **R2** | ✗ | Change a report: add/remove/replace columns, heading, aggregation, sorting, position; conditions with values; filters; rename; unique rows | `reportid` or `reportquery`, `add_columns`, `set_columns`, `add_conditions`, … |
@@ -90,8 +91,8 @@ render-time JS (`replace` preview, paging/sorting/filters work in the panel). Ev
 input problem (unknown source, report, column, condition, filter, operator, aggregation) is a
 clarification with the alternatives as options; the authoring skills validate the whole definition
 against the datasource in preflight (`report_definition_service`, `filter_value_codec`) and write
-in one transaction. `report.query_report` (row count of a report, rows only in the panel) follows in the last work package of
-Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
+in one transaction. Report rows never reach the language model: `report.query_report` returns the count, the headers and the
+filters, and the rows appear in the side panel only (decision D9 of Wunderbyte-GmbH/Wunderbyte-GmbH#2471).
 
 ---
 

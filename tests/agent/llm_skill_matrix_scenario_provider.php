@@ -468,6 +468,18 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'report.query_report' => [
+                'prompt' => 'How many rows does the custom report "Smoke users" currently return?',
+                // The phpunit site has no such report: an honest miss with candidates is a correct outcome.
+                'allow_direct_answer' => true,
+                'assertions' => [
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'examples.multistep_example' => [
                 'prompt' => 'Ich brauche Hilfe bei folgendem Vorhaben: "{{example_objective}}". '
                     . 'Bitte gehe dabei in diesen Schritten vor: '

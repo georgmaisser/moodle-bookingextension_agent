@@ -68,7 +68,7 @@ class search_reports_skill extends report_skill_base implements skill_trigger_pr
                 . 'editable or only own reports. Read-only.',
             'is' => 'Reports that already exist, by name or source.',
             'not' => 'The data sets a report can be built on (list_report_sources); the contents of one report '
-                . '(get_report_details).',
+                . '(get_report_details); its row count (query_report).',
             'readonly' => true,
             'fallback_skillcall_string_key' => 'ai_status_skillcall_report_search_reports',
             'example_utterances' => [

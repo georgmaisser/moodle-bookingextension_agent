@@ -68,8 +68,8 @@ class get_report_details_skill extends report_skill_base implements skill_trigge
                 . 'with aggregation and sorting, conditions with their values, filters, audiences (who may see it), schedules '
                 . '(when it is sent) and the row count. Read-only.',
             'is' => 'The configuration and visibility of one existing report.',
-            'not' => 'Finding a report (search_reports); a source (describe_report_source); changing who sees it '
-                . '(set_report_audience) or its sending (schedule_report).',
+            'not' => 'A report by name (search_reports); a source (describe_report_source); who sees it '
+                . '(set_report_audience); sending (schedule_report); row counts (query_report).',
             'readonly' => true,
             'fallback_skillcall_string_key' => 'ai_status_skillcall_report_get_report_details',
             'example_utterances' => [
