@@ -71,12 +71,13 @@ final class target_query_normalizer {
      * for the caller's ambiguity question; nothing matches → empty.
      *
      * @param string $query The whole query as the planner sent it.
-     * @param callable $search fn(string $token, int $limit): array of candidates carrying 'userid'.
+     * @param callable $search fn(string $token, int $limit): array of candidates carrying 'userid' (or 'id').
      * @param int $limit Candidates per token lookup.
      * @return array The candidates every matching token agrees on (one = resolved).
      */
     public static function narrow_by_tokens(string $query, callable $search, int $limit = 25): array {
-        $tokens = preg_split('/\s+/u', trim($query)) ?: [];
+        // Whitespace and joining punctuation split tokens: "Buchdruck-Kurs" is the tokens Buchdruck and Kurs.
+        $tokens = preg_split('/[\s\-\x{2013}\x{2014}\/,;:]+/u', trim($query)) ?: [];
         $tokens = array_values(array_unique(array_filter(array_map(
             static fn($token): string => trim((string)$token, " \t\n\r\0\x0B.,;:!?\"'()"),
             $tokens
@@ -86,23 +87,31 @@ final class target_query_normalizer {
         }
 
         $agreed = null;
+        $matched = 0;
         foreach ($tokens as $token) {
             $byid = [];
             foreach ((array)$search($token, $limit) as $candidate) {
-                $userid = (int)($candidate['userid'] ?? 0);
-                if ($userid > 0) {
-                    $byid[$userid] = $candidate;
+                $candidateid = (int)($candidate['userid'] ?? ($candidate['id'] ?? 0));
+                if ($candidateid > 0) {
+                    $byid[$candidateid] = $candidate;
                 }
             }
             if (empty($byid)) {
                 continue;
             }
+            $matched++;
             $agreed = $agreed === null ? $byid : array_intersect_key($agreed, $byid);
             if (empty($agreed)) {
                 return [];
             }
         }
 
-        return $agreed === null ? [] : array_values($agreed);
+        // A name is mostly made of its own tokens: at least half of the query's tokens must be carried by the
+        // candidate. One incidental hit inside a long unrelated query ("Course That Does Not Exist ...") is not a match.
+        if ($agreed === null || $matched * 2 < count($tokens)) {
+            return [];
+        }
+
+        return array_values($agreed);
     }
 }

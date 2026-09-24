@@ -109,6 +109,17 @@ final class target_query_normalizer_test extends \basic_testcase {
     }
 
     /**
+     * One incidental hit inside a long unrelated query is not a match: at least half of the tokens must be carried.
+     */
+    public function test_an_incidental_hit_in_a_long_query_does_not_resolve(): void {
+        $directory = static function (string $token, int $limit): array {
+            return stripos('Test course 1', $token) !== false ? [['id' => 7, 'name' => 'Test course 1']] : [];
+        };
+        $this->assertSame([], target_query_normalizer::narrow_by_tokens('Course That Does Not Exist Zz421337', $directory));
+        $this->assertSame(7, (int)target_query_normalizer::narrow_by_tokens('Test-Kurs', $directory)[0]['id'], 'one of two tokens');
+    }
+
+    /**
      * One token, an address or a number is not a case for token narrowing.
      */
     public function test_single_tokens_addresses_and_numbers_are_left_to_the_callers(): void {

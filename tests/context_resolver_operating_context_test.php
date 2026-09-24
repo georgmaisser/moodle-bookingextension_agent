@@ -117,6 +117,27 @@ final class context_resolver_operating_context_test extends advanced_testcase {
     /**
      * Several name matches yield an ambiguous resolution carrying the candidates.
      */
+    /**
+     * Wave 28 (SCC-1, runs 28-37): "Buchdruck-Kurs" as one string finds nothing, the token "Buchdruck" finds the one course.
+     */
+    public function test_a_course_query_with_a_generic_noun_resolves_by_its_tokens(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $target = $this->getDataGenerator()->create_course(['fullname' => 'Buchdruck (Kursrohling)']);
+        $this->getDataGenerator()->create_course(['fullname' => 'Biologie']);
+
+        $registry = new operating_context_target_registry();
+        $resolution = $registry->resolve(target_selector::for_course(null, 'Buchdruck-Kurs'));
+
+        $this->assertTrue($resolution->is_resolved(), $resolution->status());
+        $this->assertSame((int)context_course::instance($target->id)->id, (int)$resolution->context()->id);
+
+        $this->getDataGenerator()->create_course(['fullname' => 'Buchdruck Aufbaukurs']);
+        $ambiguous = $registry->resolve(target_selector::for_course(null, 'Buchdruck-Kurs'));
+        $this->assertSame(context_target_resolution::STATUS_AMBIGUOUS, $ambiguous->status(), 'two courses share the token');
+    }
+
     public function test_ambiguous_course_name_lists_candidates(): void {
         $this->resetAfterTest();
         $this->setAdminUser();

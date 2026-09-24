@@ -132,23 +132,15 @@ class operating_context_target_registry {
         }
 
         // Free-text: match against the visible course list (respects the acting user's visibility).
-        $courses = core_course_category::search_courses(
-            ['search' => $query],
-            ['limit' => 25, 'sort' => ['fullname' => 1]]
-        );
-
-        $candidates = [];
-        foreach ($courses as $course) {
-            $courseid = (int)($course->id ?? 0);
-            if ($courseid <= 1) {
-                // Skip invalid ids; the site course (id 1) is handled explicitly above.
-                continue;
-            }
-            $candidates[] = [
-                'id' => $courseid,
-                'name' => (string)($course->fullname ?? $course->shortname ?? ('#' . $courseid)),
-                'shortname' => (string)($course->shortname ?? ''),
-            ];
+        $candidates = $this->course_candidates($query, 25);
+        if (empty($candidates)) {
+            // A query such as "Buchdruck-Kurs" finds nothing as one string although "Buchdruck (Kursrohling)" is the only
+            // course with that token (baseline runs 28-37, SCC-1): the tokens that match must agree on one
+            // course; a token nobody matches ("Kurs") carries no meaning (wave 28, same helper as for persons).
+            $candidates = \bookingextension_agent\local\wizard\services\target_query_normalizer::narrow_by_tokens(
+                $query,
+                fn(string $token, int $limit): array => $this->course_candidates($token, $limit)
+            );
         }
 
         if (empty($candidates)) {
@@ -173,6 +165,33 @@ class operating_context_target_registry {
         }
 
         return context_target_resolution::ambiguous($candidates);
+    }
+
+    /**
+     * Courses whose name matches the query, as the course search sees it (site course excluded).
+     *
+     * @param string $query
+     * @param int $limit
+     * @return array<int,array{id:int,name:string,shortname:string}>
+     */
+    private function course_candidates(string $query, int $limit): array {
+        $courses = core_course_category::search_courses(
+            ['search' => $query],
+            ['limit' => $limit, 'sort' => ['fullname' => 1]]
+        );
+        $candidates = [];
+        foreach ($courses as $course) {
+            $courseid = (int)($course->id ?? 0);
+            if ($courseid <= 1) {
+                continue;
+            }
+            $candidates[] = [
+                'id' => $courseid,
+                'name' => (string)($course->fullname ?? $course->shortname ?? ('#' . $courseid)),
+                'shortname' => (string)($course->shortname ?? ''),
+            ];
+        }
+        return $candidates;
     }
 
     /**
