@@ -357,6 +357,38 @@ final class llm_skill_matrix_scenario_provider {
                     ],
                 ],
             ],
+            'report.list_report_sources' => [
+                'prompt' => 'Which report sources does the Report Builder offer on this site?',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
+            'report.describe_report_source' => [
+                'prompt' => 'Which columns and filters does the "Users" report source of the Report Builder offer?',
+                'assertions' => [
+                    [
+                        'target' => 'final',
+                        'type' => 'field_equals',
+                        'field' => 'status',
+                        'value' => 'executed',
+                    ],
+                    [
+                        'target' => 'chat',
+                        'type' => 'step_count_gte',
+                        'value' => 1,
+                    ],
+                ],
+            ],
             'examples.multistep_example' => [
                 'prompt' => 'Ich brauche Hilfe bei folgendem Vorhaben: "{{example_objective}}". '
                     . 'Bitte gehe dabei in diesen Schritten vor: '

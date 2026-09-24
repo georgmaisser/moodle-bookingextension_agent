@@ -15,6 +15,9 @@ responsibility across four namespaces (all registered by
   reserved here for genuine Moodle-core domain, matching its meaning in Moodle itself.
 - **`course.*`** — Moodle-course skills, in `classes/local/wizard/course/skills/`.
 - **`question.*`** — Moodle question-bank skills, in `classes/local/wizard/question/skills/`.
+- **`report.*`** — Moodle Report Builder skills, in `classes/local/wizard/report/skills/`
+  (reserved namespace; base class `report_skill_base`). Plugin-agnostic: every datasource of
+  every installed plugin appears automatically through core's own discovery.
 
 Booking-domain skills live under **`mod_booking.*`** (discovered from the `mod_booking`
 component, base class `booking_skill_base`).
@@ -64,6 +67,19 @@ Both are preview-capable (`get_result_preview`).
 | Skill | Risk | Read-only | Purpose | Key inputs |
 |-------|:---:|:---:|---------|-----------|
 | `question.generate_questions` | **R2** | ✗ | Generate questions (optionally from an upload) and import them into the course question bank | `topic`, `count`, `qtype`, `courseid` |
+
+## Moodle Report Builder skills (`report.*`)
+
+| Skill | Risk | Read-only | Purpose | Key inputs |
+|-------|:---:|:---:|---------|-----------|
+| `report.list_report_sources` | R0 | ✓ | List the datasources the Report Builder offers here: identifier, name, plugin, entities, counts | `component`, `include_entities`, `limit` |
+| `report.describe_report_source` | R0 | ✓ | Columns, filters and conditions of one source with exact identifiers, types, aggregations and operator enums | `source`, `section`, `entity` |
+
+Both run in the system context, decide access exactly like core (`core_reportbuilder\permission`),
+and are preview-capable: the list renders source cards, the description a per-entity table; an
+unknown source is answered with the candidate list as a clarification (options + side-panel cards).
+The authoring skills of the family (create, update, audience, schedule) follow in later work
+packages of Wunderbyte-GmbH/Wunderbyte-GmbH#2471.
 
 ---
 
