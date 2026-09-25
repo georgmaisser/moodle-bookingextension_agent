@@ -22,8 +22,7 @@ use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\dto\skill_risk_class;
 use bookingextension_agent\local\wizard\dto\target_selector;
 use bookingextension_agent\local\wizard\interfaces\skill_trigger_provider_interface;
-use bookingextension_agent\local\wizard\services\attachment\pdf_text_extractor;
-use bookingextension_agent\local\wizard\services\questions\course_pdf_resolver;
+use bookingextension_agent\local\wizard\services\questions\course_pdf_source;
 use bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver;
 use bookingextension_agent\local\wizard\services\questions\question_generation_service;
 use bookingextension_agent\local\wizard\services\questions\question_import_service;
@@ -821,71 +820,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @return array Same shape as resolve_source().
      */
     private function resolve_course_pdf_source(int $resourcecmid, int $courseid, int $userid, string $lang): array {
-        $issue = function (string $identifier, $a, string $code) use ($lang): array {
-            return ['text' => null, 'files' => [], 'truncated' => false, 'issues' => [[
-                'severity' => 'needs_clarification',
-                'message' => $this->localized_string($identifier, $a, $lang),
-                'code' => $code,
-            ]]];
-        };
-
-        if (!(new pdf_text_extractor())->is_available()) {
-            return $issue('ai_pdf_extraction_unavailable', null, 'GENERATE_QUESTIONS_EXTRACTOR_UNAVAILABLE');
-        }
-
-        $resolver = new course_pdf_resolver();
-        if ($resourcecmid > 0) {
-            $lookup = $resolver->get_resource_pdf($courseid, $resourcecmid, $userid);
-            switch ($lookup['status']) {
-                case course_pdf_resolver::STATUS_NOT_FOUND:
-                    return $issue(
-                        'ai_generatequestions_resourcenotfound',
-                        $resourcecmid,
-                        'GENERATE_QUESTIONS_RESOURCE_NOT_FOUND'
-                    );
-                case course_pdf_resolver::STATUS_NO_PDF:
-                    return $issue(
-                        'ai_generatequestions_resourcenopdf',
-                        $lookup['name'],
-                        'GENERATE_QUESTIONS_RESOURCE_NO_PDF'
-                    );
-                case course_pdf_resolver::STATUS_TOO_LARGE:
-                    return $issue(
-                        'ai_generatequestions_pdftoolarge',
-                        (object)[
-                            'name' => $lookup['name'],
-                            'limitmb' => (int)(course_pdf_resolver::MAX_FILE_BYTES / (1024 * 1024)),
-                        ],
-                        'GENERATE_QUESTIONS_PDF_TOO_LARGE'
-                    );
-            }
-            $pdfs = [$lookup['pdf']];
-        } else {
-            $pdfs = $resolver->list_course_pdfs($courseid, $userid);
-            if (empty($pdfs)) {
-                return $issue(
-                    'ai_generatequestions_nopdfsincourse',
-                    $this->course_display_name($courseid),
-                    'GENERATE_QUESTIONS_NO_COURSE_PDFS'
-                );
-            }
-        }
-
-        try {
-            $extracted = $resolver->extract_texts($pdfs, self::effective_pdf_budget());
-        } catch (\Throwable $e) {
-            return $issue('ai_pdf_extraction_unavailable', null, 'GENERATE_QUESTIONS_EXTRACTOR_UNAVAILABLE');
-        }
-        if (trim($extracted['text']) === '') {
-            return $issue('ai_generatequestions_extractionfailed', null, 'GENERATE_QUESTIONS_EXTRACTION_FAILED');
-        }
-
-        return [
-            'text' => $extracted['text'],
-            'files' => $extracted['used'],
-            'truncated' => (bool)$extracted['truncated'],
-            'issues' => [],
-        ];
+        // Shared with course.add_quiz / course.update_quiz since wave 30 (UQ-4).
+        return (new course_pdf_source())->resolve($resourcecmid, $courseid, $userid, $lang);
     }
 
     /**
@@ -898,21 +834,7 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @return int
      */
     private static function effective_pdf_budget(): int {
-        return min(course_pdf_resolver::DEFAULT_TOTAL_BUDGET, pdf_text_extractor::MAX_CHARS);
-    }
-
-    /**
-     * The formatted course full name, or '#<id>' when the course cannot be read.
-     *
-     * @param int $courseid
-     * @return string
-     */
-    private function course_display_name(int $courseid): string {
-        try {
-            return format_string(get_course($courseid)->fullname);
-        } catch (\Throwable $e) {
-            return '#' . $courseid;
-        }
+        return course_pdf_source::effective_budget();
     }
 
     /**

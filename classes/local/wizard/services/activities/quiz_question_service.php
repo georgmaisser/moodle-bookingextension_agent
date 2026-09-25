@@ -19,6 +19,8 @@ declare(strict_types=1);
 namespace bookingextension_agent\local\wizard\services\activities;
 
 use bookingextension_agent\local\wizard\conversation_store;
+use bookingextension_agent\local\wizard\services\preview_support;
+use bookingextension_agent\local\wizard\services\questions\course_pdf_source;
 use bookingextension_agent\local\wizard\services\questions\question_bank_target_resolver;
 use bookingextension_agent\local\wizard\services\questions\question_generation_service;
 use bookingextension_agent\local\wizard\services\questions\question_import_service;
@@ -105,6 +107,20 @@ class quiz_question_service {
             return [
                 'mode' => 'generate',
                 'content' => $content,
+                'count' => $count > 0 ? $count : self::DEFAULT_COUNT,
+                'qtypes' => $qtypes,
+                'difficulty' => (string)($input['difficulty'] ?? 'medium'),
+                'outputlang' => trim((string)($input['outputlang'] ?? '')),
+            ];
+        }
+        // The PDFs stored in the course are a source of their own (wave 30, UQ-4): read server-side at execution
+        // through the same course_pdf_source as question.generate_questions.
+        $resourcecmid = (int)($input['resourcecmid'] ?? 0);
+        if ($resourcecmid > 0 || preview_support::truthy($input['usecoursepdfs'] ?? null)) {
+            return [
+                'mode' => 'generate',
+                'content' => '',
+                'pdfsource' => ['resourcecmid' => max(0, $resourcecmid)],
                 'count' => $count > 0 ? $count : self::DEFAULT_COUNT,
                 'qtypes' => $qtypes,
                 'difficulty' => (string)($input['difficulty'] ?? 'medium'),
@@ -269,6 +285,20 @@ class quiz_question_service {
         $generator = new question_generation_service($store);
         $importer = new question_import_service();
 
+        $sourcetext = (string)($plan['content'] ?? '');
+        if ($sourcetext === '' && isset($plan['pdfsource'])) {
+            $pdf = (new course_pdf_source())->resolve(
+                (int)($plan['pdfsource']['resourcecmid'] ?? 0),
+                (int)$course->id,
+                $userid,
+                (string)($plan['outputlang'] ?? '')
+            );
+            if (!empty($pdf['issues']) || $pdf['text'] === null) {
+                return ['questionids' => [], 'error' => (string)($pdf['issues'][0]['message'] ?? 'no source text')];
+            }
+            $sourcetext = (string)$pdf['text'];
+        }
+
         $feedback = '';
         $lasterror = '';
         for ($attempt = 1; $attempt <= 3; $attempt++) {
@@ -276,7 +306,7 @@ class quiz_question_service {
                 $threadid,
                 $ambientcontextid,
                 $userid,
-                (string)($plan['content'] ?? ''),
+                $sourcetext,
                 $params,
                 $feedback
             );

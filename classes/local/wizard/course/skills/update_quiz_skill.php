@@ -27,6 +27,7 @@ use bookingextension_agent\local\wizard\services\activities\activity_preview_ren
 use bookingextension_agent\local\wizard\services\activities\module_form_contract;
 use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
 use bookingextension_agent\local\wizard\services\activity_preview_builder;
+use bookingextension_agent\local\wizard\services\questions\course_pdf_source;
 use context;
 use context_course;
 
@@ -166,6 +167,19 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                         . 'this adds generated questions. Do not author questions yourself.',
                     'required' => false,
                 ],
+                'usecoursepdfs' => [
+                    'type' => 'boolean',
+                    'description' => 'Set true when the new questions should be generated from the PDF files stored IN the '
+                        . 'course (as file/resource activities), e.g. "questions from the PDF in the course". The system '
+                        . 'reads them itself - do not ask for the file or its content.',
+                    'required' => false,
+                ],
+                'resourcecmid' => [
+                    'type' => 'integer',
+                    'description' => 'Course-module id of ONE specific file/resource activity whose PDF is the source, '
+                        . 'when known. Never guess an id.',
+                    'required' => false,
+                ],
                 'count' => [
                     'type' => 'integer',
                     'description' => 'How many questions to generate / add (default 5).',
@@ -211,7 +225,8 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 ],
             ],
             'prompt_meta' => [
-                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'content', 'count', 'category'],
+                'input_fields_for_prompt' => ['activityquery', 'name', 'intro', 'visible', 'content', 'usecoursepdfs', 'count',
+                    'category'],
                 'anchor_fields' => ['activityquery', 'coursequery', 'category'],
             ],
         ];
@@ -327,6 +342,18 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
 
         if (($plan['mode'] ?? '') === 'clarify') {
             return $this->build_source_clarification($service->list_available_categories($coursecontext, $userid));
+        }
+        if (($plan['mode'] ?? '') === 'generate' && isset($plan['pdfsource'])) {
+            // The course PDFs as source (wave 30, UQ-4): a missing or unreadable PDF is a question, not an error.
+            $pdfissues = (new course_pdf_source())->check(
+                (int)($plan['pdfsource']['resourcecmid'] ?? 0),
+                (int)$coursecontext->instanceid,
+                $userid,
+                $this->get_output_language($input)
+            );
+            if (!empty($pdfissues)) {
+                return $this->invalid($pdfissues);
+            }
         }
         $wantsquestions = ($plan['mode'] ?? 'none') !== 'none';
 

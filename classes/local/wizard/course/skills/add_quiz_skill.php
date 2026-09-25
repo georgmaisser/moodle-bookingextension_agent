@@ -28,6 +28,7 @@ use bookingextension_agent\local\wizard\services\activities\module_form_contract
 use bookingextension_agent\local\wizard\services\activities\quiz_question_service;
 use bookingextension_agent\local\wizard\services\activities\section_resolver_service;
 use bookingextension_agent\local\wizard\services\activity_preview_builder;
+use bookingextension_agent\local\wizard\services\questions\course_pdf_source;
 use context;
 use context_course;
 
@@ -161,6 +162,19 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                     'type' => 'string',
                     'description' => 'SOURCE MATERIAL to GENERATE questions from: a topic, facts, or document text the '
                         . 'user provided. Setting this generates questions. Do not author the questions yourself.',
+                    'required' => false,
+                ],
+                'usecoursepdfs' => [
+                    'type' => 'boolean',
+                    'description' => 'Set true when the new questions should be generated from the PDF files stored IN the '
+                        . 'course (as file/resource activities), e.g. "questions from the PDF in the course". The system '
+                        . 'reads them itself - do not ask for the file or its content.',
+                    'required' => false,
+                ],
+                'resourcecmid' => [
+                    'type' => 'integer',
+                    'description' => 'Course-module id of ONE specific file/resource activity whose PDF is the source, '
+                        . 'when known. Never guess an id.',
                     'required' => false,
                 ],
                 'count' => [
@@ -342,6 +356,18 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
 
         if (($plan['mode'] ?? '') === 'clarify') {
             return $this->build_source_clarification((array)($plan['categories'] ?? []));
+        }
+        if (($plan['mode'] ?? '') === 'generate' && isset($plan['pdfsource'])) {
+            // The course PDFs as source (wave 30, UQ-4): a missing or unreadable PDF is a question, not an error.
+            $pdfissues = (new course_pdf_source())->check(
+                (int)($plan['pdfsource']['resourcecmid'] ?? 0),
+                (int)$coursecontext->instanceid,
+                $userid,
+                $this->get_output_language($input)
+            );
+            if (!empty($pdfissues)) {
+                return $this->invalid($pdfissues);
+            }
         }
         if (
             ($plan['mode'] ?? '') === 'generate'
