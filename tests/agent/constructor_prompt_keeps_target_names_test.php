@@ -25,6 +25,8 @@
 namespace bookingextension_agent;
 
 use bookingextension_agent\local\wizard\orchestrator;
+use bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder;
+use bookingextension_agent\local\wizard\services\planner_phase_service;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -129,7 +131,11 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
             $this->assertCount(1, $constructorprompts, $skill);
             $this->assertStringContainsString($expected, $constructorprompts[0], $skill);
             $this->assertStringContainsString('Never state facts about this site', $constructorprompts[0], $skill);
-            $this->assertStringContainsString('Never fill in a value the user did not give', $constructorprompts[0], $skill);
+            $this->assertStringContainsString(
+                phase_prompt_bundle_builder::VALUE_RULE,
+                $constructorprompts[0],
+                $skill
+            );
             $this->assertStringNotContainsString('selected_skill needs', $selectorprompts[0], 'construction only');
             $this->clear_scripted_planner();
             $this->scriptedplannerprompts = [];
@@ -157,6 +163,58 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
         $this->assertNotFalse($rule, 'the rule is in the prompt');
         $this->assertNotFalse($example, 'the example is in the prompt');
         $this->assertLessThan($example, $rule, 'the rule stands before the example');
+    }
+
+    /**
+     * Wave 30, run 40 (CSB-4 thread 12131, CSB-1 12126, CSL-1 12119): "never fill in a value the user did not give
+     * (a time, a date, a number, a name)" made the constructor ask for the title of "Beratungsgespräche: Mo-Fr je
+     * 10-16 Uhr ..." - a title the request gives in the user's own words. The value rules protect times, dates and
+     * numbers; a title or name comes from the user's words; a question is only for a field the skill needs.
+     */
+    public function test_the_value_rules_leave_titles_to_the_users_words(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $this->install_phase_scripted_planner(
+            [$this->selector_skill_call('mod_booking.create_slotbooking_option')],
+            [$this->constructor_clarification('Ich benötige noch den Titel für die Beratungsgespräch-Option.')]
+        );
+        $this->chat(
+            'Beratungsgespräche: Mo-Fr je 10-16 Uhr, 45-Minuten-Fenster, immer nur eine Person gleichzeitig.',
+            (int)$threadid,
+            $store,
+            $runtime
+        );
+        $constructor = (string)array_values(array_filter(
+            $this->scriptedplannerprompts,
+            static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
+        ))[0];
+
+        foreach (
+            [
+                'reminder' => phase_prompt_bundle_builder::VALUE_RULE,
+                'example rule' => planner_phase_service::EXAMPLE_VALUE_RULE,
+            ] as $label => $rule
+        ) {
+            // The example rule travels inside the JSON catalog entry, the reminder as plain text.
+            $encoded = substr((string)json_encode($rule, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 1, -1);
+            $this->assertTrue(
+                strpos($constructor, $rule) !== false || strpos($constructor, $encoded) !== false,
+                $label . ' is in the prompt'
+            );
+            $this->assertStringContainsStringIgnoringCase(
+                'a time, a date or a number',
+                $rule,
+                $label . ' protects times, dates, numbers'
+            );
+            $this->assertStringNotContainsString('a name)', $rule, $label . ' does not forbid the user\'s own title');
+            $this->assertStringContainsString("user's own words", $rule, $label . ' lets a title come from the request');
+        }
+        $this->assertStringContainsString(
+            'needs',
+            phase_prompt_bundle_builder::VALUE_RULE,
+            'a question is tied to the fields the skill needs'
+        );
     }
 
     /**

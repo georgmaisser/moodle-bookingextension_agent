@@ -663,7 +663,8 @@ class planner_phase_service {
 
     /** Placed directly before the example parameters of the construction contract (wave 30, UO-3). */
     public const EXAMPLE_VALUE_RULE = 'example_parameters show the SHAPE of the fields only - never take a value from '
-        . 'them. A value the user did not give (a time, a date, a number, a name) is asked for, not copied.';
+        . "them. A time, a date or a number the user did not give is never copied; a title or name may be the user's "
+        . 'own words for the thing.';
 
     /** Placed directly before the input fields of the construction contract (F79). */
     public const QUERY_FIELD_RULE = 'Every field whose name ends in "query" carries the target\'s name exactly as the '

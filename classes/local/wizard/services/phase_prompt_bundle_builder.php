@@ -37,6 +37,14 @@ use bookingextension_agent\local\wizard\wb_action_names;
  * Build phase-specific prompt bundles without mixing orchestration concerns.
  */
 class phase_prompt_bundle_builder {
+    /**
+     * The construction reminder's rule for values (wave 30): never invent a time, a date or a number; a title or
+     * name may be the user's own words; ask only for a value the selected skill needs.
+     */
+    public const VALUE_RULE = 'Never fill in a time, a date or a number the user did not give: leave the field out '
+        . '(the skill then applies its default or asks itself), or ask for it when it is one the selected skill needs. '
+        . "A title or name may be the user's own words for the thing.";
+
     /** Wunderbyte final reply action class name. */
     private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
@@ -451,8 +459,8 @@ class phase_prompt_bundle_builder {
                 . 'not contain - the skill checks them.';
             // Wave 30 (UO-3, Nachlauf 33 thread 12045): with the example time gone the model still filled a plausible
             // one (10:00-11:00) for "a date at the end of next month". "Never invent" stood only in retry hints.
-            $lines[] = 'Never fill in a value the user did not give (a time, a date, a number, a name): leave the '
-                . 'field out, or ask for it when the command cannot be built without it.';
+            // Run 40 (CSB-4/CSB-1/CSL-1): listing "a name" made the model ask for titles the request gives.
+            $lines[] = self::VALUE_RULE;
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
