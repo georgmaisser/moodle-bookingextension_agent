@@ -213,6 +213,8 @@ class phase_prompt_bundle_builder {
      * @param  array       $pendingclarification M1 (#2220): engine-recorded action the previous
      *                     blocking clarification was about ({skill, issue_codes, question}); empty
      *                     when no clarification chain is open. Selection phase only.
+     * @param  array|null  $selectedskillinput Input contract of the selected skill ({required_input,
+     *                     required_groups}); construction phase only, null when unknown (wave 30).
      * @return string
      */
     public function build_prompt(
@@ -226,7 +228,8 @@ class phase_prompt_bundle_builder {
         array $plannedstepintents = [],
         string $runtimestate = '',
         ?bool $selectedskillisreadonly = null,
-        array $pendingclarification = []
+        array $pendingclarification = [],
+        ?array $selectedskillinput = null
     ): string {
         $trimmedmessages = $this->promptprofilesvc->select_history_messages($messages, $phase);
 
@@ -305,7 +308,7 @@ class phase_prompt_bundle_builder {
             $parts[] = "[PENDING PLANNED STEPS]\n" . implode("\n", $lines);
         }
 
-        $reminder = $this->build_output_contract_reminder($phase, $autoconfirmmode, $selectedskillisreadonly);
+        $reminder = $this->build_output_contract_reminder($phase, $autoconfirmmode, $selectedskillisreadonly, $selectedskillinput);
         if ($reminder !== '') {
             $parts[] = "[OUTPUT_REMINDER]\n{$reminder}";
         }
@@ -389,12 +392,14 @@ class phase_prompt_bundle_builder {
      * @param string $phase
      * @param bool $autoconfirmmode
      * @param bool|null $selectedskillisreadonly Engine-known readonly flag of the selected skill.
+     * @param array|null $selectedskillinput Input contract of the selected skill (required_input, required_groups).
      * @return string
      */
     private function build_output_contract_reminder(
         string $phase,
         bool $autoconfirmmode = false,
-        ?bool $selectedskillisreadonly = null
+        ?bool $selectedskillisreadonly = null,
+        ?array $selectedskillinput = null
     ): string {
         $normalizedphase = trim(strtolower($phase));
         $lines = [];
@@ -410,6 +415,36 @@ class phase_prompt_bundle_builder {
                     . '(unless required input is missing -> clarification, or already answered -> sufficient).'
                 : 'selected_skill is MUTATING: emit response_type="confirmation_request", never skill_call '
                     . '(unless the outcome is already completed -> sufficient).';
+        }
+
+        // What the selected skill needs from the construction, from its declared contract (wave 30). This
+        // statement used to live only in the removed repair round - a second call, the wrong place - and
+        // ignored required groups there; now it is part of the first construction and exact.
+        if (
+            $selectedskillinput !== null
+            && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
+        ) {
+            $required = array_values(array_filter(array_map('strval', (array)($selectedskillinput['required_input'] ?? []))));
+            $groups = [];
+            foreach ((array)($selectedskillinput['required_groups'] ?? []) as $group) {
+                $group = array_values(array_filter(array_map('strval', (array)$group)));
+                if (!empty($group)) {
+                    $groups[] = implode(' | ', $group);
+                }
+            }
+            if (empty($required) && empty($groups)) {
+                $lines[] = 'selected_skill needs no value from you: build the command from the values the user gave '
+                    . 'and leave everything else out. The skill resolves names, scope and defaults itself and asks '
+                    . 'the user when something is missing - do not ask in its place. Ask only when the request points '
+                    . 'to a person or thing it does not name ("this user").';
+            } else {
+                $needs = array_merge($required, array_map(static fn(string $g): string => '(' . $g . ')', $groups));
+                $lines[] = 'selected_skill needs: ' . implode(', ', $needs) . '. A reference by kind or role counts: '
+                    . 'pass the user\'s words. Everything else the skill resolves or asks itself. Ask only when the '
+                    . 'request contains no reference at all.';
+            }
+            $lines[] = 'Never state facts about this site (its files, rules, units, people) that this prompt does '
+                . 'not contain - the skill checks them.';
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {

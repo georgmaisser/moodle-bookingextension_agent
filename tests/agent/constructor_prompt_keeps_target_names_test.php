@@ -99,6 +99,43 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
     }
 
     /**
+     * Wave 30: the construction reminder states what the selected skill needs, from its declared contract - the
+     * statement the removed repair round made in a second call (and wrongly for skills with required groups).
+     */
+    public function test_the_construction_reminder_states_the_skills_input_contract(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        $cases = [
+            // No required field, no group: the skill resolves or asks itself.
+            'wizard.list_memories' => 'selected_skill needs no value from you',
+            // A declared group: the group is named and a kind or role reference counts.
+            'mod_booking.update_rule_from_template' => 'selected_skill needs: (ruleid | rulequery)',
+        ];
+        foreach ($cases as $skill => $expected) {
+            [$store, $runtime, $threadid] = $this->build_runtime();
+            $this->install_phase_scripted_planner(
+                [$this->selector_skill_call($skill)],
+                [$this->constructor_clarification('Welche?')]
+            );
+            $this->chat('Bitte erledigen.', (int)$threadid, $store, $runtime);
+            $constructorprompts = array_values(array_filter(
+                $this->scriptedplannerprompts,
+                static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
+            ));
+            $selectorprompts = array_values(array_filter(
+                $this->scriptedplannerprompts,
+                static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') === false
+            ));
+            $this->assertCount(1, $constructorprompts, $skill);
+            $this->assertStringContainsString($expected, $constructorprompts[0], $skill);
+            $this->assertStringContainsString('Never state facts about this site', $constructorprompts[0], $skill);
+            $this->assertStringNotContainsString('selected_skill needs', $selectorprompts[0], 'construction only');
+            $this->clear_scripted_planner();
+            $this->scriptedplannerprompts = [];
+        }
+    }
+
+    /**
      * The live constructor prompt carries the rule, the live selector prompt does not.
      */
     public function test_the_live_constructor_prompt_carries_the_rule(): void {

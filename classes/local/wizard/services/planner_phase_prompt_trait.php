@@ -97,6 +97,7 @@ trait planner_phase_prompt_trait {
      *                  (construction phase only; null when unknown or not applicable).
      * @param array $pendingclarification M1 (#2220): engine-recorded action of an open blocking
      *                  clarification chain ({skill, issue_codes, question}); selection phase only.
+     * @param array|null $selectedskillinput Input contract of the selected skill (construction only, wave 30).
      * @return string
      */
     private function build_prompt(
@@ -110,7 +111,8 @@ trait planner_phase_prompt_trait {
         array $plannedstepintents = [],
         string $runtimestate = '',
         ?bool $selectedskillisreadonly = null,
-        array $pendingclarification = []
+        array $pendingclarification = [],
+        ?array $selectedskillinput = null
     ): string {
         return $this->promptbundlebuilder->build_prompt(
             $systemprompt,
@@ -123,7 +125,8 @@ trait planner_phase_prompt_trait {
             $plannedstepintents,
             $runtimestate,
             $selectedskillisreadonly,
-            $pendingclarification
+            $pendingclarification,
+            $selectedskillinput
         );
     }
 

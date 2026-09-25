@@ -423,6 +423,15 @@ class planner_phase_service {
         // to the model (#2199 issue 2).
         $selectedskillobject = $this->registry->get_skill($selectedskill);
         $selectedskillisreadonly = $selectedskillobject !== null ? $selectedskillobject->is_read_only() : null;
+        // What the selected skill needs from this construction, from its declared contract (wave 30).
+        $selectedskillinput = null;
+        if ($selectedskillobject !== null) {
+            $contract = (array)$selectedskillobject->get_prompt_contract()->to_array();
+            $selectedskillinput = [
+                'required_input' => (array)($contract['required_input'] ?? []),
+                'required_groups' => (array)($contract['required_groups'] ?? []),
+            ];
+        }
         $prompt = $this->build_prompt(
             $systemprompt,
             $messages,
@@ -433,7 +442,9 @@ class planner_phase_service {
             $autoconfirmmode,
             [],
             $runtimeblocks['volatile'],
-            $selectedskillisreadonly
+            $selectedskillisreadonly,
+            [],
+            $selectedskillinput
         );
 
         $historycount = count(
