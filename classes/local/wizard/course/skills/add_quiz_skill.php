@@ -241,7 +241,6 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
         return [
             'name' => 'Chapter 1 quiz',
             'content' => 'Photosynthesis basics',
-            'count' => 5,
             'coursequery' => 'Biology 101',
         ];
     }

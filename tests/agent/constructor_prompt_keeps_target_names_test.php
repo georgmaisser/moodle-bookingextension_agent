@@ -136,6 +136,29 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
     }
 
     /**
+     * Wave 30 (UO-3): the example parameters are preceded by the rule that they show the shape, never a value.
+     */
+    public function test_the_example_parameters_carry_the_shape_only_rule(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $this->install_phase_scripted_planner(
+            [$this->selector_skill_call('mod_booking.update_option')],
+            [$this->constructor_clarification('Um welche Uhrzeit?')]
+        );
+        $this->chat('Füge Rooftop Yoga eine Sitzung Ende nächsten Monats hinzu.', (int)$threadid, $store, $runtime);
+        $constructor = (string)array_values(array_filter(
+            $this->scriptedplannerprompts,
+            static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
+        ))[0];
+        $rule = strpos($constructor, 'example_parameters show the SHAPE of the fields only');
+        $example = strpos($constructor, '"example_parameters"');
+        $this->assertNotFalse($rule, 'the rule is in the prompt');
+        $this->assertNotFalse($example, 'the example is in the prompt');
+        $this->assertLessThan($example, $rule, 'the rule stands before the example');
+    }
+
+    /**
      * The live constructor prompt carries the rule, the live selector prompt does not.
      */
     public function test_the_live_constructor_prompt_carries_the_rule(): void {

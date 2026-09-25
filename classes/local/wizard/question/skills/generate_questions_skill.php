@@ -347,8 +347,8 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
      * @return array
      */
     public function get_example_input(): array {
+        // No count: the field has no default and the user's number is taken, never an example's (wave 30).
         return [
-            'count' => 5,
             'qtypes' => ['multichoice', 'truefalse'],
             'difficulty' => 'medium',
             'outputlang' => 'en',

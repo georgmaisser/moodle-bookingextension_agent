@@ -661,6 +661,10 @@ class planner_phase_service {
         return $interpreted;
     }
 
+    /** Placed directly before the example parameters of the construction contract (wave 30, UO-3). */
+    public const EXAMPLE_VALUE_RULE = 'example_parameters show the SHAPE of the fields only - never take a value from '
+        . 'them. A value the user did not give (a time, a date, a number, a name) is asked for, not copied.';
+
     /** Placed directly before the input fields of the construction contract (F79). */
     public const QUERY_FIELD_RULE = 'Every field whose name ends in "query" carries the target\'s name exactly as the '
         . 'user wrote it - same language, same spelling, no salutation, no article, no translation, never an '
@@ -736,6 +740,10 @@ class planner_phase_service {
         // value as target. A query field's value is the user's own words: no example is shown for it.
         $exampleparameters = self::without_query_field_examples((array)$skill->get_example_input());
         if (!empty($exampleparameters)) {
+            // Wave 30 (UO-3, Nachlauf 32 threads 11970/11996): the example is load-bearing for the SHAPE (F36),
+            // but its VALUES were copied as well - update_option's example session 18:00-20:00 became the time of a
+            // session the user never gave. The rule stands directly before the example, where the value is taken.
+            $entry['example_parameters_rule'] = self::EXAMPLE_VALUE_RULE;
             $entry['example_parameters'] = $exampleparameters;
         }
 

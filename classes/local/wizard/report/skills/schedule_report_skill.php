@@ -232,7 +232,8 @@ class schedule_report_skill extends report_skill_base implements skill_trigger_p
             'action' => 'create',
             'recurrence' => 'weekly',
             'format' => 'xlsx',
-            'starttime' => '2026-10-05 07:00',
+            // A placeholder, not a time: an example value is copied when the user gave none (wave 30, UO-3).
+            'starttime' => 'YYYY-MM-DD HH:MM',
         ];
     }
 
