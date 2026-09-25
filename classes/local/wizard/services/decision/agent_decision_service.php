@@ -1502,21 +1502,29 @@ class agent_decision_service {
             );
         }
 
+        $clarification = [
+            'response_type'    => 'clarification',
+            'message'          => $message,
+            'commands'         => [],
+            'queue_item_ids'   => [],
+            'ambiguities'      => [],
+            'errors'           => $errors,
+            'attempted_skills' => array_values(array_unique(array_map(
+                'strval',
+                (array)($preflightresult['attempted_skills'] ?? [])
+            ))),
+            'issue_codes'      => $issuecodes,
+        ];
+        // Same choice contract as for staged cards (wave 30): offered choices go to the selector once.
+        $offeredchoices = self::offered_choices($clarificationissues);
+        if (!empty($offeredchoices)) {
+            $clarification['offered_choices'] = $offeredchoices;
+            $clarification['issue_codes'] = array_values(array_unique(array_merge($issuecodes, [self::CHOICES_OFFERED_CODE])));
+        }
+
         return [
             'commands' => $readonlycommands,
-            'clarification' => [
-                'response_type'    => 'clarification',
-                'message'          => $message,
-                'commands'         => [],
-                'queue_item_ids'   => [],
-                'ambiguities'      => [],
-                'errors'           => $errors,
-                'attempted_skills' => array_values(array_unique(array_map(
-                    'strval',
-                    (array)($preflightresult['attempted_skills'] ?? [])
-                ))),
-                'issue_codes'      => $issuecodes,
-            ],
+            'clarification' => $clarification,
         ];
     }
 
@@ -2113,7 +2121,11 @@ class agent_decision_service {
             if (empty($candidates)) {
                 continue;
             }
-            $choices[] = ['message' => (string)($issue['message'] ?? ''), 'candidates' => $candidates];
+            $choices[] = [
+                'message' => (string)($issue['message'] ?? ''),
+                'field' => (string)($issue['field'] ?? ''),
+                'candidates' => $candidates,
+            ];
         }
         return $choices;
     }

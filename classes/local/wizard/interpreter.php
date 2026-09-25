@@ -173,7 +173,7 @@ class interpreter implements agent_interpreter {
                     'CONTRACT_EMPTY_MESSAGE_CLARIFICATION'
                 );
             }
-            return $this->with_optional_next_step_intent([
+            $clarification = [
                 'response_type' => 'clarification',
                 'lang'          => $lang,
                 'message'       => $clearmessage,
@@ -181,7 +181,16 @@ class interpreter implements agent_interpreter {
                 'ambiguities'   => [],
                 'ambiguity_options' => [],
                 'errors'        => [],
-            ], $nextstepintent);
+            ];
+            // Wave 30 (E4): a construction may state structurally that the selected skill cannot perform the
+            // request at all ("skill_fits": false) - distinct from a missing value only the user can give. The
+            // runtime lets selection choose again once; the message (the reason) travels as a planner-only hint.
+            $skillfits = $parsed['skill_fits'] ?? null;
+            if ($skillfits === false || (is_string($skillfits) && strtolower(trim($skillfits)) === 'false')) {
+                $clarification['issue_codes'] = ['CONSTRUCTION_SKILL_UNFIT'];
+                $clarification['repair_hints'] = [$clearmessage];
+            }
+            return $this->with_optional_next_step_intent($clarification, $nextstepintent);
         }
 
         if ($responsetype === 'error') {

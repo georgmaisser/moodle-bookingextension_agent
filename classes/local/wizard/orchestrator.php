@@ -720,7 +720,11 @@ CONSTRUCTOR ROLE (STRICT):
 - selected_skill is already chosen by selection phase.
 - Do NOT perform skill discovery, skill routing, or skill switching.
 - Build parameters only for selected_skill.
-- If selected_skill cannot be fulfilled with grounded input, return clarification with commands=[].
+- If a value that only the user can give is missing - the request points to something it neither names nor
+  states (a person called "this user", a new text that is not given) - return clarification with commands=[]
+  and ask for exactly that value.
+- If selected_skill cannot perform the request at all, return clarification with commands=[] and
+  "skill_fits": false; the message says in one sentence what the skill cannot do. Selection then chooses again.
 
 SKILL CONTRACT FIRST (highest priority):
 - Follow skill-level contracts from SKILL CATALOG (minimal_input, example_input, example_parameters).
@@ -732,7 +736,12 @@ TARGET NAMES (STRICT):
 - Leave out what is not part of the name: a salutation, an article, a generic noun the user attached
   ("the ... course" -> the name alone). Do not abbreviate the name and do not complete it from your own
   knowledge; the skill resolves the name itself and asks when it cannot.
-- If the user named no target, ask for it. Never take one from an example or invent one.
+- If the user refers to the target only by its kind or role ("the reminder", "my people"), read the field
+  descriptions first: when leaving the field out already means that target (the acting user's own data or
+  team), leave it out. Otherwise put exactly the user's words for it into the query field; the skill resolves
+  them or offers its choices.
+- Ask for a target only when the request contains no reference to one at all. Never take one from an example
+  or invent one.
 
 PROMPT;
     }

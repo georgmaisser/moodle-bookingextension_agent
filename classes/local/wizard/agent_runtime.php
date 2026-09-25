@@ -130,6 +130,10 @@ class agent_runtime {
         // query did not match - thread 11716, CBI-4). Wave 30: the selector gets the choices once and may pick one
         // by its id; the code never matches a name. Unhealed, the clarification with the choices stands.
         'PREFLIGHT_CHOICES_OFFERED',
+        // The construction stated structurally that the selected skill cannot perform the request
+        // ("skill_fits": false). Wave 30 (E4): 46 repair rounds had forced such a skill anyway (SR-3: "list_units
+        // cannot list rules"). Selection chooses again once, told which skill did not fit and why.
+        'CONSTRUCTION_SKILL_UNFIT',
     ];
 
     /**
@@ -139,6 +143,7 @@ class agent_runtime {
     private const CLARIFICATION_RETRY_ISSUE_CODES = [
         'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION',
         'PREFLIGHT_CHOICES_OFFERED',
+        'CONSTRUCTION_SKILL_UNFIT',
     ];
 
     /** Empty-message planner flakes that, once retry-exhausted, end as an honest clarification. */
@@ -385,6 +390,12 @@ class agent_runtime {
                 }
                 if (!empty($repairhints)) {
                     $retryobservation .= "\nREPAIR: " . implode(' | ', $repairhints);
+                }
+                if ($retryissuecode === 'CONSTRUCTION_SKILL_UNFIT') {
+                    $unfitskill = trim((string)($result['selected_skill'] ?? ''));
+                    if ($unfitskill !== '') {
+                        $retryobservation .= "\nUNFIT_SKILL: " . $unfitskill;
+                    }
                 }
                 if ($retryissuecode === 'PREFLIGHT_CHOICES_OFFERED') {
                     // The choices are backend data (names from the database): unlike the engine hint they are
@@ -1038,17 +1049,19 @@ class agent_runtime {
         $lines = [];
         foreach ($offered as $group) {
             $message = trim((string)($group['message'] ?? ''));
-            $lines[] = 'CHOICES' . ($message !== '' ? ' (' . $message . ')' : '') . ':';
+            $field = trim((string)($group['field'] ?? ''));
+            $lines[] = 'CHOICES' . ($field !== '' ? ' for ' . $field : '') . ($message !== '' ? ' (' . $message . ')' : '') . ':';
             foreach ((array)($group['candidates'] ?? []) as $candidate) {
                 if (!is_array($candidate)) {
                     continue;
                 }
                 $parts = ['id=' . (string)($candidate['id'] ?? '')];
-                if (isset($candidate['label'])) {
-                    $parts[] = 'label="' . str_replace('"', "'", (string)$candidate['label']) . '"';
+                $label = $candidate['label'] ?? ($candidate['name'] ?? null);
+                if ($label !== null) {
+                    $parts[] = 'label="' . str_replace('"', "'", (string)$label) . '"';
                 }
                 foreach ($candidate as $key => $value) {
-                    if (in_array($key, ['id', 'label'], true) || !is_scalar($value)) {
+                    if (in_array($key, ['id', 'label', 'name'], true) || !is_scalar($value)) {
                         continue;
                     }
                     $parts[] = $key . '=' . (string)$value;
@@ -1102,6 +1115,13 @@ class agent_runtime {
                 . 'commands[] was empty. Emit the intended command, for example '
                 . 'commands=[{"skill":"<skill>","input":{...}}] — or, if no new command is needed, use '
                 . 'response_type=clarification, confirm_pending or sufficient instead.';
+        }
+
+        if ($issuecode === 'CONSTRUCTION_SKILL_UNFIT') {
+            return 'RETRY_HINT: The construction found that the selected skill (UNFIT_SKILL below) cannot perform this '
+                . 'request; its reason is in REPAIR. NOTHING has been executed. Re-plan this step once: select a '
+                . 'DIFFERENT skill that performs the request. If no available skill fits, answer with '
+                . 'response_type=clarification and say so.';
         }
 
         if ($issuecode === 'PREFLIGHT_CHOICES_OFFERED') {

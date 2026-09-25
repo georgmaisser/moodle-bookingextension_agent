@@ -506,9 +506,12 @@ class planner_phase_service {
                 // (LR-2, TSA-4, UQ-1, UQ-4; not one rp=1 call in the whole run).
                 // See constructor_repair_round_seam_test.
                 $interpreted['selected_skill'] = $selectedskill;
+                // A construction that states the skill does not fit (wave 30, E4) is not missing input: it must
+                // not seed the next turn's continuity with the unfit skill.
+                $unfit = in_array('CONSTRUCTION_SKILL_UNFIT', (array)($interpreted['issue_codes'] ?? []), true);
                 $interpreted['issue_codes'] = array_values(array_unique(array_merge(
                     (array)($interpreted['issue_codes'] ?? []),
-                    ['CONSTRUCTION_INPUT_REQUIRED']
+                    $unfit ? [] : ['CONSTRUCTION_INPUT_REQUIRED']
                 )));
             }
         }
@@ -699,7 +702,9 @@ class planner_phase_service {
     /** Placed directly before the input fields of the construction contract (F79). */
     public const QUERY_FIELD_RULE = 'Every field whose name ends in "query" carries the target\'s name exactly as the '
         . 'user wrote it - same language, same spelling, no salutation, no article, no translation, never an '
-        . 'example value. If the user named no target, ask.';
+        . 'example value. A target named only by its kind or role goes in as the user\'s words (the skill resolves '
+        . 'them or offers its choices) - unless the field description says that leaving it out already means that '
+        . 'target. Ask only when the request contains no reference to a target.';
 
     /**
      * Drop the example values of query fields (F79).

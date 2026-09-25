@@ -83,6 +83,22 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
     }
 
     /**
+     * Wave 30 (rules 8 and 20): a kind or role reference goes to the skill instead of a question, a value only the user
+     * can give is asked for, and an unfit skill is stated structurally ("skill_fits": false) - never mixed.
+     */
+    public function test_the_template_separates_missing_input_from_an_unfit_skill(): void {
+        $template = orchestrator::get_default_constructor_prompt_template();
+        $this->assertStringContainsString('"skill_fits": false', $template);
+        $this->assertStringContainsString('only by its kind or role', $template);
+        $this->assertStringContainsString('Ask for a target only when the request contains no reference to one at all', $template);
+        // F79 stays: a target never comes from an example.
+        $this->assertStringContainsString('Never take one from an example', $template);
+        // The rule that made the constructor ask for "die Erinnerung" (CBI-4) is gone.
+        $this->assertStringNotContainsString('If the user named no target, ask for it.', $template);
+        $this->assertStringNotContainsString('cannot be fulfilled with grounded input', $template);
+    }
+
+    /**
      * The live constructor prompt carries the rule, the live selector prompt does not.
      */
     public function test_the_live_constructor_prompt_carries_the_rule(): void {
