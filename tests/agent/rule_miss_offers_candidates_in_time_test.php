@@ -37,8 +37,9 @@ require_once(__DIR__ . '/scripted_llm_trait.php');
  * CBI-4, thread 11681 (baseline run 39): the constructor answered with a confirmation for update_rule_from_template
  * carrying rulequery "Erinnerung" and days 5 while the only reminder rule is named "Email reminder 2 days before
  * course start". The preflight of that card found no rule and, since wave 29, offers every rule of the context as a
- * RULE_CANDIDATE line. The turn then has to end as a question that carries those candidates - and it has to end:
- * thread 11681 produced no run and no answer for five minutes.
+ * RULE_CANDIDATE line. The turn has to end - thread 11681 produced no run and no answer for five minutes. Since wave 30
+ * the offered rules go to the selector for one re-plan (preflight_choices_replan_test); a selector that still cannot
+ * decide asks, and the turn ends as that question within the budget.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -92,16 +93,21 @@ final class rule_miss_offers_candidates_in_time_test extends abstract_agent_test
         $_POST['sesskey'] = sesskey();
         [$store, $runtime, $threadid] = $this->build_runtime();
 
-        $this->install_scripted_planner([
-            $this->selector_skill_call('mod_booking.update_rule_from_template'),
-            // Thread 11681: the model names the rule in the user's language, the rule carries an English name.
-            $this->constructor_confirmation_request(
-                'mod_booking.update_rule_from_template',
-                ['rulequery' => 'Erinnerung', 'days' => 5],
-                'Soll die Regel "Erinnerung" auf 5 Tage vor Kursbeginn geändert werden?'
-            ),
-            $this->constructor_clarification('Welche der aufgelisteten Regeln ist gemeint?'),
-        ]);
+        $this->install_phase_scripted_planner(
+            [
+                $this->selector_skill_call('mod_booking.update_rule_from_template'),
+                // After the re-plan with the offered rules the selector still cannot decide and asks.
+                $this->constructor_clarification('Welche der aufgelisteten Regeln ist gemeint?'),
+            ],
+            [
+                // Thread 11681: the model names the rule in the user's language, the rule carries an English name.
+                $this->constructor_confirmation_request(
+                    'mod_booking.update_rule_from_template',
+                    ['rulequery' => 'Erinnerung', 'days' => 5],
+                    'Soll die Regel "Erinnerung" auf 5 Tage vor Kursbeginn geändert werden?'
+                ),
+            ]
+        );
 
         $start = microtime(true);
         $prompt = 'Die Erinnerung soll künftig fünf Tage vor Kursbeginn rausgehen, nicht drei.';
@@ -111,9 +117,7 @@ final class rule_miss_offers_candidates_in_time_test extends abstract_agent_test
         $this->assertLessThan(30, $elapsed, 'the turn ends inside the budget (thread 11681 hung for five minutes)');
         $this->assertNotSame('error', (string)($result['response_type'] ?? ''), json_encode($result));
         $this->assertSame('clarification', (string)($result['response_type'] ?? ''), json_encode($result));
-        $codes = array_map('strval', (array)($result['issue_codes'] ?? []));
-        $this->assertContains('RULE_RESOLUTION_FAILED', $codes, json_encode($result));
-        $this->assertContains('RULE_CANDIDATE', $codes, 'the rules of the context are offered');
+        $this->assertSame('SCS', $this->scripted_phase_sequence(), 'the offered rules went to the selector once');
         $this->assertSame(0, $DB->count_records('bx_agent_ai_runs', ['threadid' => (int)$threadid]), 'nothing ran');
     }
 }

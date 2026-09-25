@@ -71,6 +71,9 @@ use bookingextension_agent\local\wizard\services\pending_queue_command_service;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class agent_decision_service {
+    /** Issue code for a preflight clarification that offers the existing choices (wave 30). */
+    public const CHOICES_OFFERED_CODE = 'PREFLIGHT_CHOICES_OFFERED';
+
     /** Response type constant used in routing decisions. */
     private const RESPONSE_TYPE_SKILL_CALL = 'skill_call';
 
@@ -1055,7 +1058,7 @@ class agent_decision_service {
                 preview_passthrough::stash_clarification_preview($this->store, $threadid, $clarificationpreview);
             }
 
-            return [
+            $clarification = [
                 'response_type'   => 'clarification',
                 'message'         => $validationmessage !== '' ? $validationmessage : localized_string_service::get(
                     'ai_no_pending_intent',
@@ -1069,6 +1072,18 @@ class agent_decision_service {
                 'attempted_skills' => $attemptedskills,
                 'issue_codes'     => $allissuecodes,
             ];
+            // Wave 30: a clarification issue that carries `candidates` offers the existing choices (a rule the
+            // query did not match, thread 11716). The runtime hands them to the selector for one re-plan; if
+            // that does not settle it, this clarification - with the choices in its text - is the answer.
+            $offeredchoices = self::offered_choices($allissues);
+            if (!empty($offeredchoices)) {
+                $clarification['offered_choices'] = $offeredchoices;
+                $clarification['issue_codes'] = array_values(array_unique(array_merge(
+                    $allissuecodes,
+                    [self::CHOICES_OFFERED_CODE]
+                )));
+            }
+            return $clarification;
         }
 
         // All commands passed preflight.  Swap raw commands for prepared-input versions.
@@ -2079,5 +2094,27 @@ class agent_decision_service {
      */
     private function normalize_queue_item_ids($value): array {
         return array_values(array_filter(array_map('strval', (array)$value)));
+    }
+
+    /**
+     * The choices offered by clarification issues: every needs_clarification issue with a non-empty `candidates`
+     * list (engine contract, wave 30). Structural only - no issue code or wording is inspected.
+     *
+     * @param array $issues Preflight issues.
+     * @return array<int,array{message:string,candidates:array}>
+     */
+    public static function offered_choices(array $issues): array {
+        $choices = [];
+        foreach ($issues as $issue) {
+            if (!is_array($issue) || (string)($issue['severity'] ?? '') !== 'needs_clarification') {
+                continue;
+            }
+            $candidates = array_values(array_filter((array)($issue['candidates'] ?? []), 'is_array'));
+            if (empty($candidates)) {
+                continue;
+            }
+            $choices[] = ['message' => (string)($issue['message'] ?? ''), 'candidates' => $candidates];
+        }
+        return $choices;
     }
 }
