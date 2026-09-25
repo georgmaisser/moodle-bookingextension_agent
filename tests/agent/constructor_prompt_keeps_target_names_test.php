@@ -129,6 +129,7 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
             $this->assertCount(1, $constructorprompts, $skill);
             $this->assertStringContainsString($expected, $constructorprompts[0], $skill);
             $this->assertStringContainsString('Never state facts about this site', $constructorprompts[0], $skill);
+            $this->assertStringContainsString('Never fill in a value the user did not give', $constructorprompts[0], $skill);
             $this->assertStringNotContainsString('selected_skill needs', $selectorprompts[0], 'construction only');
             $this->clear_scripted_planner();
             $this->scriptedplannerprompts = [];

@@ -449,6 +449,10 @@ class phase_prompt_bundle_builder {
             }
             $lines[] = 'Never state facts about this site (its files, rules, units, people) that this prompt does '
                 . 'not contain - the skill checks them.';
+            // Wave 30 (UO-3, Nachlauf 33 thread 12045): with the example time gone the model still filled a plausible
+            // one (10:00-11:00) for "a date at the end of next month". "Never invent" stood only in retry hints.
+            $lines[] = 'Never fill in a value the user did not give (a time, a date, a number, a name): leave the '
+                . 'field out, or ask for it when the command cannot be built without it.';
         }
 
         if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
