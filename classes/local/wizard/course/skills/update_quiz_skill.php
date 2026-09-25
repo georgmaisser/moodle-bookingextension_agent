@@ -116,10 +116,11 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         return [
             'version' => 1,
             'description' => 'Edit an existing quiz and/or add questions to it. Rename it, change its description, show/hide it, '
-                . 'and/or add questions (newly generated, specific existing ones, or random from a category). Use for "add 5 '
+                . 'and/or add questions (generated from a topic or the course PDFs, specific existing ones, or random from a '
+                . 'category). Use for "add 5 '
                 . 'questions to Quiz 3", "rename the quiz", "add questions to the quiz", "hide the quiz".',
             'is' => 'Changing a quiz that already exists.',
-            'not' => 'Creating a new quiz (add_quiz).',
+            'not' => 'Creating a new quiz (add_quiz); bank questions without a quiz (question.generate_questions).',
             'readonly' => false,
             'example_utterances' => [
                 'add 5 questions to the existing quiz',
@@ -250,8 +251,8 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
         return [
             [
                 'id' => 'course.update_quiz_request',
-                'description' => 'The user wants an existing quiz changed, or questions added to it (generated, specific, or from'
-                    . ' a category).',
+                'description' => 'The user wants an existing quiz changed, or questions added to it (generated from a topic '
+                    . 'or the course PDFs, specific, or from a category).',
             ],
         ];
     }
