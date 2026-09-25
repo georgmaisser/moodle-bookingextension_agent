@@ -277,18 +277,20 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 ]));
             }
 
-            return $this->invalid($this->clarification_issues([
+            return $this->invalid($this->choice_issues(
                 get_string('agent_memory_forget_no_match_with_list', 'bookingextension_agent', (object)[
                     'query' => s($query),
                     'candidates' => $this->format_candidates($stored),
                 ]),
-            ]));
+                $stored
+            ));
         }
 
         if (count($matches) > 1) {
-            return $this->invalid($this->clarification_issues([
+            return $this->invalid($this->choice_issues(
                 get_string('agent_memory_forget_multi_match', 'bookingextension_agent', $this->format_candidates($matches)),
-            ]));
+                $matches
+            ));
         }
 
         $match = reset($matches);
@@ -364,6 +366,27 @@ class forget_skill extends core_skill_base implements skill_trigger_provider_int
                 'message' => $message,
             ];
         }
+        return $issues;
+    }
+
+    /**
+     * The memories to choose from as one clarification issue in the engine's choice shape.
+     *
+     * Engine contract (wave 30): an issue carrying `candidates` for a `field` offers a choice; the engine hands it
+     * to the selector for one re-plan, and the construction picks the memory by its id. The skill never matches
+     * the words of the query itself.
+     *
+     * @param string $message
+     * @param \stdClass[] $records
+     * @return array[]
+     */
+    private function choice_issues(string $message, array $records): array {
+        $issues = $this->clarification_issues([$message]);
+        $issues[0]['field'] = 'id';
+        $issues[0]['candidates'] = array_values(array_map(static fn($record): array => [
+            'id' => (int)$record->id,
+            'label' => (string)$record->memory,
+        ], $records));
         return $issues;
     }
 
