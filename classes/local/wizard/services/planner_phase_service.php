@@ -30,6 +30,7 @@ use core\context;
 use core\di;
 use core_ai\manager as ai_manager;
 use core_ai\aiactions\generate_text;
+use bookingextension_agent\local\wizard\interpreter;
 use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\conversation_store;
 use bookingextension_agent\local\wizard\skill_registry;
@@ -498,13 +499,10 @@ class planner_phase_service {
             if ((string)($interpreted['response_type'] ?? '') === 'clarification') {
                 // A constructor question is about the already-selected skill: carry that
                 // state on the result so the pending-action continuity record survives the
-                // turn, and mark the question as a real blocking one.
-                //
-                // This stamp MUST happen before the repair round below reads the issue codes. Until
-                // baseline run 17 it sat after that block, so constructor_command_repair never saw
-                // CONSTRUCTION_INPUT_REQUIRED and its zero-required-field branch was unreachable
-                // (LR-2, TSA-4, UQ-1, UQ-4; not one rp=1 call in the whole run).
-                // See constructor_repair_round_seam_test.
+                // turn, and mark the question as a real blocking one. It is the answer of this
+                // construction - wave 30 removed the repair round that called the constructor a
+                // second time (outside the flowchart); a contract breach is re-planned through
+                // the selector (agent_runtime, CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION).
                 $interpreted['selected_skill'] = $selectedskill;
                 // A construction that states the skill does not fit (wave 30, E4) is not missing input: it must
                 // not seed the next turn's continuity with the unfit skill.
@@ -513,53 +511,6 @@ class planner_phase_service {
                     (array)($interpreted['issue_codes'] ?? []),
                     $unfit ? [] : ['CONSTRUCTION_INPUT_REQUIRED']
                 )));
-            }
-        }
-
-        // One targeted repair round when the constructor announced an action but carried no command
-        // (baseline run 15: UO-3, GQ-4, RSC-3, RSC-4). The trigger is the interpreter's issue code, i.e. engine
-        // state, and the instruction offers the honest alternative so the model is not pushed into inventing
-        // keys. Exactly one extra call; if it fails, the original downgrade stands.
-        $skillobject = $this->registry->get_skill($selectedskill);
-        $requiredfields = [];
-        if ($skillobject !== null) {
-            $schema = (array)$skillobject->get_schema();
-            foreach ((array)($schema['properties'] ?? []) as $field => $definition) {
-                if (is_array($definition) && !empty($definition['required'])) {
-                    $requiredfields[] = (string)$field;
-                }
-            }
-        }
-        if (is_array($interpreted) && constructor_command_repair::is_repairable($interpreted, $requiredfields)) {
-            $repaircall = $llm->invoke_for_context_retrying_truncation(
-                $threadid,
-                $contextid,
-                $userid,
-                $debugsource . '|rp=1',
-                $prompt . constructor_command_repair::instruction($selectedskill, $requiredfields),
-                $actionclass
-            );
-            $repairtext = (string)($repaircall['rawcontent'] ?? '');
-            if (!empty($repaircall['success']) && $repairtext !== '' && empty($repaircall['truncated'])) {
-                $repaired = $this->interpreter->interpret_phase_output(
-                    $repairtext,
-                    orchestrator::PHASE_PARAMETER_CONSTRUCTION,
-                    [
-                        'contextid' => $contextid,
-                        'userid' => $userid,
-                        'lastusermessage' => (string)($selectionstate['lastusermessage'] ?? ''),
-                        'allowed_skills' => $constructionallowedskills,
-                    ]
-                );
-                $userturn = (string)($selectionstate['lastusermessage'] ?? '');
-                if (is_array($repaired) && constructor_command_repair::accept($repaired, $selectedskill, $userturn)) {
-                    $repaired['_planner_raw_response'] = $repairtext;
-                    $repaired['issue_codes'] = array_values(array_unique(array_merge(
-                        (array)($repaired['issue_codes'] ?? []),
-                        ['CONSTRUCTION_COMMAND_REPAIRED']
-                    )));
-                    return $repaired;
-                }
             }
         }
 
@@ -689,12 +640,12 @@ class planner_phase_service {
             return $interpreted;
         }
 
-        // Not callable as it stands: the repair round gets one chance to build it or to ask honestly.
+        // Not callable as it stands: a contract breach, re-planned once through the selector (wave 30).
         $interpreted['response_type'] = 'clarification';
         $interpreted['commands'] = [];
         $interpreted['issue_codes'] = array_values(array_unique(array_merge(
             $codes,
-            [constructor_command_repair::DOWNGRADE_CODE]
+            [interpreter::CONFIRMATION_DOWNGRADE_CODE]
         )));
         return $interpreted;
     }

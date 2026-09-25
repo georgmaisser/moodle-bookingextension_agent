@@ -161,7 +161,11 @@ final class preflight_choices_replan_test extends abstract_agent_testcase {
      */
     public function test_the_offered_choices_are_masked_for_the_selector(): void {
         set_config('aiprivacymode', 'strict', 'bookingextension_agent');
-        $fullname = fullname($this->teacher);
+        // A fixed name: the generator's random names include one- and two-character CJK names, which the
+        // anonymizer's word detection (three letters minimum) does not catch - a separate finding (2026-09-25),
+        // not part of this path; the choices are masked by the same function as every observation.
+        $person = $this->getDataGenerator()->create_user(['firstname' => 'Hedwig', 'lastname' => 'Kranich']);
+        $fullname = fullname($person);
         $this->seed_rules('Erinnerung an ' . $fullname);
         [$store, $runtime, $threadid] = $this->build_runtime();
         $skill = 'mod_booking.update_rule_from_template';

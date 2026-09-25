@@ -33,7 +33,9 @@ require_once(__DIR__ . '/scripted_llm_trait.php');
  * Baseline run 15 (threads 4699, 4808, 4829, 4830): the constructor described the mutation completely and still sent
  * `commands: []`. Until wave 30 a repair round called the constructor a second time with a repair text - a step the
  * flowchart does not know. The original fault stays pinned here as an OUTCOME: the turn ends as the confirmation card
- * with the command, whichever mechanism gets it there. Wave 30: the breach is re-planned once through the selector.
+ * with the command, whichever mechanism gets it there. Wave 30: the breach is re-planned once through the selector,
+ * and the flow invariant of the architecture holds: every construction follows a selection, a constructor call never
+ * follows a constructor call.
  *
  * @group bookingextension_agent
  * @group bookingextension_agent_agent
@@ -192,18 +194,18 @@ final class construction_contract_breach_replans_test extends abstract_agent_tes
     }
 
     /**
-     * The re-plan runs through the selector even when the constructor breaks the contract a second time: the selector
-     * is asked again, the next construction carries the command, and the turn ends as the card. Exactly one re-plan.
+     * The re-plan runs through the selector: the selector is asked again, the next construction carries the
+     * command, and the turn ends as the card (S C S C). Exactly one re-plan.
      */
-    public function test_a_repeated_breach_is_replanned_once_through_the_selector(): void {
+    public function test_a_breach_is_replanned_once_through_the_selector(): void {
         [$prompt, $skill, $broken, $parameters, $option] = self::run15_provider()['thread 4699 (fr, update_option)'];
         $this->setUser($this->teacher);
         $_POST['sesskey'] = sesskey();
         $this->create_option($option);
         [$store, $runtime, $threadid] = $this->build_runtime();
         $this->install_phase_scripted_planner(
-            [$this->selector_skill_call($skill), $this->selector_skill_call($skill), $this->selector_skill_call($skill)],
-            [$broken, $broken, $this->good_card($skill, $parameters)]
+            [$this->selector_skill_call($skill), $this->selector_skill_call($skill)],
+            [$broken, $this->good_card($skill, $parameters)]
         );
 
         $result = $this->chat($prompt, (int)$threadid, $store, $runtime);
@@ -213,7 +215,7 @@ final class construction_contract_breach_replans_test extends abstract_agent_tes
             (string)($result['response_type'] ?? ''),
             $this->scripted_phase_sequence() . ' ' . json_encode($result['issue_codes'] ?? [])
         );
-        $this->assertGreaterThanOrEqual(2, substr_count($this->scripted_phase_sequence(), 'S'), 'the selector re-planned');
+        $this->assertSame('SCSC', $this->scripted_phase_sequence(), 'the selector re-planned');
     }
 
     /**
@@ -235,5 +237,29 @@ final class construction_contract_breach_replans_test extends abstract_agent_tes
         $this->assertSame('clarification', (string)($result['response_type'] ?? ''), json_encode($result));
         $this->assertLessThanOrEqual(2, substr_count($this->scripted_phase_sequence(), 'S'), 'one re-plan, no loop');
         $this->assertStringNotContainsString('CONTRACT_', (string)($result['message'] ?? ''), 'no code in the user text');
+    }
+
+    /**
+     * Flow invariant: a constructor call never follows a constructor call; every construction follows a selection.
+     *
+     * @dataProvider run15_provider
+     * @param string $prompt
+     * @param string $skill
+     * @param string $broken
+     * @param array $parameters
+     * @param string $option
+     */
+    public function test_every_construction_follows_a_selection(
+        string $prompt,
+        string $skill,
+        string $broken,
+        array $parameters,
+        string $option
+    ): void {
+        $this->run_breach_turn($prompt, $skill, $broken, $parameters, $option);
+
+        $sequence = $this->scripted_phase_sequence();
+        $this->assertStringNotContainsString('CC', $sequence, 'phase sequence ' . $sequence);
+        $this->assertStringStartsWith('SC', $sequence);
     }
 }

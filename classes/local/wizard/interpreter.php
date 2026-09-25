@@ -51,6 +51,9 @@ use bookingextension_agent\local\wizard\services\security\authorization_service;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class interpreter implements agent_interpreter {
+    /** A confirmation_request without commands, relayed as an honest clarification (re-planned once, wave 30). */
+    public const CONFIRMATION_DOWNGRADE_CODE = 'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION';
+
     /** Issue code: a command named a skill that is not registered (planner slip, retried once — F62). */
     public const ISSUE_SKILL_NOT_REGISTERED = 'SKILL_NOT_REGISTERED';
 
@@ -246,7 +249,7 @@ class interpreter implements agent_interpreter {
                     'ambiguities'   => [],
                     'ambiguity_options' => [],
                     'errors'        => [],
-                    'issue_codes'   => ['CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION'],
+                    'issue_codes'   => [self::CONFIRMATION_DOWNGRADE_CODE],
                 ], $nextstepintent);
             }
             return $this->error_result('Response type requires at least one command but none were provided.');
