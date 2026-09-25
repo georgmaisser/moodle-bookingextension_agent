@@ -138,4 +138,6 @@ final class forget_offers_memory_choices_test extends abstract_agent_testcase {
         $message = (string)($result['message'] ?? '');
         $this->assertStringNotContainsString('RECOVERABLE_', $message, 'no issue code in the user text');
         $this->assertStringNotContainsString('PREFLIGHT_', $message, 'no issue code in the user text');
-        $this->assertCount(2, (new user_memory_service())->get_all((int)$this->teacher->id)
+        $this->assertCount(2, (new user_memory_service())->get_all((int)$this->teacher->id), 'nothing was deleted');
+    }
+}
