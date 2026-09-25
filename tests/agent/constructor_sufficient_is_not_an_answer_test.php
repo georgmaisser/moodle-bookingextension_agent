@@ -105,12 +105,18 @@ final class constructor_sufficient_is_not_an_answer_test extends abstract_agent_
         $this->create_option('Quiet Target');
         [$store, $runtime, $threadid] = $this->build_runtime();
 
-        $this->install_scripted_planner([
-            $this->selector_skill_call('mod_booking.update_option'),
-            $this->planner_sufficient('Erledigt, die Option wurde umbenannt.'),
-            // The repair round answers honestly.
-            $this->constructor_clarification('Auf welchen Titel soll die Option umbenannt werden?'),
-        ]);
+        // Phase-aware (wave 30): the constructor's second answer is honest, however the engine gets there
+        // (formerly a repair round, now a re-plan through the selector).
+        $this->install_phase_scripted_planner(
+            [
+                $this->selector_skill_call('mod_booking.update_option'),
+                $this->selector_skill_call('mod_booking.update_option'),
+            ],
+            [
+                $this->planner_sufficient('Erledigt, die Option wurde umbenannt.'),
+                $this->constructor_clarification('Auf welchen Titel soll die Option umbenannt werden?'),
+            ]
+        );
 
         $result = $this->chat('Benenn die Option "Quiet Target" um.', (int)$threadid, $store, $runtime);
 

@@ -120,6 +120,20 @@ class agent_runtime {
         // invented mod_booking.search_users). One re-plan with the repair hint; unhealed, the turn
         // keeps the neutral availability framing (SKILL_DENIED), never a technical error.
         'SKILL_NOT_REGISTERED',
+        // The construction described the action but carried no command (a confirmation_request with empty
+        // commands, or a recited answer instead of the call); the interpreter already relays it as an honest
+        // question. Baseline run 15 (threads 4699, 4808, 4829, 4830). Wave 30: the step is re-planned once
+        // through the SELECTOR like every other contract breach - no second constructor call outside the
+        // flowchart. Unhealed, the honest question stands.
+        'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION',
+    ];
+
+    /**
+     * Retryable codes whose result is already an honest clarification rather than an error: the retry may
+     * start from it, and when it is exhausted the clarification itself is the answer.
+     */
+    private const CLARIFICATION_RETRY_ISSUE_CODES = [
+        'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION',
     ];
 
     /** Empty-message planner flakes that, once retry-exhausted, end as an honest clarification. */
@@ -818,7 +832,10 @@ class agent_runtime {
      */
     private function resolve_framework_retry_issue_code(array $result, array $retrycounts): ?string {
         $responsetype = trim((string)($result['response_type'] ?? ''));
-        if ($responsetype !== 'error') {
+        $codesonresult = array_map('strval', (array)($result['issue_codes'] ?? []));
+        $honestbreach = $responsetype === 'clarification'
+            && !empty(array_intersect(self::CLARIFICATION_RETRY_ISSUE_CODES, $codesonresult));
+        if ($responsetype !== 'error' && !$honestbreach) {
             return null;
         }
 
@@ -1040,6 +1057,14 @@ class agent_runtime {
                 . 'commands[] was empty. Emit the intended command, for example '
                 . 'commands=[{"skill":"<skill>","input":{...}}] — or, if no new command is needed, use '
                 . 'response_type=clarification, confirm_pending or sufficient instead.';
+        }
+
+        if ($issuecode === 'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION') {
+            return 'RETRY_HINT: The previous construction described the action but carried NO command - NOTHING has '
+                . 'been executed or staged, so nothing is done yet. Re-plan this step once: select the skill that '
+                . 'performs the request and construct its command from the '
+                . 'values the user gave. If a value that only the user can give is genuinely missing, answer with '
+                . 'response_type=clarification and ask for exactly that value. Never invent a value.';
         }
 
         if (in_array($issuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {

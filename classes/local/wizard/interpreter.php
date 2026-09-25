@@ -223,10 +223,10 @@ class interpreter implements agent_interpreter {
         $commands = $this->normalize_commands_payload($parsed, $lastusermessage);
         if (!is_array($commands) || empty($commands)) {
             // A confirmation_request without commands is semantically a question to the
-            // user, not a command envelope. Relay it as a clarification instead of
-            // bouncing a retry hint: the hint pushes the model to emit commands it was
-            // not ready to build (invented keys), and it burns the single framework
-            // retry before the real repair round.
+            // user, not a command envelope: relay it as an honest clarification. The code
+            // lets the runtime re-plan the step once through the selector (wave 30); its
+            // hint offers the honest way out (ask for the one missing value) so the model
+            // is not pushed into inventing keys. Unhealed, this clarification is the answer.
             $downgrademessage = $this->strip_command_prefix($this->safe_string($parsed['message'] ?? ''));
             if ($responsetype === 'confirmation_request' && $downgrademessage !== '') {
                 return $this->with_optional_next_step_intent([

@@ -50,6 +50,82 @@ trait scripted_llm_trait {
     /** @var string[] Every synchronizer (generate_agent_reply) prompt, in call order. */
     protected array $scriptedsyncprompts = [];
 
+    /** @var array FIFO of selector responses for the phase-aware planner. */
+    private array $scriptedselectorqueue = [];
+
+    /** @var array FIFO of constructor responses for the phase-aware planner. */
+    private array $scriptedconstructorqueue = [];
+
+    /** @var string[] Phase of every planner_decide call in call order: 'S' selector, 'C' constructor. */
+    protected array $scriptedphases = [];
+
+    /**
+     * Engine marker that only a constructor prompt carries: the handoff of the selection phase.
+     * Verified on the corpus 2026-09-25: 137 of 137 constructor prompts, 0 of 187 selector prompts.
+     */
+    private const CONSTRUCTOR_PROMPT_MARKER = 'phase_handoff.selection=';
+
+    /**
+     * Install a phase-aware scripted planner: selector and constructor calls consume their own FIFO.
+     *
+     * A test written against this installer states WHAT each phase answers, not in which order the engine
+     * asks - so it holds whether a second constructor answer comes from a repair round or from a re-plan via
+     * the selector (wave 30). The phase sequence is recorded in $scriptedphases for flow invariants.
+     *
+     * @param array $selectorscript One entry per selector call, in order.
+     * @param array $constructorscript One entry per constructor call, in order.
+     * @param string $finalmessage User-facing message for terminal/synchronizer calls.
+     * @param array $syncscript One entry per synchronizer call, in order.
+     * @return void
+     */
+    protected function install_phase_scripted_planner(
+        array $selectorscript,
+        array $constructorscript,
+        string $finalmessage = 'Done.',
+        array $syncscript = []
+    ): void {
+        $normalize = static fn($entry) => is_array($entry) ? $entry : (string)$entry;
+        $this->scriptedselectorqueue = array_values(array_map($normalize, $selectorscript));
+        $this->scriptedconstructorqueue = array_values(array_map($normalize, $constructorscript));
+        $this->scriptedsyncqueue = array_values(array_map($normalize, $syncscript));
+        $this->scriptedphases = [];
+
+        $sufficient = json_encode([
+            'response_type' => 'sufficient',
+            'message' => $finalmessage,
+            'commands' => [],
+            'user_lang' => 'en',
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        llm_call_service::set_test_responder(function (string $actionclass, string $prompt) use ($sufficient) {
+            if ($actionclass === wb_action_names::PLANNER_DECIDE) {
+                $this->scriptedplannerprompts[] = $prompt;
+                if (strpos($prompt, self::CONSTRUCTOR_PROMPT_MARKER) !== false) {
+                    $this->scriptedphases[] = 'C';
+                    return !empty($this->scriptedconstructorqueue) ? array_shift($this->scriptedconstructorqueue) : $sufficient;
+                }
+                $this->scriptedphases[] = 'S';
+                return !empty($this->scriptedselectorqueue) ? array_shift($this->scriptedselectorqueue) : $sufficient;
+            }
+            if ($actionclass === wb_action_names::GENERATE_AGENT_REPLY) {
+                $this->scriptedsyncprompts[] = $prompt;
+                return !empty($this->scriptedsyncqueue) ? array_shift($this->scriptedsyncqueue) : $sufficient;
+            }
+            return $sufficient;
+        });
+
+        llm_call_service::set_test_embedding(array_fill(0, 8, 0.01));
+    }
+
+    /**
+     * The recorded phase sequence as a string ("SCSC..."), for flow assertions.
+     *
+     * @return string
+     */
+    protected function scripted_phase_sequence(): string {
+        return implode('', $this->scriptedphases);
+    }
+
     /**
      * Install a scripted planner. Planner (planner_decide) calls consume $plannerscript in order;
      * once exhausted they fall back to a terminal 'sufficient' so the loop always converges. The
@@ -118,6 +194,9 @@ trait scripted_llm_trait {
         $this->scriptedplannerprompts = [];
         $this->scriptedsyncqueue = [];
         $this->scriptedsyncprompts = [];
+        $this->scriptedselectorqueue = [];
+        $this->scriptedconstructorqueue = [];
+        $this->scriptedphases = [];
     }
 
     /**
