@@ -108,11 +108,9 @@ final class constructor_sees_no_query_example_test extends abstract_agent_testca
         $this->assertStringNotContainsString('anna.muster@example.com', $prompt, 'the userquery example is bait');
         $this->assertStringContainsString('"role":"student"', $prompt, 'non-query examples stay');
 
-        $rule = strpos($prompt, 'exactly as the user wrote it - same language');
-        $fields = strpos($prompt, '"input_fields"');
-        $this->assertNotFalse($rule);
-        $this->assertNotFalse($fields);
-        $this->assertLessThan($fields, $rule, 'the rule precedes the fields');
-        $this->assertLessThan(400, $fields - $rule, 'the rule stands directly before the fields, not pages earlier');
+        // Wave 32 (frozen prompt spec): the target-name rule stands once, in the constructor template (rule 3); the
+        // catalog entry no longer carries a restated copy next to the fields.
+        $this->assertSame(1, substr_count($prompt, 'TARGET NAMES.'));
+        $this->assertStringNotContainsString('exactly as the user wrote it - same language', $prompt);
     }
 }

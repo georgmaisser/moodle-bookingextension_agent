@@ -115,8 +115,9 @@ final class selector_policy_names_no_skill_test extends abstract_agent_testcase 
         $template = (string)orchestrator::get_default_initial_prompt_template_for_action(
             \core_ai\aiactions\summarise_text::class
         );
-        $this->assertStringContainsString('CONTEXT-AWARE PLANNING', $template);
-        $this->assertStringContainsString('ENTITY TYPE', $template, 'the entity the user named decides between siblings');
+        // Wave 32 (frozen prompt spec): the entity the user named decides between siblings.
+        $this->assertStringContainsString('CHOOSING BETWEEN SIMILAR SKILLS', $template);
+        $this->assertStringContainsString('The kind of thing the user names decides', $template);
 
         $policy = strstr($template, 'SKILL CATALOG', true) ?: $template;
         $this->assertSame([], $this->names_in($policy), 'engine policy names no skill');

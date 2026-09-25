@@ -96,7 +96,9 @@ final class confirm_series_contract_test extends TestCase {
     }
 
     /**
-     * The reply contract states the one-step-per-confirmation truth.
+     * Wave 32 (frozen prompt spec): the one-step-per-confirmation truth is no longer restated as an engine policy. A step
+     * still queued behind the waiting confirmation is named as open (synchronizer template rule 3); the engine adds
+     * only the state of the turn.
      */
     public function test_awaiting_confirmation_contract_states_one_step_per_confirm(): void {
         $builder = new synchronizer_prompt_builder();
@@ -110,6 +112,13 @@ final class confirm_series_contract_test extends TestCase {
             synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION
         );
 
-        $this->assertStringContainsString('exactly ONE queued step', $prompt);
+        $this->assertStringNotContainsString('PENDING STEPS POLICY', $prompt);
+        $this->assertStringContainsString('TURN STATE: this reply asks the user a question.', $prompt);
+        $this->assertStringContainsString(
+            "A planned step that is waiting behind the question of rule 1 is not a\n   failure: name it as still open",
+            \bookingextension_agent\local\wizard\orchestrator::get_default_initial_prompt_template_for_action(
+                \core_ai\aiactions\generate_text::class
+            )
+        );
     }
 }

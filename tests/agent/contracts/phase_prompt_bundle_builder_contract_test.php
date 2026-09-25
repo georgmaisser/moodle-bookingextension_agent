@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\tests\agent\contracts;
 
 use advanced_testcase;
+use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\services\orchestrator_prompt_profile_service;
 use bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder;
 use bookingextension_agent\local\wizard\skill_registry;
@@ -37,42 +38,36 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
      * Selection output contract must require a single selector command.
      */
     public function test_selection_output_contract_requires_single_selector_command(): void {
+        // Wave 32 (frozen prompt spec): the OUTPUT CONTRACT stands once, in the selector template; the engine adds no
+        // second contract block that could differ from it.
         $builder = $this->build_builder();
 
         $contract = $this->invoke_private_method($builder, 'build_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_SELECTION,
         ]);
+        $this->assertSame('', $contract);
+        $template = orchestrator::get_default_initial_prompt_template_for_action(\core_ai\aiactions\summarise_text::class);
         $this->assertStringContainsString(
-            'Allowed response_type: skill_call, clarification, confirm_pending, sufficient, error.',
-            $contract
+            'response_type is one of: skill_call, clarification, confirm_pending, sufficient.',
+            $template
         );
-        $this->assertStringContainsString(
-            'For skill_call: commands must contain exactly one command object that selects exactly one skill',
-            $contract
-        );
-        $this->assertStringContainsString(
-            'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.',
-            $contract
-        );
-        $this->assertStringContainsString(
-            'This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.',
-            $contract
-        );
+        $this->assertStringContainsString('exactly one command, no parameters.', $template);
     }
 
     /**
      * Construction output contract must enforce exactly one command for command-bearing responses.
      */
     public function test_construction_output_contract_requires_one_or_more_commands(): void {
+        // Wave 32 (frozen prompt spec): the constructor's OUTPUT CONTRACT stands once, in its template.
         $builder = $this->build_builder();
 
         $contract = $this->invoke_private_method($builder, 'build_output_contract_block', [
             orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION,
         ]);
-
-        $expected = 'For skill_call/confirmation_request: '
-            . 'commands must contain one or more command objects.';
-        $this->assertStringContainsString($expected, $contract);
+        $this->assertSame('', $contract);
+        $template = orchestrator::get_default_constructor_prompt_template();
+        $this->assertStringContainsString('one command, the skill name exactly selected_skill', $template);
+        $this->assertStringContainsString('clarification: commands = [] and a non-empty message', $template);
     }
 
     /**
@@ -84,33 +79,13 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
      * enables full constructor semantics with a complete parameter payload.
      */
     public function test_full_schema_payload_is_construction_only(): void {
-        $builder = $this->build_builder();
-
-        $selectioncontract = $this->invoke_private_method($builder, 'build_output_contract_block', [
-            orchestrator_prompt_profile_service::PHASE_SELECTION,
-        ]);
-        $constructioncontract = $this->invoke_private_method($builder, 'build_output_contract_block', [
-            orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION,
-        ]);
-
-        // Selection phase: field-level construction is explicitly prohibited.
-        $this->assertStringContainsString(
-            'Selection command input must be omitted or {}: no field-level construction, no inferred defaults.',
-            $selectioncontract
-        );
-
-        // Construction phase: full parameter payload is expected.
-        $this->assertStringContainsString(
-            'Apply constructor semantics only; do not perform routing in this phase.',
-            $constructioncontract
-        );
-
-        // The constructor-semantics instruction must NOT appear in the selection phase.
-        $this->assertStringNotContainsString(
-            'Apply constructor semantics only',
-            $selectioncontract,
-            'Selection phase must not apply constructor semantics.'
-        );
+        // Wave 32: selection never builds parameters (selector template), construction builds them for selected_skill
+        // only (constructor template). Neither phase gets a second contract block.
+        $selector = orchestrator::get_default_initial_prompt_template_for_action(\core_ai\aiactions\summarise_text::class);
+        $constructor = orchestrator::get_default_constructor_prompt_template();
+        $this->assertStringContainsString('never turns them into parameters', $selector);
+        $this->assertStringContainsString('builds the parameters of selected_skill', $constructor);
+        $this->assertStringNotContainsString('builds the parameters of selected_skill', $selector);
     }
 
     /**
@@ -126,12 +101,12 @@ final class phase_prompt_bundle_builder_contract_test extends advanced_testcase 
         $reminderoff = $this->invoke_private_method($builder, 'build_output_contract_reminder', [$phase, false]);
 
         // Cached contract stays autoconfirm-invariant (so it caches regardless of autoconfirm state).
-        $this->assertStringNotContainsString('Auto-confirm mode is active.', $contract);
+        $this->assertStringNotContainsString('Auto-confirm is active', $contract);
 
         // Volatile reminder carries the autoconfirm guidance only when active, plus the 1-line pointer.
-        $this->assertStringContainsString('Auto-confirm mode is active.', $reminderon);
-        $this->assertStringNotContainsString('Auto-confirm mode is active.', $reminderoff);
-        $this->assertStringContainsString('[OUTPUT_CONTRACT] above', $reminderoff);
+        $this->assertStringContainsString('Auto-confirm is active', $reminderon);
+        $this->assertStringNotContainsString('Auto-confirm is active', $reminderoff);
+        $this->assertStringContainsString('as defined in OUTPUT CONTRACT', $reminderoff);
     }
 
 

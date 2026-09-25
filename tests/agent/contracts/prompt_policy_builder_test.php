@@ -38,7 +38,8 @@ final class prompt_policy_builder_test extends advanced_testcase {
         $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
 
         $this->assertStringNotContainsString('SYNTHESIS RESPONSE POLICY', $plannerpolicies);
-        $this->assertStringContainsString('NON-OPTIONAL SUFFICIENCY POLICY', $plannerpolicies);
+        // Wave 32 (frozen prompt spec): the selector template states the decision order once; no policy restates it.
+        $this->assertSame('', $plannerpolicies);
     }
 
     /**
@@ -58,38 +59,18 @@ final class prompt_policy_builder_test extends advanced_testcase {
      * Selection phase must behave like a tool selector with exactly one command.
      */
     public function test_selection_policy_requires_single_selector_command(): void {
-        $plannerpolicies = prompt_policy_builder::build_planner_policies('selection', false, false);
-
-        $expectedtypes = 'Allowed response_type values: skill_call, clarification, '
-            . 'confirm_pending, sufficient, error.';
-        $this->assertStringContainsString($expectedtypes, $plannerpolicies);
-        $this->assertStringContainsString(
-            'For skill_call, commands MUST contain exactly one command object that selects exactly one skill',
-            $plannerpolicies
-        );
-        $this->assertStringContainsString(
-            'Selection must not perform parameter construction; command input should be omitted or {}.',
-            $plannerpolicies
-        );
-        $this->assertStringContainsString(
-            'This phase is a tool-selector call: it chooses exactly one skill, and construction handles parameters.',
-            $plannerpolicies
-        );
+        // Wave 32 (frozen prompt spec): the single-command selector contract stands in the selector template only
+        // (pinned in frozen_prompts_test); the selection policy adds nothing without the scope restriction.
+        $this->assertSame('', prompt_policy_builder::build_planner_policies('selection', false, false));
+        $this->assertSame('', prompt_policy_builder::build_planner_policies('selection', true, true));
     }
 
     /**
      * Parameter construction must keep exactly one command for command-bearing types.
      */
     public function test_parameter_construction_policy_requires_one_or_more_commands(): void {
-        $plannerpolicies = prompt_policy_builder::build_planner_policies('parameter_construction', false, false);
-
-        $expected = 'For skill_call or confirmation_request, '
-            . 'commands MUST contain one or more command objects.';
-        $this->assertStringContainsString($expected, $plannerpolicies);
-        $this->assertStringContainsString(
-            'This phase is constructor-only: build parameters for the selected skill only.',
-            $plannerpolicies
-        );
+        // Wave 32 (frozen prompt spec): the constructor contract stands in the constructor template only.
+        $this->assertSame('', prompt_policy_builder::build_planner_policies('parameter_construction', false, false));
     }
 
     /**

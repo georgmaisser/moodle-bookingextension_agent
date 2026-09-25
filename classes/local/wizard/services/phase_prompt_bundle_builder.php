@@ -37,14 +37,6 @@ use bookingextension_agent\local\wizard\wb_action_names;
  * Build phase-specific prompt bundles without mixing orchestration concerns.
  */
 class phase_prompt_bundle_builder {
-    /**
-     * The construction reminder's rule for values (wave 30): never invent a time, a date or a number; a title or
-     * name may be the user's own words; ask only for a value the selected skill needs.
-     */
-    public const VALUE_RULE = 'Never fill in a time, a date or a number the user did not give: leave the field out '
-        . '(the skill then applies its default or asks itself), or ask for it when it is one the selected skill needs. '
-        . "A title or name may be the user's own words for the thing.";
-
     /** Wunderbyte final reply action class name. */
     private const WB_ACTION_GENERATE_AGENT_REPLY = wb_action_names::GENERATE_AGENT_REPLY;
 
@@ -332,6 +324,15 @@ class phase_prompt_bundle_builder {
      * @return string
      */
     private function build_output_contract_block(string $phase): string {
+        // Wave 32 (frozen prompt spec): selection and construction carry their OUTPUT CONTRACT inside the base template;
+        // a second contract block restated it with differing rules (constructor 'sufficient', search_skills in static mode).
+        $normalizedphase0 = trim(strtolower($phase));
+        if (
+            $normalizedphase0 === orchestrator_prompt_profile_service::PHASE_SELECTION
+            || $normalizedphase0 === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
+        ) {
+            return '';
+        }
         $normalizedphase = trim(strtolower($phase));
         $lines = [
             'Return exactly one valid JSON object and nothing else.',
@@ -416,65 +417,34 @@ class phase_prompt_bundle_builder {
         $normalizedphase = trim(strtolower($phase));
         $lines = [];
 
-        // Deterministic response_type gate from engine state (skill registry readonly flag), so the
-        // model never has to judge "is this mutating?" against the selection handoff (#2199 issue 2).
-        if (
-            $selectedskillisreadonly !== null
-            && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
-        ) {
+        // Wave 32 (frozen prompt spec): the constructor reminder states two engine facts - read-only or mutating, and the
+        // declared required values - and nothing else; the rules live once in the constructor template.
+        $isconstruction = $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION;
+        if ($isconstruction && $selectedskillisreadonly !== null) {
             $lines[] = $selectedskillisreadonly
-                ? 'selected_skill is READ-ONLY: emit response_type="skill_call" '
-                    . '(unless required input is missing -> clarification, or already answered -> sufficient).'
-                : 'selected_skill is MUTATING: emit response_type="confirmation_request", never skill_call '
-                    . '(unless the outcome is already completed -> sufficient).';
+                ? 'selected_skill is READ-ONLY -> emit skill_call.'
+                : 'selected_skill is MUTATING -> emit confirmation_request.';
         }
-
-        // What the selected skill needs from the construction, from its declared contract (wave 30). This
-        // statement used to live only in the removed repair round - a second call, the wrong place - and
-        // ignored required groups there; now it is part of the first construction and exact.
-        if (
-            $selectedskillinput !== null
-            && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION
-        ) {
+        if ($isconstruction && $selectedskillinput !== null) {
             $required = array_values(array_filter(array_map('strval', (array)($selectedskillinput['required_input'] ?? []))));
             $groups = [];
             foreach ((array)($selectedskillinput['required_groups'] ?? []) as $group) {
                 $group = array_values(array_filter(array_map('strval', (array)$group)));
                 if (!empty($group)) {
-                    $groups[] = implode(' | ', $group);
+                    $groups[] = 'one of ' . implode(' | ', $group);
                 }
             }
-            if (empty($required) && empty($groups)) {
-                $lines[] = 'selected_skill needs no value from you: build the command from the values the user gave '
-                    . 'and leave everything else out. The skill resolves names, scope and defaults itself and asks '
-                    . 'the user when something is missing - do not ask in its place. Ask only when the request points '
-                    . 'to a person or thing it does not name ("this user").';
-            } else {
-                $needs = array_merge($required, array_map(static fn(string $g): string => '(' . $g . ')', $groups));
-                $lines[] = 'selected_skill needs: ' . implode(', ', $needs) . '. A reference by kind or role counts: '
-                    . 'pass the user\'s words. Everything else the skill resolves or asks itself. Ask only when the '
-                    . 'request contains no reference at all.';
-            }
-            $lines[] = 'Never state facts about this site (its files, rules, units, people) that this prompt does '
-                . 'not contain - the skill checks them.';
-            // Wave 30 (UO-3, Nachlauf 33 thread 12045): with the example time gone the model still filled a plausible
-            // one (10:00-11:00) for "a date at the end of next month". "Never invent" stood only in retry hints.
-            // Run 40 (CSB-4/CSB-1/CSL-1): listing "a name" made the model ask for titles the request gives.
-            $lines[] = self::VALUE_RULE;
+            $needs = array_merge($required, $groups);
+            $lines[] = empty($needs)
+                ? 'Its required values: none - ask for nothing.'
+                : 'Its required values: ' . implode('; ', $needs) . '.';
+        }
+        if ($isconstruction && $autoconfirmmode) {
+            $lines[] = 'Auto-confirm is active: the engine runs a confirmation_request without asking the user. '
+                . 'Write its message as a statement of what is being done, not as a question.';
         }
 
-        if ($autoconfirmmode && $normalizedphase === orchestrator_prompt_profile_service::PHASE_PARAMETER_CONSTRUCTION) {
-            $lines[] = 'Auto-confirm mode is active.';
-            $lines[] = 'Do NOT ask permission or phrase messages as questions. '
-                . 'Instead: write a short statement announcing what will be executed.';
-            $lines[] = 'Treat recent ASSISTANT/ASSISTANT_STATE execution evidence as authoritative. '
-                . 'Never re-emit an already-executed action (same skill+input signature).';
-            $lines[] = 'If action already executed: report completion or skip to next unexecuted action.';
-            $lines[] = 'Next unexecuted mutation → response_type="confirmation_request".';
-        }
-
-        $lines[] = 'Respond now as exactly one valid JSON object per the [OUTPUT_CONTRACT] above '
-            . '— no prose, no markdown, no code fences.';
+        $lines[] = 'Respond now with exactly one JSON object as defined in OUTPUT CONTRACT.';
 
         return implode("\n", $lines);
     }

@@ -71,11 +71,13 @@ final class selector_defers_missing_fields_test extends \advanced_testcase {
             'a missing field of an already identified skill is the gate\'s business, not the planner\'s'
         );
 
-        // And the replacement must say where such a turn goes instead.
-        $this->assertStringContainsString('let its own gate', $template);
+        // And the replacement must say where such a turn goes instead (frozen prompt spec, decision order case 4).
+        $this->assertStringContainsString(
+            'Choose it even when the user did not give every value it needs: the skill asks for missing values itself.',
+            $template
+        );
 
-        // Clarification stays available for what the planner alone can decide: which skill is meant.
-        $this->assertStringContainsString('does not identify which skill is meant', $template);
+        // Clarification stays available for what the selector alone decides: no skill in the catalog fits (case 5).
         $this->assertStringContainsString('response_type=clarification', $template);
 
         // The rule must stay generic - no skill may be named in it (wave 13 lesson).

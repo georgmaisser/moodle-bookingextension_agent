@@ -148,13 +148,16 @@ class synchronizer_prompt_builder {
             $parts[] = "[{$role}]\n{$content}";
         }
 
-        if ($runtimestate !== '') {
-            $parts[] = "[SYSTEM_RUNTIME_STATE]\n{$runtimestate}";
-        }
+        // Wave 32 (frozen prompt spec, appendix A.3): the engine adds only the state of this turn - a fact, no rule. A
+        // clarification and a confirmation_request both wait for the user (template rule 1). The former continuation
+        // policies claimed "NOTHING was executed in this turn" on a question even after step 1 of a multi-step turn ran.
+        $turnstate = 'TURN STATE: this reply ' . ($continuation === self::CONTINUATION_NONE
+            ? 'reports the result.'
+            : 'asks the user a question.');
+        $parts[] = "[SYSTEM_RUNTIME_STATE]\n" . ($runtimestate !== '' ? $runtimestate . "\n" : '') . $turnstate;
 
-        // Observations come AFTER the state ledgers, closest to [ASSISTANT]: the synchronizer's own
-        // FACT PRIORITY (completed_observations authoritative > completed_commands secondary) is then
-        // reinforced by recency instead of being contradicted by it.
+        // Observations come AFTER the state ledgers, closest to [ASSISTANT]: the template's rule that the
+        // observations are the facts is then reinforced by recency instead of being contradicted by it.
         $observationnumber = 1;
         foreach ($observations as $observation) {
             $trimmed = trim((string)$observation);
@@ -164,70 +167,6 @@ class synchronizer_prompt_builder {
             $parts[] = "[OBSERVATION {$observationnumber}]\n{$trimmed}";
             $observationnumber++;
         }
-
-        // The continuation policy is computed from ENGINE STATE (final response_type), never
-        // guessed by the model: with no continuation, the contract forbids announcing any
-        // automatic follow-up; awaiting confirmation, it binds follow-up to the user's confirm.
-        if ($continuation === self::CONTINUATION_AWAITING_CONFIRMATION) {
-            $continuationpolicy =
-                "PENDING STEPS POLICY: This turn ends awaiting the user's confirmation. Queued steps run "
-                . "ONLY after the user confirms — report what was completed and that the remaining steps "
-                . "run after confirmation. Each confirmation executes exactly ONE queued step: when several "
-                . "steps are staged, state the position (e.g. step 2 of 5) and that every remaining step "
-                . "asks for its own confirmation — never imply one confirmation runs them all. "
-                . "Do NOT tell the user to perform those steps manually, and never "
-                . "suggest manual workarounds for actions the agent is capable of executing.\n";
-        } else {
-            $continuationpolicy =
-                "TURN END POLICY: This reply ends the turn — NOTHING runs automatically after it. "
-                . "NEVER state or imply that the agent will create, update, delete, retry or continue "
-                . "anything after this reply. If parts of the request were NOT completed (see the "
-                . "observations and any UNEXECUTED PLANNED STEPS list), name them explicitly as not done "
-                . "and either relay the pending question or ask the user how to proceed.\n";
-            if ($continuation === self::CONTINUATION_AWAITING_ANSWER) {
-                $continuationpolicy .=
-                    "QUESTION TURN POLICY: This reply IS a question to the user. NOTHING was executed in "
-                    . "this turn and nothing is running or scheduled. NEVER state or imply that an action "
-                    . "is in progress, was started, or was completed. This reply carries NO confirmation "
-                    . "button: never ask the user to 'confirm' — ask for the missing information instead.\n";
-            }
-        }
-
-        $parts[] = "[OUTPUT_CONTRACT]\n"
-            . "Return exactly one valid JSON object and nothing else.\n"
-            . "Do not output markdown, code fences, prose, or bullet lists outside JSON.\n"
-            . "Use response_type='sufficient' for successful finalization.\n"
-            . "Synchronizer must never emit commands; always return commands=[].\n"
-            . "FACT PRIORITY: completed_observations are authoritative, completed_commands are secondary, "
-            . "earlier ASSISTANT text is low-trust narrative context only.\n"
-            . "If any earlier ASSISTANT statement conflicts with a newer OBSERVATION, follow OBSERVATION only.\n"
-            . "Concrete values (dates, times, counts, names, prices) come ONLY from observations — "
-            . "NEVER reconstruct them from the user's request; when an observation carries no value, "
-            . "do not state one.\n"
-            . "Never re-assert stale success details that are contradicted by newer observations.\n"
-            . "CLARIFICATION / CONFIRMATION RELAY (highest priority): If an OBSERVATION (e.g. FINAL_SOURCE_RESULT) "
-            . "shows response_type=clarification or response_type=confirmation_request, the turn is ASKING the user "
-            . "for input and is NOT finished. Your message MUST faithfully relay that exact question in the user's "
-            . "language: translate it, and keep EVERY listed option, name, count and id exactly as given. "
-            . "Do NOT answer or decide it yourself (never pick an option for the user), do NOT add, drop or invent "
-            . "options, do NOT claim the action is impossible or that a capability is missing, do NOT suggest a "
-            . "manual workaround, and do NOT fabricate a completion. Simply ask the user the same question, clearly "
-            . "formatted, so they can answer. When this rule applies, relaying the question IS the polished, "
-            . "complete answer — do not compose any findings, results or explanations beyond it.\n"
-            . $continuationpolicy
-            . "LINK POLICY: When you mention a course, booking option, activity, user or rule, include the URL "
-            . "given for it in the observations (markdown link on the entity name). Use those URLs EXACTLY as "
-            . "provided — NEVER construct, guess, shorten or modify a URL yourself, and never invent links for "
-            . "entities that came without one.\n"
-            . "ENTITY TYPE POLICY: Name each item by the entity type the observation gives it — a course is a "
-            . "course, a booking activity is an activity, a booking option is an option. NEVER present a booking "
-            . "activity or option as if it were a course. When an item is an activity or option that lives inside "
-            . "a course, make the type explicit and keep the parent course distinct, e.g. "
-            . "\"activity '<activity name>' (course: <course name>)\" — do NOT label it "
-            . "\"in the course '<activity name>'\". The angle-bracket names are placeholders for names "
-            . "taken from the observations — never treat them (or any example) as real entities. "
-            . "Use each entity's own link target from the observations (an activity links to its activity view, "
-            . "a course to its course view); never relabel one type's link as another type.";
 
         // PRO presentation policy — generic, never skill-specific. Only added WITHOUT full access
         // (no PRO license AND not running on the Wunderbyte LLM). With full access the agent runs
@@ -268,12 +207,7 @@ class synchronizer_prompt_builder {
         ))));
         if (!empty($activetokens)) {
             $parts[] = "[ANON_TOKEN_POLICY]\n"
-                . "Privacy placeholders are active in this conversation: " . implode(', ', $activetokens) . ". "
-                . "They stand for real words or names; observations may show the real value in clear text. "
-                . "NEVER report a difference between a placeholder and a clear-text value as a discrepancy, "
-                . "mismatch or error, NEVER suggest renaming, correcting or deleting anything because of such "
-                . "a difference, and never quote a placeholder in your reply — use the observation's "
-                . "clear-text value instead.";
+                . 'Privacy placeholders active in this conversation: ' . implode(', ', $activetokens) . '.';
         }
 
         $parts[] = '[ASSISTANT]';

@@ -395,6 +395,13 @@ class agent_runtime {
                     $unfitskill = trim((string)($result['selected_skill'] ?? ''));
                     if ($unfitskill !== '') {
                         $retryobservation .= "\nUNFIT_SKILL: " . $unfitskill;
+                        // Wave 32: excluded for the rest of this turn (never A -> B -> A).
+                        \bookingextension_agent\local\wizard\services\turn_skill_exclusions::exclude(
+                            $this->store,
+                            $threadid,
+                            $unfitskill,
+                            (string)($result['message'] ?? '')
+                        );
                     }
                 }
                 if ($retryissuecode === 'PREFLIGHT_CHOICES_OFFERED') {
@@ -1079,84 +1086,38 @@ class agent_runtime {
      * @return string
      */
     private function build_framework_retry_observation(string $issuecode): string {
-        if ($issuecode === 'LOOP_IDENTICAL_COMMAND_REPEATED') {
-            return 'RETRY_HINT: The previous command was identical (same skill, same input) to one that '
-                . 'already ran in this turn; its observation is above and running it again returns the same. '
-                . 'Either answer from that observation (response_type=sufficient) or, if something is still '
-                . 'missing, call a skill with DIFFERENT input or a different skill.';
-        }
-        if ($issuecode === 'CONTRACT_PARSE_ERROR') {
-            return 'RETRY_HINT: The previous parameter_construction output was not valid JSON. '
-                . 'Retry once and return exactly one valid JSON object only. '
-                . 'Do not use markdown fences. Escape inner double quotes inside string values.';
-        }
-        if ($issuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
-            return 'RETRY_HINT: The previous parameter_construction used input keys or value shapes '
-                . 'the skill schema does not accept. Retry once using ONLY the canonical keys from '
-                . 'the skill schema; map the user\'s values onto them and drop everything else. '
-                . 'If a field needs a value the user did not give, do not fill it: answer with '
-                . 'response_type=clarification and ask for exactly that value. Never invent a value.';
-        }
+        // Wave 32 (frozen prompt spec, appendix A.3): a retry hint states only what happened; the phase decides by its
+        // own rules. The former hints carried rules of their own that contradicted the phase prompts (ask for any
+        // missing value, 'sufficient' in the constructor).
+        $hints = [
+            'LOOP_IDENTICAL_COMMAND_REPEATED' => 'The same command (same skill, same input) already ran in this turn; '
+                . 'its result is in the observations above. Running it again returns the same result.',
+            'CONTRACT_PARSE_ERROR' => 'The previous output was not valid JSON. Return exactly one JSON object as '
+                . 'defined in the OUTPUT CONTRACT.',
+            'CONTRACT_STRUCTURAL_MISMATCH' => 'The previous parameters used keys or value shapes that selected_skill '
+                . 'does not accept (see REPAIR). Nothing was executed.',
+            'CONTRACT_PHASE_SKILL_NOT_ALLOWED' => 'The previous construction emitted a command for a skill other than '
+                . 'selected_skill. Nothing was executed.',
+            'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED' => 'The previous selection did not contain exactly one command '
+                . 'in the shape defined in the OUTPUT CONTRACT.',
+            'CONTRACT_VALIDATION_ERROR' => 'The previous output used a response_type that needs a command, but commands '
+                . 'was empty. Nothing was executed.',
+            'CONSTRUCTION_SKILL_UNFIT' => 'The construction found that UNFIT_SKILL cannot perform this request (reason '
+                . 'in REPAIR). Nothing was executed. UNFIT_SKILL is not available for the rest of this turn.',
+            'PREFLIGHT_CHOICES_OFFERED' => 'The skill could not resolve a value and lists the existing choices below. '
+                . 'Nothing was executed. A choice that fits the user\'s words by meaning or attributes goes into the '
+                . 'field named after "CHOICES for", by its id.',
+            'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION' => 'The previous construction described an action but '
+                . 'carried no command. Nothing was executed or staged.',
+            'CONTRACT_EMPTY_MESSAGE_CLARIFICATION' => 'The previous output had an empty message. The message is the text '
+                . 'shown to the user; for a clarification it is the question.',
+            'CONTRACT_EMPTY_SELECTION_MESSAGE' => 'The previous output had an empty message. The message is the text '
+                . 'shown to the user; for a clarification it is the question.',
+            'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS' => 'No confirmation is waiting, so confirm_pending is not possible. '
+                . 'The next planned step is listed in [PENDING PLANNED STEPS].',
+        ];
 
-        if ($issuecode === 'CONTRACT_PHASE_SKILL_NOT_ALLOWED') {
-            return 'RETRY_HINT: The previous parameter_construction emitted a command for a skill '
-                . 'that was NOT the selected skill. Construction may never switch skills. Re-plan '
-                . 'this step once: if the selected skill cannot fulfil it, SELECT the correct skill '
-                . '(see the REPAIR detail below for what was attempted); if no available skill fits, '
-                . 'respond with a clarification instead.';
-        }
-
-        if ($issuecode === 'CONTRACT_SELECTION_SINGLE_COMMAND_REQUIRED') {
-            return 'RETRY_HINT: Selection must emit exactly one direct command object in commands[]. '
-                . 'Do not wrap skill inside helper keys like current/next/action. '
-                . 'Use canonical selector shape only, for example commands=[{"skill":"<skill>","input":{}}].';
-        }
-
-        if ($issuecode === 'CONTRACT_VALIDATION_ERROR') {
-            return 'RETRY_HINT: The previous planner output used a command-bearing response_type but '
-                . 'commands[] was empty. Emit the intended command, for example '
-                . 'commands=[{"skill":"<skill>","input":{...}}] — or, if no new command is needed, use '
-                . 'response_type=clarification, confirm_pending or sufficient instead.';
-        }
-
-        if ($issuecode === 'CONSTRUCTION_SKILL_UNFIT') {
-            return 'RETRY_HINT: The construction found that the selected skill (UNFIT_SKILL below) cannot perform this '
-                . 'request; its reason is in REPAIR. NOTHING has been executed. Re-plan this step once: select a '
-                . 'DIFFERENT skill that performs the request. If no available skill fits, answer with '
-                . 'response_type=clarification and say so.';
-        }
-
-        if ($issuecode === 'PREFLIGHT_CHOICES_OFFERED') {
-            return 'RETRY_HINT: The skill could not resolve a value of the previous command and lists the existing '
-                . 'choices below - NOTHING has been executed or staged. Re-plan this step once: match the user\'s '
-                . 'words to the choices by meaning, in any language, and by their attributes (active, days, status, '
-                . 'class, ...). If exactly one fits, select the skill again and construct its command with that '
-                . 'choice\'s id in the field named after "CHOICES for". Ask the user (response_type=clarification, '
-                . 'naming the choices) only when none fits or several fit equally. Never invent a choice.';
-        }
-
-        if ($issuecode === 'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION') {
-            return 'RETRY_HINT: The previous construction described the action but carried NO command - NOTHING has '
-                . 'been executed or staged, so nothing is done yet. Re-plan this step once: select the skill that '
-                . 'performs the request and construct its command from the '
-                . 'values the user gave. Ask (response_type=clarification) only for a value that the user alone can '
-                . 'give and that no field description says the skill resolves or asks for itself. Never invent a '
-                . 'value.';
-        }
-
-        if (in_array($issuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
-            return 'RETRY_HINT: The previous output had an EMPTY message field. The message IS the text '
-                . 'shown to the user — for a clarification it is the question itself. Retry once and put '
-                . 'the full user-facing text into message, in the user\'s language.';
-        }
-
-        if ($issuecode === 'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS') {
-            return 'RETRY_HINT: There is NO pending confirmation to execute — response_type=confirm_pending '
-                . 'is only valid while a confirmation is awaiting. Planned steps remain in the queue: '
-                . 'select the real skill for the next planned step with response_type=skill_call.';
-        }
-
-        return 'RETRY_HINT: Previous planner output violated the contract. Retry once with strict JSON contract compliance.';
+        return 'RETRY_HINT: ' . ($hints[$issuecode] ?? 'The previous output did not follow the OUTPUT CONTRACT (see REPAIR).');
     }
 
     /**

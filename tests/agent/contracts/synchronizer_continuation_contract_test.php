@@ -19,6 +19,7 @@ declare(strict_types=1);
 namespace bookingextension_agent\tests\agent\contracts;
 
 use bookingextension_agent\local\wizard\agent_runtime;
+use bookingextension_agent\local\wizard\orchestrator;
 use bookingextension_agent\local\wizard\queue\queue_manager;
 use bookingextension_agent\local\wizard\services\decision\agent_decision_service;
 use bookingextension_agent\local\wizard\services\synchronizer_input_builder;
@@ -40,27 +41,44 @@ use PHPUnit\Framework\TestCase;
  */
 final class synchronizer_continuation_contract_test extends TestCase {
     /**
+     * The default synchronizer template.
+     *
+     * @return string
+     */
+    private function synchronizer_template(): string {
+        return (string)orchestrator::get_default_initial_prompt_template_for_action(\core_ai\aiactions\generate_text::class);
+    }
+
+    /**
      * Terminal turns (the default) carry the TURN END POLICY: nothing runs after the reply,
      * announcing automatic follow-up is forbidden. The old unconditional "agent will continue"
      * policy must be gone.
      */
     public function test_prompt_contract_defaults_to_turn_end_policy(): void {
-        $builder = new synchronizer_prompt_builder();
+        // Wave 32 (frozen prompt spec): the rule "nothing runs after the reply" stands once, in the synchronizer
+        // template (rule 4); the engine adds only the state of this turn.
+        $this->assertStringContainsString('THIS REPLY ENDS THE TURN. Nothing runs after it.', $this->synchronizer_template());
 
+        $builder = new synchronizer_prompt_builder();
         $prompt = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
 
-        $this->assertStringContainsString('TURN END POLICY', $prompt);
-        $this->assertStringContainsString('NOTHING runs automatically after it', $prompt);
+        $this->assertStringContainsString('TURN STATE: this reply reports the result.', $prompt);
         $this->assertStringNotContainsString('state that the agent will continue with the remaining steps', $prompt);
         $this->assertStringNotContainsString('PENDING STEPS POLICY', $prompt);
+        $this->assertStringNotContainsString('TURN END POLICY', $prompt);
     }
 
     /**
      * Only a confirmation_request turn may bind follow-up work to the user's confirmation.
      */
     public function test_prompt_contract_awaiting_confirmation_binds_followup_to_confirm(): void {
-        $builder = new synchronizer_prompt_builder();
+        // Wave 32: a confirmation request is relayed as a waiting question (template rule 1); a confirmed action is
+        // reported from its skill result. No engine policy restates it.
+        $template = $this->synchronizer_template();
+        $this->assertStringContainsString('response_type=clarification or confirmation_request', $template);
+        $this->assertStringContainsString('When the user confirmed a waiting action, the engine ran it', $template);
 
+        $builder = new synchronizer_prompt_builder();
         $prompt = $builder->build_prompt(
             'SYSTEM PROMPT',
             [],
@@ -70,9 +88,8 @@ final class synchronizer_continuation_contract_test extends TestCase {
             synchronizer_prompt_builder::CONTINUATION_AWAITING_CONFIRMATION
         );
 
-        $this->assertStringContainsString('PENDING STEPS POLICY', $prompt);
-        $this->assertStringContainsString('ONLY after the user confirms', $prompt);
-        $this->assertStringNotContainsString('TURN END POLICY', $prompt);
+        $this->assertStringContainsString('TURN STATE: this reply asks the user a question.', $prompt);
+        $this->assertStringNotContainsString('PENDING STEPS POLICY', $prompt);
     }
 
     /**
@@ -80,11 +97,11 @@ final class synchronizer_continuation_contract_test extends TestCase {
      * (a wrong stored date must be reported, not soothingly replaced by the request's date).
      */
     public function test_prompt_contract_forbids_reconstructing_values_from_the_request(): void {
-        $builder = new synchronizer_prompt_builder();
-
-        $prompt = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
-
-        $this->assertStringContainsString('NEVER reconstruct them from the user', $prompt);
+        // Wave 32: the rule stands once, in the synchronizer template (WHAT COUNTS AS A FACT).
+        $this->assertStringContainsString(
+            "Never take them from\n  the user's request, never reconstruct them, never guess them.",
+            $this->synchronizer_template()
+        );
     }
 
     /**
@@ -119,9 +136,13 @@ final class synchronizer_continuation_contract_test extends TestCase {
 
         $this->assertStringContainsString('[ANON_TOKEN_POLICY]', $prompt);
         $this->assertStringContainsString('ANON_USER_1_lastname', $prompt);
-        $this->assertStringContainsString('NEVER report a difference', $prompt);
         $this->assertSame(1, substr_count($prompt, 'ANON_USER_1_lastname'), 'token listed exactly once in the policy');
-        $this->assertGreaterThan(strpos($prompt, '[OUTPUT_CONTRACT]'), strpos($prompt, '[ANON_TOKEN_POLICY]'));
+        // Wave 32: the rule itself stands once, in the synchronizer template (rule 6); the block lists the tokens.
+        $this->assertStringContainsString(
+            "Never report a\n   difference between a placeholder and a clear-text value as an error",
+            $this->synchronizer_template()
+        );
+        $this->assertGreaterThan(strpos($prompt, 'TURN STATE:'), strpos($prompt, '[ANON_TOKEN_POLICY]'));
     }
 
     /**
@@ -129,6 +150,8 @@ final class synchronizer_continuation_contract_test extends TestCase {
      * the reply is a question (fabricated "wurde erfolgreich erstellt" must be impossible).
      */
     public function test_prompt_contract_awaiting_answer_adds_question_policy(): void {
+        // Wave 32: a question turn is stated as a fact. The former policy claimed "NOTHING was executed" even after
+        // step 1 of a multi-step turn had run; relaying the question faithfully is template rule 1.
         $builder = new synchronizer_prompt_builder();
 
         $prompt = $builder->build_prompt(
@@ -140,18 +163,12 @@ final class synchronizer_continuation_contract_test extends TestCase {
             'awaiting_answer'
         );
 
-        $this->assertStringContainsString('QUESTION TURN POLICY', $prompt);
-        $this->assertStringContainsString('NOTHING was executed', $prompt);
-        $this->assertStringContainsString('TURN END POLICY', $prompt);
-        $this->assertStringContainsString(
-            'carries NO confirmation button',
-            $prompt,
-            'a question turn must never be worded as a confirmation request (F30)'
-        );
+        $this->assertStringContainsString('TURN STATE: this reply asks the user a question.', $prompt);
+        $this->assertStringNotContainsString('NOTHING was executed', $prompt);
 
         $default = $builder->build_prompt('SYSTEM PROMPT', [], ['some observation']);
-        $this->assertStringNotContainsString('QUESTION TURN POLICY', $default);
-        $this->assertStringNotContainsString('carries NO confirmation button', $default);
+        $this->assertStringNotContainsString('asks the user a question', $default);
+        $this->assertStringContainsString('Relay that question faithfully', $this->synchronizer_template());
     }
 
     /**
@@ -325,8 +342,9 @@ final class synchronizer_continuation_contract_test extends TestCase {
         $hintmethod->setAccessible(true);
         $hint = $hintmethod->invoke($runtime, 'CONFIRM_PENDING_NO_INTENT_PLANNED_STEPS');
         $this->assertStringStartsWith('RETRY_HINT:', $hint);
-        $this->assertStringContainsString('NO pending confirmation', $hint);
-        $this->assertStringContainsString('skill_call', $hint);
+        // Wave 32 (frozen appendix A.3): a retry hint states the fact; the repair follows from the template.
+        $this->assertStringContainsString('No confirmation is waiting', $hint);
+        $this->assertStringContainsString('[PENDING PLANNED STEPS]', $hint);
     }
 
     /**

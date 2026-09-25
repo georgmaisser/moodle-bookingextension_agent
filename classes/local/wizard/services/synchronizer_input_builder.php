@@ -364,6 +364,15 @@ class synchronizer_input_builder {
         $responsetype = trim((string)($result['response_type'] ?? ''));
         $attemptedskills = $this->normalize_nonempty_string_list((array)($result['attempted_skills'] ?? []));
 
+        // Wave 32 (frozen prompt spec, code prerequisite 2): a 'sufficient' message is the planner's own text, never a
+        // skill result. Relayed as FINAL_SOURCE_RESULT it read as a fact - REM-2: the selector answered "understood, I
+        // will keep this in mind" without running remember, and the reply claimed the preference was stored.
+        // Questions and confirmation requests stay FINAL_SOURCE_RESULT: they are the pending question to relay.
+        if ($responsetype === 'sufficient') {
+            $normalizedplanner = trim(preg_replace('/\s+/', ' ', $message) ?? $message);
+            return "PLANNER_TEXT (not a result)\nmessage=" . substr($normalizedplanner, 0, 600);
+        }
+
         $lines = ['FINAL_SOURCE_RESULT'];
         if ($responsetype !== '') {
             $lines[] = 'response_type=' . $responsetype;

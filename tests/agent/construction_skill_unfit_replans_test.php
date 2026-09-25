@@ -40,6 +40,7 @@ require_once(__DIR__ . '/scripted_llm_trait.php');
  * @group bookingextension_agent_agent
  * @covers \bookingextension_agent\local\wizard\agent_runtime
  * @covers \bookingextension_agent\local\wizard\interpreter
+ * @covers \bookingextension_agent\local\wizard\services\turn_skill_exclusions
  */
 final class construction_skill_unfit_replans_test extends abstract_agent_testcase {
     use scripted_llm_trait;
@@ -151,6 +152,31 @@ final class construction_skill_unfit_replans_test extends abstract_agent_testcas
         $this->assertSame('clarification', (string)($result['response_type'] ?? ''), json_encode($result['issue_codes'] ?? []));
         $this->assertLessThanOrEqual(2, substr_count($this->scripted_phase_sequence(), 'S'), 'one re-plan, no loop');
         $this->assertStringNotContainsString('CONSTRUCTION_', (string)($result['message'] ?? ''));
+    }
+
+    /**
+     * Wave 32 (frozen prompt spec, consultant test 3): a skill the construction found unfit stays excluded for the rest
+     * of the turn. Selection picking it again never reaches a second construction (no A -> B -> A); the turn ends as
+     * a question carrying the construction's own reason.
+     */
+    public function test_an_excluded_skill_is_not_constructed_again(): void {
+        $this->setUser($this->teacher);
+        $_POST['sesskey'] = sesskey();
+        [$store, $runtime, $threadid] = $this->build_runtime();
+        $this->install_phase_scripted_planner(
+            array_fill(0, 4, $this->selector_skill_call('mod_booking.get_option_details')),
+            array_fill(0, 4, $this->unfit_clarification())
+        );
+
+        $result = $this->chat(self::PROMPT, (int)$threadid, $store, $runtime);
+
+        $constructorprompts = array_values(array_filter(
+            $this->scriptedplannerprompts,
+            static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
+        ));
+        $this->assertCount(1, $constructorprompts, $this->scripted_phase_sequence());
+        $this->assertSame('clarification', (string)($result['response_type'] ?? ''));
+        $this->assertContains('CONSTRUCTION_SKILL_UNFIT', (array)($result['issue_codes'] ?? []));
     }
 
     /**

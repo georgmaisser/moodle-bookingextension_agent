@@ -25,8 +25,6 @@
 namespace bookingextension_agent;
 
 use bookingextension_agent\local\wizard\orchestrator;
-use bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder;
-use bookingextension_agent\local\wizard\services\planner_phase_service;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -81,7 +79,9 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
     public function test_the_default_constructor_template_states_the_rule(): void {
         $template = orchestrator::get_default_constructor_prompt_template();
         $this->assertStringContainsString('TARGET NAMES', $template);
-        $this->assertStringContainsString('exactly as the user wrote it', $template);
+        // Wave 32 (frozen prompt spec, rule 3).
+        $this->assertStringContainsString("carries the user's own words for the target", $template);
+        $this->assertStringContainsString('Never translate it, shorten it or complete it', $template);
     }
 
     /**
@@ -92,9 +92,15 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
         $template = orchestrator::get_default_constructor_prompt_template();
         $this->assertStringContainsString('"skill_fits": false', $template);
         $this->assertStringContainsString('only by its kind or role', $template);
-        $this->assertStringContainsString('Ask for a target only when the request contains no reference to one at all', $template);
-        // F79 stays: a target never comes from an example.
-        $this->assertStringContainsString('Never take one from an example', $template);
+        // Wave 32 (frozen prompt spec, rules 2 and 5): only a declared required value is asked for; a missing value is
+        // never an unfit skill.
+        $this->assertStringContainsString(
+            'required_input and required_groups are the ONLY source of what you may ask for',
+            $template
+        );
+        $this->assertStringContainsString('A missing or unclear value is never this case', $template);
+        // F79 stays: a value never comes from an example.
+        $this->assertStringContainsString('Never take a value from example_parameters', $template);
         // The rule that made the constructor ask for "die Erinnerung" (CBI-4) is gone.
         $this->assertStringNotContainsString('If the user named no target, ask for it.', $template);
         $this->assertStringNotContainsString('cannot be fulfilled with grounded input', $template);
@@ -109,9 +115,9 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
         $_POST['sesskey'] = sesskey();
         $cases = [
             // No required field, no group: the skill resolves or asks itself.
-            'wizard.list_memories' => 'selected_skill needs no value from you',
+            'wizard.list_memories' => 'Its required values: none - ask for nothing.',
             // A declared group: the group is named and a kind or role reference counts.
-            'mod_booking.update_rule_from_template' => 'selected_skill needs: (ruleid | rulequery)',
+            'mod_booking.update_rule_from_template' => 'one of ruleid | rulequery',
         ];
         foreach ($cases as $skill => $expected) {
             [$store, $runtime, $threadid] = $this->build_runtime();
@@ -130,13 +136,9 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
             ));
             $this->assertCount(1, $constructorprompts, $skill);
             $this->assertStringContainsString($expected, $constructorprompts[0], $skill);
-            $this->assertStringContainsString('Never state facts about this site', $constructorprompts[0], $skill);
-            $this->assertStringContainsString(
-                phase_prompt_bundle_builder::VALUE_RULE,
-                $constructorprompts[0],
-                $skill
-            );
-            $this->assertStringNotContainsString('selected_skill needs', $selectorprompts[0], 'construction only');
+            // Wave 32 (frozen prompt spec): the reminder states facts only; the value rule stands once, in the template.
+            $this->assertSame(1, substr_count($constructorprompts[0], 'VALUES COME FROM THE USER'), $skill);
+            $this->assertStringNotContainsString('Its required values', $selectorprompts[0], 'construction only');
             $this->clear_scripted_planner();
             $this->scriptedplannerprompts = [];
         }
@@ -158,7 +160,9 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
             $this->scriptedplannerprompts,
             static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
         ))[0];
-        $rule = strpos($constructor, 'example_parameters show the SHAPE of the fields only');
+        // Wave 32: the rule stands once, in the constructor template (rule 1), above the catalog.
+        $this->assertSame(1, substr_count($constructor, 'Never take a value from example_parameters'));
+        $rule = strpos($constructor, 'Never take a value from example_parameters');
         $example = strpos($constructor, '"example_parameters"');
         $this->assertNotFalse($rule, 'the rule is in the prompt');
         $this->assertNotFalse($example, 'the example is in the prompt');
@@ -190,31 +194,13 @@ final class constructor_prompt_keeps_target_names_test extends abstract_agent_te
             static fn(string $p): bool => strpos($p, 'phase_handoff.selection=') !== false
         ))[0];
 
-        foreach (
-            [
-                'reminder' => phase_prompt_bundle_builder::VALUE_RULE,
-                'example rule' => planner_phase_service::EXAMPLE_VALUE_RULE,
-            ] as $label => $rule
-        ) {
-            // The example rule travels inside the JSON catalog entry, the reminder as plain text.
-            $encoded = substr((string)json_encode($rule, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 1, -1);
-            $this->assertTrue(
-                strpos($constructor, $rule) !== false || strpos($constructor, $encoded) !== false,
-                $label . ' is in the prompt'
-            );
-            $this->assertStringContainsStringIgnoringCase(
-                'a time, a date or a number',
-                $rule,
-                $label . ' protects times, dates, numbers'
-            );
-            $this->assertStringNotContainsString('a name)', $rule, $label . ' does not forbid the user\'s own title');
-            $this->assertStringContainsString("user's own words", $rule, $label . ' lets a title come from the request');
-        }
-        $this->assertStringContainsString(
-            'needs',
-            phase_prompt_bundle_builder::VALUE_RULE,
-            'a question is tied to the fields the skill needs'
-        );
+        // Wave 32 (frozen prompt spec, rule 1): one value rule, once, in the template. A value the user gave - a title
+        // in the user's own words included - may be filled; only an invented one is forbidden. The reminder and the
+        // catalog no longer restate it (the two restatements differed from each other: S3 in the inventory).
+        $this->assertSame(1, substr_count($constructor, 'VALUES COME FROM THE USER'));
+        $this->assertStringContainsString('Fill a field only with a value the user gave', $constructor);
+        $this->assertStringContainsString('Never invent a time, a date, a number, an id, a URL or a name.', $constructor);
+        $this->assertStringContainsString('required_input and required_groups are the ONLY source', $constructor);
     }
 
     /**

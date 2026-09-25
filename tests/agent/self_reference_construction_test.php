@@ -135,7 +135,8 @@ final class self_reference_construction_test extends abstract_agent_testcase {
         // re-plan once more after the read-only execution).
         $this->assertGreaterThanOrEqual(2, count($this->scriptedplannerprompts));
         $constructorprompt = $this->scriptedplannerprompts[1];
-        $this->assertStringContainsString('OMIT every person parameter', $constructorprompt);
+        // Wave 32 (frozen prompt spec): the requester rule stands once, in the constructor template (rule 4).
+        $this->assertStringContainsString('When the request is about the requester themselves, leave every', $constructorprompt);
         $this->assertStringContainsString('current_user: ' . $nametoken, $constructorprompt);
         $this->assertStringNotContainsString(fullname($this->teacher), $constructorprompt);
 

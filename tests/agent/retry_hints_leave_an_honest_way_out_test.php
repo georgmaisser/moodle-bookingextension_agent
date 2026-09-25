@@ -60,15 +60,17 @@ final class retry_hints_leave_an_honest_way_out_test extends \advanced_testcase 
      * A hint that asks for values always offers the honest way out and forbids inventing.
      */
     public function test_hints_that_ask_for_values_forbid_inventing(): void {
+        // Wave 32 (frozen appendix A.3): a hint states the fact and carries no rule of its own - the former hints told
+        // the constructor to ask for any missing value, against its rule 2. The honest way out and the ban on invented
+        // values stand once, in the constructor template (rules 1 and 2).
         foreach (['CONTRACT_STRUCTURAL_MISMATCH', 'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION'] as $code) {
             $hint = $this->hint($code);
-            $this->assertStringContainsString('response_type=clarification', $hint, $code);
-            $this->assertStringContainsString('Never invent a value', $hint, $code);
+            $this->assertStringContainsString('Nothing was executed', $hint, $code);
+            $this->assertStringNotContainsString('response_type=', $hint, $code);
         }
-        $this->assertStringContainsString(
-            'no field description says the skill resolves or asks for itself',
-            $this->hint('CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION')
-        );
+        $template = orchestrator::get_default_constructor_prompt_template();
+        $this->assertStringContainsString('Never invent a time, a date, a number, an id, a URL or a name.', $template);
+        $this->assertStringContainsString('Return a clarification only when a field in required_input', $template);
     }
 
     /**
@@ -76,25 +78,25 @@ final class retry_hints_leave_an_honest_way_out_test extends \advanced_testcase 
      */
     public function test_the_choices_hint_says_how_to_match(): void {
         $hint = $this->hint('PREFLIGHT_CHOICES_OFFERED');
-        $this->assertStringContainsString('by meaning, in any language', $hint);
-        $this->assertStringContainsString('by their attributes', $hint);
+        $this->assertStringContainsString('by meaning or attributes', $hint);
         $this->assertStringContainsString('CHOICES for', $hint);
-        $this->assertStringContainsString('several fit equally', $hint);
+        $this->assertStringContainsString('by its id', $hint);
     }
 
     /**
      * Rule 20 keeps "no article"; the unfit flag is part of the constructor's output contract.
      */
     public function test_rule_20_and_the_output_contract(): void {
+        // Wave 32 (frozen prompt spec): the target-name rule (rule 3) and the unfit flag (rule 5, OUTPUT CONTRACT) stand
+        // in the constructor template; the engine adds no second contract block.
         $template = orchestrator::get_default_constructor_prompt_template();
-        $this->assertStringContainsString('(no article, as above)', $template);
-        $this->assertStringNotContainsString("put exactly the user's words", $template);
+        $this->assertStringContainsString('without an article or salutation', $template);
+        $this->assertStringContainsString('"skill_fits": false', $template);
 
         $builderclass = \bookingextension_agent\local\wizard\services\phase_prompt_bundle_builder::class;
         $builder = (new \ReflectionClass($builderclass))->newInstanceWithoutConstructor();
         $method = new \ReflectionMethod($builderclass, 'build_output_contract_block');
         $method->setAccessible(true);
-        $contract = (string)$method->invoke($builder, 'parameter_construction');
-        $this->assertStringContainsString('"skill_fits": false', $contract);
+        $this->assertSame('', (string)$method->invoke($builder, 'parameter_construction'));
     }
 }

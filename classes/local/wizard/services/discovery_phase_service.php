@@ -26,6 +26,7 @@ declare(strict_types=1);
 
 namespace bookingextension_agent\local\wizard\services;
 
+use bookingextension_agent\local\wizard\services\turn_skill_exclusions;
 use core\context;
 use core_ai\manager as ai_manager;
 use core_ai\aiactions\generate_text;
@@ -491,6 +492,11 @@ class discovery_phase_service {
         // STATIC (slim_all / slim_family — no embeddings), the planner already sees every skill, so
         // both meta-skills are removed: advertising "list/search skills" would only imply non-existent
         // hidden skills (thread 565).
+        // Wave 32: a skill the construction rejected ("skill_fits": false) is out for the rest of this turn.
+        $runtimecatalog = turn_skill_exclusions::filter_catalog(
+            $runtimecatalog,
+            turn_skill_exclusions::excluded($this->store, (int)$threadid)
+        );
         if ($this->catalogsvc->catalog_mode_is_static($catalogselectionmode)) {
             $runtimecatalog = $this->catalogsvc->exclude_discovery_meta_skills($runtimecatalog);
         } else {

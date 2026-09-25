@@ -661,18 +661,6 @@ class planner_phase_service {
         return $interpreted;
     }
 
-    /** Placed directly before the example parameters of the construction contract (wave 30, UO-3). */
-    public const EXAMPLE_VALUE_RULE = 'example_parameters show the SHAPE of the fields only - never take a value from '
-        . "them. A time, a date or a number the user did not give is never copied; a title or name may be the user's "
-        . 'own words for the thing.';
-
-    /** Placed directly before the input fields of the construction contract (F79). */
-    public const QUERY_FIELD_RULE = 'Every field whose name ends in "query" carries the target\'s name exactly as the '
-        . 'user wrote it - same language, same spelling, no salutation, no article, no translation, never an '
-        . 'example value. A target named only by its kind or role goes in as the user\'s words (the skill resolves '
-        . 'them or offers its choices) - unless the field description says that leaving it out already means that '
-        . 'target. Ask only when the request contains no reference to a target.';
-
     /**
      * Drop the example values of query fields (F79).
      *
@@ -685,22 +673,6 @@ class planner_phase_service {
             static fn($key): bool => !self::is_query_field_name((string)$key),
             ARRAY_FILTER_USE_KEY
         );
-    }
-
-    /**
-     * Whether the projected input fields contain a query field.
-     *
-     * @param array $inputfields Lines of skill_input_schema_projection ("name (type, ...): description").
-     * @return bool
-     */
-    private static function has_query_field(array $inputfields): bool {
-        foreach ($inputfields as $line) {
-            $name = trim((string)strtok(trim((string)$line), ' ('));
-            if (self::is_query_field_name($name)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -744,7 +716,7 @@ class planner_phase_service {
             // Wave 30 (UO-3, Nachlauf 32 threads 11970/11996): the example is load-bearing for the SHAPE (F36),
             // but its VALUES were copied as well - update_option's example session 18:00-20:00 became the time of a
             // session the user never gave. The rule stands directly before the example, where the value is taken.
-            $entry['example_parameters_rule'] = self::EXAMPLE_VALUE_RULE;
+            // Wave 32: the rule for example values lives once in the constructor template (RULES 1).
             $entry['example_parameters'] = $exampleparameters;
         }
 
@@ -758,9 +730,7 @@ class planner_phase_service {
         if (!empty($inputfields)) {
             // The rule for query fields sits where the decision is made - directly before the fields (F79),
             // not only in the template block far above. Engine text, planner-only.
-            if (self::has_query_field($inputfields)) {
-                $entry['input_rules'] = [self::QUERY_FIELD_RULE];
-            }
+            // Wave 32: the rule for query fields lives once in the constructor template (RULES 3).
             $entry['input_fields'] = $inputfields;
             unset($entry['minimal_input']);
         }

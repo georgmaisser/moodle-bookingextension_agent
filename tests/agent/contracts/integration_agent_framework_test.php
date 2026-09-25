@@ -486,11 +486,8 @@ final class integration_agent_framework_test extends TestCase {
             $summariseprompt,
             'Action prompt should enforce skill-catalog based routing'
         );
-        $this->assertStringContainsString(
-            'Never invent aliases',
-            $summariseprompt,
-            'Action prompt should explicitly forbid invented skill aliases'
-        );
+        // Wave 32 (frozen prompt spec): "Use only exact skill names" covers invented aliases; the selector no longer
+        // restates it with examples.
 
         // Test explain_text action prompt.
         $explainprompt = $method->invoke(null, \core_ai\aiactions\explain_text::class);
@@ -758,7 +755,8 @@ final class integration_agent_framework_test extends TestCase {
         $hintmethod->setAccessible(true);
         $hint = $hintmethod->invoke($runtime, 'CONTRACT_VALIDATION_ERROR');
         $this->assertStringStartsWith('RETRY_HINT:', $hint);
-        $this->assertStringContainsString('commands[] was empty', $hint);
+        // Wave 32 (frozen appendix A.3): the hint states the fact.
+        $this->assertStringContainsString('commands was empty', $hint);
     }
 
     /**
