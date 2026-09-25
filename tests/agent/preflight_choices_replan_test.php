@@ -98,6 +98,9 @@ final class preflight_choices_replan_test extends abstract_agent_testcase {
         }
         $reminder = $service->create_rule_from_template($contextid, -ruletemplate_daysbeforestart::$templateid, $overrides);
         $service->create_rule_from_template($contextid, -ruletemplate_bookingoption_booked::$templateid, []);
+        // A second ACTIVE days-before rule: with only one, the days value and the active flag already name the rule
+        // (wave 30, mod_booking 7a62d57e4) and no choice is offered. This test is about the choice path.
+        $service->create_rule_from_template($contextid, -ruletemplate_daysbeforestart::$templateid, ['days' => 7]);
         $this->assertSame('ok', (string)($reminder['status'] ?? ''), json_encode($reminder));
         $this->reminderid = (int)$reminder['rule']['id'];
         $this->setUser($this->teacher);

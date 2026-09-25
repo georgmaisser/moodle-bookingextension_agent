@@ -87,6 +87,8 @@ final class rule_miss_offers_candidates_in_time_test extends abstract_agent_test
         $contextid = $this->booking_contextid();
         $reminder = $service->create_rule_from_template($contextid, -ruletemplate_daysbeforestart::$templateid, ['days' => 3]);
         $service->create_rule_from_template($contextid, -ruletemplate_bookingoption_booked::$templateid, []);
+        // Two active days-before rules, so the days value alone does not name the rule (wave 30 narrowing).
+        $service->create_rule_from_template($contextid, -ruletemplate_daysbeforestart::$templateid, ['days' => 7]);
         $this->assertSame('ok', (string)($reminder['status'] ?? ''), json_encode($reminder));
 
         $this->setUser($this->teacher);
