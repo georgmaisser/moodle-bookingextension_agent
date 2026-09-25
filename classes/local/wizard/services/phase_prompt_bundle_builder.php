@@ -336,6 +336,10 @@ class phase_prompt_bundle_builder {
                 'clarification, sufficient, error.';
             $lines[] = 'For skill_call/confirmation_request: commands must contain one or more command objects.';
             $lines[] = 'For clarification/confirm_pending/sufficient/error: commands must be [].';
+            // Wave 30 (DMD-2, thread 11878): the constructor wrote "this skill cannot confirm the delivery" but left
+            // the flag out - it stood only in a rule far above. The contract states it where the answer is shaped.
+            $lines[] = 'A clarification because selected_skill cannot perform the request at all carries "skill_fits": '
+                . 'false (never for a missing value).';
             $lines[] = 'For mutating intents, do not use skill_call; '
                 . 'use confirmation_request unless already completed -> sufficient.';
             $lines[] = 'phase_handoff.selection.response_type records the SELECTION phase result only '

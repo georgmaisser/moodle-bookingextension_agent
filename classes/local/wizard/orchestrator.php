@@ -738,8 +738,8 @@ TARGET NAMES (STRICT):
   knowledge; the skill resolves the name itself and asks when it cannot.
 - If the user refers to the target only by its kind or role ("the reminder", "my people"), read the field
   descriptions first: when leaving the field out already means that target (the acting user's own data or
-  team), leave it out. Otherwise put exactly the user's words for it into the query field; the skill resolves
-  them or offers its choices.
+  team), leave it out. Otherwise put the user's words for it into the query field (no article, as above); the
+  skill resolves them or offers its choices.
 - A pointer without a referent ("this user", "that one") is not a reference by kind or role: ask for it.
 - Ask for a target only when the request contains no reference to one at all. Never take one from an example
   or invent one.

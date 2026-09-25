@@ -1093,7 +1093,9 @@ class agent_runtime {
         if ($issuecode === 'CONTRACT_STRUCTURAL_MISMATCH') {
             return 'RETRY_HINT: The previous parameter_construction used input keys or value shapes '
                 . 'the skill schema does not accept. Retry once using ONLY the canonical keys from '
-                . 'the skill schema; map the user\'s values onto them and drop everything else.';
+                . 'the skill schema; map the user\'s values onto them and drop everything else. '
+                . 'If a field needs a value the user did not give, do not fill it: answer with '
+                . 'response_type=clarification and ask for exactly that value. Never invent a value.';
         }
 
         if ($issuecode === 'CONTRACT_PHASE_SKILL_NOT_ALLOWED') {
@@ -1126,18 +1128,20 @@ class agent_runtime {
 
         if ($issuecode === 'PREFLIGHT_CHOICES_OFFERED') {
             return 'RETRY_HINT: The skill could not resolve a value of the previous command and lists the existing '
-                . 'choices below - NOTHING has been executed or staged. Re-plan this step once: if the user\'s request '
-                . 'clearly means exactly one of the choices, select the skill again and construct its command with '
-                . 'that choice\'s id. If none or several fit, answer with response_type=clarification and ask the '
-                . 'user, naming the choices. Never invent a choice.';
+                . 'choices below - NOTHING has been executed or staged. Re-plan this step once: match the user\'s '
+                . 'words to the choices by meaning, in any language, and by their attributes (active, days, status, '
+                . 'class, ...). If exactly one fits, select the skill again and construct its command with that '
+                . 'choice\'s id in the field named after "CHOICES for". Ask the user (response_type=clarification, '
+                . 'naming the choices) only when none fits or several fit equally. Never invent a choice.';
         }
 
         if ($issuecode === 'CONTRACT_CONFIRMATION_DOWNGRADED_TO_CLARIFICATION') {
             return 'RETRY_HINT: The previous construction described the action but carried NO command - NOTHING has '
                 . 'been executed or staged, so nothing is done yet. Re-plan this step once: select the skill that '
                 . 'performs the request and construct its command from the '
-                . 'values the user gave. If a value that only the user can give is genuinely missing, answer with '
-                . 'response_type=clarification and ask for exactly that value. Never invent a value.';
+                . 'values the user gave. Ask (response_type=clarification) only for a value that the user alone can '
+                . 'give and that no field description says the skill resolves or asks for itself. Never invent a '
+                . 'value.';
         }
 
         if (in_array($issuecode, self::EMPTY_MESSAGE_ISSUE_CODES, true)) {
