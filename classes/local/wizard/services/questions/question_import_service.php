@@ -115,6 +115,18 @@ class question_import_service {
 
         $ids = array_values(array_filter(array_map('intval', (array)($qformat->questionids ?? []))));
 
+        // Safety net (#2493): GIFT turns every paragraph without an answer block into a description question.
+        // Generated documents carry only real questions, so a description question means text that is not a
+        // question slipped through - the attempt fails and is rolled back like any other.
+        if ($ok && !empty($ids)) {
+            [$insql, $inparams] = $DB->get_in_or_equal($ids);
+            if ($DB->record_exists_select('question', "qtype = 'description' AND id $insql", $inparams)) {
+                $ok = false;
+                $output = 'The GIFT document contained text that is not a question (it became a description '
+                    . 'question). Return only GIFT questions, each with a ::name:: and an answer block.';
+            }
+        }
+
         if (!$ok || empty($ids)) {
             // Roll back anything created during a failed attempt so a retry does not duplicate.
             foreach ($ids as $id) {

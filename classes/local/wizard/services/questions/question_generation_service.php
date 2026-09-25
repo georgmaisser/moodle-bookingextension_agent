@@ -82,11 +82,76 @@ class question_generation_service {
         }
 
         $gift = self::extract_gift((string)($call['rawcontent'] ?? ''));
+        if ($gift === '') {
+            return ['success' => false, 'gift' => '', 'error' => 'The model did not return any GIFT content.'];
+        }
+        // A reply with more or fewer questions than requested (reasoning drafts, a second version) is a failed
+        // attempt the caller retries with this feedback - never a silent import of whatever came back (#2493).
+        $counterror = self::count_error($gift, $params);
         return [
-            'success' => $gift !== '',
-            'gift' => $gift,
-            'error' => $gift === '' ? 'The model did not return any GIFT content.' : '',
+            'success' => $counterror === '',
+            'gift' => $counterror === '' ? $gift : '',
+            'error' => $counterror,
         ];
+    }
+
+    /**
+     * The number of questions the prompt asks for (the same clamp build_prompt applies).
+     *
+     * @param array $params
+     * @return int
+     */
+    public static function requested_count(array $params): int {
+        return max(1, min(self::MAX_COUNT, (int)($params['count'] ?? 5)));
+    }
+
+    /**
+     * Feedback when the GIFT holds a different number of questions than requested; '' when it matches.
+     *
+     * @param string $gift Extracted GIFT.
+     * @param array $params
+     * @return string
+     */
+    public static function count_error(string $gift, array $params): string {
+        $expected = self::requested_count($params);
+        $found = count(self::question_blocks($gift));
+        if ($found === $expected) {
+            return '';
+        }
+        return 'Return exactly ' . $expected . ' questions as GIFT only; your reply contained ' . $found
+            . '. No reasoning, drafts or second versions.';
+    }
+
+    /**
+     * Split GIFT into its question blocks (deterministic, GIFT syntax only).
+     *
+     * A question block opens with a ::name:: (the prompt demands one on every question) and carries an answer
+     * block in braces. Lines before the ::name:: inside a block (a numbered draft glued to the question) are
+     * dropped; paragraphs without both markers - reasoning, commentary, headings - are not questions.
+     *
+     * @param string $gift
+     * @return string[]
+     */
+    public static function question_blocks(string $gift): array {
+        $blocks = [];
+        foreach (preg_split('/\R\s*\R/', trim($gift)) as $paragraph) {
+            $lines = preg_split('/\R/', trim((string)$paragraph));
+            $start = null;
+            foreach ($lines as $index => $line) {
+                if (strpos(ltrim((string)$line), '::') === 0) {
+                    $start = $index;
+                    break;
+                }
+            }
+            if ($start === null) {
+                continue;
+            }
+            $block = trim(implode("\n", array_slice($lines, $start)));
+            if (strpos($block, '{') !== false && strpos($block, '}') !== false) {
+                $blocks[] = $block;
+            }
+        }
+        return $blocks;
     }
 
     /**
@@ -98,7 +163,7 @@ class question_generation_service {
      * @return string
      */
     public static function build_prompt(string $sourcetext, array $params, string $feedback = ''): string {
-        $count = max(1, min(self::MAX_COUNT, (int)($params['count'] ?? 5)));
+        $count = self::requested_count($params);
         $qtypes = array_values(array_filter(array_map('strval', (array)($params['qtypes'] ?? []))));
         if (empty($qtypes)) {
             $qtypes = ['multichoice', 'truefalse', 'shortanswer'];
@@ -138,7 +203,8 @@ class question_generation_service {
     }
 
     /**
-     * Extract the GIFT body from a model reply, stripping any code fences (deterministic).
+     * Extract the GIFT questions from a model reply, stripping code fences and everything that is not a question
+     * block - reasoning or commentary around the GIFT never becomes a question (deterministic, #2493).
      *
      * @param string $raw
      * @return string
@@ -151,8 +217,8 @@ class question_generation_service {
         // Prefer the first fenced code block (a gift-labelled or unlabelled triple-backtick block), if any.
         // phpcs:ignore moodle.Strings.ForbiddenStrings.Found -- Literal backticks in a Markdown code-fence regex, not shell execution.
         if (preg_match('/```[a-zA-Z0-9_-]*\s*\n(.*?)```/s', $raw, $m)) {
-            return trim($m[1]);
+            $raw = trim($m[1]);
         }
-        return $raw;
+        return implode("\n\n", self::question_blocks($raw));
     }
 }
