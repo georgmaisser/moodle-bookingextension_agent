@@ -169,9 +169,9 @@ class update_quiz_skill extends core_skill_base implements skill_trigger_provide
                 ],
                 'usecoursepdfs' => [
                     'type' => 'boolean',
-                    'description' => 'Set true when the new questions should be generated from the PDF files stored IN the '
-                        . 'course (as file/resource activities), e.g. "questions from the PDF in the course". The system '
-                        . 'reads them itself - do not ask for the file or its content.',
+                    'description' => 'true = generate the questions from the PDFs stored in the '
+                        . 'course ("the PDF in the course"). The '
+                        . 'system reads them - never ask for the file.',
                     'required' => false,
                 ],
                 'resourcecmid' => [

@@ -268,17 +268,15 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
             'properties' => [
                 'content' => [
                     'type' => 'string',
-                    'description' => 'SOURCE MATERIAL only — the topic, the facts, or (if the user dictated it) the '
-                        . 'exact question and its correct answer, passed verbatim from the chat. Do NOT author or '
-                        . 'pre-formulate the questions yourself here; this skill writes the questions. Leave empty if '
-                        . 'the user uploaded a document/PDF instead.',
+                    'description' => 'Source material only, verbatim from the chat: topic, facts, '
+                        . 'or a dictated question and answer. '
+                        . 'Never write the questions. Empty if a document is the source.',
                     'required' => false,
                 ],
                 'count' => [
                     'type' => 'integer',
-                    'description' => 'How many questions to generate (max ' . question_generation_service::MAX_COUNT
-                        . '). There is NO default — set it to the number the user gave; if they did not say how many, '
-                        . 'leave it out so the system asks (never invent a number).',
+                    'description' => 'How many questions (max ' . question_generation_service::MAX_COUNT
+                        . '). No default: the user\'s number, else leave out and the system asks.',
                     'required' => false,
                 ],
                 'qtypes' => [
@@ -299,24 +297,21 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
                 'target_category' => [
                     'type' => 'string',
-                    'description' => 'The question-bank category to use, ONLY when the user explicitly names one '
-                        . '(e.g. "use the Biology category"). Pass the user\'s wording verbatim. Do NOT ask the user '
-                        . 'which category to use and do NOT invent one — if the choice matters, the system lists the '
-                        . 'available categories itself. Leave empty otherwise.',
+                    'description' => 'Question-bank category, only when the user names one (their words). Never ask or invent: the '
+                        . 'system lists the categories when it matters.',
                     'required' => false,
                 ],
                 'target_categoryid' => [
                     'type' => 'integer',
-                    'description' => 'Internal: numeric id of the chosen question-bank category. Normally leave empty '
-                        . '— never guess an id. The system fills it in when the user picks from the listed categories.',
+                    'description' => 'Internal id of the chosen category; the system fills it when the user picks from its list. '
+                        . 'Never guess an id.',
                     'required' => false,
                 ],
                 'coursequery' => [
                     'type' => 'string',
-                    'description' => 'Target a DIFFERENT course than the current one, ONLY when the user explicitly '
-                        . 'names one (e.g. "create the questions in the course Biology 101"). Pass the user\'s wording '
-                        . 'verbatim; the system resolves it, no course.search_courses lookup first. Leave empty to '
-                        . 'create the questions in the current course.',
+                    'description' => 'A DIFFERENT course, only when the user names one (their '
+                        . 'words); the system resolves it. Empty = '
+                        . 'the current course.',
                     'required' => false,
                 ],
                 'courseid' => [
@@ -327,18 +322,14 @@ class generate_questions_skill extends core_skill_base implements skill_trigger_
                 ],
                 'resourcecmid' => [
                     'type' => 'integer',
-                    'description' => 'Course-module id (cmid) of ONE specific file/resource activity in the target '
-                        . 'course whose PDF should be the source material, when the user points at one specific '
-                        . 'course file AND the id is already known (e.g. from a prior listing). Never guess an id; '
-                        . 'leave empty otherwise.',
+                    'description' => 'Cmid of ONE file/resource whose PDF is the source, only when that id is already known. Never '
+                        . 'guess an id.',
                     'required' => false,
                 ],
                 'usecoursepdfs' => [
                     'type' => 'boolean',
-                    'description' => 'Set true when the questions should be based on the PDF files stored IN the '
-                        . 'target course (as file/resource activities), e.g. "create a quiz from the PDFs in this '
-                        . 'course". The system reads and extracts those files itself — do NOT ask the user to upload '
-                        . 'them again. Combine with courseid/coursequery when the user names another course.',
+                    'description' => 'true = use the PDFs stored in the target course ("the PDF in the course"). The system reads '
+                        . 'them - never ask for the file, its name or content.',
                     'required' => false,
                 ],
             ],

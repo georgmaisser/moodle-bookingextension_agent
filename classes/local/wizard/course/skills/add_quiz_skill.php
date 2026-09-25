@@ -160,15 +160,15 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'content' => [
                     'type' => 'string',
-                    'description' => 'SOURCE MATERIAL to GENERATE questions from: a topic, facts, or document text the '
-                        . 'user provided. Setting this generates questions. Do not author the questions yourself.',
+                    'description' => 'Source material to generate questions from: a topic, facts or document text the user gave. '
+                        . 'Never write the questions yourself.',
                     'required' => false,
                 ],
                 'usecoursepdfs' => [
                     'type' => 'boolean',
-                    'description' => 'Set true when the new questions should be generated from the PDF files stored IN the '
-                        . 'course (as file/resource activities), e.g. "questions from the PDF in the course". The system '
-                        . 'reads them itself - do not ask for the file or its content.',
+                    'description' => 'true = generate the questions from the PDFs stored in the '
+                        . 'course ("the PDF in the course"). The '
+                        . 'system reads them - never ask for the file.',
                     'required' => false,
                 ],
                 'resourcecmid' => [
@@ -179,9 +179,8 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'count' => [
                     'type' => 'integer',
-                    'description' => 'How many questions to generate / add. There is NO default when generating '
-                        . 'from content — set it to the number the user gave; if they did not say, leave it out so '
-                        . 'the system asks (never invent a number).',
+                    'description' => 'How many questions. No default when generating: the user\'s number, else leave out and the '
+                        . 'system asks - never invent one.',
                     'required' => false,
                 ],
                 'qtypes' => [
@@ -214,9 +213,9 @@ class add_quiz_skill extends core_skill_base implements skill_trigger_provider_i
                 ],
                 'coursequery' => [
                     'type' => 'string',
-                    'description' => 'Name of a DIFFERENT course, ONLY when the user names one (their wording '
-                        . 'verbatim). The system resolves it; no course.search_courses lookup first. Leave empty for the '
-                        . 'current course.',
+                    'description' => 'A DIFFERENT course, only when the user names one (their '
+                        . 'words); the system resolves it. Empty = '
+                        . 'the current course.',
                     'required' => false,
                 ],
                 'courseid' => [
