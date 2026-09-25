@@ -85,8 +85,8 @@ class question_generation_service {
         if ($gift === '') {
             return ['success' => false, 'gift' => '', 'error' => 'The model did not return any GIFT content.'];
         }
-        // A reply with more or fewer questions than requested (reasoning drafts, a second version) is a failed
-        // attempt the caller retries with this feedback - never a silent import of whatever came back (#2493).
+        // A reply with more questions than requested (reasoning drafts, a second version) is a failed attempt the
+        // caller retries with this feedback - never a silent import of whatever came back (#2493).
         $counterror = self::count_error($gift, $params);
         return [
             'success' => $counterror === '',
@@ -106,7 +106,10 @@ class question_generation_service {
     }
 
     /**
-     * Feedback when the GIFT holds a different number of questions than requested; '' when it matches.
+     * Feedback when the GIFT holds no question or more questions than requested; '' otherwise.
+     *
+     * More than requested is the reasoning/draft shape of #2493 and fails the attempt. Fewer is imported and
+     * reported honestly with the real count (thread 587) - the model is never pushed to pad the set.
      *
      * @param string $gift Extracted GIFT.
      * @param array $params
@@ -115,7 +118,7 @@ class question_generation_service {
     public static function count_error(string $gift, array $params): string {
         $expected = self::requested_count($params);
         $found = count(self::question_blocks($gift));
-        if ($found === $expected) {
+        if ($found > 0 && $found <= $expected) {
             return '';
         }
         return 'Return exactly ' . $expected . ' questions as GIFT only; your reply contained ' . $found

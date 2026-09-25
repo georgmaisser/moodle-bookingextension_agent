@@ -28,8 +28,8 @@ use bookingextension_agent\local\wizard\services\questions\question_import_servi
  * these in German:") plus two drafts of the real questions. The GIFT importer turns every paragraph without an
  * answer block into a description question, and nothing compared the result with the requested count.
  * The fix is structural (GIFT syntax, no words): only blocks that open with a ::name:: and carry an answer block
- * are questions, the number of questions must match the requested count, and an import that still produces a
- * description question is rolled back.
+ * are questions, more questions than requested fail the attempt (fewer stay allowed and are reported honestly,
+ * thread 587), and an import that still produces a description question is rolled back.
  *
  * @package    bookingextension_agent
  * @covers     \bookingextension_agent\local\wizard\services\questions\question_generation_service
@@ -85,13 +85,14 @@ final class question_generation_reasoning_leak_test extends advanced_testcase {
     }
 
     /**
-     * A reply with more (or fewer) questions than requested is a failed attempt, not a silent import.
+     * More questions than requested fail the attempt; fewer are imported and reported honestly (thread 587).
      */
-    public function test_count_mismatch_is_reported(): void {
+    public function test_more_questions_than_requested_fail_the_attempt(): void {
         $gift = question_generation_service::extract_gift($this->reply_with_reasoning());
         $this->assertSame('', question_generation_service::count_error($gift, ['count' => 2]));
-        $this->assertNotSame('', question_generation_service::count_error($gift, ['count' => 5]));
         $this->assertNotSame('', question_generation_service::count_error($gift, ['count' => 1]));
+        $this->assertSame('', question_generation_service::count_error($gift, ['count' => 5]), 'fewer is not padded');
+        $this->assertNotSame('', question_generation_service::count_error('', ['count' => 5]), 'none is a failure');
     }
 
     /**
