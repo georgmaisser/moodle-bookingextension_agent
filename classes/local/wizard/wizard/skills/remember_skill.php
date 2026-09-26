@@ -80,6 +80,16 @@ class remember_skill extends core_skill_base implements skill_trigger_provider_i
                 'always address me as Dr. Smith',
                 'note that I always need room B',
                 'save this preference for next time',
+                // Wave 32 (A3): a standing default for the things the agent CREATES. Such a request names a
+                // creatable object and a setting, so the object skills (create/update course, activity, option)
+                // outscored every anchor above and remember fell to rank 10-27 (catalogue = semantic top 12 plus
+                // the search fallback; it missed the catalogue in 9 of 12 threads, L30-L43 incl. the Sol control).
+                // These anchors carry the intent class "remember my default for what you create", never the
+                // wording of a test prompt; none of them names a concrete setting. (Review w32s-a3: a third
+                // anchor "... my default for all future requests" was dropped - it echoed the framing of an
+                // existing memory prompt and lay outside this intent class.)
+                'remember my default setting for everything you create for me from now on',
+                'remember my personal defaults for creating courses, activities and booking options',
             ],
             'properties' => [
                 'memory' => [
