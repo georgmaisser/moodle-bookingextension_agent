@@ -16,9 +16,12 @@
 
 namespace bookingextension_agent;
 
+use bookingextension_agent\local\wizard\core\skills\diagnose_notifications_skill;
+use bookingextension_agent\local\wizard\core\skills\diagnose_permissions_skill;
 use bookingextension_agent\local\wizard\course\skills\add_quiz_skill;
 use bookingextension_agent\local\wizard\course\skills\update_quiz_skill;
 use bookingextension_agent\local\wizard\question\skills\generate_questions_skill;
+use bookingextension_agent\local\wizard\wizard\skills\scaffold_skill;
 
 /**
  * The field descriptions of the question skills reach the constructor whole.
@@ -34,6 +37,9 @@ use bookingextension_agent\local\wizard\question\skills\generate_questions_skill
  * @covers     \bookingextension_agent\local\wizard\question\skills\generate_questions_skill
  * @covers     \bookingextension_agent\local\wizard\course\skills\add_quiz_skill
  * @covers     \bookingextension_agent\local\wizard\course\skills\update_quiz_skill
+ * @covers     \bookingextension_agent\local\wizard\wizard\skills\scaffold_skill
+ * @covers     \bookingextension_agent\local\wizard\core\skills\diagnose_notifications_skill
+ * @covers     \bookingextension_agent\local\wizard\core\skills\diagnose_permissions_skill
  */
 final class field_descriptions_fit_the_prompt_test extends \advanced_testcase {
     /** The cap of skill_input_schema_projection::MAX_DESCRIPTION_CHARS. */
@@ -57,6 +63,27 @@ final class field_descriptions_fit_the_prompt_test extends \advanced_testcase {
                     $skill->get_name() . '.' . $field . ': ' . $text
                 );
             }
+        }
+    }
+
+    /**
+     * Wave 32 (A3): the field texts rewritten in this wave reach the constructor whole - every scaffold_skill field
+     * and the userquery field of both diagnosis skills (the other diagnose_permissions fields are older and longer).
+     */
+    public function test_wave32_rewritten_field_descriptions_are_not_cut(): void {
+        $fields = [];
+        foreach ((array)((new scaffold_skill())->get_schema()['properties'] ?? []) as $field => $definition) {
+            $fields['wizard.scaffold_skill.' . $field] = (string)($definition['description'] ?? '');
+        }
+        foreach ([new diagnose_notifications_skill(), new diagnose_permissions_skill()] as $skill) {
+            $properties = (array)($skill->get_schema()['properties'] ?? []);
+            $this->assertArrayHasKey('userquery', $properties, $skill->get_name());
+            $fields[$skill->get_name() . '.userquery'] = (string)($properties['userquery']['description'] ?? '');
+        }
+        foreach ($fields as $key => $description) {
+            $text = trim((string)preg_replace('/\s+/u', ' ', $description));
+            $this->assertNotSame('', $text, $key);
+            $this->assertLessThanOrEqual(self::CAP, \core_text::strlen($text), $key . ': ' . $text);
         }
     }
 }

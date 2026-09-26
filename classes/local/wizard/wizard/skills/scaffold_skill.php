@@ -79,52 +79,57 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
                 'Create my own skill',
             ],
             'properties' => [
+                // Wave 32 (A3): no sample component name here any more. The old text offered "mod/myplugin", and the
+                // constructor copied it or a variant as the user's plugin when none was named (SCA-1 thread 10587
+                // "mod/myplugin", SCA-2 threads 11376/12721 "local/myplugin") - a template for a plugin nobody has.
                 'component' => [
                     'type' => 'string',
-                    'description' => 'Target plugin component the skill is for, e.g. "mod/myplugin" or '
-                        . '"local/entities". Drives namespace, capability and file paths.',
+                    'description' => 'Component of the plugin the user named, written type/name or type_name. Never a '
+                        . 'sample or made-up name. Drives namespace, capability and file paths.',
                     'required' => true,
                 ],
+                // Wave 32 (A3, SCA-4 thread 10581): the constructor asked what "Anwesenheit erfassen" should do although
+                // the command's name was given. The template leaves the behaviour as TODO, so a name is enough.
                 'description' => [
                     'type' => 'string',
-                    'description' => 'What the new skill should do, in natural language.',
+                    'description' => 'What the new skill should do, in natural language. The name or short phrase the '
+                        . 'user gave the command is enough; the template leaves behaviour as TODO.',
                     'required' => true,
                 ],
                 'is' => [
                     'type' => 'string',
                     'description' => 'Optional one short English clause naming what the new skill covers, '
-                        . 'printed on the selector card as "IS:".',
+                        . 'printed on the selector card as "IS:". Only when the user gave it.',
                     'required' => false,
                 ],
                 'not' => [
                     'type' => 'string',
-                    'description' => 'Optional one short English clause naming what a neighbouring skill '
-                        . 'covers instead (that skill in brackets), printed on the card as "NOT:". It '
-                        . 'belongs here and never in the description, which is embedded for retrieval.',
+                    'description' => 'Optional short English clause: what a neighbouring skill covers instead '
+                        . '(skill in brackets), shown as "NOT:"; never in the description. Only if user-given.',
                     'required' => false,
                 ],
                 'example_utterances' => [
                     'type' => 'array',
                     'description' => 'Optional sentences a user would really say to reach the new skill. '
-                        . 'Each one becomes its own semantic discovery anchor, so more is better.',
+                        . 'Each one becomes its own semantic discovery anchor. Only the ones the user gave.',
                     'required' => false,
                 ],
                 'skillname' => [
                     'type' => 'string',
-                    'description' => 'Optional desired skill name as "<namespace>.<action>" (lowercase). '
-                        . 'If omitted, a name is derived from the description.',
+                    'description' => 'Optional desired skill name as "<namespace>.<action>" (lowercase), only '
+                        . 'when the user gave one. If omitted, a name is derived from the description.',
                     'required' => false,
                 ],
                 'risk_class' => [
                     'type' => 'string',
                     'description' => 'Risk level: read_only, scoped_write, broad_write or '
-                        . 'irreversible_or_external. Defaults to read_only.',
+                        . 'irreversible_or_external, only when the user stated it. Defaults to read_only.',
                     'required' => false,
                 ],
                 'properties' => [
                     'type' => 'array',
-                    'description' => 'Input fields the new skill should accept; each item is an object '
-                        . '{name, type, description, required}.',
+                    'description' => 'Input fields for the new skill, only those the user listed; each item '
+                        . '{name, type, description, required}. Omit otherwise: the template has a placeholder.',
                     'required' => false,
                 ],
                 'capabilities' => [
@@ -179,8 +184,17 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
         $errors = [];
         $issuecodes = [];
 
-        if (trim((string)($input['component'] ?? '')) === '') {
+        $component = trim((string)($input['component'] ?? ''));
+        if ($component === '') {
             $errors[] = get_string('agent_scaffold_component_required', 'bookingextension_agent');
+            $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
+        } else if (!self::is_valid_component($component)) {
+            // Wave 32 (A3, SCA-2 thread 13042): "local-Plugin" was accepted and became the component
+            // "local_plugin". A component is a known plugin type plus a valid plugin name - checked against
+            // core_component, structurally, never by the words the user used.
+            // No echo of the value: the error text reaches the model and the user unchanged, so it stays a
+            // plain get_string without input (no escaping question, no masked value in a user-facing text).
+            $errors[] = get_string('agent_scaffold_component_invalid', 'bookingextension_agent');
             $issuecodes[] = 'RECOVERABLE_INPUT_ERROR';
         }
         if (trim((string)($input['description'] ?? '')) === '') {
@@ -194,6 +208,25 @@ class scaffold_skill extends core_skill_base implements skill_trigger_provider_i
             'ambiguities' => [],
             'issue_codes' => array_values(array_unique($issuecodes)),
         ];
+    }
+
+    /**
+     * Whether a value is a plugin component: a known plugin type and a name Moodle accepts for that type.
+     *
+     * Accepts "type/name" (the form the generator uses) and the frankenstyle "type_name".
+     *
+     * @param string $component
+     * @return bool
+     */
+    private static function is_valid_component(string $component): bool {
+        $normalised = str_replace('\\', '/', \core_text::strtolower(trim($component)));
+        if (strpos($normalised, '/') !== false) {
+            [$type, $name] = explode('/', $normalised, 2);
+        } else {
+            [$type, $name] = \core_component::normalize_component($normalised);
+        }
+        return array_key_exists((string)$type, \core_component::get_plugin_types())
+            && \core_component::is_valid_plugin_name((string)$type, (string)$name);
     }
 
     /**

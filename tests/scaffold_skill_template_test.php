@@ -180,6 +180,58 @@ final class scaffold_skill_template_test extends \advanced_testcase {
     }
 
     /**
+     * Wave 32 (A3): the component is a plugin type plus a valid plugin name, in either written form; anything
+     * else is a recoverable input error that asks for the plugin (SCA-2 thread 13042 accepted "local-Plugin").
+     *
+     * @dataProvider component_provider
+     * @param string $component
+     * @param bool $valid
+     */
+    public function test_check_structure_validates_the_component(string $component, bool $valid): void {
+        $this->resetAfterTest();
+        $check = (new scaffold_skill())->check_structure(['component' => $component, 'description' => 'Take attendance.']);
+        $this->assertSame($valid, (bool)($check['valid'] ?? false), $component . ': ' . json_encode($check));
+        if (!$valid) {
+            $this->assertContains('RECOVERABLE_INPUT_ERROR', (array)($check['issue_codes'] ?? []));
+            $this->assertSame(
+                [get_string('agent_scaffold_component_invalid', 'bookingextension_agent')],
+                (array)($check['errors'] ?? []),
+                'the refusal is the language-pack text alone, without the value or a field list'
+            );
+        }
+    }
+
+    /**
+     * Components as a constructor writes them.
+     *
+     * @return array
+     */
+    public static function component_provider(): array {
+        return [
+            'slash form' => ['local/anwesenheit', true],
+            'frankenstyle form' => ['local_salles', true],
+            'module' => ['mod/scaffolddemo', true],
+            'upper case is normalised' => ['Local/Anwesenheit', true],
+            'hyphenated word' => ['local-Plugin', false],
+            'unknown plugin type' => ['plugin/anwesenheit', false],
+            'module name with underscore' => ['mod/my_plugin', false],
+            'type without a name' => ['local/', false],
+        ];
+    }
+
+    /**
+     * Wave 32 (A3): the component field carries no sample plugin name the constructor could copy
+     * (SCA-1 thread 10587 "mod/myplugin", SCA-2 threads 11376 and 12721 "local/myplugin").
+     */
+    public function test_component_field_offers_no_sample_name(): void {
+        $schema = (new scaffold_skill())->get_schema();
+        $description = (string)($schema['properties']['component']['description'] ?? '');
+        $this->assertNotSame('', $description);
+        $this->assertStringNotContainsString('myplugin', $description);
+        $this->assertDoesNotMatchRegularExpression('#"[a-z]+/[a-z0-9_]+"#', $description, 'no quoted sample component');
+    }
+
+    /**
      * When the namespace derived from the component is reserved (booking/core/wizard), the
      * generator falls back to the full component name instead of rejecting it.
      *
