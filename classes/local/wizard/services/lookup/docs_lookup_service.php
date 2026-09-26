@@ -44,6 +44,9 @@ use bookingextension_agent\local\wizard\services\retrieval\embeddings_store_fact
  * full files into the LLM context on each call.
  */
 class docs_lookup_service {
+    /** Line count that asks for the whole page in one window. */
+    public const WHOLE_PAGE = 0;
+
     /** Default number of lines to return per read window. */
     private const DEFAULT_LINE_COUNT = 80;
 
@@ -487,7 +490,10 @@ class docs_lookup_service {
         $totallines = count($alllines);
 
         $linestart = max(1, $linestart);
-        $linecount = max(10, min($linecount, self::DEFAULT_LINE_COUNT * 2));
+        // WHOLE_PAGE (0) returns the page from $linestart to its end in one window (explain_docs whole_page).
+        $linecount = $linecount === self::WHOLE_PAGE
+            ? $totallines
+            : max(10, min($linecount, self::DEFAULT_LINE_COUNT * 2));
 
         $slicedlines = array_slice($alllines, $linestart - 1, $linecount);
         $windowcontent = implode("\n", $slicedlines);

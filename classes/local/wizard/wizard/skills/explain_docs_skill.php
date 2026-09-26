@@ -99,7 +99,10 @@ class explain_docs_skill extends core_skill_base implements
                 . 'language-agnostically. Use this skill whenever the user asks how something works, how to configure a feature, '
                 . 'or what a term means in the context of this plugin. Documentation answers are strictly grounded: only the '
                 . 'returned excerpt counts — never answer such questions from general knowledge.',
-            'is' => 'The written documentation.',
+            // Real-LLM re-check 2026-09-26: the selector refused "read the whole file" because the card promised only
+            // "the excerpt that answers the question"; whole_page was invisible to it (a construction field).
+            'is' => 'The written documentation: the passage that answers a question, or a whole page when the user asks '
+                . 'for it.',
             'not' => 'Field lists derived from code (mod_booking.list_option_properties, '
                 . 'local_taskflow.list_rule_properties); capability questions (search_skills).',
             'readonly' => $this->is_read_only(),
@@ -150,6 +153,12 @@ class explain_docs_skill extends core_skill_base implements
                     'description' => 'Up to 3 documentation paths to try in order when the exact file is not certain.',
                     'items' => ['type' => 'string'],
                     'maxItems' => 3,
+                    'required' => false,
+                ],
+                'whole_page' => [
+                    'type' => 'boolean',
+                    'description' => 'true when the user asks for the whole page or document: it is returned complete in '
+                        . 'one result.',
                     'required' => false,
                 ],
                 'line_start' => [
@@ -283,6 +292,11 @@ class explain_docs_skill extends core_skill_base implements
         // The window size is the skill's decision, not a model value: in L43 re-checks the construction chose 80 lines
         // for a continuation and the longest page no longer fitted the loop budget.
         $linecount = $defaultcount;
+        // George 2026-09-26: a long page must be readable as a whole. whole_page returns it in one result, so no
+        // chain of calls can stop half-way (real-LLM re-check: the model stopped after 40, 220 of 430 lines).
+        if (!empty($input['whole_page'])) {
+            $linecount = docs_lookup_service::WHOLE_PAGE;
+        }
 
         if ($question === '') {
             return $this->error_result(

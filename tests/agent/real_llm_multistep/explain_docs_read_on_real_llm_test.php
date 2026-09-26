@@ -126,6 +126,63 @@ final class explain_docs_read_on_real_llm_test extends abstract_agent_testcase {
     }
 
     /**
+     * "Read the whole page": every line of the longest page is read in this turn (whole_page, one result).
+     */
+    public function test_the_model_reads_a_long_page_completely(): void {
+        $this->setUser($this->teacher);
+        [$store, $runtime, $threadid] = $this->build_runtime();
+
+        $result = $this->chat(
+            'Lies die komplette Doku CSV_IMPORT_USER_GUIDE.md von Anfang bis Ende und nenne mir danach die '
+                . 'Überschrift des allerletzten Abschnitts.',
+            (int)$threadid,
+            $store,
+            $runtime
+        );
+
+        [$inputs, $observations] = $this->doc_reads((int)$threadid);
+        // Every line of the page was inside some read window (a jump straight to the last section is not enough).
+        preg_match_all('/Lines (\d+)–(\d+) of 430\./', $observations, $windows, PREG_SET_ORDER);
+        $covered = [];
+        foreach ($windows as $window) {
+            for ($line = (int)$window[1]; $line <= (int)$window[2]; $line++) {
+                $covered[$line] = true;
+            }
+        }
+        $this->assertCount(430, $covered, $this->diagnosis((int)$threadid, $result, $inputs));
+        $this->assertStringContainsString('Example files', $this->payload_text($result));
+    }
+
+    /**
+     * What the turn did, for a failure message: the skills that ran, their inputs, the final reply.
+     *
+     * @param int $threadid
+     * @param array $result
+     * @param array $inputs
+     * @return string
+     */
+    private function diagnosis(int $threadid, array $result, array $inputs): string {
+        global $DB;
+        $skills = [];
+        foreach ($DB->get_records('bx_agent_ai_runs', ['threadid' => $threadid], 'id ASC') as $run) {
+            foreach ((array)json_decode((string)$run->commandsjson, true) as $command) {
+                $skills[] = (string)($command['skill'] ?? '');
+            }
+        }
+        $calls = [];
+        foreach ($DB->get_records('bx_agent_ai_llm_debug', ['threadid' => $threadid], 'id ASC') as $call) {
+            $source = explode('|', (string)$call->source);
+            $response = preg_replace('/\s+/', ' ', (string)$call->responsetext);
+            $calls[] = ($source[1] ?? $source[0]) . ': ' . mb_substr($response, 0, 300);
+        }
+        return 'skills=' . json_encode($skills) . ' docinputs=' . json_encode($inputs)
+            . ' calls=' . json_encode($calls, JSON_UNESCAPED_UNICODE)
+            . ' response_type=' . (string)($result['response_type'] ?? '')
+            . ' issue_codes=' . json_encode($result['issue_codes'] ?? [])
+            . ' reply=' . mb_substr($this->payload_text($result), 0, 400);
+    }
+
+    /**
      * "Read on" on request, turn by turn: every continuation starts exactly where the previous read stopped, and the
      * longest page is read to its last line.
      */

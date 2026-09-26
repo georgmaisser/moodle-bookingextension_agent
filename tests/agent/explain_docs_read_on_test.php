@@ -149,6 +149,19 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
     }
 
     /**
+     * whole_page returns the longest page complete in one result, with nothing left to read on.
+     */
+    public function test_whole_page_returns_the_page_complete(): void {
+        $result = $this->read(['doc_path' => self::LONGEST, 'whole_page' => true]);
+        $observation = (string)$result['observation_full'];
+
+        $this->assertStringContainsString('Lines 1–430 of 430.', $observation);
+        $this->assertStringContainsString('## 19. Example files', $observation);
+        $this->assertStringNotContainsString('To read on:', $observation);
+        $this->assertStringNotContainsString('Not in this excerpt:', $observation);
+    }
+
+    /**
      * Field descriptions, guidance and observation say the same thing, and the descriptions fit the card window.
      */
     public function test_the_contract_is_consistent_and_fits_the_card(): void {
@@ -156,11 +169,14 @@ final class explain_docs_read_on_test extends abstract_agent_testcase {
         $properties = (array)($skill->get_schema()['properties'] ?? []);
         // The window size is the skill's decision: no line_count for the model to set.
         $this->assertArrayNotHasKey('line_count', $properties);
-        foreach (['line_start', 'doc_path', 'corpus_id', 'doc_path_candidates'] as $field) {
+        foreach (['line_start', 'doc_path', 'corpus_id', 'doc_path_candidates', 'whole_page'] as $field) {
             $this->assertLessThanOrEqual(159, mb_strlen((string)$properties[$field]['description']), $field);
         }
         $this->assertStringContainsString('To read on', (string)$properties['line_start']['description']);
         $this->assertStringContainsString('To read on', (string)$properties['doc_path']['description']);
+
+        // The selector decides on the card: it must know that a whole page can be asked for (real-LLM re-check).
+        $this->assertStringContainsString('whole page', (string)($skill->get_schema()['is'] ?? ''));
 
         $guidance = implode("\n", (array)($skill->get_contextual_prompt_packs()[0]['guidance'] ?? []));
         $this->assertStringContainsString('To read on', $guidance);
